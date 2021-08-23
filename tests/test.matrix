@@ -1,0 +1,15 @@
+# system def : system_dummy_feature,system_dummy_meas
+# system names : dev p3a,dev p3b,dev p2,devmeas p3a,devmeas p3b,devmeas p2,timeUTC
+# system units : cnta,cntb,cnt,cnta,cntb,cnt,s
+import numpy as np
+fields = np.linspace(0, 20e-3, 11)
+currents = np.linspace(-1e-4, 1e-4, 2)
+for field in fields:
+ set_value(1, field)
+ for current in currents:
+  set_value(5, current)
+  wait(0.01)
+  print(f"current field {field}")
+  print(measure_system("epische_messdatei",
+                       comment="testcomment"))
+
