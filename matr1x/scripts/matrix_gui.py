@@ -586,7 +586,8 @@ class MainWindow(QWidget):
 
     def getLatestOutput(self):
         if self.outputFile is not None and "" != self.outputFile:
-            folder, name = os.path.split(self.outputFile)
+            folder, nameext = os.path.split(self.outputFile)
+            name = os.path.splitext(nameext)[0]
             try:
                 dummy = os.listdir(folder)
             except FileNotFoundError:
