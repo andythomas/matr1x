@@ -460,7 +460,6 @@ class MainWindow(QWidget):
         self.commentField.setToolTip("Any measurement or sample information, \n"
                                      "which should be added to the data-file "
                                      "header")
-        self.commentField.setMaximumHeight(80)
 
         self.runButton = QPushButton("Enter Matrix")
         self.runButton.clicked.connect(self.runMatrix)
