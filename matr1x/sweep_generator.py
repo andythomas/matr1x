@@ -570,6 +570,8 @@ class MainWindow(QDialog):
             outputFile.write(",".join(self.flat_col))
             outputFile.write("\n# Settable units : ")
             outputFile.write(",".join(self.flat_unit))
+            outputFile.write("\n# Settable column label : ")
+            outputFile.write(",".join(self.col_sign))
             outputFile.write("\n# params : ")
             outputFile.write(str(self.sweep_params))
             outputFile.write("\n# loop_over : ")
