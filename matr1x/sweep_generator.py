@@ -3,11 +3,12 @@ This module contains a gui application for the creation of sweeps for matrix
 in a reasonably straight forward fashion. Heavily relies on numpy.linspace
 for the creation of the sweep segments.
 """
+import os
 import sys
 import time
 from ast import literal_eval
 from math import floor
-from os.path import basename, exists, expanduser, join, splitext
+from os.path import basename, exists, expanduser, join, splitext, split
 
 import pyqtgraph as pg
 from numpy import linspace
@@ -19,9 +20,14 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QWidget)
 
 from . import systems_directory
+from . import systems as core_systems
 from .gui_util import CustomViewBox
 from .util import (calculate_sweep, generate_col_index, get_settable_columns,
                    merge_systems)
+
+# overwrite core_systems with list of systems
+core_systems = [splitext(system)[0] for system in
+                os.listdir(core_systems.__path__[0]) if "system" in system]
 
 usersfolder = join(expanduser("~"), "users")
 if exists(usersfolder) is False:
@@ -262,9 +268,12 @@ class MainWindow(QDialog):
         systemFilename = self.fileEdit.text()
         if systemFilename == "":
             return
-        self.systemFilename = systemFilename
         modulestr = ""
-        filenames = self.systemFilename.split(",")
+        filenames = systemFilename.split(",")
+        filenames = [split(filename)[-1] if
+                     basename(splitext(split(filename)[-1])[0]) in core_systems
+                     else filename for filename in filenames]
+        self.systemFilename = ",".join(filenames)
         try:
             self.system = merge_systems(filenames)
             for file in filenames:
