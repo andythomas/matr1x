@@ -85,7 +85,7 @@ class SweepPreviewPopup(QDialog):
         grid = QGridLayout()
 
         closeButton = QPushButton("Close preview")
-        closeButton.clicked.connect(self.closePopup)
+        closeButton.clicked.connect(self.close)
 
         updateButton = QPushButton("Update plot")
         updateButton.clicked.connect(self.refreshLists)
@@ -288,12 +288,6 @@ class SweepPreviewPopup(QDialog):
                          self.header[1][self.indexX])
         self.pw.setLabel("left", self.header[0][self.indexY],
                          self.header[1][self.indexY])
-
-    def closePopup(self):
-        """
-        Obvious...
-        """
-        self.close()
 
 
 class ExecThread(QThread):

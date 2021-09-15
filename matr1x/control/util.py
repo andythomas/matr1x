@@ -140,7 +140,7 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
       to be generated
     layoutDictInit : dict
       If a combo box is specified in the layoutDict, the corresponding values
-      that is should be populated with should be specified here
+      that it should be populated with should be specified here
 
     Returns
     -----
