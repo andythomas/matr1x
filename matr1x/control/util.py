@@ -426,21 +426,26 @@ def sendNotificationEmail(address, subject, msgtext, attachments=[]):
 
 
 class OutputRedirection(object):
-    def __init__(self, stream, prefix='control'):
+    def __init__(self, stream, prefix='control', fallbackname=""):
         """
         object for output duplication into a file. Useful to avoid loss of
         output upon crash of GUI programs.
         """
         self.terminal = stream
-        name = stream.name.strip('<>')
+        if stream is not None:
+            name = stream.name.strip('<>')
+        else:
+            name = fallbackname
         self.log = open(os.path.join(logfolder, f"{prefix}-{name}.log"), "a")
-        print(f"opening log: {self.log}")
+        print(f"opening log: {self.log.name}")
 
     def write(self, message):
-        self.terminal.write(message)
+        if self.terminal is not None:
+            self.terminal.write(message)
         self.log.write(message)
         self.flush()
 
     def flush(self):
-        self.terminal.flush()
+        if self.terminal is not None:
+            self.terminal.flush()
         self.log.flush()

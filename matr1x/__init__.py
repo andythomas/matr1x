@@ -39,5 +39,6 @@ if os.path.exists(logfolder):
     kwargs["filemode"] = 'a'
 else:
     logfolder = tempfile.gettempdir()  # set logfolder to temp directory
-    kwargs["stream"] = sys.stdout
+    if sys.stdout is not None:
+        kwargs["stream"] = sys.stdout
 logging.basicConfig(**kwargs)

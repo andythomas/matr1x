@@ -3,11 +3,16 @@ import os
 import sys
 import threading
 import time
+import traceback
 
 from matr1x import logfolder, scpi_tcpserver
 from matr1x.devices.scpi_dev import makeSCPIdevice, set_cmd_funcs
-from PyQt5.QtWidgets import QApplication, QGridLayout, QWidget
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QTextCursor
+from PyQt5.QtWidgets import (QApplication, QGridLayout, QMainWindow,
+                             QMessageBox, QPlainTextEdit, QWidget)
 
+from ..gui_util import EmittingStream
 from .util import (OutputRedirection, QtGracefulKiller,
                    connectDictValueToDisplay, constructLayout, copyValues, var)
 
@@ -37,7 +42,7 @@ cmd_list = {"*idn": [None, None, [], str,
 clientdevice = makeSCPIdevice(cmd_list)
 
 
-class MainWindow(QWidget):
+class MainWindow(QMainWindow):
     """
     Define layout, runs everything
     """
@@ -56,16 +61,20 @@ class MainWindow(QWidget):
     exampleDict = {"Example": [None, ["Readout", "Setpoint"]],
                    "V1": [var(int, int), [4, 4]],
                    "V2": [var(float), [1, 1]],
-                   "V3": [var(bool), [2, 2]],
+                   "V3": [var(bool, bool), [2, 2]],
                    "Set": [None, [0, 0]]}
     exampleDictInit = {"V1": ["i1", "i2"]}
+    error = pyqtSignal([Exception, str])
 
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("dummy")
         # initialize paramaters
         self.running = False
+        self.terminate = False
         self.terminated = False
         self.devInit = False
+        self.error[Exception, str].connect(self.handleError)
         # initialize local variable storage
         self.v1 = 0
         self.v2 = 0
@@ -73,6 +82,12 @@ class MainWindow(QWidget):
         self.localServer = None
         # initialize GUI
         self.initUI()
+        self.show()
+
+        self.output_stream = EmittingStream(text_written=self.output_written)
+        # set outputStream as stdout (i.e. all output is written to status
+        # preview
+        sys.stdout = self.output_stream
 
         # regenerate function entries in cmd_list
         self.cmd_list = set_cmd_funcs(self, cmd_list)
@@ -85,10 +100,15 @@ class MainWindow(QWidget):
 
         Should be overloaded for real GUI
         """
-        grid = QGridLayout()
+        self.widget = QWidget()
+        self.grid = QGridLayout()
 
         # construct the layout from the dicts specified above
-        constructLayout(grid, 0, self.exampleDict, self.exampleDictInit)
+        constructLayout(self.grid, 0, self.exampleDict, self.exampleDictInit)
+
+        self.status = QPlainTextEdit(self)
+        self.status.setReadOnly(True)
+        self.grid.addWidget(self.status, self.grid.rowCount(), 0, 1, -1)
 
         # connect the set buttons to the corresponding set functions
         self.exampleDict["Set"][1][1].clicked.connect(self.write)
@@ -99,8 +119,17 @@ class MainWindow(QWidget):
         # connect dict to readout displays
         connectDictValueToDisplay(self.exampleDict)
 
-        self.setLayout(grid)
-        self.show()
+        self.widget.setLayout(self.grid)
+        self.setCentralWidget(self.widget)
+
+    def output_written(self, text):
+        """
+        appends the most recent text to the end of the display and makes sure
+        that the cursor remains at the end
+        """
+        if text.strip("\n") != "":
+            self.status.appendPlainText(text.strip("\n"))
+            self.status.moveCursor(QTextCursor.End)
 
     def toggleWait(self, state):
         if 2 == state:
@@ -124,6 +153,8 @@ class MainWindow(QWidget):
             self.v3 = bool(self.exampleDict["V3"][1][2].checkState())
         except ValueError:
             print("some value can not be converted to correct type")
+            estr = traceback.format_exc()
+            print(estr)
 
     def refreshDict(self):
         """
@@ -143,32 +174,40 @@ class MainWindow(QWidget):
         # read the not so important values only every tenth time
         runInterval = 10
         runCounter = 0
-        # initialize terminate variable
-        self.terminate = False
+
         a = time.time()
         while self.terminate is False:
-            b = time.time() - a
-            if b < runDelay:
-                # wait the remaining interval until 0.5
-                time.sleep(runDelay-b)
-                self.exampleDict["V1"][1][1].setCurrentIndex(self.v1)
-                self.exampleDict["V2"][1][1].setText(str(self.v2))
-                self.exampleDict["V3"][1][1].setChecked(self.v3)
-            a = time.time()
-            # refresh dicts of ITC and IPS (takes about 100ms each)
-            if beginning is True:
-                # initialize the setpoint columns (only once)
-                # TODO: Maybe do this thirty seconds after a click or something
-                # like that?
-                copyValues(self.exampleDict)
-                time.sleep(0.2)
-                beginning = False
-            if 0 == runCounter:
-                # ovcDict
-                pass
-            runCounter = (runCounter+1) % runInterval
+            try:
+                b = time.time() - a
+                if b < runDelay:
+                    # wait the remaining interval until 0.5
+                    time.sleep(runDelay-b)
+                    # always set the value (never change GUI directly!!!)
+                    self.exampleDict["V1"][0].setValue(self.v1)
+                    self.exampleDict["V2"][0].setValue(self.v2)
+                    self.exampleDict["V3"][0].setValue(self.v3)
+
+                a = time.time()
+                # refresh dicts of ITC and IPS (takes about 100ms each)
+                if beginning is True:
+                    # initialize the setpoint columns (only once)
+                    # TODO: Maybe do this thirty seconds after a click or something
+                    # like that?
+                    copyValues(self.exampleDict)
+                    time.sleep(0.2)
+                    beginning = False
+                if 0 == runCounter:
+                    # ovcDict
+                    pass
+                runCounter = (runCounter+1) % runInterval
+            except Exception as exc:
+                # get verbose error information and pass to error function
+                self.error.emit(exc, "refreshDict")
+                # end the refreshDict thread
+                self.terminate = True
         # flag for stating that thread has ended
         self.terminated = True
+        time.sleep(100)  # avoid deleting of objects prematurely
 
     # general local server and start stop overhead
     def __enter__(self):
@@ -177,20 +216,28 @@ class MainWindow(QWidget):
         check also that the devices are initialized
         """
         # initialize devices
-        self.connectDev()
+        print("initializing devices")
+        try:
+            self.connectDev()
+        except Exception as exc:
+            self.error.emit(exc, "device initialization")
+            return  # return to not start the server below
+
         # initialize thread to refresh dicts
         # check if successful
         if self.devInit is True:
-            self.t = threading.Thread(target=self.refreshDict)
-            self.t.daemon = True
+            self.t = threading.Thread(target=self.refreshDict, daemon=True)
             self.t.start()
             self.running = True
         self.startServer()
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):
         """
         stops the refreshDict function and closes devices
         """
+        if exc_type is not None:
+            print(exc_type, exc_value, traceback)
+
         self.stopServer()
         if self.running is True:
             self.terminate = True
@@ -215,6 +262,22 @@ class MainWindow(QWidget):
             self.localServer.stop()
         self.localServer = None
 
+    def handleError(self, exc, pointer):
+        # disable all GUI elements but the status display
+        for i in reversed(range(self.grid.count())):
+            self.grid.itemAt(i).widget().setEnabled(False)
+        self.status.setEnabled(True)
+        # stop SCPI server to reflect that something is wrong instead of
+        # returning the same reading over and over
+        self.stopServer()
+        # print verbose error message to status display and open popup warning
+        traceback.print_tb(exc.__traceback__, file=self.output_stream)
+        a = QMessageBox.critical(
+            self, f"Error in {pointer}",
+            f"""The following error was raised in {pointer}:
+            {repr(exc)}
+            Please investigate the error and eventually restart the graphical user interface""")
+
     # driver functions begin here
     # example functions
     def setV1(self, val):
@@ -230,28 +293,31 @@ class MainWindow(QWidget):
 
 
 def main():
-
-    sys.stdout = OutputRedirection(sys.stdout, prefix='dummy_control')
-    sys.stderr = OutputRedirection(sys.stderr, prefix='dummy_control')
+    app = QApplication(sys.argv)
 
     lockfilename = os.path.join(
         logfolder, os.path.splitext(os.path.split(__file__)[-1])[0])
     if os.path.exists(lockfilename):
-        print(f"""Lockfile ({lockfilename}) exists. The control GUI will not
-              start. Please make sure everything is save! Only then remove the
-              lockfile and restart the control GUI""")
+        QMessageBox.about(
+            QWidget(), "Lockfile exists",
+            f"""Lockfile ({lockfilename}) exists. The control GUI will not
+            start. Please make sure everything is save! Only then remove the
+            lockfile and restart the control GUI""")
         sys.exit()
     # generate lockfile
     with open(lockfilename, "w") as f:
         f.write(f"{os.getpid()}\n")
 
-    app = QApplication(sys.argv)
     logger.info("Starting GUI")
     with QtGracefulKiller():
         with MainWindow():
+            sys.stdout = OutputRedirection(sys.stdout, prefix='dummy_control')
+            sys.stderr = OutputRedirection(sys.stderr, prefix='dummy_control',
+                                           fallbackname="stderr")
             ret = app.exec()
     logger.info("Exiting GUI")
     # clean exit, remove lockfile
     if os.path.exists(lockfilename):
         os.remove(lockfilename)
+    sys.stdout = sys.__stdout__
     sys.exit(ret)

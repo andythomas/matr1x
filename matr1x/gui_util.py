@@ -3,7 +3,7 @@ This module contains gui related functions that are required by the sweep
 generator and matrix_gui
 """
 import pyqtgraph as pg
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QObject, Qt, pyqtSignal
 
 
 class CustomViewBox(pg.ViewBox):
@@ -50,3 +50,17 @@ class CustomViewBox(pg.ViewBox):
             self.setMouseMode(self.RectMode)
         else:
             pg.ViewBox.mouseDragEvent(self, ev, axis)
+
+
+class EmittingStream(QObject):
+    """
+    Stream to communicate between the threads
+    """
+    name = "GUIStream"
+    text_written = pyqtSignal(str)
+
+    def write(self, text):
+        self.text_written.emit(str(text))
+
+    def flush(self):
+        pass

@@ -14,12 +14,14 @@ import tempfile
 from matr1x import systems_directory
 from matr1x.control.util import QtGracefulKiller
 from matr1x.util import generate_script
-from PyQt5.QtCore import QObject, QRegExp, QThread, pyqtSignal
+from PyQt5.QtCore import QRegExp, QThread
 from PyQt5.QtGui import (QColor, QFont, QPalette, QSyntaxHighlighter,
                          QTextCharFormat, QTextCursor)
 from PyQt5.QtWidgets import (QApplication, QFileDialog, QGridLayout, QLineEdit,
                              QListWidget, QPlainTextEdit, QPushButton,
                              QTextEdit, QWidget)
+
+from ..gui_util import EmittingStream
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 logger.info("matrix_script starting")
@@ -199,16 +201,6 @@ class PythonHighlighter (QSyntaxHighlighter):
             return True
         else:
             return False
-
-
-class EmittingStream(QObject):
-    """
-    Stream to communicate between the threads
-    """
-    text_written = pyqtSignal(str)
-
-    def write(self, text):
-        self.text_written.emit(str(text))
 
 
 class ExecThread(QThread):
