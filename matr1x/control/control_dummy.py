@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
                    "V3": [var(bool, bool), [2, 2]],
                    "Set": [None, [0, 0]]}
     exampleDictInit = {"V1": ["i1", "i2"]}
-    error = pyqtSignal([Exception, str])
+    sig_error = pyqtSignal([Exception, str])
 
     def __init__(self):
         super().__init__()
@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         self.terminate = False
         self.terminated = False
         self.devInit = False
-        self.error[Exception, str].connect(self.handleError)
+        self.sig_error[Exception, str].connect(self.handleError)
         # initialize local variable storage
         self.v1 = 0
         self.v2 = 0
@@ -130,12 +130,6 @@ class MainWindow(QMainWindow):
         if text.strip("\n") != "":
             self.status.appendPlainText(text.strip("\n"))
             self.status.moveCursor(QTextCursor.End)
-
-    def toggleWait(self, state):
-        if 2 == state:
-            self.waitHold = True
-        else:
-            self.waitHold = False
 
     # device communication and related functions
     def connectDev(self):
@@ -201,8 +195,8 @@ class MainWindow(QMainWindow):
                     pass
                 runCounter = (runCounter+1) % runInterval
             except Exception as exc:
-                # get verbose error information and pass to error function
-                self.error.emit(exc, "refreshDict")
+                # report error to the main thread
+                self.sig_error.emit(exc, "refreshDict")
                 # end the refreshDict thread
                 self.terminate = True
         # flag for stating that thread has ended
@@ -220,8 +214,7 @@ class MainWindow(QMainWindow):
         try:
             self.connectDev()
         except Exception as exc:
-            self.error.emit(exc, "device initialization")
-            return  # return to not start the server below
+            self.sig_error.emit(exc, "device initialization")
 
         # initialize thread to refresh dicts
         # check if successful
@@ -229,7 +222,7 @@ class MainWindow(QMainWindow):
             self.t = threading.Thread(target=self.refreshDict, daemon=True)
             self.t.start()
             self.running = True
-        self.startServer()
+            self.startServer()
 
     def __exit__(self, exc_type, exc_value, traceback):
         """
