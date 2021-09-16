@@ -8,7 +8,7 @@ import sys
 import time
 from ast import literal_eval
 from math import floor
-from os.path import basename, exists, expanduser, join, splitext, split
+from os.path import basename, exists, expanduser, join, split, splitext
 
 import pyqtgraph as pg
 from numpy import linspace
@@ -19,8 +19,8 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QPushButton, QScrollArea, QTextEdit, QVBoxLayout,
                              QWidget)
 
-from . import systems_directory
 from . import systems as core_systems
+from . import systems_directory
 from .gui_util import CustomViewBox
 from .util import (calculate_sweep, generate_col_index, get_settable_columns,
                    merge_systems)

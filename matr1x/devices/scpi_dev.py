@@ -46,7 +46,7 @@ def makeSCPIdevice(cmd_list, sys=None):
     connect to the SCPI commands
     """
     typeplaceholder = {int: "%d", float: "%g", bool: "%d",
-                       str: "%s", ast.literal_eval: "%s", None: ""}
+                       str: "%s", None: ""}
 
     def make_identifier(s):
         """create valid Python identifier by omitting invalid characters"""
@@ -85,7 +85,8 @@ def makeSCPIdevice(cmd_list, sys=None):
     def constructor(self, adapter, name='clientdevice', **kwargs):
         """constructor for an object derived from pymeasure Instrument"""
         kwargs.update(read_termination='\n',
-                      write_termination='\n', includeSCPI=False)
+                      write_termination='\n',
+                      includeSCPI=False)
         Instrument.__init__(self, adapter, name, **kwargs)
 
     def query(self, cmd):
@@ -122,16 +123,9 @@ def makeSCPIdevice(cmd_list, sys=None):
     # add system query to config_params
     if sys:
         attributes["config_params"]["SCPIdevconf"] = "conf"
-        cmd_list[":conf"] = [ast.literal_eval,
+        cmd_list[":conf"] = [lambda b: pickle.loads(ast.literal_eval(b)),
                              None, [],
-                             lambda: pickle.dumps(sys.query()), []]
-
-    # add system query to config_params
-    if sys:
-        attributes["config_params"] = {"SCPIdevconf": "conf"}
-        cmd_list[":conf"] = [ast.literal_eval,
-                             None, [],
-                             lambda: pickle.dumps(sys.query()), []]
+                             lambda: pickle.dumps(sys.query(), protocol=0), []]
 
     for cmd in cmd_list:
         # create an pymeasure attribute for every command
@@ -162,9 +156,6 @@ def makeSCPIdevice(cmd_list, sys=None):
             kwargs['values'] = [True, False]
             kwargs['get_process'] = lambda s: False if s == 'False' else True
             kwargs['set_process'] = int
-        elif dtype == ast.literal_eval:
-            kwargs['cast'] = lambda x: x  # noop, handled in get_process
-            kwargs['get_process'] = lambda b: pickle.loads(ast.literal_eval(b))
         else:
             kwargs['cast'] = dtype
 

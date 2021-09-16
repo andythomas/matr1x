@@ -73,6 +73,8 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                         if isinstance(dtype, (tuple, list, numpy.ndarray)):
                             response.append(",".join(
                                 str(r) for r in getter(*getargs)))
+                        elif dtype is bytes:
+                            response.append(getter(*getargs))
                         else:
                             response.append(str(getter(*getargs)))
             # cmd is a set request
@@ -142,8 +144,8 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         print(f"{time.asctime()}: {self.client_address}")
         while not self.terminateNow:
             response = None
-            # read until \n and decode to ascii
-            data = str(self.rfile.readline(), 'ascii').strip().lower()
+            # read until \n and decode to utf-8
+            data = str(self.rfile.readline(), 'utf-8').strip().lower()
             if "" == data:
                 # empty string was passed, connection was closed
                 break
@@ -155,7 +157,9 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 else:
                     response = responses[0]
             if response is not None:
-                self.request.sendall((response + "\n").encode())
+                if not isinstance(response, bytes):
+                    response = response.encode()
+                self.request.sendall(response + b'\n')
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
