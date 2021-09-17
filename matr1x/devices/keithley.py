@@ -804,7 +804,13 @@ class Keithley2000(VisaDevice):
         try:  # First query after open usually does not work
             self.query(":SENS:FUNC?")
         except UnicodeDecodeError:
-            pass
+            try:
+                # to be sure that all in the input buffer is gone, with
+                # the individual RS232-Ethernet adapter it happend that
+                # some leftover of old communication messed up things.
+                self.read_very_eager()
+            except Exception:
+                pass
 
     @synchronized
     def configure4WireOhm(self, digits=None, count=None, window=None,
