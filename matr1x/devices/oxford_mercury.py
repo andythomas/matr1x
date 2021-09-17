@@ -43,14 +43,14 @@ class MercurySingleAxisIPS(VisaDevice):
                     "zRSet": ([0], ":RFST", addressX, True),
                     "volt": ([0], ":VOLT", addressX, True)}
 
-    def __init__(self, interface, maxfield=5, maxrate=0.5):
-        super().__init__(interface, write_termination="\n",
-                         read_termination="\n")
-        self.maxfield = maxfield
-        self.maxrate = maxrate
-        # determine status now
-        self.queryAllDicts()
-        self.logAllDicts()
+     def __init__(self, interface, maxfield=5, maxrate=0.5):
+         super().__init__(interface, write_termination="\n",
+                          read_termination="\n")
+         self.maxfield = maxfield
+         self.maxrate = maxrate
+         # determine status now
+         self.queryAllDicts()
+         self.logAllDicts()
 
      # high level commands
      @synchronized
