@@ -9,6 +9,262 @@ from .visadevice import VisaDevice
 logger = logging.getLogger(__name__)
 
 
+class MercurySingleAxisIPS(VisaDevice):
+     """
+     Driver for Mercury-IPS
+     dataDict contains the commands (keys) and also the response from the IPS
+     (values)
+     Mode of operation:
+         1. Querry dicts you want to read - results are written to dictionarys
+         2. Results can now be read with the given functions
+         Dicts for functions:
+             confDictX/Y/Z for magnetic field status (to Setpoint etc.)
+             dataDictX/Y/Z for magnetic field functions
+             confDictLevel for Helium Fast/Slow
+             dataDictLevel for Helium/Nitrogen Levels
+     Usually all relevant parameters for operation
+     can be found in the workingDict
+     """
+     idIPS = {"*IDN?": ""}
+     addressSys = "SYS"
+     sysDict = {":TIME": "", ":DATE": "", ":MAN:HVER": "", ":MAN:FVER": "",
+                ":MAN:SERL": "", ":USER": "", ":FLSH": "", ":DISP:DIMA": "",
+                ":DISP:DIMT": "", ":DISP:BRIG": "", ":CAT": ""}
+     addressX = "DEV:GRPZ:PSU"
+     confDictX = {":NICK": "", ":BIPL": "", ":OCNF": "", ":CLIM": "",
+                  ":ATOB": "", ":IND": "", ":SWPR": "", ":SHTC": "",
+                  ":VLIM": "", ":VTRT": "", ":ACTN": ""}
+     dataDictX = {":FLD": 0, ":RFLD": 0, ":FSET": 0, ":RFST": 0}
+     addressDict = {"sys": addressSys, "z": addressX}
+     workingDict = {"zActn": ([0], ":ACTN", addressX, False),
+                    "zField": ([0], ":FLD", addressX, True),
+                    "zRate": ([0], ":RFLD", addressX, True),
+                    "zFSet": ([0], ":FSET", addressX, True),
+                    "zRSet": ([0], ":RFST", addressX, True),
+                    "volt": ([0], ":VOLT", addressX, True)}
+
+    def __init__(self, interface, maxfield=5, maxrate=0.5):
+        super().__init__(interface, write_termination="\n",
+                         read_termination="\n")
+        self.maxfield = maxfield
+        self.maxrate = maxrate
+        # determine status now
+        self.queryAllDicts()
+        self.logAllDicts()
+
+     # high level commands
+     @synchronized
+     def query(self, command, address="", signal=False):
+         if "" == address:
+             self.write(command)
+         else:
+             if signal is True:
+                 self.write("READ:" + address + ":SIG" + command + "?")
+             else:
+                 self.write("READ:" + address + command + "?")
+         return self.read()
+
+     @synchronized
+     def setVal(self, setpoint, command, address="", signal=False):
+         try:
+             dummy = "{:.5f}".format(float(setpoint))
+         except ValueError:
+             dummy = str(setpoint)
+         if signal is True:
+             self.write("SET:" + address + ":SIG" + command + ":" + dummy)
+         else:
+             self.write("SET:" + address + command + ":" + dummy)
+         return self.read()
+
+     # utility functions
+     @synchronized
+     def queryDict(self, queryDict, address="", signal=False):
+         for key in queryDict:
+             queryDict[key] = self.query(key, address, signal)
+
+     @synchronized
+     def queryWorkingDict(self):
+         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
+         for key in self.workingDict:
+             dummy = self.query(
+                 *self.workingDict[key][1:]).split(":")[-1].strip("\n")
+             try:
+                 self.workingDict[key][0][0] = float(re.findall(
+                     r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0])
+             except (TypeError, IndexError):
+                 # If float conversion fails, try boolean conversion
+                 if "ON" == dummy:
+                     self.workingDict[key][0][0] = True
+                 elif "OFF" == dummy:
+                     self.workingDict[key][0][0] = False
+                 else:
+                     # Must be action
+                     try:
+                         self.workingDict[key][0][0] = status.index(dummy)
+                     except ValueError:
+                         # what happened?
+                         logger.info("Non boolean value at " + str(key) +
+                                     " is " + dummy + " and can not be" +
+                                     " assigned to status")
+
+     def getDictValue(self, key):
+         return self.workingDict[key][0][0]
+
+     # status functions
+     @synchronized
+     def queryAllDicts(self):
+         self.queryID()
+         self.querySysConf()
+         self.queryMagnetConf()
+         self.queryMagnetStatus()
+         self.queryWorkingDict()
+
+     @synchronized
+     def queryID(self):
+         self.queryDict(self.idIPS)
+
+     @synchronized
+     def querySysConf(self):
+         self.queryDict(self.sysDict, self.addressSys)
+
+     @synchronized
+     def queryMagnetConf(self):
+         self.queryDict(self.confDictX, self.addressX)
+
+     @synchronized
+     def queryMagnetStatus(self):
+         self.queryDict(self.dataDictX, self.addressX, True)
+
+     def logAllDicts(self):
+         logger.debug("IPS-ID: " + str(self.idIPS))
+         logger.debug("IPS-SYSCONF: " + str(self.sysDict))
+         logger.debug("IPS-MAGNETCONF Z: " + str(self.confDictX))
+         logger.debug("IPS-MAGNETSTATUS Z: " + str(self.dataDictX))
+         logger.debug("IPS-WORKING DICT: " + str(self.workingDict))
+
+     # driver functions
+     def setMagneticField(self, xval):
+         """
+         Sets the magnetic field to "xval" on the x axis,
+         Arguments:
+             xval:float
+         Additionally checks, that all values are within the boundaries
+         """
+         if self.maxfield < xval:
+             xval = self.maxfield
+         elif -self.maxfield > xval:
+             xval = -self.maxfield
+         self.setVal(xval, *self.workingDict["zFSet"][1:])
+
+     def getMagneticFields(self, setp=False):
+         """
+         Returns the values of the magnetic field
+         Arguments:
+             setp:boolean - if setp is true, returns also the setpoints
+         """
+         if setp is True:
+             return (self.getDictValue("zField"),
+                     self.getDictValue("zFSet"))
+         else:
+             return (self.getDictValue("zField"))
+
+     def setMagneticFieldRate(self, rate, axis=0):
+         """
+         Set rate of magnetic axis "axis" to "rate"
+         Arguments:
+             rate:float - can be between 0 and 0.5T/min
+             axis:integer - 0=x
+         """
+         if 0 > rate:
+             rate = 0
+         elif self.maxrate < rate:
+             rate = self.maxrate
+         if 0 == axis:
+             self.setVal(rate, *self.workingDict["zRSet"][1:])
+
+     def getMagneticFieldRate(self, axis=0, setp=False):
+         """
+         Get rate of the magnetic axis "axis"
+         Arguments:
+             axis:integer - 0=x
+             setp:boolean - If setp is true, also returns the setpoint
+         """
+         if -1 == axis:
+             val = [self.getDictValue("zRate")]
+             if setp is True:
+                 val += [self.getDictValue("zRSet")]
+         elif 0 == axis:
+             val = self.getDictValue("zRate")
+             if setp is True:
+                 val = (val, self.getDictValue("zRSet"))
+         return val
+
+     def setMagnetStatus(self, state, axis=0):
+         """
+         Set state status of the magnet to state, where state can be 0 to 3
+         Arguments:
+             state:integer - offers the following options:
+                 0 - HOLD
+                 1 - RTOS (Ramp to setpoint)
+                 2 - RTOZ (Ramp to zero)
+                 3 - CLMP (Clamped, when current is 0) - disallowed
+             axis:integer - choose the axis you want to set:
+                 -1 - takes state as list
+                 0 - x
+                 2 - z
+         """
+         try:
+             if -1 != axis:
+                 state = int(state)
+                 if 2 < state:
+                     # do NOT set to 3, opens door to breaking magnet!
+                     return
+                 elif 0 > state:
+                     return
+             else:
+                 if 1 != len(state):
+                     return
+                 for i in range(1):
+                     state[i] = int(state[i])
+                     if 2 < state[i]:
+                         # do NOT set to 3, opens door to breaking magnet!
+                         return
+                     elif 0 > state[i]:
+                         return
+         except ValueError:
+             return
+         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
+         if -1 == axis:
+             self.setVal(status[state[0]], *self.workingDict["zActn"][1:])
+         elif 0 == axis:
+             self.setVal(status[state], *self.workingDict["zActn"][1:])
+
+     def getMagnetStatus(self, axis=0):
+         """ Get state status of the magnet
+         Arguments:
+             axis:integer - choose the axis you want to set:
+                 -1 - returns all as list
+                 0 - x
+                 1 - y
+                 2 - z
+         Returns:
+             state of the magnet (0-3):
+                 0 - HOLD
+                 1 - RTOS (Ramp to setpoint)
+                 2 - RTOZ (Ramp to zero)
+                 3 - CLMP (Clamped, when current is 0)
+         """
+         if -1 == axis:
+             return [self.getDictValue("zActn")]
+         elif 0 == axis:
+             return self.getDictValue("zActn")
+
+     def getVoltage(self):
+         """ Get state current output voltage
+         """
+         return self.getDictValue("volt")
+
+
 class MercuryIPS(VisaDevice):
     """
     Driver for multi-axis Mercury IPS
