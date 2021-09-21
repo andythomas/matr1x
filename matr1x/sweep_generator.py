@@ -24,6 +24,7 @@ from . import systems_directory
 from .gui_util import CustomViewBox
 from .util import (calculate_sweep, generate_col_index, get_settable_columns,
                    merge_systems)
+from .control.util import QtGracefulKiller
 
 # overwrite core_systems with list of systems
 core_systems = [splitext(system)[0] for system in
@@ -845,6 +846,8 @@ class MainWindow(QDialog):
 
 def main():
     app = QApplication(sys.argv)
-    mw = MainWindow()
-    mw.show()
-    sys.exit(app.exec())
+    with QtGracefulKiller():
+        mw = MainWindow()
+        mw.show()
+        ret = app.exec()
+    sys.exit(ret)
