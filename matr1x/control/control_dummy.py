@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         self.terminate = False
         self.terminated = False
         self.devInit = False
-        self.sig_error[Exception, str].connect(self.handleError)
+        self.sig_error.connect(self.handleError)
         # initialize local variable storage
         self.v1 = 0
         self.v2 = 0
