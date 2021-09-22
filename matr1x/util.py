@@ -739,7 +739,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile,
     else:
         telemetry += [default_separator]
         with open(output_filename, 'w') as data_file:
-            print("Creating new datafile: ", output_filename)
+            print(f"Creating new datafile: {output_filename}")
             for dckey, dcvalue in system.dcdata.items():
                 if dcvalue is None:
                     data_file.write(f"# DC.{dckey} : None\n")
