@@ -21,10 +21,10 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
 
 from . import systems as core_systems
 from . import systems_directory
+from .control.util import QtGracefulKiller
 from .gui_util import CustomViewBox
 from .util import (calculate_sweep, generate_col_index, get_settable_columns,
                    merge_systems)
-from .control.util import QtGracefulKiller
 
 # overwrite core_systems with list of systems
 core_systems = [splitext(system)[0] for system in

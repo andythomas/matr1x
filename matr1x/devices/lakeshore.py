@@ -235,3 +235,27 @@ class Lakeshore340(Lakeshore3xx):
             self.write(f"CRVPT {index},{i+1},{res:.5f},{temp:.5f}")
             time.sleep(0.3)
         self.write("CRVSAV")
+
+    @synchronized
+    def writeZonePID(self, templist, plist, ilist, dlist, rangelist, loop=1):
+        """
+        writes Zone PID settings into the controller to allow for automatic
+        adjustment of the PID parameters upon a setpoint change. All lists can
+        have maximally 10 entries.
+        Parameters
+        ----------
+         templist: list
+            upper temperatures for each zone (must be sorted! from small to
+            big)
+         plist, ilist, dlist: list
+            P, I, D parameters for each temperature zone.
+         rangelist: list
+            heater range setting for each temperature zone.
+            valid entries are 0 .. 5
+        """
+        assert(len(templist) == len(plist) and len(plist) == len(ilist) and
+               len(plist) == len(dlist) and len(plist) == len(rangelist))
+        for j, (t, p, i, d, r) in enumerate(zip(templist, plist, ilist, dlist,
+                                                rangelist)):
+            self.write(f"ZONE {loop}, {j+1}, {t}, {p}, {i}, {d}, , {r}")
+            time.sleep(0.3)

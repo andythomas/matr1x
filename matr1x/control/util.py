@@ -16,9 +16,11 @@ from email.mime.text import MIMEText
 from subprocess import PIPE, Popen
 
 import numpy
-from PyQt5.QtCore import QObject, QTimer, pyqtSignal
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QLabel,
-                             QLineEdit, QProgressBar, QPushButton)
+from PyQt5 import QtCore
+from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
+                             QFileDialog, QGridLayout, QLabel, QLineEdit,
+                             QListWidget, QProgressBar, QPushButton, QTableView)
 
 from .. import logfolder
 
@@ -290,8 +292,9 @@ def copyValues(copyDict):
     for key in copyDict:
         if ((type(copyDict[key][1][1]) == QLineEdit and
              len(copyDict[key][1]) > 2)):
-            copyDict[key][1][2].setText(
-                copyDict[key][1][1].text())
+            if type(copyDict[key][1][2]) == QLineEdit:
+                copyDict[key][1][2].setText(
+                    copyDict[key][1][1].text())
         elif (type(copyDict[key][1][1]) == QProgressBar and
               len(copyDict[key][1]) > 2):
             copyDict[key][1][2].setText(str(
@@ -449,3 +452,149 @@ class OutputRedirection(object):
         if self.terminal is not None:
             self.terminal.flush()
         self.log.flush()
+
+
+class SelectLakeshoreInput(QDialog):
+    """
+    open dialog which allows the user to select a sensor calibration curve
+    for the Lakeshore temperature controller
+    """
+
+    def __init__(self, parent, lakeshore_dev=None):
+        super().__init__(parent)
+        self._dev = lakeshore_dev
+        # read input curves
+        self.curves = dict()
+        for i in range(1, 60):
+            self.curves[i] = self._dev.getCurveName(i)
+        self.activeCurve = self._dev.getCurveNumber()
+        self.initUI()
+        self.show()
+
+    def initUI(self):
+        """
+        Initialize GUI for popup
+        """
+        self.setWindowTitle("Select Lakeshore input curve")
+        grid = QGridLayout()
+
+        self.curvesList = QListWidget()
+        self.curvesList.addItems([f"{k}: {v}" for k, v in self.curves.items()])
+        self.curvesList.setCurrentRow(self.activeCurve-1)
+
+        cancelButton = QPushButton("Cancel")
+        cancelButton.clicked.connect(self.close)
+
+        setCurveButton = QPushButton("Set")
+        setCurveButton.clicked.connect(self.set_curve)
+
+        grid.addWidget(self.curvesList, 0, 0, 10, -1)
+        grid.addWidget(cancelButton, 10, 0)
+        grid.addWidget(setCurveButton, 10, 1)
+        self.setLayout(grid)
+
+    def set_curve(self):
+        selectedcurve = int(self.curvesList.currentItem().text().split(":")[0])
+        if hasattr(self._dev, "setCurveNumber"):
+            self._dev.setCurveNumber(selectedcurve)
+        self.close()
+
+
+class TableModel(QtCore.QAbstractTableModel):
+
+    def __init__(self, data):
+        super(TableModel, self).__init__()
+        self._data = data
+
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            # Note: self._data[index.row()][index.column()] will also work
+            value = self._data[index.row(), index.column()]
+            return str(value)
+
+    def rowCount(self, index):
+        return self._data.shape[0]
+
+    def columnCount(self, index):
+        return self._data.shape[1]
+
+    def headerData(self, section, orientation, role):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+            if section == 0:
+                return "T (K)"
+            elif section == 1:
+                return "P"
+            elif section == 2:
+                return "I"
+            elif section == 3:
+                return "D"
+            elif section == 4:
+                return "Heater range"
+        return QVariant()
+
+
+class WriteLakeshoreZonePID(QDialog):
+    """
+    open dialog which allows the user to select PID parameter table for use
+    with the ZONE mode.
+
+    The PID parameter file must be a text file which contains columns for:
+    The upper temperature of the zones, P, I, D parameters, and heater range.
+    A total of 10 entries are allowed.
+    """
+
+    def __init__(self, parent, lakeshore_dev=None):
+        super().__init__(parent)
+        self._dev = lakeshore_dev
+        self.initUI()
+        self.show()
+
+    def initUI(self):
+        """
+        Initialize GUI for popup
+        """
+        self.setWindowTitle("Select Lakeshore input curve")
+        grid = QGridLayout()
+
+        self.fileEdit = QLineEdit(self)
+        self.fileEdit.setReadOnly(True)
+
+        loadButton = QPushButton('Load PID Table')
+        loadButton.clicked.connect(self.load_pid_table)
+
+        grid.addWidget(self.fileEdit, 0, 0, 1, 2)
+        grid.addWidget(loadButton, 0, 3)
+
+        self.table = QTableView()
+        # self.table.setReadOnly(True)
+        grid.addWidget(self.table, 1, 0, 10, -1)
+
+        self.writeButton = QPushButton('Write Table to Device')
+        self.writeButton.clicked.connect(self.write_zone_to_device)
+        self.writeButton.setEnabled(False)
+        cancelButton = QPushButton("Cancel")
+        cancelButton.clicked.connect(self.close)
+
+        grid.addWidget(cancelButton, 12, 0)
+        grid.addWidget(self.writeButton, 12, 1)
+
+        self.setLayout(grid)
+
+    def load_pid_table(self):
+        # get filename from dialog
+        filename = QFileDialog.getOpenFileName(
+            self, 'Select PID table file', os.path.expanduser("~"),
+            "calibration file (*.*)")[0]
+        self.fileEdit.setText(filename)
+        if filename != "":
+            self.data = numpy.loadtxt(filename, unpack=True)
+            self.model = TableModel(self.data.T)
+            self.table.setModel(self.model)
+            if len(self.data.shape) == 2 and self.data.shape[0] == 5:
+                # if entries found enable write button
+                self.writeButton.setEnabled(True)
+
+    def write_zone_to_device(self):
+        if hasattr(self._dev, "writeZonePID"):
+            self._dev.writeZonePID(*self.data)
+        self.close()
