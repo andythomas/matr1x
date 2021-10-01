@@ -38,62 +38,64 @@ class IsobusDevice(VisaDevice):
 
     @synchronized
     def query(self, msg, depth=0):
-        time.sleep(3*depth)  # add progressive delay on repeated failure
-        self.read_very_eager()
-        if depth > 10:
-            logger.info(
-                f"{self.name}.query: maximum depth exeeded ('{msg}')")
+        with self.sharedlock:
+            time.sleep(3*depth)  # add progressive delay on repeated failure
             self.read_very_eager()
-            if msg == 'X':
-                return 'X00000000000000'
-            else:
-                return f"{msg[0]}0.00"
-        if self.isobus_addr is not None:
-            cmd = f"@{self.isobus_addr}{msg}"
-        else:
-            cmd = msg
-        try:
-            ret = super().query(cmd)
-        except UnicodeDecodeError:
-            logger.info(
-                f"{self.name}.query: UnicodeDecodeError, {msg}, {depth}")
-            return self.query(msg, depth+1)
-        except errors.VisaIOError:
-            logger.info(
-                f"{self.name}.query: VisaIOError, {msg}, {depth}")
-            return self.query(msg, depth+1)
-
-        if ret is None:
-            logger.info(f"{self.name}.query: None, {msg}, {depth}")
-            ret = self.query(msg, depth+1)
-        if "?" in ret:
-            logger.info(f"{self.name}.query: reply '?', {msg}, {depth}")
-            ret = self.query(msg, depth+1)
-        elif "" == ret:
-            logger.info(
-                f"{self.name}.query: empty reply, {msg}, {depth}")
-            ret = self.query(msg, depth+1)
-        elif msg[0] not in ret:
-            logger.info(
-                f"{self.name}.query: wrong reply character, {msg}, {depth}, {ret}")
-            try:
+            if depth > 10:
+                logger.info(
+                    f"{self.name}.query: maximum depth exeeded ('{msg}')")
                 self.read_very_eager()
+                if msg == 'X':
+                    return 'X00000000000000'
+                else:
+                    return f"{msg[0]}0.00"
+            if self.isobus_addr is not None:
+                cmd = f"@{self.isobus_addr}{msg}"
+            else:
+                cmd = msg
+            try:
+                ret = super().query(cmd)
             except UnicodeDecodeError:
-                pass
-            ret = self.query(msg, depth+1)
-        return ret
+                logger.info(
+                    f"{self.name}.query: UnicodeDecodeError, {msg}, {depth}")
+                return self.query(msg, depth+1)
+            except errors.VisaIOError:
+                logger.info(
+                    f"{self.name}.query: VisaIOError, {msg}, {depth}")
+                return self.query(msg, depth+1)
+
+            if ret is None:
+                logger.info(f"{self.name}.query: None, {msg}, {depth}")
+                ret = self.query(msg, depth+1)
+            if "?" in ret:
+                logger.info(f"{self.name}.query: reply '?', {msg}, {depth}")
+                ret = self.query(msg, depth+1)
+            elif "" == ret:
+                logger.info(
+                    f"{self.name}.query: empty reply, {msg}, {depth}")
+                ret = self.query(msg, depth+1)
+            elif msg[0] not in ret:
+                logger.info(
+                    f"{self.name}.query: wrong reply character, {msg}, {depth}, {ret}")
+                try:
+                    self.read_very_eager()
+                except UnicodeDecodeError:
+                    pass
+                ret = self.query(msg, depth+1)
+            return ret
 
     @synchronized
     def query_float(self, msg, depth=0):
         """routine to query a float including error checking"""
-        ret = self.query(msg, depth)
-        try:
-            return float(ret[1:])
-        except ValueError:
-            logger.info(
-                f"{self.name}.query_float: float conversion error ('{msg}', {ret})")
-            # retry query
-            return self.query_float(msg, depth+1)
+        with self.sharedlock:
+            ret = self.query(msg, depth)
+            try:
+                return float(ret[1:])
+            except ValueError:
+                logger.info(
+                    f"{self.name}.query_float: float conversion error ('{msg}', {ret})")
+                # retry query
+                return self.query_float(msg, depth+1)
 
 
 class ILM200(IsobusDevice):
@@ -391,11 +393,15 @@ class IPS120_switchheater(IsobusDevice):
                      "MagnetStatus": "getMagnetStatus",
                      "SwitchHeater": "getSwitchHeater"}
 
-    def __init__(self, interface, isobus_addr=None, open=True,
-                 legacy=True, fieldlimits=(0, 1), **kwargs):
+    def __init__(self, interface, isobus_addr=None, legacy=True,
+                 fieldlimits=(0, 1), max_rate=0.5, switch_wait_time=5,
+                 **kwargs):
         self.persistentField = None
         self.legacy = legacy
         self.fieldlimits = fieldlimits
+        self.switch_wait_time = switch_wait_time
+        self.max_rate = max_rate
+        self.statusmsg = ""
         kwargs["isobus_addr"] = isobus_addr
         kwargs["open"] = open
         if "write_termination" not in kwargs:
@@ -413,6 +419,25 @@ class IPS120_switchheater(IsobusDevice):
         super().__init__(interface, **kwargs)
         self.query("C3")
         self.persistentField = self.getPersistentField()
+
+    def _update_sleep(self, sec, msg=None, interval=0.5):
+        """
+        waits for "sec" seconds (or up to "interval" more) while updating the
+        internal status message. The message can contain one placeholder "{}"
+        which will be replaced by the remaining waiting time
+        """
+        t0 = time.time()
+        if msg is None:
+            msg = "waiting {:2.0f} s"
+        while (time.time() - t0) < sec:
+            stillwaiting = sec - (time.time() - t0)
+            if stillwaiting > interval*1.1:
+                self.statusmsg = msg.format(stillwaiting)
+                time.sleep(interval)
+            else:
+                time.sleep(stillwaiting)
+                break
+            self.statusmsg = ""
 
     # driver functions
     def setMagneticField(self, xval):
@@ -488,15 +513,11 @@ class IPS120_switchheater(IsobusDevice):
             # now magnet is ready to be switched to non persistent mode
             # turn on switch heater
             self.setSwitchHeater(True)
-            # waiting time until switch is warm
-            time.sleep(5)
             # now magnet is in non persistent mode
         elif 0 == swhtr:
             # switch heater is off but no field in magnet
             # turn on switch heater
             self.setSwitchHeater(True)
-            # waiting time until switch is warm
-            time.sleep(5)
             # now magnet is in non persistent mode
         else:
             # switch heater is on anyway
@@ -509,14 +530,18 @@ class IPS120_switchheater(IsobusDevice):
         time.sleep(0.1)
         # set to go to setpoint and remain there
         self.setMagnetStatus(1)
-        # switch heater stays on
+        # switch heater stays
+        self.statusmsg = f"Ramping to {field} T"
         if block:
-            while(not math.isclose(field, self.getMagneticField(), abs_tol=0.0005)):
-                time.sleep(0.5)
-            # magnet to hold after reaching setpoint
-            time.sleep(0.5)
-            # uncommented to prevent residual persistent current
-            # self.setMagnetStatus(0)
+            while True:
+                current_field = self.getMagneticField()
+                # wait for magnet to reach setpoint
+                if math.isclose(field, current_field, abs_tol=0.0001):
+                    # # wait for magnet hold mode after reaching setpoint
+                    # if self.getMagnetStatus() == 0:
+                    break
+                time.sleep(1)
+            self.statusmsg = ""
 
     @synchronized
     def setMagneticFieldPersistent(self, field):
@@ -528,8 +553,6 @@ class IPS120_switchheater(IsobusDevice):
         time.sleep(1)
         # turn off switch heater
         self.setSwitchHeater(False)
-        # wait for switch to cool
-        time.sleep(5)
         # set non persistent field to 0
         self.setMagnetStatus(2)
         # update persistent field in local memory
@@ -540,12 +563,12 @@ class IPS120_switchheater(IsobusDevice):
         Set rate to "rate"
 
         Arguments:
-            rate:float - can be between 0 and 0.5T/min
+            rate:float - can be between 0 and max_rate T/min
         """
         if 0 > rate:
             rate = 0
-        elif 0.5 < rate:
-            rate = 0.5
+        elif self.max_rate < rate:
+            rate = self.max_rate
         if self.legacy:
             self.query("T{:04d}".format(int(rate*1000)))
         else:
@@ -633,8 +656,12 @@ class IPS120_switchheater(IsobusDevice):
         """
         if output is True:
             self.query("H1")
+            self._update_sleep(self.switch_wait_time,
+                               "warming the switch ({:2.0f} s)")
         else:
             self.query("H0")
+            self._update_sleep(self.switch_wait_time,
+                               "cooling the switch ({:2.0f} s)")
 
     def getSwitchHeater(self):
         """
