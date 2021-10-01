@@ -85,6 +85,7 @@ class VisaDevice(object):
         # mutex lock to synchronize devices sharing the same connection
         # currently this is needed only by IsobusDevices
         self.sharedlock = kwargs.pop("sharedlock", threading.RLock())
+        self.backend = kwargs.pop("backend", "")
 
         # set number of commands which can be sent per second
         if cmdpers is not None:
@@ -115,7 +116,7 @@ class VisaDevice(object):
         if not self.conn:
             # hardcode the resource manager or allow to pass different
             # backend?
-            self.VISArm = pyvisa.ResourceManager()
+            self.VISArm = pyvisa.ResourceManager(self.backend)
             if isinstance(self.interface, pyvisa.resources.Resource):
                 self.VISAdev = self.interface
                 self.conn = True
