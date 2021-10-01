@@ -6,6 +6,7 @@ level communication.
 
 
 import logging
+import threading
 import time
 
 import pyvisa
@@ -81,6 +82,9 @@ class VisaDevice(object):
             pyvisa.log_to_screen()
         kwargs.pop("visadebug", None)
         kwargs.pop("pts", None)
+        # mutex lock to synchronize devices sharing the same connection
+        # currently this is needed only by IsobusDevices
+        self.sharedlock = kwargs.pop("sharedlock", threading.RLock())
 
         # set number of commands which can be sent per second
         if cmdpers is not None:

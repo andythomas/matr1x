@@ -477,15 +477,16 @@ class System(object):
                 # initializing an instance of class dev[0] with args dev[1] and
                 # optionally kwargs in dev[2]
                 cls, devargs = dev[:2]
+                devkwargs = dev[2] if len(dev) > 2 else dict()
                 if len(devargs) > 1 and "sharedwith" in devargs[0]:
                     # need to get connection from other device
                     devargs = list(devargs)
-                    devargs[0] = self.devs[devargs[0].split("::")[1]].VISAdev
-                if len(dev) > 2:
-                    self.devs[key] = cls(*devargs, **dev[2])
-                else:
-                    # no kwargs provided
-                    self.devs[key] = cls(*devargs)
+                    otherdev = devargs[0].split("::")[1]
+                    devargs[0] = self.devs[otherdev].VISAdev
+                    # also reuse mutex lock from other device
+                    if "sharedlock" not in devkwargs:
+                        devkwargs["sharedlock"] = self.devs[otherdev].sharedlock
+                self.devs[key] = cls(*devargs, **devkwargs)
             else:
                 # device was already initialized prior the set call.
                 # do not try to reinitialize or something is amiss.
