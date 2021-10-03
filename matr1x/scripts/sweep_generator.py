@@ -19,12 +19,12 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QPushButton, QScrollArea, QTextEdit, QVBoxLayout,
                              QWidget)
 
-from . import systems as core_systems
-from . import systems_directory
-from .control.util import QtGracefulKiller
-from .gui_util import CustomViewBox
-from .util import (calculate_sweep, generate_col_index, get_settable_columns,
-                   merge_systems)
+from .. import systems as core_systems
+from .. import systems_directory
+from ..control.util import QtGracefulKiller
+from ..gui_util import CustomViewBox
+from ..util import (calculate_sweep, generate_col_index, get_settable_columns,
+                    merge_systems)
 
 # overwrite core_systems with list of systems
 core_systems = [splitext(system)[0] for system in
@@ -333,7 +333,8 @@ class MainWindow(QDialog):
         self.populate_layout()
         if not self.populated:
             self.populated = True
-        self.statusBar.append("Initialization of ASG completed - enjoy!")
+        self.statusBar.append("Initialization of sweep generator completed"
+                              " - enjoy!")
 
     def populate_layout(self):
         """

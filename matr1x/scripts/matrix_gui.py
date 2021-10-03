@@ -14,9 +14,9 @@ from os.path import exists, expanduser, getmtime, getsize, join
 import pyqtgraph as pg
 import pyqtgraph.exporters
 from matr1x import gui_util as gu
-from matr1x import sweep_generator
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import delta, loadh5matrix, loadmatrix
+from matr1x.scripts import sweep_generator
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
