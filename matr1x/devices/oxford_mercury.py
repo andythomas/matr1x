@@ -35,13 +35,26 @@ class MercurySingleAxisIPS(VisaDevice):
                  ":ATOB": "", ":IND": "", ":SWPR": "", ":SHTC": "",
                  ":VLIM": "", ":VTRT": "", ":ACTN": ""}
     dataDictX = {":FLD": 0, ":RFLD": 0, ":FSET": 0, ":RFST": 0}
-    addressDict = {"sys": addressSys, "z": addressX}
+    addressLevel = "DEV:DB1.L1:LVL"
+    confDictLevel = {":MAN:HVER": "", ":MAN:FVER": "", ":MAN:SERL": "",
+                     ":STAT": "", ":HEL:PULS:SLOW": "",
+                     ":HEL:RES:ZERO": "", ":HEL:RES:FULL": "",
+                     ":HEL:PREP:MAG": "", ":HEL:PREP:TIM": "",
+                     ":HEL:PULS:MAG": "", ":HEL:PULS:TIM": "",
+                     ":HEL:PULS:DEL": "", ":NIT:FREQ:ZERO": "",
+                     ":NIT:FREQ:FULL": "", ":NIT:PPS": ""}
+    dataDictLevel = {":HEL:LEV": 0, ":NIT:LEV": 0}
+    addressDict = {"sys": addressSys, "z": addressX, "level": addressLevel}
     workingDict = {"zActn": ([0], ":ACTN", addressX, False),
                    "zField": ([0], ":FLD", addressX, True),
                    "zRate": ([0], ":RFLD", addressX, True),
                    "zFSet": ([0], ":FSET", addressX, True),
                    "zRSet": ([0], ":RFST", addressX, True),
-                   "volt": ([0], ":VOLT", addressX, True)}
+                   "volt": ([0], ":VOLT", addressX, True),
+                   "LHe": ([0], ":HEL:LEV", addressLevel, True),
+                   "LN2": ([0], ":NIT:LEV", addressLevel, True),
+                   "Slow": ([True], ":HEL:PULS:SLOW", addressLevel, False),
+                   }
 
     def __init__(self, interface, maxfield=5, maxrate=0.5):
         super().__init__(interface, write_termination="\n",
@@ -111,27 +124,30 @@ class MercurySingleAxisIPS(VisaDevice):
         return self.workingDict[key][0][0]
 
     # status functions
-    @synchronized
     def queryAllDicts(self):
         self.queryID()
         self.querySysConf()
         self.queryMagnetConf()
+        self.queryLevelMeter()
         self.queryMagnetStatus()
+        self.queryLevelMeterStatus()
         self.queryWorkingDict()
 
-    @synchronized
     def queryID(self):
         self.queryDict(self.idIPS)
 
-    @synchronized
     def querySysConf(self):
         self.queryDict(self.sysDict, self.addressSys)
 
-    @synchronized
     def queryMagnetConf(self):
         self.queryDict(self.confDictX, self.addressX)
 
-    @synchronized
+    def queryLevelMeter(self):
+        self.queryDict(self.confDictLevel, self.addressLevel)
+
+    def queryLevelMeterStatus(self):
+        self.queryDict(self.dataDictLevel, self.addressLevel, True)
+
     def queryMagnetStatus(self):
         self.queryDict(self.dataDictX, self.addressX, True)
 
@@ -140,6 +156,8 @@ class MercurySingleAxisIPS(VisaDevice):
         logger.debug("IPS-SYSCONF: " + str(self.sysDict))
         logger.debug("IPS-MAGNETCONF Z: " + str(self.confDictX))
         logger.debug("IPS-MAGNETSTATUS Z: " + str(self.dataDictX))
+        logger.debug("ITC-LEVELCONF: " + str(self.confDictLevel))
+        logger.debug("IPS-LEVELSTATUS: " + str(self.dataDictLevel))
         logger.debug("IPS-WORKING DICT: " + str(self.workingDict))
 
     # driver functions
@@ -263,6 +281,18 @@ class MercurySingleAxisIPS(VisaDevice):
         """ Get state current output voltage
         """
         return self.getDictValue("volt")
+
+    def getLevels(self):
+        return (self.getDictValue("LN2"), self.getDictValue("LHe"))
+
+    def setFastRate(self, slow=True):
+        if slow is True:
+            self.setVal("ON", *self.workingDict["Slow"][1:])
+        elif slow is False:
+            self.setVal("OFF", *self.workingDict["Slow"][1:])
+
+    def getFastRate(self):
+        return self.getDictValue("Slow")
 
 
 class MercuryIPS(VisaDevice):
