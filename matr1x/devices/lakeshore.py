@@ -144,6 +144,7 @@ class Lakeshore3xx(VisaDevice):
     def getActiveCurveName(self, channel=None):
         return self.getCurveName(self.getCurveNumber(channel=channel))
 
+    @synchronized
     def setCurveNumber(self, curve, channel=None):
         try:
             curve = int(curve)
@@ -153,6 +154,8 @@ class Lakeshore3xx(VisaDevice):
             return
         self.write("INCRV " + str(channel if channel else
                                   self.channel) + "," + str(curve))
+        # wait to activate the change
+        time.sleep(3)
 
     @synchronized
     def writeCurveToIndex(self, index, name, sn, rList, tList):
