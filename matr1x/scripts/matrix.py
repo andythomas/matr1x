@@ -11,6 +11,7 @@ import math
 import os
 import re
 import shlex
+import socket
 import sys
 import time
 import traceback
@@ -21,9 +22,63 @@ from matr1x.util import (flatten, generate_col_index, get_settable_columns,
                          take_measurement_point, trigger_system,
                          write_matrix_header)
 
+from . import MATRIX_GUI_PORT
+
 # telemetry string template
 telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
                     "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
+
+
+def generate_outfilename(system, options):
+    # check whether hdf5 is required and change output extensions
+    if system.hdf5 is True:
+        # append h5 to filename to discern filetypes
+        file_extension = ".h5" + output_extension
+    else:
+        file_extension = output_extension
+    refileext = file_extension.replace('.', r'\.')
+
+    # if no output file was specified use the input filename as a template
+    if not options.outputfile:
+        outputfile = os.path.splitext(options.inputfile)[0]
+    else:
+        outputfile = options.outputfile
+    # check if file extension was provided
+    if not re.search(f"{refileext}$", outputfile):
+        outputfile = re.sub(r"(\.h5)?\.ma\d$", "", outputfile) + file_extension
+    if not os.path.exists(outputfile):
+        # use the unmodified file name
+        return outputfile, "w"
+    else:
+        # in case extension and running number are already attached to
+        # the filename, replace in outputfile
+        outfile = re.sub(r"(_\d+)?(\.h5)?\.ma\d$", "", outputfile)
+
+        # check filename and increase "extension number" to protect existing
+        # data
+        for extension in range(1, 10000):
+            if os.path.exists(f"{outfile}_{extension}{file_extension}"):
+                continue
+            else:
+                break
+
+        if bool(options.append) is True and 0 != extension:
+            # if there is a file with that name already, change to the append mode
+            return f"{outfile}_{extension-1}{file_extension}", "a"
+        else:
+            # in this case start a new file
+            # append the next possible number as file extension
+            return f"{outfile}_{extension}{file_extension}", "w"
+
+
+def report_filename_to_gui(filename):
+    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        clientSocket.connect(("127.0.0.1", MATRIX_GUI_PORT))
+    except ConnectionRefusedError:
+        # GUI not running, just ignore this error
+        return
+    clientSocket.send(filename.encode())
 
 
 def parse_inputfile(inputfile, system):
@@ -365,38 +420,9 @@ def main():
         if "y" != resp:
             exit()
 
-    # check whether hdf5 is required and change output extensions
-    if system.hdf5 is True:
-        # append h5 to filename to discern filetypes
-        file_extension = ".h5" + output_extension
-    else:
-        file_extension = output_extension
-
-    # if no output file was specified use the input filename as a template
-    if options.outputfile is None:
-        options.outputfile = re.sub(r"\.\d+t$", "", options.inputfile)
-    # in case extension is already attached to filename, replace in outputfile
-    outfile = re.sub(r"(_\d+)?" + file_extension + "$", "", options.outputfile)
-
-    # check filename and increase "extension number" to protect old measurements
-    for extension in range(10000):
-        try:
-            temp_file = open(outfile + "_" + str(extension) +
-                             file_extension, 'r')
-            temp_file.close()
-            continue
-        except IOError:
-            break
-
-    if bool(options.append) is True and 0 != extension:
-        # if there is a file with that name already, change to the append mode
-        output_filename = outfile + "_" + str(extension-1) + file_extension
-        output_filemode = "a"
-    else:
-        # in this case start a new file
-        # append the next possible number as file extension
-        output_filename = outfile + "_" + str(extension) + file_extension
-        output_filemode = "w"
+    # obtain output file name and mode used to open the file
+    output_filename, output_filemode = generate_outfilename(system, options)
+    report_filename_to_gui(output_filename)
 
     # initialize devices and notify user what is going on
     print("setting devices")

@@ -6,6 +6,7 @@
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -16,7 +17,8 @@ import pyqtgraph.exporters
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import delta, loadh5matrix, loadmatrix
-from matr1x.scripts import sweep_generator
+from matr1x.scripts import MATRIX_GUI_PORT, sweep_generator
+from natsort import natsorted
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
@@ -291,6 +293,7 @@ class SweepPreviewPopup(QDialog):
 
 
 class ExecThread(QThread):
+    filename_received = pyqtSignal(str)
 
     def __init__(self):
         QThread.__init__(self)
@@ -302,10 +305,28 @@ class ExecThread(QThread):
         self.sample = sample
         self.comment = comment
 
+    def receive_filename(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('127.0.0.1', MATRIX_GUI_PORT))
+        s.listen(1)
+        conn, address = s.accept()  # will block until a new client connects
+
+        # get filename which is sent by matrix
+        data = ""
+        while True:
+            datachunk = conn.recv(1024)
+            if not datachunk:
+                break
+            data += datachunk.decode()
+
+        conn.close()
+        self.filename_received.emit(data)
+
     def run(self):
-        cmd = ["matrix",
-               "-i", self.inputFile,
-               "-o", self.outputFile]
+        cmd = ["matrix", "-i", self.inputFile]
+        if self.outputFile != "":
+            cmd += ["-o", self.outputFile]
         for field, arg in ((self.user, "-u"),
                            (self.sample, "-S"),
                            (self.comment, "-m")):
@@ -386,6 +407,9 @@ class ExecThread(QThread):
                 # forward process by tcsetpgrp.
                 os.kill(child.pid, signal.SIGCONT)
 
+                # get filename back
+                self.receive_filename()
+
                 # wait for the child to terminate
                 ret = child.wait()
 
@@ -414,12 +438,10 @@ class MainWindow(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.outputFile = None
-        self.inputFile = None
-        self.filenameGenerated = False
         self.initUI()
         self.sg = None
         self.thread = ExecThread()
+        self.thread.filename_received.connect(self.outputEdit.setText)
         self.thread.finished.connect(self.processFinished)
 
     def closeEvent(self, event):
@@ -514,7 +536,6 @@ class MainWindow(QWidget):
                                                "input files (*.*t)")
         if "" != filename[0]:
             self.inputEdit.setText(filename[0])
-            self.updateInputOutputFile()
 
     def showOutputDialog(self):
         """
@@ -529,8 +550,6 @@ class MainWindow(QWidget):
             options=QFileDialog.DontConfirmOverwrite)
         if "" != filename[0]:
             self.outputEdit.setText(filename[0])
-            self.filenameGenerated = False
-            self.outputFile = filename[0]
 
     def startSweepGenerator(self):
         """
@@ -550,73 +569,44 @@ class MainWindow(QWidget):
         """
         self.inputEdit.setText(filename)
 
-    def updateInputOutputFile(self):
-        """
-        Updates self.outputFile correctly
-        """
-        inputFile = self.inputEdit.text()
-        outputFile = self.outputEdit.text()
-        if "" == outputFile:
-            # if no output file is given, generate filename from input file
-            outputFile = re.sub(r"\.\d+t$", "", inputFile)
-        self.filenameGenerated = True
-        self.outputFile = outputFile
-        self.inputFile = inputFile
-
     def runMatrix(self):
         """
         Runs the matrix program with the specified parameters
         """
-        self.updateInputOutputFile()
-        if "" == self.inputFile:
+        inputFile = self.inputEdit.text()
+        outputFile = self.outputEdit.text()
+        if "" == inputFile:
             self.statusBar.append("No input file specified")
             return
         self.runButton.setDisabled(True)
-        self.thread.set_param(self.inputFile, self.outputFile,
+        self.thread.set_param(inputFile, outputFile,
                               self.userField.text(), self.sampleField.text(),
                               self.commentField.toPlainText())
         self.thread.start()
-
-    def getLatestOutput(self):
-        if self.outputFile is not None and "" != self.outputFile:
-            folder, nameext = os.path.split(self.outputFile)
-            name = os.path.splitext(nameext)[0]
-            try:
-                dummy = os.listdir(folder)
-            except FileNotFoundError:
-                return ""
-            highest = -1
-            for filename in dummy:
-                if "ma7" in filename and name in filename:
-                    # Maybe use re here, might be faster
-                    ending = filename.split("_")[-1]
-                    m = re.search(r"(\d+)(.+)", ending)
-                    value = int(m.group(1))
-                    if highest < value:
-                        highest = value
-            try:
-                # catch if there is no file (yet) -> then m is undefined
-                return folder + "/" + name + "_" + str(highest) + m.group(2)
-            except UnboundLocalError:
-                return self.outputFile
 
     def processFinished(self):
         self.runButton.setDisabled(False)
 
     def openPreview(self):
         output = self.outputEdit.text()
-        if (("" == output and self.inputFile is not None) or
-                self.filenameGenerated is True):
-            filename = self.getLatestOutput()
-        elif self.outputFile is not None:
-            filename = self.outputFile
-        else:
-            self.statusBar.append("Please specify a filename")
+        if "" == output:  # try to obtain last filename from input file
+            infile = self.inputEdit.text()
+            if "" == infile:
+                self.statusBar.append("Please specify a filename")
+                return
+            inpath, infilename = os.path.split(infile)
+            inbasename = os.path.splitext(infilename)[0]
+            filelist = os.listdir(inpath) if inpath else os.listdir(os.curdir)
+            files = natsorted(
+                [f for f in filelist if
+                 re.search(fr'^({inbasename})(_\d*)?(\.h5)?\.ma\d$', f)])
+            print(files)
+            if len(files) > 0:
+                output = files[-1]
+        if exists(output) is False:
+            self.statusBar.append(f"File does not exist ({output})")
             return
-        if exists(filename) is False:
-            self.statusBar.append("File does not exist")
-            return
-        a = SweepPreviewPopup(self, filename)
+        a = SweepPreviewPopup(self, output)
         a.show()
 
 

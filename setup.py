@@ -23,6 +23,7 @@ setup(
     python_requires='>3.6',
     install_requires=[
         'h5py',
+        'natsort',
         'numpy',
         'pymeasure',
         'pyserial',
