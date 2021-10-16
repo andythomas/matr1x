@@ -358,6 +358,8 @@ class ExecThread(QThread):
         if os.name == 'nt':
             # fork the child
             child = subprocess.Popen(*args, **kwargs)
+            # get filename back
+            self.receive_filename()
             # wait for the child to terminate
             ret = child.wait()
         else:
@@ -600,9 +602,8 @@ class MainWindow(QWidget):
             files = natsorted(
                 [f for f in filelist if
                  re.search(fr'^({inbasename})(_\d*)?(\.h5)?\.ma\d$', f)])
-            print(files)
             if len(files) > 0:
-                output = files[-1]
+                output = os.path.join(inpath if inpath else os.curdir, files[-1])
         if exists(output) is False:
             self.statusBar.append(f"File does not exist ({output})")
             return
