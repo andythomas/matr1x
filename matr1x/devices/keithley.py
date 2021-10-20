@@ -29,9 +29,10 @@ class Keithley2400(VisaDevice):
 
     # high level functions
     def configure(self, sourceMode=None, senseMode=None, fourWire=None,
-                  senseAutoRange=None, senseRange=None, sourceAutoRange=None,
-                  sourceRange=None, senseLimit=None, output=None,
-                  delayAuto=None, delay=None, reset=False):
+                  senseAutoRange=None, senseRange=None,
+                  sourceAutoRange=None, sourceRange=None,
+                  senseLimit=None, output=None, delayAuto=None,
+                  delay=None, reset=False):
         """
         Configure the Keithley 2400
 
@@ -41,14 +42,14 @@ class Keithley2400(VisaDevice):
           "VOLT" or "CURR", predefined physical parameter
         senseMode : str
           "VOLT" or "CURR", measured parameter
-        fourWire : boolean
+        fourWire : bool
           Four wire measurement? Default: None (use current configuration)
-        senseAutoRange : boolean
+        senseAutoRange : bool
           Autodetect the sense range? Default: None
         senseRange : float
           Largest expected measurement value, device will
           pick the next inclusive range. Default: None
-        sourceAutoRange : boolean
+        sourceAutoRange : bool
           Autodetect the source range? Default: None
         sourceRange : float
           Largest expected source current, device will
@@ -57,14 +58,14 @@ class Keithley2400(VisaDevice):
           Voltage limit. Default: 10V
         output : boolean
           Turn the output on? Default: None
-        delayAuto : boolean
+        delayAuto : bool
           Automatically choose the delay for stabilizing
           the output? Default: None
         delay : float
           Delay in seconds for stabilizing the output before
           doing an internal measurement. WON'T AFFECT/DELAY
           OTHER DEVICES! Default: 0.1(s)
-        reset : boolean
+        reset : bool
           If true, reset the device
 
         Example
@@ -101,8 +102,8 @@ class Keithley2400(VisaDevice):
         else:
             cmdlist = []
         # we want sourceIsenseV
-        cmdlist.append(":SOUR:FUNC "+sourceMode)
-        cmdlist.append(":SENS:FUNC \""+senseMode+"\"")
+        cmdlist.append(f":SOUR:FUNC {sourceMode}")
+        cmdlist.append(f":SENS:FUNC \"{senseMode}\"")
 
         # check vs manual
         if delayAuto is True:
@@ -186,33 +187,47 @@ class Keithley2450(VisaDevice):
     # high level functions
     @synchronized
     def configure(self, sourceMode=None, senseMode=None, fourWire=None,
-                  senseAutoRange=None, senseRange=None, sourceAutoRange=None,
-                  sourceRange=None, senseLimit=None, output=None,
-                  delayAuto=None, delay=None, reset=False):
+                  senseAutoRange=None, senseRange=None,
+                  sourceAutoRange=None, sourceRange=None,
+                  senseLimit=None, output=None, delayAuto=None,
+                  delay=None, resetUnits=True, reset=False):
         """
         Configure the Keithley 2450 to source current and sense voltage
 
         Arguments
-        ------
-        sourceMode: "VOLT" or "CURR" -- predefined physical parameter
-        senseMode: "VOLT" or "CURR" -- measured parameter
-        fourWire:boolean -- Four wire measurement? Default: None (use
-                                current configuration)
-        senseAutoRange:boolean -- Autodetect the sense range? Default: None
-        senseRange:float -- Largest expected measurement value, device will
-                                pick the next inclusive range. Default: None
-        sourceAutoRange:boolean -- Autodetect the source range? Default:
-                                       None
-        sourceRange:float -- Largest expected source current, device will
-                                 pick the next inclusive range. Default: None
-        senseLimit:float -- Voltage/Current limit.
-        output:boolean -- Turn the output on? Default: None
-        delayAuto:boolean -- Automatically choose the delay for stabilizing
-                                 the output? Default: None
-        delay:float -- Delay in seconds for stabilizing the output before
-                           doing an internal measurement. WON'T AFFECT/DELAY
-                           OTHER DEVICES! Default: 0.1(s)
-        reset:boolean -- If true, reset the device
+        -----
+        sourceMode : str
+          "VOLT" or "CURR", predefined physical parameter
+        senseMode : str
+          "VOLT" or "CURR", measured parameter
+        fourWire : bool
+          Four wire measurement? Default: None (use current configuration)
+        senseAutoRange : bool
+          Autodetect the sense range? Default: None
+        senseRange : float
+          Largest expected measurement value, device will
+          pick the next inclusive range. Default: None
+        sourceAutoRange : bool
+          Autodetect the source range? Default: None
+        sourceRange : float
+          Largest expected source current, device will
+          pick the next inclusive range. Default: None
+        senseLimit : float
+          Voltage limit. Default: None
+        output : bool
+          Turn the output on? Default: None
+        delayAuto : bool
+          Automatically choose the delay for stabilizing
+          the output? Default: None
+        delay : float
+          Delay in seconds for stabilizing the output before
+          doing an internal measurement. WON'T AFFECT/DELAY
+          OTHER DEVICES! Default: 0.1(s)
+        resetUnits: bool
+          If true, Ampere and Volt are restored as default unit for
+          current and voltage measurements.
+        reset : bool
+          If true, reset the device
 
         Example
         -----
@@ -248,6 +263,11 @@ class Keithley2450(VisaDevice):
         # we want sourceIsenseV
         cmdlist.append(":SOUR:FUNC {}".format(self.sourceMode))
         cmdlist.append(":SENS:FUNC \"{}\"".format(self.senseMode))
+        # reset units to amp/volt to avoid unintentional reading of\
+        # resistance
+        if resetUnits:
+            cmdlist.append(":SENS:CURR:UNIT AMP")
+            cmdlist.append(":SENS:VOLT:UNIT VOLT")
         # turn on the readback so we get the actual value and not the setpoint
         cmdlist.append(":SOUR:{}:READ:BACK ON".format(self.sourceMode))
 
