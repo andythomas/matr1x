@@ -21,9 +21,9 @@ def loadmatrix(filename, structured=None, print_header=False):
     --------
     filename : str
       path to file
-    structured : boolean
+    structured : bool
       controls whether a structured array or a plain numpy array is returned
-    print_header : boolean
+    print_header : bool
       if true, prints the header read from the file together with the index for
       easy identification of the columns
     """
@@ -66,7 +66,7 @@ def loadh5matrix(filename, filehandle=False):
     --------
     filename : str
       name of file to open
-    filehandle : boolean
+    filehandle : bool
       if filehandle is True returns the filehandle of the hdf5 file.
       Otherwise (default), returns the header and data in the same format as
       loadmatrix

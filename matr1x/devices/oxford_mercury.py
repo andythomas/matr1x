@@ -105,7 +105,7 @@ class MercurySingleAxisIPS(VisaDevice):
                 self.workingDict[key][0][0] = float(re.findall(
                     r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0])
             except (TypeError, IndexError):
-                # If float conversion fails, try boolean conversion
+                # If float conversion fails, try bool conversion
                 if "ON" == dummy:
                     self.workingDict[key][0][0] = True
                 elif "OFF" == dummy:
@@ -116,7 +116,7 @@ class MercurySingleAxisIPS(VisaDevice):
                         self.workingDict[key][0][0] = status.index(dummy)
                     except ValueError:
                         # what happened?
-                        logger.info("Non boolean value at " + str(key) +
+                        logger.info("Non bool value at " + str(key) +
                                     " is " + dummy + " and can not be" +
                                     " assigned to status")
 
@@ -178,7 +178,7 @@ class MercurySingleAxisIPS(VisaDevice):
         """
         Returns the values of the magnetic field
         Arguments:
-            setp:boolean - if setp is true, returns also the setpoints
+            setp:bool - if setp is true, returns also the setpoints
         """
         if setp is True:
             return (self.getDictValue("zField"),
@@ -205,7 +205,7 @@ class MercurySingleAxisIPS(VisaDevice):
         Get rate of the magnetic axis "axis"
         Arguments:
             axis:integer - 0=x
-            setp:boolean - If setp is true, also returns the setpoint
+            setp:bool - If setp is true, also returns the setpoint
         """
         if -1 == axis:
             val = [self.getDictValue("zRate")]
@@ -410,7 +410,7 @@ class MercuryIPS(VisaDevice):
                 self.workingDict[key][0][0] = float(re.findall(
                     r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0])
             except (TypeError, IndexError):
-                # If float conversion fails, try boolean conversion
+                # If float conversion fails, try bool conversion
                 if "ON" == dummy:
                     self.workingDict[key][0][0] = True
                 elif "OFF" == dummy:
@@ -421,7 +421,7 @@ class MercuryIPS(VisaDevice):
                         self.workingDict[key][0][0] = status.index(dummy)
                     except ValueError:
                         # what happened?
-                        logger.info("Non boolean value at " + str(key) +
+                        logger.info("Non bool value at " + str(key) +
                                     " is " + dummy + " and can not be" +
                                     " assigned to status")
 
@@ -534,7 +534,7 @@ class MercuryIPS(VisaDevice):
         Returns the values of the magnetic fields
 
         Arguments:
-            setp:boolean - if setp is true, returns also the three setpoints
+            setp:bool - if setp is true, returns also the three setpoints
         """
         if setp is True:
             return (self.getDictValue("xField"),
@@ -574,7 +574,7 @@ class MercuryIPS(VisaDevice):
 
         Arguments:
             axis:integer - 0=x, 1=y, 2=z
-            setp:boolean - If setp is true, also returns the setpoint
+            setp:bool - If setp is true, also returns the setpoint
         """
         if -1 == axis:
             val = [self.getDictValue("xRate"),
@@ -786,14 +786,14 @@ class MercuryITC(VisaDevice):
                 self.workingDict[key][0][0] = float(re.findall(
                     r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0])
             except (TypeError, IndexError):
-                # If float conversion fails, try boolean conversion
+                # If float conversion fails, try bool conversion
                 if "ON" == dummy:
                     self.workingDict[key][0][0] = True
                 elif "OFF" == dummy:
                     self.workingDict[key][0][0] = False
                 else:
                     # what happened?
-                    logger.info("Non boolean value at " + str(key) +
+                    logger.info("Non bool value at " + str(key) +
                                 " is " + dummy)
 
     def getDictValue(self, key):

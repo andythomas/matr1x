@@ -56,7 +56,7 @@ class Keithley2400(VisaDevice):
           pick the next inclusive range. Default: None
         senseLimit : float
           Voltage limit. Default: 10V
-        output : boolean
+        output : bool
           Turn the output on? Default: None
         delayAuto : bool
           Automatically choose the delay for stabilizing
@@ -372,23 +372,23 @@ class Keithley2611A(VisaDevice):
         -----
         sourceMode: "VOLT" or "CURR" -- predefined physical parameter
         senseMode: "VOLT" or "CURR" -- measured parameter
-        fourWire:boolean -- Four wire measurement? Default: None (use
+        fourWire:bool -- Four wire measurement? Default: None (use
                                 current configuration)
-        senseAutoRange:boolean -- Autodetect the sense range? Default: None
+        senseAutoRange:bool -- Autodetect the sense range? Default: None
         senseRange:float -- Largest expected measurement value, device will
                                 pick the next inclusive range. Default: None
-        sourceAutoRange:boolean -- Autodetect the source range? Default:
+        sourceAutoRange:bool -- Autodetect the source range? Default:
                                        None
         sourceRange:float -- Largest expected source current, device will
                                  pick the next inclusive range. Default: None
         senseLimit:float -- Voltage/Current limit.
-        output:boolean -- Turn the output on? Default: None
-        delayAuto:boolean -- Automatically choose the delay for stabilizing
+        output:bool -- Turn the output on? Default: None
+        delayAuto:bool -- Automatically choose the delay for stabilizing
                                  the output? Default: None
         delay:float -- Delay in seconds for stabilizing the output before
                            doing an internal measurement. WON'T AFFECT/DELAY
                            OTHER DEVICES! Default: 0.1(s)
-        reset:boolean -- If true, reset the device
+        reset:bool -- If true, reset the device
 
         Example
         -----
@@ -523,18 +523,18 @@ class Keithley2182A(VisaDevice):
             window:float -- filter window for the digital filter, default: None
             NPLC:int -- Number of power line cycles to integrate over.
                         default: None
-            dFil:boolean -- If true, turn on the digital filter. If False
+            dFil:bool -- If true, turn on the digital filter. If False
                             window and filter count are ignored- default: None
-            repeatingFilter:boolean -- If true set the filter to repeating,
+            repeatingFilter:bool -- If true set the filter to repeating,
                                        If false to moving - default: None
             range:float -- Range of the voltage detection. Selected by the
                            instrument to include the value of range.
                            default: None
-            rangeAuto:boolean -- Automatic detection of the measurement range
+            rangeAuto:bool -- Automatic detection of the measurement range
                                  Take care, takes additional time during
                                  measurements! default: None
-            trigBus:boolean -- sets trigger source to BUS if true
-            reset:boolean -- if true, the device is reset prior to
+            trigBus:bool -- sets trigger source to BUS if true
+            reset:bool -- if true, the device is reset prior to
                              configuration, default: False
         """
         cmdList = []
@@ -617,18 +617,18 @@ class Keithley2701(VisaDevice):
             window:float -- filter window for the digital filter, default: None
             NPLC:int -- Number of power line cycles to integrate over.
                         default: None
-            dFil:boolean -- If true, turn on the digital filter. If False
+            dFil:bool -- If true, turn on the digital filter. If False
                             window and filter count are ignored- default: None
-            repeatingFilter:boolean -- If true set the filter to repeating,
+            repeatingFilter:bool -- If true set the filter to repeating,
                                        If false to moving - default: None
             range:float -- Range of the voltage detection. Selected by the
                            instrument to include the value of range.
                            default: None
-            rangeAuto:boolean -- Automatic detection of the measurement range
+            rangeAuto:bool -- Automatic detection of the measurement range
                                  Take care, takes additional time during
                                  measurements! default: None
-            trigBus:boolean -- sets trigger source to BUS if true
-            reset:boolean -- if true, the device is reset prior to
+            trigBus:bool -- sets trigger source to BUS if true
+            reset:bool -- if true, the device is reset prior to
                              configuration, default: False
         """
         if reset is True:
@@ -680,18 +680,18 @@ class Keithley2701(VisaDevice):
             window:float -- filter window for the digital filter, default: None
             NPLC:int -- Number of power line cycles to integrate over.
                         default: None
-            dFil:boolean -- If true, turn on the digital filter. If False
+            dFil:bool -- If true, turn on the digital filter. If False
                             window and filter count are ignored- default: None
-            repeatingFilter:boolean -- If true set the filter to repeating,
+            repeatingFilter:bool -- If true set the filter to repeating,
                                        If false to moving - default: None
             range:float -- Range of the voltage detection. Selected by the
                            instrument to include the value of range.
                            default: None
-            rangeAuto:boolean -- Automatic detection of the measurement range
+            rangeAuto:bool -- Automatic detection of the measurement range
                                  Take care, takes additional time during
                                  measurements! default: None
-            trigBus:boolean -- sets trigger source to BUS if true
-            reset:boolean -- if true, the device is reset prior to
+            trigBus:bool -- sets trigger source to BUS if true
+            reset:bool -- if true, the device is reset prior to
                              configuration
                              default: False
         """
@@ -744,18 +744,18 @@ class Keithley2701(VisaDevice):
             window:float -- filter window for the digital filter, default: None
             NPLC:int -- Number of power line cycles to integrate over.
                         default: None
-            dFil:boolean -- If true, turn on the digital filter. If False
+            dFil:bool -- If true, turn on the digital filter. If False
                             window and filter count are ignored- default: None
-            repeatingFilter:boolean -- If true set the filter to repeating,
+            repeatingFilter:bool -- If true set the filter to repeating,
                                        If false to moving - default: None
             range:float -- Range of the voltage detection. Selected by the
                            instrument to include the value of range.
                            default: None
-            rangeAuto:boolean -- Automatic detection of the measurement range
+            rangeAuto:bool -- Automatic detection of the measurement range
                                  Take care, takes additional time during
                                  measurements! default: None
-            trigBus:boolean -- sets trigger source to BUS if true
-            reset:boolean -- if true, the device is reset prior to
+            trigBus:bool -- sets trigger source to BUS if true
+            reset:bool -- if true, the device is reset prior to
                              configuration, default: False
         """
         cmdList = []
@@ -845,18 +845,18 @@ class Keithley2000(VisaDevice):
             window:float -- filter window for the digital filter, default: None
             NPLC:int -- Number of power line cycles to integrate over.
                         default: None
-            dFil:boolean -- If true, turn on the digital filter. If False
+            dFil:bool -- If true, turn on the digital filter. If False
                             window and filter count are ignored- default: None
-            repeatingFilter:boolean -- If true set the filter to repeating,
+            repeatingFilter:bool -- If true set the filter to repeating,
                                        If false to moving - default: None
             range:float -- Range of the voltage detection. Selected by the
                            instrument to include the value of range.
                            default: None
-            rangeAuto:boolean -- Automatic detection of the measurement range
+            rangeAuto:bool -- Automatic detection of the measurement range
                                  Take care, takes additional time during
                                  measurements! default: None
-            trigBus:boolean -- sets trigger source to BUS if true
-            reset:boolean -- if true, the device is reset prior to
+            trigBus:bool -- sets trigger source to BUS if true
+            reset:bool -- if true, the device is reset prior to
                              configuration, default: False
         """
         if reset is True:
@@ -907,18 +907,18 @@ class Keithley2000(VisaDevice):
             window:float -- filter window for the digital filter, default: None
             NPLC:int -- Number of power line cycles to integrate over.
                         default: None
-            dFil:boolean -- If true, turn on the digital filter. If False
+            dFil:bool -- If true, turn on the digital filter. If False
                             window and filter count are ignored- default: None
-            repeatingFilter:boolean -- If true set the filter to repeating,
+            repeatingFilter:bool -- If true set the filter to repeating,
                                        If false to moving - default: None
             range:float -- Range of the voltage detection. Selected by the
                            instrument to include the value of range.
                            default: None
-            rangeAuto:boolean -- Automatic detection of the measurement range
+            rangeAuto:bool -- Automatic detection of the measurement range
                                  Take care, takes additional time during
                                  measurements! default: None
-            trigBus:boolean -- sets trigger source to BUS if true
-            reset:boolean -- if true, the device is reset prior to
+            trigBus:bool -- sets trigger source to BUS if true
+            reset:bool -- if true, the device is reset prior to
                              configuration
                              default: False
         """
@@ -970,18 +970,18 @@ class Keithley2000(VisaDevice):
             window:float -- filter window for the digital filter, default: None
             NPLC:int -- Number of power line cycles to integrate over.
                         default: None
-            dFil:boolean -- If true, turn on the digital filter. If False
+            dFil:bool -- If true, turn on the digital filter. If False
                             window and filter count are ignored- default: None
-            repeatingFilter:boolean -- If true set the filter to repeating,
+            repeatingFilter:bool -- If true set the filter to repeating,
                                        If false to moving - default: None
             range:float -- Range of the voltage detection. Selected by the
                            instrument to include the value of range.
                            default: None
-            rangeAuto:boolean -- Automatic detection of the measurement range
+            rangeAuto:bool -- Automatic detection of the measurement range
                                  Take care, takes additional time during
                                  measurements! default: None
-            trigBus:boolean -- sets trigger source to BUS if true
-            reset:boolean -- if true, the device is reset prior to
+            trigBus:bool -- sets trigger source to BUS if true
+            reset:bool -- if true, the device is reset prior to
                              configuration, default: False
         """
         cmdList = []

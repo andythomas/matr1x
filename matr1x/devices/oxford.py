@@ -271,7 +271,7 @@ class IPS120(IsobusDevice):
         Returns the values of the magnetic field
 
         Arguments:
-            setp:boolean - if setp is true, returns also the setpoints
+            setp:bool - if setp is true, returns also the setpoints
         """
         fval = self.query_float("R7")
         if setp is True:
@@ -303,7 +303,7 @@ class IPS120(IsobusDevice):
 
         Arguments:
             axis:integer - 0=x
-            setp:boolean - If setp is true, also returns the setpoint
+            setp:bool - If setp is true, also returns the setpoint
         """
         if -1 == axis:
             val = [self.query_float("R9")]
@@ -464,7 +464,7 @@ class IPS120_switchheater(IsobusDevice):
         Returns the values of the magnetic field
 
         Arguments:
-            setp:boolean - if setp is true, returns also the setpoints
+            setp:bool - if setp is true, returns also the setpoints
         """
         if self.legacy:
             fval = self.query_float("R7") / 1000
@@ -579,7 +579,7 @@ class IPS120_switchheater(IsobusDevice):
         Get rate of the magnetic field
 
         Arguments:
-            setp:boolean - If setp is true, also returns the setpoint
+            setp:bool - If setp is true, also returns the setpoint
         """
         if self.legacy:
             val = self.query_float("R9") / 1000

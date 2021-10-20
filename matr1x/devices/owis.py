@@ -151,7 +151,7 @@ class Ps10(VisaDevice):
         Set the motor state on or off
 
         Parameters:
-            state - boolean
+            state - bool
         """
         if state is True:
             self.write("MON1")

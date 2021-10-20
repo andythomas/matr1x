@@ -115,7 +115,7 @@ def grab_system_information(systems, settables=False):
     ----
     systems : list
       List of system (file)names that should be imported
-    settables : boolean, optional
+    settables : bool, optional
       controls whether to return the settable columns of the system (if True)
       or whether a human readble string with the system definition is returned.
 
@@ -392,7 +392,7 @@ def calculate_sweep(sweepParms, loopOver, upDown, repeat, functions):
     loopOver : list
       List of integers(<len(loopOver)) defining the looping scheme
     upDown : list
-      List of booleans defining if the sweep is going both ways
+      List of bools defining if the sweep is going both ways
     repeat : list
       List of integers defining how often the sweep ranges are repeated
 
@@ -534,7 +534,7 @@ def get_settable_columns(system):
     Returns
     ----
     settables : list
-      list of booleans describing whether a parameter is settable or not
+      list of bools describing whether a parameter is settable or not
     flattened_settable_names : list
       list of strings containing the names of the settable columns
     flattened_settable_units : list

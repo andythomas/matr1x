@@ -66,7 +66,7 @@ class ControlThread (threading.Thread):
         make sure to set:
             self.maxOut (absolut maximum output value)
             self.outLimit (current maximum output value) in this function!
-            self.bipolar (boolean determining bipolar or unipolar output
+            self.bipolar (bool determining bipolar or unipolar output
         """
 
     def _getReading(self):
@@ -253,7 +253,7 @@ class PIDcontroller():
       controlling integral windup
     parameters : array of length three
       contains the [KP, KI, KD] parameters
-    bipolar : boolean
+    bipolar : bool
       determines whether output is bipolar (True) or unipolar, this is only
       used for output limiting (between +-max or 0-max)
 
