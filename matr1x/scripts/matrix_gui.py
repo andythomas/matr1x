@@ -603,7 +603,8 @@ class MainWindow(QWidget):
                 [f for f in filelist if
                  re.search(fr'^({inbasename})(_\d*)?(\.h5)?\.ma\d$', f)])
             if len(files) > 0:
-                output = os.path.join(inpath if inpath else os.curdir, files[-1])
+                output = os.path.join(
+                    inpath if inpath else os.curdir, files[-1])
         if exists(output) is False:
             self.statusBar.append(f"File does not exist ({output})")
             return

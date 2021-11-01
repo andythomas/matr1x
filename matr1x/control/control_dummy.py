@@ -263,13 +263,20 @@ class MainWindow(QMainWindow):
         # stop SCPI server to reflect that something is wrong instead of
         # returning the same reading over and over
         self.stopServer()
-        # print verbose error message to status display and open popup warning
-        traceback.print_tb(exc.__traceback__, file=self.output_stream)
+        # print timestamp and verbose error message to status display,
+        # make a log entry and open a popup warning window
+        timestamp = time.asctime()
+        print(timestamp)
+        logger.info(f"handling error in {pointer}: {repr(exc)}")
+        traceback.print_tb(exc.__traceback__)
+        # duplicate to stdout
+        traceback.print_tb(exc.__traceback__, file=sys.stdout)
         a = QMessageBox.critical(
             self, f"Error in {pointer}",
-            f"""The following error was raised in {pointer}:
-            {repr(exc)}
-            Please investigate the error and eventually restart the graphical user interface""")
+            f"""{timestamp}
+The following error was raised in {pointer}:
+{repr(exc)}
+Please investigate the error and eventually restart the graphical user interface""")
 
     # driver functions begin here
     # example functions
