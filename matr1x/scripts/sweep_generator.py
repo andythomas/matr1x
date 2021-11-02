@@ -8,12 +8,12 @@ import sys
 import time
 from ast import literal_eval
 from math import floor
-from os.path import basename, exists, expanduser, join, split, splitext
+from os.path import basename, split, splitext
 
 import pyqtgraph as pg
 from matr1x import datetimefmt
 from matr1x import systems as core_systems
-from matr1x import systems_directory
+from matr1x import systems_directory, usersfolder
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import CustomViewBox
 from matr1x.util import (calculate_sweep, generate_col_index,
@@ -29,10 +29,6 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
 # overwrite core_systems with list of systems
 core_systems = [splitext(system)[0] for system in
                 os.listdir(core_systems.__path__[0]) if "system" in system]
-
-usersfolder = join(expanduser("~"), "users")
-if exists(usersfolder) is False:
-    usersfolder = expanduser("~")
 
 # double validator that disallows comma
 lo = QLocale("C")
@@ -751,9 +747,8 @@ class MainWindow(QDialog):
         """
         filename = QFileDialog.getSaveFileName(self, 'Select output file',
                                                usersfolder,
-                                               str(self.nParmsUsed) +
-                                               't file (*.' +
-                                               str(self.nParmsUsed) + 't)')
+                                               f"{self.nParmsUsed}t file "
+                                               f"(*.{self.nParmsUsed}t)")
         self.fileEditOutput.setText(filename[0])
 
     def generate_sweep(self):
@@ -802,8 +797,7 @@ class MainWindow(QDialog):
         """
         # get filename from dialog
         filename = QFileDialog.getOpenFileName(
-            self, 'Select input file', usersfolder,
-            "t files (*.*t)")[0]
+            self, 'Select input file', usersfolder, "t files (*.*t)")[0]
         # load system from file, define read out parameters to parse
         params = {"# params : ": None, "# loop_over : ": None,
                   "# functions : ": None, "# up_down : ": None,

@@ -16,8 +16,14 @@ cfiles = confparser.read([
 datetimefmt = confparser.get("matr1x", "datetime_format",
                              fallback="%Y-%m-%dT%H:%M:%S")
 
-systems_directory = confparser.get("matr1x", "systemsDirectory",
-                                   fallback="<pkgroot>/systems")
+usersfolder = os.path.expanduser(confparser.get("matr1x", "usersDirectory",
+                                 fallback=os.path.join('~', 'users')))
+if not os.path.exists(usersfolder):
+    usersfolder = os.path.expanduser("~")
+
+systems_directory = os.path.expanduser(
+    confparser.get("matr1x", "systemsDirectory", fallback="<pkgroot>/systems"))
+
 # replace pkgroot placeholder if present
 if "<pkgroot>/" in systems_directory:
     systems_directory = os.path.join(
@@ -30,9 +36,9 @@ systems_directory = os.path.expanduser(systems_directory)
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
 # is however not recommended in production environments.
 today = date.today().isocalendar()
-logfolder = confparser.get(
-    "matr1x", "loggingDirectory",
-    fallback=os.path.join(os.path.expanduser('~'), 'logs'))
+logfolder = os.path.expanduser(
+    confparser.get("matr1x", "loggingDirectory",
+                   fallback=os.path.join('~', 'logs')))
 kwargs = dict(level=logging.INFO,
               format='%(asctime)s,%(msecs)03d,%(levelname)s,%(name)s: %(message)s',
               datefmt=datetimefmt)

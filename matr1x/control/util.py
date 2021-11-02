@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
                              QListWidget, QProgressBar, QPushButton, QTableView)
 
-from .. import datetimefmt, logfolder
+from .. import datetimefmt, logfolder, usersfolder
 
 
 class var(QObject):
@@ -586,7 +586,7 @@ class WriteLakeshoreZonePID(QDialog):
     def load_pid_table(self):
         # get filename from dialog
         filename = QFileDialog.getOpenFileName(
-            self, 'Select PID table file', os.path.expanduser("~"),
+            self, 'Select PID table file', usersfolder,
             "calibration file (*.*)")[0]
         self.fileEdit.setText(filename)
         if filename != "":

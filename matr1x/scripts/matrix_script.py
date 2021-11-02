@@ -11,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 
-from matr1x import systems_directory
+import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.util import generate_script
 from PyQt5.QtCore import QRegExp, QThread
@@ -293,7 +293,7 @@ class MainWindow(QWidget):
         super().__init__()
         self.system_dict = {}
         index = 0
-        for syst in os.listdir(systems_directory):
+        for syst in os.listdir(matr1x.systems_directory):
             if "system_" in syst:
                 self.system_dict[syst.replace(".py", "")] = index
                 index += 1
@@ -510,7 +510,7 @@ class MainWindow(QWidget):
         """
         filename = QFileDialog.getSaveFileName(
             self, 'Specify Script',
-            os.path.join(os.path.expanduser("~"), "users/"),
+            matr1x.usersfolder,
             "matrix files (*.matrix)")
         filename = filename[0]
         if "" == filename:
@@ -555,7 +555,7 @@ class MainWindow(QWidget):
         """
         filename = QFileDialog.getOpenFileName(
             self, 'Select Script',
-            os.path.join(os.path.expanduser("~"), "users/"),
+            matr1x.usersfolder,
             "matrix files (*.matrix)")
         filename = filename[0]
         if "" == filename:

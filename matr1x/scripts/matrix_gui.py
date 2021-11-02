@@ -10,8 +10,9 @@ import socket
 import subprocess
 import sys
 import time
-from os.path import exists, expanduser, getmtime, getsize, join
+from os.path import exists, getmtime, getsize
 
+import matr1x
 import pyqtgraph as pg
 import pyqtgraph.exporters
 from matr1x import gui_util as gu
@@ -23,10 +24,6 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
                              QPushButton, QTextEdit, QVBoxLayout, QWidget)
-
-usersfolder = join(expanduser("~"), "users")
-if exists(usersfolder) is False:
-    usersfolder = expanduser("~")
 
 
 def signal_handler(signal, frame):
@@ -190,7 +187,7 @@ class SweepPreviewPopup(QDialog):
     def savePlot(self):
         exporter = pg.exporters.ImageExporter(self.vb.scene())
         filename = QFileDialog.getSaveFileName(
-            self, 'Select output png file', usersfolder,
+            self, 'Select output png file', matr1x.usersfolder,
             "png files (*.png)")[0]
         if ".png" != filename[-4:].lower():
             filename += ".png"
@@ -532,7 +529,7 @@ class MainWindow(QWidget):
         """
         folder = self.inputEdit.text()
         if "" == folder:
-            folder = usersfolder
+            folder = matr1x.usersfolder
         filename = QFileDialog.getOpenFileName(self, 'Select input file',
                                                folder,
                                                "input files (*.*t)")
@@ -545,7 +542,7 @@ class MainWindow(QWidget):
         """
         folder = self.outputEdit.text()
         if "" == folder:
-            folder = usersfolder
+            folder = matr1x.usersfolder
         filename = QFileDialog.getSaveFileName(
             self, 'Select ma file', folder,
             "Output files (*.ma7);;Old output files (*.ma6)",
