@@ -5,8 +5,7 @@ functions
 import collections
 import time
 
-# format string for strftime
-timefmt = "%a, %d %b %Y %H:%M:%S"
+from . import datetimefmt
 
 
 def device_query(device_handle, config_params):
@@ -243,7 +242,7 @@ class System(object):
         # Dublin Core metadata default entries
         self.dcdata = dict(
             Creator=None,  # measurement user
-            Date=time.strftime(f"{timefmt}", time.localtime()),
+            Date=time.strftime(f"{datetimefmt}", time.localtime()),
             Identifier=None,  # sample name
             Description=None,  # comment
             Source="matrix powered measurement system",  # measurement system
@@ -630,7 +629,8 @@ class MergedSystem(System):
             self.dcdata[key] = ";".join(vlist)
         # set correct timestamp
         if setdate:
-            self.dcdata["Date"] = time.strftime(f"{timefmt}", time.localtime())
+            self.dcdata["Date"] = time.strftime(f"{datetimefmt}",
+                                                time.localtime())
 
     def _check_hdf5(self):
         # check whether one of the systems requires HDF5

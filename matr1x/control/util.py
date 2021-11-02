@@ -7,6 +7,7 @@ import logging
 import mimetypes
 import os
 import signal
+import time
 from email import encoders
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
@@ -22,7 +23,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
                              QListWidget, QProgressBar, QPushButton, QTableView)
 
-from .. import logfolder
+from .. import datetimefmt, logfolder
 
 
 class var(QObject):
@@ -445,6 +446,8 @@ class OutputRedirection(object):
     def write(self, message):
         if self.terminal is not None:
             self.terminal.write(message)
+        if message != '\n':
+            self.log.write(f"{time.strftime(datetimefmt)}: ")
         self.log.write(message)
         self.flush()
 

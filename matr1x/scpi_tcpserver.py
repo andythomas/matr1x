@@ -10,6 +10,8 @@ import time
 
 import numpy
 
+from . import datetimefmt
+
 PORT = 8898
 logger = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 try:
                     idx = self.normkeys.index(normcmd)
                 except ValueError:
-                    print(f"{time.asctime()}: invalid cmd ({cmd}) "
+                    print(f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
                           f"sent from {self.client_address}")
                     # prepare a response since a response will be expected
                     response.append(cmd + " not recognized")
@@ -95,7 +97,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 try:
                     idx = self.normkeys.index(normcmd)
                 except ValueError:
-                    print(f"{time.asctime()}: invalid cmd ({cmd}) "
+                    print(f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
                           f"sent from {self.client_address}")
                 else:
                     # get command specifications
@@ -141,7 +143,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         handle that runs continuously and parses takes care of managing the
         interface
         """
-        print(f"{time.asctime()}: {self.client_address}")
+        print(f"{time.strftime(datetimefmt)}: {self.client_address}")
         while not self.terminateNow:
             response = None
             # read until \n and decode to utf-8

@@ -5,16 +5,16 @@ import threading
 import time
 import traceback
 
-from matr1x import logfolder, scpi_tcpserver
+from matr1x import datetimefmt, logfolder, scpi_tcpserver
+from matr1x.control.util import (OutputRedirection, QtGracefulKiller,
+                                 connectDictValueToDisplay, constructLayout,
+                                 copyValues, var)
 from matr1x.devices.scpi_dev import makeSCPIdevice, set_cmd_funcs
+from matr1x.gui_util import EmittingStream
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (QApplication, QGridLayout, QMainWindow,
                              QMessageBox, QPlainTextEdit, QWidget)
-
-from ..gui_util import EmittingStream
-from .util import (OutputRedirection, QtGracefulKiller,
-                   connectDictValueToDisplay, constructLayout, copyValues, var)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -265,7 +265,7 @@ class MainWindow(QMainWindow):
         self.stopServer()
         # print timestamp and verbose error message to status display,
         # make a log entry and open a popup warning window
-        timestamp = time.asctime()
+        timestamp = time.strftime(datetimefmt)
         print(timestamp)
         logger.info(f"handling error in {pointer}: {repr(exc)}")
         traceback.print_tb(exc.__traceback__)

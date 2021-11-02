@@ -13,6 +13,9 @@ cfiles = confparser.read([
     os.path.expanduser(os.path.join("~", ".matr1x.conf")),
     "matr1x.conf"])
 
+datetimefmt = confparser.get("matr1x", "datetime_format",
+                             fallback="%Y-%m-%dT%H:%M:%S")
+
 systems_directory = confparser.get("matr1x", "systemsDirectory",
                                    fallback="<pkgroot>/systems")
 # replace pkgroot placeholder if present
@@ -31,8 +34,8 @@ logfolder = confparser.get(
     "matr1x", "loggingDirectory",
     fallback=os.path.join(os.path.expanduser('~'), 'logs'))
 kwargs = dict(level=logging.INFO,
-              format='%(levelname)s,%(name)s:%(asctime)s %(message)s',
-              )
+              format='%(asctime)s,%(msecs)03d,%(levelname)s,%(name)s: %(message)s',
+              datefmt=datetimefmt)
 if os.path.exists(logfolder):
     kwargs["filename"] = os.path.join(
         logfolder, 'matr1x_' + str(today[0]) + str(today[1]) + '.log')
