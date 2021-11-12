@@ -262,3 +262,132 @@ class Lakeshore340(Lakeshore3xx):
                                                 rangelist)):
             self.write(f"ZONE {loop}, {j+1}, {t}, {p}, {i}, {d}, , {r}")
             time.sleep(0.3)
+
+
+class Lakeshore475(VisaDevice):
+
+    def __init__(self, interface, **kwargs):
+        if "write_termination" not in kwargs:
+            kwargs["write_termination"] = "\n"
+        if "read_termination" not in kwargs:
+            kwargs["read_termination"] = "\n"
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = 2000
+        if "cmdpers" not in kwargs:
+            kwargs["cmdpers"] = 20
+        super().__init__(interface, **kwargs)
+
+    # high level functions
+    def getField(self):
+        return float(self.query("RDGFIELD?"))
+
+    def getTemp(self):
+        return float(self.query("RDGTEMP?"))
+
+    def setSetpoint(self, setpoint):
+        self.write("CSETP " + "{:.5f}".format(float(setpoint)))
+
+    def readSetpoint(self):
+        return float(self.query("CSETP?"))
+
+    def zeroProbe(self, clear=False):
+        """
+        zeros the Hall probe
+
+        Arguments
+        -----
+        clear:bool
+          If true, instead clears the zero probe command
+        """
+        if clear is False:
+            self.write("ZPROBE")
+        elif clear is True:
+            self.write("ZCLEAR")
+
+    def configureAnalogOut(self, voltlimit, lowfield, highfield, bipolar=2, mode=4,
+                           manualOut=0):
+        """
+        function not tested
+
+        Configure analog output of LS475
+
+        Arguments
+        -----
+        voltlimit:int
+          maximum voltage (1 to 10V)
+        lowfield:float
+          field value at which the analog output reaches -100% (0%)
+        highfield:float
+          field value at which the analog output reaches +100%
+        bipolar:int
+          can be 1 (unipolar) or 2 (bipolar)
+        mode:int
+          can be 0 (off), 1 (default), 2 (user defined), 3 (manual),
+          4 (control)
+        """
+
+        self.write(f"ANALOG {str(mode)}, {str(bipolar)}, {str(lowfield)}, " +
+                   f"{str(highfield)}, {manualOut:.4f}, {str(voltlimit)}")
+
+    def configureControl(self, pValue, iValue, rampRate, maxVSlope, on=False):
+        """
+        function not tested
+
+        Configure control mode
+
+        Arguments
+        -----
+        on:bool
+          if True, configures and turns on the control, otherwise just
+          configures
+        pValue:float
+          proportional gain 0.01 to 1000
+        iValue:float
+          integral gain 0.0001 to 1000
+        rampRate:float
+          ramp rate in units/minute (unit is given by measurement unit
+          setting)
+        maxVSlope:float
+          maximum rate of voltage output change 0.01 to 1000 V/min
+        """
+        if on is False:
+            self.write("CMODE 0")
+        self.write(f"CPARAM {str(pValue)}, {str(iValue)}, {str(rampRate)}, " +
+                   f"{str(maxVSlope)}")
+        if on is True:
+            self.write("CMODE 1")
+
+    def configure(self, reset=False, autoRange=True, range=None, dcRes=None,
+                  fUnit=None):
+        """
+        function not tested
+
+        Configure LS475 measurement parameters
+
+        Arguments
+        -----
+        reset:boolean
+          If True reset the instrument
+        autoRange:bool
+          switches auto range on
+        range:int
+          has to be between 1 and 5, where 1 is the smallest
+          range and 5 the largest, probe dependent
+        dcRes:int
+          has to be between 1 and 3, where 1 is 3 digits
+          and 3 is 5 digits
+        fUnit:int
+          has to be between 1 and 4, where 1 is Gauss, 2 is
+          Tesla, 3 is Oersted and 4 Amp/meter
+        """
+        if reset is True:
+            self.write("*RST")
+        if autoRange is True:
+            self.write("AUTO 1")
+        elif range is not None and 0 < range and 6 > range:
+            self.write("AUTO 0")
+            self.write("RANGE " + str(range))
+        if dcRes is not None and 0 < dcRes and 4 > dcRes:
+            self.write("RDGMODE 1," + str(dcRes) + ",1,1,1")
+        if fUnit is not None and 0 < fUnit and 5 > fUnit:
+            self.write("UNIT " + str(fUnit))

@@ -1,5 +1,6 @@
 import time
 
+from numpy import asfarray, ceil
 from wrapt import synchronized
 
 from .visadevice import VisaDevice
@@ -539,44 +540,48 @@ class Keithley2182A(VisaDevice):
         """
         cmdList = []
         if reset is True:
-            self.write("*RST")
+            self.write(f"*RST")
             time.sleep(0.05)
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"VOLT\"")
+        cmdList.append(f":SENS:FUNC \"VOLT\"")
         if NPLC is not None:
-            cmdList.append(":SENS:VOLT:NPLC " + str(float(NPLC)))
+            cmdList.append(f":SENS:VOLT:NPLC {float(NPLC):f}")
         if digits is not None:
-            cmdList.append(":SENS:VOLT:DIG " + str(int(digits)))
+            cmdList.append(f":SENS:VOLT:DIG {int(digits):d}")
         if rangeAuto is True:
-            cmdList.append(":SENS:VOLT:RANG:AUTO ON")
+            cmdList.append(f":SENS:VOLT:RANG:AUTO ON")
         elif range is not None:
-            cmdList.append(":SENS:VOLT:RANG:AUTO OFF")
-            cmdList.append(":SENS:VOLT:RANG " + str(float(range)))
+            cmdList.append(f":SENS:VOLT:RANG:AUTO OFF")
+            cmdList.append(
+                f":SENS:VOLT:RANG {float(range):f}")
         if dFil is True:
-            cmdList.append(":SENS:VOLT:DFIL:STATE ON")
+            cmdList.append(f":SENS:VOLT:DFIL:STATE ON")
             if window is not None:
-                cmdList.append(":SENS:VOLT:DFIL:WIND " + str(float(window)))
+                cmdList.append(
+                    f":SENS:VOLT:DFIL:WIND {float(window):f}")
             if count is not None:
-                cmdList.append(":SENS:VOLT:DFIL:COUN " + str(int(count)))
+                cmdList.append(
+                    f":SENS:VOLT:DFIL:COUN {int(count):d}")
             if repeatingFilter is True:
-                cmdList.append(":SENS:VOLT:DFIL:TCON REP")
+                cmdList.append(f":SENS:VOLT:DFIL:TCON REP")
             elif repeatingFilter is False:
-                cmdList.append(":SENS:VOLT:DFIL:TCON MOV")
+                cmdList.append(f":SENS:VOLT:DFIL:TCON MOV")
         elif dFil is False:
-            cmdList.append(":SENS:VOLT:DFIL:STATE OFF")
+            cmdList.append(f":SENS:VOLT:DFIL:STATE OFF")
         if trigBus is True:
-            cmdList.append(":ABOR")
-            cmdList.append(":INIT:CONT OFF")  # Only triggered reading
-            cmdList.append(":TRIG:SOUR BUS")
-            cmdList.append(":TRIG:COUN INF")
-            cmdList.append(":INIT")
+            cmdList.append(f":ABOR")
+            # Only triggered reading
+            cmdList.append(f":INIT:CONT OFF")
+            cmdList.append(f":TRIG:SOUR BUS")
+            cmdList.append(f":TRIG:COUN INF")
+            cmdList.append(f":INIT")
         for cmd in cmdList:
             self.write(cmd)
-        time.sleep(1)
+        time.sleep(0.2)
 
     def triggerReading(self):
         if self.triggered is False:
-            self.write("*TRG")
+            self.write(f"*TRG")
             self.triggered = True
 
     def getReading(self):
@@ -1028,3 +1033,347 @@ class Keithley2000(VisaDevice):
             result = result.replace('\x13', '')
             self.triggered = False
             return float(result)
+
+
+class Keithley6221(VisaDevice):
+    config_params = {"Model-identifing": "*IDN?"}
+
+    def __init__(self, interface, **kwargs):
+        if "write_termination" not in kwargs:
+            kwargs["write_termination"] = "\r\n"
+        if "read_termination" not in kwargs:
+            kwargs["read_termination"] = "\r\n"
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = 100000
+        super().__init__(interface, **kwargs)
+
+    @synchronized
+    def generateWave(self, function='sinusoid', dutyCycle=None, amplitude=None,
+                     offset=None, frequency=None, rangingMode=None,
+                     durationTime=None, durationCycles=None,
+                     compliance=None, reset=True):
+        """
+        Generates a waveform signal and launches it
+
+        Arguments
+        -----
+        function:[sinusoid,square,ramp]
+          select the type of the wavelet: sinusoid, square, ramp
+        dutyCycle:float[0:100]
+          choose how much (percent, 0-100) of the amplitude is going
+          to be high line (the other percent are going to be low)
+        amplitude:float[2e-12:0.105]
+          set the amplitude (amps) of the wavelet
+        offset:float[-0.105:0,105]
+          set the offset (amps) of the wavelet
+        frequency:float[0:1e5]
+          set the frequency (Hz) of the wavelet
+        rangingMode:[best,fixed]
+          best: automatically choose the best
+            measurement range for the given wavelet
+          fixed: do not change measurement range
+            when generating the wavelet
+        durationTime:float[100e-9:999999.999,-1]
+          defines how long (seconds) the wavelet is going to be
+          emitted. -1 = infinity
+        durationCycles:float[0.001:99999999900]
+          sets the number of cycles how long the wavelet is
+          going to be emitted. -1=infinity
+        compliance:float[0.1:105]
+          sets the compliance in volts
+        reset:bool
+          should the device be resetted before waving?
+        """
+        # reset
+        if reset is True:
+            cmdlist = ["*RST"]
+        else:
+            cmdlist = []
+
+        # compliance
+        if compliance is not None:
+            cmdlist.append("SOUR:CURR:COMP " + str(compliance))
+        # waveform
+        if function == 'sinusoid':
+            cmdlist.append("SOUR:WAVE:FUNC SIN")
+        elif function == 'square':
+            cmdlist.append("SOUR:WAVE:FUNC SQU")
+        elif function == 'ramp':
+            cmdlist.append("SOUR:WAVE:FUNC RAMP")
+        # duty cycle
+        if dutyCycle is not None:
+            cmdlist.append("SOUR:WAVE:DCYC " + str(dutyCycle))
+        # amplitude
+        if amplitude is not None:
+            cmdlist.append("SOUR:WAVE:AMPL " + str(amplitude))
+        # offset
+        if offset is not None:
+            cmdlist.append("SOUR:WAVE:OFFS " + str(offset))
+        # frequency
+        if frequency is not None:
+            cmdlist.append("SOUR:WAVE:FREQ " + str(frequency))
+        # ranging mode
+        if rangingMode == 'best':
+            cmdlist.append("SOUR:WAVE:RANG BEST")
+        elif rangingMode == 'fixed':
+            cmdlist.append("SOUR:WAVE:RANG FIX")
+        # duration
+        if durationTime is not None:
+            if durationTime == -1:
+                cmdlist.append("SOUR:WAVE:DUR:TIME INF")
+            else:
+                cmdlist.append("SOUR:WAVE:DUR:TIME " + str(durationTime))
+        if durationCycles is not None:
+            if durationCycles == -1:
+                cmdlist.append("SOUR:WAVE:DUR:CYCL INF")
+            else:
+                cmdlist.append("SOUR:WAVE:DUR:CYCL " + str(durationCycles))
+        cmdlist.append("SOUR:WAVE:ARM")
+
+        # output
+        for cmd in cmdlist:
+            self.write(cmd)
+
+    @synchronized
+    def generateArbWave(self, points=None, amplitude=None, frequency=None,
+                        offset=None, dutyCycle=None, rangingMode=None,
+                        durationTime=None, durationCycles=None,
+                        compliance=None, reset=True):
+        """
+        !!function not tested!!
+
+        Generates a arbitrary waveform and launch it
+
+        Arguments
+        -----
+        points: float array
+          list of points that the current source should set (-1 to 1,
+          maximum length is 65535)
+        amplitude:float[2e-12:0.105]
+          set the amplitude (amps) of the wavelet
+        offset:float[-0.105:0,105]
+          set the offset (amps) of the wavelet
+        frequency:float[0:1e5]
+          set the frequency (Hz) of the wavelet
+        rangingMode:[best,fixed]
+          best: automatically choose the best measurement range
+            for the given wavelet
+          fixed: do not change measurement range when generating the
+            wavelet
+        durationTime:float[100e-9:999999.999,-1]
+          defines how long (seconds) the wavelet is going to be
+          emitted. -1 = infinity
+        durationCycles:float[0.001:99999999900]
+          sets the number of cycles how long the wavelet is
+          going to be emitted. -1=infinity
+        compliance:float[0.1:105]
+          sets the compliance??? in volts
+        reset:boolean
+          should the device be reset before waving?
+        """
+        # reset
+        if reset is True:
+            cmdlist = ["*RST"]
+        else:
+            cmdlist = []
+
+        # compliance
+        if compliance is not None:
+            cmdlist.append("SOUR:CURR:COMP " + str(compliance))
+        # points
+        if points is not None:
+            if len(points) < 2:
+                raise ValueError("List of points has insufficient length")
+            elif len(points) > 65535:
+                raise ValueError("List of points is too long")
+            # convert floats to string
+            points = [str(point) for point in points]
+            cmdlist.append(f"SOUR:WAVE:ARB:DATA {', '.join(points[:100])}")
+            nappend = ceil(len(points)/100)
+            if nappend > 1:
+                for i in range(1, nappend):
+                    cmdlist.append(
+                        f"SOUR:WAVE:ARB:APP {','.join(points[i*100:(i+1)*100])}")
+            # allows to save the wave in the persistent memory
+            # cmdlist.append("SOUR:WAVE:ARB:COPY 1")
+        cmdlist.append("SOUR:WAVE:FUNC ARB0")
+        # amplitude
+        if amplitude is not None:
+            cmdlist.append("SOUR:WAVE:AMPL " + str(amplitude))
+        # offset
+        if offset is not None:
+            cmdlist.append("SOUR:WAVE:OFFS " + str(offset))
+        # frequency
+        if frequency is not None:
+            cmdlist.append("SOUR:WAVE:FREQ " + str(frequency))
+        # ranging mode
+        if rangingMode == 'best':
+            cmdlist.append("SOUR:WAVE:RANG BEST")
+        elif rangingMode == 'fixed':
+            cmdlist.append("SOUR:WAVE:RANG FIX")
+        # duration
+        if durationTime is not None:
+            cmdlist.append("SOUR:WAVE:DUR:TIME " + str(durationTime))
+        elif durationTime == -1:
+            cmdlist.append("SOUR:WAVE:DUR:TIME INF")
+        if durationCycles is not None:
+            cmdlist.append("SOUR:WAVE:DUR:CYCL " + str(durationCycles))
+        elif durationCycles == -1:
+            cmdlist.append("SOUR:WAVE:DUR:CYCL INF")
+
+        # output
+        for cmd in cmdlist:
+            self.write(cmd)
+
+    @synchronized
+    def generateConstant(self, amplitude=None, autoRanging=None,
+                         sourceRange=None, compliance=None, reset=True):
+        """
+        Sets a constant current
+
+        Arguments:
+        -----
+        amplitude:float[-0.105:0.105]
+          set the amplitude (amps) of the wavelet
+        autoRanging:boolean
+          sets the auto ranging mode to on or off. On might
+          change the measurement range while performing
+        sourceRange:[-0.105:0.105]
+          sets the measurement range. You can simply choose the
+          output current that is going to be sourced.
+        compliance:[0.1:105]
+          sets the compliance level
+        reset:boolean
+          should the device be resetted before currenting?
+        """
+        # reset
+        if reset is True:
+            cmdlist = ["*RST"]
+        else:
+            cmdlist = []
+        # amplitude
+        if amplitude is not None:
+            cmdlist.append("CURR " + str(amplitude))
+        # range
+        if sourceRange is not None:
+            cmdlist.append("CURR:RANG " + str(sourceRange))
+        # ranging mode
+        if autoRanging is True:
+            cmdlist.append("CURR:RANG:AUTO ON")
+        elif autoRanging is False:
+            cmdlist.append("CURR:RANG:AUTO OFF")
+        # compliance
+        if compliance is not None:
+            cmdlist.append("CURR:COMP " + str(compliance))
+        # output
+        for cmd in cmdlist:
+            self.write(cmd)
+
+    @synchronized
+    def generatePulseDelta(self, ihigh, ilow, width, sdel, count, rang,
+                           interval, compliance=10, sweep="OFF", lme=1,
+                           reset=False):
+        """
+        Initializes K6221 into pulse delta mode
+
+        Arguments:
+        -----
+        ihigh:float[-0.105:0.105]
+          peak pulse current in A
+        ilow:float[-0.105:0.105]
+          low current (i.e. outside of pulse) in A
+        width:float
+          pulse width (50us to 12ms) in s
+        sdel:float
+          source delay in s
+        count:int
+          count of pulses
+        rang:str
+          range ("BEST" or "FIX")
+        interval:int
+          cycle time (5 to 999999) in PLCs
+        sweep:str
+          "ON" or "OFF"
+        compliance:float
+          voltage compliance
+        lme:int
+          number of low measurements (0 to 2)
+        reset:bool
+          resets the device before configuring the sequence
+        """
+        if reset is True:
+            cmdList = ["*RST"]
+        else:
+            cmdList = []
+        cmdList.append("SOUR:PDEL:HIGH {}".format(ihigh))
+        cmdList.append("SOUR:PDEL:LOW {}".format(ilow))
+        cmdList.append("SOUR:PDEL:WIDT {}".format(width))
+        cmdList.append("SOUR:PDEL:SDEL {}".format(sdel))
+        cmdList.append("SOUR:PDEL:COUN {}".format(count))
+        cmdList.append("SOUR:PDEL:RANG {}".format(rang))
+        cmdList.append("SOUR:PDEL:INT {}".format(interval))
+        cmdList.append("SOUR:PDEL:SWE {}".format(sweep))
+        cmdList.append("SOUR:PDEL:LME {}".format(lme))
+        cmdList.append("SOUR:CURR:COMP {}".format(compliance))
+        cmdList.append("TRAC:POIN {}".format(count))
+        for cmd in cmdList:
+            self.write(cmd)
+
+    @synchronized
+    def pulseGo(self):
+        """
+        arm pulse mode and run measurement, waiting for the result
+        """
+        if 0 == int(self.query("SOUR:PDEL:ARM?")):
+            self.write("SOUR:PDEL:ARM")
+        self.write("INIT:IMM")
+        self.query("*OPC?")
+
+    def pulseStop(self):
+        """ abort pulse mode """
+        self.write("SOUR:SWE:ABOR")
+
+    def fetchData(self, wait=True):
+        """ get data trace and return as array """
+        # if wait is True:
+        # while(not self.queryDone()):
+        # time.sleep(0.1)
+        ret = self.query("TRAC:DATA?")
+        return asfarray(ret.split(",")).reshape(-1, 2).T
+
+    @synchronized
+    def waveGo(self):
+        """ initialize wave mode and turn on output """
+        self.write("SOUR:WAVE:ARM")
+        self.write("SOUR:WAVE:INIT")
+
+    def queryDone(self):
+        """ check measurement finished """
+        register = int(self.query("STAT:OPER?"))
+        return bool(register & (1 << 7))
+
+    def queryCompliance(self):
+        """ check compliance reached """
+        register = int(self.query("STAT:MEAS?"))
+        return bool(register & (1 << 3))
+
+    def constGo(self):
+        """ turn on output for constant current """
+        self.write("OUTP ON")
+
+    def setConstCurrent(self, current):
+        """ set constant current """
+        self.write("CURR " + str(current))
+
+    def getConstCurrent(self):
+        """ read current setting (no readback!) """
+        return float(self.query("CURR?"))
+
+    @synchronized
+    def abort(self):
+        """
+        aborts the emission of the wavelet
+        """
+        self.write("SOUR:WAVE:ABOR")
+        self.write("OUTP OFF")
+        self.write("ABOR")
