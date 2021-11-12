@@ -35,7 +35,7 @@ class MercurySingleAxisIPS(VisaDevice):
                  ":ATOB": "", ":IND": "", ":SWPR": "", ":SHTC": "",
                  ":VLIM": "", ":VTRT": "", ":ACTN": ""}
     dataDictX = {":FLD": 0, ":RFLD": 0, ":FSET": 0, ":RFST": 0}
-    addressLevel = "DEV:DB1.L1:LVL"
+    addressLevel = "DEV:DB8.L1:LVL"
     confDictLevel = {":MAN:HVER": "", ":MAN:FVER": "", ":MAN:SERL": "",
                      ":STAT": "", ":HEL:PULS:SLOW": "",
                      ":HEL:RES:ZERO": "", ":HEL:RES:FULL": "",
