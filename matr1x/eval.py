@@ -14,16 +14,16 @@ def loadmatrix(filename, structured=None, print_header=False):
     """
     Utility function to open matrix ascii data
 
-    Returns all header information as well as data as list of lists and 2d numpy
-    array, respectively
+    Returns all header information as well as data as list of lists and 2d
+    numpy array, respectively
 
     Parameters
     --------
     filename : str
       path to file
-    structured : bool
+    structured: {None, True}, optional
       controls whether a structured array or a plain numpy array is returned
-    print_header : bool
+    print_header : bool, optional
       if true, prints the header read from the file together with the index for
       easy identification of the columns
     """

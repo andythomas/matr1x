@@ -52,9 +52,9 @@ def test_matrix_dummy_merged():
     files = glob.glob(os.path.join(path, "test_merged*.ma7"))
     files.sort(key=os.path.getmtime)
     assert len(files) >= 1
-    h, d = matr1x.eval.loadmatrix(files[-1])
+    h, d = matr1x.eval.loadmatrix(files[-1], structured=True)
     assert len(h[0]) == 10  # check number of data columns
-    assert d.shape == (11, 10)  # check shape of dataset
+    assert d.shape == (11, )  # check shape of dataset
 
 
 def test_matrix_dummy_hdf5():
