@@ -2,16 +2,18 @@
 # applications and measurement procedures
 
 import importlib
+import importlib.util
 import os
 import sys
 import threading
 import time
-from os.path import abspath, isabs, isfile, splitext
+from os.path import abspath, isabs, isfile, join, splitext
 
 import h5py
 import numpy as np
 
 from . import system as sl
+from . import systems_directory
 
 # conditional import for non-blocking io
 if os.name == "nt":
@@ -54,22 +56,31 @@ def import_system(filename):
 
     normfilename = filename.strip()
     if isfile(normfilename):
-        # module path was defined, check that file exists
-        if not isabs(normfilename):
-            # get absolute path
-            normfilename = abspath(normfilename)
-        # create module specification from file and open
-        spec = importlib.util.spec_from_file_location("dummyname",
-                                                      normfilename)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        # set the name of the system to reflect the filename
-        mod.sys.__name__ = normfilename
+        mod = module_from_path(normfilename)
     else:  # no file found, try installed system files
-        modname = splitext(normfilename)[0]
-        mod = importlib.import_module("." + modname, "matr1x.systems")
-        mod.sys.__name__ = modname
+        fullfilename = join(systems_directory,
+                            splitext(normfilename)[0] + ".py")
+        if isfile(fullfilename):
+            mod = module_from_path(fullfilename)
+        else:
+            mod = importlib.import_module("." + filename, "matr1x.systems")
+            mod.sys.__name__ = filename
     return mod.sys
+
+
+def module_from_path(filename):
+    # module path was defined, check that file exists
+    if not isabs(filename):
+        # get absolute path
+        filename = abspath(filename)
+    # create module specification from file and open
+    spec = importlib.util.spec_from_file_location("dummyname",
+                                                  filename)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    # set the name of the system to reflect the filename
+    mod.sys.__name__ = filename
+    return mod
 
 
 def merge_systems(system_filenames):
@@ -174,6 +185,8 @@ def generate_script(systems, user_script):
     # pass meta information
     script += "s.dcdata[\"Identifier\"] = self.sample\n"
     script += "s.dcdata[\"Creator\"] = self.user\n"
+    # bring meta_data into namespace
+    script += "meta_data = s.dcdata\n"
     # redefine set_value to limit user typing requirements
     script += "set_value = s.set_value\n"
     # script += "trigger_value = s.trigger_value\n"

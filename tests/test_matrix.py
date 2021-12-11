@@ -83,8 +83,8 @@ def test_matrix_script_dummy_merged():
     with open(inputfile, "r") as f:
         for line in f:
             user_script += line
-    script = matr1x.util.generate_script(["system_dummy_feature.py",
-                                          "system_dummy_meas.py"],
+    script = matr1x.util.generate_script(["system_dummy_feature",
+                                          "system_dummy_meas"],
                                          user_script)
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         for line in script:
