@@ -355,7 +355,7 @@ class MainWindow(QDialog):
                 elif label[1] == "int":
                     # int entry with int validator (maximum value 1E9)
                     lineEdit = LineEditFocus()
-                    lineEdit.setValidator(QIntValidator(0, 1E9))
+                    lineEdit.setValidator(QIntValidator(0, int(1E9)))
                     lineEdit.focusIn.connect(self.populate_sweep_grid)
                     self.grid.addWidget(lineEdit, row+1, col+1)
                 elif label[1] == "boolean":
@@ -669,7 +669,7 @@ class MainWindow(QDialog):
                 le = QLineEdit(self)
                 le.setText(str(param_set[i]))
                 if 3 == i:
-                    le.setValidator(QIntValidator(0, 1E09))
+                    le.setValidator(QIntValidator(0, int(1E9)))
                 else:
                     le.setValidator(validator)
                 le.editingFinished.connect(
