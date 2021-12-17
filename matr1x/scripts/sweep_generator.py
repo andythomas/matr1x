@@ -257,6 +257,14 @@ class MainWindow(QDialog):
 
         self.populated = False
 
+    def reset_layout(self):
+        # reset layout to clean state
+        if self.populated:
+            self.clear_layout(self.grid)
+            self.clear_layout(self.gridUtility)
+            for i in range(self.nParmsUsed):
+                self.grid.setColumnStretch(i+1, 0)
+
     def filename_changed(self):
         """
         On filenameChanged import new system
@@ -264,6 +272,7 @@ class MainWindow(QDialog):
         # get new system filename
         systemFilename = self.fileEdit.text()
         if systemFilename == "":
+            self.reset_layout()
             return
         modulestr = ""
         filenames = systemFilename.split(",")
@@ -291,12 +300,7 @@ class MainWindow(QDialog):
             self.statusBar.append("Lists with columns, units and settable" +
                                   "not of equal length, check system file!")
             return
-        if self.populated:
-            # reset layout to clean state
-            self.clear_layout(self.grid)
-            self.clear_layout(self.gridUtility)
-            for i in range(self.nParmsUsed):
-                self.grid.setColumnStretch(i+1, 0)
+        self.reset_layout()
         # Initalize sweep lists
         self.col_sign = []
         # generate list of settable parameters
