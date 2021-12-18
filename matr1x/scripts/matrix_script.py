@@ -7,15 +7,17 @@ import ast
 import getpass
 import logging
 import os
+import socket
 import subprocess
 import sys
 import tempfile
+import textwrap
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.util import generate_script
-from PyQt5.QtCore import QRegExp, QThread
-from PyQt5.QtGui import (QColor, QFont, QPalette, QSyntaxHighlighter,
+from PyQt5.QtCore import QRect, QRegExp, QSize, Qt, QThread
+from PyQt5.QtGui import (QColor, QFont, QPainter, QPalette, QSyntaxHighlighter,
                          QTextCharFormat, QTextCursor)
 from PyQt5.QtWidgets import (QApplication, QFileDialog, QGridLayout, QLineEdit,
                              QListWidget, QPlainTextEdit, QPushButton,
@@ -25,6 +27,89 @@ from ..gui_util import EmittingStream
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 logger.info("matrix_script starting")
+
+
+class LineNumberArea(QWidget):
+    """
+    adapted from the QT c++ example "Code Editor Example"
+    """
+
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.codeeditor = editor
+
+    def sizeHint(self):
+        return QSize(self.editor.lineNumberAreaWidth(), 0)
+
+    def paintEvent(self, event):
+        self.codeeditor.lineNumberAreaPaintEvent(event)
+
+
+class CodeEditor(QPlainTextEdit):
+    """
+    adapted from the QT c++ example "Code Editor Example"
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.lineNumberArea = LineNumberArea(self)
+
+        self.blockCountChanged.connect(self.updateLineNumberAreaWidth)
+        self.updateRequest.connect(self.updateLineNumberArea)
+
+        self.updateLineNumberAreaWidth(0)
+
+    def lineNumberAreaWidth(self):
+        digits = 1
+        count = max(1, self.blockCount())
+        while count >= 10:
+            count /= 10
+            digits += 1
+        space = 4 + self.fontMetrics().width('9') * digits
+        return space
+
+    def updateLineNumberAreaWidth(self, _):
+        self.setViewportMargins(self.lineNumberAreaWidth(), 0, 0, 0)
+
+    def updateLineNumberArea(self, rect, dy):
+        if dy:
+            self.lineNumberArea.scroll(0, dy)
+        else:
+            self.lineNumberArea.update(0, rect.y(), self.lineNumberArea.width(),
+                                       rect.height())
+
+        if rect.contains(self.viewport().rect()):
+            self.updateLineNumberAreaWidth(0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+        cr = self.contentsRect()
+        self.lineNumberArea.setGeometry(
+            QRect(cr.left(), cr.top(),
+                  self.lineNumberAreaWidth(), cr.height()))
+
+    def lineNumberAreaPaintEvent(self, event):
+        painter = QPainter(self.lineNumberArea)
+
+        block = self.firstVisibleBlock()
+        blockNumber = block.blockNumber()
+        top = self.blockBoundingGeometry(block).translated(
+            self.contentOffset()).top()
+        bottom = top + self.blockBoundingRect(block).height()
+
+        while block.isValid() and (top <= event.rect().bottom()):
+            if block.isVisible() and (bottom >= event.rect().top()):
+                number = str(blockNumber + 1)
+                painter.setPen(Qt.black)
+                painter.drawText(0, int(top), int(self.lineNumberArea.width()),
+                                 int(self.fontMetrics().height()),
+                                 Qt.AlignRight, number)
+
+            block = block.next()
+            top = bottom
+            bottom = top + self.blockBoundingRect(block).height()
+            blockNumber += 1
 
 
 # syntax highlighting taken from
@@ -59,7 +144,7 @@ STYLES = {
 }
 
 
-class PythonHighlighter (QSyntaxHighlighter):
+class PythonHighlighter(QSyntaxHighlighter):
     """
     Syntax highlighter for the Python language.
     """
@@ -212,27 +297,26 @@ class ExecThread(QThread):
         """
         super().__init__()
         self.proc = None
+        self.conn = None
         self.sample = sample
         self.user = user
         self.script = script
 
     def pause(self):
         """ communicate pause to the subprocess' stdin """
-        if self.proc is None:
+        if self.proc is None or self.conn is None:
             return
-        self.proc.stdin.write("p\n".encode())
-        self.proc.stdin.flush()
+        self.conn.send("p".encode())
 
     def stop(self):
         """ communicate stop to the subprocess' stdin """
-        if self.proc is None:
+        if self.proc is None or self.conn is None:
             return
-        self.proc.stdin.write("q\n".encode())
-        self.proc.stdin.flush()
+        self.conn.send("q".encode())
 
     def abort(self):
         """ kill the process and make sure it is indeed stopped """
-        if self.proc is None:
+        if self.proc is None or self.conn is None:
             return
         pid = self.proc.pid
         # terminate thread
@@ -269,16 +353,28 @@ class ExecThread(QThread):
             cmd = ("import matr1x.util as mu\n" +
                    f"mu.matrix_script_process({repr(tf.name)}, '" +
                    self.user + "', '" + self.sample + "')")
+            # start socket that is used to communicate with the child process
+            # that runs the script
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # only accept local connections and start listening
+            s.bind(('127.0.0.1', matr1x.scripts.MATRIX_SCRIPT_PORT))
+            s.listen(1)
             # start subprocess, stderr is piped to stdout, and both of them are
-            # piped so that we can read/write to them
+            # piped so that we can read them
             self.proc = subprocess.Popen([sys.executable, "-c", cmd],
                                          stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE,
                                          stderr=subprocess.STDOUT)
+            # accept a connection from the subprocess
+            # will block until a new client connects, might want to use select
+            # here to make sure the subprocess actually connects?
+            self.conn, address = s.accept()
             # wait until the subprocess terminates and pipe its stdout to the
             # user window
             while self.proc.poll() is None:
                 print(self.proc.stdout.readline().decode())
+            self.conn.close()
 
 
 class MainWindow(QWidget):
@@ -307,24 +403,25 @@ class MainWindow(QWidget):
         # preview
         sys.stdout = self.output_stream
 
-        welcome_string = f"Welcome {getpass.getuser()},\n"
-        welcome_string += "available general functions are:\n"
-        welcome_string += "```\n"
-        # welcome_string += " trigger_system()\n"
-        welcome_string += " measure_system(filename, comment='')\n"
-        welcome_string += " wait(seconds)\n"
-        welcome_string += "```\n"
-        welcome_string += "`wait` also acts as breakpoint to pause execution.\n"
-        welcome_string += "System parameters can be accessed via:\n"
-        welcome_string += "```\n"
-        welcome_string += " set_value(value_index, value)\n"
-        # welcome_string += " trigger_value(value_index)\n"
-        welcome_string += " read_value(value_index)\n"
-        welcome_string += "```\n"
-        welcome_string += "Use the help button to get a list "
-        welcome_string += "of available parameters and devices.\n"
-        welcome_string += "Devices can be accessed "
-        welcome_string += "via the 'devs' dictionary.\n"
+        welcome_string = textwrap.dedent(f"""
+        Welcome {getpass.getuser()},
+        available general functions are:
+        ```
+         measure_system(filename, comment='')
+         wait(seconds)
+        ```
+        `wait` also acts as breakpoint to pause execution.
+        System parameters can be accessed via:
+        ```
+         set_value(value_index/name, value)
+         read_value(value_index/name)
+        ```
+        Use the help button to get a list of available parameters and devices
+        Devices can be accessed via the 'devs' dictionary. The meta data of
+        the system is available through the 'meta_data' dictionary.
+
+        Note that no variable names should start with an underscore!
+        """)
         self.status_preview.setMarkdown(welcome_string)
         print("==========")
 
@@ -360,7 +457,7 @@ class MainWindow(QWidget):
         self.user_edit = QLineEdit(self)
         self.user_edit.setPlaceholderText("user name")
         # TextEdits
-        self.script_edit = QPlainTextEdit(self)
+        self.script_edit = CodeEditor(self)
         mono_font = QFont("Monospace")
         mono_font.setStyleHint(QFont.TypeWriter)
         self.script_edit.document().setDefaultFont(mono_font)
@@ -411,8 +508,6 @@ class MainWindow(QWidget):
             print("No system selected")
             print("==========")
             return
-        print("Devices and commands for " + ", ".join(self.systems))
-        print("----------")
         # use external process to not have the systems in the namespace
         info = subprocess.run([sys.executable, '-c',
                                "from matr1x import " +
@@ -421,7 +516,14 @@ class MainWindow(QWidget):
                                str(self.systems) + "))"],
                               capture_output=True)
         # print information string
-        print((info.stdout).decode())
+        if info.returncode != 0:
+            print("Error when trying to import system")
+            print("----------")
+            print((info.stderr).decode())
+        else:
+            print("Devices and commands for " + ", ".join(self.systems))
+            print("----------")
+            print((info.stdout).decode())
         print("==========")
         self.status_preview.moveCursor(QTextCursor.End)
 
@@ -571,6 +673,7 @@ class MainWindow(QWidget):
         self.script_edit.clear()
         self.clear_system_selection()
         settable_info = None
+        sys_err = False
         for i, line in enumerate(input_file):
             if 0 == i:
                 if "# system def : " in line:
@@ -578,15 +681,22 @@ class MainWindow(QWidget):
                     system_line = line.strip().replace(
                         "# system def : ", "")
                     for syst in system_line.split(","):
-                        self.system_list.item(
-                            self.system_dict[syst]).setSelected(True)
-                    self.update_systems()
-                    settable_info = self.get_settable_info()
+                        try:
+                            self.system_list.item(
+                                self.system_dict[syst]).setSelected(True)
+                            self.update_systems()
+                            settable_info = self.get_settable_info()
+                        except KeyError:
+                            sys_err = True
+                            print("System that was used to generate the " +
+                                  "script was not found in installed systems." +
+                                  " Please check .matrix.conf file.")
+                            print("==========\n")
                 else:
                     print("No system defined in script, " +
                           "please choose system(s)")
                     print("==========\n")
-            elif 1 == i:
+            elif 1 == i and not sys_err:
                 # make sure that system column definition agrees with
                 # current system
                 if "# system names : " in line and settable_info is not None:
@@ -602,7 +712,7 @@ class MainWindow(QWidget):
                     print("Could not verify column names, please verify"
                           " that columns have not changed")
                     print("==========\n")
-            elif 2 == i:
+            elif 2 == i and not sys_err:
                 # make sure that system unit definition agrees with
                 # current system
                 if "# system units : " in line and settable_info is not None:

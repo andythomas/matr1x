@@ -5,7 +5,7 @@ import importlib
 import importlib.util
 import os
 import sys
-import threading
+import textwrap
 import time
 from os.path import abspath, isabs, isfile, join, splitext
 
@@ -58,12 +58,13 @@ def import_system(filename):
     if isfile(normfilename):
         mod = module_from_path(normfilename)
     else:  # no file found, try installed system files
+        normfilename = splitext(normfilename)[0]
         fullfilename = join(systems_directory,
-                            splitext(normfilename)[0] + ".py")
+                            normfilename + ".py")
         if isfile(fullfilename):
             mod = module_from_path(fullfilename)
         else:
-            mod = importlib.import_module("." + filename, "matr1x.systems")
+            mod = importlib.import_module("." + normfilename, "matr1x.systems")
             mod.sys.__name__ = filename
     return mod.sys
 
@@ -179,38 +180,46 @@ def generate_script(systems, user_script):
       Returned script must be run in the context of the matrix_script_process
     """
     # define basic part of script, imports relevant commands
-    script = "import matr1x.util as mu\n"
-    script += "s = mu.merge_systems("
-    script += "[\"{}\"])\n".format("\", \"".join(systems))
+    script = (textwrap.dedent(f"""
+    import matr1x.util as _matrix_util
+    _system = _matrix_util.merge_systems(
+        ['{"', '".join(systems)}'])
+
     # pass meta information
-    script += "s.dcdata[\"Identifier\"] = self.sample\n"
-    script += "s.dcdata[\"Creator\"] = self.user\n"
+    _system.dcdata['Identifier'] = _sample
+    _system.dcdata['Creator'] = _user
+
     # bring meta_data into namespace
-    script += "meta_data = s.dcdata\n"
+    meta_data = _system.dcdata
+
     # redefine set_value to limit user typing requirements
-    script += "set_value = s.set_value\n"
-    # script += "trigger_value = s.trigger_value\n"
-    script += "read_value = s.read_value\n"
-    # define wait function and connect to thread breakpoint
-    script += "wait = self.breakpoint\n"
-    script += "print = self.print\n"
-    script += "s.set()\n"
-    script += "devs = s.devs\n"
+    set_value = _system.set_value
+    trigger_value = _system.trigger_value
+    read_value = _system.read_value
+
+    # initialize system and put devs into namespace
+    _system.set()
+    devs = _system.devs
+
     # separate trigger system, I think this will not be required
-    # script += "def trigger_system(util=mu,sys=s):\n"
-    # script += " util.trigger_system(sys)\n"
+    def trigger_system():
+        global _matrix_util, _system
+        _matrix_util.trigger_system(_system)
+
     # wrap trigger_system into measure_system
-    script += "def measure_system(fname,comment='',\n"
-    script += "                   util=mu,sys=s, w=wait):\n"
-    # wait(0) to have breakpoint even when user does not use it in script
-    script += " w(0)\n"
-    script += " util.trigger_system(sys)\n"
-    script += " return util.measure_system(fname,sys,comment)\n\n"
-    script += "# ==== begin user area ====\n"
+    def measure_system(fname, comment=''):
+        global _matrix_util, _system, wait
+        # wait(0) to have breakpoint even when user does not use it in script
+        wait(0)
+        _matrix_util.trigger_system(_system)
+        return _matrix_util.measure_system(fname,_system,comment)
+
     # merge user input into script
-    script += user_script + "\n"
-    script += "# ===== end user area =====\n"
-    script += "s.reset()"
+    # ==== begin user area ====
+    """) + user_script + textwrap.dedent("""
+    # ===== end user area =====
+    _system.reset()
+    """))
     return script
 
 
@@ -235,7 +244,13 @@ def matrix_script_process(filename, user="", sample=""):
     """
     # import required dependencies
     import re
+    import socket
+    import threading
     import traceback
+
+    # only import port here to avoid util import from failing if GUI
+    # applications are not installed
+    from .scripts import MATRIX_SCRIPT_PORT
 
     # define killable thread to execute the script
     class ExecThread(threading.Thread):
@@ -285,6 +300,14 @@ def matrix_script_process(filename, user="", sample=""):
             if self.interrupt_flag is True:
                 raise KeyboardInterrupt
 
+        # callback function that handles the input
+        def handle_input(self, inp):
+            """ handles input that is passed to the thread """
+            if inp == "p":
+                self.pause(not self.pause_flag)
+            elif inp == "q":
+                self.stop()
+
         def print(self, *args):
             """ reimplemented print that directly flushes the stdout """
             print(*args)
@@ -295,7 +318,11 @@ def matrix_script_process(filename, user="", sample=""):
                 if the script exits with an error """
             try:
                 try:
-                    exec(self.script)
+                    _vars = {"wait": self.breakpoint,
+                             "print": self.print,
+                             "_user": self.user,
+                             "_sample": self.sample}
+                    exec(self.script, _vars)
                 except Exception:
                     self.print("script exited with error:")
                     # get traceback information and format accordingly
@@ -306,7 +333,7 @@ def matrix_script_process(filename, user="", sample=""):
                     line = int(ms.group(1))
                     # replace line number to match the user defined script
                     tbstr = re.sub(r"line (\d+)",
-                                   "line " + str(int(ms.group(1))-18), tbstr)
+                                   "line " + str(int(ms.group(1))-36), tbstr)
                     tbstr = tbstr.replace("<module>", "script")
                     tbstr = tbstr.replace("file \"<string>\"",
                                           "\"{}\"".format(
@@ -330,30 +357,40 @@ def matrix_script_process(filename, user="", sample=""):
         for line in file:
             script += line.decode()
 
-    # initialize the thread and the paused flag
+    # initialize the thread
     thread = ExecThread(script, sample, user)
-    paused = False
 
-    # callback function that handles the input
-    def handle_input(inp):
-        nonlocal thread, paused
-        if inp == "p":
-            paused = not paused
-            thread.pause(paused)
-        elif inp == "q":
-            thread.stop()
-        elif inp == "k":
-            thread.terminate()
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        client_socket.connect(("127.0.0.1", MATRIX_SCRIPT_PORT))
+        # make socket non-blocking
+        client_socket.settimeout(0.1)
+        connected = True
+    except ConnectionRefusedError:
+        # GUI not running - script was not run from graphical user interface.
+        connected = False
 
     # start the thread that runs the script
     thread.start()
 
-    # wait until the thread is finished while waiting for input on (piped) stdin
+    # wait until the thread is finished while waiting for input on
+    # client_socket in the case it is connected
     while thread.is_alive():
+        if connected is True:
+            try:
+                datachunk = client_socket.recv(1)
+                if len(datachunk) > 0:
+                    thread.handle_input(datachunk.decode())
+            except TimeoutError:
+                # recv timed out, no data was sent
+                pass
         # this sleep prevents a deadlock scenario which otherwise heavily slows
         # down matrix_script execution
         time.sleep(0.1)
-        nonblocking_getch(handle_input)
+
+    if connected is True:
+        # close socket
+        client_socket.close()
 
 
 def nonblocking_getch(callback=None):

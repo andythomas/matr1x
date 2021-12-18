@@ -339,14 +339,15 @@ class System(object):
         """
         Sets a parameter i to values.
 
-        Takes the column index and sets the corresponding parameter as defined
-        by the setter of the parameter, take care to send a correct list.
+        Takes the column name or index and sets the corresponding parameter as
+        defined by the setter of the parameter, take care to send a correct
+        list.
         If the setter is None, returns the send values (most likely nan or None)
 
         Parameters
         ------
-        i : int
-          index of the parameter that should be set
+        i : int or str
+          index or name of the parameter that should be set
         values : float or list of floats
           values that should be written to the parameter/device
 
@@ -355,7 +356,10 @@ class System(object):
         values : float or list of floats
           returns the values that have been set to the device
         """
-        setter = self.parameters[i].setter
+        if i in self.columns:
+            setter = self.parameters[self.columns.index(i)].setter
+        else:
+            setter = self.parameters[i].setter
         if setter is None or values is None:
             return values
 
@@ -391,10 +395,13 @@ class System(object):
 
         Parameters
         -----
-        i : int
-          index of parameter that is supposed to be triggered
+        i : int or str
+          index or name of parameter that is supposed to be triggered
         """
-        trigger = self.parameters[i].trigger
+        if i in self.columns:
+            trigger = self.parameters[self.columns.index(i)].trigger
+        else:
+            trigger = self.parameters[i].trigger
         if trigger is not None:
             # trigger function has been provided
             if callable(trigger) is True:
@@ -418,21 +425,24 @@ class System(object):
         """
         Fetches readout value of parameter using the getter.
 
-        Takes the column index and reads the corresponding parameter as defined
-        by the getter of the parameter.
+        Takes the column name or index and reads the corresponding parameter
+        as defined by the getter of the parameter.
         If the getter is None, returns nan
 
         Parameters
         -----
-        i : int
-          index of parameter that is supposed to be triggered
+        i : int or str
+          index or name of parameter that is supposed to be triggered
 
         Returns
         -----
         readout : float or list of floats
           returns the readout from the device/parameter getter
         """
-        getter = self.parameters[i].getter
+        if i in self.columns:
+            getter = self.parameters[self.columns.index(i)].getter
+        else:
+            getter = self.parameters[i].getter
         if getter is not None:
             if callable(getter):
                 # directly callable getter
