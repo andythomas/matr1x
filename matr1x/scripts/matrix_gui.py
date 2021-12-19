@@ -147,7 +147,7 @@ class SweepPreviewPopup(QDialog):
         grid.addWidget(comboBoxX, 1, 0)
         grid.addWidget(comboBoxY, 2, 0)
         grid.addWidget(self.comboBoxCalc, 3, 0)
-        grid.addWidget(self.textEdit, 7, 0, 5, 1)
+        grid.addWidget(self.textEdit, 7, 0, 4, 1)
         grid.addWidget(saveButton, 0, 1, 1, 4)
         grid.addWidget(self.posLabel, 0, 5, 1, 1)
         grid.addWidget(self.pw, 1, 1, 10, 5)
