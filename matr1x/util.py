@@ -61,11 +61,12 @@ def import_system(filename):
         normfilename = splitext(normfilename)[0]
         fullfilename = join(systems_directory,
                             normfilename + ".py")
+
         if isfile(fullfilename):
             mod = module_from_path(fullfilename)
         else:
             mod = importlib.import_module("." + normfilename, "matr1x.systems")
-            mod.sys.__name__ = filename
+            mod.sys.__name__ = normfilename
     return mod.sys
 
 

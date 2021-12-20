@@ -8,7 +8,7 @@ import sys
 import time
 from ast import literal_eval
 from math import floor
-from os.path import basename, split, splitext
+from os.path import basename, splitext
 
 import pyqtgraph as pg
 from matr1x import datetimefmt
@@ -276,8 +276,8 @@ class MainWindow(QDialog):
             return
         modulestr = ""
         filenames = systemFilename.split(",")
-        filenames = [split(filename)[-1] if
-                     basename(splitext(split(filename)[-1])[0]) in core_systems
+        filenames = [splitext(basename(filename))[0] if
+                     splitext(basename(filename))[0] in core_systems
                      else filename for filename in filenames]
         self.systemFilename = ",".join(filenames)
         try:
