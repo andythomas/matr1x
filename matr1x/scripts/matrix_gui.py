@@ -4,7 +4,6 @@
 # 2017/04/17 First version (pheowl)
 # ---
 import os
-import re
 import signal
 import socket
 import subprocess
@@ -17,9 +16,8 @@ import pyqtgraph as pg
 import pyqtgraph.exporters
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import delta, loadh5matrix, loadmatrix
+from matr1x.eval import delta, get_latest_datafile, loadh5matrix, loadmatrix
 from matr1x.scripts import MATRIX_GUI_PORT, sweep_generator
-from natsort import natsorted
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
@@ -593,15 +591,7 @@ class MainWindow(QWidget):
             if "" == infile:
                 self.statusBar.append("Please specify a filename")
                 return
-            inpath, infilename = os.path.split(infile)
-            inbasename = os.path.splitext(infilename)[0]
-            filelist = os.listdir(inpath) if inpath else os.listdir(os.curdir)
-            files = natsorted(
-                [f for f in filelist if
-                 re.search(fr'^({inbasename})(_\d*)?(\.h5)?\.ma\d$', f)])
-            if len(files) > 0:
-                output = os.path.join(
-                    inpath if inpath else os.curdir, files[-1])
+            output = get_latest_datafile(basename=infile)
         if exists(output) is False:
             self.statusBar.append(f"File does not exist ({output})")
             return
