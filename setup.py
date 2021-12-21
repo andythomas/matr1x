@@ -34,7 +34,7 @@ setup(
     ],
     extras_require={
         'SPI': ['spidev', 'RPi'],
-        'GUI': ['pyqtgraph', ],
+        'GUI': ['pyqtgraph', 'PyQt5'],
         'STANDA': ['PyUSMC', 'pyximc'],
     },
     entry_points={
