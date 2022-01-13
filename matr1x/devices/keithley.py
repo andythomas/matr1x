@@ -23,7 +23,7 @@ class Keithley2400(VisaDevice):
         self.write(":SENS:FUNC?")
         self.senseMode = self.read()
         self.write(":OUTP?")
-        self.outputState = bool(self.read())
+        self.outputState = bool(int(self.read()))
 
     def read(self):
         return super().read().replace("\x13", "")
@@ -144,8 +144,10 @@ class Keithley2400(VisaDevice):
     def output(self, state=False):
         if bool(state) is True:
             self.write(":OUTP:STAT ON")
+            self.outputState = True
         elif bool(state) is False:
             self.write(":OUTP:STAT OFF")
+            self.outputState = False
 
     def setSource(self, current):
         cmd = ":SOUR:" + self.sourceMode + ":LEV " + str(current)
@@ -183,7 +185,7 @@ class Keithley2450(VisaDevice):
         self.write(":SENS:FUNC?")
         self.senseMode = self.read()
         self.write(":OUTP?")
-        self.outputState = bool(self.read())
+        self.outputState = bool(int(self.read()))
 
     # high level functions
     @synchronized
@@ -309,8 +311,10 @@ class Keithley2450(VisaDevice):
     def output(self, state=False):
         if state is True:
             self.write(":OUTP ON")
+            self.outputState = True
         elif state is False:
             self.write(":OUTP OFF")
+            self.outputState = False
 
     def setSource(self, current):
         cmd = ":SOUR:" + self.sourceMode + " " + str(current)
