@@ -7,7 +7,7 @@ import os
 import sys
 import textwrap
 import time
-from os.path import abspath, isabs, isfile, join, splitext
+from os.path import abspath, expanduser, isabs, isfile, join, splitext
 
 import h5py
 import numpy as np
@@ -688,6 +688,8 @@ def measure_system(filename, system, comment=""):
     is still necessary, ideally one would copy matrix appraoch for file
     generation
     """
+    # expand user folder
+    filename = expanduser(filename)
     # normalize filename to have correct ending
     if system.hdf5 is True:
         if ".h5" + output_extension not in filename:
