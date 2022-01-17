@@ -15,7 +15,7 @@ sys.dcdata["Source"] = "dummy system for testing matr1x-matrix"
 
 # ========================================================================
 # This is the main system area
-# Device definition and configuration takes plance here, but devices are
+# Device definition and configuration takes place here, but devices are
 # not yet opened
 # ========================================================================
 sys.add_dev("dev",  # name of device, must be unique

@@ -36,7 +36,7 @@ sys.dcdata["Source"] = "dummy system for testing system merging"
 
 # ========================================================================
 # This is the main system area
-# Device definition and configuration takes plance here, but devices do
+# Device definition and configuration takes place here, but devices do
 # not yet get opened!
 #
 # IMPORTANT:

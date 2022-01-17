@@ -20,7 +20,7 @@ sys.dcdata["Source"] = "dummy system with GUI for testing matr1x-matrix"
 
 # ========================================================================
 # This is the main system area
-# Device definition and configuration takes plance here, but devices do
+# Device definition and configuration takes place here, but devices do
 # not yet get opened!
 #
 # IMPORTANT:
