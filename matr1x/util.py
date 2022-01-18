@@ -382,7 +382,7 @@ def matrix_script_process(filename, user="", sample=""):
                 datachunk = client_socket.recv(1)
                 if len(datachunk) > 0:
                     thread.handle_input(datachunk.decode())
-            except TimeoutError:
+            except OSError:  # for Python >= 3.10 this can be TimeoutError
                 # recv timed out, no data was sent
                 pass
         # this sleep prevents a deadlock scenario which otherwise heavily slows
