@@ -36,7 +36,7 @@ def get_latest_datafile(path=None, basename=None):
     if basename:
         basepath, basefilename = split(basename)
         basewoext = splitext(basefilename)[0]
-        basewoext = re.sub("(_\d+)$", "", basewoext)
+        basewoext = re.sub(r"(_\d+)$", "", basewoext)
 
     # determine used file path
     if path:
