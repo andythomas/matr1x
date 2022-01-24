@@ -358,8 +358,10 @@ class System(object):
         """
         if i in self.columns:
             setter = self.parameters[self.columns.index(i)].setter
-        else:
+        elif isinstance(i, int):
             setter = self.parameters[i].setter
+        else:
+            raise TypeError(f"column '{i}' could not be identified")
         if setter is None or values is None:
             return values
 

@@ -19,9 +19,10 @@ from matr1x.util import generate_script
 from PyQt5.QtCore import QRect, QRegExp, QSize, Qt, QThread
 from PyQt5.QtGui import (QColor, QFont, QPainter, QPalette, QSyntaxHighlighter,
                          QTextCharFormat, QTextCursor)
-from PyQt5.QtWidgets import (QApplication, QFileDialog, QGridLayout, QLineEdit,
-                             QListWidget, QPlainTextEdit, QPushButton,
-                             QTextEdit, QWidget)
+from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
+                             QGridLayout, QLineEdit, QListWidget,
+                             QPlainTextEdit, QPushButton, QSplitter, QTextEdit,
+                             QWidget)
 
 from ..gui_util import EmittingStream
 
@@ -387,13 +388,6 @@ class MainWindow(QWidget):
         Initialize the GUI for scripted matrix control
         """
         super().__init__()
-        self.system_dict = {}
-        index = 0
-        for syst in os.listdir(matr1x.systems_directory):
-            if "system_" in syst:
-                self.system_dict[syst.replace(".py", "")] = index
-                index += 1
-
         self.systems = []
 
         self.init_ui()
@@ -448,8 +442,12 @@ class MainWindow(QWidget):
         self.help_button = QPushButton("Help")
         self.help_button.clicked.connect(self.show_commands)
         self.system_list = QListWidget()
-        self.system_list.insertItems(0, self.system_dict.keys())
-        self.system_list.setSelectionMode(2)
+        self.system_list.setSelectionMode(1)
+        self.system_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.addButton = QPushButton('add system')
+        self.addButton.clicked.connect(self.show_file_dialog)
+        self.delButton = QPushButton('remove system')
+        self.delButton.clicked.connect(self.delete_selected_system)
 
         # LineEdits
         self.sample_edit = QLineEdit(self)
@@ -471,8 +469,10 @@ class MainWindow(QWidget):
         self.status_preview.setPalette(palette)
 
         # initialize widgets in layout
-        layout.addWidget(self.script_edit, 4, 0, 4, 4)
-        layout.addWidget(self.status_preview, 4, 4, 4, 4)
+        splitter = QSplitter(self)
+        splitter.addWidget(self.script_edit)
+        splitter.addWidget(self.status_preview)
+        layout.addWidget(splitter, 4, 0, 4, 8)
         layout.addWidget(self.sample_edit, 8, 0, 1, 4)
         layout.addWidget(self.user_edit, 8, 4, 1, 4)
         layout.addWidget(self.start_button, 9, 6, 1, 2)
@@ -482,13 +482,41 @@ class MainWindow(QWidget):
         layout.addWidget(self.save_button, 9, 0, 1, 2)
         layout.addWidget(self.load_button, 10, 0, 1, 2)
         layout.addWidget(self.help_button, 12, 0, 1, 2)
-        layout.addWidget(self.system_list, 9, 2, 4, 4)
+        layout.addWidget(self.system_list, 9, 2, 3, 4)
+        layout.addWidget(self.addButton, 12, 2, 1, 2)
+        layout.addWidget(self.delButton, 12, 4, 1, 2)
 
         # configure stretch to go only into textEdits
         layout.setRowStretch(4, 1)
 
         self.setLayout(layout)
         self.setWindowTitle('matrix_script')
+
+    def show_file_dialog(self):
+        """
+        Opens a QFileDialog with filter system*.py
+        """
+        # get filenames from dialog
+        filename = QFileDialog.getOpenFileName(
+            self, 'Select system file', matr1x.systems_directory,
+            "system files (system*.py)")[0]
+        if "" == filename:
+            return
+        if os.path.dirname(filename) == matr1x.systems_directory:
+            self.system_list.addItem(os.path.basename(filename))
+        else:
+            self.system_list.addItem(filename)
+
+    def delete_selected_system(self):
+        """
+        Removes selected system from system_list. If no selection is active the
+        last system will be removed.
+        """
+        selected = self.system_list.selectedItems()
+        if len(selected) > 0:
+            self.system_list.takeItem(self.system_list.row(selected[0]))
+        elif 0 < self.system_list.count():
+            self.system_list.takeItem(self.system_list.count()-1)
 
     def pause_thread(self):
         self.thread.pause()
@@ -547,7 +575,8 @@ class MainWindow(QWidget):
         self.kill_button.setEnabled(False)
         self.script_edit.setReadOnly(False)
         self.start_button.setEnabled(True)
-        self.system_list.setEnabled(True)
+        self.addButton.setEnabled(True)
+        self.delButton.setEnabled(True)
         print("Execution finished")
         print("==========")
         del self.thread
@@ -565,7 +594,8 @@ class MainWindow(QWidget):
             return
         self.script_edit.setReadOnly(True)
         self.start_button.setEnabled(False)
-        self.system_list.setEnabled(False)
+        self.addButton.setEnabled(False)
+        self.delButton.setEnabled(False)
         print("### Running script now")
         # define basic part of script, imports relevant commands
         self.script = generate_script(self.systems,
@@ -581,12 +611,8 @@ class MainWindow(QWidget):
         self.kill_button.setEnabled(True)
 
     def update_systems(self):
-        self.systems = [item.text()
-                        for item in self.system_list.selectedItems()]
-
-    def clear_system_selection(self):
-        for i in range(self.system_list.count()):
-            self.system_list.item(i).setSelected(False)
+        self.systems = [self.system_list.item(j).text()
+                        for j in range(self.system_list.count())]
 
     def get_settable_info(self):
         """
@@ -629,25 +655,29 @@ class MainWindow(QWidget):
             return
         self.update_systems()
 
+        header = ""
         try:
             # get settable information to put into the header (columns/units)
             settable_info = self.get_settable_info()
 
             # write matrix file header
-            output_file.write("# system def : " +
-                              ",".join(self.systems) + "\n")
-            output_file.write("# system names : " + ",".join(settable_info[1]) +
-                              "\n")
-            output_file.write("# system units : " + ",".join(settable_info[2]) +
-                              "\n")
+            header += "# system def : " + ",".join(self.systems) + "\n"
+            header += "# system names : " + ",".join(settable_info[1]) + "\n"
+            header += "# system units : " + ",".join(settable_info[2]) + "\n"
+            output_file.write(header)
         except Exception:
             print("error in generating settable_info from file, telemetry "
                   "header could not be generated")
-        for i, line in enumerate(self.script_edit.toPlainText().split("\n")):
+        script = self.script_edit.toPlainText()
+        newscript = header
+        for i, line in enumerate(script.split("\n")):
             if i < 3 and "# system " in line:
-                # if there are already definitions of the system, skip these
+                # if there are already definitions of the system, skip them
                 continue
-            output_file.write(line + "\n")
+            newscript += line + "\n"
+        # set new script in editor and save it to the file
+        self.script_edit.setPlainText(newscript)
+        output_file.write(newscript)
         output_file.close()
 
     def load_from_file(self):
@@ -671,7 +701,7 @@ class MainWindow(QWidget):
             print("==========")
             return
         self.script_edit.clear()
-        self.clear_system_selection()
+        self.system_list.clear()
         settable_info = None
         sys_err = False
         for i, line in enumerate(input_file):
@@ -682,8 +712,7 @@ class MainWindow(QWidget):
                         "# system def : ", "")
                     for syst in system_line.split(","):
                         try:
-                            self.system_list.item(
-                                self.system_dict[syst]).setSelected(True)
+                            self.system_list.addItem(syst)
                             self.update_systems()
                             settable_info = self.get_settable_info()
                         except KeyError:
