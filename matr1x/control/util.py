@@ -216,6 +216,8 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
             dummy[0].setEnabled(False)
         elif type(dummy[0]) is QCheckBox:
             dummy[0].setEnabled(False)
+        elif type(dummy[0]) is QProgressBar:
+            dummy[0].setRange(0, 100)
         # replace spec with widgets in place
         layoutDict[key][1] = [QLabel(key)] + dummy
         # populate grid
