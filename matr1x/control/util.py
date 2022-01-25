@@ -110,7 +110,7 @@ def connectDictValueToDisplay(connDict):
             connDict[key][0].valueChanged[str].connect(
                 connDict[key][1][1].setText)
         elif type(connDict[key][1][1]) == QProgressBar:
-            connDict[key][0].valueChanged[float].connect(
+            connDict[key][0].valueChanged[int].connect(
                 connDict[key][1][1].setValue)
         elif type(connDict[key][1][1]) == QComboBox:
             connDict[key][0].valueChanged[int].connect(
