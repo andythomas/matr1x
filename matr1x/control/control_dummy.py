@@ -26,15 +26,18 @@ cmd_list = {"*idn": [None, None, [], str,
             ":v1": [int,
                     "setV1", [],
                     "v1", []],
+            ":v3": [int,
+                    "v3", [],
+                    "v3", []],
             ":v2": [float,
                     "v2", [],
                     "v2", []],
             ":v2v3": [[float, bool],
                       "setV2V3", [],
                       "getV2V3", []],
-            "v3": [bool,
-                   "v3", [],
-                   "v3", []],
+            "v4": [bool,
+                   "v4", [],
+                   "v4", []],
             }
 
 clientdevice = makeSCPIdevice(cmd_list)
@@ -59,7 +62,8 @@ class MainWindow(ControlWindow):
     exampleDict = {"Example": [None, ["Readout", "Setpoint"]],
                    "V1": [var(int, int), [4, 4]],
                    "V2": [var(float), [1, 1]],
-                   "V3": [var(bool, bool), [2, 2]],
+                   "V3": [var(int, int), [3, 1]],
+                   "V4": [var(bool, bool), [2, 2]],
                    "Set": [None, [0, 0]]}
     exampleDictInit = {"V1": ["i1", "i2"]}
 
@@ -67,7 +71,8 @@ class MainWindow(ControlWindow):
         # initialize local variable storage
         self.v1 = 0
         self.v2 = 0
-        self.v3 = False
+        self.v3 = 0
+        self.v4 = False
 
         self.output_stream = EmittingStream(text_written=self.output_written)
         # set outputStream as stdout (i.e. all output is written to status
@@ -128,7 +133,8 @@ class MainWindow(ControlWindow):
             v1 = int(self.exampleDict["V1"][1][2].currentIndex())
             self.setV1(v1)
             self.v2 = float(self.exampleDict["V2"][1][2].text())
-            self.v3 = bool(self.exampleDict["V3"][1][2].checkState())
+            self.v3 = int(self.exampleDict["V3"][1][2].text())
+            self.v4 = bool(self.exampleDict["V4"][1][2].checkState())
         except ValueError:
             print("some value can not be converted to correct type")
             estr = traceback.format_exc()
