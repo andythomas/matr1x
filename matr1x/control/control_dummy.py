@@ -26,7 +26,7 @@ cmd_list = {"*idn": [None, None, [], str,
             ":v1": [int,
                     "setV1", [],
                     "v1", []],
-            ":v3": [int,
+            ":v3": [float,
                     "v3", [],
                     "v3", []],
             ":v2": [float,
@@ -62,7 +62,7 @@ class MainWindow(ControlWindow):
     exampleDict = {"Example": [None, ["Readout", "Setpoint"]],
                    "V1": [var(int, int), [4, 4]],
                    "V2": [var(float), [1, 1]],
-                   "V3": [var(int, int), [3, 1]],
+                   "V3": [var(float, int), [3, 1]],
                    "V4": [var(bool, bool), [2, 2]],
                    "Set": [None, [0, 0]]}
     exampleDictInit = {"V1": ["i1", "i2"]}
@@ -133,7 +133,7 @@ class MainWindow(ControlWindow):
             v1 = int(self.exampleDict["V1"][1][2].currentIndex())
             self.setV1(v1)
             self.v2 = float(self.exampleDict["V2"][1][2].text())
-            self.v3 = int(self.exampleDict["V3"][1][2].text())
+            self.v3 = float(self.exampleDict["V3"][1][2].text())
             self.v4 = bool(self.exampleDict["V4"][1][2].checkState())
         except ValueError:
             print("some value can not be converted to correct type")
