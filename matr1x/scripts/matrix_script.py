@@ -291,7 +291,7 @@ class PythonHighlighter(QSyntaxHighlighter):
 
 class ExecThread(QThread):
 
-    def __init__(self, sample, user, script):
+    def __init__(self, sample, user, script, fallbackname):
         """
         initialize thread that handles script execution with meta data and
         script
@@ -302,6 +302,7 @@ class ExecThread(QThread):
         self.sample = sample
         self.user = user
         self.script = script
+        self.datafilefallback = fallbackname
 
     def pause(self):
         """ communicate pause to the subprocess' stdin """
@@ -353,7 +354,8 @@ class ExecThread(QThread):
             # parameters to pass to matrix_script_process
             cmd = ("import matr1x.util as mu\n" +
                    f"mu.matrix_script_process({repr(tf.name)}, '" +
-                   self.user + "', '" + self.sample + "')")
+                   self.user + "', '" + self.sample + "', '" +
+                   self.datafilefallback + "')")
             # start socket that is used to communicate with the child process
             # that runs the script
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -389,6 +391,7 @@ class MainWindow(QWidget):
         """
         super().__init__()
         self.systems = []
+        self.scriptname = ""
 
         self.init_ui()
 
@@ -401,13 +404,15 @@ class MainWindow(QWidget):
         Welcome {getpass.getuser()},
         available general functions are:
         ```
-         measure_system(filename, comment='')
+         init_datafile(filename, comment="", append=False, print_header=True)
+         measure_system(print_data=True, print_telemetry=True)
          wait(seconds)
         ```
         `wait` also acts as breakpoint to pause execution.
         System parameters can be accessed via:
         ```
          set_value(value_index/name, value)
+         trigger_value(value_index/name)
          read_value(value_index/name)
         ```
         Use the help button to get a list of available parameters and devices
@@ -598,21 +603,24 @@ class MainWindow(QWidget):
         self.delButton.setEnabled(False)
         print("### Running script now")
         # define basic part of script, imports relevant commands
-        self.script = generate_script(self.systems,
-                                      self.script_edit.toPlainText())
+        user_script = self.script_edit.toPlainText()
+        script = generate_script(self.systems, user_script)
         self.thread = ExecThread(self.sample_edit.text(),
                                  self.user_edit.text(),
-                                 self.script)
+                                 script,
+                                 self.scriptname)
         self.thread.finished.connect(self.process_finished)
-        logger.info("The following script was run:\n" + self.script)
+        logger.info("The following user script was run:\n" + user_script)
         self.thread.start()
         self.abort_button.setEnabled(True)
         self.pause_button.setEnabled(True)
         self.kill_button.setEnabled(True)
 
     def update_systems(self):
-        self.systems = [self.system_list.item(j).text()
+        self.systems = [os.path.normpath(self.system_list.item(j).text())
                         for j in range(self.system_list.count())]
+        systemnames = [os.path.split(os.path.splitext(sys)[0])[-1]
+                       for sys in self.systems]
 
     def get_settable_info(self):
         """
@@ -653,6 +661,7 @@ class MainWindow(QWidget):
             print("File cannot be opened")
             print("==========")
             return
+        self.scriptname = filename
         self.update_systems()
 
         header = ""
@@ -664,7 +673,6 @@ class MainWindow(QWidget):
             header += "# system def : " + ",".join(self.systems) + "\n"
             header += "# system names : " + ",".join(settable_info[1]) + "\n"
             header += "# system units : " + ",".join(settable_info[2]) + "\n"
-            output_file.write(header)
         except Exception:
             print("error in generating settable_info from file, telemetry "
                   "header could not be generated")
@@ -700,6 +708,7 @@ class MainWindow(QWidget):
             print("File cannot be opened")
             print("==========")
             return
+        self.scriptname = filename
         self.script_edit.clear()
         self.system_list.clear()
         settable_info = None

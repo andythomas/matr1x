@@ -1,12 +1,12 @@
 import numpy as np
 fields = np.linspace(0, 20e-3, 11)
 currents = np.linspace(-1e-4, 1e-4, 2)
+init_datafile("epische_messdatei", comment="testcomment")
 for field in fields:
  set_value(1, field)
  for current in currents:
   set_value(5, current)
   wait(0.01)
   print(f"current field {field}")
-  print(measure_system("epische_messdatei",
-                       comment="testcomment"))
+  measure_system()
 

@@ -9,7 +9,6 @@ file of ascii or hdf5 format, depending on the system specifications
 import argparse
 import math
 import os
-import re
 import shlex
 import socket
 import sys
@@ -17,58 +16,12 @@ import time
 import traceback
 
 import urwid
-from matr1x.util import (flatten, generate_col_index, get_settable_columns,
-                         merge_systems, nonblocking_getch, output_extension,
-                         take_measurement_point, trigger_system,
-                         write_matrix_header)
+from matr1x.util import (flatten, generate_col_index, generate_datafilename,
+                         get_settable_columns, merge_systems, nonblocking_getch,
+                         print_formatted_line, take_measurement_point,
+                         telemetry_string, trigger_system, write_matrix_header)
 
 from . import MATRIX_GUI_PORT
-
-# telemetry string template
-telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
-                    "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
-
-
-def generate_outfilename(system, options):
-    # check whether hdf5 is required and change output extensions
-    if system.hdf5 is True:
-        # append h5 to filename to discern filetypes
-        file_extension = ".h5" + output_extension
-    else:
-        file_extension = output_extension
-    refileext = file_extension.replace('.', r'\.')
-
-    # if no output file was specified use the input filename as a template
-    if not options.outputfile:
-        outputfile = os.path.splitext(options.inputfile)[0]
-    else:
-        outputfile = options.outputfile
-    # check if file extension was provided
-    if not re.search(f"{refileext}$", outputfile):
-        outputfile = re.sub(r"(\.h5)?\.ma\d$", "", outputfile) + file_extension
-    if not os.path.exists(outputfile):
-        # use the unmodified file name
-        return outputfile, "w"
-    else:
-        # in case extension and running number are already attached to
-        # the filename, replace in outputfile
-        outfile = re.sub(r"(_\d+)?(\.h5)?\.ma\d$", "", outputfile)
-
-        # check filename and increase "extension number" to protect existing
-        # data
-        for extension in range(1, 10000):
-            if os.path.exists(f"{outfile}_{extension}{file_extension}"):
-                continue
-            else:
-                break
-
-        if bool(options.append) is True and 0 != extension:
-            # if there is a file with that name already, change to the append mode
-            return f"{outfile}_{extension-1}{file_extension}", "a"
-        else:
-            # in this case start a new file
-            # append the next possible number as file extension
-            return f"{outfile}_{extension}{file_extension}", "w"
 
 
 def report_filename_to_gui(filename):
@@ -202,24 +155,6 @@ def measure_plain(inputfile, output_filename, system):
     measurement loop with plain print output to the terminal
     (mainly for continuous integration on Github actions)
     """
-    column_width = 10
-
-    def print_formatted_line(vlist, prefix="", appendix=""):
-        entry_string = "{:>%d}  " % column_width
-        sys.stdout.write(f"{prefix:>6}")
-        for v in vlist:
-            if isinstance(v, str) and len(v) > column_width:
-                vstr = v[-column_width:]
-            elif isinstance(v, str):
-                vstr = v
-            elif v is None:
-                vstr = ""
-            elif isinstance(v, float):
-                vstr = f"{v:8.6g}"
-            elif isinstance(v, int):
-                vstr = f"{v:d}"
-            sys.stdout.write(entry_string.format(vstr))
-        sys.stdout.write(f"{appendix}\n")
 
     def inputcb(n):
         key = nonblocking_getch()
@@ -421,7 +356,8 @@ def main():
             exit()
 
     # obtain output file name and mode used to open the file
-    output_filename, output_filemode = generate_outfilename(system, options)
+    output_filename, output_filemode = generate_datafilename(
+        system, options.outputfile, options.inputfile, options.append)
     report_filename_to_gui(output_filename)
 
     # initialize devices and notify user what is going on

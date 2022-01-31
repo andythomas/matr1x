@@ -4,10 +4,11 @@
 import importlib
 import importlib.util
 import os
+import re
 import sys
 import textwrap
 import time
-from os.path import abspath, expanduser, isabs, isfile, join, splitext
+from os.path import abspath, exists, expanduser, isabs, isfile, join, splitext
 
 import h5py
 import numpy as np
@@ -31,6 +32,9 @@ default_separator = "\t"
 
 # default output extension
 output_extension = ".ma7"
+# telemetry string template
+telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
+                    "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
 
 
 def import_system(filename):
@@ -161,6 +165,95 @@ def grab_system_information(systems, settables=False):
         return "----------\n".join((dev_string, par_string))
 
 
+def generate_datafilename(system, outputfile="", inputfile="", append=False):
+    """
+    generate output datafile name. No file should be overwritten. If
+    append=True an existing datafile can be amended. In all other cases a new
+    file will name is generated.
+
+    The datafilename will be generated either from the outputfile (preferred)
+    or the inputfile-name. An appropriate extension is generated.
+
+    Parameters
+    ----------
+    system: System instance
+    outputfile: str, optional
+      output filename which should be used. Potentially a running number will
+      be added to avoid overwriting an existing file
+    inputfile: str, optional
+      if outputfile is empty this string will be used to generate a datafile
+      name
+    append: bool, optional
+      flag to decide if one should append to an potentially existing datafile
+
+    Returns
+    -------
+    datafilename, filemode
+    """
+    # check whether hdf5 is required and change output extensions
+    if system.hdf5 is True:
+        # append h5 to filename to discern filetypes
+        file_extension = ".h5" + output_extension
+    else:
+        file_extension = output_extension
+    refileext = file_extension.replace('.', r'\.')
+
+    if outputfile:
+        datafile = expanduser(outputfile)
+    else:  # no output file given -> input filename as template
+        datafile = expanduser(splitext(inputfile)[0])
+    # check if file extension was provided
+    if not re.search(f"{refileext}$", datafile):
+        datafile = re.sub(r"(\.h5)?\.ma\d$", "", datafile) + file_extension
+    if not exists(datafile):
+        # use the unmodified file name
+        return datafile, "w"
+    elif append is True:
+        return datafile, "w"  # here we return "w" because file does not exist
+    else:
+        # in case extension and running number are already attached to
+        # the filename, replace in outputfile
+        outfile = re.sub(r"(_\d+)?(\.h5)?\.ma\d$", "", datafile)
+
+        # check filename and increase "extension number" to protect existing
+        # data
+        for extension in range(1, 10000):
+            if exists(f"{outfile}_{extension}{file_extension}"):
+                continue
+            else:
+                break
+
+        if bool(append) is True and 0 != extension:
+            # if there is a file with that name already, change to the append mode
+            return f"{outfile}_{extension-1}{file_extension}", "a"
+        else:
+            # in this case start a new file
+            # append the next possible number as file extension
+            return f"{outfile}_{extension}{file_extension}", "w"
+
+
+def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
+    """
+    print a formated line with data values
+    """
+    entry_string = "{:>%d}  " % column_width
+    sys.stdout.write(f"{prefix:>6}")
+    for v in vlist:
+        if isinstance(v, str) and len(v) > column_width:
+            vstr = v[-column_width:]
+        elif isinstance(v, str):
+            vstr = v
+        elif v is None:
+            vstr = ""
+        elif isinstance(v, float):
+            vstr = f"{v:8.6g}"
+        elif isinstance(v, int):
+            vstr = f"{v:d}"
+        sys.stdout.write(entry_string.format(vstr))
+    sys.stdout.write(f"{appendix}\n")
+    sys.stdout.flush()  # flush here is important for matrix_script
+
+
 def generate_script(systems, user_script):
     """
     Definition of the general part of the script used in matrix_script
@@ -182,38 +275,170 @@ def generate_script(systems, user_script):
     """
     # define basic part of script, imports relevant commands
     script = (textwrap.dedent(f"""
+    import math as _math
+    import os as _os
+    import time as _time
+
+    import matr1x as _matr1x
     import matr1x.util as _matrix_util
+
     _system = _matrix_util.merge_systems(
         ['{"', '".join(systems)}'])
 
     # pass meta information
     _system.dcdata['Identifier'] = _sample
     _system.dcdata['Creator'] = _user
+    _filename = ""  # datafile name
+    _setvalues = []  # buffer for set values for printing
+    _npoints = 0  # internal measurement point counter
+    _ntot = None  # total number of measurement points for telemetry
+    _starttime = _time.time()
+    _preset = _starttime
 
+    def _reset_setvalues():
+        global _setvalues
+        _setvalues = []
+        for i, col in enumerate(_system.columns):
+            if isinstance(col, (list, tuple)):
+                _setvalues.append([None, ]*len(col))
+            else:
+                _setvalues.append(None)
+
+    _reset_setvalues()  # initialize the setvalues variable
     # bring meta_data into namespace
     meta_data = _system.dcdata
 
     # redefine set_value to limit user typing requirements
-    set_value = _system.set_value
+    def set_value(col, value):
+        '''
+        wrapper for _system.set_values to allow storing all set parameters
+        between two measurements
+        '''
+        global _setvalues
+
+        if col in _system.columns:
+            i = _system.columns.index(col)
+        else:
+            i = col
+
+        setv = _system.set_value(i, value)
+        if setv is None and isinstance(_system.columns[i], (list, tuple)):
+            _setvalues[i] = [None, ] * len(_system.columns[i])
+        else:
+            _setvalues[i] = setv
+        return setv
+
     trigger_value = _system.trigger_value
     read_value = _system.read_value
 
     # initialize system and put devs into namespace
-    _system.set()
+    print("setting devices")
+    _system.set()  # here is a difference to matrix (no arguments), see PR #203
     devs = _system.devs
 
-    # separate trigger system, I think this will not be required
-    def trigger_system():
-        global _matrix_util, _system
-        _matrix_util.trigger_system(_system)
+    def init_datafile(filename, comment="", append=False, print_header=True,
+                      ntot=None):
+        '''
+        initialize the datafile for the matrix_script measurement. By default a
+        new datafile will be generated whose name is generated in a way that no
+        existing datafile can be overwritten.
 
-    # wrap trigger_system into measure_system
-    def measure_system(fname, comment=''):
-        global _matrix_util, _system, wait
+        Parameters
+        ----------
+        filename: str
+          name of the datafile to be used.
+        comment: str, optional
+          comment to be saved in the file header
+        append: bool, optional
+          flag to tell if an existing datafile should be used. If append is
+          False a new datafile with a non-conflicting name will be generated by
+          appending "_<number>" to the filename
+        print_header: bool, optional
+         flag to decide if the header information with column names and units
+         should be printed
+        ntot: int, optional
+          total number of expected datapoints for estimation of remaining
+          measurement time.
+        '''
+        global _filename, _ntot, _npoints
+        _ntot = ntot
+        _npoints = 0  # reset the number of measurement points
+
+        # generate fallback option for the datafile name
+        systemstring = "__".join(['{"', '".join(map(os.path.basename, systems))}'])
+        timestamp = _time.strftime(_matr1x.datetimefmt, _time.localtime())
+        fallbackname = "%s_%s" % (timestamp, systemstring)
+
+        _filename, mode = _matrix_util.generate_datafilename(
+            _system,
+            outputfile=filename,
+            inputfile=_os.path.basename(_scriptname) or fallbackname,
+            append=append)
+        if append == False or not os.path.exists(_filename):
+            # prepare header for writing into the file
+            if hasattr(_system, "subsys"):
+                sys_list = [subsys.__name__ for subsys in _system.subsys]
+            else:
+                sys_list = [_system.__name__]
+            # write header to file
+            print("running config query")
+            query_dict = _system.query()
+            print("configuration acquired, initializing file")
+            _system.dcdata["Description"] = comment
+            _matrix_util.write_matrix_header(
+                _filename, mode, _scriptname or "matrix script generated",
+                sys_list, _system, query_dict)
+        if print_header:
+            _matrix_util.print_formatted_line(_matrix_util.flatten(_system.columns))
+            _matrix_util.print_formatted_line(_matrix_util.flatten(_system.units))
+
+
+    # wrap trigger_system and take_measurement_point into measure_system
+    def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
+        '''
+        Perform the measurment of a single data point. This means a sequence of
+        trigger_system, and reading the data is performed.
+
+        Parameters
+        ----------
+        print_setpoint: bool, optional
+         flag to decide if the column values set since the last measurement
+         should be printed in a way combatible with the header information of
+         init_datafile
+        print_data: bool, optional
+         flag to decide if the measured data values should be printed in a way
+         combatible with the header information of init_datafile
+        print_telemetry: bool, optional
+         flag to decide if telemetry data about the measurement duration should
+         be printed
+        '''
+        global _preset, _npoints
+        if print_setpoint:
+            _matrix_util.print_formatted_line(
+                _matrix_util.flatten(_setvalues), prefix="Set : ")
+        _reset_setvalues()
         # wait(0) to have breakpoint even when user does not use it in script
         wait(0)
+        _npoints += 1
+        preread = _time.time()
+        if _filename == "":
+            init_datafile("")
         _matrix_util.trigger_system(_system)
-        return _matrix_util.measure_system(fname,_system,comment)
+        return_list = _matrix_util.take_measurement_point(_filename, _system)
+        if print_data:
+            _matrix_util.print_formatted_line(return_list, prefix="Meas: ")
+        if print_telemetry:
+            elapsed = (_time.time() - _starttime)
+            if _ntot:
+                remaining = (elapsed/_npoints*_ntot-elapsed)/60
+            else:
+                remaining = _math.nan
+            print(_matrix_util.telemetry_string.format(
+                _npoints, _ntot or -1, elapsed/60, remaining, preread-_preset,
+                _time.time()-preread))
+        _preset = _time.time()
+        return return_list
+
 
     # merge user input into script
     # ==== begin user area ====
@@ -224,7 +449,7 @@ def generate_script(systems, user_script):
     return script
 
 
-def matrix_script_process(filename, user="", sample=""):
+def matrix_script_process(filename, user="", sample="", scriptname=""):
     """
     Process in which the script generated by generate_script is executed.
     Provides functionality to pause and gracefully quit the script execution
@@ -242,6 +467,9 @@ def matrix_script_process(filename, user="", sample=""):
       user name that is written into the meta data of the output file
     sample : str
       sample name that is written into the meta data of the output file
+    scriptname: str
+      script name used as fallback template for the datafile name if its not
+      set in the script.
     """
     # import required dependencies
     import re
@@ -268,12 +496,13 @@ def matrix_script_process(filename, user="", sample=""):
           user name
         """
 
-        def __init__(self, script, sample="", user=""):
+        def __init__(self, script, sample, user, scriptname):
             """ initialize all variable """
             super().__init__()
             self.script = script
             self.sample = sample
             self.user = user
+            self.scriptname = scriptname
             self.pause_flag = False
             self.interrupt_flag = False
 
@@ -322,7 +551,8 @@ def matrix_script_process(filename, user="", sample=""):
                     _vars = {"wait": self.breakpoint,
                              "print": self.print,
                              "_user": self.user,
-                             "_sample": self.sample}
+                             "_sample": self.sample,
+                             "_scriptname": self.scriptname}
                     exec(self.script, _vars)
                 except Exception:
                     self.print("script exited with error:")
@@ -359,7 +589,7 @@ def matrix_script_process(filename, user="", sample=""):
             script += line.decode()
 
     # initialize the thread
-    thread = ExecThread(script, sample, user)
+    thread = ExecThread(script, sample, user, scriptname)
 
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -677,48 +907,6 @@ def trigger_system(system):
     """
     for i in range(len(system.columns)):
         system.trigger_value(i)
-
-
-def measure_system(filename, system, comment=""):
-    """
-    takes one reading and takes care of initializing file in case it has to be
-    newly initalized, script is not saved in the header!
-
-    Design decision about whether or not to allow concurrent writes to file
-    is still necessary, ideally one would copy matrix appraoch for file
-    generation
-    """
-    # expand user folder
-    filename = expanduser(filename)
-    # normalize filename to have correct ending
-    if system.hdf5 is True:
-        if ".h5" + output_extension not in filename:
-            filename += ".h5" + output_extension
-    else:
-        if output_extension not in filename:
-            filename += output_extension
-    try:
-        temp_file = open(filename, "r")
-        temp_file.close()
-    except IOError:
-        # file is not yet initialized with header etc, needs to be done.
-        # prepare parameters for handover
-        if hasattr(system, "subsys"):
-            sys_list = [subsys.__name__ for subsys in system.subsys]
-        else:
-            sys_list = [system.__name__]
-        # write header to file
-        print("running config query")
-        query_dict = system.query()
-        print("configuration acquired, initializing file")
-        print("  ".join(list(flatten(system.columns))))
-        print("  ".join(list(flatten(system.units))))
-        system.dcdata["Description"] = comment
-        write_matrix_header(filename, "w", "matrix script generated", sys_list,
-                            system, query_dict)
-    return_list = take_measurement_point(filename, system)
-    return_str = [f"{str(retval):>10.10s}" for retval in return_list]
-    return " ".join(return_str)
 
 
 def construct_query_string(query_dict, depth=2):
