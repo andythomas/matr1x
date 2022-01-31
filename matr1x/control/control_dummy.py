@@ -170,6 +170,7 @@ class MainWindow(ControlWindow):
                 self.exampleDict["V1"][0].setValue(self.v1)
                 self.exampleDict["V2"][0].setValue(self.v2)
                 self.exampleDict["V3"][0].setValue(self.v3)
+                self.exampleDict["V4"][0].value = self.v4
 
             a = time.time()
             # refresh dicts of ITC and IPS (takes about 100ms each)

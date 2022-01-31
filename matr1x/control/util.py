@@ -48,17 +48,25 @@ class var(QObject):
         self.variableType = variableType
         self.outType = outType
 
-        self.value = None
+        self._value = None
 
     def setValue(self, newValue):
+        self.value = newValue
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, newValue):
         """
         if the value is set, emit a signal so that a possible change can be
         tracked
         """
         # cast the value to the internal type (most likely float)
-        self.value = self.variableType(newValue)
+        self._value = self.variableType(newValue)
         # cast the output value to outType and emit matching signal
-        self.valueChanged[self.outType].emit(self.outType(self.value))
+        self.valueChanged[self.outType].emit(self.outType(self._value))
 
 
 class QtGracefulKiller():
@@ -293,26 +301,19 @@ def copyValues(copyDict):
       copies values from first column with values to second column with values
     """
     for key in copyDict:
-        if ((type(copyDict[key][1][1]) == QLineEdit and
-             len(copyDict[key][1]) > 2)):
+        if len(copyDict[key][1]) > 2:
             if type(copyDict[key][1][2]) == QLineEdit:
                 copyDict[key][1][2].setText(
-                    copyDict[key][1][1].text())
-        elif (type(copyDict[key][1][1]) == QProgressBar and
-              len(copyDict[key][1]) > 2):
-            copyDict[key][1][2].setText(str(
-                copyDict[key][1][1].value()))
-        elif (type(copyDict[key][1][1]) == QComboBox and
-              len(copyDict[key][1]) > 2):
-            try:
-                copyDict[key][1][2].setCurrentIndex(
-                    copyDict[key][1][1].currentIndex())
-            except Exception:
-                pass
-        elif (type(copyDict[key][1][1]) == QCheckBox and
-              len(copyDict[key][1]) > 2):
-            copyDict[key][1][2].setChecked(
-                copyDict[key][1][1].checkState())
+                    str(copyDict[key][0].value))
+            elif type(copyDict[key][1][2]) == QComboBox:
+                try:
+                    copyDict[key][1][2].setCurrentIndex(
+                        copyDict[key][0].value)
+                except Exception:
+                    pass
+            elif type(copyDict[key][1][2]) == QCheckBox:
+                copyDict[key][1][2].setChecked(
+                    bool(copyDict[key][0].value))
 
 
 def temp_statistics(deltat, temp):
