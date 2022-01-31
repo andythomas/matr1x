@@ -21,9 +21,10 @@ from matr1x.util import (calculate_sweep, generate_col_index,
 from numpy import linspace
 from PyQt5.QtCore import QLocale, pyqtSignal
 from PyQt5.QtGui import QDoubleValidator, QIntValidator
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                             QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QPushButton, QScrollArea, QTextEdit, QVBoxLayout,
+from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                             QComboBox, QDialog, QFileDialog, QGridLayout,
+                             QLabel, QLineEdit, QListWidget, QPushButton,
+                             QScrollArea, QSizePolicy, QTextEdit, QVBoxLayout,
                              QWidget)
 
 # overwrite core_systems with list of systems
@@ -189,6 +190,11 @@ class MainWindow(QDialog):
         self.system = system
         self.inputcb = inputcb
 
+        # column variables
+        self.flat_col = []
+        self.flat_unit = []
+        self.col_sign = []
+
         # sweep variables
         self.loop_over = []
         self.up_down = []
@@ -211,24 +217,28 @@ class MainWindow(QDialog):
         # initialize generic (system independent) part of ui
         self.outputList = None
 
-        self.fileEdit = QLineEdit(self)
-        self.fileEdit.setReadOnly(True)
+        self.systemList = QListWidget(self)
+        self.systemList.setSelectionMode(1)
+        self.systemList.setDragDropMode(QAbstractItemView.InternalMove)
+        self.systemList.model().rowsMoved.connect(self.filename_changed)
 
-        addButton = QPushButton('+ system')
+        addButton = QPushButton('add system')
         addButton.clicked.connect(self.show_file_dialog)
 
-        delButton = QPushButton('- system')
-        delButton.clicked.connect(self.delete_last_system)
+        delButton = QPushButton('remove system')
+        delButton.clicked.connect(self.delete_selected_system)
 
         loadButton = QPushButton('Load inputfile')
+        loadButton.setSizePolicy(QSizePolicy(QSizePolicy.Preferred,
+                                             QSizePolicy.MinimumExpanding))
         loadButton.clicked.connect(self.gui_from_sweep)
 
         fGrid = QGridLayout()
 
-        fGrid.addWidget(self.fileEdit, 0, 0, 1, 10)
+        fGrid.addWidget(self.systemList, 0, 0, 2, 10)
         fGrid.addWidget(addButton, 0, 10)
-        fGrid.addWidget(delButton, 0, 11)
-        fGrid.addWidget(loadButton, 0, 12)
+        fGrid.addWidget(delButton, 1, 10)
+        fGrid.addWidget(loadButton, 0, 11, 2, 1)
 
         self.grid = QGridLayout()
         self.grid.setSpacing(5)
@@ -270,12 +280,12 @@ class MainWindow(QDialog):
         On filenameChanged import new system
         """
         # get new system filename
-        systemFilename = self.fileEdit.text()
-        if systemFilename == "":
+        filenames = [self.systemList.item(j).text()
+                     for j in range(self.systemList.count())]
+        if 0 == len(filenames):
             self.reset_layout()
             return
         modulestr = ""
-        filenames = systemFilename.split(",")
         filenames = [splitext(basename(filename))[0] if
                      splitext(basename(filename))[0] in core_systems
                      else filename for filename in filenames]
@@ -301,6 +311,8 @@ class MainWindow(QDialog):
                                   "not of equal length, check system file!")
             return
         self.reset_layout()
+        # store old columns
+        old_cols = self.flat_col
         # Initalize sweep lists
         self.col_sign = []
         # generate list of settable parameters
@@ -316,11 +328,24 @@ class MainWindow(QDialog):
                         self.col_sign.append(generate_col_index(i))
                 else:
                     self.col_sign.append(generate_col_index(i))
+        # columns are initialized, get already available columns from
+        # the old columns, save the sweep params and their new location
+        save_sweep_params = {}
+        for index, old_col in enumerate(old_cols):
+            if old_col in self.flat_col:
+                newloc = self.flat_col.index(old_col)
+                save_sweep_params[newloc] = self.sweep_params[index]
         # populate the actual number of used parameters (fully flattened)
         self.nParmsUsed = len(self.flat_col)
         # generate empty list of list for the sweep parameters
-        self.sweep_params = [[] for i in range(self.nParmsUsed)]
+        self.sweep_params = []
         for pos in range(self.nParmsUsed):
+            if pos in save_sweep_params.keys():
+                # if parameter was already defined before, keep sweep params
+                self.sweep_params.append(save_sweep_params[pos])
+            else:
+                # otherwise, set empty list
+                self.sweep_params.append([])
             # for each used parameter generate labels according to system
             # specifications
             self.grid.setColumnStretch(pos+1, 1)
@@ -717,29 +742,23 @@ class MainWindow(QDialog):
             "system files (system*.py)")[0]
         if "" == filename:
             return
-        # requires system names not to include a ,
-        if "" == self.fileEdit.text():
-            systems = []
-        else:
-            systems = self.fileEdit.text().split(",")
-        # append new system to the end
-        systems.append(filename)
-        # set text and update system definition
-        self.fileEdit.setText(",".join(systems))
+        self.systemList.addItem(filename)
         self.filename_changed()
 
-    def delete_last_system(self):
+    def delete_selected_system(self):
         """
-        Removes last system from system fileEdit
+        Removes selected system from systemList. If no selection is active the
+        last system will be removed.
         """
-        systems = self.fileEdit.text().split(",")
-        # remove last system
-        if 0 < len(systems):
-            systems.pop()
+        # remove selected system
+        selected = self.systemList.selectedItems()
+        if len(selected) > 0:
+            self.systemList.takeItem(self.systemList.row(selected[0]))
+        elif 0 < self.systemList.count():  # remove last item
+            self.systemList.takeItem(self.systemList.count()-1)
         else:
             return
-        # set text and update system definition
-        self.fileEdit.setText(",".join(systems))
+        # update system definition
         self.filename_changed()
 
     def show_file_dialog_output(self):
@@ -806,11 +825,12 @@ class MainWindow(QDialog):
         params = {"# params : ": None, "# loop_over : ": None,
                   "# functions : ": None, "# up_down : ": None,
                   "# repeat : ": None}
+        self.systemList.clear()
         with open(filename, "r") as infile:
             for line in infile:
                 if "# System" in line:
                     line = line.strip().replace("# System filename : ", "")
-                    self.fileEdit.setText(line)
+                    self.systemList.addItems(line.split(","))
                     self.filename_changed()
                 for key in params.keys():
                     if key in line:
