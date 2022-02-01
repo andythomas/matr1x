@@ -35,19 +35,23 @@ systems_directory = os.path.expanduser(systems_directory)
 # set up logging, mostly for debugging purposes.
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
 # is however not recommended in production environments.
-today = date.today().isocalendar()
 logfolder = os.path.expanduser(
     confparser.get("matr1x", "loggingDirectory",
                    fallback=os.path.join('~', 'logs')))
 kwargs = dict(level=logging.INFO,
               format='%(asctime)s,%(msecs)03d,%(levelname)s,%(name)s: %(message)s',
               datefmt=datetimefmt)
-if os.path.exists(logfolder):
-    kwargs["filename"] = os.path.join(
-        logfolder, 'matr1x_' + str(today[0]) + str(today[1]) + '.log')
-    kwargs["filemode"] = 'a'
-else:
+handlers = []
+if not os.path.exists(logfolder):
     logfolder = tempfile.gettempdir()  # set logfolder to temp directory
     if sys.stdout is not None:
-        kwargs["stream"] = sys.stdout
+        # if logging to temp directory also log to stdout
+        handlers.append(logging.StreamHandler(stream=sys.stdout))
+
+today = date.today().isocalendar()
+handlers.append(logging.FileHandler(
+    os.path.join(logfolder, f'matr1x_{today.year}{today.week:02d}.log'),
+    mode='a'))
+
+kwargs["handlers"] = handlers
 logging.basicConfig(**kwargs)
