@@ -23,9 +23,9 @@ from PyQt5.QtCore import QLocale, pyqtSignal
 from PyQt5.QtGui import QDoubleValidator, QIntValidator
 from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                              QComboBox, QDialog, QFileDialog, QGridLayout,
-                             QLabel, QLineEdit, QListWidget, QPushButton,
-                             QScrollArea, QSizePolicy, QTextEdit, QVBoxLayout,
-                             QWidget)
+                             QLabel, QLineEdit, QListWidget, QMainWindow,
+                             QPushButton, QScrollArea, QSizePolicy, QTextEdit,
+                             QVBoxLayout, QWidget)
 
 # overwrite core_systems with list of systems
 core_systems = [splitext(system)[0] for system in
@@ -172,7 +172,7 @@ class SweepPreviewPopup(QDialog):
         self.close()
 
 
-class MainWindow(QDialog):
+class MainWindow(QMainWindow):
     """
     Define main layout, runs everything
 
@@ -261,7 +261,11 @@ class MainWindow(QDialog):
         vBox.addLayout(self.gridUtility)
         vBox.addLayout(sGrid)
 
-        self.setLayout(vBox)
+        self.widget = QWidget()
+        self.widget.setSizePolicy(QSizePolicy.Expanding,
+                                  QSizePolicy.Fixed)
+        self.widget.setLayout(vBox)
+        self.setCentralWidget(self.widget)
 
         self.setWindowTitle('sweep_generator')
 
@@ -274,6 +278,8 @@ class MainWindow(QDialog):
             self.clear_layout(self.gridUtility)
             for i in range(self.nParmsUsed):
                 self.grid.setColumnStretch(i+1, 0)
+        self.widget.adjustSize()
+        self.adjustSize()
 
     def filename_changed(self):
         """

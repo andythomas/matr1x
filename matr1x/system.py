@@ -324,6 +324,18 @@ class System(object):
         self.default_values.append(parm.default)
         self.chunks.append(parm.chunks)
 
+    def clear_parameters(self):
+        """
+        Clears all system parameters and the lists that have been generated
+        """
+        del (self.parameters, self.columns, self.default_values,
+             self.units, self.chunks)
+        self.parameters = []
+        self.columns = []
+        self.default_values = []
+        self.units = []
+        self.chunks = []
+
     def generate_lists(self):
         """
         Generate the necessary lists from the parameters defined above

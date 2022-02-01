@@ -4,15 +4,14 @@ import sys
 import time
 import traceback
 
+import numpy
 from matr1x import logfolder
 from matr1x.control import ControlWindow, catchEmitError
 from matr1x.control.util import (OutputRedirection, QtGracefulKiller,
                                  connectDictValueToDisplay, constructLayout,
                                  copyValues, var)
 from matr1x.devices.scpi_dev import makeSCPIdevice, set_cmd_funcs
-from matr1x.gui_util import EmittingStream
-from PyQt5.QtGui import QTextCursor
-from PyQt5.QtWidgets import QApplication, QMessageBox, QPlainTextEdit, QWidget
+from PyQt5.QtWidgets import QApplication, QMessageBox, QWidget
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -32,12 +31,15 @@ cmd_list = {"*idn": [None, None, [], str,
             ":v2": [float,
                     "v2", [],
                     "v2", []],
-            ":v2v3": [[float, bool],
+            ":v2v3": [[float, float],
                       "setV2V3", [],
                       "getV2V3", []],
-            "v4": [bool,
-                   "v4", [],
-                   "v4", []],
+            ":v4": [int,
+                    "v4", [],
+                    "v4", []],
+            ":v5": [float,
+                    "v5", [],
+                    "v5", []],
             }
 
 clientdevice = makeSCPIdevice(cmd_list)
@@ -56,16 +58,19 @@ class MainWindow(ControlWindow):
     # 2 : checkbox
     # 3 : progress
     # 4 : combobox
+    # boolean (last value in list!): default value for logging parameter
     # A list means multiple widgets on one row
     # The init dicts contain the matching strings for initialization of the
     # combobox widget
     exampleDict = {"Example": [None, ["Readout", "Setpoint"]],
-                   "V1": [var(int, int), [4, 4]],
-                   "V2": [var(float), [1, 1]],
-                   "V3": [var(float, int), [3, 1]],
+                   "V1": [var(int, int), [4, 4, True]],
+                   "V2": [var(float), [1, 1], "mT"],
+                   "V3": [var(float, int), [3, 1, True], "%"],
                    "V4": [var(bool, bool), [2, 2]],
                    "Set": [None, [0, 0]]}
     exampleDictInit = {"V1": ["i1", "i2"]}
+    exampleDict2 = {"Example2": [None, ["Readout"]],
+                    "V5": [var(float), [1], "mbar"]}
 
     def __init__(self):
         # initialize local variable storage
@@ -73,15 +78,13 @@ class MainWindow(ControlWindow):
         self.v2 = 0
         self.v3 = 0
         self.v4 = False
+        self.v5 = 0
 
-        self.output_stream = EmittingStream(text_written=self.output_written)
-        # set outputStream as stdout (i.e. all output is written to status
-        # preview
-        sys.stdout = self.output_stream
+        super().__init__("dummy", guidicts=[self.exampleDict,
+                                            self.exampleDict2, ])
 
         # regenerate function entries in cmd_list
         self.cmd_list = set_cmd_funcs(self, cmd_list)
-        super().__init__("dummy")
 
     # GUI functions
     def initUI(self):
@@ -94,12 +97,9 @@ class MainWindow(ControlWindow):
         super().initUI()
 
         # construct the layout from the dicts specified above
-        constructLayout(self.grid, 0, self.exampleDict, self.exampleDictInit)
-
-        self.status = QPlainTextEdit(self)
-        self.status.setReadOnly(True)
-        self.keep_enabled.append(self.status)
-        self.grid.addWidget(self.status, self.grid.rowCount(), 0, 1, -1)
+        ccol = constructLayout(self.grid, 0, self.exampleDict,
+                               self.exampleDictInit)
+        constructLayout(self.grid, ccol, self.exampleDict2)
 
         # connect the set buttons to the corresponding set functions
         self.exampleDict["Set"][1][1].clicked.connect(self.write)
@@ -109,15 +109,7 @@ class MainWindow(ControlWindow):
 
         # connect dict to readout displays
         connectDictValueToDisplay(self.exampleDict)
-
-    def output_written(self, text):
-        """
-        appends the most recent text to the end of the display and makes sure
-        that the cursor remains at the end
-        """
-        if text.strip("\n") != "":
-            self.status.appendPlainText(text.strip("\n"))
-            self.status.moveCursor(QTextCursor.End)
+        connectDictValueToDisplay(self.exampleDict2)
 
     # device communication and related functions
     @catchEmitError
@@ -153,7 +145,7 @@ class MainWindow(ControlWindow):
         # update delay of the refresh function. Can not be significantly
         # lower than 1s usually (limited by device communication)
         # if device communication takes longer, read as fast as possible
-        runDelay = 0.1
+        runDelay = 0.3
         # allows to speed up the process most of the time since we only read
         # the necessary values all the time
         # read the not so important values only every tenth time
@@ -172,6 +164,8 @@ class MainWindow(ControlWindow):
                 self.exampleDict["V3"][0].setValue(self.v3)
                 self.exampleDict["V4"][0].value = self.v4
 
+                self.exampleDict2["V5"][0].setValue(self.v5)
+
             a = time.time()
             # refresh dicts of ITC and IPS (takes about 100ms each)
             if beginning is True:
@@ -183,7 +177,12 @@ class MainWindow(ControlWindow):
                 beginning = False
             if 0 == runCounter:
                 # add tasks which run only upon every tenths iteration
-                pass
+                self.v5 = round(30*numpy.random.random(), 3)
+            # make activity blink
+            if runCounter % 2:
+                self.activity.emit("green")
+            else:
+                self.activity.emit("lightgreen")
             runCounter = (runCounter+1) % runInterval
         # flag for stating that thread has ended
         self.terminated = True

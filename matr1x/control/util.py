@@ -21,7 +21,8 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QListWidget, QProgressBar, QPushButton, QTableView)
+                             QListWidget, QProgressBar, QPushButton,
+                             QSizePolicy, QTableView)
 
 from .. import datetimefmt, logfolder, usersfolder
 
@@ -177,6 +178,12 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
     row = 0
     for key in layoutDict:
         spec = layoutDict[key][1]
+        logging.info(str(layoutDict[key]))
+        # try to see whether there is also a unit specified
+        if len(layoutDict[key]) > 2:
+            unit = layoutDict[key][2]
+        else:
+            unit = ""
         if isinstance(spec, (tuple, list)):
             # iterable (i.e. multiple widgets in this row)
             if len(layoutDict[key][1]) > count:
@@ -184,6 +191,9 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
                 count = len(layoutDict[key][1]) + 1
             dummy = []
             for widget in spec:
+                if isinstance(widget, bool):
+                    # if a boolean is in the list, it should be ignored
+                    continue
                 if 4 == widget and layoutDictInit is not None:
                     # get initialized widget of correct type
                     try:
@@ -216,6 +226,7 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
                 # get initialized widget of correct type
                 dummy = [getWidgetType(key, layoutDict[key][1])]
 
+        # set sensible default values and disable readout column
         if dummy[0].minimumWidth() < 100:
             dummy[0].setMinimumWidth(100)
         if type(dummy[0]) is QLineEdit:
@@ -224,22 +235,36 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
             dummy[0].setEnabled(False)
         elif type(dummy[0]) is QCheckBox:
             dummy[0].setEnabled(False)
-        elif type(dummy[0]) is QProgressBar:
-            dummy[0].setRange(0, 100)
+
+        # generate label for row
+        label = f"{key} ({unit})" if "" != unit else key
+
         # replace spec with widgets in place
-        layoutDict[key][1] = [QLabel(key)] + dummy
+        layoutDict[key][1] = [QLabel(label)] + dummy
         # populate grid
         col = 0
-        for widget in layoutDict[key][1]:
+        for i, widget in enumerate(layoutDict[key][1]):
             # add widgets to the grid layout at the correct position
-            if 1 == len(layoutDict[key][1]):
-                grid.addWidget(widget, row, cCol+col, 1, 2)
-                col += 2
-            else:
-                grid.addWidget(widget, row, cCol+col, 1, 1)
-                col += 1
+            # but skip hidden checkbox
+            grid.addWidget(widget, row, cCol+col, 1, 1)
+            col += 1
+        if not isinstance(dummy[0], (QLabel, QPushButton)):
+            # prepare checkbox for controlling the data logging
+            # only add if there is a value attached to the display
+            checkbox = QCheckBox()
+            if isinstance(spec, (tuple, list)):
+                if isinstance(spec[-1], bool):
+                    # use boolean value (last position) to determine default
+                    # state of logging
+                    checkbox.setChecked(spec[-1])
+            checkbox.setVisible(False)
+            layoutDict[key][1].append(checkbox)
+            # if layouts with more than three widgets should be possible
+            # the following line should be redesigned
+            grid.addWidget(layoutDict[key][1][-1], row, cCol+3, 1, 1)
         row += 1
-    return cCol + count
+    # +1 for checkbox at the end of QLabel
+    return cCol + count + 1
 
 
 def getWidgetType(label, wType, init=None):
@@ -268,7 +293,9 @@ def getWidgetType(label, wType, init=None):
       widget of requested type or None
     """
     if isinstance(wType, str):
-        return QLabel(wType)
+        qlab = QLabel(wType)
+        qlab.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        return qlab
     elif 0 == wType:
         return QPushButton(label)
     elif 1 == wType:

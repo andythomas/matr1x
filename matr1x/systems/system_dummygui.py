@@ -38,8 +38,12 @@ sys.add_param(
     ["gui", "v1"],
     ["gui", "v1"])
 sys.add_param(
-    "guiv2", "int",
-    ["gui", "v2"],
-    ["gui", "v2"])
+    ["guiv2", "guiv3"], ["float", "float"],
+    ["gui", "v2v3"],
+    ["gui", "v2v3"])
+sys.add_param(
+    "guiv4", "bool",
+    ["gui", "v4"],
+    ["gui", "v4"])
 
 # ============================
