@@ -381,8 +381,7 @@ def main():
     if options.sample is not None:
         system.dcdata["Identifier"] = options.sample
     write_matrix_header(output_filename, output_filemode,
-                        options.inputfile, options.systemfile,
-                        system, query_dict)
+                        options.inputfile, system, query_dict)
 
     # do the loop
     print("entering loop now")

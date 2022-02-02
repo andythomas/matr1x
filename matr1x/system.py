@@ -617,6 +617,9 @@ class MergedSystem(System):
         super().__init__()
         # save subsystems into system
         self.subsys = systems
+        # define __name__
+        self.__name__ = ",".join([subsys.__name__ for subsys in
+                                  self.subsys])
         # merge devices, config_dicts and parameters
         for sys in self.subsys:
             self.devs = {**self.devs, **sys.devs}

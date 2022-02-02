@@ -376,11 +376,6 @@ def generate_script(systems, user_script):
             inputfile=_os.path.basename(_scriptname) or fallbackname,
             append=append)
         if append == False or not os.path.exists(_filename):
-            # prepare header for writing into the file
-            if hasattr(_system, "subsys"):
-                sys_list = [subsys.__name__ for subsys in _system.subsys]
-            else:
-                sys_list = [_system.__name__]
             # write header to file
             print("running config query")
             query_dict = _system.query()
@@ -388,7 +383,7 @@ def generate_script(systems, user_script):
             _system.dcdata["Description"] = comment
             _matrix_util.write_matrix_header(
                 _filename, mode, _scriptname or "matrix script generated",
-                sys_list, _system, query_dict)
+                _system, query_dict)
         if print_header:
             _matrix_util.print_formatted_line(_matrix_util.flatten(_system.columns))
             _matrix_util.print_formatted_line(_matrix_util.flatten(_system.units))
@@ -934,8 +929,8 @@ def construct_query_string(query_dict, depth=2):
     return ret
 
 
-def write_matrix_header(output_filename, output_filemode, inputfile,
-                        systemfile, system, query_dict):
+def write_matrix_header(output_filename, output_filemode, inputfile, system,
+                        query_dict):
     """
     prepares the header of a matrix file for the matrix program, inserts all
     relevant information including the setstr
@@ -949,9 +944,6 @@ def write_matrix_header(output_filename, output_filemode, inputfile,
       add the header a second time
     inputfile : str
       filename of the inputfile to be placed in the header
-    systemfile : str
-      filename(s) of the system files that are used to generate the (merged)
-      system which defines the measurement.
     system : System
       The System object that is used for the measurement.
     query_dict : dict
@@ -969,7 +961,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile,
         telemetry += [list(flatten(system.chunks))]
         with h5py.File(output_filename, 'w') as data_file:
             data_file["input_filename"] = inputfile
-            data_file["system_filename"] = ",".join(systemfile)
+            data_file["system_filename"] = system.__name__
             data_file["device_query"] = construct_query_string(query_dict)
             for dckey, dcvalue in system.dcdata.items():
                 if dcvalue is None:
@@ -991,7 +983,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile,
                     data_file.write(f"# DC.{dckey} : \"{dcentry}\"\n")
             data_file.write(f"# Input filename : \"{inputfile}\"\n")
             data_file.write("# System filename : ")
-            data_file.write("\"" + ",".join(systemfile).strip() + "\"\n")
+            data_file.write("\"" + system.__name__ + "\"\n")
             data_file.write("# Device query : \n")
             data_file.write(construct_query_string(query_dict))
 

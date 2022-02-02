@@ -249,7 +249,7 @@ class ControlWindow(QMainWindow):
             query_dict = self.S_log.query()
             write_matrix_header(
                 self.logfile, mode, "matrix script generated",
-                [self.S_log.__name__], self.S_log, query_dict)
+                self.S_log, query_dict)
             # turn off config and set data
             self.configLog(False)
             self.configlog.setEnabled(False)
