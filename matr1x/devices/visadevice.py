@@ -1,3 +1,7 @@
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 """
 In this module the base class for all device drivers in this package is
 defined. It is itself based on the pyvisa library which handles all the low

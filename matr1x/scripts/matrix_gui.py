@@ -1,7 +1,6 @@
-# GUI frontend for the matrix program, offers preview capabilities and
-# incorporates the self, sweepGenerator
-#
-# 2017/04/17 First version (pheowl)
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
 # ---
 import os
 import signal

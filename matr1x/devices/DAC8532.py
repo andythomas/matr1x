@@ -1,12 +1,10 @@
-#
-# Communication with DAC8532 on DA/AD Board
-#
-# 2016/05/29 First version (kg2)
-#
-# TODO:
+# This file is part of a software collection for data aquisition (matr1x).
 # ---
-
-
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
+"""
+Communication with DAC8532 on DA/AD Board
+"""
 import numpy as np
 import RPi.GPIO as GPIO
 import spidev

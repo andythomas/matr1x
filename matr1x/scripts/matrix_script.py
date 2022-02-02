@@ -1,8 +1,7 @@
-# matrix Script GUI
-#
-# 2018/07/03 First version (pheowl)
+# This file is part of a software collection for data aquisition (matr1x).
 # ---
-
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 import ast
 import getpass
 import logging

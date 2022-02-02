@@ -1,3 +1,7 @@
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 """
 This module contains utility function for generating control guis or devices
 based on the scpi_tcp_server

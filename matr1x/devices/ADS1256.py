@@ -1,10 +1,7 @@
-# ADS1256 library for the Waveshare AD/DA board
-#
-# 2017/04/17 First version (pheowl)
-#
-# TODO: Comment configuration options
+# This file is part of a software collection for data aquisition (matr1x).
 # ---
-
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 import time
 
 import RPi.GPIO as GPIO

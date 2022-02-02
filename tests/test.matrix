@@ -1,3 +1,7 @@
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 import numpy as np
 fields = np.linspace(0, 20e-3, 11)
 currents = np.linspace(-1e-4, 1e-4, 2)

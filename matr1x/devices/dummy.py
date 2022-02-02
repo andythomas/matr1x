@@ -1,3 +1,7 @@
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 """
 module implementing a dummy device used for automatic testing of the code base.
 """

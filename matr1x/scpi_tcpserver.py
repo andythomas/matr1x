@@ -1,3 +1,7 @@
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 """
 This module contains a class for creating a (mostly) SCPI compatible
 measurement device listening on an ethernet interface, that can be fully

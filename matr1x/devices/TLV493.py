@@ -1,23 +1,26 @@
-# TLV493-A1B6
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
+"""
+TLV493-A1B6
 
-# 3D magnetic sensor
-#
-# register 0: Bx
-# register 1: By
-# register 2: Bz
-# register 3: Temp, FRM, CH
-# register 4: Bx, By
-# register 5: reserved, PD, Bz
-# register 6: Temp
-# register 7: reserved
-# register 8: reserved
-# register 9: reserved
+3D magnetic sensor
 
-
+register 0: Bx
+register 1: By
+register 2: Bz
+register 3: Temp, FRM, CH
+register 4: Bx, By
+register 5: reserved, PD, Bz
+register 6: Temp
+register 7: reserved
+register 8: reserved
+register 9: reserved
+"""
 import subprocess
 
 import numpy as np
-# coding: utf-8
 import smbus
 
 

@@ -1,6 +1,7 @@
-# Library containing all independent functionality for GUI
-# applications and measurement procedures
-
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 import importlib
 import importlib.util
 import os

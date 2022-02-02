@@ -1,1 +1,5 @@
+# This file is part of a software collection for data aquisition (matr1x).
+# ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
 from .controlwindow import ControlWindow, catchEmitError  # noqa: F401

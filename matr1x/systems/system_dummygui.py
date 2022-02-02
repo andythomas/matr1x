@@ -1,5 +1,10 @@
-# Dummy system for testing purposes
+# This file is part of a software collection for data aquisition (matr1x).
 # ---
+# (c) 2022 matr1x developers. All rights reserved.
+# ---
+"""
+dummy system demonstrating how to interface to a control gui (control_dummy)
+"""
 # ============================
 # Custom import area
 # ============================
