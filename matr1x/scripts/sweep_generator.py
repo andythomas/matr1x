@@ -10,6 +10,7 @@ for the creation of the sweep segments.
 import os
 import sys
 import time
+import traceback
 from ast import literal_eval
 from math import floor
 from os.path import basename, splitext
@@ -307,9 +308,17 @@ class MainWindow(QMainWindow):
             self.statusBar.append("Successfully imported -- " + modulestr)
             # update gui using the system specifications
             self.import_system()
-        except ImportError:
-            self.statusBar.append("ImportError was raised," +
-                                  "Check path to module")
+        except Exception as e:
+            if isinstance(e, ModuleNotFoundError):
+                self.statusBar.append("ModuleNotFoundError was raised," +
+                                      "Check path to module")
+            else:
+                self.statusBar.append(
+                    "The following error was raised during system " +
+                    "import, please check system for errors")
+            tbinfo = traceback.format_exception(e)
+            tbstr = "".join(tbinfo[7:])
+            self.statusBar.append(tbstr)
 
     def import_system(self):
         """
