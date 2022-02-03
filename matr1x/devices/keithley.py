@@ -505,7 +505,7 @@ class Keithley2182A(VisaDevice):
         if "read_termination" not in kwargs:
             kwargs["read_termination"] = "\n"
         if "timeout" not in kwargs:
-            kwargs["timeout"] = 20000
+            kwargs["timeout"] = 50000
         super().__init__(interface, **kwargs)
         self.triggered = False
 
