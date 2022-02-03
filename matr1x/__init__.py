@@ -53,6 +53,10 @@ if not os.path.exists(logfolder):
         handlers.append(logging.StreamHandler(stream=sys.stdout))
 
 today = date.today().isocalendar()
+if sys.version_info.major == 3 and sys.version_info.minor < 9:
+    from collections import namedtuple
+    datetuple = namedtuple("Isocalendar", ["year", "week", "weekday"])
+    today = datetuple(*today)
 handlers.append(logging.FileHandler(
     os.path.join(logfolder, f'matr1x_{today.year}{today.week:02d}.log'),
     mode='a'))
