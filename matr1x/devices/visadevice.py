@@ -142,7 +142,12 @@ class VisaDevice(object):
     def read_very_eager(self):
         """read from device without blocking IO (timeout=0)"""
         t = self.VISAdev.timeout
-        self.VISAdev.timeout = 0
+        if isinstance(self.VISAdev, pyvisa.resources.GPIBInstrument):
+            # GPIB instruments need a finite timeout here since messages are
+            # sent on demand? Please extensively test if you change this!
+            self.VISAdev.timeout = 10  # ms
+        else:
+            self.VISAdev.timeout = 0  # ms
         ret = ""
         try:
             while True:
