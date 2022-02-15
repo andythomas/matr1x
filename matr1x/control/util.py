@@ -383,9 +383,6 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit={}):
         # populate grid
         col = 0
         for i, widget in enumerate(layoutDict[key].widgets):
-            if isinstance(widget, bool):
-                # if a boolean is in the list, it should be ignored
-                continue
             # add widgets to the grid layout at the correct position
             # but skip hidden checkbox
             grid.addWidget(widget, row, cCol+col, 1, 1)
