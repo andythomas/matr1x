@@ -12,15 +12,16 @@ import types
 from functools import wraps
 
 from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
+from matr1x.control.util import constructLayout, var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import (generate_datafilename, take_measurement_point,
                          trigger_system, write_matrix_header)
 from PyQt5 import QtCore
 from PyQt5.QtGui import QIntValidator, QTextCursor
-from PyQt5.QtWidgets import (QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QMainWindow, QMessageBox, QPlainTextEdit,
-                             QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
-                             QWidget)
+from PyQt5.QtWidgets import (QCheckBox, QFileDialog, QGridLayout, QLabel,
+                             QLineEdit, QMainWindow, QMessageBox,
+                             QPlainTextEdit, QPushButton, QScrollArea,
+                             QSizePolicy, QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -33,12 +34,15 @@ def catchEmitError(method):
     def decorated_method(self, *args, **kwargs):
         try:
             return method(self, *args, **kwargs)
-        except Exception as exc:
+        except Exception:
             # end the refreshDict thread
             self.terminate = True
+            self.terminate_log = True
             if method.__name__ == 'refreshDict':
                 # set terminated flag since our main loop is dead
                 self.terminated = True
+            elif method.__name__ == 'loggingFunc':
+                self.terminated_log = True
             # report error to the main thread
             exc_type, exc_value, exc_traceback = sys.exc_info()
             self.sig_error.emit(exc_type, exc_value, exc_traceback,
@@ -111,12 +115,32 @@ class ControlWindow(QMainWindow):
         self.sig_error.connect(self.handleError)
         # SCPI TCP server placeholders
         self.localServer = None
-        #self.cmd_list = {}
         # initialize data logging system
         self.S_log = system.System()
         self.S_log.__name__ = f"{name}_control_logging_system"
         # initialize data logging dictionaries
         self.guidicts = guidicts
+        # harmonize the guidict data structure -> convert all to 'var'-objects
+        for guidict in self.guidicts:
+            for key in guidict:
+                if not isinstance(guidict[key], var):
+                    kwargs = dict()
+                    if isinstance(guidict[key][0], var):
+                        kwargs["dtype"] = (guidict[key][0].variableType,
+                                           guidict[key][0].outType)
+                        value = guidict[key][0].value
+                    else:
+                        kwargs["dtype"] = guidict[key][0]
+                        value = None
+                    if isinstance(guidict[key][1][-1], bool):
+                        kwargs["columns"] = guidict[key][1][:-1]
+                        kwargs["log"] = guidict[key][1][-1]
+                    else:
+                        kwargs["columns"] = guidict[key][1]
+                    if len(guidict[key]) > 2:
+                        kwargs["unit"] = guidict[key][2]
+                    guidict[key] = var(**kwargs)
+                    guidict[key].value = value
         # initialize GUI
         self.initUI()
         # set outputStream as stdout (i.e. all output is written to status)
@@ -136,6 +160,12 @@ class ControlWindow(QMainWindow):
         self.master_layout = QVBoxLayout()
 
         self.grid = QGridLayout()
+
+        # construct the layout from the GUI dicts
+        ccol = 0
+        for guidict in self.guidicts:
+            ccol = constructLayout(self.grid, ccol, guidict)
+
         self.collapsible_box = CollapsibleBox("Show logging and status",
                                               parent=self)
         self.collapsible_box.redraw_activity.connect(self.readjustSize)
@@ -191,7 +221,10 @@ class ControlWindow(QMainWindow):
         """
         if text.strip("\n") != "":
             self.status.appendPlainText(text.strip("\n"))
-            self.status.moveCursor(QTextCursor.End)
+            try:
+                self.status.moveCursor(QTextCursor.End)
+            except Exception:  # upon cleanup after exception this can fail
+                pass
 
     def readjustSize(self):
         """
@@ -208,31 +241,30 @@ class ControlWindow(QMainWindow):
         """
         raise NotImplementedError
 
-    @catchEmitError
     def configLog(self, checked):
         for guidict in self.guidicts:
-            for key in guidict.keys():
-                if not isinstance(guidict[key][1][1], (QLabel, QPushButton)):
-                    guidict[key][1][-1].setVisible(checked)
+            for var in guidict.values():
+                if not isinstance(var.widgets[1], (QLabel, QPushButton)):
+                    if isinstance(var.widgets[-1], QCheckBox):
+                        var.widgets[-1].setVisible(checked)
 
-    @catchEmitError
     def toggleLog(self, checkstate):
         # clear system of all parameters
         self.S_log.clear_parameters()
         # add timestamp to system
-        self.S_log.add_param(f"timeUTC", "s", getter=time.time)
+        self.S_log.add_param("timeUTC", "s", getter=time.time)
         # set up system with selected values
         for i, guidict in enumerate(self.guidicts):
-            for key in guidict.keys():
+            for key in guidict:
+                var = guidict[key]
                 # make sure it is a loggable widget
-                if not isinstance(guidict[key][1][1],
-                                  (QLabel, QPushButton)):
-                    if bool(self.guidicts[i][key][1][-1].checkState()):
-                        # make sure check state is true and if so add to
+                if not isinstance(var.widgets[1], (QLabel, QPushButton)):
+                    if bool(var.widgets[-1].checkState()):
+                        # make sure check state is True and if so add to
                         # logged parameters
                         self.S_log.add_param(
                             f"dict{i}/{key}", "",
-                            getter=lambda x=guidict[key][0]: x.value)
+                            getter=lambda v=var: v.value)
         if len(self.S_log.parameters) == 1:
             print("No logging parameters were selected")
             return
@@ -273,7 +305,6 @@ class ControlWindow(QMainWindow):
             self.togglelog.setText("start data log")
             print("data logging stopped")
 
-    @catchEmitError
     def selectLog(self, *args):
         # allow selecting a logfile
         filename = QFileDialog.getSaveFileName(

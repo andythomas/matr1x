@@ -11,9 +11,9 @@ import traceback
 import numpy
 from matr1x import logfolder
 from matr1x.control import ControlWindow, catchEmitError
-from matr1x.control.util import (OutputRedirection, QtGracefulKiller,
-                                 connectDictValueToDisplay, constructLayout,
-                                 copyValues, var)
+from matr1x.control.util import OutputRedirection, QtGracefulKiller, copyValues
+from matr1x.control.util import guiObject as go
+from matr1x.control.util import var
 from matr1x.devices.scpi_dev import makeSCPIdevice, set_cmd_funcs
 from PyQt5.QtWidgets import QApplication, QMessageBox, QWidget
 
@@ -54,27 +54,29 @@ class MainWindow(ControlWindow):
     Define layout, runs everything
     """
     # Initialize dicts for GUI display as well as variable storage
-    # Variables are stored in dict[key][0], GUI elements in dict[key][1]
-    # The GUI is initialized with the elements specified in dict[key][1], where
+    # Variables are stored in dict[key].value, GUI elements in dict[key].widgets
+    # The GUI is initialized with the elements specified in dict[key].columns, where
     # key is label and
     # 0 : button
     # 1 : lineedit
     # 2 : checkbox
     # 3 : progress
     # 4 : combobox
-    # boolean (last value in list!): default value for logging parameter
     # A list means multiple widgets on one row
-    # The init dicts contain the matching strings for initialization of the
-    # combobox widget
-    exampleDict = {"Example": [None, ["Readout", "Setpoint"]],
-                   "V1": [var(int, int), [4, 4, True]],
-                   "V2": [var(float), [1, 1], "mT"],
-                   "V3": [var(float, int), [3, 1, True], "%"],
-                   "V4": [var(bool, bool), [2, 2]],
-                   "Set": [None, [0, 0]]}
-    exampleDictInit = {"V1": ["i1", "i2"]}
-    exampleDict2 = {"Example2": [None, ["Readout"]],
-                    "V5": [var(float), [1], "mbar"]}
+    # The unit of a variable can be set using the "unit" parameter and is then
+    # shown in the label and included in the logging file. The logging
+    # preference for the parameter is set by the boolean "log" parameter.
+    exampleDict = {"Example": var(None, columns=["Readout", "Setpoint"]),
+                   "V1": var((int, int), columns=[go.combobox, go.combobox],
+                             log=True, init=["i1", "i2"]),
+                   "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
+                   "V3": var(dtype=(float, int), columns=[go.progressbar, go.lineedit],
+                             log=True, unit="%"),
+                   "V4": var(dtype=(bool, bool), columns=[go.checkbox, go.checkbox]),
+                   "Set": var(None, columns=[go.button, go.button],
+                              init=["Set", "Copy"])}
+    exampleDict2 = {"Example2": var(None, columns="Readout"),
+                    "V5": var(float, columns=1, unit="mbar")}
 
     def __init__(self):
         # initialize local variable storage
@@ -100,20 +102,10 @@ class MainWindow(ControlWindow):
         """
         super().initUI()
 
-        # construct the layout from the dicts specified above
-        ccol = constructLayout(self.grid, 0, self.exampleDict,
-                               self.exampleDictInit)
-        constructLayout(self.grid, ccol, self.exampleDict2)
-
         # connect the set buttons to the corresponding set functions
-        self.exampleDict["Set"][1][1].clicked.connect(self.write)
-        self.exampleDict["Set"][1][2].setText("Copy")
-        self.exampleDict["Set"][1][2].clicked.connect(lambda:
-                                                      copyValues(self.exampleDict))
-
-        # connect dict to readout displays
-        connectDictValueToDisplay(self.exampleDict)
-        connectDictValueToDisplay(self.exampleDict2)
+        self.exampleDict["Set"].widgets[1].clicked.connect(self.write)
+        self.exampleDict["Set"].widgets[2].clicked.connect(
+            lambda: copyValues(self.exampleDict))
 
     # device communication and related functions
     @catchEmitError
@@ -126,11 +118,10 @@ class MainWindow(ControlWindow):
 
     def write(self):
         try:
-            v1 = int(self.exampleDict["V1"][1][2].currentIndex())
-            self.setV1(v1)
-            self.v2 = float(self.exampleDict["V2"][1][2].text())
-            self.v3 = float(self.exampleDict["V3"][1][2].text())
-            self.v4 = bool(self.exampleDict["V4"][1][2].checkState())
+            self.setV1(self.exampleDict["V1"].getGUIvalue())
+            self.v2 = self.exampleDict["V2"].getGUIvalue()
+            self.v3 = self.exampleDict["V3"].getGUIvalue()
+            self.v4 = self.exampleDict["V4"].getGUIvalue()
         except ValueError:
             print("some value can not be converted to correct type")
             estr = traceback.format_exc()
@@ -162,13 +153,14 @@ class MainWindow(ControlWindow):
             if b < runDelay:
                 # wait the remaining interval until 0.5
                 time.sleep(runDelay-b)
-                # always set the value (never change GUI directly!!!)
-                self.exampleDict["V1"][0].setValue(self.v1)
-                self.exampleDict["V2"][0].setValue(self.v2)
-                self.exampleDict["V3"][0].setValue(self.v3)
-                self.exampleDict["V4"][0].value = self.v4
 
-                self.exampleDict2["V5"][0].setValue(self.v5)
+            # always set the value (never change GUI directly!!!)
+            self.exampleDict["V1"].value = self.v1
+            self.exampleDict["V2"].value = self.v2
+            self.exampleDict["V3"].value = self.v3
+            self.exampleDict["V4"].value = self.v4
+
+            self.exampleDict2["V5"].value = self.v5
 
             a = time.time()
             # refresh dicts of ITC and IPS (takes about 100ms each)

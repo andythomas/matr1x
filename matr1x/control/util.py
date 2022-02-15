@@ -12,12 +12,14 @@ import mimetypes
 import os
 import signal
 import time
+from collections.abc import Iterable
 from email import encoders
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from enum import IntEnum
 from subprocess import PIPE, Popen
 
 import numpy
@@ -31,6 +33,69 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
 from .. import datetimefmt, logfolder, usersfolder
 
 
+class guiObject(IntEnum):
+    button = 0
+    lineedit = 1
+    checkbox = 2
+    progressbar = 3
+    combobox = 4
+
+    @classmethod
+    def getWidget(cls, label, wType, init=None, col=None):
+        """
+        Retruns the widget of the correct type
+
+        Parameters
+        ----
+        label : str
+          label of widget/name of button
+        wType : int or guiObject
+          Can be one of:
+
+          * str : QLabel
+          * 0 : QPushButton
+          * 1 : QLineEdit
+          * 2 : QCheckBox
+          * 3 : QProgressBar
+          * 4 : QComboBox
+        init : list, optional
+          provides the values a QComboBox is initialized or with what a button
+          is labelled.
+        col : int, optional
+          column number of the GUI element (used to find the correct init
+          value for button labels)
+
+        Returns
+        -----
+        widget : QWidget
+          widget of requested type or None
+        """
+        if isinstance(wType, str):
+            qlab = QLabel(wType)
+            qlab.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            return qlab
+        elif cls.button == wType:
+            if col is not None:
+                if isinstance(init, (list, tuple)):
+                    init = init[col]
+            return QPushButton(init if init else label)
+        elif cls.lineedit == wType:
+            return QLineEdit()
+        elif cls.checkbox == wType:
+            return QCheckBox()
+        elif cls.progressbar == wType:
+            dummy = QProgressBar()
+            dummy.setRange(0, 100)
+            return dummy
+        elif cls.combobox == wType:
+            dummy = QComboBox()
+            if init is not None:
+                dummy.insertItems(0, init)
+            return dummy
+        else:
+            return None
+
+
 class var(QObject):
     """
     Variable storage for implementing with qt GUI,
@@ -39,21 +104,50 @@ class var(QObject):
 
     Parameters
     -----
-    variableType : type
-      type of variable that is to be stored
+    dType : type, or (type, type)
+      type of variable that is to be stored and its emitted type upon a value
+      change
     outType : type
-      type the emitted value should be cast into
+      type the emitted value should be cast into (only present for backward
+      compatibility. should be set nowadays in the dtype argument.
+    columns: list
+      list of GUI elements needed for this variable. typically here are two
+      entries to view the current value in the first element and be able to
+      alter it in the second. The values should be enumerations from guiObject.
+      Numerical values have the following meaning:
+      0 : button
+      1 : lineedit
+      2 : checkbox
+      3 : progress bar
+      4 : combobox
+    unit: str
+      unit string used in the label and data logging.
+    log: bool
+      boolean flag to set the default behavior in the logging config
+    init: list
+      initialization values for a combobox
     """
-    # overloaded pyQt signal, has to be set here because it is implemented in a
-    # subclass somehow
     valueChanged = pyqtSignal([str], [float], [int], [bool])
 
-    def __init__(self, variableType, outType=str):
+    def __init__(self, dtype=(float, str), outType=str, columns=[], unit="",
+                 log=False, init=None):
         super().__init__()
-        self.variableType = variableType
-        self.outType = outType
+        if isinstance(dtype, Iterable):
+            self.variableType = dtype[0]
+            self.outType = dtype[1]
+        else:
+            self.variableType = dtype
+            self.outType = outType
 
         self._value = None
+        self.unit = unit
+        self.log = log
+        self.init = init
+        if not isinstance(columns, list):
+            self.columns = [columns, ]
+        else:
+            self.columns = columns
+        self.widgets = []
 
     def setValue(self, newValue):
         self.value = newValue
@@ -68,10 +162,109 @@ class var(QObject):
         if the value is set, emit a signal so that a possible change can be
         tracked
         """
-        # cast the value to the internal type (most likely float)
-        self._value = self.variableType(newValue)
+        if newValue is None:
+            self._value = None
+        else:
+            # cast the value to the internal type (most likely float)
+            self._value = self.variableType(newValue)
         # cast the output value to outType and emit matching signal
         self.valueChanged[self.outType].emit(self.outType(self._value))
+
+    def getGUIvalue(self, column=2):
+        """
+        return the value obtained from the GUI element in the respective
+        column. The return value will be cast to the variableType.
+
+        Parameters
+        ----------
+        column: int, optional
+          column index in the widget list to read the value from.
+        """
+        element = self.widgets[column]
+        if isinstance(element, (QLineEdit, QLabel)):
+            value = element.text()
+        elif isinstance(element, QProgressBar):
+            value = element.value()
+        elif isinstance(element, QComboBox):
+            value = element.currentIndex()
+        elif isinstance(element, QCheckBox):
+            value = element.checkState()
+        else:
+            raise TypeError(f"Unknown type of GUI element {type(element)}")
+        # cast value and return
+        return self.variableType(value)
+
+    def connect_signal(self):
+        """
+        connects the valueChanged signal of self.value to the corresponding
+        widget
+        """
+        if len(self.widgets) >= 2:
+            if isinstance(self.widgets[1], QLineEdit):
+                self.valueChanged[str].connect(
+                    self.widgets[1].setText)
+            elif isinstance(self.widgets[1], QProgressBar):
+                self.valueChanged[int].connect(
+                    self.widgets[1].setValue)
+            elif isinstance(self.widgets[1], QComboBox):
+                self.valueChanged[int].connect(
+                    self.widgets[1].setCurrentIndex)
+            elif isinstance(self.widgets[1], QCheckBox):
+                self.valueChanged[bool].connect(
+                    self.widgets[1].setChecked)
+
+    def copy_value(self):
+        """
+        copies the read values into the set field
+        """
+        if len(self.widgets) > 2:
+            if isinstance(self.widgets[2], QLineEdit):
+                self.widgets[2].setText(str(self.value))
+            elif isinstance(self.widgets[2], QComboBox):
+                self.widgets[2].setCurrentIndex(self.value)
+            elif isinstance(self.widgets[2], QCheckBox):
+                self.widgets[2].setChecked(bool(self.value))
+
+    def __getitem__(self, idx):
+        """
+        function for backward compatible access to the GUI dictionary items.
+        This function shall be declared deprecated in future.
+        """
+        if idx == 0:
+            return self
+        elif idx == 1:
+            if self.widgets:
+                return self.widgets
+            else:
+                if isinstance(self.columns, list):
+                    return self.columns + [self.log, ]
+                else:
+                    return [self.columns, ] + [self.log, ]
+        elif idx == 2:
+            return self.unit
+        else:
+            raise NotImplementedError
+
+    def __setitem__(self, idx, value):
+        """
+        function for backward compatible access to the GUI dictionary items.
+        This function shall be declared deprecated in future.
+        """
+        if idx == 1:
+            self.widgets = value
+        else:
+            raise NotImplementedError
+
+    def __len__(self):
+        """
+        function for backward compatible access to the GUI dictionary items.
+        This function shall be declared deprecated in future.
+        """
+
+        if self.unit:
+            return 3
+        else:
+            return 2
 
 
 class QtGracefulKiller():
@@ -102,38 +295,7 @@ class QtGracefulKiller():
         self.timer.stop()
 
 
-def connectDictValueToDisplay(connDict):
-    """
-    connects the storage variable to the GUI display using the
-    corresponding widgets slot and the value changed signal from
-    our variable storage
-
-    Parameters
-    ----
-    connDict : dictionary
-      can be used to connect widgets of a sertain type to a signal emitted by a
-      value change of the variable storage (variable of type var).
-
-    connDict is contains the widget in conndict[key][1][1] and the value stored
-    as var in connDict[key][0], it typically is the same layout that is used
-    to create the layout using the constructLayout function.
-    """
-    for key in connDict:
-        if type(connDict[key][1][1]) == QLineEdit:
-            connDict[key][0].valueChanged[str].connect(
-                connDict[key][1][1].setText)
-        elif type(connDict[key][1][1]) == QProgressBar:
-            connDict[key][0].valueChanged[int].connect(
-                connDict[key][1][1].setValue)
-        elif type(connDict[key][1][1]) == QComboBox:
-            connDict[key][0].valueChanged[int].connect(
-                connDict[key][1][1].setCurrentIndex)
-        elif type(connDict[key][1][1]) == QCheckBox:
-            connDict[key][0].valueChanged[bool].connect(
-                connDict[key][1][1].setChecked)
-
-
-def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
+def constructLayout(grid, cCol, layoutDict, layoutDictInit={}):
     """
     Generates a multi column multi row layout as specified in
     layoutDict[key][1] starting at column cCol in gridLayout grid.
@@ -156,7 +318,9 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
       to be generated
     layoutDictInit : dict
       If a combo box is specified in the layoutDict, the corresponding values
-      that it should be populated with should be specified here
+      that it should be populated with should be specified here. This option is
+      deprecated and should not be used in new code. See var(init=...) as a
+      replacement.
 
     Returns
     -----
@@ -170,7 +334,7 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
 
     QLabel("this row") - QLineEdit - QCheckBox
 
-    int to variable type conversion is specified in getWidgetType, where
+    int to variable type conversion is specified in guiObject.getWidget, where
     the widget is also initialized
     layoutDict["row2"][1] = [4, 4] and layoutDictInit["row2"] = ["a", "b"]
 
@@ -181,54 +345,24 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
     # current row
     row = 0
     for key in layoutDict:
-        spec = layoutDict[key][1]
-        logging.info(str(layoutDict[key]))
-        # try to see whether there is also a unit specified
-        if len(layoutDict[key]) > 2:
-            unit = layoutDict[key][2]
-        else:
-            unit = ""
+        spec = layoutDict[key].columns
+        init = layoutDictInit.get(key, layoutDict[key].init)
         if isinstance(spec, (tuple, list)):
             # iterable (i.e. multiple widgets in this row)
-            if len(layoutDict[key][1]) > count:
+            if len(spec) > count:
                 # make sure count corresponds to the longest column number
-                count = len(layoutDict[key][1]) + 1
+                count = len(spec) + 1
             dummy = []
             for widget in spec:
-                if isinstance(widget, bool):
-                    # if a boolean is in the list, it should be ignored
-                    continue
-                if 4 == widget and layoutDictInit is not None:
-                    # get initialized widget of correct type
-                    try:
-                        dummy.append(
-                            getWidgetType(key, widget,
-                                          layoutDictInit[key]))
-                    except KeyError:
-                        # key not found in initDict?!
-                        print("key not found in initDict!?")
-                else:
-                    dummy.append(getWidgetType(key, widget))
+                dummy.append(guiObject.getWidget(
+                    key, widget, init, len(dummy)))
         else:
             # not iterable, single widget in row
             if 2 > count:
                 # if count is just one, set to two to have correct indicator
                 # for column count
                 count = 2
-            if 4 == layoutDict[key][1] and layoutDictInit is not None:
-                # we have a QComboBox and the corresponding initDict,
-                # make sure key is present in the init dictionary
-                try:
-                    # get initialized widget of correct type
-                    dummy = [getWidgetType(key, layoutDict[key][1],
-                                           layoutDictInit[key])]
-                except KeyError:
-                    # key not found in initDict?!
-                    print("key not found in initDict!?")
-            else:
-                # not a comboBox, so just
-                # get initialized widget of correct type
-                dummy = [getWidgetType(key, layoutDict[key][1])]
+            dummy = [guiObject.getWidget(key, spec, init)]
 
         # set sensible default values and disable readout column
         if dummy[0].minimumWidth() < 100:
@@ -241,13 +375,17 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
             dummy[0].setEnabled(False)
 
         # generate label for row
+        unit = layoutDict[key].unit
         label = f"{key} ({unit})" if "" != unit else key
 
         # replace spec with widgets in place
-        layoutDict[key][1] = [QLabel(label)] + dummy
+        layoutDict[key].widgets = [QLabel(label)] + dummy
         # populate grid
         col = 0
-        for i, widget in enumerate(layoutDict[key][1]):
+        for i, widget in enumerate(layoutDict[key].widgets):
+            if isinstance(widget, bool):
+                # if a boolean is in the list, it should be ignored
+                continue
             # add widgets to the grid layout at the correct position
             # but skip hidden checkbox
             grid.addWidget(widget, row, cCol+col, 1, 1)
@@ -256,67 +394,20 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit=None):
             # prepare checkbox for controlling the data logging
             # only add if there is a value attached to the display
             checkbox = QCheckBox()
-            if isinstance(spec, (tuple, list)):
-                if isinstance(spec[-1], bool):
-                    # use boolean value (last position) to determine default
-                    # state of logging
-                    checkbox.setChecked(spec[-1])
+            # state of logging
+            checkbox.setChecked(layoutDict[key].log)
             checkbox.setVisible(False)
-            layoutDict[key][1].append(checkbox)
+            layoutDict[key].widgets.append(checkbox)
             # if layouts with more than three widgets should be possible
             # the following line should be redesigned
-            grid.addWidget(layoutDict[key][1][-1], row, cCol+3, 1, 1)
+            grid.addWidget(checkbox, row, cCol+3, 1, 1)
         row += 1
+    # connects the storage variable to the GUI display
+    for var in layoutDict.values():
+        var.connect_signal()
+
     # +1 for checkbox at the end of QLabel
     return cCol + count + 1
-
-
-def getWidgetType(label, wType, init=None):
-    """
-    Retruns the widget of the correct type
-
-    Parameters
-    ----
-    label : str
-      label of widget/name of button
-    wType : int
-      Can be one of:
-
-      * str : QLabel
-      * 0 : QPushButton
-      * 1 : QLineEdit
-      * 2 : QCheckBox
-      * 3 : QProgressBar
-      * 4 : QComboBox
-    init : list
-      provides the values the QComboBox is initialized with
-
-    Returns
-    -----
-    widget : QWidget
-      widget of requested type or None
-    """
-    if isinstance(wType, str):
-        qlab = QLabel(wType)
-        qlab.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        return qlab
-    elif 0 == wType:
-        return QPushButton(label)
-    elif 1 == wType:
-        return QLineEdit()
-    elif 2 == wType:
-        return QCheckBox()
-    elif 3 == wType:
-        dummy = QProgressBar()
-        dummy.setRange(0, 100)
-        return dummy
-    elif 4 == wType:
-        dummy = QComboBox()
-        if init is not None:
-            dummy.insertItems(0, init)
-        return dummy
-    else:
-        return None
 
 
 def copyValues(copyDict):
@@ -331,20 +422,8 @@ def copyValues(copyDict):
     copyDict : dict
       copies values from first column with values to second column with values
     """
-    for key in copyDict:
-        if len(copyDict[key][1]) > 2:
-            if type(copyDict[key][1][2]) == QLineEdit:
-                copyDict[key][1][2].setText(
-                    str(copyDict[key][0].value))
-            elif type(copyDict[key][1][2]) == QComboBox:
-                try:
-                    copyDict[key][1][2].setCurrentIndex(
-                        copyDict[key][0].value)
-                except Exception:
-                    pass
-            elif type(copyDict[key][1][2]) == QCheckBox:
-                copyDict[key][1][2].setChecked(
-                    bool(copyDict[key][0].value))
+    for var in copyDict.values():
+        var.copy_value()
 
 
 def temp_statistics(deltat, temp):
