@@ -217,7 +217,8 @@ class var(QObject):
         """
         copies the read values into the set field
         """
-        if len(self.widgets) > 2:
+        # check that a set-field exists, otherwise pass
+        if len(self.columns) >= 2:
             if isinstance(self.widgets[2], QLineEdit):
                 self.widgets[2].setText(str(self.value))
             elif isinstance(self.widgets[2], QComboBox):

@@ -80,9 +80,9 @@ class MainWindow(ControlWindow):
 
     def __init__(self):
         # initialize local variable storage
-        self.v1 = 0
+        self.v1 = 1
         self.v2 = 0
-        self.v3 = 0
+        self.v3 = 5.5
         self.v4 = False
         self.v5 = 0
 
