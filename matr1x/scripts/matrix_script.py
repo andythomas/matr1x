@@ -420,7 +420,7 @@ class MainWindow(QWidget):
 
         Note that no variable names should start with an underscore!
         """)
-        self.status_preview.setMarkdown(welcome_string)
+        self.status_preview.setPlainText(welcome_string)
         print("==========")
 
     def init_ui(self):

@@ -361,9 +361,11 @@ def generate_script(systems, user_script):
           total number of expected datapoints for estimation of remaining
           measurement time.
         '''
-        global _filename, _ntot, _npoints
+        global _filename, _ntot, _npoints, _starttime
+
         _ntot = ntot
         _npoints = 0  # reset the number of measurement points
+        _starttime = _time.time()
 
         # generate fallback option for the datafile name
         systemstring = "__".join(['{"', '".join(map(os.path.basename, systems))}'])
