@@ -21,6 +21,7 @@ from . import systems_directory
 if os.name == "nt":
     import msvcrt
 else:
+    import termios
     from select import select
 
 # sweep functions for sweep generator
@@ -620,6 +621,20 @@ def matrix_script_process(filename, user="", sample="", scriptname=""):
     if connected is True:
         # close socket
         client_socket.close()
+
+
+def flush_input():
+    """
+    flush the input buffer to get only fresh input later on
+    """
+    if os.name == "nt":
+        while msvcrt.kbhit():
+            msvcrt.getch()
+    else:
+        try:
+            termios.tcflush(sys.stdin, termios.TCIOFLUSH)
+        except termios.error:
+            pass  # errors in none proper terminal, e.q.  Github actions
 
 
 def nonblocking_getch(callback=None):

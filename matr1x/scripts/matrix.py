@@ -20,10 +20,11 @@ import time
 import traceback
 
 import urwid
-from matr1x.util import (flatten, generate_col_index, generate_datafilename,
-                         get_settable_columns, merge_systems, nonblocking_getch,
-                         print_formatted_line, take_measurement_point,
-                         telemetry_string, trigger_system, write_matrix_header)
+from matr1x.util import (flatten, flush_input, generate_col_index,
+                         generate_datafilename, get_settable_columns,
+                         merge_systems, nonblocking_getch, print_formatted_line,
+                         take_measurement_point, telemetry_string,
+                         trigger_system, write_matrix_header)
 
 from . import MATRIX_GUI_PORT
 
@@ -314,6 +315,9 @@ def main():
 
     # parse the command line
     options = parser.parse_args()
+
+    # flush input buffer to avoid old inputs to mess with a new measurement
+    flush_input()
 
     # check input file header for system file information
     systemfile = None
