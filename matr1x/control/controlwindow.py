@@ -18,8 +18,8 @@ from matr1x.util import (generate_datafilename, take_measurement_point,
                          trigger_system, write_matrix_header)
 from PyQt5 import QtCore
 from PyQt5.QtGui import QIntValidator, QTextCursor
-from PyQt5.QtWidgets import (QCheckBox, QFileDialog, QGridLayout, QLabel,
-                             QLineEdit, QMainWindow, QMessageBox,
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QGridLayout,
+                             QLabel, QLineEdit, QMainWindow, QMessageBox,
                              QPlainTextEdit, QPushButton, QScrollArea,
                              QSizePolicy, QVBoxLayout, QWidget)
 
@@ -176,6 +176,7 @@ class ControlWindow(QMainWindow):
         # initialize status_grid with common widgets
         self.status = QPlainTextEdit(self)
         self.status.setReadOnly(True)
+        self.keep_enabled.append(self.status)
         self.activityIndicator = QLabel(" ")
         self.activityIndicator.setFixedWidth(40)
         self.activityIndicator.setFixedHeight(30)
@@ -410,9 +411,13 @@ class ControlWindow(QMainWindow):
     @QtCore.pyqtSlot(type, Exception, types.TracebackType, str)
     def handleError(self, exc_type, exc_value, exc_traceback, pointer):
         self.activity.emit("lightgray")
+        qApp = QApplication.instance()
+        qApp.processEvents()
         # disable all GUI elements but look at execption list
         for i in reversed(range(self.grid.count())):
             self.grid.itemAt(i).widget().setEnabled(False)
+        for i in reversed(range(self.status_grid.count())):
+            self.status_grid.itemAt(i).widget().setEnabled(False)
         for widget in self.keep_enabled:
             widget.setEnabled(True)
         # stop SCPI server to reflect that something is wrong instead of
@@ -432,3 +437,6 @@ class ControlWindow(QMainWindow):
 The following error was raised in {pointer}:
 {repr(exc_value)}
 Please investigate the error and eventually restart the graphical user interface""")
+        ret = qApp.exec()
+        if ret != -1:
+            sys.exit(ret+1)
