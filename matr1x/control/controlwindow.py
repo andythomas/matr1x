@@ -57,7 +57,7 @@ def catchEmitError(method):
 
 class CollapsibleBox(QWidget):
 
-    redraw_activity = QtCore.pyqtSignal()
+    redraw_activity = QtCore.pyqtSignal(bool)
 
     def __init__(self, title="", parent=None):
         super().__init__(parent)
@@ -82,7 +82,7 @@ class CollapsibleBox(QWidget):
             self.setMinimumHeight(self.collapsed_height)
             self.setMaximumHeight(self.collapsed_height)
         self.updateGeometry()
-        self.redraw_activity.emit()
+        self.redraw_activity.emit(checked)
 
     def setContentLayout(self, layout):
         lay = self.content_widget.layout()
@@ -91,7 +91,6 @@ class CollapsibleBox(QWidget):
         self.content_height = self.content_widget.sizeHint().height()
         self.collapsed_height = self.sizeHint().height()  # - self.content_height
         self.combined_height = self.content_height + self.collapsed_height
-        logging.info(f"{self.content_height}, {self.collapsed_height}")
 
 
 class ControlWindow(QMainWindow):
@@ -229,10 +228,15 @@ class ControlWindow(QMainWindow):
             except Exception:  # upon cleanup after exception this can fail
                 pass
 
-    def readjustSize(self):
+    def readjustSize(self, expanding=False):
         """
         resize window when the status and logging tab is minimized
         """
+        if expanding is False:
+            # if we are shrinking the window and disabling the control, hide
+            # the logging-config buttons
+            self.configLog(expanding)
+
         self.widget.adjustSize()
         self.adjustSize()
 
