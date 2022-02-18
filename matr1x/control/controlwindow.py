@@ -97,6 +97,7 @@ class CollapsibleBox(QWidget):
 class ControlWindow(QMainWindow):
     sig_error = QtCore.pyqtSignal(type, Exception, types.TracebackType, str)
     activity = QtCore.pyqtSignal(str)
+    deactivate = QtCore.pyqtSignal(bool)
 
     def __init__(self, name, guidicts=[], parent=None):
         super().__init__(parent=parent)
@@ -182,6 +183,7 @@ class ControlWindow(QMainWindow):
         self.activityIndicator.setFixedHeight(30)
         self.activityIndicator.setStyleSheet("background-color: lightgray")
         self.activity.connect(self.change_color)
+        self.deactivate.connect(self.deactivate_gui)
         self.togglelog = QPushButton("start data log")
         self.togglelog.setCheckable(True)
         self.selectlog = QPushButton("select data log file")
@@ -408,18 +410,23 @@ class ControlWindow(QMainWindow):
     def change_color(self, color):
         self.activityIndicator.setStyleSheet(f"background-color: {color}")
 
+    @QtCore.pyqtSlot(bool)
+    def deactivate_gui(self, flag):
+        if flag:
+            # disable all GUI elements but look at execption list
+            for i in reversed(range(self.grid.count())):
+                self.grid.itemAt(i).widget().setEnabled(False)
+            for i in reversed(range(self.status_grid.count())):
+                self.status_grid.itemAt(i).widget().setEnabled(False)
+            for widget in self.keep_enabled:
+                widget.setEnabled(True)
+
     @QtCore.pyqtSlot(type, Exception, types.TracebackType, str)
     def handleError(self, exc_type, exc_value, exc_traceback, pointer):
         self.activity.emit("lightgray")
+        self.deactivate.emit(True)
         qApp = QApplication.instance()
         qApp.processEvents()
-        # disable all GUI elements but look at execption list
-        for i in reversed(range(self.grid.count())):
-            self.grid.itemAt(i).widget().setEnabled(False)
-        for i in reversed(range(self.status_grid.count())):
-            self.status_grid.itemAt(i).widget().setEnabled(False)
-        for widget in self.keep_enabled:
-            widget.setEnabled(True)
         # stop SCPI server to reflect that something is wrong instead of
         # returning the same reading over and over
         self.stopServer()
