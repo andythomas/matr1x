@@ -117,8 +117,8 @@ class SweepPreview(QDialog):
         self.comboBoxCalc.addItems(["None", "Delta-", "Delta+"])
         self.dMode = 0
 
-        comboBoxX.addItems(self.header[0])
-        comboBoxY.addItems(self.header[0])
+        comboBoxX.addItems(self.names)
+        comboBoxY.addItems(self.names)
         self.indexX = 0
         self.indexY = 0
         comboBoxX.currentIndexChanged.connect(self.indexChangedX)
@@ -223,6 +223,7 @@ class SweepPreview(QDialog):
                 self.header, self.data = loadh5matrix(self.filename)
             else:
                 self.header, self.data = loadmatrix(self.filename)
+            self.names, self.units = self.header[:2]
             self.luTime = time.time()
             return True
 
@@ -289,10 +290,10 @@ class SweepPreview(QDialog):
         """
         self.pw.getAxis("left").textWidth = 0
         self.plt.setData(y=self.ydata, x=self.xdata, symbol="o")
-        self.pw.setLabel("bottom", self.header[0][self.indexX],
-                         self.header[1][self.indexX])
-        self.pw.setLabel("left", self.header[0][self.indexY],
-                         self.header[1][self.indexY])
+        self.pw.setLabel("bottom", self.names[self.indexX],
+                         self.units[self.indexX])
+        self.pw.setLabel("left", self.names[self.indexY],
+                         self.units[self.indexY])
 
 
 def main():
