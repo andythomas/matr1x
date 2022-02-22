@@ -11,7 +11,8 @@ guipath = os.path.join('matr1x', 'control')
 guifiles = set(glob.glob(os.path.join(guipath, '[!_]*.py'))) - \
     set([os.path.join(guipath, 'util.py')])
 gui_scripts = ['sweep_generator=matr1x.scripts.sweep_generator:main [GUI]',
-               'matrix_script=matr1x.scripts.matrix_script:main [GUI]']
+               'matrix_script=matr1x.scripts.matrix_script:main [GUI]',
+               'matrix_preview=matr1x.scripts.matrix_preview:main [GUI]']
 for fn in guifiles:
     script_name = os.path.splitext(os.path.split(fn)[-1])[0]
     gui_scripts.append(
