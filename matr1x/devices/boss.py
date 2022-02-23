@@ -56,7 +56,7 @@ class BOSS(VisaDevice):
         except UnicodeDecodeError:
             logger.info(f"repeating query {msg} (attempts: {attempts})")
             if attempts > 4:
-                raise pyvisa.VisaIOError(-1073807298)
+                raise VisaIOError(-1073807298)
             return self.query(msg, attempts=attempts+1)
         ret = ret.replace("Command>", "")
         return ret
