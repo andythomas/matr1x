@@ -618,8 +618,6 @@ class MainWindow(QWidget):
     def update_systems(self):
         self.systems = [os.path.normpath(self.system_list.item(j).text())
                         for j in range(self.system_list.count())]
-        systemnames = [os.path.split(os.path.splitext(sys)[0])[-1]
-                       for sys in self.systems]
 
     def get_settable_info(self):
         """
@@ -669,7 +667,7 @@ class MainWindow(QWidget):
             settable_info = self.get_settable_info()
 
             # write matrix file header
-            header += "# system def : " + ",".join(self.systems) + "\n"
+            header += "# system def : " + ",".join(repr(s).strip("'") for s in self.systems) + "\n"
             header += "# system names : " + ",".join(settable_info[1]) + "\n"
             header += "# system units : " + ",".join(settable_info[2]) + "\n"
         except Exception:

@@ -285,7 +285,7 @@ def generate_script(systems, user_script):
     import matr1x.util as _matrix_util
 
     _system = _matrix_util.merge_systems(
-        ['{"', '".join(systems)}'])
+        [{", ".join(repr(s) for s in systems)}])
 
     # pass meta information
     _system.dcdata['Identifier'] = _sample
