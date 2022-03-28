@@ -412,6 +412,6 @@ def main():
         ret = 1
     print("resetting devices")
     # reset system/devices
-    system.reset()
+    system.reset(input_file=options.inputfile, output_file=output_filename)
     # set returncode of the measurementloop as our exit status
     sys.exit(ret)

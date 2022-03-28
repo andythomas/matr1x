@@ -443,7 +443,10 @@ def generate_script(systems, user_script):
     # ==== begin user area ====
     """) + user_script + textwrap.dedent("""
     # ===== end user area =====
-    _system.reset()
+    # the reset function is called at the script end only, but we nevertheless
+    # specify the last datafile name to be as close as possible to the behavior
+    # of matrix
+    _system.reset(output_file=_filename)
     """))
     return script
 
