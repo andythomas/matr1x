@@ -977,6 +977,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     telemetry = [list(flatten(system.columns)),
                  list(flatten(system.units))]
     # prepare datafile
+    print(f"Creating new datafile: {output_filename}")
     if system.hdf5 is True:
         telemetry += [list(flatten(system.chunks))]
         with h5py.File(output_filename, 'w') as data_file:
@@ -993,7 +994,6 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     else:
         telemetry += [default_separator]
         with open(output_filename, 'w') as data_file:
-            print(f"Creating new datafile: {output_filename}")
             for dckey, dcvalue in system.dcdata.items():
                 if dcvalue is None:
                     data_file.write(f"# DC.{dckey} : None\n")
