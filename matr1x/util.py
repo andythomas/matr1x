@@ -6,7 +6,9 @@ import importlib
 import importlib.util
 import os
 import re
+import subprocess
 import sys
+import sysconfig
 import textwrap
 import time
 from os.path import abspath, exists, expanduser, isabs, isfile, join, splitext
@@ -37,6 +39,33 @@ output_extension = ".ma7"
 # telemetry string template
 telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
                     "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
+
+
+def get_matrix_binary():
+    """
+    check if matrix binary is on the path and otherwise try known python binary
+    folders.
+
+    This executes "matrix --help" to test if this works without error. If no
+    executable is found an FileNotFoundError will be raised
+
+    Returns
+    -------
+    binary_name
+    """
+    user_scripts_path = sysconfig.get_path('scripts', f'{os.name}_user')
+    system_scripts_path = sysconfig.get_path('scripts')
+    for matrixname in ("matrix",
+                       os.path.join(user_scripts_path, "matrix"),
+                       os.path.join(system_scripts_path, "matrix")):
+        try:
+            subprocess.check_call([matrixname, "--help"],
+                                  stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+            return matrixname
+        except FileNotFoundError or subprocess.CalledProcessError:
+            continue
+    raise FileNotFoundError("matrix executable could not be found")
 
 
 def import_system(filename):

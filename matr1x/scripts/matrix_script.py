@@ -667,7 +667,8 @@ class MainWindow(QWidget):
             settable_info = self.get_settable_info()
 
             # write matrix file header
-            header += "# system def : " + ",".join(repr(s).strip("'") for s in self.systems) + "\n"
+            header += "# system def : " + \
+                ",".join(repr(s).strip("'") for s in self.systems) + "\n"
             header += "# system names : " + ",".join(settable_info[1]) + "\n"
             header += "# system units : " + ",".join(settable_info[2]) + "\n"
         except Exception:
