@@ -15,9 +15,9 @@ dependencies = [
   "wrapt",
 ]
 [project.optional-dependencies]
-SPI = ["spidev", "RPi"]
-GUI = ["pyqtgraph", "PyQt5"]
-STANDA = ["PyUSMC", "pyximc"]
+spi = ["spidev", "RPi"]
+gui = ["pyqtgraph", "PyQt5"]
+standa = ["PyUSMC", "pyximc"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
