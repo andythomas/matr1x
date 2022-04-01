@@ -1,5 +1,43 @@
+[project]
+name = "matr1x"
+version = "1.0"
+description = "Python package for data acquisition and measurement control"
+requires-python = ">=3.6"
+dependencies = [
+  "h5py",
+  "natsort",
+  "numpy",
+  "pymeasure",
+  "pyserial",
+  "pyvisa",
+  "pyvisa-py",
+  "urwid>2.0",
+  "wrapt",
+]
+[project.optional-dependencies]
+spi = ["spidev", "RPi"]
+gui = ["pyqtgraph", "PyQt5"]
+standa = ["PyUSMC", "pyximc"]
+
+[project.scripts]
+matrix = "matr1x.scripts.matrix:main"
+matrix_gui = "matr1x.scripts.matrix_gui:main"
+
+[project.gui-scripts]
+sweep_generator = "matr1x.scripts.sweep_generator:main [GUI]"
+matrix_script = "matr1x.scripts.matrix_script:main [GUI]"
+control_dummy = "matr1x.control.control_dummy:main [GUI]"
+
+[project.urls]
+homepage = "https://github.com/andythomas/IFW_software"
+
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+# use flit since setuptools does currently not support PEP660
+requires = [
+  "pip >=21.3",
+  "flit_core >=3.6,<4"
+]
+build-backend = "flit_core.buildapi"
+
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
