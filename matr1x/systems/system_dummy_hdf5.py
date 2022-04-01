@@ -9,6 +9,7 @@ the HDF5 data file format option.
 # ============================
 # Custom import area
 # ============================
+import numpy
 
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
@@ -49,11 +50,17 @@ sys.hdf5 = True
 
 # define columns for measurement
 sys.add_param(
-    "devhdf", "cnt",
+    "devhdfp4_flat", "cnt",
     getter=["devhdf", "p4"], chunks=4)
+sys.add_param(
+    "devhdfp4_1d", "cnt",
+    getter=["devhdf", "p4"], chunks=(4,))
 sys.add_param(
     ["devhdf p3a", "devhdf p3b"], ["cnta", "cntb"],
     ["devhdf", "p3"],
     ["devhdf", "p3"],
     chunks=[1, 1])
+sys.add_param(
+    "devhdfp4_2d", "cnt",
+    getter=lambda: numpy.asarray(sys.devs["devhdf"].p4).reshape((2, 2)), chunks=(2, 2))
 # ============================
