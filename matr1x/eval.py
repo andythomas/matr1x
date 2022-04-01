@@ -146,10 +146,23 @@ def loadh5matrix(filename, filehandle=False):
         header[0] = ["data/" + hdr for hdr in header[0]]
         return header, file_handle
     else:
-        # generate data array (dtype=object is required as the length of the
-        # individual float arrays might differ between columns
-        data = np.array(
-            [item[()] for item in file_handle["data"].values()], dtype=object).T
+        h5g = file_handle["data"]
+        try:
+            # generate data object as structured array
+            dtypeslist = []
+            # the following line relies on the fact that the first item has the
+            # correct length, the code fails later if there are unequal length
+            npoints = len(list(h5g.values())[0])
+            for name, v in h5g.items():
+                if len(v.shape) == 1:
+                    dtypeslist.append((name, v.dtype))
+                else:
+                    dtypeslist.append((name, v.dtype, v.shape[1:]))
+            data = np.empty(npoints, dtype=np.dtype(dtypeslist))
+            for name, v in h5g.items():
+                data[name] = v[...]
+        except ValueError:  # occurs for unequal data length in 1D arrays
+            data = {name: v[...] for name, v in h5g.items()}
         # file_handle is not used any more
         file_handle.close()
         return header, data
