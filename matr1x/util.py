@@ -903,39 +903,35 @@ def take_measurement_point(output_filename, system):
     """
     takes one reading from all device specified in system
     """
+    def h5save(h5d, val):
+        csize = h5d.chunks[0]
+        h5d.resize(h5d.shape[0]+csize, axis=0)
+        h5d[-csize:] = val
+        if csize > 1 or len(h5d.chunks) > 1:
+            return f"[{next(flatten(val))}, ...]"
+        else:
+            return value
+
     return_list = []
-    if system.hdf5 is True:
-        for i, col in enumerate(system.columns):
-            return_value = system.read_value(i)
+    for i, col in enumerate(system.columns):
+        value = system.read_value(i)
+        if system.hdf5 is True:
             with h5py.File(output_filename, "a") as data_file:
                 if isinstance(col, (list, tuple)):
                     for j, column in enumerate(col):
-                        dat = data_file["data/" + column]
-                        csize = dat.chunks[0]
-                        if csize > 1:
-                            return_list.append(f"[{return_value[j][0]}, ...]")
-                        else:
-                            return_list.append(return_value[j])
-                        dat.resize(dat.shape[0]+csize, axis=0)
-                        dat[-csize:] = return_value[j]
+                        ret = h5save(data_file["data/" + column], value[j])
+                        return_list.append(ret)
                 else:
-                    dat = data_file["data/" + col]
-                    csize = dat.chunks[0]
-                    if csize > 1:
-                        return_list.append(f"[{return_value[0]}, ...]")
-                    else:
-                        return_list.append(return_value)
-                    dat.resize(dat.shape[0]+csize, axis=0)
-                    dat[-csize:] = return_value
-    else:
-        for i in range(len(system.columns)):
-            return_value = system.read_value(i)
-            if isinstance(return_value, (np.ndarray, list, tuple)):
-                # in case we get a list, (numpy array or) tuple cast
-                # to list and append
-                return_list += list(return_value)
+                    ret = h5save(data_file["data/" + col], value)
+                    return_list.append(ret)
+        else:
+            if isinstance(value, (np.ndarray, list, tuple)):
+                # in case we get an iterable cast to list and append
+                return_list += list(value)
             else:
-                return_list.append(return_value)
+                return_list.append(value)
+
+    if system.hdf5 is False:
         with open(output_filename, "a") as datafile:
             # write datapoint to file
             datafile.write(default_separator.join(str(v) for v in return_list))
@@ -1008,7 +1004,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     # prepare datafile
     print(f"Creating new datafile: {output_filename}")
     if system.hdf5 is True:
-        telemetry += [list(flatten(system.chunks))]
+        telemetry.append(list(flatten(system.chunks, types=(list, ))))
         with h5py.File(output_filename, 'w') as data_file:
             data_file["input_filename"] = inputfile
             data_file["system_filename"] = system.__name__
@@ -1074,17 +1070,21 @@ def init_hdf5_skel(file_handle, columns, units, chunks):
     """
     data_grp = file_handle.create_group("data")
     for col, uni, chu in zip(columns, units, chunks):
-        data_grp.create_dataset(col, (0,), maxshape=(None,),
-                                chunks=(chu,), dtype="f8")
+        if isinstance(chu, tuple):
+            data_grp.create_dataset(col, (0, *chu), maxshape=(None, *chu),
+                                    chunks=(1, *chu), dtype="f8")
+        else:
+            data_grp.create_dataset(col, (0,), maxshape=(None,),
+                                    chunks=(chu,), dtype="f8")
         data_grp[col].attrs["unit"] = uni
 
 
-def flatten(iterable):
+def flatten(iterable, types=(tuple, list, np.ndarray)):
     """
     Recursively flatten a list to have only one dimension left
     """
     for el in iterable:
-        if ((isinstance(el, (tuple, list, np.ndarray)) and not
+        if ((isinstance(el, types) and not
              isinstance(el, (str, bytes)))):
             yield from flatten(el)
         else:
