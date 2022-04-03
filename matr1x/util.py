@@ -911,40 +911,29 @@ def take_measurement_point(output_filename, system):
             return f"[{next(flatten(val))}, ...]"
         return val
 
-
-    def get_returnval(val):
-        if isinstance(val, (np.ndarray, list, tuple)):
-            return f"[{next(flatten(val))}, ...]"
-        return val
-
-
     return_list = []
-    value_list = []
     for i, col in enumerate(system.columns):
         value = system.read_value(i)
-        print(i, col, value)
         if system.hdf5 is True:
             with h5py.File(output_filename, "a") as datafile:
                 if isinstance(col, (list, tuple)):
                     for j, column in enumerate(col):
-                        ret = h5save(data_file["data/" + column], value[j])
+                        ret = h5save(datafile["data/" + column], value[j])
                         return_list.append(ret)
                 else:
-                    ret = h5save(data_file["data/" + col], value)
+                    ret = h5save(datafile["data/" + col], value)
                     return_list.append(ret)
         else:
-            if isinstance(col, (list, tuple)):
-                for j, column, in enumerate(col):
-                    value_list.append(value[j])
-                    return_list.append(get_returnval(value[j]))
+            if isinstance(value, (np.ndarray, list, tuple)):
+                # in case we get an iterable cast to list and append
+                return_list += list(value)
             else:
-                value_list.append(value)
-                return_list.append(get_returnval(value))
+                return_list.append(value)
 
     if system.hdf5 is False:
         with open(output_filename, "a") as datafile:
             # write datapoint to file
-            datafile.write(default_separator.join(str(v) for v in value_list))
+            datafile.write(default_separator.join(str(v) for v in return_list))
             datafile.write("\n")
 
     # return device readout as list

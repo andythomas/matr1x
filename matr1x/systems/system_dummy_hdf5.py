@@ -45,8 +45,8 @@ sys.dcdata["Source"] = "dummy system with HDF5 for testing matr1x-matrix"
 sys.add_dev("devhdf", dummy,
             args=("TCPIP::localhost::10009::SOCKET", ))
 
-# set require HDF5 flag can also be deleted if not needed
-sys.hdf5 = True
+# enforce HDF5 flag, will be set automatically if needed by any Parameter
+# sys.hdf5 = True
 
 # define columns for measurement
 sys.add_param(

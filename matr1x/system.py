@@ -327,6 +327,14 @@ class System(object):
         self.units.append(parm.unit)
         self.default_values.append(parm.default)
         self.chunks.append(parm.chunks)
+        # check if hdf5 format has to be used
+        if isinstance(parm.chunks, (list, tuple)):
+            if not isinstance(parm.name, (list, tuple)):
+                self.hdf5 = True
+            elif any([p > 1 for p in parm.chunks]):
+                self.hdf5 = True
+        elif parm.chunks > 1:
+            self.hdf5 = True
 
     def clear_parameters(self):
         """
