@@ -10,7 +10,6 @@ the HDF5 data file format option.
 # Custom import area
 # ============================
 import numpy
-
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
 
