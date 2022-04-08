@@ -6,7 +6,9 @@ import importlib
 import importlib.util
 import os
 import re
+import subprocess
 import sys
+import sysconfig
 import textwrap
 import time
 from os.path import abspath, exists, expanduser, isabs, isfile, join, splitext
@@ -37,6 +39,33 @@ output_extension = ".ma7"
 # telemetry string template
 telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
                     "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
+
+
+def get_matrix_binary():
+    """
+    check if matrix binary is on the path and otherwise try known python binary
+    folders.
+
+    This executes "matrix --help" to test if this works without error. If no
+    executable is found an FileNotFoundError will be raised
+
+    Returns
+    -------
+    binary_name
+    """
+    user_scripts_path = sysconfig.get_path('scripts', f'{os.name}_user')
+    system_scripts_path = sysconfig.get_path('scripts')
+    for matrixname in ("matrix",
+                       os.path.join(user_scripts_path, "matrix"),
+                       os.path.join(system_scripts_path, "matrix")):
+        try:
+            subprocess.check_call([matrixname, "--help"],
+                                  stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+            return matrixname
+        except FileNotFoundError or subprocess.CalledProcessError:
+            continue
+    raise FileNotFoundError("matrix executable could not be found")
 
 
 def import_system(filename):
@@ -285,7 +314,7 @@ def generate_script(systems, user_script):
     import matr1x.util as _matrix_util
 
     _system = _matrix_util.merge_systems(
-        ['{"', '".join(systems)}'])
+        [{", ".join(repr(s) for s in systems)}])
 
     # pass meta information
     _system.dcdata['Identifier'] = _sample
@@ -443,7 +472,10 @@ def generate_script(systems, user_script):
     # ==== begin user area ====
     """) + user_script + textwrap.dedent("""
     # ===== end user area =====
-    _system.reset()
+    # the reset function is called at the script end only, but we nevertheless
+    # specify the last datafile name to be as close as possible to the behavior
+    # of matrix
+    _system.reset(output_file=_filename)
     """))
     return script
 
@@ -974,6 +1006,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     telemetry = [list(flatten(system.columns)),
                  list(flatten(system.units))]
     # prepare datafile
+    print(f"Creating new datafile: {output_filename}")
     if system.hdf5 is True:
         telemetry += [list(flatten(system.chunks))]
         with h5py.File(output_filename, 'w') as data_file:
@@ -990,7 +1023,6 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     else:
         telemetry += [default_separator]
         with open(output_filename, 'w') as data_file:
-            print(f"Creating new datafile: {output_filename}")
             for dckey, dcvalue in system.dcdata.items():
                 if dcvalue is None:
                     data_file.write(f"# DC.{dckey} : None\n")

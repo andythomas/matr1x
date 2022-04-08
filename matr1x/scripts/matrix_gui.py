@@ -17,6 +17,7 @@ from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import delta, get_latest_datafile, loadh5matrix, loadmatrix
 from matr1x.scripts import MATRIX_GUI_PORT, matrix_preview, sweep_generator
+from matr1x.util import get_matrix_binary
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
@@ -64,7 +65,7 @@ class ExecThread(QThread):
         self.filename_received.emit(data)
 
     def run(self):
-        cmd = ["matrix", "-i", self.inputFile]
+        cmd = [get_matrix_binary(), "-i", self.inputFile]
         if self.outputFile != "":
             cmd += ["-o", self.outputFile]
         for field, arg in ((self.user, "-u"),

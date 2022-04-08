@@ -17,7 +17,7 @@ from matr1x.gui_util import EmittingStream
 from matr1x.util import (generate_datafilename, take_measurement_point,
                          trigger_system, write_matrix_header)
 from PyQt5 import QtCore
-from PyQt5.QtGui import QIntValidator, QTextCursor
+from PyQt5.QtGui import QColor, QIntValidator, QPalette, QTextCursor
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QGridLayout,
                              QLabel, QLineEdit, QMainWindow, QMessageBox,
                              QPlainTextEdit, QPushButton, QScrollArea,
@@ -161,6 +161,10 @@ class ControlWindow(QMainWindow):
 
         self.grid = QGridLayout()
 
+        qApp = QApplication.instance()
+        mainWindowBgColor = QPalette().color(QPalette.Window)
+        qApp.setStyleSheet(
+            f"[readOnly=\"true\"] {{background-color: {mainWindowBgColor.name(QColor.HexRgb)} }}")
         # construct the layout from the GUI dicts
         ccol = 0
         for guidict in self.guidicts:

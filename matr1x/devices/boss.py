@@ -2,7 +2,14 @@
 # ---
 # (c) 2022 matr1x developers. All rights reserved.
 # ---
+import logging
+import time
+
+from pyvisa import VisaIOError
+
 from .visadevice import VisaDevice
+
+logger = logging.getLogger(__name__)
 
 
 class BOSS(VisaDevice):
@@ -23,28 +30,41 @@ class BOSS(VisaDevice):
         super().__init__(interface, **kwargs)
         self.read_very_eager()  # clear leftovers of old communication
         # set talkback off
-        self.write("SB0")
-        try:
-            self.read()
-        except UnicodeDecodeError:
-            self.read_very_eager()
+        self.query("SB0")
         # set device to remote
-        # ignore non-ascii characters in reply which sometimes seem to appear
-        try:
-            self.query("SR")
-        except UnicodeDecodeError:
-            self.read_very_eager()
+        self.query("SR")
+        time.sleep(0.5)
+        self.read_very_eager()
 
     def id(self):
         # Power supply seems to support no version or identifier command
         return "Electronics Measurement Inc. BOSS-20-5"
 
-    def query(self, msg):
-        ret = super().query(msg)
+    def read_very_eager(self, attempts=0):
+        # ignore non-ascii characters in reply which sometimes seem to appear
+        try:
+            return super().read_very_eager()
+        except UnicodeDecodeError:
+            logger.info(f"repeating read_very_eager (attempts: {attempts})")
+            if attempts > 4:
+                raise VisaIOError(f"too many attempts to read eagerly")
+            return self.read_very_eager(attempts=attempts+1)
+
+    def query(self, msg, attempts=0):
+        try:
+            ret = super().query(msg)
+        except UnicodeDecodeError:
+            logger.info(f"repeating query {msg} (attempts: {attempts})")
+            if attempts > 4:
+                raise VisaIOError(-1073807298)
+            return self.query(msg, attempts=attempts+1)
         ret = ret.replace("Command>", "")
         return ret
 
     # high level functions
+    def set_local(self):
+        self.query("SL")
+
     def setControl(self, mode):
         """
         mode 0 - current
