@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=matrix_preview
+Comment=Data file previewer for ma7 files
+Exec=matrix_preview %f
+Terminal=false
+Categories=Education
