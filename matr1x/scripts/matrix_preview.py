@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QSlider)
 
 
-class updateThread(QThread):
+class UpdateThread(QThread):
     update_now = pyqtSignal()
 
     def __init__(self, interval):
@@ -46,39 +46,23 @@ class SweepPreview(QDialog):
         filename -- name of matrix file (.maX)
     """
 
-    def __init__(self, parent=None, filename="", data={}):
+    def __init__(self, parent=None, filename=""):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.filename = filename
-        if "" == self.filename:
-            self.fromfile = False
-            # verify lengths
-            try:
-                self.data = np.asfarray(data["data"])
-                self.names = data["names"]
-                self.units = data["units"]
-                if (len(self.data) != len(self.header) or
-                        len(self.data) != len(self.units)):
-                    # verify equal lengths
-                    raise ValueError(
-                        "meta information and data not compatible")
-            except Exception:
-                raise ValueError("dictionary with data could not be unpacked")
+        if ".h5" in filename:
+            self.h5 = True
+            self.header, self.data = loadh5matrix(self.filename)
         else:
-            self.fromfile = True
-            if ".h5" in filename:
-                self.h5 = True
-                self.header, self.data = loadh5matrix(self.filename)
-            else:
-                self.h5 = False
-                self.header, self.data = loadmatrix(self.filename,
-                                                    structured=True)
-            self.names, self.units = self.header[:2]
+            self.h5 = False
+            self.header, self.data = loadmatrix(self.filename,
+                                                structured=True)
+        self.names, self.units = self.header[:2]
         self.udthread = None
-        self.luTime = time.time()
-        self.initUI()
+        self.lu_time = time.time()
+        self.init_ui()
 
-    def initUI(self):
+    def init_ui(self):
         """
         Initialize GUI for popup
         """
@@ -88,48 +72,42 @@ class SweepPreview(QDialog):
         closeButton.clicked.connect(self.close)
 
         updateButton = QPushButton("Update plot")
-        updateButton.clicked.connect(self.refreshLists)
+        updateButton.clicked.connect(self.refresh_lists)
 
         saveButton = QPushButton("Save plot")
-        saveButton.clicked.connect(self.savePlot)
+        saveButton.clicked.connect(self.save_plot)
 
         self.autoupdateBox = QCheckBox("Auto update data")
         auinit = False
         self.autoupdateBox.setChecked(auinit)
         self.autoupdateBox.toggled.connect(self.updatethread)
         self.updatethread(auinit)
-        if self.fromfile is False:
-            # only allow updating the data if it is loaded from a file
-            updateButton.setEnabled(False)
-            self.autoupdateBox.setEnabled(False)
 
         self.posLabel = QLabel("x: 0.0e-0\ny: 0.0e-0")
         fileLabel = QLabel(self.filename)
         self.setWindowTitle(os.path.basename(self.filename))
 
-        comboBoxX = QComboBox()
-        comboBoxY = QComboBox()
+        self.comboBoxX = QComboBox()
+        self.comboBoxY = QComboBox()
         self.comboBoxCalc = QComboBox()
 
         self.comboBoxCalc.addItems(["None", "Delta-", "Delta+"])
         self.dMode = 0
 
-        comboBoxX.addItems(self.names)
-        comboBoxY.addItems(self.names)
-        self.indexX = 0
-        self.indexY = 0
-        comboBoxX.currentIndexChanged.connect(self.indexChangedX)
-        comboBoxY.currentIndexChanged.connect(self.indexChangedY)
+        self.comboBoxX.addItems(self.names)
+        self.comboBoxY.addItems(self.names)
+        self.comboBoxX.currentIndexChanged.connect(self.index_changed)
+        self.comboBoxY.currentIndexChanged.connect(self.index_changed)
 
         self.xslabel = QLabel("x-axis - index")
         self.yslabel = QLabel("y-axis - index")
         self.xslider = QSlider(Qt.Horizontal)
         self.xslider.setRange(0, 0)
-        self.xslider.valueChanged.connect(self.sliderMoved)
+        self.xslider.valueChanged.connect(self.slider_moved)
         self.xslider.setEnabled(False)
         self.yslider = QSlider(Qt.Horizontal)
         self.yslider.setRange(0, 0)
-        self.yslider.valueChanged.connect(self.sliderMoved)
+        self.yslider.valueChanged.connect(self.slider_moved)
         self.yslider.setEnabled(False)
 
         pg.setConfigOption('background', 'w')
@@ -138,26 +116,26 @@ class SweepPreview(QDialog):
         self.pw = pg.PlotWidget(
             viewBox=self.vb, name="Plot1", enableMenu=False)
         self.plt = self.pw.plot()
-        self.refreshLists()
+        self.refresh_lists()
 
         self.plotlineBox = QCheckBox("show plot line")
         lineinit = False
         self.plt.setPen(None)
         self.plotlineBox.setChecked(auinit)
-        self.plotlineBox.toggled.connect(self.updatelinesetting)
-        self.updatelinesetting(lineinit)
+        self.plotlineBox.toggled.connect(self.update_linesetting)
+        self.update_linesetting(lineinit)
 
         self.proxy = pg.SignalProxy(self.pw.scene().sigMouseMoved,
                                     rateLimit=30,
-                                    slot=self.mouseMoved)
+                                    slot=self.mouse_moved)
 
         grid.addWidget(fileLabel, 12, 0, 1, -1)
         grid.addWidget(closeButton, 0, 0)
         grid.addWidget(updateButton, 4, 0)
         grid.addWidget(self.autoupdateBox, 5, 0)
         grid.addWidget(self.plotlineBox, 6, 0)
-        grid.addWidget(comboBoxX, 1, 0)
-        grid.addWidget(comboBoxY, 2, 0)
+        grid.addWidget(self.comboBoxX, 1, 0)
+        grid.addWidget(self.comboBoxY, 2, 0)
         grid.addWidget(self.comboBoxCalc, 3, 0)
         grid.addWidget(self.xslabel, 7, 0, 1, 1)
         grid.addWidget(self.xslider, 8, 0, 1, 1)
@@ -172,39 +150,30 @@ class SweepPreview(QDialog):
         self.setLayout(grid)
         self.show()
 
-    def indexChangedX(self, newIndex):
+    def index_changed(self, newIndex):
         """
         If index is changed, show the interface for new index
         """
-        self.indexX = newIndex
-        self.reloadData()
+        self.reload_data()
 
-    def indexChangedY(self, newIndex):
-        """
-        If index is changed, show the interface for new index
-        """
-        self.indexY = newIndex
-        self.reloadData()
-
-    def sliderMoved(self, newValue):
+    def slider_moved(self, newValue):
         """
         If slider has been moved, plot different data
         """
-        self.plotList()
+        self.update_plot()
 
-    def refreshLists(self):
-        if self.fromfile is True:
-            updated = self.openFileAndReadList()
-            if (self.dMode != self.comboBoxCalc.currentIndex() or
-                    updated is True):
-                self.plotList()
+    def refresh_lists(self):
+        updated = self.open_file_and_update_data()
+        if (self.dMode != self.comboBoxCalc.currentIndex() or
+                updated is True):
+            self.update_plot()
 
-    def mouseMoved(self, ev):
+    def mouse_moved(self, ev):
         mousePoint = self.vb.mapSceneToView(ev[0])
         self.posLabel.setText("x: {:e}\ny: {:e}".format(mousePoint.x(),
                                                         mousePoint.y()))
 
-    def savePlot(self):
+    def save_plot(self):
         exporter = pg.exporters.ImageExporter(self.vb.scene())
         filename = QFileDialog.getSaveFileName(
             self, 'Select output png file', matr1x.usersfolder,
@@ -215,58 +184,59 @@ class SweepPreview(QDialog):
         # exporter.parameters()["height"] = 1200
         # exporter.parameters()["width"] = 1920
 
-    def openFileAndReadList(self):
-        if getsize(self.filename) > 300000 and time.time() - self.luTime < 20:
-            # skip updates if delta is below 10s and filesize is > 200kB
+    def open_file_and_update_data(self):
+        if getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
+            # skip updates if delta is below 10s and filesize is > 300kB
             # this will depend on the system!
             return False
-        if self.luTime < getmtime(self.filename):
+        if self.lu_time < getmtime(self.filename):
             if self.h5 is True:
                 self.header, self.data = loadh5matrix(self.filename)
             else:
                 self.header, self.data = loadmatrix(
                     self.filename, structured=True)
             self.names, self.units = self.header[:2]
-            self.luTime = time.time()
+            self.lu_time = time.time()
             return True
 
     def updatethread(self, state):
         if state is True:
             # start updatethread with 2s refresh time
-            self.udthread = updateThread(2)
-            self.udthread.update_now.connect(self.refreshLists)
+            self.udthread = UpdateThread(2)
+            self.udthread.update_now.connect(self.refresh_lists)
             self.udthread.start()
         if state is False and self.udthread is not None:
             self.udthread.terminate()
             self.udthread = None
 
-    def updatelinesetting(self, state):
+    def update_linesetting(self, state):
         if state is True:
             self.plt.setPen((0, 0, 153), width=3)
         if state is False:
             self.plt.setPen(None)
 
-    def reloadData(self):
+    def reload_data(self):
         """
         Updates the data to match the index of the edits, stays in 1D curves
         """
-        xname = self.names[self.indexX]
-        yname = self.names[self.indexY]
-        if self.h5 is False:
-            # replace spaces, as is also done by loadmatrix on creation of a
-            # structured array
-            xname = xname.replace(" ", "_")
-            yname = yname.replace(" ", "_")
+        indexX = self.comboBoxX.currentIndex()
+        indexY = self.comboBoxY.currentIndex()
+        if self.h5 is True:
+            xname = self.names[indexX]
+            yname = self.names[indexY]
+        else:
+            # get name from data, as genfromtxt sanitizes the array names
+            names = self.data.dtype.names
+            xname = names[indexX]
+            yname = names[indexY]
         x = self.data[xname]
         y = self.data[yname]
-        xshape = x.shape
-        yshape = y.shape
-        if not xshape == yshape:
-            if len(xshape) == 1 and len(yshape) == 1:
+        if not x.shape == y.shape:
+            if len(x.shape) == 1 and len(y.shape) == 1:
                 # one dimensional data but of uneven length
                 # attempt to reshape
-                small_axis = min(xshape[0], yshape[0])
-                large_axis = max(xshape[0], yshape[0])
+                small_axis = min(x.shape[0], y.shape[0])
+                large_axis = max(x.shape[0], y.shape[0])
                 if 0 == large_axis % small_axis:
                     # data can be reshaped
                     self.xdata = x.reshape(small_axis, -1)
@@ -276,11 +246,11 @@ class SweepPreview(QDialog):
                     self.xdata = []
                     self.ydata = []
                     return
-            elif xshape[0] == yshape[0]:
+            elif x.shape[0] == y.shape[0]:
                 # same length on first axis, reshape into sets of curves
                 # with the length given by the identical axis
-                self.xdata = x.reshape(xshape[0], -1)
-                self.ydata = y.reshape(xshape[0], -1)
+                self.xdata = x.reshape(x.shape[0], -1)
+                self.ydata = y.reshape(x.shape[0], -1)
             else:
                 # data multidimensional but with different dimensions, so
                 # we do not know how to handle this
@@ -311,9 +281,13 @@ class SweepPreview(QDialog):
             self.multidim = True
             self.yslider.setRange(0, self.ydata.shape[1]-1)
             self.yslider.setValue(0)
-        self.plotList()
+        self.pw.setLabel("bottom", self.names[indexX],
+                         self.units[indexX])
+        self.pw.setLabel("left", self.names[indexY],
+                         self.units[indexY])
+        self.update_plot()
 
-    def plotList(self):
+    def update_plot(self):
         """
         Updates the plot to show sweep[index] against its range
         """
@@ -329,6 +303,7 @@ class SweepPreview(QDialog):
             x = self.xdata
             y = self.ydata
         if 0 == self.dMode:
+            # no calculus to be done
             pass
         elif 1 == self.dMode:
             x = delta(x)[0]
@@ -347,10 +322,6 @@ class SweepPreview(QDialog):
         """
         self.pw.getAxis("left").textWidth = 0
         self.plt.setData(y=y, x=x, symbol="o")
-        self.pw.setLabel("bottom", self.names[self.indexX],
-                         self.units[self.indexX])
-        self.pw.setLabel("left", self.names[self.indexY],
-                         self.units[self.indexY])
 
 
 def main():
