@@ -21,7 +21,8 @@ from matr1x.scripts import MATRIX_GUI_PORT, sweep_generator
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QMainWindow,
                              QDialog, QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QPushButton, QTextEdit, QVBoxLayout, QWidget)
+                             QPushButton, QSlider, QTextEdit, QVBoxLayout,
+                             QWidget)
 
 class updateThread(QThread):
     update_now = pyqtSignal()
@@ -106,10 +107,6 @@ class SweepPreview(QDialog):
         fileLabel = QLabel(self.filename)
         self.setWindowTitle(os.path.basename(self.filename))
 
-        self.textEdit = QTextEdit()
-        self.textEdit.setReadOnly(True)
-        self.textEdit.setMinimumHeight(100)
-
         comboBoxX = QComboBox()
         comboBoxY = QComboBox()
         self.comboBoxCalc = QComboBox()
@@ -123,6 +120,17 @@ class SweepPreview(QDialog):
         self.indexY = 0
         comboBoxX.currentIndexChanged.connect(self.indexChangedX)
         comboBoxY.currentIndexChanged.connect(self.indexChangedY)
+
+        self.xslabel = QLabel("x-axis - index")
+        self.yslabel = QLabel("y-axis - index")
+        self.xslider = QSlider(Qt.Horizontal)
+        self.xslider.setRange(0,0)
+        self.xslider.valueChanged.connect(self.sliderMoved)
+        self.xslider.setEnabled(False)
+        self.yslider = QSlider(Qt.Horizontal)
+        self.yslider.setRange(0,0)
+        self.yslider.valueChanged.connect(self.sliderMoved)
+        self.yslider.setEnabled(False)
 
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
@@ -143,7 +151,7 @@ class SweepPreview(QDialog):
                                     rateLimit=30,
                                     slot=self.mouseMoved)
 
-        grid.addWidget(fileLabel, 11, 0, 1, -1)
+        grid.addWidget(fileLabel, 12, 0, 1, -1)
         grid.addWidget(closeButton, 0, 0)
         grid.addWidget(updateButton, 4, 0)
         grid.addWidget(self.autoupdateBox, 5, 0)
@@ -151,12 +159,15 @@ class SweepPreview(QDialog):
         grid.addWidget(comboBoxX, 1, 0)
         grid.addWidget(comboBoxY, 2, 0)
         grid.addWidget(self.comboBoxCalc, 3, 0)
-        grid.addWidget(self.textEdit, 7, 0, 4, 1)
+        grid.addWidget(self.xslabel, 7, 0, 1, 1)
+        grid.addWidget(self.xslider, 8, 0, 1, 1)
+        grid.addWidget(self.yslabel, 9, 0, 1, 1)
+        grid.addWidget(self.yslider, 10, 0, 1, 1)
         grid.addWidget(saveButton, 0, 1, 1, 4)
         grid.addWidget(self.posLabel, 0, 5, 1, 1)
-        grid.addWidget(self.pw, 1, 1, 10, 5)
+        grid.addWidget(self.pw, 1, 1, 11, 5)
         grid.setColumnStretch(1, 1)
-        grid.setRowStretch(10, 1)
+        grid.setRowStretch(11, 1)
 
         self.setLayout(grid)
         self.show()
@@ -166,16 +177,21 @@ class SweepPreview(QDialog):
         If index is changed, show the interface for new index
         """
         self.indexX = newIndex
-        self.plotList()
-        self.updateTextEdit()
+        self.reloadData()
 
     def indexChangedY(self, newIndex):
         """
         If index is changed, show the interface for new index
         """
         self.indexY = newIndex
+        self.reloadData()
+
+    def sliderMoved(self, newValue):
+        """
+        If slider has been moved, plot different data
+        """
         self.plotList()
-        self.updateTextEdit()
+
 
     def refreshLists(self):
         if self.fromfile is True:
@@ -183,7 +199,6 @@ class SweepPreview(QDialog):
             if (self.dMode != self.comboBoxCalc.currentIndex() or
                 updated is True):
                 self.plotList()
-                self.updateTextEdit()
 
     def mouseMoved(self, ev):
         mousePoint = self.vb.mapSceneToView(ev[0])
@@ -201,18 +216,6 @@ class SweepPreview(QDialog):
         # exporter.parameters()["height"] = 1200
         # exporter.parameters()["width"] = 1920
 
-    def updateTextEdit(self):
-        """
-        Updates the textEdit to show the current sweep[index]
-        """
-        self.textEdit.clear()
-        if len(self.ydata) > 101:
-            for index, item in zip(self.xdata[-100:], self.ydata[-100:]):
-                self.textEdit.append("{:.5e} |{:.5e}".format(index, item))
-        else:
-            for index, item in zip(self.xdata, self.ydata):
-                self.textEdit.append("{:.5e} |{:.5e}".format(index, item))
-
     def openFileAndReadList(self):
         if getsize(self.filename) > 300000 and time.time() - self.luTime < 20:
             # skip updates if delta is below 10s and filesize is > 200kB
@@ -222,7 +225,7 @@ class SweepPreview(QDialog):
             if self.h5 is True:
                 self.header, self.data = loadh5matrix(self.filename)
             else:
-                self.header, self.data = loadmatrix(self.filename)
+                self.header, self.data = loadmatrix(self.filename, structured=True)
             self.names, self.units = self.header[:2]
             self.luTime = time.time()
             return True
@@ -243,42 +246,92 @@ class SweepPreview(QDialog):
         if state is False:
             self.plt.setPen(None)
 
+    def reloadData(self):
+        """
+        Updates the data to match the index of the edits, stays in 1D curves
+        """
+        xname = self.names[self.indexX]
+        yname = self.names[self.indexY]
+        x = self.data[xname]
+        y = self.data[yname]
+        xshape = x.shape
+        yshape = y.shape
+        if not xshape == yshape:
+            if len(xshape) == 1 and len(yshape) == 1:
+                # one dimensional data but of uneven length
+                # attempt to reshape
+                small_axis = min(xshape[0], yshape[0])
+                large_axis = max(xshape[0], yshape[0])
+                if 0 == large_axis % small_axis:
+                    # data can be reshaped
+                    self.xdata = x.reshape(small_axis, -1)
+                    self.ydata = y.reshape(small_axis, -1)
+                else:
+                    # data cannot be reshaped, abort
+                    self.xdata = []
+                    self.ydata = []
+                    return
+            elif xshape[0] == yshape[0]:
+                # same length on first axis, reshape into sets of curves
+                # with the length given by the identical axis
+                self.xdata = x.reshape(xshape[0], -1)
+                self.ydata = y.reshape(xshape[0], -1)
+            else:
+                # data multidimensional but with different dimensions, so
+                # we do not know how to handle this
+                self.xdata = []
+                self.ydata = []
+                return
+        else:
+            # data identical with single or multiple dimension, no reshaping
+            # required
+            if len(xshape) < 2 or len(yshape) < 2:
+                # data is only two dimensional
+                self.xdata = x
+                self.ydata = y
+            else:
+                # data has too many dimensions to display, one can possibly
+                # reshape for the first axis to match and flatten the data
+                # to two dimensions, but this will be horrible for the meaning
+                # of 3D data. I see no use case in implementing this
+                self.xdata = []
+                self.ydata = []
+                return
+        self.multidim = False
+        if len(self.xdata.shape) > 1:
+            self.multidim = True
+            self.xslider.setRange(0, self.xdata.shape[1]-1)
+            self.xslider.setValue(0)
+        if len(self.ydata.shape) > 1:
+            self.multidim = True
+            self.yslider.setRange(0, self.ydata.shape[1]-1)
+            self.yslider.setValue(0)
+        self.plotList()
+
+
     def plotList(self):
         """
         Updates the plot to show sweep[index] against its range
         """
         self.dMode = self.comboBoxCalc.currentIndex()
-        try:
-            x = self.data[:, self.indexX]
-            y = self.data[:, self.indexY]
-        except IndexError:
-            try:
-                # if array can not be 2D sliced
-                x = self.data[self.indexX]
-                y = self.data[self.indexY]
-                if len(x) != len(y):
-                    # in case lengths do not agree, do not allow plotting
-                    self.xdata = []
-                    self.ydata = []
-                    return
-            except IndexError:
-                # if array has length of 0
-                self.xdata = []
-                self.ydata = []
-                return
-            except TypeError:
-                # only single point in file
-                x = [self.data[self.indexX]]
-                y = [self.data[self.indexY]]
+        if self.multidim is True:
+            self.xslider.setEnabled(True)
+            self.yslider.setEnabled(True)
+            x = self.xdata[:,self.xslider.value()]
+            y = self.ydata[:,self.yslider.value()]
+        else:
+            self.xslider.setEnabled(False)
+            self.yslider.setEnabled(False)
+            x = self.xdata
+            y = self.ydata
         if 0 == self.dMode:
-            self.xdata = x
-            self.ydata = y
+            pass
         elif 1 == self.dMode:
-            self.xdata = delta(x)[0]
-            self.ydata = delta(y)[1]
+            x = delta(x)[0]
+            y = delta(y)[1]
         elif 2 == self.dMode:
-            self.xdata = delta(x)[0]
-            self.ydata = delta(y)[0]
+            x = delta(x)[0]
+            y = delta(y)[0]
         """
         # if 3pt delta is wished for...
         elif 3 == self.dMode:
@@ -289,7 +342,7 @@ class SweepPreview(QDialog):
             self.ydata = delta3p(y)[0]
         """
         self.pw.getAxis("left").textWidth = 0
-        self.plt.setData(y=self.ydata, x=self.xdata, symbol="o")
+        self.plt.setData(y=y, x=x, symbol="o")
         self.pw.setLabel("bottom", self.names[self.indexX],
                          self.units[self.indexX])
         self.pw.setLabel("left", self.names[self.indexY],
