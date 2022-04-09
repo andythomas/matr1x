@@ -57,7 +57,8 @@ class SweepPreview(QDialog):
                 self.data = np.asfarray(data["data"])
                 self.names = data["names"]
                 self.units = data["units"]
-                if len(data) != len(header) or len(data) != len(units):
+                if (len(self.data) != len(self.header) or
+                        len(self.data) != len(self.units)):
                     # verify equal lengths
                     raise ValueError(
                         "meta information and data not compatible")
