@@ -71,7 +71,8 @@ class SweepPreview(QDialog):
                 self.header, self.data = loadh5matrix(self.filename)
             else:
                 self.h5 = False
-                self.header, self.data = loadmatrix(self.filename)
+                self.header, self.data = loadmatrix(self.filename,
+                                                    structured=True)
             self.names, self.units = self.header[:2]
         self.udthread = None
         self.luTime = time.time()
@@ -251,6 +252,11 @@ class SweepPreview(QDialog):
         """
         xname = self.names[self.indexX]
         yname = self.names[self.indexY]
+        if self.h5 is False:
+            # replace spaces, as is also done by loadmatrix on creation of a
+            # structured array
+            xname = xname.replace(" ", "_")
+            yname = yname.replace(" ", "_")
         x = self.data[xname]
         y = self.data[yname]
         xshape = x.shape
