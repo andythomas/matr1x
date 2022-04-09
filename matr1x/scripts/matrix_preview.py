@@ -4,11 +4,9 @@
 # ---
 import os
 import signal
-import socket
-import subprocess
 import sys
 import time
-from os.path import exists, getmtime, getsize
+from os.path import getmtime, getsize
 
 import matr1x
 import numpy as np
@@ -16,13 +14,12 @@ import pyqtgraph as pg
 import pyqtgraph.exporters
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import delta, get_latest_datafile, loadh5matrix, loadmatrix
-from matr1x.scripts import MATRIX_GUI_PORT, sweep_generator
+from matr1x.eval import delta, loadh5matrix, loadmatrix
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QMainWindow,
-                             QDialog, QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QPushButton, QSlider, QTextEdit, QVBoxLayout,
-                             QWidget)
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
+                             QFileDialog, QGridLayout, QLabel, QPushButton,
+                             QSlider)
+
 
 class updateThread(QThread):
     update_now = pyqtSignal()
@@ -62,7 +59,8 @@ class SweepPreview(QDialog):
                 self.units = data["units"]
                 if len(data) != len(header) or len(data) != len(units):
                     # verify equal lengths
-                    raise ValueError("meta information and data not compatible")
+                    raise ValueError(
+                        "meta information and data not compatible")
             except Exception:
                 raise ValueError("dictionary with data could not be unpacked")
         else:
@@ -124,11 +122,11 @@ class SweepPreview(QDialog):
         self.xslabel = QLabel("x-axis - index")
         self.yslabel = QLabel("y-axis - index")
         self.xslider = QSlider(Qt.Horizontal)
-        self.xslider.setRange(0,0)
+        self.xslider.setRange(0, 0)
         self.xslider.valueChanged.connect(self.sliderMoved)
         self.xslider.setEnabled(False)
         self.yslider = QSlider(Qt.Horizontal)
-        self.yslider.setRange(0,0)
+        self.yslider.setRange(0, 0)
         self.yslider.valueChanged.connect(self.sliderMoved)
         self.yslider.setEnabled(False)
 
@@ -192,12 +190,11 @@ class SweepPreview(QDialog):
         """
         self.plotList()
 
-
     def refreshLists(self):
         if self.fromfile is True:
             updated = self.openFileAndReadList()
             if (self.dMode != self.comboBoxCalc.currentIndex() or
-                updated is True):
+                    updated is True):
                 self.plotList()
 
     def mouseMoved(self, ev):
@@ -225,7 +222,8 @@ class SweepPreview(QDialog):
             if self.h5 is True:
                 self.header, self.data = loadh5matrix(self.filename)
             else:
-                self.header, self.data = loadmatrix(self.filename, structured=True)
+                self.header, self.data = loadmatrix(
+                    self.filename, structured=True)
             self.names, self.units = self.header[:2]
             self.luTime = time.time()
             return True
@@ -308,7 +306,6 @@ class SweepPreview(QDialog):
             self.yslider.setValue(0)
         self.plotList()
 
-
     def plotList(self):
         """
         Updates the plot to show sweep[index] against its range
@@ -317,8 +314,8 @@ class SweepPreview(QDialog):
         if self.multidim is True:
             self.xslider.setEnabled(True)
             self.yslider.setEnabled(True)
-            x = self.xdata[:,self.xslider.value()]
-            y = self.ydata[:,self.yslider.value()]
+            x = self.xdata[:, self.xslider.value()]
+            y = self.ydata[:, self.yslider.value()]
         else:
             self.xslider.setEnabled(False)
             self.yslider.setEnabled(False)

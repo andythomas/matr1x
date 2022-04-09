@@ -7,21 +7,17 @@ import signal
 import socket
 import subprocess
 import sys
-import time
-from os.path import exists, getmtime, getsize
+from os.path import exists
 
 import matr1x
-import pyqtgraph as pg
-import pyqtgraph.exporters
-from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import delta, get_latest_datafile, loadh5matrix, loadmatrix
+from matr1x.eval import get_latest_datafile
 from matr1x.scripts import MATRIX_GUI_PORT, matrix_preview, sweep_generator
 from matr1x.util import get_matrix_binary
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                             QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QPushButton, QTextEdit, QVBoxLayout, QWidget)
+from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtWidgets import (QApplication, QFileDialog, QGridLayout, QLabel,
+                             QLineEdit, QPushButton, QTextEdit, QVBoxLayout,
+                             QWidget)
 
 
 def signal_handler(signal, frame):
