@@ -16,9 +16,10 @@ from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import delta, loadh5matrix, loadmatrix
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QCheckBox, QComboBox, QWidget, QSizePolicy, QLayout,
-                             QFileDialog, QHBoxLayout, QGridLayout, QLabel, QPushButton,
-                             QToolButton, QSlider, QGroupBox)
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
+                             QGridLayout, QGroupBox, QHBoxLayout, QLabel,
+                             QLayout, QMainWindow, QPushButton, QSizePolicy,
+                             QSlider, QToolButton, QWidget)
 
 
 class UpdateThread(QThread):
@@ -37,6 +38,7 @@ class UpdateThread(QThread):
     def terminate(self):
         self.stopFlag = True
 
+
 class QRangeWidget(QGroupBox):
     value_changed = pyqtSignal(int)
 
@@ -48,7 +50,7 @@ class QRangeWidget(QGroupBox):
         grid = QHBoxLayout()
         self.label = QLabel(title)
         self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(0,0)
+        self.slider.setRange(0, 0)
         self.slider.setValue(0)
         self.inc = QToolButton()
         self.inc.setArrowType(Qt.RightArrow)
@@ -58,7 +60,7 @@ class QRangeWidget(QGroupBox):
         grid.addWidget(self.dec)
         grid.addWidget(self.slider, stretch=1)
         grid.addWidget(self.inc)
-        grid.setContentsMargins(0,0,0,0)
+        grid.setContentsMargins(0, 0, 0, 0)
         self.setLayout(grid)
 
         self.slider.valueChanged.connect(self._value_changed)
@@ -102,6 +104,7 @@ class PlotObject():
     """
     object that contains the plot and remembers what is plotted
     """
+
     def __init__(self, layout, index, indexX, indexY):
         self.index = index
         self.desig = [indexX, indexY]
@@ -161,7 +164,7 @@ class SweepPreview(QMainWindow):
         w_close.clicked.connect(self.close)
 
         w_update = QPushButton("update plot")
-        w_update.clicked.connect(lambda : self.conditional_fetch_data(True))
+        w_update.clicked.connect(lambda: self.conditional_fetch_data(True))
 
         w_save = QPushButton("save plot")
         w_save.clicked.connect(self.save_plot)
@@ -199,8 +202,8 @@ class SweepPreview(QMainWindow):
         self.dMode = 0
 
         self.w_2dplot = QCheckBox("2d plotting")
-        #self.w_2dplot.setVisible(False)
-        #self.w_2dplot.toggled.connect(self.transpose_toggled)
+        # self.w_2dplot.setVisible(False)
+        # self.w_2dplot.toggled.connect(self.transpose_toggled)
 
         self.w_transpose = QCheckBox("transpose array")
         self.w_transpose.setVisible(False)
@@ -218,7 +221,7 @@ class SweepPreview(QMainWindow):
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
         self.gl = pg.GraphicsLayoutWidget()
-        self.plots = [PlotObject(self.gl, 0, 0, 0),]
+        self.plots = [PlotObject(self.gl, 0, 0, 0), ]
 
         self.w_plots = QComboBox()
         self.w_plots.addItem("")
@@ -238,7 +241,7 @@ class SweepPreview(QMainWindow):
                                     slot=self.mouse_moved)
 
         self.gl.setSizePolicy(QSizePolicy.Expanding,
-                                   QSizePolicy.Expanding)
+                              QSizePolicy.Expanding)
 
         grid.addWidget(w_file, 14, 0, 1, -1)
         grid.addWidget(self.w_status, 15, 0, 1, -1)
@@ -338,14 +341,13 @@ class SweepPreview(QMainWindow):
         self.comboBoxX.setCurrentIndex(self.plots[index].desig[0])
         self.comboBoxY.setCurrentIndex(self.plots[index].desig[1])
 
-
     def conditional_fetch_data(self, force=False):
         if getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
             updated = False
         elif self.lu_time < getmtime(self.filename) or force is True:
-			# file has changed after last update, reload
+            # file has changed after last update, reload
             self.fetch_data()
             updated = True
         if (self.dMode != self.comboBoxCalc.currentIndex() or
@@ -421,7 +423,6 @@ class SweepPreview(QMainWindow):
                 "data shapes complicated, do not know what to do")
         else:
             self.w_status.setText("")
-
 
     def reload_data_2d(self):
         pass
