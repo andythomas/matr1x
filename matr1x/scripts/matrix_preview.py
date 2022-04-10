@@ -18,8 +18,8 @@ from matr1x.eval import delta, loadh5matrix, loadmatrix
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
                              QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                             QLayout, QMainWindow, QPushButton, QSizePolicy,
-                             QSlider, QToolButton, QWidget)
+                             QLayout, QLineEdit, QMainWindow, QPushButton,
+                             QSizePolicy, QSlider, QToolButton, QWidget)
 
 
 class UpdateThread(QThread):
@@ -105,16 +105,55 @@ class PlotObject():
     object that contains the plot and remembers what is plotted
     """
 
-    def __init__(self, layout, index, indexX, indexY):
+    def __init__(self, layout, status, index, indexX, indexY):
         self.index = index
         self.desig = [indexX, indexY]
         self.layout = layout
+        self.status = status
         self.vb = gu.CustomViewBox()
         self.pw = self.layout.addPlot(row=self.index, col=0, viewBox=self.vb)
         self.plt = self.pw.plot([])
         self.plt.setPen(None)
         self.labels = ["", ""]
         self.units = ["", ""]
+        self.math_mode = 0
+        self.math_texts = ["x", "y"]
+        self.x = np.zeros(0)
+        self.y = np.zeros(0)
+        self.fx = None
+
+    def _get_math(self, x, y):
+        if 0 == self.math_mode:
+            pass
+            # no calculus to be done
+        elif 1 == self.math_mode:
+            x = delta(x)[0]
+            y = delta(y)[1]
+        elif 2 == self.math_mode:
+            x = delta(x)[0]
+            y = delta(y)[0]
+        elif 3 == self.math_mode:
+            xc = None
+            yc = None
+            try:
+                fx = lambda x : eval(self.math_texts[0])
+                xc = fx(x)
+            except Exception as e:
+                self.status.setText(
+                    "error in math function (x): " + str(e))
+            try:
+                fy = lambda y : eval(self.math_texts[1])
+                yc = fy(y)
+            except Exception as e:
+                self.status.setText(
+                    "error in math function (y): " + str(e))
+            if xc is not None and yc is not None:
+                if len(xc) != len(yc):
+                    self.status.setText(
+                        "error in math results: arrays have different length")
+                else:
+                    x, y = xc, yc
+        return x,y
 
     def remove_plot(self):
         self.layout.removeItem(self.layout.getItem(row=self.index, col=0))
@@ -128,13 +167,21 @@ class PlotObject():
     def set_units(self, units):
         self.units = units
 
+    def set_math_mode(self, mode, math_texts):
+        self.math_mode = mode
+        self.math_texts = math_texts
+
+    def set_data(self, x, y):
+        self.x, self.y = x, y
+
     def plot(self, *args, **kwargs):
+        x, y = self._get_math(self.x, self.y)
         self.pw.getAxis("left").textWidth = 0
         self.pw.setLabel("bottom", self.labels[0],
                          self.units[0])
         self.pw.setLabel("left", self.labels[1],
                          self.units[1])
-        self.plt.setData(*args, **kwargs)
+        self.plt.setData(x=x, y=y, *args, **kwargs)
 
 
 class SweepPreview(QMainWindow):
@@ -152,6 +199,7 @@ class SweepPreview(QMainWindow):
         self.udthread = None
         self.lu_time = time.time()
         self.fetch_data()
+        self.multidim = False
         self.init_ui()
 
     def init_ui(self):
@@ -197,9 +245,18 @@ class SweepPreview(QMainWindow):
         self.comboBoxX.currentIndexChanged.connect(self.index_changed)
         self.comboBoxY.currentIndexChanged.connect(self.index_changed)
 
-        self.comboBoxCalc = QComboBox()
-        self.comboBoxCalc.addItems(["None", "Delta-", "Delta+"])
-        self.dMode = 0
+        self.w_calc = QComboBox()
+        self.w_calc.addItems(["None", "delta-", "delta+", "custom"])
+        self.w_calc.currentIndexChanged.connect(self.calc_or_data_changed)
+        self.w_lxmath = QLabel("lambda x : ")
+        self.w_xmath = QLineEdit("x")
+        self.w_xmath.returnPressed.connect(self.calc_or_data_changed)
+        self.w_lymath = QLabel("lambda y : ")
+        self.w_ymath = QLineEdit("y")
+        self.w_ymath.returnPressed.connect(self.calc_or_data_changed)
+        for widget in [self.w_lxmath, self.w_xmath,
+                       self.w_ymath, self.w_lymath]:
+            widget.setVisible(False)
 
         self.w_2dplot = QCheckBox("2d plotting")
         # self.w_2dplot.setVisible(False)
@@ -221,7 +278,7 @@ class SweepPreview(QMainWindow):
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
         self.gl = pg.GraphicsLayoutWidget()
-        self.plots = [PlotObject(self.gl, 0, 0, 0), ]
+        self.plots = [PlotObject(self.gl, self.w_status, 0, 0, 0), ]
 
         self.w_plots = QComboBox()
         self.w_plots.addItem("")
@@ -243,26 +300,30 @@ class SweepPreview(QMainWindow):
         self.gl.setSizePolicy(QSizePolicy.Expanding,
                               QSizePolicy.Expanding)
 
-        grid.addWidget(w_file, 14, 0, 1, -1)
-        grid.addWidget(self.w_status, 15, 0, 1, -1)
+        grid.addWidget(w_file, 19, 0, 1, -1)
+        grid.addWidget(self.w_status, 20, 0, 1, -1)
         grid.addWidget(w_close, 0, 0)
         grid.addWidget(w_update, 4, 0)
         grid.addWidget(self.autoupdateBox, 5, 0)
         grid.addWidget(self.plotlineBox, 6, 0)
         grid.addWidget(self.comboBoxX, 1, 0)
         grid.addWidget(self.comboBoxY, 2, 0)
-        grid.addWidget(self.comboBoxCalc, 3, 0)
-        grid.addWidget(self.w_plots, 7, 0, 1, 1)
-        grid.addWidget(self.w_2dplot, 9, 0, 1, 1)
-        grid.addWidget(self.w_transpose, 10, 0, 1, 1)
-        grid.addWidget(self.w_delete, 8, 0, 1, 1)
+        grid.addWidget(self.w_calc, 3, 0)
+        grid.addWidget(self.w_lxmath, 8, 0)
+        grid.addWidget(self.w_xmath, 9, 0)
+        grid.addWidget(self.w_lymath, 10, 0)
+        grid.addWidget(self.w_ymath, 11, 0)
+        grid.addWidget(self.w_plots, 12, 0, 1, 1)
+        grid.addWidget(self.w_2dplot, 14, 0, 1, 1)
+        grid.addWidget(self.w_transpose, 15, 0, 1, 1)
+        grid.addWidget(self.w_delete, 13, 0, 1, 1)
         grid.addWidget(w_save, 0, 1, 1, 4)
         grid.addWidget(self.posLabel, 0, 5, 1, 1)
-        grid.addWidget(self.gl, 1, 1, 11, 5)
-        grid.addWidget(self.xslider, 12, 1, 1, 5)
-        grid.addWidget(self.yslider, 13, 1, 1, 5)
+        grid.addWidget(self.gl, 1, 1, 16, 5)
+        grid.addWidget(self.xslider, 17, 1, 1, 5)
+        grid.addWidget(self.yslider, 18, 1, 1, 5)
         grid.setColumnStretch(1, 1)
-        grid.setRowStretch(11, 1)
+        grid.setRowStretch(16, 1)
         grid.setSizeConstraint(QLayout.SetNoConstraint)
 
         self.widget = QWidget()
@@ -282,6 +343,22 @@ class SweepPreview(QMainWindow):
                 self.comboBoxY.setEnabled(True)
         self.reload_data()
 
+    def calc_or_data_changed(self):
+        index = self.w_calc.currentIndex()
+        current_plot = self.w_plots.currentIndex()
+        if index == 3 and self.w_lxmath.isVisible() is False:
+            for widget in [self.w_lxmath, self.w_xmath,
+                           self.w_ymath, self.w_lymath]:
+                widget.setVisible(True)
+        elif index != 3 and self.w_lxmath.isVisible() is True:
+            for widget in [self.w_lxmath, self.w_xmath,
+                           self.w_ymath, self.w_lymath]:
+                widget.setVisible(False)
+
+        self.plots[current_plot].set_math_mode(
+            index, [self.w_xmath.text(), self.w_ymath.text()])
+        self.plots[current_plot].plot(symbol="o")
+
     def slider_moved(self, newValue):
         """
         If slider has been moved, plot different data
@@ -294,20 +371,11 @@ class SweepPreview(QMainWindow):
         """
         self.reload_data()
 
-    def plot_2nd_toggled(self, check_state):
-        if check_state is True:
-            index = 1
-            if len(self.plots) < 2:
-                self.plots.append(PlotObject(self.gl, index, 0, 0))
-        else:
-            index = 0
-        self.comboBoxX.setCurrentIndex(self.plots[index].desig[0])
-        self.comboBoxY.setCurrentIndex(self.plots[index].desig[1])
-
     def add_wplot(self):
         taken_indices = [plot.index for plot in self.plots]
         index = max(taken_indices) + 1
-        self.plots.append(PlotObject(self.gl, index, 0, 0))
+        self.plots.append(PlotObject(self.gl, self.w_status,
+                                     index, 0, 0))
         self.w_plots.addItem("add plot")
 
     def remove_wplot(self):
@@ -338,6 +406,11 @@ class SweepPreview(QMainWindow):
         for i, plot in enumerate(self.plots):
             name = f"p{i} - {plot.labels[0]} vs {plot.labels[1]}"
             self.w_plots.setItemText(i, name)
+
+        # update widgets according to specifications in currently selected plot
+        self.w_xmath.setText(self.plots[index].math_texts[0])
+        self.w_ymath.setText(self.plots[index].math_texts[1])
+        self.w_calc.setCurrentIndex(self.plots[index].math_mode)
         self.comboBoxX.setCurrentIndex(self.plots[index].desig[0])
         self.comboBoxY.setCurrentIndex(self.plots[index].desig[1])
 
@@ -347,12 +420,9 @@ class SweepPreview(QMainWindow):
             # to avoid overloading the system with read queries
             updated = False
         elif self.lu_time < getmtime(self.filename) or force is True:
-            # file has changed after last update, reload
-            self.fetch_data()
-            updated = True
-        if (self.dMode != self.comboBoxCalc.currentIndex() or
-                updated is True):
+            # file has changed after last update,
             # reload the data into the file structure
+            self.fetch_data()
             self.reload_data()
 
     def mouse_moved(self, ev):
@@ -545,35 +615,16 @@ class SweepPreview(QMainWindow):
         """
         Updates the plot to show sweep[index] against its range
         """
-        self.dMode = self.comboBoxCalc.currentIndex()
         if self.multidim is True:
             x = self.xdata[:, self.xslider.value()]
             y = self.ydata[:, self.yslider.value()]
         else:
             x = self.xdata
             y = self.ydata
-        if 0 == self.dMode:
-            # no calculus to be done
-            pass
-        elif 1 == self.dMode:
-            x = delta(x)[0]
-            y = delta(y)[1]
-        elif 2 == self.dMode:
-            x = delta(x)[0]
-            y = delta(y)[0]
-        """
-        # if 3pt delta is wished for...
-        elif 3 == self.dMode:
-            self.xdata = delta3p(x)[0]
-            self.ydata = delta3p(y)[1]
-        elif 4 == self.dMode:
-            self.xdata = delta3p(x)[0]
-            self.ydata = delta3p(y)[0]
-        """
         # update labels on plot
         index = self.w_plots.currentIndex()
-        self.plots[index].plot(x=x, y=y, symbol="o")
-        self.update_wplots(index)
+        self.plots[index].set_data(x, y)
+        self.calc_or_data_changed()
 
 
 def main():
