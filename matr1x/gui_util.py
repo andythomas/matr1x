@@ -39,6 +39,8 @@ class CustomViewBox(pg.ViewBox):
             self.autoRange()
             # set autorange upon change of data
             self.enableAutoRange()
+        # elif ev.button() == Qt.MidButton:
+        #     self.raiseContextMenu(ev)
 
     # reimplement drag event
     def mouseDragEvent(self, ev, axis=None):
