@@ -136,13 +136,13 @@ class PlotObject():
             xc = None
             yc = None
             try:
-                fx = lambda x : eval(self.math_texts[0])
+                def fx(x): return eval(self.math_texts[0])
                 xc = fx(x)
             except Exception as e:
                 self.status.setText(
                     "error in math function (x): " + str(e))
             try:
-                fy = lambda y : eval(self.math_texts[1])
+                def fy(y): return eval(self.math_texts[1])
                 yc = fy(y)
             except Exception as e:
                 self.status.setText(
@@ -153,7 +153,7 @@ class PlotObject():
                         "error in math results: arrays have different length")
                 else:
                     x, y = xc, yc
-        return x,y
+        return x, y
 
     def remove_plot(self):
         self.layout.removeItem(self.layout.getItem(row=self.index, col=0))
