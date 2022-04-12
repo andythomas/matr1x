@@ -17,9 +17,9 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import delta, loadh5matrix, loadmatrix
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
-                             QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                             QLayout, QLineEdit, QMainWindow, QPushButton,
-                             QSizePolicy, QSlider, QToolButton, QWidget)
+                             QGridLayout, QGroupBox, QHBoxLayout, QFrame, QLabel,
+                             QLayout, QLineEdit, QMainWindow, QMessageBox, QPushButton,
+                             QSizePolicy, QSlider, QToolButton, QVBoxLayout, QWidget)
 
 
 class UpdateThread(QThread):
@@ -104,14 +104,21 @@ class PlotObject():
     """
     object that contains the plot and remembers what is plotted
     """
+    exposed_functions = {"np": np, "sqrt": np.sqrt, "e": np.e, "pi": np.pi,
+                         "power": np.power, "log": np.log, "log10": np.log10,
+                         "exp": np.exp}
 
-    def __init__(self, layout, status, index, indexX, indexY):
+    def __init__(self, l_plot, status, error, l_slider,
+                 index, indexX, indexY):
         self.index = index
         self.desig = [indexX, indexY]
-        self.layout = layout
+        self.l_plot = l_plot
+        self.l_slider = l_slider
         self.status = status
+        self.error = error
         self.vb = gu.CustomViewBox()
-        self.pw = self.layout.addPlot(row=self.index, col=0, viewBox=self.vb)
+        self.pw = self.l_plot.addPlot(row=self.index, col=0,
+                                      viewBox=self.vb, title=f"p{index}")
         self.plt = self.pw.plot([])
         self.plt.setPen(None)
         self.labels = ["", ""]
@@ -121,6 +128,32 @@ class PlotObject():
         self.x = np.zeros(0)
         self.y = np.zeros(0)
         self.fx = None
+
+        self.w_hline = QFrame()
+        self.w_hline.setFrameShape(QFrame.HLine)
+        self.w_hline.setFixedHeight(2)
+        self.w_hline.setVisible(False)
+        self.w_xslider = QRangeWidget(f"p{index} - x")
+        self.w_xslider.setRange(0, 0)
+        self.w_xslider.value_changed.connect(self._slider_event)
+        self.w_xslider.setVisible(False)
+        self.w_yslider = QRangeWidget(f"p{index} - y")
+        self.w_yslider.setRange(0, 0)
+        self.w_yslider.value_changed.connect(self._slider_event)
+        self.w_yslider.setVisible(False)
+        self.l_slider.addWidget(self.w_hline)
+        self.l_slider.addWidget(self.w_xslider)
+        self.l_slider.addWidget(self.w_yslider)
+
+    def _slider_moved(self, newValue):
+        """
+        If slider has been moved, plot different data
+        """
+        self.update_plot()
+
+    def _raise_error(self, error):
+        self.error()
+        self.status.setText(error)
 
     def _get_math(self, x, y):
         if 0 == self.math_mode:
@@ -136,27 +169,65 @@ class PlotObject():
             xc = None
             yc = None
             try:
-                def fx(x): return eval(self.math_texts[0])
-                xc = fx(x)
+                def fx(xf,yf):
+                    return eval(self.math_texts[0],
+                                {"x":xf, "y":yf} | self.exposed_functions)
+                xc = fx(x,y)
             except Exception as e:
-                self.status.setText(
+                self._raise_error(
                     "error in math function (x): " + str(e))
             try:
-                def fy(y): return eval(self.math_texts[1])
-                yc = fy(y)
+                def fy(xf,yf):
+                    return eval(self.math_texts[1],
+                                {"x":xf, "y":yf} | self.exposed_functions)
+                yc = fy(x,y)
             except Exception as e:
-                self.status.setText(
+                self._raise_error(
                     "error in math function (y): " + str(e))
             if xc is not None and yc is not None:
                 if len(xc) != len(yc):
-                    self.status.setText(
+                    self._raise_error(
                         "error in math results: arrays have different length")
                 else:
                     x, y = xc, yc
         return x, y
 
+    def _handle_multidim_and_sliders(self):
+        self.md = False
+        for slider, dshape in zip([self.w_xslider, self.w_yslider],
+                                  [self.xdata.shape, self.ydata.shape]):
+            slider.setVisible(False)
+            if len(dshape) > 1 and all(np.array(dshape) > 1):
+                self.md = True
+                slider.setVisible(True)
+                slider.setRange(0, dshape[1]-1)
+            else:
+                # reset hidden slider to zero to avoid intereference
+                # with new data
+                slider.setValue(0)
+
+        if self.md is True:
+            self.w_hline.setVisible(True)
+            self._handle_multidim_data()
+        else:
+            self.w_hline.setVisible(False)
+            self.x = self.xdata
+            self.y = self.ydata
+
+    def _handle_multidim_data(self):
+        if self.md is True:
+            self.x = self.xdata[:, self.w_xslider.value()]
+            self.y = self.ydata[:, self.w_yslider.value()]
+
+    def _slider_event(self, val):
+        self._handle_multidim_data()
+        self.plot(symbol="o")
+
     def remove_plot(self):
-        self.layout.removeItem(self.layout.getItem(row=self.index, col=0))
+        self.l_plot.removeItem(self.l_plot.getItem(row=self.index, col=0))
+        self.l_slider.removeWidget(self.w_hline)
+        self.l_slider.removeWidget(self.w_xslider)
+        self.l_slider.removeWidget(self.w_yslider)
 
     def set_designator(self, desig):
         self.desig = desig
@@ -172,7 +243,9 @@ class PlotObject():
         self.math_texts = math_texts
 
     def set_data(self, x, y):
-        self.x, self.y = x, y
+        self.xdata = x
+        self.ydata = y
+        self._handle_multidim_and_sliders()
 
     def plot(self, *args, **kwargs):
         x, y = self._get_math(self.x, self.y)
@@ -195,11 +268,22 @@ class SweepPreview(QMainWindow):
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)
-        self.filename = filename
+        if filename == "":
+            filename = QFileDialog.getOpenFileName(
+                self, "Select ma file", "",
+                "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
+            if "" != filename:
+                self.filename = filename
+            else:
+                # no file was provided, terminate
+                sys.exit()
+        else:
+            self.filename = filename
         self.udthread = None
         self.lu_time = time.time()
         self.fetch_data()
         self.multidim = False
+        self.error = False
         self.init_ui()
 
     def init_ui(self):
@@ -250,9 +334,15 @@ class SweepPreview(QMainWindow):
         self.w_calc.currentIndexChanged.connect(self.calc_or_data_changed)
         self.w_lxmath = QLabel("lambda x : ")
         self.w_xmath = QLineEdit("x")
+        self.w_xmath.setToolTip("You can use power,sqrt,exp,log,log10 and "
+                                "numpy is defined as np.\nThe dimensions on "
+                                "x and y need to be equal after any opeartion")
         self.w_xmath.returnPressed.connect(self.calc_or_data_changed)
         self.w_lymath = QLabel("lambda y : ")
         self.w_ymath = QLineEdit("y")
+        self.w_ymath.setToolTip("You can use power,sqrt,exp,log,log10 and "
+                                "numpy is defined as np.\nThe dimensions on "
+                                "x and y need to be equal after any opeartion")
         self.w_ymath.returnPressed.connect(self.calc_or_data_changed)
         for widget in [self.w_lxmath, self.w_xmath,
                        self.w_ymath, self.w_lymath]:
@@ -266,19 +356,15 @@ class SweepPreview(QMainWindow):
         self.w_transpose.setVisible(False)
         self.w_transpose.toggled.connect(self.transpose_toggled)
 
-        self.xslider = QRangeWidget("x data")
-        self.xslider.setRange(0, 0)
-        self.xslider.value_changed.connect(self.slider_moved)
-        self.xslider.setVisible(False)
-        self.yslider = QRangeWidget("y data")
-        self.yslider.setRange(0, 0)
-        self.yslider.value_changed.connect(self.slider_moved)
-        self.yslider.setVisible(False)
-
+        self.l_slider = QVBoxLayout()
+        #self.l_slider.setMargins(0, 0, 0, 0)
+        self.l_slider.setSpacing(0)
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
         self.gl = pg.GraphicsLayoutWidget()
-        self.plots = [PlotObject(self.gl, self.w_status, 0, 0, 0), ]
+        self.plots = [PlotObject(self.gl, self.w_status,
+                                 self.raise_error, self.l_slider,
+                                 0, 0, 0), ]
 
         self.w_plots = QComboBox()
         self.w_plots.addItem("")
@@ -320,8 +406,7 @@ class SweepPreview(QMainWindow):
         grid.addWidget(w_save, 0, 1, 1, 4)
         grid.addWidget(self.posLabel, 0, 5, 1, 1)
         grid.addWidget(self.gl, 1, 1, 16, 5)
-        grid.addWidget(self.xslider, 17, 1, 1, 5)
-        grid.addWidget(self.yslider, 18, 1, 1, 5)
+        grid.addLayout(self.l_slider, 17, 1, 1, 5)
         grid.setColumnStretch(1, 1)
         grid.setRowStretch(16, 1)
         grid.setSizeConstraint(QLayout.SetNoConstraint)
@@ -354,16 +439,11 @@ class SweepPreview(QMainWindow):
             for widget in [self.w_lxmath, self.w_xmath,
                            self.w_ymath, self.w_lymath]:
                 widget.setVisible(False)
+        self.handle_error(0)
 
         self.plots[current_plot].set_math_mode(
             index, [self.w_xmath.text(), self.w_ymath.text()])
         self.plots[current_plot].plot(symbol="o")
-
-    def slider_moved(self, newValue):
-        """
-        If slider has been moved, plot different data
-        """
-        self.update_plot()
 
     def transpose_toggled(self, check_state):
         """
@@ -371,10 +451,17 @@ class SweepPreview(QMainWindow):
         """
         self.reload_data()
 
+    def raise_error(self):
+        """
+        raise the error flag
+        """
+        self.error = True
+
     def add_wplot(self):
         taken_indices = [plot.index for plot in self.plots]
         index = max(taken_indices) + 1
         self.plots.append(PlotObject(self.gl, self.w_status,
+                                     self.raise_error, self.l_slider,
                                      index, 0, 0))
         self.w_plots.addItem("add plot")
 
@@ -395,6 +482,11 @@ class SweepPreview(QMainWindow):
             # nothing else to be deleted, hide button
             self.w_delete.setVisible(False)
 
+    def update_wplot_label(self):
+        for i, plot in enumerate(self.plots):
+            name = f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}"
+            self.w_plots.setItemText(i, name)
+
     def update_wplots(self, index):
         cnt = self.w_plots.count()
         if index == cnt-1 and cnt > 1:
@@ -403,9 +495,9 @@ class SweepPreview(QMainWindow):
         if cnt > 2 and self.w_delete.isVisible() is False:
             # something can be deleted, make button visible
             self.w_delete.setVisible(True)
-        for i, plot in enumerate(self.plots):
-            name = f"p{i} - {plot.labels[0]} vs {plot.labels[1]}"
-            self.w_plots.setItemText(i, name)
+
+        # update the labels
+        #self.update_wplot_label()
 
         # update widgets according to specifications in currently selected plot
         self.w_xmath.setText(self.plots[index].math_texts[0])
@@ -443,13 +535,25 @@ class SweepPreview(QMainWindow):
         # exporter.parameters()["width"] = 1920
 
     def fetch_data(self):
-        if ".h5." in self.filename:
-            self.header, self.data = loadh5matrix(self.filename)
-            self.names, self.units = self.header[:2]
-        else:
-            self.header, self.data = loadmatrix(
-                self.filename, structured=True)
-            self.names, self.units = self.data.dtype.names, self.header[1]
+        try:
+            if ".h5." in self.filename:
+                self.header, self.data = loadh5matrix(self.filename)
+                self.names, self.units = self.header[:2]
+            else:
+                self.header, self.data = loadmatrix(
+                    self.filename, structured=True)
+                self.names, self.units = self.data.dtype.names, self.header[1]
+        except Exception:
+            # file could not be opened
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            a = QMessageBox.critical(
+                self, f"Error when opening file",
+                f"""
+The following error was raised when opening the file:
+{repr(exc_value)}
+Please investigate the error and eventually restart matrix_preview""")
+            sys.exit(-1)
+
         self.shapes = [self.data[col].shape for col in self.names]
         # update timer
         self.lu_time = time.time()
@@ -478,20 +582,24 @@ class SweepPreview(QMainWindow):
         else:
             ret = self.reload_data_curve()
             self.handle_error(ret)
+        self.update_wplot_label()
 
     def handle_error(self, ret):
-        if ret == -3:
-            self.w_status.setText("no data selected")
-        elif ret == -2:
-            self.w_status.setText(
-                "data has too high dimension for 1d slicing")
-        elif ret == -1:
-            self.w_status.setText(
-                "data axis cannot be reshaped, lengths not multiples")
-        elif ret == -4:
-            self.w_status.setText(
-                "data shapes complicated, do not know what to do")
-        else:
+        if ret < 0:
+            self.error = True
+            if ret == -3:
+                self.w_status.setText("no data selected")
+            elif ret == -2:
+                self.w_status.setText(
+                    "data has too high dimension for 1d slicing")
+            elif ret == -1:
+                self.w_status.setText(
+                    "data axis cannot be reshaped, lengths not multiples")
+            elif ret == -4:
+                self.w_status.setText(
+                    "data shapes complicated, do not know what to do")
+        elif self.error is True:
+            self.error = False
             self.w_status.setText("")
 
     def reload_data_2d(self):
@@ -593,51 +701,31 @@ class SweepPreview(QMainWindow):
                 # of 3D data. I see no use case in implementing this
                 return -2
 
-        # initialize slider ranges and visibility if reuqired
-        self.multidim = False
-        self.xslider.setVisible(False)
-        self.yslider.setVisible(False)
-        if len(self.xdata.shape) > 1 and all(np.array(self.xdata.shape) > 1):
-            self.multidim = True
-            self.xslider.setVisible(True)
-            self.xslider.setRange(0, self.xdata.shape[1]-1)
-            self.xslider.setValue(0)
-        if len(self.ydata.shape) > 1 and all(np.array(self.ydata.shape) > 1):
-            self.multidim = True
-            self.yslider.setVisible(True)
-            self.yslider.setRange(0, self.ydata.shape[1]-1)
-            self.yslider.setValue(0)
-
         # update the plotted data
         self.update_plot()
+        return 0
 
     def update_plot(self):
         """
         Updates the plot to show sweep[index] against its range
         """
-        if self.multidim is True:
-            x = self.xdata[:, self.xslider.value()]
-            y = self.ydata[:, self.yslider.value()]
-        else:
-            x = self.xdata
-            y = self.ydata
         # update labels on plot
         index = self.w_plots.currentIndex()
-        self.plots[index].set_data(x, y)
+        self.plots[index].set_data(self.xdata, self.ydata)
         self.calc_or_data_changed()
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("no filename provided, exiting")
-        sys.exit(0, )
     app = QApplication(sys.argv)
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
     if 'SIGTTOU' in dir(signal):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     with QtGracefulKiller():
-        ex = SweepPreview(None, sys.argv[1])
+        if len(sys.argv) < 2:
+            ex = SweepPreview(None, "")
+        else:
+            ex = SweepPreview(None, sys.argv[1])
         ex.show()
         ret = app.exec()
     sys.exit(ret)
