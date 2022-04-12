@@ -17,9 +17,10 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import delta, loadh5matrix, loadmatrix
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
-                             QGridLayout, QGroupBox, QHBoxLayout, QFrame, QLabel,
-                             QLayout, QLineEdit, QMainWindow, QMessageBox, QPushButton,
-                             QSizePolicy, QSlider, QToolButton, QVBoxLayout, QWidget)
+                             QFrame, QGridLayout, QGroupBox, QHBoxLayout,
+                             QLabel, QLayout, QLineEdit, QMainWindow,
+                             QMessageBox, QPushButton, QSizePolicy, QSlider,
+                             QToolButton, QVBoxLayout, QWidget)
 
 
 class UpdateThread(QThread):
@@ -169,18 +170,18 @@ class PlotObject():
             xc = None
             yc = None
             try:
-                def fx(xf,yf):
+                def fx(xf, yf):
                     return eval(self.math_texts[0],
-                                {"x":xf, "y":yf} | self.exposed_functions)
-                xc = fx(x,y)
+                                {"x": xf, "y": yf} | self.exposed_functions)
+                xc = fx(x, y)
             except Exception as e:
                 self._raise_error(
                     "error in math function (x): " + str(e))
             try:
-                def fy(xf,yf):
+                def fy(xf, yf):
                     return eval(self.math_texts[1],
-                                {"x":xf, "y":yf} | self.exposed_functions)
-                yc = fy(x,y)
+                                {"x": xf, "y": yf} | self.exposed_functions)
+                yc = fy(x, y)
             except Exception as e:
                 self._raise_error(
                     "error in math function (y): " + str(e))
@@ -497,7 +498,7 @@ class SweepPreview(QMainWindow):
             self.w_delete.setVisible(True)
 
         # update the labels
-        #self.update_wplot_label()
+        # self.update_wplot_label()
 
         # update widgets according to specifications in currently selected plot
         self.w_xmath.setText(self.plots[index].math_texts[0])
