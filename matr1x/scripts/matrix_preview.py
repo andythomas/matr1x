@@ -108,6 +108,7 @@ class SimplePlotWidget(QGroupBox):
     """
     plot widget that contains the simple part of the plotting functions
     """
+
     def __init__(self, cb_error, cb_index, parent=None):
         super().__init__("", parent)
         self.cb_error = cb_error
@@ -151,7 +152,7 @@ class SimplePlotWidget(QGroupBox):
 
         self.gl = pg.GraphicsLayoutWidget()
         self.plots = [PlotObject(self.gl, self.cb_error, self.l_slider,
-                                 False, 0, [0, 0, 0]),]
+                                 False, 0, [0, 0, 0]), ]
 
         self.w_plots = QComboBox()
         self.w_plots.addItem("")
@@ -264,7 +265,7 @@ class SimplePlotWidget(QGroupBox):
         vb = self.plots[0].vb
         mousePoint = vb.mapSceneToView(ev[0])
         self.posLabel.setText("x: {:.5e}\ny: {:.5e}".format(mousePoint.x(),
-                                                        mousePoint.y()))
+                                                            mousePoint.y()))
 
     def save_plot(self):
         exporter = pg.exporters.ImageExporter(self.gl.scene())
@@ -291,7 +292,7 @@ class SimplePlotWidget(QGroupBox):
         plt = self.plots.pop(index)
         del plt
         self.plots.insert(index, PlotObject(self.gl, self.cb_error,
-            self.l_slider, new_state, plotindex, [0, 0, 0]))
+                                            self.l_slider, new_state, plotindex, [0, 0, 0]))
         # reset flag
         if any([plot.plot2d for plot in self.plots]) is True:
             self.toggle_plot2d(True)
@@ -328,7 +329,7 @@ class PlotObject():
         self.error = error
         self.vb = gu.CustomViewBox()
         if self.plot2d is True:
-            self.plt = pg.ImageView(view=self.vb)#, title=f"p{index}")
+            self.plt = pg.ImageView(view=self.vb)  # , title=f"p{index}")
             self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                           viewBox=self.vb)
         else:
@@ -491,7 +492,7 @@ class PlotObject():
                 scale = [xscale, 1]
             if len(self.z.shape) > 2:
                 self.plt.setImage(self.z, pos=pos, scale=scale,
-                                  axes={"t":2, "x":0, "y":1})
+                                  axes={"t": 2, "x": 0, "y": 1})
             else:
                 self.plt.setImage(self.z, pos=pos, scale=scale)
             self.pw.getAxis("left").textWidth = 0
@@ -749,7 +750,8 @@ Please investigate the error and eventually restart matrix_preview""")
             self.w_status.setText("")
 
     def reload_data_2d(self):
-        indexZ, indexX, indexY = [self.w_index[i].currentIndex() - 1 for i in range(3)]
+        indexZ, indexX, indexY = [
+            self.w_index[i].currentIndex() - 1 for i in range(3)]
         x = {}
         y = {}
         z = {}
@@ -779,7 +781,7 @@ Please investigate the error and eventually restart matrix_preview""")
         # plottable in a 2d plot
         if self.w_transpose.isChecked() is True:
             if z["dim"] == 3:
-                z["data"] = z["data"].transpose(1,0,2)
+                z["data"] = z["data"].transpose(1, 0, 2)
             else:
                 z["data"] = z["data"].T
         z["shape"] = z["data"].shape
@@ -805,10 +807,10 @@ Please investigate the error and eventually restart matrix_preview""")
         if self.w_plot2d_comp.isChecked() is True:
             if z["dim"] > 2:
                 self.iv.setImage(z["data"],
-                                 axes={"t":2, "x":0, "y":1})
+                                 axes={"t": 2, "x": 0, "y": 1})
                 self.iv.getView().invertY(False)
             else:
-                self.iv.setImage(z["data"], axes={"x":0, "y":1})
+                self.iv.setImage(z["data"], axes={"x": 0, "y": 1})
                 self.iv.getView().invertY(False)
 
         else:
@@ -883,8 +885,8 @@ Please investigate the error and eventually restart matrix_preview""")
                 large_axis = max(x["shape"][0], y["shape"][0])
                 if 0 == large_axis % small_axis:
                     # data can be reshaped
-                    x["data"]= x["data"].reshape(small_axis, -1)
-                    y["data"]= y["data"].reshape(small_axis, -1)
+                    x["data"] = x["data"].reshape(small_axis, -1)
+                    y["data"] = y["data"].reshape(small_axis, -1)
                 else:
                     # data cannot be reshaped, abort
                     return -1
@@ -922,6 +924,7 @@ Please investigate the error and eventually restart matrix_preview""")
         # update meta information and data
         self.spw.plot(y, x, plot2d=self.w_plot2d.isChecked())
         return 0
+
 
 def main():
     app = QApplication(sys.argv)
