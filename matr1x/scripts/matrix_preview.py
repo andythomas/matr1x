@@ -86,14 +86,17 @@ class QRangeWidget(QGroupBox):
         self._updateText()
         self.value_changed.emit(val)
 
-    def setValue(self, val):
+    def set_base_title(self, title):
+        self.base_title = title
+
+    def set_value(self, val):
         self.slider.setValue(val)
         self._updateText()
 
     def value(self):
         return self.slider.value()
 
-    def setRange(self, minimum, maximum):
+    def set_range(self, minimum, maximum):
         self.slider.setRange(minimum, maximum)
         self._updateText()
 
@@ -109,6 +112,8 @@ class SimplePlotWidget(QGroupBox):
         super().__init__("", parent)
         self.cb_error = cb_error
         self.cb_index = cb_index
+        # 2d flag
+        self.plot2d = False
 
         grid = QGridLayout()
 
@@ -119,7 +124,7 @@ class SimplePlotWidget(QGroupBox):
         self.posLabel.setMinimumWidth(100)
 
         self.w_delete = QPushButton("delete plot")
-        self.w_delete.clicked.connect(self.remove_wplot)
+        self.w_delete.clicked.connect(self.remove_plot)
         self.w_delete.setVisible(False)
 
         self.l_slider = QVBoxLayout()
@@ -128,23 +133,21 @@ class SimplePlotWidget(QGroupBox):
 
         self.w_calc = QComboBox()
         self.w_calc.addItems(["None", "delta-", "delta+", "custom"])
-        self.w_lxmath = QLabel("lambda x : ")
-        self.w_xmath = QLineEdit("x")
-        self.w_xmath.setToolTip("You can use power,sqrt,exp,log,log10 and "
-                                "numpy is defined as np.\nThe dimensions on "
-                                "x and y need to be equal after any opeartion")
-        self.w_lymath = QLabel("lambda y : ")
-        self.w_ymath = QLineEdit("y")
-        self.w_ymath.setToolTip("You can use power,sqrt,exp,log,log10 and "
-                                "numpy is defined as np.\nThe dimensions on "
-                                "x and y need to be equal after any opeartion")
-        for widget in [self.w_lxmath, self.w_xmath,
-                       self.w_ymath, self.w_lymath]:
-            widget.setVisible(False)
-
         self.w_calc.currentIndexChanged.connect(self.calc_or_data_changed)
-        self.w_xmath.returnPressed.connect(self.calc_or_data_changed)
-        self.w_ymath.returnPressed.connect(self.calc_or_data_changed)
+
+        self.w_math = [QLineEdit("y"), QLineEdit("x")]
+        self.w_lmath = [QLabel("lambda y : "),
+                        QLabel("lambda x : ")]
+
+        for i in range(2):
+            self.w_math[i].returnPressed.connect(self.calc_or_data_changed)
+            self.w_math[i].setToolTip(
+                "You can use power,sqrt,exp,log,log10 and "
+                "numpy is defined as np.\nThe dimensions on "
+                "y and x need to be equal after any operation")
+
+        for widget in self.w_math + self.w_lmath:
+            widget.setVisible(False)
 
         self.gl = pg.GraphicsLayoutWidget()
         self.plots = [PlotObject(self.gl, self.cb_error, self.l_slider,
@@ -156,12 +159,11 @@ class SimplePlotWidget(QGroupBox):
         self.update_wplots(0)
         self.w_plots.currentIndexChanged.connect(self.update_wplots)
 
-        self.plotlineBox = QCheckBox("show plot line")
         lineinit = False
-
+        self.plotlineBox = QCheckBox("show plot line")
         self.plotlineBox.setChecked(lineinit)
-        self.plotlineBox.toggled.connect(self.update_linesetting)
         self.update_linesetting(lineinit)
+        self.plotlineBox.toggled.connect(self.update_linesetting)
 
         self.proxy = pg.SignalProxy(self.gl.scene().sigMouseMoved,
                                     rateLimit=30,
@@ -171,10 +173,9 @@ class SimplePlotWidget(QGroupBox):
                               QSizePolicy.Expanding)
 
         grid.addWidget(self.w_calc, 4, 0)
-        grid.addWidget(self.w_lxmath, 4, 1)
-        grid.addWidget(self.w_xmath, 4, 2)
-        grid.addWidget(self.w_lymath, 4, 3)
-        grid.addWidget(self.w_ymath, 4, 4)
+        for i in range(2):
+            grid.addWidget(self.w_lmath[i], 4, 2*i+1)
+            grid.addWidget(self.w_math[i], 4, 2*i+2)
         grid.addWidget(self.plotlineBox, 3, 5)
         grid.addWidget(self.w_delete, 0, 4, 1, 1)
         grid.addWidget(self.posLabel, 0, 5, 1, 1)
@@ -182,13 +183,15 @@ class SimplePlotWidget(QGroupBox):
         grid.addWidget(self.gl, 1, 0, 1, 6)
         grid.addWidget(self.w_plots, 0, 0, 1, 4)
         grid.addWidget(w_save, 2, 5, 1, 1)
+
         grid.setColumnStretch(0, 1)
         grid.setRowStretch(1, 1)
         grid.setSizeConstraint(QLayout.SetNoConstraint)
         grid.setContentsMargins(0, 0, 0, 0)
+
         self.setLayout(grid)
 
-    def add_wplot(self):
+    def add_plot(self):
         taken_indices = [plot.index for plot in self.plots]
         index = max(taken_indices) + 1
         self.plots.append(PlotObject(self.gl, self.cb_error,
@@ -197,7 +200,7 @@ class SimplePlotWidget(QGroupBox):
                                      index, [0, 0, 0]))
         self.w_plots.addItem("add plot")
 
-    def remove_wplot(self):
+    def remove_plot(self):
         if len(self.plots) == 1:
             # only single plot present
             return
@@ -214,45 +217,47 @@ class SimplePlotWidget(QGroupBox):
             # nothing else to be deleted, hide button
             self.w_delete.setVisible(False)
 
-    def update_wplot_label(self):
-        for i, plot in enumerate(self.plots):
-            name = f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}"
-            self.w_plots.setItemText(i, name)
-
     def update_wplots(self, index):
         cnt = self.w_plots.count()
         if index == cnt-1 and cnt > 1:
-            self.add_wplot()
+            self.add_plot()
             cnt += 1
         if cnt > 2 and self.w_delete.isVisible() is False:
             # something can be deleted, make button visible
             self.w_delete.setVisible(True)
 
-        # update the labels
-        self.update_wplot_label()
+        self.w_calc.setVisible(not self.plots[index].plot2d)
 
         # update widgets according to specifications in currently selected plot
         self.w_calc.setCurrentIndex(self.plots[index].math_mode)
-        self.w_xmath.setText(self.plots[index].math_texts[0])
-        self.w_ymath.setText(self.plots[index].math_texts[1])
+        for i in range(2):
+            self.w_math[i].setText(self.plots[index].math_texts[i])
         self.cb_index(self.plots[index])
+
+    def toggle_plot2d(self, flag):
+        self.plot2d = flag
+        for widget in self.w_math + self.w_lmath:
+            widget.setVisible(not flag)
+        self.w_calc.setVisible(not flag)
 
     def calc_or_data_changed(self):
         index = self.w_calc.currentIndex()
         current_plot = self.w_plots.currentIndex()
-        if index == 3 and self.w_lxmath.isVisible() is False:
-            for widget in [self.w_lxmath, self.w_xmath,
-                           self.w_ymath, self.w_lymath]:
+        if index == 3 and self.w_math[0].isVisible() is False:
+            for widget in self.w_math + self.w_lmath:
                 widget.setVisible(True)
-        elif index != 3 and self.w_lxmath.isVisible() is True:
-            for widget in [self.w_lxmath, self.w_xmath,
-                           self.w_ymath, self.w_lymath]:
+        elif index != 3 and self.w_math[0].isVisible() is True:
+            for widget in self.w_math + self.w_lmath:
                 widget.setVisible(False)
+        # update the labels of the plot combo box
+        for i, plot in enumerate(self.plots):
+            name = f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}"
+            self.w_plots.setItemText(i, name)
         # reset error
         self.cb_error("")
 
         self.plots[current_plot].set_math_mode(
-            index, [self.w_xmath.text(), self.w_ymath.text()])
+            index, [math.text() for math in self.w_math])
         self.plots[current_plot].plot(symbol="o")
 
     def mouse_moved(self, ev):
@@ -283,20 +288,25 @@ class SimplePlotWidget(QGroupBox):
     def plot2d_changed(self, index, new_state):
         plotindex = self.plots[index].index
         self.plots[index].remove_plot()
-        self.plots[index] = PlotObject(self.gl, self.cb_error,
-                                       self.l_slider,
-                                       new_state,
-                                       plotindex, 0, 0)
+        plt = self.plots.pop(index)
+        del plt
+        self.plots.insert(index, PlotObject(self.gl, self.cb_error,
+            self.l_slider, new_state, plotindex, [0, 0, 0]))
+        # reset flag
+        if any([plot.plot2d for plot in self.plots]) is True:
+            self.toggle_plot2d(True)
+        else:
+            self.toggle_plot2d(False)
 
-    def plot(self, desig=[0,0,0], labels=["", ""], units=["", ""],
-             math = [0, ["x", "y"]], data=[[],[]], plot2d=False):
+    def plot(self, z, x, y=None, plot2d=False):
         index = self.w_plots.currentIndex()
         if self.plots[index].plot2d != plot2d:
             self.plot2d_changed(index, plot2d)
-        self.plots[index].set_designator(desig)
-        self.plots[index].set_labels(labels)
-        self.plots[index].set_units(units)
-        self.plots[index].set_data(*data)
+        cplot = self.plots[index]
+        if y is not None:
+            cplot.set_data(z, x, y)
+        else:
+            cplot.set_data(z, x)
         self.calc_or_data_changed()
 
 
@@ -321,17 +331,16 @@ class PlotObject():
             self.plt = pg.ImageView(view=self.vb)#, title=f"p{index}")
             self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                           viewBox=self.vb)
-            self.plt.setImage(np.random.random((20,20,20)),
-                              xvals=np.linspace(1,5,20))
         else:
             self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                           viewBox=self.vb, title=f"p{index}")
             self.plt = self.pw.plot([])
             self.plt.setPen(None)
-        self.labels = ["", ""]
-        self.units = ["", ""]
+        self.labels = ["", "", ""]
+        self.units = ["", "", ""]
         self.math_mode = 0
-        self.math_texts = ["x", "y"]
+        self.math_texts = ["y", "x"]
+        self.z = np.zeros(0)
         self.x = np.zeros(0)
         self.y = np.zeros(0)
         self.fx = None
@@ -340,28 +349,31 @@ class PlotObject():
         self.w_hline.setFrameShape(QFrame.HLine)
         self.w_hline.setFixedHeight(2)
         self.w_hline.setVisible(False)
+        if plot2d is True:
+            self.w_zslider = QRangeWidget(f"p{index} - z")
+        else:
+            self.w_zslider = QRangeWidget(f"p{index} - y")
+        self.w_zslider.set_range(0, 19)
+        self.w_zslider.value_changed.connect(self._slider_event)
+        self.w_zslider.setVisible(False)
         self.w_xslider = QRangeWidget(f"p{index} - x")
-        self.w_xslider.setRange(0, 19)
+        self.w_xslider.set_range(0, 0)
         self.w_xslider.value_changed.connect(self._slider_event)
-        #self.w_xslider.setVisible(False)
-        self.w_yslider = QRangeWidget(f"p{index} - y")
-        self.w_yslider.setRange(0, 0)
-        self.w_yslider.value_changed.connect(self._slider_event)
-        self.w_yslider.setVisible(False)
+        self.w_xslider.setVisible(False)
         self.l_slider.addWidget(self.w_hline)
+        self.l_slider.addWidget(self.w_zslider)
         self.l_slider.addWidget(self.w_xslider)
-        self.l_slider.addWidget(self.w_yslider)
 
     def _raise_error(self, error):
         self.error(error)
 
-    def _get_math(self, x, y):
+    def _get_math(self, y, x):
         if 0 == self.math_mode:
             pass
             # no calculus to be done
         elif 1 == self.math_mode:
             x = delta(x)[0]
-            y = delta(y)[1]
+            y = delta(y)[0]
         elif 2 == self.math_mode:
             x = delta(x)[0]
             y = delta(y)[0]
@@ -369,46 +381,49 @@ class PlotObject():
             xc = None
             yc = None
             try:
-                def fx(xf, yf):
+                def fx(xf):
                     return eval(self.math_texts[0],
-                                {"x": xf, "y": yf} | self.exposed_functions)
-                xc = fx(x, y)
+                                {"x": xf} | self.exposed_functions)
+                xc = fx(x)
             except Exception as e:
                 self._raise_error(
                     "error in math function (x): " + str(e))
+
             try:
-                def fy(xf, yf):
+                def fy(yf):
                     return eval(self.math_texts[1],
-                                {"x": xf, "y": yf} | self.exposed_functions)
-                yc = fy(x, y)
+                                {"y": yf} | self.exposed_functions)
+                yc = fy(y)
             except Exception as e:
                 self._raise_error(
                     "error in math function (y): " + str(e))
-            if xc is not None and yc is not None:
-                if len(xc) != len(yc):
+
+            if yc is not None and xc is not None:
+                if len(yc) != len(xc):
                     self._raise_error(
                         "error in math results: arrays have different length")
                 else:
-                    x, y = xc, yc
-        return x, y
+                    y, x = yc, xc
+        return y, x
 
     def _handle_multidim_and_sliders(self):
         self.md = False
-        for slider, dshape in zip([self.w_xslider, self.w_yslider],
-                                  [self.xdata.shape, self.ydata.shape]):
+        for slider, dshape in zip([self.w_zslider, self.w_xslider],
+                                  [self.zdata.shape, self.xdata.shape]):
             slider.setVisible(False)
             if len(dshape) > 2:
                 self.md = True
                 slider.setVisible(True)
-                slider.setRange(0, dshape[2]-1)
-            elif len(dshape) > 1 and all(np.array(dshape) > 1):
+                slider.set_range(0, dshape[2]-1)
+            elif (len(dshape) > 1 and all(np.array(dshape) > 1) and
+                  self.plot2d is False):
                 self.md = True
                 slider.setVisible(True)
-                slider.setRange(0, dshape[1]-1)
+                slider.set_range(0, dshape[1]-1)
             else:
                 # reset hidden slider to zero to avoid intereference
                 # with new data
-                slider.setValue(0)
+                slider.set_value(0)
 
         if self.md is True:
             self.w_hline.setVisible(True)
@@ -416,15 +431,15 @@ class PlotObject():
         else:
             self.w_hline.setVisible(False)
             self.x = self.xdata
-            self.y = self.ydata
+            self.z = self.zdata
 
     def _handle_multidim_data(self):
         if self.md is True and self.plot2d is False:
             self.x = self.xdata[:, self.w_xslider.value()]
-            self.y = self.ydata[:, self.w_yslider.value()]
+            self.z = self.zdata[:, self.w_zslider.value()]
         elif self.md is True and self.plot2d is True:
             self.x = self.xdata
-            self.y = self.ydata
+            self.z = self.zdata
 
     def _slider_event(self, val):
         if self.plot2d is True:
@@ -437,38 +452,63 @@ class PlotObject():
         self.l_plot.removeItem(self.l_plot.getItem(row=self.index, col=0))
         self.l_slider.removeWidget(self.w_hline)
         self.l_slider.removeWidget(self.w_xslider)
-        self.l_slider.removeWidget(self.w_yslider)
+        self.l_slider.removeWidget(self.w_zslider)
 
-    def set_designator(self, desig):
-        self.desig = desig
+    def parse_data(self, z, x, y=None):
+        self.zdata = z["data"]
+        self.xdata = x["data"]
+        if y is not None:
+            self.ydata = y["data"]
+            data_sets = [x, y, z]
+            self.labels = [dat["label"] for dat in data_sets]
+            self.desig = [dat["desig"] for dat in data_sets]
+            self.units = [dat["unit"] for dat in data_sets]
+        else:
+            data_sets = [z, x]
+            self.labels[:2] = [dat["label"] for dat in data_sets]
+            self.desig[:2] = [dat["desig"] for dat in data_sets]
+            self.units[:2] = [dat["unit"] for dat in data_sets]
 
-    def set_labels(self, labels):
-        self.labels = labels
-
-    def set_units(self, units):
-        self.units = units
-
-    def set_math_mode(self, mode, math_texts):
-        self.math_mode = mode
+    def set_math_mode(self, index, math_texts):
+        self.math_mode = index
         self.math_texts = math_texts
 
-    def set_data(self, x, y):
-        self.xdata = x
-        self.ydata = y
+    def set_data(self, z, x, y=None):
+        self.parse_data(z, x, y)
         self._handle_multidim_and_sliders()
 
     def plot(self, *args, **kwargs):
         if self.plot2d is True:
-            print(self.y.shape)
-            self.plt.setImage(self.y, axes={"t":2, "x":0, "y":1})
-        else:
-            x, y = self._get_math(self.x, self.y)
+            x0, x1 = self.x.min(), self.x.max()
+            xscale = (x1-x0)/self.z.shape[0]
+            if len(self.y) > 0:
+                y0, y1 = self.y.min(), self.y.max()
+                yscale = (y1-y0)/self.z.shape[1]
+                pos = [x0, y0]
+                scale = [xscale, yscale]
+            else:
+                pos = [x0, 0]
+                scale = [xscale, 1]
+            if len(self.z.shape) > 2:
+                self.plt.setImage(self.z, pos=pos, scale=scale,
+                                  axes={"t":2, "x":0, "y":1})
+            else:
+                self.plt.setImage(self.z, pos=pos, scale=scale)
             self.pw.getAxis("left").textWidth = 0
             self.pw.setLabel("bottom", self.labels[0],
                              self.units[0])
             self.pw.setLabel("left", self.labels[1],
                              self.units[1])
-            self.plt.setData(x=x, y=y, *args, **kwargs)
+            self.vb.setAspectLocked(False)
+            self.vb.invertY(False)
+        else:
+            z, x = self._get_math(self.z, self.x)
+            self.pw.getAxis("left").textWidth = 0
+            self.pw.setLabel("bottom", self.labels[0],
+                             self.units[0])
+            self.pw.setLabel("left", self.labels[1],
+                             self.units[1])
+            self.plt.setData(x=x, y=z, *args, **kwargs)
 
 
 class SweepPreview(QMainWindow):
@@ -619,7 +659,9 @@ class SweepPreview(QMainWindow):
         self.error = True
 
     def index_callback(self, plot_object):
+        self.w_plot2d.blockSignals(True)
         self.w_plot2d.setChecked(plot_object.plot2d)
+        self.w_plot2d.blockSignals(False)
         for i in range(3):
             self.w_index[i].setCurrentIndex(plot_object.desig[i])
 
@@ -708,104 +750,74 @@ Please investigate the error and eventually restart matrix_preview""")
 
     def reload_data_2d(self):
         indexZ, indexX, indexY = [self.w_index[i].currentIndex() - 1 for i in range(3)]
+        x = {}
+        y = {}
+        z = {}
         if indexZ == -1:
             # empty index selected
             return -3
-        elif indexX == -1 and indexY == -1:
-            # set up axis labels and units according to index
-            # only have x data
-            dim = len(self.shapes[indexZ])
-            zname = self.names[indexZ]
-            if 2 == dim:
-                # 2D data can be transposed
-                z = self.data[zname]
-            elif 3 == dim:
-                # define z-axis by index
-                x = np.arange(self.shapes[indexZ][2])
-                z = self.data[zname]
+        for index, dat in zip([indexZ, indexX, indexY], [z, x, y]):
+            if index == -1:
+                dat["data"] = False
+                continue
             else:
+                dim = len(self.shapes[index])
+                name = self.names[index]
+                dat["label"] = name
+                dat["desig"] = index+1
+                dat["unit"] = self.units[index]
+                dat["data"] = self.data[name]
+                dat["dim"] = dim
+            if dim > 3 or dim < 2:
                 # <1D or >3D data cannot be 2d plotted.
                 return -5
-            xlabel = "array index"
-            xunit = ""
-            zlabel = zname
-            zunit = self.units[indexZ]
-        elif indexX == -1:
-            pass
-        elif indexY == -1:
-            pass
-        else:
-            xname = self.names[indexX]
-            yname = self.names[indexY]
-            x = self.data[xname]
-            y = self.data[yname]
-            xlabel = xname
-            ylabel = yname
-            xunit = self.units[indexX]
-            yunit = self.units[indexY]
 
         # data in a 2d plot can always be transposed
         self.w_transpose.setVisible(True)
 
         # data is loaded, now try to combine the data so that it becomes
         # plottable in a 2d plot
-        if not x.shape == y.shape:
-            if len(x.shape) == 1 and len(y.shape) == 1:
-                # one dimensional data but of uneven length
-                # attempt to reshape
-                small_axis = min(x.shape[0], y.shape[0])
-                large_axis = max(x.shape[0], y.shape[0])
-                if 0 == large_axis % small_axis:
-                    # data can be reshaped
-                    self.xdata = x.reshape(small_axis, -1)
-                    self.ydata = y.reshape(small_axis, -1)
-                else:
-                    # data cannot be reshaped, abort
-                    return -1
-            elif x.shape[0] == y.shape[0]:
-                # same length on first axis, reshape into sets of curves
-                # with the length given by the identical axis.
-                # This will flatten 3D arrays into something that can be
-                # previewed as curve, although it does not make too
-                # much sense.
-                self.xdata = x.reshape(x.shape[0], -1)
-                self.ydata = y.reshape(x.shape[0], -1)
+        if self.w_transpose.isChecked() is True:
+            if z["dim"] == 3:
+                z["data"] = z["data"].transpose(1,0,2)
             else:
-                # data multidimensional but with different dimensions, so
-                # we do not know how to handle this
-                return -4
+                z["data"] = z["data"].T
+        z["shape"] = z["data"].shape
+        if x["data"] is False and y["data"] is False:
+            # no x and y data available
+            x = dict(label="array index", unit="", dim=1,
+                     data=np.arange(z["shape"][0]), desig=0,
+                     shape=(z["shape"][0],))
+            y = dict(label="array index", unit="", dim=1,
+                     data=np.arange(z["shape"][1]), desig=0,
+                     shape=(z["shape"][1],))
+        elif x["data"] is False:
+            x = dict(label="array index", unit="", dim=1,
+                     data=np.arange(z["shape"][0]), desig=0,
+                     shape=(z["shape"][0],))
+        elif y["data"] is False:
+            y = dict(label="array index", unit="", dim=1,
+                     data=np.arange(z["shape"][1]), desig=0,
+                     shape=(z["shape"][1],))
         else:
-            # data with multiple indentical dimensions
-            # required
-            # identidcal 2D data on both axes,
-            # allow and handle transposition
-            if self.w_transpose.isChecked() is True:
-                if len(x.shape) == 3:
-                    x = x.transpose(1,0,2)
-                    y = y.transpose(1,0,2)
-                else:
-                    x = x.T
-                    y = y.T
-            else:
-                # data has too many dimensions to display, one can possibly
-                # reshape for the first axis to match and flatten the data
-                # to two dimensions, but this will be horrible for the meaning
-                # of 3D data. I see no use case in implementing this
-                return -2
+            pass
 
         if self.w_plot2d_comp.isChecked() is True:
-            if len(y.shape) > 2:
-                self.iv.setImage(y, xvals=x,
+            if z["dim"] > 2:
+                self.iv.setImage(z["data"],
                                  axes={"t":2, "x":0, "y":1})
+                self.iv.getView().invertY(False)
             else:
-                self.iv.setImage(y, axes = {"x":0, "y":1})
+                self.iv.setImage(z["data"], axes={"x":0, "y":1})
+                self.iv.getView().invertY(False)
 
         else:
-            self.spw.plot(
-                desig=[indexZ, indexX, indexY],
-                labels=[xlabel, ylabel],
-                units=[xunit, yunit], data=[x, y],
-                plot2d=self.w_plot2d.isChecked())
+            if y["data"] is False:
+                self.spw.plot(z, x,
+                              plot2d=self.w_plot2d.isChecked())
+            else:
+                self.spw.plot(z, x, y,
+                              plot2d=self.w_plot2d.isChecked())
         return 0
 
     def reload_data_curve(self):
@@ -813,6 +825,8 @@ Please investigate the error and eventually restart matrix_preview""")
         Updates the data to match the index of the edits, stays in 1D curves
         """
         indexY, indexX = [self.w_index[i].currentIndex() - 1 for i in range(2)]
+        x = {}
+        y = {}
         # disable transpose widget
         self.w_transpose.setVisible(False)
         if indexY == -1:
@@ -830,50 +844,58 @@ Please investigate the error and eventually restart matrix_preview""")
                     # 2D data can be transposed
                     self.w_transpose.setVisible(True)
                 if self.w_transpose.isChecked() is True and 2 == dim:
-                    x = np.arange(self.shapes[indexY][1])
-                    y = self.data[yname].T
+                    y["data"] = self.data[yname].T
                 else:
-                    x = np.arange(self.shapes[indexY][0])
-                    y = self.data[yname]
-                xlabel = "array index"
-                xunit = ""
-                ylabel = yname
-                yunit = self.units[indexY]
+                    y["data"] = self.data[yname]
+                y["shape"] = y["data"].shape
+                x = dict(label="array index", unit="", dim=1,
+                         data=np.arange(y["shape"][0]), desig=0,
+                         shape=(y["shape"][0],))
+                y["label"] = yname
+                y["desig"] = indexY+1
+                y["unit"] = self.units[indexY]
+                y["dim"] = dim
             else:
                 return -2
         else:
-            xname = self.names[indexX]
             yname = self.names[indexY]
-            x = self.data[xname]
-            y = self.data[yname]
-            xlabel = xname
-            ylabel = yname
-            xunit = self.units[indexX]
-            yunit = self.units[indexY]
+            y["label"] = yname
+            y["desig"] = indexY+1
+            y["unit"] = self.units[indexY]
+            y["data"] = self.data[yname]
+            y["shape"] = y["data"].shape
+            y["dim"] = len(y["shape"])
+            xname = self.names[indexX]
+            x["label"] = xname
+            x["desig"] = indexX+1
+            x["unit"] = self.units[indexX]
+            x["data"] = self.data[xname]
+            x["shape"] = x["data"].shape
+            x["dim"] = len(x["shape"])
 
         # data is loaded, now try to combine the data so that it becomes
         # plottable in a curve/scatter plot
-        if not x.shape == y.shape:
-            if len(x.shape) == 1 and len(y.shape) == 1:
+        if not x["shape"] == y["shape"]:
+            if x["dim"] == 1 and y["dim"] == 1:
                 # one dimensional data but of uneven length
                 # attempt to reshape
-                small_axis = min(x.shape[0], y.shape[0])
-                large_axis = max(x.shape[0], y.shape[0])
+                small_axis = min(x["shape"][0], y["shape"][0])
+                large_axis = max(x["shape"][0], y["shape"][0])
                 if 0 == large_axis % small_axis:
                     # data can be reshaped
-                    self.xdata = x.reshape(small_axis, -1)
-                    self.ydata = y.reshape(small_axis, -1)
+                    x["data"]= x["data"].reshape(small_axis, -1)
+                    y["data"]= y["data"].reshape(small_axis, -1)
                 else:
                     # data cannot be reshaped, abort
                     return -1
-            elif x.shape[0] == y.shape[0]:
+            elif x["shape"][0] == y["shape"][0]:
                 # same length on first axis, reshape into sets of curves
                 # with the length given by the identical axis.
                 # This will flatten 3D arrays into something that can be
                 # previewed as curve, although it does not make too
                 # much sense.
-                self.xdata = x.reshape(x.shape[0], -1)
-                self.ydata = y.reshape(x.shape[0], -1)
+                x["data"] = x["data"].reshape(x["shape"][0], -1)
+                y["data"] = y["data"].reshape(x["shape"][0], -1)
             else:
                 # data multidimensional but with different dimensions, so
                 # we do not know how to handle this
@@ -881,17 +903,15 @@ Please investigate the error and eventually restart matrix_preview""")
         else:
             # data identical with single or multiple dimension, no reshaping
             # required
-            if len(x.shape) < 3:
+            if x["dim"] < 3:
                 # data is has lower dimension than three
-                if len(x.shape) == 2:
+                if x["dim"] == 2:
                     # identidcal 2D data on both axes,
                     # allow and handle transposition
                     self.w_transpose.setVisible(True)
                     if self.w_transpose.isChecked() is True:
-                        x = x.T
-                        y = y.T
-                self.xdata = x
-                self.ydata = y
+                        x["data"] = x["data"].T
+                        y["data"] = y["data"].T
             else:
                 # data has too many dimensions to display, one can possibly
                 # reshape for the first axis to match and flatten the data
@@ -900,9 +920,7 @@ Please investigate the error and eventually restart matrix_preview""")
                 return -2
 
         # update meta information and data
-        self.spw.plot(desig=[indexX+1, indexY+1], labels=[xlabel, ylabel],
-                      units=[xunit, yunit], data=[self.xdata, self.ydata],
-                      plot2d=self.w_plot2d.isChecked())
+        self.spw.plot(y, x, plot2d=self.w_plot2d.isChecked())
         return 0
 
 def main():
