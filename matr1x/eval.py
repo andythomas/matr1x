@@ -13,7 +13,7 @@ from os.path import isfile, join, split, splitext
 
 # disable file locking in h5py
 # seems this is needed before loading the package
-os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"  # noqa
 
 import h5py
 import numpy as np
