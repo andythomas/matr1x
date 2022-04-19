@@ -22,12 +22,13 @@ standa = ["PyUSMC", "pyximc"]
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
 matrix_gui = "matr1x.scripts.matrix_gui:main"
-matrix_preview = "matr1x.scripts.matrix_preview:main"
 
 [project.gui-scripts]
 sweep_generator = "matr1x.scripts.sweep_generator:main"
 matrix_script = "matr1x.scripts.matrix_script:main"
+matrix_preview = "matr1x.scripts.matrix_preview:main"
 control_dummy = "matr1x.control.control_dummy:main"
+
 
 [project.urls]
 homepage = "https://github.com/andythomas/IFW_software"
