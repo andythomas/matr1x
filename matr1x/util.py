@@ -915,7 +915,9 @@ def take_measurement_point(output_filename, system):
     for i, col in enumerate(system.columns):
         value = system.read_value(i)
         if system.hdf5 is True:
-            with h5py.File(output_filename, "a") as datafile:
+            with h5py.File(output_filename, "a", libver='latest') as datafile:
+                datafile.swmr_mode = True
+                assert datafile.swmr_mode
                 if isinstance(col, (list, tuple)):
                     for j, column in enumerate(col):
                         ret = h5save(datafile["data/" + column], value[j])
@@ -1004,7 +1006,9 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     print(f"Creating new datafile: {output_filename}")
     if system.hdf5 is True:
         telemetry.append(list(flatten(system.chunks, types=(list, ))))
-        with h5py.File(output_filename, 'w') as data_file:
+        with h5py.File(output_filename, 'w', libver='latest') as data_file:
+            data_file.swmr_mode = True
+            assert data_file.swmr_mode
             data_file["input_filename"] = inputfile
             data_file["system_filename"] = system.__name__
             data_file["device_query"] = construct_query_string(query_dict)

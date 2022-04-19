@@ -11,6 +11,10 @@ import os
 import re
 from os.path import isfile, join, split, splitext
 
+# disable file locking in h5py
+# seems this is needed before loading the package
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
 import h5py
 import numpy as np
 from natsort import natsorted
@@ -53,14 +57,14 @@ def get_latest_datafile(path=None, basename=None):
     # obtain file list and filter it
     allfiles = os.listdir(usedpath)
     filelist = filter(lambda f: isfile(join(usedpath, f)), allfiles)
-    if basename and basewoext:  # filter file list by file extension and basename
+    if basename and basewoext:  # filter file list by file extension/basename
         files = natsorted(
             [f for f in filelist if
              re.search(fr'^({basewoext})(_\d+)?(\.h5)?\.ma\d$', f)]
         )
     else:  # filter by file extension and sort by date
         files = sorted(
-            [f for f in filelist if re.search(fr'(_\d+)?(\.h5)?\.ma\d$', f)],
+            [f for f in filelist if re.search(r'(_\d+)?(\.h5)?\.ma\d$', f)],
             key=lambda f: os.path.getctime(join(usedpath, f))
         )
 
@@ -135,7 +139,12 @@ def loadh5matrix(filename, filehandle=False):
     """
     # use swmr read mode, to avoid corrupting the data during the
     # measurement (where it is written to by the matrix process)
-    file_handle = h5py.File(filename, "r", swmr=True)
+    while True:
+        try:
+            file_handle = h5py.File(filename, "r", swmr=True, libver='latest')
+            break
+        except OSError:
+            continue
     # generate header from column names
     header = [[key for key in file_handle["data"].keys()]]
     # extract units to add into header
