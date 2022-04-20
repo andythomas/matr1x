@@ -9,6 +9,7 @@ package as well as functions for processing data in the preview.
 
 import os
 import re
+import warnings
 from os.path import isfile, join, split, splitext
 
 # disable file locking in h5py
@@ -74,93 +75,63 @@ def get_latest_datafile(path=None, basename=None):
         return None
 
 
-def loadmatrix(filename, structured=None, print_header=False):
+def loadmatrix(filename, structured=True, print_header=False):
     """
-    Utility function to open matrix ascii data
+    Utility function to open matrix ascii data as well as hdf5 files generated
+    by matrix.
 
-    Returns all header information as well as data as list of lists and 2d
-    numpy array, respectively
+    Returns all header information as well as data as numpy.ndarray. Data
+    fields should be addressed by column name (structured=True, default) or by
+    index (structured=False).
 
     Parameters
     --------
     filename : str
       path to file
-    structured: {None, True}, optional
+    structured: {True, None}, optional
       controls whether a structured array or a plain numpy array is returned
     print_header : bool, optional
-      if true, prints the header read from the file together with the index for
-      easy identification of the columns
+      if true, prints the column names read from the file together with their
+      index
+
+    Returns
+    -------
+    header, data
+    where header is a dictionary containing the header information. Most
+    importantly it will contain a key 'columns' with a list of column names in
+    the data object
     """
-    with open(filename, "r") as matrixFile:
-        header = []
-        for i, line in enumerate(matrixFile):
-            # skip all lines that start with hashtag
-            if "#" == line[0]:
-                continue
-            # the first three lines without hashtag are header lines
-            header.append(line.strip("\n").split("\t"))
-            if 3 == len(header):
+    header = dict(columns=[], units=[])
+    if h5py.is_hdf5(filename):
+        if not structured:
+            raise NotImplementedError(
+                "The option structured=False is not supported for hdf5 files")
+        while True:
+            try:
+                # use swmr read mode, to avoid corrupting the data during the
+                # measurement (where it is written to by the matrix process)
+                h5f = h5py.File(filename, 'r', swmr=True, libver='latest')
                 break
-    # we now have (i+1) as the number of header lines
-    if structured is True:
-        # generate a structured array with the column names as identifier
-        data = np.genfromtxt(filename, skip_header=i,
-                             delimiter="\t", names=structured)
-    else:
-        # otherwise generates a plain array only from the data
-        data = np.genfromtxt(filename, skip_header=i+1, delimiter="\t")
-    if print_header is True:
-        # generate list of tuples with index and column name
-        print(list([(i, hdr) for (i, hdr) in enumerate(header[0])]))
-    return header, data
+            except OSError:
+                # retry in case file is just written by the data acqusition
+                continue
 
+        # generate header
+        header['columns'] = [key for key in h5f["data"].keys()]
+        header['units'] = [it.attrs["unit"] for it in h5f["data"].values()]
+        for key, val in h5f.attrs.items():
+            if val == "__None__":
+                header[key] = None
+            else:
+                header[key] = val
 
-def loadh5matrix(filename, filehandle=False):
-    """
-    Utility function to load matrix data is hdf5 format.
-
-    Reads h5.maX data into memeory or returns the filehandle if parameter is
-    true
-    returns names of data available in the data/ section of the file (i.e. the
-    header)
-    Array does not have a fixed dimensionality and needs
-    to be adressed like a list (2d slicing does not work)
-
-    Parameters
-    --------
-    filename : str
-      name of file to open
-    filehandle : bool
-      if filehandle is True returns the filehandle of the hdf5 file.
-      Otherwise (default), returns the header and data in the same format as
-      loadmatrix
-      (Note, that this produces an object array, since the
-      dimensions of the individual columns will likely be different.)
-    """
-    # use swmr read mode, to avoid corrupting the data during the
-    # measurement (where it is written to by the matrix process)
-    while True:
-        try:
-            file_handle = h5py.File(filename, "r", swmr=True, libver='latest')
-            break
-        except OSError:
-            continue
-    # generate header from column names
-    header = [[key for key in file_handle["data"].keys()]]
-    # extract units to add into header
-    header.append(
-        [item.attrs["unit"] for item in file_handle["data"].values()])
-    if filehandle is True:
-        # replace column names in header to show the full path within the file
-        header[0] = ["data/" + hdr for hdr in header[0]]
-        return header, file_handle
-    else:
-        h5g = file_handle["data"]
+        h5g = h5f["data"]
         try:
             # generate data object as structured array
             dtypeslist = []
-            # the following line relies on the fact that the first item has the
-            # correct length, the code fails later if there are unequal length
+            # the following line relies on the fact that the first item has
+            # the correct length, the code fails later if there are unequal
+            # length
             npoints = len(list(h5g.values())[0])
             for name, v in h5g.items():
                 if len(v.shape) == 1:
@@ -172,9 +143,73 @@ def loadh5matrix(filename, filehandle=False):
                 data[name] = v[...]
         except ValueError:  # occurs for unequal data length in 1D arrays
             data = {name: v[...] for name, v in h5g.items()}
-        # file_handle is not used any more
-        file_handle.close()
-        return header, data
+        h5f.close()
+
+    else:
+        with open(filename, "r") as matrixFile:
+            headerlines = 0
+            depth = 0
+            for i, line in enumerate(matrixFile):
+                # parse header from lines that start with hashtag
+                if "#" == line[0]:
+                    if line[depth+1] == '#':  # multiline entry
+                        # strip header format characters
+                        strippedline = line.lstrip('#').rstrip('\n')[1:]
+                        val += f"\n{strippedline}"
+                        header[key] = val
+                    else:
+                        strippedline = line.lstrip("# ").rstrip('\n')
+                        key, val = strippedline.split(':', maxsplit=1)
+                        key = key.strip()
+                        if val.strip() == "None":
+                            val = None
+                        else:
+                            val = val[1:]  # remove initial space
+                        header[key] = val
+                else:
+                    # the first three lines without hashtag are header lines
+                    if headerlines == 0:
+                        header["columns"] = line.strip("\n").split("\t")
+                    if headerlines == 1:
+                        header["units"] = line.strip("\n").split("\t")
+                    headerlines += 1
+                    if headerlines == 3:
+                        break
+        for key, val in header.items():
+            if isinstance(val, str):
+                header[key] = val.strip('"')  # strip " from header strings
+
+        # we now have (i+1) as the number of lines to skip
+        if structured is True:
+            # generate a structured array with the column names as identifier
+            data = np.genfromtxt(filename, skip_header=i,
+                                 delimiter="\t", names=structured)
+        else:
+            # otherwise generates a plain array only from the data
+            data = np.genfromtxt(filename, skip_header=i+1, delimiter="\t")
+
+    if print_header is True:
+        # generate list of tuples with index and column name
+        print([(i, col) for (i, col) in enumerate(header["columns"])])
+    return header, data
+
+
+def loadh5matrix(filename, filehandle=False):
+    """
+    Utility function to load matrix data is hdf5 format.
+
+    Note: This function is deprecated and is replaced by loadmatrix(filename)!
+    """
+    if filehandle:
+        raise NotImplementedError(
+            """
+            use h5py.File(filename, 'r', swmr=True, libver='latest') to open
+            the datafile for reading if loadmatrix is not sufficient.
+            """)
+    else:
+        warnings.warn(
+            "loadh5matrix will be removed soon. use loadmatrix instead")
+        return loadmatrix(filename)
 
 
 ######################

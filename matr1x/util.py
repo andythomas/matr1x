@@ -1009,14 +1009,15 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
         with h5py.File(output_filename, 'w', libver='latest') as data_file:
             data_file.swmr_mode = True
             assert data_file.swmr_mode
-            data_file["input_filename"] = inputfile
-            data_file["system_filename"] = system.__name__
-            data_file["device_query"] = construct_query_string(query_dict)
+            data_file.attrs["Input filename"] = inputfile
+            data_file.attrs["System filename"] = system.__name__
+            data_file.attrs["Device query"] = construct_query_string(query_dict)
             for dckey, dcvalue in system.dcdata.items():
                 if dcvalue is None:
-                    data_file[dckey] = "__None__"  # mark non-existing value
+                    # mark non-existing value
+                    data_file.attrs[f"DC.{dckey}"] = "__None__"
                 else:
-                    data_file[dckey] = dcvalue
+                    data_file.attrs[f"DC.{dckey}"] = dcvalue
 
             init_hdf5_skel(data_file, *telemetry)
     else:
