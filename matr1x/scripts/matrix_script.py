@@ -309,13 +309,13 @@ class ExecThread(QThread):
             return
         self.conn.send("p".encode())
 
-    def stop(self):
+    def abort(self):
         """ communicate stop to the subprocess' stdin """
         if self.proc is None or self.conn is None:
             return
         self.conn.send("q".encode())
 
-    def abort(self):
+    def kill(self):
         """ kill the process and make sure it is indeed stopped """
         if self.proc is None or self.conn is None:
             return
@@ -526,10 +526,10 @@ class MainWindow(QWidget):
         self.thread.pause()
 
     def abort_thread(self):
-        self.thread.stop()
+        self.thread.abort()
 
     def kill_thread(self):
-        self.thread.abort()
+        self.thread.kill()
         print("Script terminated by user - " +
               "file integrity might be compromised")
 

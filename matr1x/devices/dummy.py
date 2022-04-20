@@ -79,3 +79,9 @@ class dummy(dummy_dev):
         fake trigger function which allows to show the trigger functionality in
         the dummy system files, but actually has no real impact on the device.
         """
+
+    def configure(self, **kwargs):
+        """
+        fake configure function to demonstrate configuration upon
+        initialization.
+        """
