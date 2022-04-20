@@ -129,7 +129,6 @@ class SimplePlotWidget(QGroupBox):
         self.w_delete.setVisible(False)
 
         self.l_slider = QVBoxLayout()
-        #self.l_slider.setMargins(0, 0, 0, 0)
         self.l_slider.setSpacing(0)
 
         self.w_calc = QComboBox()
@@ -195,10 +194,8 @@ class SimplePlotWidget(QGroupBox):
     def add_plot(self):
         taken_indices = [plot.index for plot in self.plots]
         index = max(taken_indices) + 1
-        self.plots.append(PlotObject(self.gl, self.cb_error,
-                                     self.l_slider,
-                                     False,
-                                     index, [0, 0, 0]))
+        self.plots.append(PlotObject(self.gl, self.cb_error, self.l_slider,
+                                     False, index, [0, 0, 0]))
         self.w_plots.addItem("add plot")
 
     def remove_plot(self):
@@ -252,7 +249,11 @@ class SimplePlotWidget(QGroupBox):
                 widget.setVisible(False)
         # update the labels of the plot combo box
         for i, plot in enumerate(self.plots):
-            name = f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}"
+            if plot.plot2d is True:
+                name = (f"p{plot.index} - {plot.labels[2]} vs {plot.labels[0]} "
+                        f"and {plot.labels[1]}")
+            else:
+                name = (f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}")
             self.w_plots.setItemText(i, name)
         # reset error
         self.cb_error("")
@@ -304,10 +305,7 @@ class SimplePlotWidget(QGroupBox):
         if self.plots[index].plot2d != plot2d:
             self.plot2d_changed(index, plot2d)
         cplot = self.plots[index]
-        if y is not None:
-            cplot.set_data(z, x, y)
-        else:
-            cplot.set_data(z, x)
+        cplot.set_data(z, x, y)
         self.calc_or_data_changed()
 
 
@@ -331,7 +329,7 @@ class PlotObject():
         if self.plot2d is True:
             self.plt = pg.ImageView(view=self.vb)  # , title=f"p{index}")
             self.pw = self.l_plot.addPlot(row=self.index, col=0,
-                                          viewBox=self.vb)
+                                          viewBox=self.vb, title=f"p{index}")
         else:
             self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                           viewBox=self.vb, title=f"p{index}")
@@ -383,7 +381,7 @@ class PlotObject():
             yc = None
             try:
                 def fx(xf):
-                    return eval(self.math_texts[0],
+                    return eval(self.math_texts[1],
                                 {"x": xf} | self.exposed_functions)
                 xc = fx(x)
             except Exception as e:
@@ -392,7 +390,7 @@ class PlotObject():
 
             try:
                 def fy(yf):
-                    return eval(self.math_texts[1],
+                    return eval(self.math_texts[0],
                                 {"y": yf} | self.exposed_functions)
                 yc = fy(y)
             except Exception as e:
@@ -415,8 +413,8 @@ class PlotObject():
             if len(dshape) > 2:
                 self.md = True
                 slider.setVisible(True)
-                slider.set_range(0, dshape[2]-1)
-            elif (len(dshape) > 1 and all(np.array(dshape) > 1) and
+                slider.set_range(0, dshape[0]-1)
+            elif ((len(dshape) > 1 and dshape[1] > 1) and
                   self.plot2d is False):
                 self.md = True
                 slider.setVisible(True)
@@ -428,23 +426,27 @@ class PlotObject():
 
         if self.md is True:
             self.w_hline.setVisible(True)
-            self._handle_multidim_data()
         else:
             self.w_hline.setVisible(False)
-            self.x = self.xdata
-            self.z = self.zdata
+        self._handle_multidim_data()
 
     def _handle_multidim_data(self):
         if self.md is True and self.plot2d is False:
             self.x = self.xdata[:, self.w_xslider.value()]
             self.z = self.zdata[:, self.w_zslider.value()]
-        elif self.md is True and self.plot2d is True:
+        elif self.md is False and self.plot2d is False:
             self.x = self.xdata
+            self.z = self.zdata
+        elif self.plot2d is True:
+            self.x = self.xdata
+            self.y = self.ydata
             self.z = self.zdata
 
     def _slider_event(self, val):
         if self.plot2d is True:
             self.plt.setCurrentIndex(val)
+            self.pw.setTitle(f"p{self.index} - {self.x[val]} "
+                             f"{self.units[0]}")
         else:
             self._handle_multidim_data()
             self.plot(symbol="o")
@@ -480,24 +482,25 @@ class PlotObject():
 
     def plot(self, *args, **kwargs):
         if self.plot2d is True:
-            x0, x1 = self.x.min(), self.x.max()
-            xscale = (x1-x0)/self.z.shape[0]
-            if len(self.y) > 0:
-                y0, y1 = self.y.min(), self.y.max()
+            if len(self.zdata.shape) > 2:
+                # 3d plotting
+                self.plt.setImage(self.z, pos=[0,0], scale=[1,1],
+                                  xvals=self.x,
+                                  axes={"t": 0, "x": 1, "y": 2})
+                # set labels to array index, same as on the y-axis
+                self.pw.setLabel("bottom", self.labels[1],
+                                 self.units[1])
+            else:
+                x0, x1 = self.x[0], self.x[-1]
+                xscale = (x1-x0)/self.z.shape[0]
+                y0, y1 = self.y[0], self.y[-1]
                 yscale = (y1-y0)/self.z.shape[1]
                 pos = [x0, y0]
                 scale = [xscale, yscale]
-            else:
-                pos = [x0, 0]
-                scale = [xscale, 1]
-            if len(self.z.shape) > 2:
-                self.plt.setImage(self.z, pos=pos, scale=scale,
-                                  axes={"t": 2, "x": 0, "y": 1})
-            else:
                 self.plt.setImage(self.z, pos=pos, scale=scale)
+                self.pw.setLabel("bottom", self.labels[0],
+                                 self.units[0])
             self.pw.getAxis("left").textWidth = 0
-            self.pw.setLabel("bottom", self.labels[0],
-                             self.units[0])
             self.pw.setLabel("left", self.labels[1],
                              self.units[1])
             self.vb.setAspectLocked(False)
@@ -505,10 +508,10 @@ class PlotObject():
         else:
             z, x = self._get_math(self.z, self.x)
             self.pw.getAxis("left").textWidth = 0
-            self.pw.setLabel("bottom", self.labels[0],
-                             self.units[0])
-            self.pw.setLabel("left", self.labels[1],
+            self.pw.setLabel("bottom", self.labels[1],
                              self.units[1])
+            self.pw.setLabel("left", self.labels[0],
+                             self.units[0])
             self.plt.setData(x=x, y=z, *args, **kwargs)
 
 
@@ -621,7 +624,7 @@ class SweepPreview(QMainWindow):
 
     def index_changed(self, newIndex):
         """
-        If index is changed, show the interface for new index
+        If index is changed, reload the new data and handle the gui interaction
         """
         if self.w_index[0] == self.sender():
             if newIndex == 0:
@@ -635,9 +638,34 @@ class SweepPreview(QMainWindow):
         """
         transpose has been toggled, reload data
         """
+        if (self.w_plot2d.isChecked() is True and
+                self.w_plot2d_comp.isChecked() is False):
+            dummy = self.w_index[2].currentIndex()
+            self.w_index[2].blockSignals(True)
+            self.w_index[2].setCurrentIndex(self.w_index[1].currentIndex())
+            self.w_index[1].setCurrentIndex(dummy)
+            self.w_index[2].blockSignals(False)
+        self.reload_data()
+
+    def plotting_toggled(self, check_state):
+        """
+        Switch the currently selected plotting view to 2D
+        """
+        self.w_l[0].setText("z" if check_state is True else "y")
+        self.w_plot2d_comp.setVisible(check_state)
+        if self.w_plot2d_comp.isChecked() is True and not check_state:
+            self.w_plot2d_comp.setChecked(False)
+        if self.w_plot2d_comp.isChecked() is True:
+            check_state = not check_state
+        self.w_l[2].setVisible(check_state)
+        self.w_index[2].setVisible(check_state)
         self.reload_data()
 
     def plotting_complex(self, check_state):
+        """
+        Turn on the more complex 2D plotting widget provided by pyqtgraph
+        instead of using the SimplePlotWidget
+        """
         if check_state is True:
             self.spw.setVisible(False)
             if self.iv is None:
@@ -654,19 +682,42 @@ class SweepPreview(QMainWindow):
 
     def raise_error(self, error):
         """
-        raise the error flag
+        raise the error flag, can be used as callback function to set errors
+        from the SimplePlotWidget
         """
         self.w_status.setText(error)
         self.error = True
 
     def index_callback(self, plot_object):
+        """
+        callback function that handles a change of the ploted index via the
+        plot selector of the SimplePlotWidget
+        """
         self.w_plot2d.blockSignals(True)
         self.w_plot2d.setChecked(plot_object.plot2d)
         self.w_plot2d.blockSignals(False)
         for i in range(3):
             self.w_index[i].setCurrentIndex(plot_object.desig[i])
 
+    def updatethread(self, state):
+        """
+        Function that runs and terminates a thread that reloads the data from
+        the file if the filename has changed.
+        """
+        if state is True:
+            # start updatethread with 2s refresh time
+            self.udthread = UpdateThread(2)
+            self.udthread.update_now.connect(self.conditional_fetch_data)
+            self.udthread.start()
+        if state is False and self.udthread is not None:
+            self.udthread.terminate()
+            self.udthread = None
+
     def conditional_fetch_data(self, force=False):
+        """
+        Fetches data from the file if force is True, or if the modification
+        time is past the time of the latest update (stored in self.lu_time).
+        """
         if getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
@@ -678,6 +729,9 @@ class SweepPreview(QMainWindow):
             self.reload_data()
 
     def fetch_data(self):
+        """
+        Function that actually handles the data operations
+        """
         try:
             self.header, self.data = loadmatrix(self.filename)
             self.names = self.header["columns"]
@@ -697,32 +751,23 @@ Please investigate the error and eventually restart matrix_preview""")
         # update timer
         self.lu_time = time.time()
 
-    def updatethread(self, state):
-        if state is True:
-            # start updatethread with 2s refresh time
-            self.udthread = UpdateThread(2)
-            self.udthread.update_now.connect(self.conditional_fetch_data)
-            self.udthread.start()
-        if state is False and self.udthread is not None:
-            self.udthread.terminate()
-            self.udthread = None
-
-    def plotting_toggled(self, check_state):
-        self.w_l[0].setText("z" if check_state is True else "y")
-        self.w_l[2].setVisible(check_state)
-        self.w_index[2].setVisible(check_state)
-        self.w_plot2d_comp.setVisible(check_state)
-        self.reload_data()
-
     def reload_data(self):
+        """
+        wraps the 1d and 2d plotting functions and decides which one is
+        appropriate from the state of the gui
+        """
         if (self.w_plot2d.isChecked() is True or
                 self.w_plot2d_comp.isChecked() is True):
             ret = self.reload_data_2d()
         else:
             ret = self.reload_data_curve()
+        # handle the error if there is any
         self.handle_error(ret)
 
     def handle_error(self, ret):
+        """
+        Handles a possible dimension error of the reload_data function
+        """
         if ret < 0:
             if ret == -3:
                 self.raise_error("no data selected")
@@ -741,6 +786,12 @@ Please investigate the error and eventually restart matrix_preview""")
             elif ret == -6:
                 self.raise_error(
                     "data has too high dimension for 2d slicing")
+            elif ret == -7:
+                self.raise_error(
+                    "data in x does not have correct dimension")
+            elif ret == -8:
+                self.raise_error(
+                    "data in y does not have correct dimension")
         elif self.error is True:
             self.error = False
             self.w_status.setText("")
@@ -754,7 +805,8 @@ Please investigate the error and eventually restart matrix_preview""")
         if indexZ == -1:
             # empty index selected
             return -3
-        for index, dat in zip([indexZ, indexX, indexY], [z, x, y]):
+        for i, (index, dat) in enumerate(zip([indexZ, indexX, indexY],
+                                             [z, x, y])):
             if index == -1:
                 dat["data"] = False
                 continue
@@ -765,8 +817,23 @@ Please investigate the error and eventually restart matrix_preview""")
                 dat["desig"] = index+1
                 dat["unit"] = self.units[index]
                 dat["data"] = self.data[name]
+                dat["shape"] = dat["data"].shape
                 dat["dim"] = dim
-            if dim > 3 or dim < 2:
+            if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is True:
+                self.w_index[1].setEnabled(True)
+            elif i == 0 and self.w_plot2d_comp.isChecked() is True:
+                self.w_index[1].setEnabled(False)
+            if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is False:
+                # 3D plotting, disable y since it is not meaningful here
+                # x gives the plotting axis (i.e. value corresponding to index)
+                self.w_l[2].setVisible(False)
+                self.w_index[2].setVisible(False)
+                self.w_index[2].setCurrentIndex(0)
+            elif i == 0 and self.w_plot2d_comp.isChecked() is False:
+                self.w_l[2].setVisible(True)
+                self.w_index[2].setVisible(True)
+            if (dim < 2 and i == 0) or dim > 3:
+                # dimensions not compatible
                 # <1D or >3D data cannot be 2d plotted.
                 return -5
 
@@ -775,52 +842,81 @@ Please investigate the error and eventually restart matrix_preview""")
 
         # data is loaded, now try to combine the data so that it becomes
         # plottable in a 2d plot
+        transpose = False
         if self.w_transpose.isChecked() is True:
+            transpose = True
             if z["dim"] == 3:
-                z["data"] = z["data"].transpose(1, 0, 2)
+                z["data"] = z["data"].transpose(0, 2, 1)
             else:
                 z["data"] = z["data"].T
         z["shape"] = z["data"].shape
-        if x["data"] is False and y["data"] is False:
-            # no x and y data available
+        if x["data"] is False:
             x = dict(label="array index", unit="", dim=1,
                      data=np.arange(z["shape"][0]), desig=0,
                      shape=(z["shape"][0],))
-            y = dict(label="array index", unit="", dim=1,
-                     data=np.arange(z["shape"][1]), desig=0,
-                     shape=(z["shape"][1],))
-        elif x["data"] is False:
-            x = dict(label="array index", unit="", dim=1,
-                     data=np.arange(z["shape"][0]), desig=0,
-                     shape=(z["shape"][0],))
-        elif y["data"] is False:
+        else:
+            index = 1 if (transpose is True and x["dim"] > 1) else 0
+            lenx = x["shape"][index]
+            # verify length matches dimension z
+            if lenx != z["shape"][0]:
+                return -7
+            if x["dim"] < 2:
+                x["data"] = np.linspace(x["data"][0], x["data"][-1], lenx)
+            else:
+                if transpose is False:
+                    x["data"] = np.linspace(x["data"][0,0],
+                                            x["data"][-1,0],
+                                            lenx)
+                else:
+                    x["data"] = np.linspace(x["data"][0,0],
+                                            x["data"][0,-1],
+                                            lenx)
+            x["shape"] = lenx
+            x["dim"] = 1
+
+        if y["data"] is False:
             y = dict(label="array index", unit="", dim=1,
                      data=np.arange(z["shape"][1]), desig=0,
                      shape=(z["shape"][1],))
         else:
-            pass
+            index = 1 if transpose is False and y["dim"] > 1 else 0
+            leny = y["shape"][index]
+            # verify length matches dimension z
+            if leny != z["shape"][1]:
+                return -8
+            if y["dim"] < 2:
+                y["data"] = np.linspace(y["data"][0], y["data"][-1], leny)
+            else:
+                if transpose is False:
+                    y["data"] = np.linspace(y["data"][0,0],
+                                            y["data"][0,-1],
+                                            leny)
+                else:
+                    y["data"] = np.linspace(y["data"][0,0],
+                                            y["data"][-1,0],
+                                            leny)
+            y["shape"] = leny
+            y["dim"] = 1
 
         if self.w_plot2d_comp.isChecked() is True:
             if z["dim"] > 2:
-                self.iv.setImage(z["data"],
-                                 axes={"t": 2, "x": 0, "y": 1})
-                self.iv.getView().invertY(False)
+                axes={"t": 0, "x": 1, "y": 2}
             else:
-                self.iv.setImage(z["data"], axes={"x": 0, "y": 1})
-                self.iv.getView().invertY(False)
+                axes={"x": 0, "y": 1}
+            self.iv.setImage(z["data"], axes=axes, xvals=x["data"])
+            self.iv.getView().invertY(False)
+            self.iv.getView().setAspectLocked(False)
+            self.iv.getHistogramWidget().axis.setLabel(z["label"])
 
         else:
-            if y["data"] is False:
-                self.spw.plot(z, x,
-                              plot2d=self.w_plot2d.isChecked())
-            else:
-                self.spw.plot(z, x, y,
-                              plot2d=self.w_plot2d.isChecked())
+            self.spw.plot(z, x, y,
+                          plot2d=self.w_plot2d.isChecked())
         return 0
 
     def reload_data_curve(self):
         """
-        Updates the data to match the index of the edits, stays in 1D curves
+        Reloads the data and tries to make the dimensions suitable for a 1D
+        curve plot by smart guessing from the data dimension.
         """
         indexY, indexX = [self.w_index[i].currentIndex() - 1 for i in range(2)]
         x = {}
@@ -832,7 +928,7 @@ Please investigate the error and eventually restart matrix_preview""")
             return -3
         elif indexX == -1:
             # set up axis labels and units according to index
-            # only have x data
+            # only have y data, so make x array index
             dim = len(self.shapes[indexY])
             if dim < 3:
                 # 1D or 2D data can be plotted without second data set
@@ -856,24 +952,20 @@ Please investigate the error and eventually restart matrix_preview""")
             else:
                 return -2
         else:
+            # both axes are define, set up x and y dictionary
             yname = self.names[indexY]
-            y["label"] = yname
-            y["desig"] = indexY+1
-            y["unit"] = self.units[indexY]
-            y["data"] = self.data[yname]
-            y["shape"] = y["data"].shape
-            y["dim"] = len(y["shape"])
+            y = dict(label=yname, desig=indexY+1, unit=self.units[indexY],
+                     data=self.data[yname], shape=self.shapes[indexY],
+                     dim=len(self.shapes[indexY]))
             xname = self.names[indexX]
-            x["label"] = xname
-            x["desig"] = indexX+1
-            x["unit"] = self.units[indexX]
-            x["data"] = self.data[xname]
-            x["shape"] = x["data"].shape
-            x["dim"] = len(x["shape"])
+            x = dict(label=xname, desig=indexX+1, unit=self.units[indexX],
+                     data=self.data[xname], shape=self.shapes[indexX],
+                     dim=len(self.shapes[indexX]))
 
         # data is loaded, now try to combine the data so that it becomes
         # plottable in a curve/scatter plot
-        if not x["shape"] == y["shape"]:
+        if x["shape"] != y["shape"]:
+            # data has uneqal shape, so we need to think about format
             if x["dim"] == 1 and y["dim"] == 1:
                 # one dimensional data but of uneven length
                 # attempt to reshape
@@ -889,11 +981,18 @@ Please investigate the error and eventually restart matrix_preview""")
             elif x["shape"][0] == y["shape"][0]:
                 # same length on first axis, reshape into sets of curves
                 # with the length given by the identical axis.
+                x["data"] = x["data"].reshape(x["shape"][0], -1)
+                y["data"] = y["data"].reshape(x["shape"][0], -1)
                 # This will flatten 3D arrays into something that can be
                 # previewed as curve, although it does not make too
                 # much sense.
-                x["data"] = x["data"].reshape(x["shape"][0], -1)
-                y["data"] = y["data"].reshape(x["shape"][0], -1)
+            elif x["data"].size == y["data"].size:
+                # data has same size, try to reshape to the one with higher
+                # dimension
+                reshape_dim = x["shape"] if x["dim"] > y["dim"] else y["shape"]
+                x["data"] = x["data"].reshape(reshape_dim)
+                y["data"] = y["data"].reshape(reshape_dim)
+                # Might be smarter to flatten?
             else:
                 # data multidimensional but with different dimensions, so
                 # we do not know how to handle this
