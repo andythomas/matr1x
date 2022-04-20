@@ -14,7 +14,7 @@ import pyqtgraph as pg
 import pyqtgraph.exporters
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import delta, loadh5matrix, loadmatrix
+from matr1x.eval import delta, loadmatrix
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
                              QFrame, QGridLayout, QGroupBox, QHBoxLayout,
@@ -679,13 +679,9 @@ class SweepPreview(QMainWindow):
 
     def fetch_data(self):
         try:
-            if ".h5." in self.filename:
-                self.header, self.data = loadh5matrix(self.filename)
-                self.names, self.units = self.header[:2]
-            else:
-                self.header, self.data = loadmatrix(
-                    self.filename, structured=True)
-                self.names, self.units = self.data.dtype.names, self.header[1]
+            self.header, self.data = loadmatrix(self.filename)
+            self.names = self.header["columns"]
+            self.units = self.header["units"]
         except Exception:
             # file could not be opened
             exc_type, exc_value, exc_traceback = sys.exc_info()

@@ -184,6 +184,7 @@ def loadmatrix(filename, structured=True, print_header=False):
             # generate a structured array with the column names as identifier
             data = np.genfromtxt(filename, skip_header=i,
                                  delimiter="\t", names=structured)
+            header["columns"] = data.dtype.names
         else:
             # otherwise generates a plain array only from the data
             data = np.genfromtxt(filename, skip_header=i+1, delimiter="\t")

@@ -41,8 +41,8 @@ def test_matrix_dummy():
     # check file contains data
     datafile = newfiles.pop()
     h, d = matr1x.eval.loadmatrix(datafile)
-    assert len(h[0]) == 6  # check number of data columns
-    assert d.shape == (9, 6)  # check shape of dataset
+    assert len(h["columns"]) == 6  # check number of data columns
+    assert d.shape == (9, )  # check shape of dataset
 
 
 def test_matrix_dummy_merged():
@@ -57,7 +57,7 @@ def test_matrix_dummy_merged():
     files.sort(key=os.path.getmtime)
     assert len(files) >= 1
     h, d = matr1x.eval.loadmatrix(files[-1], structured=True)
-    assert len(h[0]) == 10  # check number of data columns
+    assert len(h["columns"]) == 10  # check number of data columns
     assert d.shape == (11, )  # check shape of dataset
 
 
@@ -72,8 +72,8 @@ def test_matrix_dummy_hdf5():
     files = glob.glob(os.path.join(path, "test_hdf5*.ma7"))
     files.sort(key=os.path.getmtime)
     assert len(files) >= 1
-    h, d = matr1x.eval.loadh5matrix(files[-1])
-    assert len(h[0]) == 6  # check number of data columns
+    h, d = matr1x.eval.loadmatrix(files[-1])
+    assert len(h["columns"]) == 6  # check number of data columns
     assert d["devhdfp4_flat"].shape == (10*4, )  # check shape of dataset
     assert d["devhdfp4_1d"].shape == (10, 4)  # check shape of dataset
     assert d["devhdfp4_2d"].shape == (10, 2, 2)  # check shape of dataset
@@ -102,6 +102,6 @@ def test_matrix_script_dummy_merged():
         assert ret.returncode == 0
         files = glob.glob(os.path.join(path, "epische_messdatei.ma7"))
         assert len(files) >= 1
-        h, d = matr1x.eval.loadmatrix(files[-1])
-        assert len(h[0]) == 10
+        h, d = matr1x.eval.loadmatrix(files[-1], structured=None)
+        assert len(h["columns"]) == 10
         assert d.shape == (22, 10)
