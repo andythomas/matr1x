@@ -718,11 +718,16 @@ class SweepPreview(QMainWindow):
         Fetches data from the file if force is True, or if the modification
         time is past the time of the latest update (stored in self.lu_time).
         """
-        if getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
+        if force is True:
+            # file has changed after last update,
+            # reload the data into the file structure
+            self.fetch_data()
+            self.reload_data()
+        elif getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
             updated = False
-        elif self.lu_time < getmtime(self.filename) or force is True:
+        elif self.lu_time < getmtime(self.filename):
             # file has changed after last update,
             # reload the data into the file structure
             self.fetch_data()
@@ -823,6 +828,7 @@ Please investigate the error and eventually restart matrix_preview""")
                 self.w_index[1].setEnabled(True)
             elif i == 0 and self.w_plot2d_comp.isChecked() is True:
                 self.w_index[1].setEnabled(False)
+                self.w_index[1].setCurrentIndex(0)
             if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is False:
                 # 3D plotting, disable y since it is not meaningful here
                 # x gives the plotting axis (i.e. value corresponding to index)
