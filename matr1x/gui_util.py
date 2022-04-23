@@ -9,7 +9,7 @@ generator and matrix_gui
 import numpy as np
 import pyqtgraph as pg
 from PyQt5.QtCore import QObject, Qt, pyqtSignal, QPoint
-from PyQt5.QtGui import (QGroupBox, QHBoxLayout, QGridLayout, QPushButton,
+from PyQt5.QtWidgets import (QGroupBox, QHBoxLayout, QGridLayout, QPushButton,
                          QLabel, QLineEdit, QVBoxLayout, QComboBox, QFrame,
                          QSlider, QToolButton, QCheckBox, QSizePolicy, QLayout,
                          QFileDialog, 
@@ -105,10 +105,14 @@ class SimplePlotWidget(QGroupBox):
             self.error = error
             self.vb = CustomViewBox()
             if self.plot2d is True:
-                self.plt = pg.ImageView(view=self.vb)
+                self.plt = pg.ImageItem(view=self.vb)
+                # self.plt = pg.PColorMeshItem()  # not yet supported
+                # self.bar = pg.ColorBarItem()
+                self.vb.addItem(self.plt)
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
                                               title=f"p{index}")
+                # self.l_plot.addItem(self.bar, row=self.index, col=1)
             else:
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
@@ -284,15 +288,15 @@ class SimplePlotWidget(QGroupBox):
                     pos = [x0, y0]
                     scale = [xscale, yscale]
                     self.plt.setImage(self.z, pos=pos, scale=scale)
+                    # self.plt.setData(self.z)  # for pcolormesh
                     self.pw.setLabel("bottom", self.labels[1],
                                      self.units[1])
+                    # self.bar.setImageItem(self.plt)  # support colorbar
                 self.pw.getAxis("left").textWidth = 0
                 self.pw.setLabel("left", self.labels[2],
                                  self.units[2])
                 self.vb.setAspectLocked(False)
                 self.vb.invertY(False)
-                self.plt.autoLevels()
-                self.plt.autoRange()
             else:
                 z, x = self._get_math(self.z, self.x)
                 self.pw.getAxis("left").textWidth = 0
@@ -415,6 +419,7 @@ class SimplePlotWidget(QGroupBox):
     def update_wplots(self, index):
         cnt = self.w_plots.count()
         if index == cnt-1 and cnt > 1:
+            # last index leads to plot being added
             self.add_plot()
             cnt += 1
         if cnt > 2 and self.w_delete.isVisible() is False:
@@ -422,14 +427,13 @@ class SimplePlotWidget(QGroupBox):
             self.w_delete.setVisible(True)
 
         self.w_calc.setVisible(not self.plots[index].plot2d)
-        for i in range(2):
-            self.w_math[i].setVisible(not self.plots[index].plot2d)
-            self.w_lmath[i].setVisible(not self.plots[index].plot2d)
 
         # update widgets according to specifications in currently selected plot
-        self.w_calc.setCurrentIndex(self.plots[index].math_mode)
         for i in range(2):
             self.w_math[i].setText(self.plots[index].math_texts[i])
+        self.w_calc.setCurrentIndex(self.plots[index].math_mode)
+
+        # pass current inde to callback function
         self.cb_index(self.plots[index])
 
     def toggle_plot2d(self, flag):
@@ -490,10 +494,12 @@ class SimplePlotWidget(QGroupBox):
     def update_linesetting(self, state):
         if state is True:
             for plot in self.plots:
-                plot.plt.setPen((0, 0, 153), width=3)
+                if plot.plot2d is False:
+                    plot.plt.setPen((0, 0, 153), width=3)
         if state is False:
             for plot in self.plots:
-                plot.plt.setPen(None)
+                if plot.plot2d is False:
+                    plot.plt.setPen(None)
 
     def plot2d_changed(self, index, new_state):
         plotindex = self.plots[index].index
