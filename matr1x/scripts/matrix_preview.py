@@ -250,8 +250,8 @@ class SimplePlotWidget(QGroupBox):
         # update the labels of the plot combo box
         for i, plot in enumerate(self.plots):
             if plot.plot2d is True:
-                name = (f"p{plot.index} - {plot.labels[2]} vs {plot.labels[0]} "
-                        f"and {plot.labels[1]}")
+                name = (f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]} "
+                        f"and {plot.labels[2]}")
             else:
                 name = (f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}")
             self.w_plots.setItemText(i, name)
@@ -462,7 +462,7 @@ class PlotObject():
         self.xdata = x["data"]
         if y is not None:
             self.ydata = y["data"]
-            data_sets = [x, y, z]
+            data_sets = [z, x, y]
             self.labels = [dat["label"] for dat in data_sets]
             self.desig = [dat["desig"] for dat in data_sets]
             self.units = [dat["unit"] for dat in data_sets]
@@ -498,11 +498,11 @@ class PlotObject():
                 pos = [x0, y0]
                 scale = [xscale, yscale]
                 self.plt.setImage(self.z, pos=pos, scale=scale)
-                self.pw.setLabel("bottom", self.labels[0],
-                                 self.units[0])
+                self.pw.setLabel("bottom", self.labels[1],
+                                 self.units[1])
             self.pw.getAxis("left").textWidth = 0
-            self.pw.setLabel("left", self.labels[1],
-                             self.units[1])
+            self.pw.setLabel("left", self.labels[2],
+                             self.units[2])
             self.vb.setAspectLocked(False)
             self.vb.invertY(False)
         else:
@@ -537,6 +537,14 @@ class SweepPreview(QMainWindow):
                 sys.exit()
         else:
             self.filename = filename
+        # get all files
+        files = os.listdir(os.path.dirname(os.path.abspath(filename)))
+        self.data_files = [file for file in files if "ma7" in file]
+        self.data_files = sorted(
+            self.data_files, key=lambda t: os.stat(t).st_mtime)
+        self.file_index = self.data_files.index(os.path.basename(filename))
+        print(self.data_files)
+        print(self.file_index)
         self.udthread = None
         self.lu_time = time.time()
         self.fetch_data()
@@ -565,7 +573,15 @@ class SweepPreview(QMainWindow):
         self.autoupdateBox.toggled.connect(self.updatethread)
         self.updatethread(auinit)
 
-        w_file = QLabel(self.filename)
+        w_prev = QToolButton()
+        w_prev.setArrowType(Qt.LeftArrow)
+        w_prev.clicked.connect(self.previous_file)
+
+        w_next = QToolButton()
+        w_next.setArrowType(Qt.RightArrow)
+        w_next.clicked.connect(self.next_file)
+
+        self.w_file = QLabel(self.filename)
         self.w_status = QLabel("")
         self.w_status.setStyleSheet("QLabel { color : red; }")
 
@@ -578,7 +594,7 @@ class SweepPreview(QMainWindow):
         self.w_index[1].setEnabled(False)
         self.w_index[2].setVisible(False)
 
-        column_items = [f"{name}, {len(shape)}D data" for name, shape
+        column_items = [f"{name}, shape: {shape}" for name, shape
                         in zip(self.names, self.shapes)]
 
         for i in range(3):
@@ -588,9 +604,6 @@ class SweepPreview(QMainWindow):
         self.w_plot2d = QCheckBox("2d plotting")
         self.w_plot2d.toggled.connect(self.plotting_toggled)
 
-        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
-        self.iv = None
-
         self.w_plot2d_comp = QCheckBox("2d complex")
         self.w_plot2d_comp.toggled.connect(self.plotting_complex)
         self.w_plot2d_comp.setVisible(False)
@@ -599,7 +612,12 @@ class SweepPreview(QMainWindow):
         self.w_transpose.setVisible(False)
         self.w_transpose.toggled.connect(self.transpose_toggled)
 
-        grid.addWidget(w_file, 5, 0, 1, -1)
+        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
+        self.iv = None
+
+        grid.addWidget(self.w_file, 5, 1, 1, 2)
+        grid.addWidget(w_prev, 5, 0, 1, 1)
+        grid.addWidget(w_next, 5, 3, 1, 1)
         grid.addWidget(self.w_status, 6, 0, 1, -1)
         grid.addWidget(self.w_plot2d, 1, 3, 1, 1)
         # grid.addWidget(w_close, 0, 0)
@@ -622,6 +640,20 @@ class SweepPreview(QMainWindow):
         self.setCentralWidget(self.widget)
         self.show()
 
+    def previous_file(self):
+        if self.file_index > 0:
+            self.file_index -= 1
+        self.filename = self.data_files[self.file_index]
+        self.w_file.setText(self.filename)
+        self.conditional_fetch_data(True)
+
+    def next_file(self):
+        if self.file_index < len(self.data_files) - 1:
+            self.file_index += 1
+        self.filename = self.data_files[self.file_index]
+        self.w_file.setText(self.filename)
+        self.conditional_fetch_data(True)
+
     def index_changed(self, newIndex):
         """
         If index is changed, reload the new data and handle the gui interaction
@@ -640,6 +672,7 @@ class SweepPreview(QMainWindow):
         """
         if (self.w_plot2d.isChecked() is True and
                 self.w_plot2d_comp.isChecked() is False):
+            # toggle index through
             dummy = self.w_index[2].currentIndex()
             self.w_index[2].blockSignals(True)
             self.w_index[2].setCurrentIndex(self.w_index[1].currentIndex())
@@ -697,7 +730,11 @@ class SweepPreview(QMainWindow):
         self.w_plot2d.setChecked(plot_object.plot2d)
         self.w_plot2d.blockSignals(False)
         for i in range(3):
+            self.w_index[i].blockSignals(True)
             self.w_index[i].setCurrentIndex(plot_object.desig[i])
+            self.w_index[i].blockSignals(False)
+        self.reload_data()
+
 
     def updatethread(self, state):
         """
@@ -829,6 +866,9 @@ Please investigate the error and eventually restart matrix_preview""")
             elif i == 0 and self.w_plot2d_comp.isChecked() is True:
                 self.w_index[1].setEnabled(False)
                 self.w_index[1].setCurrentIndex(0)
+            elif i == 0 and self.w_index[1].isEnabled() is False:
+                # if coming from complex view and x was disabled, enable now
+                self.w_index[1].setEnabled(True)
             if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is False:
                 # 3D plotting, disable y since it is not meaningful here
                 # x gives the plotting axis (i.e. value corresponding to index)
