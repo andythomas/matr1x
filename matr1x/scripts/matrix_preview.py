@@ -44,8 +44,12 @@ class SweepPreview(QMainWindow):
     """
     Data viewer for matrix files
 
-    Arguments:
-        filename -- name of matrix file (.maX)
+    Parameters
+    ----------
+    filename: str
+      name of matrix file (.ma6 or .ma7)
+    parent: widget or None
+      parent widget
     """
 
     def __init__(self, parent=None, filename=""):

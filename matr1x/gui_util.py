@@ -12,13 +12,22 @@ from PyQt5.QtCore import QObject, Qt, pyqtSignal, QPoint
 from PyQt5.QtWidgets import (QGroupBox, QHBoxLayout, QGridLayout, QPushButton,
                          QLabel, QLineEdit, QVBoxLayout, QComboBox, QFrame,
                          QSlider, QToolButton, QCheckBox, QSizePolicy, QLayout,
-                         QFileDialog, 
-                        )
+                         QFileDialog,)
 
 from .eval import delta
 
 
 class QRangeWidget(QGroupBox):
+    """
+    Widget that displays a range slider with a decrement/increment slider
+    on either side and a label on the left.
+
+    Parameters
+    ---------
+    title: base name that is displayed on the left together with current
+      value of slider and the number of increments
+    parent: parent widget or None
+    """
     value_changed = pyqtSignal(int)
 
     def __init__(self, title, parent=None):
@@ -56,44 +65,122 @@ class QRangeWidget(QGroupBox):
         if val >= 0:
             self.slider.setValue(val)
 
-    def _updateText(self):
+    def _update_text(self):
         self.label.setText(
             f"{self.base_title} - {self.value()} ({self.maximum()+1})")
 
     def _value_changed(self, val):
-        self._updateText()
+        self._update_text()
         self.value_changed.emit(val)
 
     def set_base_title(self, title):
+        """
+        Resets the base title to a new value
+
+        Parameters
+        ----------
+        title: str
+          New base title
+        """
         self.base_title = title
 
     def set_value(self, val):
+        """
+        Set current value of slider
+
+        Parameters
+        ----------
+        val: int
+          new value of slider, out of range values are ignored
+        """
         self.slider.setValue(val)
-        self._updateText()
+        self._update_text()
 
     def value(self):
+
         return self.slider.value()
 
     def set_range(self, minimum, maximum):
+        """
+        Parameters
+        ----------
+        minimum: int
+          Minimum value of slider
+        maximum: int
+          Maximum value of slider
+        """
         self.slider.setRange(minimum, maximum)
-        self._updateText()
+        self._update_text()
+
+    def minimum(self):
+        """
+        Returns minimum value of slider
+        """
+        return self.slider.minimum()
 
     def maximum(self):
+        """
+        Returns maximum value of slider
+        """
         return self.slider.maximum()
 
 
 class SimplePlotWidget(QGroupBox):
     """
-    plot widget that contains the simple part of the plotting functions
+    Plot widget that allows multiple curve or 2d plots to be vertically
+    stacked and simultaneously displayed.
+
+    Parameters
+    ----------
+    cb_error: function
+      callback function that takes a single string as paramter, the
+      string will describe the present error
+    cb_index: function
+      callback function that takes a PlotObject as parameters.
+      The function is called with the currently selected PlotObject if the
+      latter changes.
     """
     class PlotObject():
         """
-        object that contains the plot and remembers what is plotted
+        Object that contains the plot, data corresponding identifiers and
+        widgets. Relies on external layouts to insert the widgets/plots.
+
+        Parameters
+        ----------
+        l_plot: pyqtgraph.GraphicsLayoutWidget
+          layout into which the plot is to be inserted
+        error: function
+          callback function that takes a single string as paramter, the
+          string will describe the present error
+        l_slider: QVBoxLayout
+          layout into which the sliders are added using l_slider.addWidget
+        plot2d: bool
+          flag that defines whether plot is curve or 2d plot
+        index: int
+          index of the plot in the pyqtgraph.GraphicsLayoutWidget
+        desig: [int, int, int]
+          designator that stores an integer that connects the plotted values
+          to some external gui elements. Essentially a simple storage.
+        pen: bool or None
+          If True, lines will be displayed
         """
+        # exposed functions that can be used by the custom math eval
+        # expression stored in math_texts.
         exposed_functions = {"np": np, "sqrt": np.sqrt, "e": np.e,
-                             "pi": np.pi, "power": np.power,
-                             "log": np.log, "log10": np.log10,
-                             "exp": np.exp}
+                             "pi": np.pi, "power": np.power, "log10": np.log10,
+                             "cos": np.cos, "sin": np.sin, "tan": np.tan,
+                             "arccos": np.arccos, "arcsin": np.arcsin,
+                             "arctan": np.arctan, "log": np.log, "exp": np.exp,
+                            }
+
+        # default math operations can be added here if required
+        # the key should correspond to the value of math_mode for this to
+        # be selected, has to provide a pair of fucntions for the x and y
+        # value, respectively
+        default_math = {1: [lambda xf: delta(xf)[0],
+                            lambda yf: delta(yf)[1]],
+                        2: [lambda xf: delta(xf)[0],
+                            lambda yf: delta(yf)[0]]}
 
         def __init__(self, l_plot, error, l_slider, plot2d,
                      index, desig, pen=None):
@@ -103,15 +190,18 @@ class SimplePlotWidget(QGroupBox):
             self.l_slider = l_slider
             self.plot2d = plot2d
             self.error = error
+
+            # initialize the pyqtgraph display widgets
             self.vb = CustomViewBox()
             if self.plot2d is True:
-                self.plt = pg.ImageItem(view=self.vb)
-                # self.plt = pg.PColorMeshItem()  # not yet supported
-                # self.bar = pg.ColorBarItem()
+                self.plt = pg.ImageItem()
+                # self.plt = pg.PColorMeshItem()  # could be used instead
                 self.vb.addItem(self.plt)
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
                                               title=f"p{index}")
+                # possibly add colorbar to the right of the ImageItem
+                # self.bar = pg.ColorBarItem()  # enables a color bar
                 # self.l_plot.addItem(self.bar, row=self.index, col=1)
             else:
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
@@ -122,6 +212,8 @@ class SimplePlotWidget(QGroupBox):
                     self.plt.setPen((0, 0, 153), width=3)
                 else:
                     self.plt.setPen(None)
+
+            # initialize storage variables
             self.labels = ["", "", ""]
             self.units = ["", "", ""]
             self.math_mode = 0
@@ -132,6 +224,8 @@ class SimplePlotWidget(QGroupBox):
             self.fx = None
             self.fy = None
 
+            # initialize slider widget and horizontal spacer line
+            # and add to l_slider
             self.w_hline = QFrame()
             self.w_hline.setFrameShape(QFrame.HLine)
             self.w_hline.setFixedHeight(2)
@@ -152,22 +246,60 @@ class SimplePlotWidget(QGroupBox):
             self.l_slider.addWidget(self.w_xslider)
 
         def _raise_error(self, error):
+            """
+            Function to handle errors
+
+            Parameters
+            ----------
+            error : str
+              describing the error
+            """
             self.error(error)
 
         def _get_math(self, y, x):
+            """
+            Applies the math operation to the two data arrays, depending on
+            value stored in self.math_mode. See default_math for the
+            default functions that are implemented.
+            Currently can be one of the four:
+                0 - No math is applied
+                1 - delta method is applied (see eval.delta), where y-data
+                  is antisymmetrized, x-data is symmetrized
+                2 - delta method is applied (see eval.delta), where x- and
+                  y-data are symmetrized
+                None of the above - custom math that can be specified via a
+                  string stored in self.math_texts that is passed to
+                  evaluated by eval(string). Available parameters are defined
+                  in self.exposed_functions
+
+            Parameters
+            ----------
+            y: numpy array
+              data to be processed
+            x: numpy array
+              data to be processed
+
+            Returns
+            -------
+            y: numpy array
+              processed data
+            x: numpy array
+              processed data
+            """
             if 0 == self.math_mode:
-                pass
                 # no calculus to be done
-            elif 1 == self.math_mode:
-                x = delta(x)[0]
-                y = delta(y)[1]
-            elif 2 == self.math_mode:
-                x = delta(x)[0]
-                y = delta(y)[0]
-            elif 3 == self.math_mode:
+                pass
+            elif self.math_mode in self.default_math.keys():
+                # some of our default math is supposed to be used
+                x = self.default_math[self.math_mode][0](x)
+                y = self.default_math[self.math_mode][1](y)
+            else:
+                # none of the above, so we are in custom mode
                 xc = None
                 yc = None
                 try:
+                    # define function based on the string stored in
+                    # math_texts[1]
                     def fx(xf, yf):
                         return eval(self.math_texts[1],
                                     ({"x": xf, "y": yf} |
@@ -178,6 +310,8 @@ class SimplePlotWidget(QGroupBox):
                         "error in math function (x): " + str(e))
 
                 try:
+                    # define function based on the string stored in
+                    # math_texts[0]
                     def fy(yf, xf):
                         return eval(self.math_texts[0],
                                     ({"y": yf, "x": xf} |
@@ -196,16 +330,21 @@ class SimplePlotWidget(QGroupBox):
             return y, x
 
         def _handle_multidim_and_sliders(self):
+            """
+            Handles slider visibility according to data dimensions
+            """
             self.md = False
             for slider, dshape in zip([self.w_zslider, self.w_xslider],
                                       [self.zdata.shape, self.xdata.shape]):
                 slider.setVisible(False)
                 if len(dshape) > 2:
+                    # data is 3D, so show sliders
                     self.md = True
                     slider.setVisible(True)
                     slider.set_range(0, dshape[0]-1)
                 elif ((len(dshape) > 1 and dshape[1] > 1) and
                       self.plot2d is False):
+                    # array is 2d and second dimension is longer than 1
                     self.md = True
                     slider.setVisible(True)
                     slider.set_range(0, dshape[1]-1)
@@ -214,13 +353,19 @@ class SimplePlotWidget(QGroupBox):
                     # with new data
                     slider.set_value(0)
 
+            # hide or show the horizontal spacers
             if self.md is True:
                 self.w_hline.setVisible(True)
             else:
                 self.w_hline.setVisible(False)
+            # sliders are handled, now worry about data
             self._handle_multidim_data()
 
         def _handle_multidim_data(self):
+            """
+            Handles data redimensioning and selection according to slider
+            position
+            """
             if self.md is True and self.plot2d is False:
                 self.x = self.xdata[:, self.w_xslider.value()]
                 self.z = self.zdata[:, self.w_zslider.value()]
@@ -233,21 +378,41 @@ class SimplePlotWidget(QGroupBox):
                 self.z = self.zdata
 
         def _slider_event(self, val):
+            """
+            Handles slider events and updates the displayed data accordingly
+
+            Parameters
+            ----------
+            val: int
+              current value of the slider that is to be applied
+            """
             if self.plot2d is True:
+                # for 2d plot, select index of current data element
                 self.plt.setCurrentIndex(val)
                 self.pw.setTitle(f"p{self.index} - {self.x[val]} "
                                  f"{self.units[0]}")
             else:
+                # for curve, handle the data and replot
                 self._handle_multidim_data()
                 self.plot(symbol="o")
 
         def remove_plot(self):
+            """
+            Removes the plot and the widgets that belong to the PlotObject
+            from the provided layouts
+            """
             self.l_plot.removeItem(self.l_plot.getItem(row=self.index, col=0))
             self.l_slider.removeWidget(self.w_hline)
             self.l_slider.removeWidget(self.w_xslider)
             self.l_slider.removeWidget(self.w_zslider)
 
-        def parse_data(self, z, x, y=None):
+        def parse_data(self, z, x, y):
+            """
+            Parses the data dictionaries into the corresponding
+            class variables
+
+            Used keys are "data", "label", "desig" and "unit"
+            """
             self.zdata = z["data"]
             self.xdata = x["data"]
             if y is not None:
@@ -263,14 +428,49 @@ class SimplePlotWidget(QGroupBox):
                 self.units[:2] = [dat["unit"] for dat in data_sets]
 
         def set_math_mode(self, index, math_texts):
+            """
+            Sets the math mode and texts
+
+            Parameters
+            ----------
+            index: int
+              selects the math operation to be applied, see self.default_math.
+            math_texts: [str, str]
+              contains two strings that are evaluated by eval(string). Are
+              only allowed to contain functions/variables that are defined
+              in self.exposed_functions.
+            """
             self.math_mode = index
             self.math_texts = math_texts
 
         def set_data(self, z, x, y=None):
+            """
+            Updates the data that is stored in the present plot.
+
+            Used keys are "data", "label", "desig" and "unit"
+
+            Parameters
+            ----------
+            z: dict
+              z data dictionary.
+            x: dict
+              x data dictionary.
+            y: dict or None
+              y data dictionary.
+            """
             self.parse_data(z, x, y)
             self._handle_multidim_and_sliders()
 
         def plot(self, *args, **kwargs):
+            """
+            function that handles the actual plotting of the data and takes
+            care of updating the labels
+
+            Parameters
+            ----------
+            *args, **kwargs: args or kwargs
+              are passed to the plot function if curve plotting is enabled
+            """
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
                     # 3d plotting
@@ -278,9 +478,10 @@ class SimplePlotWidget(QGroupBox):
                                       xvals=self.x,
                                       axes={"t": 0, "x": 1, "y": 2})
                     # set labels to array index, same as on the y-axis
-                    self.pw.setLabel("bottom", self.labels[1],
-                                     self.units[1])
+                    self.pw.setLabel("bottom", self.labels[2],
+                                     self.units[2])
                 else:
+                    # 2d data follows different dimensioning scheme
                     x0, x1 = self.x[0], self.x[-1]
                     xscale = (x1-x0)/self.z.shape[0]
                     y0, y1 = self.y[0], self.y[-1]
@@ -288,16 +489,19 @@ class SimplePlotWidget(QGroupBox):
                     pos = [x0, y0]
                     scale = [xscale, yscale]
                     self.plt.setImage(self.z, pos=pos, scale=scale)
+                    # pcolormesh would support x/y/z data
                     # self.plt.setData(self.z)  # for pcolormesh
+                    # self.bar.setImageItem(self.plt)  # support colorbar
                     self.pw.setLabel("bottom", self.labels[1],
                                      self.units[1])
-                    # self.bar.setImageItem(self.plt)  # support colorbar
                 self.pw.getAxis("left").textWidth = 0
                 self.pw.setLabel("left", self.labels[2],
                                  self.units[2])
+                # remove aspect lock for free zooming and do not invert y axis
                 self.vb.setAspectLocked(False)
                 self.vb.invertY(False)
             else:
+                # for curves apply math, set labels and data
                 z, x = self._get_math(self.z, self.x)
                 self.pw.getAxis("left").textWidth = 0
                 self.pw.setLabel("bottom", self.labels[1],
@@ -339,9 +543,11 @@ class SimplePlotWidget(QGroupBox):
         for i in range(2):
             self.w_math[i].returnPressed.connect(self.calc_or_data_changed)
             self.w_math[i].setToolTip(
-                "You can use power,sqrt,exp,log,log10 and "
+                "You can use power, sqrt, exp, log, log10, cos, sin, tan and "
+                "their inverse functions, pi, e and "
                 "numpy is defined as np.\nThe dimensions on "
-                "y and x need to be equal after any operation")
+                "y and x need to be equal after any operation and have to "
+                "remain in a single dimension.")
 
         for widget in self.w_math + self.w_lmath:
             widget.setVisible(False)
@@ -397,6 +603,7 @@ class SimplePlotWidget(QGroupBox):
         self.plots.append(self.PlotObject(self.gl, self.cb_error, self.l_slider,
                                           False, index, [0, 0, 0],
                                           pen=self.w_line.isChecked()))
+        self.w_plots.setItemText(len(self.plots)-1, f"p{index} -  vs ")
         self.w_plots.addItem("add plot")
 
     def remove_plot(self):
