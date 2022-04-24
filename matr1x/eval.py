@@ -101,12 +101,14 @@ def loadmatrix(filename, structured=True, print_header=False):
     importantly it will contain a key 'columns' with a list of column names in
     the data object
     """
+    tries = 0
     header = dict(columns=[], units=[])
     if h5py.is_hdf5(filename):
         if not structured:
             raise NotImplementedError(
                 "The option structured=False is not supported for hdf5 files")
-        while True:
+        while tries < 10:
+            # maximum number of tries to open the file is 10
             try:
                 # use swmr read mode, to avoid corrupting the data during the
                 # measurement (where it is written to by the matrix process)
@@ -114,7 +116,9 @@ def loadmatrix(filename, structured=True, print_header=False):
                 break
             except OSError:
                 # retry in case file is just written by the data acqusition
-                continue
+                tries += 1
+        if 10 == tries:
+            raise OSError("File could not be opened even after 10 tries")
 
         # generate header
         header['columns'] = [key for key in h5f["data"].keys()]
