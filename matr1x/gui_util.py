@@ -135,6 +135,7 @@ class SimplePlotWidget(QGroupBox):
     cb_error: function
       callback function that takes a single string as paramter, the
       string will describe the present error
+      If called with an empty string, it should clear the error.
     cb_index: function
       callback function that takes a PlotObject as parameters.
       The function is called with the currently selected PlotObject if the
@@ -177,10 +178,12 @@ class SimplePlotWidget(QGroupBox):
         # the key should correspond to the value of math_mode for this to
         # be selected, has to provide a pair of fucntions for the x and y
         # value, respectively
-        default_math = {1: [lambda xf: delta(xf)[0],
-                            lambda yf: delta(yf)[1]],
-                        2: [lambda xf: delta(xf)[0],
-                            lambda yf: delta(yf)[0]]}
+        default_math = {
+            "none": [lambda xf: xf, lambda yf: yf],
+            "delta-": [lambda xf: delta(xf)[0],
+                       lambda yf: delta(yf)[1]],
+            "delta+": [lambda xf: delta(xf)[0],
+                       lambda yf: delta(yf)[0]]}
 
         def __init__(self, l_plot, error, l_slider, plot2d,
                      index, desig, pen=None):
@@ -194,9 +197,9 @@ class SimplePlotWidget(QGroupBox):
             # initialize the pyqtgraph display widgets
             self.vb = CustomViewBox()
             if self.plot2d is True:
-                self.plt = pg.ImageItem()
+                self.plt = pg.ImageView(view=self.vb)
                 # self.plt = pg.PColorMeshItem()  # could be used instead
-                self.vb.addItem(self.plt)
+                # self.vb.addItem(self.plt)
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
                                               title=f"p{index}")
@@ -216,7 +219,7 @@ class SimplePlotWidget(QGroupBox):
             # initialize storage variables
             self.labels = ["", "", ""]
             self.units = ["", "", ""]
-            self.math_mode = 0
+            self.math_mode = "none"
             self.math_texts = ["y", "x"]
             self.z = np.zeros(0)
             self.x = np.zeros(0)
@@ -261,16 +264,14 @@ class SimplePlotWidget(QGroupBox):
             Applies the math operation to the two data arrays, depending on
             value stored in self.math_mode. See default_math for the
             default functions that are implemented.
-            Currently can be one of the four:
-                0 - No math is applied
-                1 - delta method is applied (see eval.delta), where y-data
-                  is antisymmetrized, x-data is symmetrized
-                2 - delta method is applied (see eval.delta), where x- and
-                  y-data are symmetrized
-                None of the above - custom math that can be specified via a
+            Currently can be one of the following:
+                any key of self.default_math - applies the
+                  functions defined there.
+                "custom" - custom math that can be specified via a
                   string stored in self.math_texts that is passed to
                   evaluated by eval(string). Available parameters are defined
                   in self.exposed_functions
+                neither of the two above - no math is applied
 
             Parameters
             ----------
@@ -286,14 +287,11 @@ class SimplePlotWidget(QGroupBox):
             x: numpy array
               processed data
             """
-            if 0 == self.math_mode:
-                # no calculus to be done
-                pass
-            elif self.math_mode in self.default_math.keys():
+            if self.math_mode in self.default_math.keys():
                 # some of our default math is supposed to be used
                 x = self.default_math[self.math_mode][0](x)
                 y = self.default_math[self.math_mode][1](y)
-            else:
+            elif "custom" == self.math_mode:
                 # none of the above, so we are in custom mode
                 xc = None
                 yc = None
@@ -388,6 +386,7 @@ class SimplePlotWidget(QGroupBox):
             """
             if self.plot2d is True:
                 # for 2d plot, select index of current data element
+                self._handle_multidim_data()
                 self.plt.setCurrentIndex(val)
                 self.pw.setTitle(f"p{self.index} - {self.x[val]} "
                                  f"{self.units[0]}")
@@ -512,73 +511,82 @@ class SimplePlotWidget(QGroupBox):
 
     def __init__(self, cb_error, cb_index, parent=None):
         super().__init__("", parent)
+
         self.cb_error = cb_error
         self.cb_index = cb_index
-        # 2d flag
         self.plot2d = False
 
         grid = QGridLayout()
 
         w_save = QPushButton("save plot")
-        w_save.clicked.connect(self.save_plot)
+        w_save.clicked.connect(self._save_plot)
 
         self.posLabel = QLabel("x: 0.0e-0\ny: 0.0e-0")
         self.posLabel.setMinimumWidth(100)
 
         self.w_delete = QPushButton("delete plot")
-        self.w_delete.clicked.connect(self.remove_plot)
+        self.w_delete.clicked.connect(self._remove_plot)
         self.w_delete.setVisible(False)
 
         self.l_slider = QVBoxLayout()
         self.l_slider.setSpacing(0)
 
+        # initialize w_calc combo box with the default math items defined
+        # in the PlotObject, add "custom" for custom math.
         self.w_calc = QComboBox()
-        self.w_calc.addItems(["None", "delta-", "delta+", "custom"])
-        self.w_calc.currentIndexChanged.connect(self.calc_or_data_changed)
+        self.w_calc.addItems(list(self.PlotObject.default_math.keys()) +
+                             ["custom"])
+        self.w_calc.currentIndexChanged.connect(self._calc_or_data_changed)
 
         self.w_math = [QLineEdit("y"), QLineEdit("x")]
-        self.w_lmath = [QLabel("lambda y : "),
-                        QLabel("lambda x : ")]
+        self.w_lmath = [QLabel("lambda y : "), QLabel("lambda x : ")]
 
         for i in range(2):
-            self.w_math[i].returnPressed.connect(self.calc_or_data_changed)
+            self.w_math[i].returnPressed.connect(self._calc_or_data_changed)
             self.w_math[i].setToolTip(
                 "You can use power, sqrt, exp, log, log10, cos, sin, tan and "
-                "their inverse functions, pi, e and "
-                "numpy is defined as np.\nThe dimensions on "
-                "y and x need to be equal after any operation and have to "
-                "remain in a single dimension.")
+                "their inverse functions, pi and e.\n"
+                "For more complex math, numpy is additionally defined as np.\n"
+                "The dimensions on y and x need to be equal after any "
+                "operation and have to remain in a single dimension.")
 
+        # hide custom math layouts by default
         for widget in self.w_math + self.w_lmath:
             widget.setVisible(False)
 
+        # put custom math in separate layout to make them scale independetly
         l_math = QHBoxLayout()
         for i in range(2):
             l_math.addWidget(self.w_lmath[i])
-            l_math.addWidget(self.w_math[i])
+            l_math.addWidget(self.w_math[i], stretch=1)
 
+        # Add GraphicsLayout and make most prominent widget
         self.gl = pg.GraphicsLayoutWidget()
+        self.gl.setSizePolicy(QSizePolicy.Expanding,
+                              QSizePolicy.Expanding)
+
+        # have proxy that connects the position of the mouse on the
+        # GraphicsLayout to display the x/y position on the current
+        # plot
+        self.proxy = pg.SignalProxy(self.gl.scene().sigMouseMoved,
+                                    rateLimit=30,
+                                    slot=self._mouse_moved)
+
+        # add the first empty plot with
         self.plots = [self.PlotObject(self.gl, self.cb_error, self.l_slider,
                                       False, 0, [0, 0, 0]), ]
 
         self.w_plots = QComboBox()
-        self.w_plots.addItem("")
+        self.w_plots.addItem("p0 -  vs")
         self.w_plots.addItem("add plot")
-        self.update_wplots(0)
-        self.w_plots.currentIndexChanged.connect(self.update_wplots)
+        self.w_plots.currentIndexChanged.connect(self._update_wplots)
 
-        lineinit = False
+        # line_init controls default value of line visibility on startup
+        line_init = False
         self.w_line = QCheckBox("show lines")
-        self.w_line.setChecked(lineinit)
-        self.update_linesetting(lineinit)
-        self.w_line.toggled.connect(self.update_linesetting)
-
-        self.proxy = pg.SignalProxy(self.gl.scene().sigMouseMoved,
-                                    rateLimit=30,
-                                    slot=self.mouse_moved)
-
-        self.gl.setSizePolicy(QSizePolicy.Expanding,
-                              QSizePolicy.Expanding)
+        self.w_line.setChecked(line_init)
+        self._update_linesetting(line_init)
+        self.w_line.toggled.connect(self._update_linesetting)
 
         grid.addWidget(self.w_calc, 1, 0, 1, 2)
         grid.addWidget(w_save, 1, 3, 1, 1)
@@ -597,21 +605,28 @@ class SimplePlotWidget(QGroupBox):
 
         self.setLayout(grid)
 
-    def add_plot(self):
-        taken_indices = [plot.index for plot in self.plots]
-        index = max(taken_indices) + 1
+    def _add_plot(self):
+        """
+        Adds a plot (via PlotObject) to the current display. Ensures that
+        the new plot is always appended to the end.
+        """
+        index = max([plot.index for plot in self.plots]) + 1
         self.plots.append(self.PlotObject(self.gl, self.cb_error, self.l_slider,
                                           False, index, [0, 0, 0],
                                           pen=self.w_line.isChecked()))
         self.w_plots.setItemText(len(self.plots)-1, f"p{index} -  vs ")
         self.w_plots.addItem("add plot")
 
-    def remove_plot(self):
+    def _remove_plot(self):
+        """
+        remove plot that is currently selected in self.w_plots
+        """
         if len(self.plots) == 1:
             # only single plot present
             return
         index = self.w_plots.currentIndex()
         # pop plot container from list, remove widget and delete object
+        # for garbage collection
         plot = self.plots.pop(index)
         plot.remove_plot()
         del plot
@@ -623,39 +638,59 @@ class SimplePlotWidget(QGroupBox):
             # nothing else to be deleted, hide button
             self.w_delete.setVisible(False)
 
-    def update_wplots(self, index):
+    def _update_wplots(self, index):
+        """
+        Updates the currently selected plot upon a change of self.w_plots
+        """
         cnt = self.w_plots.count()
         if index == cnt-1 and cnt > 1:
-            # last index leads to plot being added
-            self.add_plot()
+            # selecting last index (add plot) leads to plot being added
+            self._add_plot()
             cnt += 1
         if cnt > 2 and self.w_delete.isVisible() is False:
             # something can be deleted, make button visible
             self.w_delete.setVisible(True)
 
+        # if currently selected plot is not 2d plot, show math
         self.w_calc.setVisible(not self.plots[index].plot2d)
 
         # update widgets according to specifications in currently selected plot
         for i in range(2):
             self.w_math[i].setText(self.plots[index].math_texts[i])
-        self.w_calc.setCurrentIndex(self.plots[index].math_mode)
 
-        # pass current inde to callback function
+        # load math_mode from PlotObject and set index
+        index_math = self.w_calc.findText(self.plots[index].math_mode)
+        if index != -1:
+            # item not found in combo box texts
+            self.w_calc.setCurrentIndex(index_math)
+
+        # pass current PlotObject to callback function to be handled externally
         self.cb_index(self.plots[index])
 
-    def toggle_plot2d(self, flag):
+    def _toggle_plot2d(self, flag):
+        """
+        toggles the plot2d flag and handles visibility of math widgets
+
+        Parameters
+        ----------
+        flag: bool
+          flag that controls whether plot2d is False or True
+        """
         self.plot2d = flag
         for widget in self.w_math + self.w_lmath:
             widget.setVisible(not flag)
         self.w_calc.setVisible(not flag)
 
-    def calc_or_data_changed(self):
-        index = self.w_calc.currentIndex()
+    def _calc_or_data_changed(self):
+        """
+        Applies new data, math and labels and updates the plot
+        """
+        math_mode = self.w_calc.currentText()
         current_plot = self.w_plots.currentIndex()
-        if index == 3 and self.w_math[0].isVisible() is False:
+        if math_mode == "custom" and self.w_math[0].isVisible() is False:
             for widget in self.w_math + self.w_lmath:
                 widget.setVisible(True)
-        elif index != 3 and self.w_math[0].isVisible() is True:
+        elif math_mode != "custom" and self.w_math[0].isVisible() is True:
             for widget in self.w_math + self.w_lmath:
                 widget.setVisible(False)
         # update the labels of the plot combo box
@@ -670,18 +705,28 @@ class SimplePlotWidget(QGroupBox):
         self.cb_error("")
 
         self.plots[current_plot].set_math_mode(
-            index, [math.text() for math in self.w_math])
+            math_mode, [math.text() for math in self.w_math])
         self.plots[current_plot].plot(symbol="o")
 
-    def mouse_moved(self, ev):
+    def _mouse_moved(self, ev):
+        """
+        handles mouse interaction - if the mouse in one of the viewboxes,
+        then display the x and y value at the mouse position
+
+        Parameters
+        ----------
+        ev: mouse moved event
+          contains the coordinates of the mouse in coordinates of self.gl
+        """
         boxes = [plot.vb for plot in self.plots]
         vb_mouse = None
         for vb in boxes:
-            # get coordinate transform for top left of viewbox
+            # get coordinate transform for top left of viewbox to identify
+            # in which of the viewboxes the mouse currently resides
             pos = vb.mapRectFromView(vb.borderRect.rect()).topLeft()
             if vb.boundingRect().contains(ev[0]+pos):
                 vb_mouse = vb
-                # stop once we have found the correct view
+                # stop once we have found the correct viewbox
                 continue
         if vb_mouse is not None:
             mousePoint = vb_mouse.mapSceneToView(ev[0])
@@ -689,7 +734,11 @@ class SimplePlotWidget(QGroupBox):
                 "x: {:.5e}\ny: {:.5e}".format(mousePoint.x(),
                                               mousePoint.y()))
 
-    def save_plot(self):
+    def _save_plot(self):
+        """
+        Export the currently displayed plots (everything in self.gl)
+        into a png file
+        """
         exporter = pg.exporters.ImageExporter(self.gl.scene())
         filename = QFileDialog.getSaveFileName(
             self, 'Select output png file', matr1x.usersfolder,
@@ -698,7 +747,11 @@ class SimplePlotWidget(QGroupBox):
             filename += ".png"
         exporter.export(filename)
 
-    def update_linesetting(self, state):
+    def _update_linesetting(self, state):
+        """
+        Updates the line visibility in all plot objects that are not
+        2d plots
+        """
         if state is True:
             for plot in self.plots:
                 if plot.plot2d is False:
@@ -708,28 +761,55 @@ class SimplePlotWidget(QGroupBox):
                 if plot.plot2d is False:
                     plot.plt.setPen(None)
 
-    def plot2d_changed(self, index, new_state):
+    def _plot2d_changed(self, index, new_state):
+        """
+        handles a change of the plot type by replacing the PlotObject in place
+
+        Parameters
+        ----------
+        index: int
+          index of the plot to be replaced (refers to w_plots)
+        new_state: bool
+          flag that determines whether the plot is supposed to be 2d or not
+        """
+        # store index of plot in self.gl
         plotindex = self.plots[index].index
-        self.plots[index].remove_plot()
+        # remove plot and replace with new one
         plt = self.plots.pop(index)
+        plt.remove_plot()
         del plt
         self.plots.insert(index, self.PlotObject(self.gl, self.cb_error,
                                                  self.l_slider, new_state,
                                                  plotindex, [0, 0, 0],
                                                  pen=self.w_line.isChecked()))
-        # reset flag
+        # reset global plot2d flag
         if any([plot.plot2d for plot in self.plots]) is True:
-            self.toggle_plot2d(True)
+            self._toggle_plot2d(True)
         else:
-            self.toggle_plot2d(False)
+            self._toggle_plot2d(False)
 
     def plot(self, z, x, y=None, plot2d=False):
+        """
+        Function that allows plotting a new set of data.
+
+        TODO: Document possible combinations once fully settled
+
+        Parameters
+        ----------
+        z: dict
+          key "data" contains np.array of dimension 1...3
+        x: dict
+          key "data" contains np.array of dimension 1 or 2
+        y: dict or None
+          key "data" contains np.array of dimension 1 or 2
+        plot2d: bool
+          determines whether plot is 2d or curve
+        """
         index = self.w_plots.currentIndex()
         if self.plots[index].plot2d != plot2d:
-            self.plot2d_changed(index, plot2d)
-        cplot = self.plots[index]
-        cplot.set_data(z, x, y)
-        self.calc_or_data_changed()
+            self._plot2d_changed(index, plot2d)
+        self.plots[index].set_data(z, x, y)
+        self._calc_or_data_changed()
 
 
 class CustomViewBox(pg.ViewBox):
