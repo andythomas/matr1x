@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (QGroupBox, QHBoxLayout, QGridLayout, QPushButton,
                          QSlider, QToolButton, QCheckBox, QSizePolicy, QLayout,
                          QFileDialog,)
 
+from . import usersfolder
 from .eval import delta
 
 
@@ -179,7 +180,7 @@ class SimplePlotWidget(QGroupBox):
         # be selected, has to provide a pair of fucntions for the x and y
         # value, respectively
         default_math = {
-            "none": [lambda xf: xf, lambda yf: yf],
+            "no math": [lambda xf: xf, lambda yf: yf],
             "delta-": [lambda xf: delta(xf)[0],
                        lambda yf: delta(yf)[1]],
             "delta+": [lambda xf: delta(xf)[0],
@@ -518,13 +519,13 @@ class SimplePlotWidget(QGroupBox):
 
         grid = QGridLayout()
 
-        w_save = QPushButton("save plot")
+        w_save = QPushButton("export")
         w_save.clicked.connect(self._save_plot)
 
-        self.posLabel = QLabel("x: 0.0e-0\ny: 0.0e-0")
-        self.posLabel.setMinimumWidth(100)
+        self.w_pos = QLabel("x: 0.00000e-0\ny: 0.00000e-0")
+        self.w_pos.setMinimumWidth(140)
 
-        self.w_delete = QPushButton("delete plot")
+        self.w_delete = QPushButton("delete")
         self.w_delete.clicked.connect(self._remove_plot)
         self.w_delete.setVisible(False)
 
@@ -534,6 +535,7 @@ class SimplePlotWidget(QGroupBox):
         # initialize w_calc combo box with the default math items defined
         # in the PlotObject, add "custom" for custom math.
         self.w_calc = QComboBox()
+        self.w_calc.setToolTip("math operation")
         self.w_calc.addItems(list(self.PlotObject.default_math.keys()) +
                              ["custom"])
         self.w_calc.currentIndexChanged.connect(self._calc_or_data_changed)
@@ -583,20 +585,20 @@ class SimplePlotWidget(QGroupBox):
 
         # line_init controls default value of line visibility on startup
         line_init = False
-        self.w_line = QCheckBox("show lines")
+        self.w_line = QCheckBox("lines")
         self.w_line.setChecked(line_init)
         self._update_linesetting(line_init)
         self.w_line.toggled.connect(self._update_linesetting)
 
-        grid.addWidget(self.w_calc, 1, 0, 1, 2)
-        grid.addWidget(w_save, 1, 3, 1, 1)
-        grid.addLayout(l_math, 2, 0, 1, -1)
-        grid.addWidget(self.w_line, 1, 2)
+        grid.addWidget(self.w_plots, 0, 0, 1, 2)
         grid.addWidget(self.w_delete, 0, 2, 1, 1)
-        grid.addWidget(self.posLabel, 0, 3, 1, 1)
+        grid.addWidget(self.w_line, 0, 3)
+        grid.addWidget(w_save, 0, 4)
+        grid.addWidget(self.w_calc, 0, 5, 1, 1)
+        grid.addWidget(self.w_pos, 0, 6)
+        grid.addLayout(l_math, 1, 0, 1, -1)
         grid.addLayout(self.l_slider, 4, 0, 1, -1)
         grid.addWidget(self.gl, 3, 0, 1, -1)
-        grid.addWidget(self.w_plots, 0, 0, 1, 2)
 
         grid.setColumnStretch(0, 1)
         grid.setRowStretch(3, 1)
@@ -730,7 +732,7 @@ class SimplePlotWidget(QGroupBox):
                 continue
         if vb_mouse is not None:
             mousePoint = vb_mouse.mapSceneToView(ev[0])
-            self.posLabel.setText(
+            self.w_pos.setText(
                 "x: {:.5e}\ny: {:.5e}".format(mousePoint.x(),
                                               mousePoint.y()))
 
@@ -741,7 +743,7 @@ class SimplePlotWidget(QGroupBox):
         """
         exporter = pg.exporters.ImageExporter(self.gl.scene())
         filename = QFileDialog.getSaveFileName(
-            self, 'Select output png file', matr1x.usersfolder,
+            self, 'Select output png file', usersfolder,
             "png files (*.png)")[0]
         if ".png" != filename[-4:].lower():
             filename += ".png"
