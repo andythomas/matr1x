@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="128"
+   height="128"
+   viewBox="0 0 33.866666 33.866666"
+   version="1.1"
+   id="svg5"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <linearGradient
+       id="linearGradient1417">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0"
+         id="stop1413" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="1"
+         id="stop1415" />
+    </linearGradient>
+    <radialGradient
+       xlink:href="#linearGradient1417"
+       id="radialGradient1419"
+       cx="17.159645"
+       cy="16.682091"
+       fx="17.159645"
+       fy="16.682091"
+       r="19.616886"
+       gradientTransform="matrix(0.86320185,0,0,0.86320183,2.1210962,2.5333206)"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <circle
+     style="fill:url(#radialGradient1419);fill-opacity:1;stroke-width:0.194027;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+     id="path855"
+     cx="16.933332"
+     cy="16.933332"
+     r="16.933332" />
+  <g
+     id="layer1"
+     transform="matrix(0.72420757,0,0,0.72420757,4.7213579,4.6302356)"
+     style="stroke-width:1.38082">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:35.2778px;line-height:125%;font-family:serif;-inkscape-font-specification:serif;letter-spacing:2.032px;word-spacing:0.0079375px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.365341px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="-1.0742338"
+       y="26.66766"
+       id="text1508"><tspan
+         id="tspan1506"
+         style="font-size:35.2778px;stroke-width:0.365341px"
+         x="-1.0742338"
+         y="26.66766">[ ]</tspan></text>
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8"
+       cx="8.7528057"
+       cy="8.0877476"
+       r="3" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8-0"
+       cx="17.134054"
+       cy="8.0877476"
+       r="2.0999999" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8-9"
+       cx="25.515305"
+       cy="8.0877476"
+       r="2.1735001" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8-6"
+       cx="25.515305"
+       cy="16.998165"
+       r="2.0999999" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8-3"
+       cx="17.134054"
+       cy="16.998165"
+       r="3" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8-8"
+       cx="8.7528057"
+       cy="16.998165"
+       r="2.0999999" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8-5"
+       cx="8.7528057"
+       cy="25.908581"
+       r="2.1735001" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8-61"
+       cx="17.134054"
+       cy="25.908581"
+       r="2.0999999" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke-width:1.0126;stroke-linecap:round;stroke-linejoin:round;stop-color:#000000"
+       id="path12126-8-1"
+       cx="25.515305"
+       cy="25.908581"
+       r="3" />
+  </g>
+</svg>
