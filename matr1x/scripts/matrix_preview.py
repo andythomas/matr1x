@@ -67,12 +67,15 @@ class SweepPreview(QMainWindow):
         else:
             self.filename = filename
         # get all files
-        files = os.listdir(os.path.dirname(os.path.abspath(filename)))
+        self.file_dir = os.path.dirname(os.path.abspath(filename))
+        files = os.listdir(self.file_dir)
         self.data_files = (
-            [file for file in files if "ma7" in file or "ma6" in file])
+            [os.path.join(self.file_dir, file)
+             for file in files if "ma7" in file or "ma6" in file])
         self.data_files = sorted(
             self.data_files, key=lambda t: os.stat(t).st_mtime)
-        self.file_index = self.data_files.index(os.path.basename(filename))
+        self.file_index = self.data_files.index(
+            os.path.join(self.file_dir, os.path.basename(filename)))
         self.udthread = None
         self.lu_time = time.time()
         self.fetch_data()
@@ -89,13 +92,13 @@ class SweepPreview(QMainWindow):
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
 
-        # w_close = QPushButton("close preview")
-        # w_close.clicked.connect(self.close)
+        w_save = QPushButton("export plot")
+        w_save.clicked.connect(self.save_plot)
 
-        w_update = QPushButton("update plot")
+        w_update = QPushButton("update data")
         w_update.clicked.connect(lambda: self.conditional_fetch_data(True))
 
-        self.autoupdateBox = QCheckBox("auto update data")
+        self.autoupdateBox = QCheckBox("auto update")
         auinit = False
         self.autoupdateBox.setChecked(auinit)
         self.autoupdateBox.toggled.connect(self.updatethread)
@@ -111,7 +114,10 @@ class SweepPreview(QMainWindow):
         w_next.setArrowType(Qt.RightArrow)
         w_next.clicked.connect(self.next_file)
 
-        self.w_file = QLabel(self.filename)
+        self.w_file = QComboBox()
+        self.w_file.addItems(self.data_files)
+        self.w_file.setCurrentIndex(self.file_index)
+        self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
         l_file.addWidget(w_prev)
         l_file.addWidget(self.w_file)
@@ -120,7 +126,7 @@ class SweepPreview(QMainWindow):
         self.w_status = QLabel("")
         self.w_status.setStyleSheet("QLabel { color : red; }")
 
-        self.setWindowTitle(os.path.basename(self.filename))
+        self.setWindowTitle("matr1x_preview")
 
         self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
         self.w_l[2].setVisible(False)
@@ -129,11 +135,12 @@ class SweepPreview(QMainWindow):
         self.w_index[1].setEnabled(False)
         self.w_index[2].setVisible(False)
 
-        column_items = [f"{name}, shape: {shape}" for name, shape
-                        in zip(self.names, self.shapes)]
+        self.column_items = [
+            f"{name} ({unit}), shape: {shape}" for name, unit, shape
+            in zip(self.names, self.units, self.shapes)]
 
         for i in range(3):
-            self.w_index[i].addItems([""] + column_items)
+            self.w_index[i].addItems([""] + self.column_items)
             self.w_index[i].currentIndexChanged.connect(self.index_changed)
 
         self.w_plot2d = QCheckBox("2d plotting")
@@ -143,29 +150,29 @@ class SweepPreview(QMainWindow):
         self.w_plot2d_comp.toggled.connect(self.plotting_complex)
         self.w_plot2d_comp.setVisible(False)
 
-        self.w_transpose = QCheckBox("transpose array")
+        self.w_transpose = QCheckBox("transpose")
         self.w_transpose.setVisible(False)
         self.w_transpose.toggled.connect(self.transpose_toggled)
 
         self.spw = gu.SimplePlotWidget(self.raise_error, self.index_callback)
         self.iv = None
 
-        grid.addLayout(l_file, 6, 0, 1, -1)
-        grid.addWidget(self.w_status, 5, 0, 1, -1)
-        grid.addWidget(self.w_plot2d, 1, 3, 1, 1)
-        # grid.addWidget(w_close, 0, 0)
-        grid.addWidget(w_update, 0, 2)
-        grid.addWidget(self.autoupdateBox, 0, 3)
+        grid.addLayout(l_file, 0, 0, 1, -1)
+        grid.addWidget(self.w_status, 6, 0, 1, -1)
+        grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
+        grid.addWidget(w_save, 1, 4)
+        grid.addWidget(w_update, 1, 2)
+        grid.addWidget(self.autoupdateBox, 1, 3)
         for i in range(3):
-            grid.addWidget(self.w_l[i], i, 0)
-            grid.addWidget(self.w_index[i], i, 1)
-        grid.addWidget(self.w_plot2d_comp, 2, 3, 1, 1)
-        grid.addWidget(self.w_transpose, 1, 2, 1, 1)
-        grid.addWidget(self.spw, 3, 0, 1, 4)
+            grid.addWidget(self.w_l[i], i+1, 0)
+            grid.addWidget(self.w_index[i], i+1, 1)
+        grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
+        grid.addWidget(self.w_transpose, 2, 2, 1, 1)
+        grid.addWidget(self.spw, 4, 0, 1, -1)
 
         # set rescaling behavior
         grid.setColumnStretch(1, 1)
-        grid.setRowStretch(3, 1)
+        grid.setRowStretch(4, 1)
         grid.setSizeConstraint(QLayout.SetNoConstraint)
 
         self.widget = QWidget()
@@ -173,19 +180,48 @@ class SweepPreview(QMainWindow):
         self.setCentralWidget(self.widget)
         self.show()
 
+    def save_plot(self):
+        filename = QFileDialog.getSaveFileName(
+            self, 'Select output png file', self.file_dir,
+            "png files (*.png)")[0]
+        if ".png" != filename[-4:].lower():
+            filename += ".png"
+        if self.iv is not None:
+            exporter = pg.exporters.ImageExporter(self.iv.view)
+            exporter.export(filename)
+        else:
+            self.spw.save_plot(filename)
+
     def previous_file(self):
         if self.file_index > 0:
-            self.file_index -= 1
-        self.filename = self.data_files[self.file_index]
-        self.w_file.setText(self.filename)
-        self.conditional_fetch_data(True)
+            self.w_file.setCurrentIndex(self.file_index-1)
 
     def next_file(self):
         if self.file_index < len(self.data_files) - 1:
-            self.file_index += 1
+            self.w_file.setCurrentIndex(self.file_index+1)
+
+    def file_index_changed(self, index):
+        self.file_index = index
         self.filename = self.data_files[self.file_index]
-        self.w_file.setText(self.filename)
-        self.conditional_fetch_data(True)
+        check = self.conditional_fetch_data(True, check=True)
+        if 0 != check:
+            self.column_items = [
+                f"{name} ({unit}), shape: {shape}" for name, unit, shape
+                in zip(self.names, self.units, self.shapes)]
+            if -2 == check:
+                # file has same columns but different shapes, only change
+                # names to reflect the dimensions
+                for i in range(3):
+                    for j, item in enumerate(self.column_items):
+                        self.w_index[i].setItemText(j+1, item)
+            elif -1 == check:
+                # file has different columns
+                # reload interface
+                for i in range(3):
+                    self.w_index[i].clear()
+                    self.w_index[i].addItems([""] + self.column_items)
+                self.reset()
+                self.spw.reset()
 
     def index_changed(self, newIndex):
         """
@@ -205,12 +241,13 @@ class SweepPreview(QMainWindow):
         """
         if (self.w_plot2d.isChecked() is True and
                 self.w_plot2d_comp.isChecked() is False):
-            # toggle index through
-            dummy = self.w_index[2].currentIndex()
-            self.w_index[2].blockSignals(True)
-            self.w_index[2].setCurrentIndex(self.w_index[1].currentIndex())
-            self.w_index[1].setCurrentIndex(dummy)
-            self.w_index[2].blockSignals(False)
+            if len(self.shapes[self.w_index[0].currentIndex()-1]) < 3:
+                # toggle index for 2d data, since x and y invert role
+                dummy = self.w_index[2].currentIndex()
+                self.w_index[2].blockSignals(True)
+                self.w_index[2].setCurrentIndex(self.w_index[1].currentIndex())
+                self.w_index[1].setCurrentIndex(dummy)
+                self.w_index[2].blockSignals(False)
         self.reload_data()
 
     def plotting_toggled(self, check_state):
@@ -237,11 +274,13 @@ class SweepPreview(QMainWindow):
             if self.iv is None:
                 # set up image view on first initialization
                 self.iv = pg.ImageView()
-                self.widget.layout().addWidget(self.iv, 3, 0, 1, 4)
+                self.widget.layout().addWidget(self.iv, 4, 0, 1, -1)
             else:
                 self.iv.setVisible(True)
         elif check_state is False and self.iv is not None:
-            self.iv.setVisible(False)
+            self.widget.layout().removeWidget(self.iv)
+            del self.iv
+            self.iv = None
             self.spw.setVisible(True)
         # reload data and set widget labels
         self.plotting_toggled(check_state or self.w_plot2d.isChecked())
@@ -255,6 +294,9 @@ class SweepPreview(QMainWindow):
             self.w_status.setVisible(True)
             self.w_status.setText(error)
             self.error = True
+        elif error == "" and self.error is True:
+            self.error = False
+            self.w_status.setVisible(False)
 
     def index_callback(self, plot_object):
         """
@@ -284,15 +326,16 @@ class SweepPreview(QMainWindow):
             self.udthread.terminate()
             self.udthread = None
 
-    def conditional_fetch_data(self, force=False):
+    def conditional_fetch_data(self, force=False, check=False):
         """
         Fetches data from the file if force is True, or if the modification
         time is past the time of the latest update (stored in self.lu_time).
         """
+        ret = 0
         if force is True:
             # file has changed after last update,
             # reload the data into the file structure
-            self.fetch_data()
+            ret = self.fetch_data(check=check)
             self.reload_data()
         elif getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
@@ -301,17 +344,41 @@ class SweepPreview(QMainWindow):
         elif self.lu_time < getmtime(self.filename):
             # file has changed after last update,
             # reload the data into the file structure
-            self.fetch_data()
+            ret = self.fetch_data(check=check)
             self.reload_data()
+        return ret
 
-    def fetch_data(self):
+    def reset(self):
+        self.w_plot2d.setChecked(False)
+        self.w_plot2d_comp.setChecked(False)
+        self.w_transpose.setChecked(False)
+        if self.iv is not None:
+            self.widget.layout().removeWidget(self.iv)
+            del self.iv
+            self.iv = None
+
+    def fetch_data(self, check=False):
         """
         Function that actually handles the data operations
         """
         try:
+            ret = 0
             self.header, self.data = loadmatrix(self.filename)
-            self.names = self.header["columns"]
-            self.units = self.header["units"]
+            names = self.header["columns"]
+            units = self.header["units"]
+            shapes = [self.data[col].shape for col in names]
+            if check is True:
+                if self.names != names:
+                    ret = -1
+                elif shapes != self.shapes:
+                    ret = -2
+                elif units != self.units:
+                    # TODO: Discuss whether this should reset
+                    # or just regenerate names
+                    ret = -2
+            self.names = names
+            self.units = units
+            self.shapes = shapes
         except Exception:
             # file could not be opened
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -323,9 +390,9 @@ The following error was raised when opening the file:
 Please investigate the error and eventually restart matrix_preview""")
             sys.exit(-1)
 
-        self.shapes = [self.data[col].shape for col in self.names]
         # update timer
         self.lu_time = time.time()
+        return ret
 
     def reload_data(self):
         """
@@ -368,6 +435,9 @@ Please investigate the error and eventually restart matrix_preview""")
             elif ret == -8:
                 self.raise_error(
                     "data in y does not have correct dimension")
+            elif ret == -9:
+                self.raise_error(
+                    "data array with zero length dimension is present")
         elif self.error is True:
             self.error = False
             self.w_status.setVisible(False)
@@ -392,7 +462,11 @@ Please investigate the error and eventually restart matrix_preview""")
                 dat["label"] = name
                 dat["desig"] = index+1
                 dat["unit"] = self.units[index]
-                dat["data"] = self.data[name]
+                data = self.data[name]
+                if data.size > 0:
+                    dat["data"] = data
+                else:
+                    return -9
                 dat["shape"] = dat["data"].shape
                 dat["dim"] = dim
             if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is True:
@@ -541,6 +615,9 @@ Please investigate the error and eventually restart matrix_preview""")
             x = dict(label=xname, desig=indexX+1, unit=self.units[indexX],
                      data=self.data[xname], shape=self.shapes[indexX],
                      dim=len(self.shapes[indexX]))
+
+        if y["data"].size == 0 or x["data"].size == 0:
+            return -9
 
         # data is loaded, now try to combine the data so that it becomes
         # plottable in a curve/scatter plot

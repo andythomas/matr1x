@@ -10,11 +10,10 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt5.QtCore import QObject, Qt, pyqtSignal, QPoint
 from PyQt5.QtWidgets import (QGroupBox, QHBoxLayout, QGridLayout, QPushButton,
-                         QLabel, QLineEdit, QVBoxLayout, QComboBox, QFrame,
-                         QSlider, QToolButton, QCheckBox, QSizePolicy, QLayout,
-                         QFileDialog,)
+                             QLabel, QLineEdit, QVBoxLayout, QComboBox, QFrame,
+                             QSlider, QToolButton, QCheckBox, QSizePolicy,
+                             QLayout)
 
-from . import usersfolder
 from .eval import delta
 
 
@@ -136,7 +135,7 @@ class SimplePlotWidget(QGroupBox):
     cb_error: function
       callback function that takes a single string as paramter, the
       string will describe the present error
-      If called with an empty string, it should clear the error.
+      If called with an empty string, it should elear the error.
     cb_index: function
       callback function that takes a PlotObject as parameters.
       The function is called with the currently selected PlotObject if the
@@ -220,7 +219,7 @@ class SimplePlotWidget(QGroupBox):
             # initialize storage variables
             self.labels = ["", "", ""]
             self.units = ["", "", ""]
-            self.math_mode = "none"
+            self.math_mode = "no math"
             self.math_texts = ["y", "x"]
             self.z = np.zeros(0)
             self.x = np.zeros(0)
@@ -324,6 +323,12 @@ class SimplePlotWidget(QGroupBox):
                     if len(yc) != len(xc):
                         self._raise_error(
                             "error in math: arrays have different length")
+                    elif len(yc.shape) > 1 and all(np.array(yc.shape) > 1):
+                        self._raise_error(
+                            "error in math: y array has too high dimension")
+                    elif len(xc.shape) > 1 and all(np.array(xc.shape) > 1):
+                        self._raise_error(
+                            "error in math: y array has too high dimension")
                     else:
                         y, x = yc, xc
             return y, x
@@ -519,9 +524,6 @@ class SimplePlotWidget(QGroupBox):
 
         grid = QGridLayout()
 
-        w_save = QPushButton("export")
-        w_save.clicked.connect(self._save_plot)
-
         self.w_pos = QLabel("x: 0.00000e-0\ny: 0.00000e-0")
         self.w_pos.setMinimumWidth(140)
 
@@ -593,9 +595,8 @@ class SimplePlotWidget(QGroupBox):
         grid.addWidget(self.w_plots, 0, 0, 1, 2)
         grid.addWidget(self.w_delete, 0, 2, 1, 1)
         grid.addWidget(self.w_line, 0, 3)
-        grid.addWidget(w_save, 0, 4)
-        grid.addWidget(self.w_calc, 0, 5, 1, 1)
-        grid.addWidget(self.w_pos, 0, 6)
+        grid.addWidget(self.w_calc, 0, 4, 1, 1)
+        grid.addWidget(self.w_pos, 0, 5)
         grid.addLayout(l_math, 1, 0, 1, -1)
         grid.addLayout(self.l_slider, 4, 0, 1, -1)
         grid.addWidget(self.gl, 3, 0, 1, -1)
@@ -662,8 +663,8 @@ class SimplePlotWidget(QGroupBox):
 
         # load math_mode from PlotObject and set index
         index_math = self.w_calc.findText(self.plots[index].math_mode)
-        if index != -1:
-            # item not found in combo box texts
+        if index_math != -1:
+            # for -1, item not found in combo box texts
             self.w_calc.setCurrentIndex(index_math)
 
         # pass current PlotObject to callback function to be handled externally
@@ -736,19 +737,6 @@ class SimplePlotWidget(QGroupBox):
                 "x: {:.5e}\ny: {:.5e}".format(mousePoint.x(),
                                               mousePoint.y()))
 
-    def _save_plot(self):
-        """
-        Export the currently displayed plots (everything in self.gl)
-        into a png file
-        """
-        exporter = pg.exporters.ImageExporter(self.gl.scene())
-        filename = QFileDialog.getSaveFileName(
-            self, 'Select output png file', usersfolder,
-            "png files (*.png)")[0]
-        if ".png" != filename[-4:].lower():
-            filename += ".png"
-        exporter.export(filename)
-
     def _update_linesetting(self, state):
         """
         Updates the line visibility in all plot objects that are not
@@ -790,6 +778,36 @@ class SimplePlotWidget(QGroupBox):
         else:
             self._toggle_plot2d(False)
 
+    def save_plot(self, filename):
+        """
+        Export the currently displayed plots (everything in self.gl)
+        into a png file
+        """
+        exporter = pg.exporters.ImageExporter(self.gl.scene())
+        exporter.export(filename)
+
+    def reset(self):
+        """
+        Resets the full SimplePlotWidget to its default state
+        """
+        self.w_plots.blockSignals(True)
+        for plot in self.plots:
+            plot.remove_plot()
+        del self.plots
+        self.plots = [self.PlotObject(self.gl, self.cb_error, self.l_slider,
+                                      False, 0, [0, 0, 0]), ]
+        self.w_plots.setCurrentIndex(0)
+        self.w_plots.clear()
+        self.w_plots.addItem("p0 -  vs")
+        self.w_plots.addItem("add plot")
+        self.w_plots.blockSignals(False)
+        self.w_calc.setCurrentIndex(0)
+        self.w_math[0].setText("y")
+        self.w_math[1].setText("x")
+        self.w_delete.setVisible(False)
+        # self.w_line.setChecked(False)
+
+
     def plot(self, z, x, y=None, plot2d=False):
         """
         Function that allows plotting a new set of data.
@@ -830,7 +848,7 @@ class CustomViewBox(pg.ViewBox):
       mouse on x or y axis:
       left button drags corresponding axis
       right button allows panning individual axis
-      mouse wheel zooms in/out with cursor position deifning center
+      mouse wheel zooms in/out with cursor position defining center
     """
 
     def __init__(self, *args, **kwds):
