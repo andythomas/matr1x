@@ -8,19 +8,17 @@ import sys
 import time
 from os.path import getmtime, getsize
 
-import matr1x
 import numpy as np
 import pyqtgraph as pg
 import pyqtgraph.exporters
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import delta, loadmatrix
+from matr1x.eval import loadmatrix
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
-                             QFrame, QGridLayout, QGroupBox, QHBoxLayout,
-                             QLabel, QLayout, QLineEdit, QMainWindow,
-                             QMessageBox, QPushButton, QSizePolicy, QSlider,
-                             QToolButton, QVBoxLayout, QWidget)
+                             QGridLayout, QHBoxLayout, QLabel, QLayout,
+                             QMainWindow, QMessageBox, QPushButton, QToolButton,
+                             QWidget)
 
 
 class UpdateThread(QThread):
@@ -518,12 +516,12 @@ Please investigate the error and eventually restart matrix_preview""")
                 x["data"] = np.linspace(x["data"][0], x["data"][-1], lenx)
             else:
                 if transpose is False:
-                    x["data"] = np.linspace(x["data"][0,0],
-                                            x["data"][-1,0],
+                    x["data"] = np.linspace(x["data"][0, 0],
+                                            x["data"][-1, 0],
                                             lenx)
                 else:
-                    x["data"] = np.linspace(x["data"][0,0],
-                                            x["data"][0,-1],
+                    x["data"] = np.linspace(x["data"][0, 0],
+                                            x["data"][0, -1],
                                             lenx)
             x["shape"] = lenx
             x["dim"] = 1
@@ -542,21 +540,21 @@ Please investigate the error and eventually restart matrix_preview""")
                 y["data"] = np.linspace(y["data"][0], y["data"][-1], leny)
             else:
                 if transpose is False:
-                    y["data"] = np.linspace(y["data"][0,0],
-                                            y["data"][0,-1],
+                    y["data"] = np.linspace(y["data"][0, 0],
+                                            y["data"][0, -1],
                                             leny)
                 else:
-                    y["data"] = np.linspace(y["data"][0,0],
-                                            y["data"][-1,0],
+                    y["data"] = np.linspace(y["data"][0, 0],
+                                            y["data"][-1, 0],
                                             leny)
             y["shape"] = leny
             y["dim"] = 1
 
         if self.w_plot2d_comp.isChecked() is True:
             if z["dim"] > 2:
-                axes={"t": 0, "x": 1, "y": 2}
+                axes = {"t": 0, "x": 1, "y": 2}
             else:
-                axes={"x": 0, "y": 1}
+                axes = {"x": 0, "y": 1}
             self.iv.setImage(z["data"], axes=axes, xvals=x["data"])
             self.iv.getView().invertY(False)
             self.iv.getView().setAspectLocked(False)

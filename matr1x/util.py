@@ -1011,7 +1011,8 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
             assert data_file.swmr_mode
             data_file.attrs["Input filename"] = inputfile
             data_file.attrs["System filename"] = system.__name__
-            data_file.attrs["Device query"] = construct_query_string(query_dict)
+            data_file.attrs["Device query"] = construct_query_string(
+                query_dict)
             for dckey, dcvalue in system.dcdata.items():
                 if dcvalue is None:
                     # mark non-existing value

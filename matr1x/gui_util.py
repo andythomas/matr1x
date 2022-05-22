@@ -8,11 +8,11 @@ generator and matrix_gui
 """
 import numpy as np
 import pyqtgraph as pg
-from PyQt5.QtCore import QObject, Qt, pyqtSignal, QPoint
-from PyQt5.QtWidgets import (QGroupBox, QHBoxLayout, QGridLayout, QPushButton,
-                             QLabel, QLineEdit, QVBoxLayout, QComboBox, QFrame,
-                             QSlider, QToolButton, QCheckBox, QSizePolicy,
-                             QLayout)
+from PyQt5.QtCore import QObject, Qt, pyqtSignal
+from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
+                             QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
+                             QPushButton, QSizePolicy, QSlider, QToolButton,
+                             QVBoxLayout)
 
 from .eval import delta
 
@@ -172,7 +172,7 @@ class SimplePlotWidget(QGroupBox):
                              "cos": np.cos, "sin": np.sin, "tan": np.tan,
                              "arccos": np.arccos, "arcsin": np.arcsin,
                              "arctan": np.arctan, "log": np.log, "exp": np.exp,
-                            }
+                             }
 
         # default math operations can be added here if required
         # the key should correspond to the value of math_mode for this to
@@ -479,7 +479,7 @@ class SimplePlotWidget(QGroupBox):
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
                     # 3d plotting
-                    self.plt.setImage(self.z, pos=[0,0], scale=[1,1],
+                    self.plt.setImage(self.z, pos=[0, 0], scale=[1, 1],
                                       xvals=self.x,
                                       axes={"t": 0, "x": 1, "y": 2})
                     # set labels to array index, same as on the y-axis
@@ -702,7 +702,8 @@ class SimplePlotWidget(QGroupBox):
                 name = (f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]} "
                         f"and {plot.labels[2]}")
             else:
-                name = (f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}")
+                name = (
+                    f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}")
             self.w_plots.setItemText(i, name)
         # reset error
         self.cb_error("")
@@ -806,7 +807,6 @@ class SimplePlotWidget(QGroupBox):
         self.w_math[1].setText("x")
         self.w_delete.setVisible(False)
         # self.w_line.setChecked(False)
-
 
     def plot(self, z, x, y=None, plot2d=False):
         """
