@@ -6,4 +6,4 @@ Comment=Measurement control graphical user interface
 Exec=matrix_gui
 Icon=matr1x-matrix_gui
 Terminal=true
-Categories=Education
+Categories=Science
