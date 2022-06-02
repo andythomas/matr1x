@@ -18,8 +18,8 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import delta, get_latest_datafile, loadh5matrix, loadmatrix
 from matr1x.scripts import MATRIX_GUI_PORT, sweep_generator
 from matr1x.util import get_matrix_binary
-from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
                              QPushButton, QTextEdit, QVBoxLayout, QWidget)
