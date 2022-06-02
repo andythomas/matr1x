@@ -13,7 +13,7 @@ import time
 import traceback
 from ast import literal_eval
 from math import floor
-from os.path import basename, splitext
+from os.path import basename, dirname, join, splitext
 
 import pyqtgraph as pg
 from matr1x import datetimefmt
@@ -25,7 +25,7 @@ from matr1x.util import (calculate_sweep, generate_col_index,
                          get_settable_columns, merge_systems)
 from numpy import linspace
 from PyQt5.QtCore import QLocale, pyqtSignal
-from PyQt5.QtGui import QDoubleValidator, QIntValidator
+from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
 from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                              QComboBox, QDialog, QFileDialog, QGridLayout,
                              QLabel, QLineEdit, QListWidget, QMainWindow,
@@ -41,6 +41,14 @@ lo = QLocale("C")
 lo.setNumberOptions(QLocale.RejectGroupSeparator)
 validator = QDoubleValidator()
 validator.setLocale(lo)
+
+if os.name == 'nt':
+    try:
+        from ctypes import windll  # Only exists on Windows.
+        myappid = 'python.matr1x.sweep_generator.version'
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
 
 
 class LineEditFocus(QLineEdit):
@@ -191,6 +199,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self, system=None, inputcb=None):
         super().__init__()
+        basedir = dirname(__file__)
+        self.setWindowIcon(QIcon(join(basedir, 'matr1x-sweep_generator.png')))
 
         self.system = system
         self.inputcb = inputcb

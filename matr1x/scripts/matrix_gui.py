@@ -8,7 +8,7 @@ import socket
 import subprocess
 import sys
 import time
-from os.path import exists, getmtime, getsize
+from os.path import dirname, exists, getmtime, getsize, join
 
 import matr1x
 import pyqtgraph as pg
@@ -18,6 +18,7 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import delta, get_latest_datafile, loadh5matrix, loadmatrix
 from matr1x.scripts import MATRIX_GUI_PORT, sweep_generator
 from matr1x.util import get_matrix_binary
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QFileDialog, QGridLayout, QLabel, QLineEdit,
@@ -31,6 +32,14 @@ def signal_handler(signal, frame):
 
 # Connect keyboard interrupt with above signal handler
 signal.signal(signal.SIGINT, signal_handler)
+
+if os.name == 'nt':
+    try:
+        from ctypes import windll  # Only exists on Windows.
+        myappid = 'python.matr1x.matrix_gui.version'
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
 
 
 class updateThread(QThread):
@@ -450,6 +459,8 @@ class MainWindow(QWidget):
         """
         Initializes basic GUI matrix program
         """
+        basedir = dirname(__file__)
+        self.setWindowIcon(QIcon(join(basedir, 'matr1x-matrix_gui.png')))
         self.inputEdit = QLineEdit(self)
 
         inputButton = QPushButton("Select Input File")
