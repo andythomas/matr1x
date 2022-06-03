@@ -20,13 +20,42 @@ from matr1x.system import System
 # This area contains the required MeasSystem definition and
 # the optional reimplementation of the set and reset function
 # ============================
+class MeasSystem(System):
+    def __init__(self):
+        super().__init__()
+        self.dcdata["Source"] = "Dummy feature system"
+        self.dcdata["Publisher"] = "matr1x measurement suite"
+
+    def set(self, *args, **kwargs):
+        """
+        This function is called by matrix upon initialization of the
+        measurement.
+        The devices in the devs dictionary are opened/initialized
+        and can be configured if necessary.
+        """
+        # wrap base system function for safe handling of opening
+        super().set(*args, **kwargs)
+        # configure devices upon initialization
+        sys.devs["dev1"].p2 = 10
+        sys.devs["dev2"].configure(setting1="VOLT", setting2=5)
+
+    def reset(self, *args, **kwargs):
+        """
+        This function is called by matrix upon deinitialization of the
+        measurement.
+        """
+        # set some parameter upon deinitializtion
+        sys.devs["dev1"].p2 = 0
+        # wrap base system function for safe handling of opening
+        super().reset(*args, **kwargs)
+
 
 # ============================
 
 
 # ============================
 # initialize system
-sys = System()
+sys = MeasSystem()
 sys.dcdata["Source"] = "dummy system for testing matr1x-matrix"
 # ============================
 

@@ -7,17 +7,21 @@ import signal
 import socket
 import subprocess
 import sys
-from os.path import exists
+
+import time
+from os.path import dirname, exists, getmtime, getsize, join
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import get_latest_datafile
 from matr1x.scripts import MATRIX_GUI_PORT, matrix_preview, sweep_generator
 from matr1x.util import get_matrix_binary
-from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtWidgets import (QApplication, QFileDialog, QGridLayout, QLabel,
-                             QLineEdit, QPushButton, QTextEdit, QVBoxLayout,
-                             QWidget)
+
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
+                             QFileDialog, QGridLayout, QLabel, QLineEdit,
+                             QPushButton, QTextEdit, QVBoxLayout, QWidget)
 
 
 def signal_handler(signal, frame):
@@ -27,6 +31,14 @@ def signal_handler(signal, frame):
 
 # Connect keyboard interrupt with above signal handler
 signal.signal(signal.SIGINT, signal_handler)
+
+if os.name == 'nt':
+    try:
+        from ctypes import windll  # Only exists on Windows.
+        myappid = 'python.matr1x.matrix_gui.version'
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
 
 
 class ExecThread(QThread):
@@ -192,6 +204,8 @@ class MainWindow(QWidget):
         """
         Initializes basic GUI matrix program
         """
+        basedir = dirname(__file__)
+        self.setWindowIcon(QIcon(join(basedir, 'matr1x-matrix_gui.png')))
         self.inputEdit = QLineEdit(self)
 
         inputButton = QPushButton("Select Input File")
@@ -201,9 +215,14 @@ class MainWindow(QWidget):
         sweepGenButton.clicked.connect(self.startSweepGenerator)
 
         self.outputEdit = QLineEdit(self)
+        self.outputAutoGen = QCheckBox(self)
+        autogen = True
+        self.outputAutoGen.setChecked(autogen)
 
-        outputButton = QPushButton("Select Output File")
-        outputButton.clicked.connect(self.showOutputDialog)
+        self.outputButton = QPushButton("Select Output File")
+        self.outputButton.clicked.connect(self.showOutputDialog)
+        self.outputAutoGen.toggled.connect(self.updateAutoGenFilename)
+        self.updateAutoGenFilename(autogen)
 
         self.userField = QLineEdit(self)
         self.userField.setToolTip("Measurement Operator for data-file header")
@@ -230,21 +249,23 @@ class MainWindow(QWidget):
         fGrid.addWidget(inputButton, 1, 10)
 
         fGrid.addWidget(QLabel("Output"), 2, 0)
+        fGrid.addWidget(QLabel("auto-generate filename"), 2, 1)
+        fGrid.addWidget(self.outputAutoGen, 2, 2)
 
-        fGrid.addWidget(self.outputEdit, 2, 1, 1, 9)
-        fGrid.addWidget(outputButton, 2, 10)
+        fGrid.addWidget(self.outputEdit, 3, 1, 1, 9)
+        fGrid.addWidget(self.outputButton, 3, 10)
 
         fGrid.addWidget(QLabel("User"))
-        fGrid.addWidget(self.userField, 3, 1, 1, 10)
+        fGrid.addWidget(self.userField, 4, 1, 1, 10)
 
         fGrid.addWidget(QLabel("Sample"))
-        fGrid.addWidget(self.sampleField, 4, 1, 1, 10)
+        fGrid.addWidget(self.sampleField, 5, 1, 1, 10)
 
         fGrid.addWidget(QLabel("Comments"))
-        fGrid.addWidget(self.commentField, 5, 1, 2, 10)
+        fGrid.addWidget(self.commentField, 6, 1, 2, 10)
 
-        fGrid.addWidget(self.runButton, 7, 0, 1, 11)
-        fGrid.addWidget(self.previewButton, 8, 0, 1, 11)
+        fGrid.addWidget(self.runButton, 8, 0, 1, 11)
+        fGrid.addWidget(self.previewButton, 9, 0, 1, 11)
 
         self.statusBar = QTextEdit(self)
         self.statusBar.setReadOnly(True)
@@ -262,6 +283,15 @@ class MainWindow(QWidget):
 
         self.setLayout(vBox)
         self.setWindowTitle('matrix_gui')
+
+    def updateAutoGenFilename(self, state):
+        if state is True:
+            # disable output filename fields
+            self.outputEdit.setEnabled(False)
+            self.outputButton.setEnabled(False)
+        if state is False:
+            self.outputEdit.setEnabled(True)
+            self.outputButton.setEnabled(True)
 
     def showInputDialog(self):
         """
@@ -313,7 +343,10 @@ class MainWindow(QWidget):
         Runs the matrix program with the specified parameters
         """
         inputFile = self.inputEdit.text()
-        outputFile = self.outputEdit.text()
+        if self.outputAutoGen.isChecked():
+            outputFile = ""
+        else:
+            outputFile = self.outputEdit.text()
         if "" == inputFile:
             self.statusBar.append("No input file specified")
             return

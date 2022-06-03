@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=matrix script
+Comment=script based measurement control interface
+Exec=matrix_script
+Icon=matr1x-matrix_script
+Terminal=false
+Categories=Science

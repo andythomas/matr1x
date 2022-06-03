@@ -470,7 +470,10 @@ def generate_script(systems, user_script):
 
     # merge user input into script
     # ==== begin user area ====
-    """) + user_script + textwrap.dedent("""
+    try:
+    """) + textwrap.indent(user_script, "    ") + textwrap.dedent("""
+    except KeyboardInterrupt:
+        print("script has been aborted by user, calling reset")
     # ===== end user area =====
     # the reset function is called at the script end only, but we nevertheless
     # specify the last datafile name to be as close as possible to the behavior

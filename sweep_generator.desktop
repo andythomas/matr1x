@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Sweep Generator
+Comment=Generator for Matrix measurement input files
+Exec=sweep_generator
+Icon=matr1x-sweep_generator
+Terminal=false
+Categories=Science

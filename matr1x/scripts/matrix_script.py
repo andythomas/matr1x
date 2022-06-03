@@ -11,13 +11,14 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+from os.path import dirname, join
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.util import generate_script
 from PyQt5.QtCore import QRect, QRegExp, QSize, Qt, QThread
-from PyQt5.QtGui import (QColor, QFont, QPainter, QPalette, QSyntaxHighlighter,
-                         QTextCharFormat, QTextCursor)
+from PyQt5.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
+                         QSyntaxHighlighter, QTextCharFormat, QTextCursor)
 from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                              QGridLayout, QLineEdit, QListWidget,
                              QPlainTextEdit, QPushButton, QSplitter, QTextEdit,
@@ -27,6 +28,14 @@ from ..gui_util import EmittingStream
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 logger.info("matrix_script starting")
+
+if os.name == 'nt':
+    try:
+        from ctypes import windll  # Only exists on Windows.
+        myappid = 'python.matr1x.matrix_script.version'
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
 
 
 class LineNumberArea(QWidget):
@@ -309,13 +318,13 @@ class ExecThread(QThread):
             return
         self.conn.send("p".encode())
 
-    def stop(self):
+    def abort(self):
         """ communicate stop to the subprocess' stdin """
         if self.proc is None or self.conn is None:
             return
         self.conn.send("q".encode())
 
-    def abort(self):
+    def kill(self):
         """ kill the process and make sure it is indeed stopped """
         if self.proc is None or self.conn is None:
             return
@@ -424,6 +433,8 @@ class MainWindow(QWidget):
         print("==========")
 
     def init_ui(self):
+        basedir = dirname(__file__)
+        self.setWindowIcon(QIcon(join(basedir, 'matr1x-matrix_script.png')))
         layout = QGridLayout()
 
         # Buttons
@@ -526,10 +537,10 @@ class MainWindow(QWidget):
         self.thread.pause()
 
     def abort_thread(self):
-        self.thread.stop()
+        self.thread.abort()
 
     def kill_thread(self):
-        self.thread.abort()
+        self.thread.kill()
         print("Script terminated by user - " +
               "file integrity might be compromised")
 
