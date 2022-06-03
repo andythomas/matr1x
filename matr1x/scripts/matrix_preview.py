@@ -6,7 +6,7 @@ import os
 import signal
 import sys
 import time
-from os.path import getmtime, getsize
+from os.path import dirname, getmtime, getsize, join
 
 import numpy as np
 import pyqtgraph as pg
@@ -15,10 +15,20 @@ from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
                              QGridLayout, QHBoxLayout, QLabel, QLayout,
                              QMainWindow, QMessageBox, QPushButton, QToolButton,
                              QWidget)
+
+
+if os.name == 'nt':
+    try:
+        from ctypes import windll  # Only exists on Windows.
+        myappid = 'python.matr1x.matrix_preview.version'
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
 
 
 class UpdateThread(QThread):
@@ -85,6 +95,8 @@ class SweepPreview(QMainWindow):
         """
         Initialize GUI for popup
         """
+        basedir = dirname(__file__)
+        self.setWindowIcon(QIcon(join(basedir, 'matr1x-matrix_preview.png')))
         grid = QGridLayout()
 
         pg.setConfigOption('background', 'w')
