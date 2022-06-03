@@ -21,7 +21,6 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
                              QMainWindow, QMessageBox, QPushButton, QToolButton,
                              QWidget)
 
-
 if os.name == 'nt':
     try:
         from ctypes import windll  # Only exists on Windows.
