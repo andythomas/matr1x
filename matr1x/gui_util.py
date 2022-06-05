@@ -546,7 +546,7 @@ class SimplePlotWidget(QGroupBox):
         self.w_lmath = [QLabel("lambda y : "), QLabel("lambda x : ")]
 
         for i in range(2):
-            self.w_math[i].returnPressed.connect(self._calc_or_data_changed)
+            self.w_math[i].editingFinished.connect(self._calc_or_data_changed)
             self.w_math[i].setToolTip(
                 "You can use power, sqrt, exp, log, log10, cos, sin, tan and "
                 "their inverse functions, pi and e.\n"
