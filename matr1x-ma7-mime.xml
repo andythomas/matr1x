@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/matr1x-ma7">
+         <comment xml:lang="en">MA7 matrix data file</comment>
+         <icon name="x-matr1x-ma7"/>
+         <glob pattern="*.ma7"/>
+  </mime-type>
+</mime-info>

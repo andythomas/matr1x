@@ -7,22 +7,18 @@ import signal
 import socket
 import subprocess
 import sys
-import time
-from os.path import dirname, exists, getmtime, getsize, join
+from os.path import dirname, exists, join
 
 import matr1x
-import pyqtgraph as pg
-import pyqtgraph.exporters
-from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import delta, get_latest_datafile, loadh5matrix, loadmatrix
-from matr1x.scripts import MATRIX_GUI_PORT, sweep_generator
+from matr1x.eval import get_latest_datafile
+from matr1x.scripts import MATRIX_GUI_PORT, matrix_preview, sweep_generator
 from matr1x.util import get_matrix_binary
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                             QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QPushButton, QTextEdit, QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QGridLayout,
+                             QLabel, QLineEdit, QPushButton, QTextEdit,
+                             QVBoxLayout, QWidget)
 
 
 def signal_handler(signal, frame):
@@ -40,260 +36,6 @@ if os.name == 'nt':
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
-
-
-class updateThread(QThread):
-    update_now = pyqtSignal()
-
-    def __init__(self, interval):
-        QThread.__init__(self)
-        self.stopFlag = False
-        self.interval = interval
-
-    def run(self):
-        while not self.stopFlag:
-            time.sleep(self.interval)
-            self.update_now.emit()
-
-    def terminate(self):
-        self.stopFlag = True
-
-
-class SweepPreviewPopup(QDialog):
-    """
-    Popup showing the sweep as list and as plot
-
-    Arguments:
-        index -- index of column in sweep to be displayed on startup
-        sweep -- list of sweeps for each column
-        cols -- list of column names
-        units -- list of column units
-    """
-
-    def __init__(self, parent, filename):
-        super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-        self.filename = filename
-        if ".h5" in filename:
-            self.h5 = True
-            self.header, self.data = loadh5matrix(self.filename)
-        else:
-            self.h5 = False
-            self.header, self.data = loadmatrix(self.filename)
-        self.udthread = None
-        self.luTime = time.time()
-        self.initUI()
-
-    def initUI(self):
-        """
-        Initialize GUI for popup
-        """
-        grid = QGridLayout()
-
-        closeButton = QPushButton("Close preview")
-        closeButton.clicked.connect(self.close)
-
-        updateButton = QPushButton("Update plot")
-        updateButton.clicked.connect(self.refreshLists)
-
-        saveButton = QPushButton("Save plot")
-        saveButton.clicked.connect(self.savePlot)
-
-        self.autoupdateBox = QCheckBox("Auto update data")
-        auinit = False
-        self.autoupdateBox.setChecked(auinit)
-        self.autoupdateBox.toggled.connect(self.updatethread)
-        self.updatethread(auinit)
-
-        self.posLabel = QLabel("x: 0.0e-0\ny: 0.0e-0")
-        fileLabel = QLabel(self.filename)
-        self.setWindowTitle(os.path.basename(self.filename))
-
-        self.textEdit = QTextEdit()
-        self.textEdit.setReadOnly(True)
-        self.textEdit.setMinimumHeight(100)
-
-        comboBoxX = QComboBox()
-        comboBoxY = QComboBox()
-        self.comboBoxCalc = QComboBox()
-
-        self.comboBoxCalc.addItems(["None", "Delta-", "Delta+"])
-        self.dMode = 0
-
-        comboBoxX.addItems(self.header[0])
-        comboBoxY.addItems(self.header[0])
-        self.indexX = 0
-        self.indexY = 0
-        comboBoxX.currentIndexChanged.connect(self.indexChangedX)
-        comboBoxY.currentIndexChanged.connect(self.indexChangedY)
-
-        pg.setConfigOption('background', 'w')
-        pg.setConfigOption('foreground', 'k')
-        self.vb = gu.CustomViewBox()
-        self.pw = pg.PlotWidget(
-            viewBox=self.vb, name="Plot1", enableMenu=False)
-        self.plt = self.pw.plot()
-        self.refreshLists()
-
-        self.plotlineBox = QCheckBox("show plot line")
-        lineinit = False
-        self.plt.setPen(None)
-        self.plotlineBox.setChecked(auinit)
-        self.plotlineBox.toggled.connect(self.updatelinesetting)
-        self.updatelinesetting(lineinit)
-
-        self.proxy = pg.SignalProxy(self.pw.scene().sigMouseMoved,
-                                    rateLimit=30,
-                                    slot=self.mouseMoved)
-
-        grid.addWidget(fileLabel, 11, 0, 1, -1)
-        grid.addWidget(closeButton, 0, 0)
-        grid.addWidget(updateButton, 4, 0)
-        grid.addWidget(self.autoupdateBox, 5, 0)
-        grid.addWidget(self.plotlineBox, 6, 0)
-        grid.addWidget(comboBoxX, 1, 0)
-        grid.addWidget(comboBoxY, 2, 0)
-        grid.addWidget(self.comboBoxCalc, 3, 0)
-        grid.addWidget(self.textEdit, 7, 0, 4, 1)
-        grid.addWidget(saveButton, 0, 1, 1, 4)
-        grid.addWidget(self.posLabel, 0, 5, 1, 1)
-        grid.addWidget(self.pw, 1, 1, 10, 5)
-        grid.setColumnStretch(1, 1)
-        grid.setRowStretch(10, 1)
-
-        self.setLayout(grid)
-        self.show()
-
-    def indexChangedX(self, newIndex):
-        """
-        If index is changed, show the interface for new index
-        """
-        self.indexX = newIndex
-        self.plotList()
-        self.updateTextEdit()
-
-    def indexChangedY(self, newIndex):
-        """
-        If index is changed, show the interface for new index
-        """
-        self.indexY = newIndex
-        self.plotList()
-        self.updateTextEdit()
-
-    def refreshLists(self):
-        updated = self.openFileAndReadList()
-        if self.dMode != self.comboBoxCalc.currentIndex() or updated is True:
-            self.plotList()
-            self.updateTextEdit()
-
-    def mouseMoved(self, ev):
-        mousePoint = self.vb.mapSceneToView(ev[0])
-        self.posLabel.setText("x: {:e}\ny: {:e}".format(mousePoint.x(),
-                                                        mousePoint.y()))
-
-    def savePlot(self):
-        exporter = pg.exporters.ImageExporter(self.vb.scene())
-        filename = QFileDialog.getSaveFileName(
-            self, 'Select output png file', matr1x.usersfolder,
-            "png files (*.png)")[0]
-        if ".png" != filename[-4:].lower():
-            filename += ".png"
-        exporter.export(filename)
-        # exporter.parameters()["height"] = 1200
-        # exporter.parameters()["width"] = 1920
-
-    def updateTextEdit(self):
-        """
-        Updates the textEdit to show the current sweep[index]
-        """
-        self.textEdit.clear()
-        if len(self.ydata) > 101:
-            for index, item in zip(self.xdata[-100:], self.ydata[-100:]):
-                self.textEdit.append("{:.5e} |{:.5e}".format(index, item))
-        else:
-            for index, item in zip(self.xdata, self.ydata):
-                self.textEdit.append("{:.5e} |{:.5e}".format(index, item))
-
-    def openFileAndReadList(self):
-        if getsize(self.filename) > 300000 and time.time() - self.luTime < 20:
-            # skip updates if delta is below 10s and filesize is > 200kB
-            # this will depend on the system!
-            return False
-        if self.luTime < getmtime(self.filename):
-            if self.h5 is True:
-                self.header, self.data = loadh5matrix(self.filename)
-            else:
-                self.header, self.data = loadmatrix(self.filename)
-            self.luTime = time.time()
-            return True
-
-    def updatethread(self, state):
-        if state is True:
-            # start updatethread with 2s refresh time
-            self.udthread = updateThread(2)
-            self.udthread.update_now.connect(self.refreshLists)
-            self.udthread.start()
-        if state is False and self.udthread is not None:
-            self.udthread.terminate()
-            self.udthread = None
-
-    def updatelinesetting(self, state):
-        if state is True:
-            self.plt.setPen((0, 0, 153), width=3)
-        if state is False:
-            self.plt.setPen(None)
-
-    def plotList(self):
-        """
-        Updates the plot to show sweep[index] against its range
-        """
-        self.dMode = self.comboBoxCalc.currentIndex()
-        try:
-            x = self.data[:, self.indexX]
-            y = self.data[:, self.indexY]
-        except IndexError:
-            try:
-                # if array can not be 2D sliced
-                x = self.data[self.indexX]
-                y = self.data[self.indexY]
-                if len(x) != len(y):
-                    # in case lengths do not agree, do not allow plotting
-                    self.xdata = []
-                    self.ydata = []
-                    return
-            except IndexError:
-                # if array has length of 0
-                self.xdata = []
-                self.ydata = []
-                return
-            except TypeError:
-                # only single point in file
-                x = [self.data[self.indexX]]
-                y = [self.data[self.indexY]]
-        if 0 == self.dMode:
-            self.xdata = x
-            self.ydata = y
-        elif 1 == self.dMode:
-            self.xdata = delta(x)[0]
-            self.ydata = delta(y)[1]
-        elif 2 == self.dMode:
-            self.xdata = delta(x)[0]
-            self.ydata = delta(y)[0]
-        """
-        # if 3pt delta is wished for...
-        elif 3 == self.dMode:
-            self.xdata = delta3p(x)[0]
-            self.ydata = delta3p(y)[1]
-        elif 4 == self.dMode:
-            self.xdata = delta3p(x)[0]
-            self.ydata = delta3p(y)[0]
-        """
-        self.pw.getAxis("left").textWidth = 0
-        self.plt.setData(y=self.ydata, x=self.xdata, symbol="o")
-        self.pw.setLabel("bottom", self.header[0][self.indexX],
-                         self.header[1][self.indexX])
-        self.pw.setLabel("left", self.header[0][self.indexY],
-                         self.header[1][self.indexY])
 
 
 class ExecThread(QThread):
@@ -625,7 +367,7 @@ class MainWindow(QWidget):
         if exists(output) is False:
             self.statusBar.append(f"File does not exist ({output})")
             return
-        a = SweepPreviewPopup(self, output)
+        a = matrix_preview.SweepPreview(self, output)
         a.show()
 
 
