@@ -1,6 +1,6 @@
 [project]
 name = "matr1x"
-version = "7.0.0"
+version = "7.1.0"
 description = "Python package for data acquisition and measurement control"
 requires-python = ">=3.6"
 dependencies = [
