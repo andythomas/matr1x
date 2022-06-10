@@ -187,7 +187,7 @@ class var(QObject):
         if re.search(r'\([^)]*\)', label):
             newlabel = re.sub(r'\([^)]*\)', f'({newunit})', label)
         else:
-            newlabel = f"{label} ({unit})"
+            newlabel = f"{label} ({newunit})"
         self.widgets[0].setText(newlabel)
 
     def getGUIvalue(self, column=2):
