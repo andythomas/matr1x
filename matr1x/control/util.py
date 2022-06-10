@@ -8,8 +8,10 @@ based on the scpi_tcp_server
 """
 import itertools
 import logging
+import numbers
 import mimetypes
 import os
+import re
 import signal
 import time
 from collections.abc import Iterable
@@ -128,6 +130,7 @@ class var(QObject):
       initialization values for a combobox
     """
     valueChanged = pyqtSignal([str], [float], [int], [bool])
+    unitChanged = pyqtSignal([str])
 
     def __init__(self, dtype=(float, str), outType=str, columns=[], unit="",
                  log=False, init=None):
@@ -140,7 +143,7 @@ class var(QObject):
             self.outType = outType
 
         self._value = None
-        self.unit = unit
+        self._unit = unit
         self.log = log
         self.init = init
         if not isinstance(columns, list):
@@ -170,6 +173,23 @@ class var(QObject):
         # cast the output value to outType and emit matching signal
         self.valueChanged[self.outType].emit(self.outType(self._value))
 
+    @property
+    def unit(self):
+        return self._unit
+
+    @unit.setter
+    def unit(self, newunit):
+        self._unit = newunit
+        self.unitChanged[str].emit(self._unit)
+
+    def updateLabel(self, newunit):
+        label = self.widgets[0].text()
+        if re.search(r'\([^)]*\)', label):
+            newlabel = re.sub(r'\([^)]*\)', f'({newunit})', label)
+        else:
+            newlabel = f"{label} ({unit})"
+        self.widgets[0].setText(newlabel)
+
     def getGUIvalue(self, column=2):
         """
         return the value obtained from the GUI element in the respective
@@ -186,7 +206,10 @@ class var(QObject):
         elif isinstance(element, QProgressBar):
             value = element.value()
         elif isinstance(element, QComboBox):
-            value = element.currentIndex()
+            if self.variableType in [int, float]:
+                value = element.currentIndex()
+            else:
+                value = element.currentText()
         elif isinstance(element, QCheckBox):
             value = element.checkState()
         else:
@@ -209,9 +232,14 @@ class var(QObject):
             elif isinstance(self.widgets[1], QComboBox):
                 self.valueChanged[int].connect(
                     self.widgets[1].setCurrentIndex)
+                self.valueChanged[str].connect(
+                    self.widgets[1].setCurrentText)
             elif isinstance(self.widgets[1], QCheckBox):
                 self.valueChanged[bool].connect(
                     self.widgets[1].setChecked)
+            if isinstance(self.widgets[0], QLabel):
+                self.unitChanged[str].connect(
+                    self.updateLabel)
 
     def copy_value(self):
         """
@@ -222,7 +250,10 @@ class var(QObject):
             if isinstance(self.widgets[2], QLineEdit):
                 self.widgets[2].setText(str(self.value))
             elif isinstance(self.widgets[2], QComboBox):
-                self.widgets[2].setCurrentIndex(self.value)
+                if self.variableType is int:
+                    self.widgets[2].setCurrentIndex(self.value)
+                if self.variableType is str:
+                    self.widgets[2].setCurrentText(self.value)
             elif isinstance(self.widgets[2], QCheckBox):
                 self.widgets[2].setChecked(bool(self.value))
 
