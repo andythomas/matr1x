@@ -140,20 +140,15 @@ class MainWindow(ControlWindow):
         # update delay of the refresh function. Can not be significantly
         # lower than 1s usually (limited by device communication)
         # if device communication takes longer, read as fast as possible
-        runDelay = 0.3
+        run_delay = 0.3
         # allows to speed up the process most of the time since we only read
         # the necessary values all the time
         # read the not so important values only every tenth time
-        runInterval = 10
-        runCounter = 0
+        run_interval = 10
+        run_counter = 0
 
-        a = time.time()
         while self.terminate is False:
-            b = time.time() - a
-            if b < runDelay:
-                # wait the remaining interval until 0.5
-                time.sleep(runDelay-b)
-
+            start_time = time.time()
             # always set the value (never change GUI directly!!!)
             self.exampleDict["V1"].value = self.v1
             self.exampleDict["V2"].value = self.v2
@@ -162,7 +157,6 @@ class MainWindow(ControlWindow):
 
             self.exampleDict2["V5"].value = self.v5
 
-            a = time.time()
             # refresh dicts of ITC and IPS (takes about 100ms each)
             if beginning is True:
                 # initialize the setpoint columns (only once)
@@ -171,15 +165,21 @@ class MainWindow(ControlWindow):
                 time.sleep(0.1)  # sleep seems to be needed here on some setups
                 copyValues(self.exampleDict)
                 beginning = False
-            if 0 == runCounter:
+            if 0 == run_counter:
                 # add tasks which run only upon every tenths iteration
                 self.v5 = round(30*numpy.random.random(), 3)
             # make activity blink
-            if runCounter % 2:
+            if run_counter % 2:
                 self.activity.emit("green")
             else:
                 self.activity.emit("lightgreen")
-            runCounter = (runCounter+1) % runInterval
+            run_counter = (run_counter+1) % run_interval
+
+            step_time = time.time() - start_time
+            if step_time < run_delay:
+                # wait the remaining interval until 0.5
+                time.sleep(run_delay-step_time)
+
         # flag for stating that thread has ended
         self.terminated = True
 
