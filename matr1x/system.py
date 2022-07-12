@@ -42,26 +42,37 @@ def device_query(device_handle, config_params):
     """
     retquery = {}
     for k, q in config_params.items():
-        if isinstance(q, (list, tuple)):
-            assert len(q) == 3, \
-                f"config_params includes an invalid entry ({q})"
-            if hasattr(device_handle, q[0]) and callable(
-                    getattr(device_handle, q[0])):
-                method = getattr(device_handle, q[0])
-                line = str(method(*q[1], **q[2]))
+        try:
+            if isinstance(q, (list, tuple)):
+                assert len(q) == 3, \
+                    f"config_params includes an invalid entry ({q})"
+                if hasattr(device_handle, q[0]) and callable(
+                        getattr(device_handle, q[0])):
+                    method = getattr(device_handle, q[0])
+                    line = str(method(*q[1], **q[2]))
+                else:
+                    raise ValueError("config_params: method of entry "
+                                     f"{q} not callable or non-existent")
+            elif callable(q):
+                line = q()
+            elif hasattr(device_handle, q):
+                attr = getattr(device_handle, q)
+                if callable(attr):
+                    line = attr()
+                else:
+                    line = attr
             else:
-                raise ValueError("config_params: method of entry "
-                                 f"{q} not callable or non-existent")
-        elif callable(q):
-            line = q()
-        elif hasattr(device_handle, q):
-            attr = getattr(device_handle, q)
-            if callable(attr):
-                line = attr()
+                line = str(device_handle.query(q))
+        except Exception:
+            # print device identifier upon any exception
+            if hasattr(device_handle, "name"):
+                devid = device_handle.name
             else:
-                line = attr
-        else:
-            line = str(device_handle.query(q))
+                devid = device_handle.__class__.__name__
+            if hasattr(device_handle, "adapter"):  # its a pymeasure Instrument
+                devid += device_handle.connection.resource_name
+            print(f"exception during config query of {devid}")
+            raise
         retquery[k] = line
     return retquery
 
@@ -359,6 +370,33 @@ class System(object):
         for parm in self.parameters:
             self.add_parameter_to_lists(parm)
 
+    def _inform_exception(self, i, func, action):
+        """
+        Print information about an exception.
+        In best case identify a device related to the exception.
+
+        Parameters
+        ----------
+        i : index or name of the parameter where the exception occurred
+        func : function, parameter name or list used when the parameter occurred
+        action : string with action (verb) during which the exception occurred
+        """
+        # print column identifier upon any exception
+        if i in self.columns:
+            colid = i
+        else:
+            colid = self.columns[i]
+        info = f"Exception occured when {action} column {colid}"
+        # print device identifier if available
+        if callable(func):
+            info += f" via function {func.__name__}."
+        elif isinstance(func, (list, tuple)):
+            if len(func) >= 2:
+                info += f" related to device {func[0]}, parameter {func[1]}."
+            else:
+                info += f" with list-like property: {str(func)}."
+        print(info)
+
     def set_value(self, i, values):
         """
         Sets a parameter i to values.
@@ -396,23 +434,28 @@ class System(object):
         else:
             values = float(values)
 
-        if callable(setter) is True:
-            # directly callable
-            setter(values)
-        else:
-            # list-like getter: get function or property for calling
-            attr = getattr(self.devs[setter[0]], setter[1])
-            if callable(attr):
-                # callable function
-                if len(setter) == 3:
-                    attr(values, *setter[2])
-                elif len(setter) == 4:
-                    attr(values, *setter[2], **setter[3])
-                else:
-                    attr(values)
+        try:
+            if callable(setter) is True:
+                # directly callable
+                setter(values)
             else:
-                # property
-                setattr(self.devs[setter[0]], setter[1], values)
+                # list-like getter: get function or property for calling
+                attr = getattr(self.devs[setter[0]], setter[1])
+                if callable(attr):
+                    # callable function
+                    if len(setter) == 3:
+                        attr(values, *setter[2])
+                    elif len(setter) == 4:
+                        attr(values, *setter[2], **setter[3])
+                    else:
+                        attr(values)
+                else:
+                    # property
+                    setattr(self.devs[setter[0]], setter[1], values)
+        except Exception:
+            self._inform_exception(i, setter, "setting")
+            raise
+
         return values
 
     def trigger_value(self, i):
@@ -429,23 +472,27 @@ class System(object):
         else:
             trigger = self.parameters[i].trigger
         if trigger is not None:
-            # trigger function has been provided
-            if callable(trigger) is True:
-                # directly callable trigger
-                trigger()
-            else:
-                # list definition of the trigger, get callable
-                attr = getattr(self.devs[trigger[0]],
-                               trigger[1])
-                if callable(attr):
-                    if len(trigger) == 3:
-                        attr(*trigger[2])
-                    elif len(trigger) == 4:
-                        attr(*trigger[2], **trigger[3])
-                    else:
-                        attr()
+            try:
+                # trigger function has been provided
+                if callable(trigger) is True:
+                    # directly callable trigger
+                    trigger()
                 else:
-                    raise(AttributeError, "Trigger function is not callable")
+                    # list definition of the trigger, get callable
+                    attr = getattr(self.devs[trigger[0]],
+                                   trigger[1])
+                    if callable(attr):
+                        if len(trigger) == 3:
+                            attr(*trigger[2])
+                        elif len(trigger) == 4:
+                            attr(*trigger[2], **trigger[3])
+                        else:
+                            attr()
+                    else:
+                        raise(AttributeError, "Trigger function is not callable")
+            except Exception:
+                self._inform_exception(i, trigger, "triggering")
+                raise
 
     def read_value(self, i):
         """
@@ -470,21 +517,25 @@ class System(object):
         else:
             getter = self.parameters[i].getter
         if getter is not None:
-            if callable(getter):
-                # directly callable getter
-                return getter()
-            else:
-                # list-like getter: obtain callable/property
-                attr = getattr(self.devs[getter[0]], getter[1])
-                if callable(attr):
-                    if len(getter) == 3:
-                        return attr(*getter[2])
-                    elif len(getter) == 4:
-                        return attr(*getter[2], **getter[3])
-                    else:
-                        return attr()
+            try:
+                if callable(getter):
+                    # directly callable getter
+                    return getter()
                 else:
-                    return attr
+                    # list-like getter: obtain callable/property
+                    attr = getattr(self.devs[getter[0]], getter[1])
+                    if callable(attr):
+                        if len(getter) == 3:
+                            return attr(*getter[2])
+                        elif len(getter) == 4:
+                            return attr(*getter[2], **getter[3])
+                        else:
+                            return attr()
+                    else:
+                        return attr
+            except Exception:
+                self._inform_exception(i, getter, "reading")
+                raise
         else:
             # if get func is None, return "nan" or list of "nan"
             if isinstance(self.parameters[i].name, (list, tuple)):
@@ -506,22 +557,25 @@ class System(object):
           kwargs than be used here, currently not used
         """
         for key, dev in self.devs.items():
-            # print for allowing to identify failing device
-            print("opening {}".format(key))
             if isinstance(dev, list) is True:
-                # initializing an instance of class dev[0] with args dev[1] and
-                # optionally kwargs in dev[2]
-                cls, devargs = dev[:2]
-                devkwargs = dev[2] if len(dev) > 2 else dict()
-                if len(devargs) > 1 and "sharedwith" in devargs[0]:
-                    # need to get connection from other device
-                    devargs = list(devargs)
-                    otherdev = devargs[0].split("::")[1]
-                    devargs[0] = self.devs[otherdev].VISAdev
-                    # also reuse mutex lock from other device
-                    if "sharedlock" not in devkwargs:
-                        devkwargs["sharedlock"] = self.devs[otherdev].sharedlock
-                self.devs[key] = cls(*devargs, **devkwargs)
+                try:
+                    # initializing an instance of class dev[0] with args dev[1]
+                    # and optionally kwargs in dev[2]
+                    cls, devargs = dev[:2]
+                    devkwargs = dev[2] if len(dev) > 2 else dict()
+                    if len(devargs) > 1 and "sharedwith" in devargs[0]:
+                        # need to get connection from other device
+                        devargs = list(devargs)
+                        otherdev = devargs[0].split("::")[1]
+                        devargs[0] = self.devs[otherdev].VISAdev
+                        # also reuse mutex lock from other device
+                        if "sharedlock" not in devkwargs:
+                            devkwargs["sharedlock"] = self.devs[otherdev].sharedlock
+                    self.devs[key] = cls(*devargs, **devkwargs)
+                except Exception:
+                    # print device identifier upon any exception
+                    print(f"Exception occured when initializing device {key}")
+                    raise
             else:
                 # device was already initialized prior the set call.
                 # do not try to reinitialize or something is amiss.

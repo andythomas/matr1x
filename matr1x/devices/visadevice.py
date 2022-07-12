@@ -12,11 +12,29 @@ level communication.
 import logging
 import threading
 import time
+from functools import wraps
 
 import pyvisa
 from wrapt import synchronized
 
 logger = logging.getLogger(__name__)
+
+
+def output_name_on_error(func):
+    """
+    decorator to log and print the class instance 'name' attribute in case of
+    an raised Exception. This decorator can be only used with class methods.
+    """
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        try:
+            ret = func(self, *args, **kwargs)
+        except Exception:
+            if hasattr(self, "name"):
+                print(f"Exception occured inside {self.name}")
+            raise
+        return ret
+    return wrapper
 
 
 class VisaDevice(object):
@@ -76,20 +94,17 @@ class VisaDevice(object):
       [method_name : str, args : tuple, kwargs : dict]
     """
 
+    @output_name_on_error
     def __init__(self, interface, cmdpers=None, **kwargs):
-        self.conn = False
         self.interface = interface
         self.name = f"{type(self).__name__}@{self.interface}"
         # have never tested these myself
-        self.pts = 'pts' in kwargs and kwargs['pts']
-        if 'visadebug' in kwargs and kwargs['visadebug']:
+        self.pts = kwargs.pop("pts", False)
+        if kwargs.pop("visadebug", False):
             pyvisa.log_to_screen()
-        kwargs.pop("visadebug", None)
-        kwargs.pop("pts", None)
         # mutex lock to synchronize devices sharing the same connection
         # currently this is needed only by IsobusDevices
         self.sharedlock = kwargs.pop("sharedlock", threading.RLock())
-        self.backend = kwargs.pop("backend", "")
 
         # set number of commands which can be sent per second
         if cmdpers is not None:
@@ -106,39 +121,25 @@ class VisaDevice(object):
         else:
             self.timedelay = None
 
-        # store kwargs to pass them to visa device
-        self.kwargs = kwargs
-
-        self._open()
-
-    @synchronized
-    def _open(self):
-        """
-        Open the connection to the device. This is an internal method and
-        should not be called by the user.
-        """
-        if not self.conn:
-            # hardcode the resource manager or allow to pass different
-            # backend?
-            self.VISArm = pyvisa.ResourceManager(self.backend)
-            if isinstance(self.interface, pyvisa.resources.Resource):
-                self.VISAdev = self.interface
-                self.conn = True
-                return
-            self.VISAdev = self.VISArm.open_resource(self.interface)
-            if self.pts:
-                print(f"C: {self.name}")
-            logger.info(f"Connection to {self.name} opened")
-            self.conn = True
-            # apply kwargs to visadevice (say baudrate)
-            # should only modify available properties, so should be immune
-            # against "wrong" device parameters
-            # needs to be tested!
-            for kwarg in self.kwargs.keys():
-                if hasattr(self.VISAdev, kwarg):
-                    setattr(self.VISAdev, kwarg, self.kwargs[kwarg])
+        # Open the connection to the device
+        VISArm = pyvisa.ResourceManager(kwargs.pop("backend", ""))
+        if isinstance(self.interface, pyvisa.resources.Resource):
+            self.VISAdev = self.interface
+            return
+        self.VISAdev = VISArm.open_resource(self.interface)
+        if self.pts:
+            print(f"C: {self.name}")
+        logger.info(f"Connection to {self.name} opened")
+        # apply kwargs to visadevice (say baudrate)
+        # should only modify available properties, so should be immune
+        # against "wrong" device parameters
+        # needs to be tested!
+        for key, val in kwargs.items():
+            if hasattr(self.VISAdev, key):
+                setattr(self.VISAdev, key, val)
 
     @synchronized
+    @output_name_on_error
     def read_very_eager(self):
         """read from device without blocking IO (timeout=0)"""
         t = self.VISAdev.timeout
@@ -158,6 +159,7 @@ class VisaDevice(object):
         return ret
 
     @synchronized
+    @output_name_on_error
     def read(self, nbytes=None):
         """
         Read data from the device.
@@ -175,8 +177,6 @@ class VisaDevice(object):
         readout : str or bytes
             The recived information.
         """
-        if self.conn is False:
-            return
         if nbytes is None:
             readout = self.VISAdev.read()
         else:
@@ -189,6 +189,7 @@ class VisaDevice(object):
         return readout
 
     @synchronized
+    @output_name_on_error
     def write(self, command):
         """
         Write a message to the device.
@@ -198,9 +199,6 @@ class VisaDevice(object):
         command : str
             The string to be sent.
         """
-        if self.conn is False:
-            return
-
         logger.debug(f"{self.name}: Write: {command}")
         if self.pts:
             print('W: %s' % command)
@@ -216,6 +214,7 @@ class VisaDevice(object):
         self.VISAdev.write(command)
 
     @synchronized
+    @output_name_on_error
     def query(self, command):
         """
         Send a message to the device and read the response.
@@ -230,9 +229,6 @@ class VisaDevice(object):
         readout : str
             The recieved information.
         """
-        if self.conn is False:
-            return
-
         logger.debug(f"{self.name}: Query: {command}")
 
         if self.timedelay is not None:
