@@ -433,8 +433,8 @@ class MainWindow(QWidget):
         print("==========")
 
     def init_ui(self):
-        basedir = dirname(__file__)
-        self.setWindowIcon(QIcon(join(basedir, 'matr1x-matrix_script.png')))
+        icondir = join(dirname(__file__), 'icons')
+        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix_script.png')))
         layout = QGridLayout()
 
         # Buttons

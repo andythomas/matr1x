@@ -199,8 +199,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self, system=None, inputcb=None):
         super().__init__()
-        basedir = dirname(__file__)
-        self.setWindowIcon(QIcon(join(basedir, 'matr1x-sweep_generator.png')))
+        icondir = join(dirname(__file__), 'icons')
+        self.setWindowIcon(QIcon(join(icondir, 'matr1x-sweep_generator.png')))
 
         self.system = system
         self.inputcb = inputcb

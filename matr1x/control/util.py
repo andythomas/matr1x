@@ -8,8 +8,8 @@ based on the scpi_tcp_server
 """
 import itertools
 import logging
-import numbers
 import mimetypes
+import numbers
 import os
 import re
 import signal

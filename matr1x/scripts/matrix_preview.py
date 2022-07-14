@@ -94,8 +94,8 @@ class SweepPreview(QMainWindow):
         """
         Initialize GUI for popup
         """
-        basedir = dirname(__file__)
-        self.setWindowIcon(QIcon(join(basedir, 'matr1x-matrix_preview.png')))
+        icondir = join(dirname(__file__), 'icons')
+        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix_preview.png')))
         grid = QGridLayout()
 
         pg.setConfigOption('background', 'w')

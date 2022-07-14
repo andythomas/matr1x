@@ -201,8 +201,8 @@ class MainWindow(QWidget):
         """
         Initializes basic GUI matrix program
         """
-        basedir = dirname(__file__)
-        self.setWindowIcon(QIcon(join(basedir, 'matr1x-matrix_gui.png')))
+        icondir = join(dirname(__file__), 'icons')
+        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix_gui.png')))
         self.inputEdit = QLineEdit(self)
 
         inputButton = QPushButton("Select Input File")
