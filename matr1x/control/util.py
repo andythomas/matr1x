@@ -35,6 +35,34 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
 from .. import datetimefmt, logfolder, usersfolder
 
 
+class matr1xProgressBar(QProgressBar):
+    """
+    overload Progressbar to make it better suite the needs to show values in
+    the range between -5 and 105. Values outside that range are indicated by a
+    red color
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.setRange(-5, 105)
+        self.setFormat("%v")
+
+    def setValue(self, value):
+        if value > self.maximum() or value < self.minimum():
+            # change color
+            self.reset()
+            self.setStyleSheet("QProgressBar"
+                               "{"
+                               "background-color : red;"
+                               "}")
+        else:
+            self.setStyleSheet("QProgressBar"
+                               "{"
+                               "}")
+
+        super().setValue(value)
+
+
 class guiObject(IntEnum):
     button = 0
     lineedit = 1
@@ -86,9 +114,7 @@ class guiObject(IntEnum):
         elif cls.checkbox == wType:
             return QCheckBox()
         elif cls.progressbar == wType:
-            dummy = QProgressBar()
-            dummy.setRange(0, 100)
-            return dummy
+            return matr1xProgressBar()
         elif cls.combobox == wType:
             dummy = QComboBox()
             if init is not None:
