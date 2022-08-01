@@ -63,12 +63,41 @@ class matr1xProgressBar(QProgressBar):
         super().setValue(value)
 
 
+class ToggleButton(QPushButton):
+    """
+    custom QPushButton to emulate a proper toggle button (including the change
+    of the button's label upon pushing)
+    """
+    def __init__(self, *args, **kwargs):
+        if isinstance(args[0], list):
+            label = args[0][0]
+        else:
+            label = args[0]
+        super().__init__(label, **kwargs)
+        self._labels = args[0]
+        self.setCheckable(True)
+
+    def setChecked(self, state):
+        """
+        change label of toggle button
+        """
+        super().setChecked(state)
+        # if it is checked
+        if isinstance(self._labels, list):
+            if state:
+                self.setText(self._labels[1])
+            # if it is unchecked
+            else:
+                self.setText(self._labels[0])
+
+
 class guiObject(IntEnum):
     button = 0
     lineedit = 1
     checkbox = 2
     progressbar = 3
     combobox = 4
+    togglebutton = 5
 
     @classmethod
     def getWidget(cls, label, wType, init=None, col=None):
@@ -86,8 +115,9 @@ class guiObject(IntEnum):
           * 0 : QPushButton
           * 1 : QLineEdit
           * 2 : QCheckBox
-          * 3 : QProgressBar
+          * 3 : matr1xProgressBar/QProgressBar
           * 4 : QComboBox
+          * 5 : QPushButton(checkable=True)
         init : list, optional
           provides the values a QComboBox is initialized or with what a button
           is labelled.
@@ -120,6 +150,8 @@ class guiObject(IntEnum):
             if init is not None:
                 dummy.insertItems(0, init)
             return dummy
+        elif cls.togglebutton == wType:
+            return ToggleButton(init if init else label)
         else:
             return None
 
@@ -148,6 +180,7 @@ class var(QObject):
       2 : checkbox
       3 : progress bar
       4 : combobox
+      5 : togglebutton
     unit: str
       unit string used in the label and data logging.
     log: bool
@@ -238,6 +271,8 @@ class var(QObject):
                 value = element.currentText()
         elif isinstance(element, QCheckBox):
             value = element.checkState()
+        elif isinstance(element, QPushButton):
+            value = element.isChecked()
         else:
             raise TypeError(f"Unknown type of GUI element {type(element)}")
         # cast value and return
@@ -266,6 +301,14 @@ class var(QObject):
             if isinstance(self.widgets[0], QLabel):
                 self.unitChanged[str].connect(
                     self.updateLabel)
+
+        # automatically copy state of checkbox to togglebutton
+        if len(self.widgets) >= 3:
+            if (isinstance(self.widgets[2], ToggleButton) and
+                isinstance(self.widgets[1], QCheckBox)):
+                if self.widgets[2].isCheckable():
+                    self.valueChanged[bool].connect(
+                        self.widgets[2].setChecked)
 
     def copy_value(self):
         """
