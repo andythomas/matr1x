@@ -76,10 +76,10 @@ class MainWindow(ControlWindow):
                    "toggle": var(dtype=(bool, bool), columns=[go.checkbox, go.togglebutton], init=["Slow", "Fast"]),
                    "Set": var(None, columns=[go.button, go.button],
                               init=["Set", "Copy"]),
-                  }
+                   }
     exampleDict2 = {"Example2": var(None, columns="Readout"),
                     "V5": var(float, columns=1, unit="mbar"),
-                   }
+                    }
 
     def __init__(self):
         # initialize local variable storage

@@ -68,6 +68,7 @@ class ToggleButton(QPushButton):
     custom QPushButton to emulate a proper toggle button (including the change
     of the button's label upon pushing)
     """
+
     def __init__(self, *args, **kwargs):
         if isinstance(args[0], list):
             label = args[0][0]
@@ -305,7 +306,7 @@ class var(QObject):
         # automatically copy state of checkbox to togglebutton
         if len(self.widgets) >= 3:
             if (isinstance(self.widgets[2], ToggleButton) and
-                isinstance(self.widgets[1], QCheckBox)):
+                    isinstance(self.widgets[1], QCheckBox)):
                 if self.widgets[2].isCheckable():
                     self.valueChanged[bool].connect(
                         self.widgets[2].setChecked)
