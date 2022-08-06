@@ -16,9 +16,10 @@ from matr1x.scripts import MATRIX_GUI_PORT, matrix_preview, sweep_generator
 from matr1x.util import get_matrix_binary
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QGridLayout,
-                             QLabel, QLineEdit, QPushButton, QTextEdit,
-                             QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                             QFileDialog, QGridLayout, QLabel, QLineEdit,
+                             QListWidget, QPushButton, QTextEdit, QVBoxLayout,
+                             QWidget)
 
 
 def signal_handler(signal, frame):
@@ -188,6 +189,8 @@ class MainWindow(QWidget):
         super().__init__()
         self.initUI()
         self.sg = None
+        self.running = False
+        self.meas_queue = {}
         self.thread = ExecThread()
         self.thread.filename_received.connect(self.outputEdit.setText)
         self.thread.finished.connect(self.processFinished)
@@ -232,8 +235,22 @@ class MainWindow(QWidget):
                                      "which should be added to the data-file "
                                      "header")
 
-        self.runButton = QPushButton("Enter Matrix")
-        self.runButton.clicked.connect(self.runMatrix)
+        self.queueButton = QPushButton("Enter Matrix")
+        self.queueButton.clicked.connect(self.queueMeasurement)
+
+        self.removeButton = QPushButton("Remove Measurement")
+        self.removeButton.setVisible(False)
+        self.removeButton.clicked.connect(self.removeMeasurement)
+
+        self.stopButton = QPushButton("Stop after next")
+        self.stopButton.setVisible(False)
+        self.stopButton.clicked.connect(self.stopQueue)
+
+        self.meas_list = QListWidget()
+        self.meas_list.setVisible(False)
+        self.meas_list.setSelectionMode(1)
+        self.meas_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.meas_list.itemClicked.connect(self.selectionChanged)
 
         self.previewButton = QPushButton("Preview Data")
         self.previewButton.clicked.connect(self.openPreview)
@@ -261,8 +278,10 @@ class MainWindow(QWidget):
         fGrid.addWidget(QLabel("Comments"))
         fGrid.addWidget(self.commentField, 6, 1, 2, 10)
 
-        fGrid.addWidget(self.runButton, 8, 0, 1, 11)
-        fGrid.addWidget(self.previewButton, 9, 0, 1, 11)
+        fGrid.addWidget(self.queueButton, 8, 0, 1, 11)
+        fGrid.addWidget(self.removeButton, 9, 0, 1, 11)
+        fGrid.addWidget(self.meas_list, 10, 0, 1, 11)
+        fGrid.addWidget(self.previewButton, 12, 0, 1, 11)
 
         self.statusBar = QTextEdit(self)
         self.statusBar.setReadOnly(True)
@@ -335,9 +354,19 @@ class MainWindow(QWidget):
         """
         self.inputEdit.setText(filename)
 
-    def runMatrix(self):
+    def selectionChanged(self, item):
+        item_index = int(item.text().split("-")[0])
+        elem = self.meas_queue[item_index]
+        self.inputEdit.setText(elem[0])
+        if elem[1] != "":
+            self.outputEdit.setText(elem[1])
+        self.userField.setText(elem[2])
+        self.sampleField.setText(elem[3])
+        self.commentField.setText(elem[4])
+
+    def queueMeasurement(self):
         """
-        Runs the matrix program with the specified parameters
+        Queues a measurement into the measurement menu
         """
         inputFile = self.inputEdit.text()
         if self.outputAutoGen.isChecked():
@@ -347,14 +376,67 @@ class MainWindow(QWidget):
         if "" == inputFile:
             self.statusBar.append("No input file specified")
             return
-        self.runButton.setDisabled(True)
-        self.thread.set_param(inputFile, outputFile,
-                              self.userField.text(), self.sampleField.text(),
-                              self.commentField.toPlainText())
+        param = (inputFile, outputFile,
+                 self.userField.text(), self.sampleField.text(),
+                 self.commentField.toPlainText())
+        index = len(self.meas_queue)
+        self.meas_queue[index] = param
+        self.meas_list.addItem(f"{index} - {os.path.basename(inputFile)} - "
+                               f"{os.path.basename(outputFile)} -")
+        if self.running is True:
+            self.meas_list.setVisible(True)
+            self.removeButton.setVisible(True)
+        else:
+            self.runMatrix()
+
+    def stopQueue(self):
+        """
+        resets the queue button and reconnects to running functionality
+        """
+        self.running = False
+
+    def runMatrix(self):
+        """
+        Starts running the queued measurements
+        """
+        self.running = True
+        self.queueButton.setText("Queue additional measurement")
+        self.runNextMeasurement()
+
+    def removeMeasurement(self):
+        """
+        remove selected or last item from meas_list
+        """
+        selected = self.meas_list.selectedItems()
+        if len(selected) > 0:
+            self.meas_list.takeItem(self.meas_list.row(selected[0]))
+        elif 0 < self.meas_list.count():  # remove last item
+            self.meas_list.takeItem(self.meas_list.count()-1)
+
+    def runNextMeasurement(self):
+        """
+        runs the next queued measurement
+        """
+        item = int(self.meas_list.takeItem(0).text().split("-")[0])
+        self.thread.set_param(*self.meas_queue[item])
         self.thread.start()
 
     def processFinished(self):
-        self.runButton.setDisabled(False)
+        """
+        called when the current measurement is finished, checks whether
+        there are further measurements in the queue and runs them in case
+        After all measurements have been run, resets the queue
+        """
+        if self.meas_list.count() > 0 and self.running is True:
+            self.runNextMeasurement()
+        else:
+            self.removeButton.setVisible(False)
+            self.meas_list.setVisible(False)
+            self.queueButton.setText("Enter Matrix")
+            self.running = False
+        # if all measurements were run, reset the measurement counter
+        if self.meas_list.count() == 0:
+            self.meas_queue = {}
 
     def openPreview(self):
         output = self.outputEdit.text()
