@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=matrix Control GUI
+Comment=Instrument control Graphical user interface
+Exec=control_dummy
+Icon=matr1x-control
+Terminal=false
+Categories=Science
