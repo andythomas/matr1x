@@ -511,7 +511,7 @@ class IPS120_switchheater(IsobusDevice):
             time.sleep(0.1)
             # set magnet to go to setpoint
             self.setMagnetStatus(1)
-            while(self.persistentField != self.getMagneticField()):
+            while (self.persistentField != self.getMagneticField()):
                 time.sleep(1)
             time.sleep(1)
             # now magnet is ready to be switched to non persistent mode

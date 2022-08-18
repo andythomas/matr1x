@@ -171,8 +171,8 @@ class Lakeshore3xx(VisaDevice):
         only supports cernox sensors currently
         """
         index = int(index)
-        assert(len(rList) == len(tList) and 20 < index and
-               index < 61 and len(name) < 16 and len(sn) < 10)
+        assert (len(rList) == len(tList) and 20 < index and
+                index < 61 and len(name) < 16 and len(sn) < 10)
         self.write(f"CRVHDR {index},{name},{sn},4,{self.setlimit:.1f},1")
         time.sleep(0.1)
         for i, (res, temp) in enumerate(zip(rList, tList)):
@@ -234,8 +234,8 @@ class Lakeshore340(Lakeshore3xx):
         only supports cernox sensors currently
         """
         index = int(index)
-        assert(len(rList) == len(tList) and 20 < index and
-               index < 61)
+        assert (len(rList) == len(tList) and 20 < index and
+                index < 61)
         self.write(f"CRVHDR {index},{name},{sn},3,{self.setlimit:.1f},1")
         time.sleep(0.3)
         for i, (res, temp) in enumerate(zip(rList, tList)):
@@ -261,8 +261,8 @@ class Lakeshore340(Lakeshore3xx):
             heater range setting for each temperature zone.
             valid entries are 0 .. 5
         """
-        assert(len(templist) == len(plist) and len(plist) == len(ilist) and
-               len(plist) == len(dlist) and len(plist) == len(rangelist))
+        assert (len(templist) == len(plist) and len(plist) == len(ilist) and
+                len(plist) == len(dlist) and len(plist) == len(rangelist))
 
         for j, (t, p, i, d, r) in enumerate(zip(templist, plist, ilist, dlist,
                                                 rangelist)):

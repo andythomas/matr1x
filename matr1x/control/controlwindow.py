@@ -154,7 +154,8 @@ class ControlWindow(QMainWindow):
         """
         Initializes GUI -> needs to overloaded/extended by any subclass
         """
-        icondir = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'icons')
+        icondir = os.path.join(os.path.dirname(
+            __file__), '..', 'scripts', 'icons')
         self.setWindowIcon(QIcon(os.path.join(icondir, 'matr1x-control.png')))
         self.widget = QWidget()
         self.widget.setSizePolicy(QSizePolicy.Expanding,

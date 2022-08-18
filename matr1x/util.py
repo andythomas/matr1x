@@ -778,7 +778,7 @@ def calculate_sweep(sweepParms, loopOver, upDown, repeat, functions):
         # (i.e. don't loop col(a) over col(b) over col(a)!)
         return "Recursive loop, please check loop over"
     hCnt = max(hirarchy)
-    while(0 <= hCnt):
+    while (0 <= hCnt):
         for indexS in range(lenA):
             if indexS == loopOver[indexS]:
                 # looping a column over itself is not how it's done!

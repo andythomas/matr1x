@@ -45,8 +45,8 @@ class ControlThread (threading.Thread):
         self._initializeReadout()
         self._initializeOutput()
 
-        assert(self.bipolar is not None and self.outLimit is not None and
-               self.maxOut is not None)
+        assert (self.bipolar is not None and self.outLimit is not None and
+                self.maxOut is not None)
 
         self.pidController = PIDcontroller(ndim)
         self.pidController.outLimit = self.outLimit
