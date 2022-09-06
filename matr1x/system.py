@@ -489,7 +489,7 @@ class System(object):
                         else:
                             attr()
                     else:
-                        raise(AttributeError, "Trigger function is not callable")
+                        raise (AttributeError, "Trigger function is not callable")
             except Exception:
                 self._inform_exception(i, trigger, "triggering")
                 raise

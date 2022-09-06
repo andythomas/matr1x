@@ -84,7 +84,7 @@ class Ps10(VisaDevice):
             mode - string, can be ABSOL or RELAT
         """
         # first read out was ABSOL
-        assert("ABSOL" == mode or "RELAT" == mode)
+        assert ("ABSOL" == mode or "RELAT" == mode)
         self.write(mode + "1")
 
     def getMode(self):
