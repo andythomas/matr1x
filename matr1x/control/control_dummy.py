@@ -147,7 +147,7 @@ class MainWindow(ControlWindow):
         run_interval = 10
         run_counter = 0
 
-        while self.terminate is False:
+        while not self.terminate:
             start_time = time.time()
             # always set the value (never change GUI directly!!!)
             self.exampleDict["V1"].value = self.v1
