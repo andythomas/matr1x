@@ -48,6 +48,14 @@ cmd_list = {"*idn": [None, None, [], str,
 
 clientdevice = makeSCPIdevice(cmd_list)
 
+if os.name == 'nt':
+    try:
+        from ctypes import windll  # Only exists on Windows.
+        myappid = 'python.matr1x.matrix_control_dummy.version'
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
+
 
 class MainWindow(ControlWindow):
     """
