@@ -16,7 +16,8 @@ dependencies = [
 ]
 [project.optional-dependencies]
 spi = ["spidev", "RPi"]
-gui = ["pyqtgraph", "PyQt5"]
+# comment out PyQt5 dependency on Debian/Raspian 10 (or older)
+gui = ["pyqtgraph >= 0.11.0", "PyQt5 >= 5.14.0"]
 standa = ["PyUSMC", "pyximc"]
 
 [project.scripts]
