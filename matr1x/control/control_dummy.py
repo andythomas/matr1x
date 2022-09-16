@@ -48,6 +48,14 @@ cmd_list = {"*idn": [None, None, [], str,
 
 clientdevice = makeSCPIdevice(cmd_list)
 
+if os.name == 'nt':
+    try:
+        from ctypes import windll  # Only exists on Windows.
+        myappid = 'python.matr1x.matrix_control_dummy.version'
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
+
 
 class MainWindow(ControlWindow):
     """
@@ -167,7 +175,7 @@ class MainWindow(ControlWindow):
         run_interval = 10
         run_counter = 0
 
-        while self.terminate is False:
+        while not self.terminate:
             start_time = time.time()
             # always set the value (never change GUI directly!!!)
             self.exampleDict["V1"].value = self.v1

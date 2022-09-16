@@ -17,7 +17,7 @@ from matr1x.gui_util import EmittingStream
 from matr1x.util import (generate_datafilename, take_measurement_point,
                          trigger_system, write_matrix_header)
 from PyQt5 import QtCore
-from PyQt5.QtGui import QColor, QIntValidator, QPalette, QTextCursor
+from PyQt5.QtGui import QColor, QIcon, QIntValidator, QPalette, QTextCursor
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QGridLayout,
                              QLabel, QLineEdit, QMainWindow, QMessageBox,
                              QPlainTextEdit, QPushButton, QScrollArea,
@@ -154,6 +154,9 @@ class ControlWindow(QMainWindow):
         """
         Initializes GUI -> needs to overloaded/extended by any subclass
         """
+        icondir = os.path.join(os.path.dirname(
+            __file__), '..', 'scripts', 'icons')
+        self.setWindowIcon(QIcon(os.path.join(icondir, 'matr1x-control.png')))
         self.widget = QWidget()
         self.widget.setSizePolicy(QSizePolicy.Expanding,
                                   QSizePolicy.Fixed)

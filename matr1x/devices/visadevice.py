@@ -205,7 +205,7 @@ class VisaDevice(object):
         if self.timedelay is not None:
             # make sure that enough time has passed so that a new command
             # can be send
-            while(self.timedelay > time.time() - self.timer):
+            while (self.timedelay > time.time() - self.timer):
                 # do we really want to do a busy wait here? I think since the
                 # typical timings are on the order of ms, there is not much
                 # else to do right?
@@ -234,7 +234,7 @@ class VisaDevice(object):
         if self.timedelay is not None:
             # make sure that enough time has passed so that a new command
             # can be send
-            while(self.timedelay > time.time() - self.timer):
+            while (self.timedelay > time.time() - self.timer):
                 pass
             self.timer = time.time()
         if self.pts:
@@ -243,7 +243,7 @@ class VisaDevice(object):
         logger.debug('Answer: %s' % str(resp))
         if self.pts:
             print('R: %s' % resp)
-        return(resp)
+        return (resp)
 
     def id(self):
         r"""

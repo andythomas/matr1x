@@ -552,7 +552,7 @@ def temp_statistics(deltat, temp):
     where90 = numpy.where(t < 1.5)[0]
     if len(where30) > 0:
         imax = where30[-1]
-        if(imax >= 2):
+        if imax >= 2:
             if numpy.all([isinstance(el, numbers.Number) for el in
                           itertools.islice(temp, 0, imax)]):
                 slope = numpy.mean(numpy.gradient(
@@ -562,7 +562,7 @@ def temp_statistics(deltat, temp):
                 ret = (slope, ret[1], ret[2])
     if len(where90) > 0:
         imax = where90[-1]
-        if(imax >= 2):
+        if imax >= 2:
             if numpy.all([isinstance(el, numbers.Number) for el in
                           itertools.islice(temp, 0, imax)]):
                 slope = numpy.mean(numpy.gradient(

@@ -142,7 +142,7 @@ class ADS1256():
         mdelay = us/1000000
         now = time.time()
         until = now+mdelay
-        while(until > time.time()):
+        while (until > time.time()):
             pass
 
     def write(self, cmd):
