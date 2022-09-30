@@ -38,7 +38,7 @@ core_systems = [splitext(system)[0] for system in
 
 # double validator that disallows comma
 lo = QLocale("C")
-lo.setNumberOptions(QLocale.RejectGroupSeparator)
+lo.setNumberOptions(QLocale.NumberOption.RejectGroupSeparator)
 validator = QDoubleValidator()
 validator.setLocale(lo)
 
@@ -234,7 +234,7 @@ class MainWindow(QMainWindow):
 
         self.systemList = QListWidget(self)
         self.systemList.setSelectionMode(1)
-        self.systemList.setDragDropMode(QAbstractItemView.InternalMove)
+        self.systemList.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.systemList.model().rowsMoved.connect(self.filename_changed)
 
         addButton = QPushButton('add system')
@@ -244,8 +244,8 @@ class MainWindow(QMainWindow):
         delButton.clicked.connect(self.delete_selected_system)
 
         loadButton = QPushButton('Load inputfile')
-        loadButton.setSizePolicy(QSizePolicy(QSizePolicy.Preferred,
-                                             QSizePolicy.MinimumExpanding))
+        loadButton.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred,
+                                             QSizePolicy.Policy.MinimumExpanding))
         loadButton.clicked.connect(self.gui_from_sweep)
 
         fGrid = QGridLayout()
@@ -277,8 +277,8 @@ class MainWindow(QMainWindow):
         vBox.addLayout(sGrid)
 
         self.widget = QWidget()
-        self.widget.setSizePolicy(QSizePolicy.Expanding,
-                                  QSizePolicy.Fixed)
+        self.widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                  QSizePolicy.Policy.Fixed)
         self.widget.setLayout(vBox)
         self.setCentralWidget(self.widget)
 

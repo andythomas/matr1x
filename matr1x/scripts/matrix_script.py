@@ -16,10 +16,10 @@ from os.path import dirname, join
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.util import generate_script
-from PyQt5.QtCore import QRect, QRegExp, QSize, Qt, QThread
-from PyQt5.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
+from PyQt6.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
+from PyQt6.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
                          QSyntaxHighlighter, QTextCharFormat, QTextCursor)
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
+from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                              QGridLayout, QLineEdit, QListWidget,
                              QPlainTextEdit, QPushButton, QSplitter, QTextEdit,
                              QWidget)
@@ -74,7 +74,7 @@ class CodeEditor(QPlainTextEdit):
         while count >= 10:
             count /= 10
             digits += 1
-        space = 4 + self.fontMetrics().width('9') * digits
+        space = 4 + self.fontMetrics().horizontalAdvance('9') * digits
         return space
 
     def updateLineNumberAreaWidth(self, _):
@@ -110,10 +110,10 @@ class CodeEditor(QPlainTextEdit):
         while block.isValid() and (top <= event.rect().bottom()):
             if block.isVisible() and (bottom >= event.rect().top()):
                 number = str(blockNumber + 1)
-                painter.setPen(Qt.black)
+                painter.setPen(Qt.GlobalColor.black)
                 painter.drawText(0, int(top), int(self.lineNumberArea.width()),
                                  int(self.fontMetrics().height()),
-                                 Qt.AlignRight, number)
+                                 Qt.AlignmentFlag.AlignRight, number)
 
             block = block.next()
             top = bottom
@@ -132,7 +132,7 @@ def format(color, style=''):
     _format = QTextCharFormat()
     _format.setForeground(_color)
     if 'bold' in style:
-        _format.setFontWeight(QFont.Bold)
+        _format.setFontWeight(QFont.Weight.Bold)
     if 'italic' in style:
         _format.setFontItalic(True)
 
@@ -191,8 +191,8 @@ class PythonHighlighter(QSyntaxHighlighter):
         # Multi-line strings (expression, flag, style)
         # FIXME: The triple-quotes in these two lines will mess up the
         # syntax highlighting from this point onward
-        self.tri_single = (QRegExp("'''"), 1, STYLES['string2'])
-        self.tri_double = (QRegExp('"""'), 2, STYLES['string2'])
+        self.tri_single = (QRegularExpression("'''"), 1, STYLES['string2'])
+        self.tri_double = (QRegularExpression('"""'), 2, STYLES['string2'])
 
         rules = []
 
@@ -230,7 +230,7 @@ class PythonHighlighter(QSyntaxHighlighter):
         ]
 
         # Build a QRegExp for each pattern
-        self.rules = [(QRegExp(pat), index, fmt)
+        self.rules = [(QRegularExpression(pat), index, fmt)
                       for (pat, index, fmt) in rules]
 
     def highlightBlock(self, text):
@@ -457,8 +457,8 @@ class MainWindow(QWidget):
         self.help_button = QPushButton("Help")
         self.help_button.clicked.connect(self.show_commands)
         self.system_list = QListWidget()
-        self.system_list.setSelectionMode(1)
-        self.system_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.system_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.system_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.addButton = QPushButton('add system')
         self.addButton.clicked.connect(self.show_file_dialog)
         self.delButton = QPushButton('remove system')
@@ -472,7 +472,7 @@ class MainWindow(QWidget):
         # TextEdits
         self.script_edit = CodeEditor(self)
         mono_font = QFont("Monospace")
-        mono_font.setStyleHint(QFont.TypeWriter)
+        mono_font.setStyleHint(QFont.StyleHint.TypeWriter)
         self.script_edit.document().setDefaultFont(mono_font)
         self.highlighter = PythonHighlighter(self.script_edit.document())
         self.status_preview = QTextEdit(self)
@@ -480,7 +480,7 @@ class MainWindow(QWidget):
         self.status_preview.setCurrentFont(mono_font)
         # self.status_preview.textChanged.connect(self.status_preview.setMarkdown)
         palette = self.status_preview.palette()
-        palette.setColor(QPalette.Base, QColor(233, 233, 233))
+        palette.setColor(QPalette.ColorRole.Base, QColor(233, 233, 233))
         self.status_preview.setPalette(palette)
 
         # initialize widgets in layout
@@ -568,7 +568,7 @@ class MainWindow(QWidget):
             print("----------")
             print((info.stdout).decode())
         print("==========")
-        self.status_preview.moveCursor(QTextCursor.End)
+        self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
 
     def output_written(self, text):
         """
@@ -577,7 +577,7 @@ class MainWindow(QWidget):
         """
         if text.strip("\n") != "":
             self.status_preview.append(text.strip("\n"))
-            self.status_preview.moveCursor(QTextCursor.End)
+            self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
 
     def process_finished(self):
         """
