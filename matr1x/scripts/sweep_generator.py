@@ -15,6 +15,14 @@ from ast import literal_eval
 from math import floor
 from os.path import basename, dirname, join, splitext
 
+from PyQt6.QtCore import QLocale, pyqtSignal
+from PyQt6.QtGui import QDoubleValidator, QIcon, QIntValidator
+from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                             QComboBox, QDialog, QFileDialog, QGridLayout,
+                             QLabel, QLineEdit, QListWidget, QMainWindow,
+                             QPushButton, QScrollArea, QSizePolicy, QTextEdit,
+                             QVBoxLayout, QWidget)
+
 import pyqtgraph as pg
 from matr1x import datetimefmt
 from matr1x import systems as core_systems
@@ -24,13 +32,6 @@ from matr1x.gui_util import CustomViewBox
 from matr1x.util import (calculate_sweep, generate_col_index,
                          get_settable_columns, merge_systems)
 from numpy import linspace
-from PyQt5.QtCore import QLocale, pyqtSignal
-from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                             QComboBox, QDialog, QFileDialog, QGridLayout,
-                             QLabel, QLineEdit, QListWidget, QMainWindow,
-                             QPushButton, QScrollArea, QSizePolicy, QTextEdit,
-                             QVBoxLayout, QWidget)
 
 # overwrite core_systems with list of systems
 core_systems = [splitext(system)[0] for system in
@@ -233,7 +234,7 @@ class MainWindow(QMainWindow):
         self.outputList = None
 
         self.systemList = QListWidget(self)
-        self.systemList.setSelectionMode(1)
+        self.systemList.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self.systemList.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.systemList.model().rowsMoved.connect(self.filename_changed)
 
