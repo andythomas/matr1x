@@ -15,9 +15,9 @@ from ast import literal_eval
 from math import floor
 from os.path import basename, dirname, join, splitext
 
-from PyQt6.QtCore import QLocale, pyqtSignal
-from PyQt6.QtGui import QDoubleValidator, QIcon, QIntValidator
-from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+from PyQt5.QtCore import QLocale, pyqtSignal
+from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
+from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                              QComboBox, QDialog, QFileDialog, QGridLayout,
                              QLabel, QLineEdit, QListWidget, QMainWindow,
                              QPushButton, QScrollArea, QSizePolicy, QTextEdit,

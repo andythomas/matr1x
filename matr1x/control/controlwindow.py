@@ -16,9 +16,9 @@ from matr1x.control.util import constructLayout, var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import (generate_datafilename, take_measurement_point,
                          trigger_system, write_matrix_header)
-from PyQt6 import QtCore
-from PyQt6.QtGui import QColor, QIcon, QIntValidator, QPalette, QTextCursor
-from PyQt6.QtWidgets import (QApplication, QCheckBox, QFileDialog, QGridLayout,
+from PyQt5 import QtCore
+from PyQt5.QtGui import QColor, QIcon, QIntValidator, QPalette, QTextCursor
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QGridLayout,
                              QLabel, QLineEdit, QMainWindow, QMessageBox,
                              QPlainTextEdit, QPushButton, QScrollArea,
                              QSizePolicy, QVBoxLayout, QWidget)
