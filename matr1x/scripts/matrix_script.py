@@ -239,14 +239,13 @@ class PythonHighlighter(QSyntaxHighlighter):
         """
         # Do other syntax formatting
         for expression, nth, format in self.rules:
-            index = expression.indexIn(text, 0)
+            index = expression.globalMatch(text)
 
-            while index >= 0:
+            while index.hasNext():
                 # We actually want the index of the nth match
-                index = expression.pos(nth)
-                length = len(expression.cap(nth))
-                self.setFormat(index, length, format)
-                index = expression.indexIn(text, index + length)
+                match = index.next()
+                length = match.capturedLength(nth)#len(expression.cap(nth))
+                self.setFormat(match.capturedStart(nth), length, format)
 
         self.setCurrentBlockState(0)
 
@@ -263,23 +262,30 @@ class PythonHighlighter(QSyntaxHighlighter):
         state changes when inside those strings. Returns True if we're still
         inside a multi-line string when this function is finished.
         """
+        index = delimiter.globalMatch(text)
         # If inside triple-single quotes, start at 0
         if self.previousBlockState() == in_state:
             start = 0
             add = 0
         # Otherwise, look for the delimiter on this line
         else:
-            start = delimiter.indexIn(text)
-            # Move past this match
-            add = delimiter.matchedLength()
+            if index.hasNext():
+                match = index.next()
+                start = match.capturedStart()
+                # Move past this match
+                add = match.capturedLength()
+            else:
+                # no match found, return -1
+                start = -1
 
         # As long as there's a delimiter match on this line...
         while start >= 0:
             # Look for the ending delimiter
-            end = delimiter.indexIn(text, start + add)
-            # Ending delimiter on this line?
-            if end >= add:
-                length = end - start + add + delimiter.matchedLength()
+            if index.hasNext():
+                match = index.next()
+                # Ending delimiter on this line?
+                end = match.capturedEnd()
+                length = end - start + add + match.capturedLength()
                 self.setCurrentBlockState(0)
             # No; multi-line string
             else:
@@ -288,7 +294,12 @@ class PythonHighlighter(QSyntaxHighlighter):
             # Apply formatting
             self.setFormat(start, length, style)
             # Look for the next match
-            start = delimiter.indexIn(text, start + length)
+            if index.hasNext():
+                match = index.next()
+                start = match.capturedStart()
+                add = match.capturedLength()
+            else:
+                start = -1
 
         # Return True if still inside a multi-line string, False otherwise
         if self.currentBlockState() == in_state:
