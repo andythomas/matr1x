@@ -15,13 +15,21 @@ from matr1x.eval import get_latest_datafile
 from matr1x.scripts import MATRIX_GUI_PORT, matrix_preview, sweep_generator
 from matr1x.util import get_matrix_binary
 
-from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                             QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QListWidget, QPushButton, QTextEdit, QVBoxLayout,
-                             QWidget)
-
+# Try to import Qt6 and fallback to Qt5 if not available
+try:
+    from PyQt6.QtCore import QThread, pyqtSignal
+    from PyQt6.QtGui import QIcon
+    from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
+                                 QListWidget, QPushButton, QTextEdit, QVBoxLayout,
+                                 QWidget)
+except ImportError:
+    from PyQt5.QtCore import QThread, pyqtSignal
+    from PyQt5.QtGui import QIcon
+    from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
+                                 QListWidget, QPushButton, QTextEdit, QVBoxLayout,
+                                 QWidget)
 
 def signal_handler(signal, frame):
     # This takes care of any keyboard interrupt in the GUI

@@ -16,13 +16,24 @@ from os.path import dirname, join
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.util import generate_script
-from PyQt5.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
-from PyQt5.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
-                         QSyntaxHighlighter, QTextCharFormat, QTextCursor)
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
-                             QGridLayout, QLineEdit, QListWidget,
-                             QPlainTextEdit, QPushButton, QSplitter, QTextEdit,
-                             QWidget)
+
+# Try to import Qt6 and fallback to Qt5 if not available
+try:
+    from PyQt6.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
+    from PyQt6.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
+                             QSyntaxHighlighter, QTextCharFormat, QTextCursor)
+    from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
+                                 QGridLayout, QLineEdit, QListWidget,
+                                 QPlainTextEdit, QPushButton, QSplitter, QTextEdit,
+                                 QWidget)
+except ImportError:
+    from PyQt5.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
+    from PyQt5.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
+                             QSyntaxHighlighter, QTextCharFormat, QTextCursor)
+    from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
+                                 QGridLayout, QLineEdit, QListWidget,
+                                 QPlainTextEdit, QPushButton, QSplitter, QTextEdit,
+                                 QWidget)
 
 from ..gui_util import EmittingStream
 

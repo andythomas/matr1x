@@ -15,13 +15,23 @@ from ast import literal_eval
 from math import floor
 from os.path import basename, dirname, join, splitext
 
-from PyQt5.QtCore import QLocale, pyqtSignal
-from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                             QComboBox, QDialog, QFileDialog, QGridLayout,
-                             QLabel, QLineEdit, QListWidget, QMainWindow,
-                             QPushButton, QScrollArea, QSizePolicy, QTextEdit,
-                             QVBoxLayout, QWidget)
+# Try to import Qt6 and fallback to Qt5 if not available
+try:
+    from PyQt6.QtCore import QLocale, pyqtSignal
+    from PyQt6.QtGui import QDoubleValidator, QIcon, QIntValidator
+    from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                                 QComboBox, QDialog, QFileDialog, QGridLayout,
+                                 QLabel, QLineEdit, QListWidget, QMainWindow,
+                                 QPushButton, QScrollArea, QSizePolicy, QTextEdit,
+                                 QVBoxLayout, QWidget)
+except ImportError:
+    from PyQt5.QtCore import QLocale, pyqtSignal
+    from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
+    from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                                 QComboBox, QDialog, QFileDialog, QGridLayout,
+                                 QLabel, QLineEdit, QListWidget, QMainWindow,
+                                 QPushButton, QScrollArea, QSizePolicy, QTextEdit,
+                                 QVBoxLayout, QWidget)
 
 import pyqtgraph as pg
 from matr1x import datetimefmt

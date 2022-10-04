@@ -7,11 +7,20 @@ This module contains gui related functions that are required by the sweep
 generator and matrix_gui
 """
 import numpy as np
-from PyQt5.QtCore import QObject, Qt, pyqtSignal
-from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
-                             QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
-                             QPushButton, QSizePolicy, QSlider, QToolButton,
-                             QVBoxLayout)
+
+# Try to import Qt6 and fallback to Qt5 if not available
+try:
+    from PyQt6.QtCore import QObject, Qt, pyqtSignal
+    from PyQt6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
+                                 QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
+                                 QPushButton, QSizePolicy, QSlider, QToolButton,
+                                 QVBoxLayout)
+except ImportError:
+    from PyQt5.QtCore import QObject, Qt, pyqtSignal
+    from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
+                                 QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
+                                 QPushButton, QSizePolicy, QSlider, QToolButton,
+                                 QVBoxLayout)
 import pyqtgraph as pg
 from .eval import delta
 

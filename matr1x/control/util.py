@@ -25,12 +25,21 @@ from enum import IntEnum
 from subprocess import PIPE, Popen
 
 import numpy
-from PyQt5 import QtCore
-from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                             QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QListWidget, QProgressBar, QPushButton,
-                             QSizePolicy, QTableView)
+
+try:
+    from PyQt6 import QtCore
+    from PyQt6.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
+                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
+                                 QListWidget, QProgressBar, QPushButton,
+                                 QSizePolicy, QTableView)
+except ImportError:
+    from PyQt5 import QtCore
+    from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
+                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
+                                 QListWidget, QProgressBar, QPushButton,
+                                 QSizePolicy, QTableView)
 
 from .. import datetimefmt, logfolder, usersfolder
 
