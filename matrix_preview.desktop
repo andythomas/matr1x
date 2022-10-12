@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=matrix_preview
+Name=Matrix Preview
 Comment=Data file previewer for ma7 files
 Exec=matrix_preview %f
 Icon=matr1x-matrix_preview
