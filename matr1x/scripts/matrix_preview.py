@@ -14,10 +14,10 @@ import numpy as np
 try:
     from PyQt6.QtCore import Qt, QThread, pyqtSignal
     from PyQt6.QtGui import QIcon
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLayout,
-                                 QMainWindow, QMessageBox, QPushButton, QToolButton,
-                                 QWidget)
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox,
+                                 QFileDialog, QGridLayout, QHBoxLayout, QLabel,
+                                 QLayout, QMainWindow, QMessageBox, QPushButton,
+                                 QToolButton, QWidget)
 except ImportError:
     from PyQt5.QtCore import Qt, QThread, pyqtSignal
     from PyQt5.QtGui import QIcon

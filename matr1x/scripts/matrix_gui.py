@@ -21,15 +21,16 @@ try:
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QPushButton, QTextEdit, QVBoxLayout,
-                                 QWidget)
+                                 QListWidget, QPushButton, QTextEdit,
+                                 QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5.QtCore import QThread, pyqtSignal
     from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QPushButton, QTextEdit, QVBoxLayout,
-                                 QWidget)
+                                 QListWidget, QPushButton, QTextEdit,
+                                 QVBoxLayout, QWidget)
+
 
 def signal_handler(signal, frame):
     # This takes care of any keyboard interrupt in the GUI
@@ -257,8 +258,10 @@ class MainWindow(QWidget):
 
         self.meas_list = QListWidget()
         self.meas_list.setVisible(False)
-        self.meas_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        self.meas_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.meas_list.setSelectionMode(
+            QListWidget.SelectionMode.SingleSelection)
+        self.meas_list.setDragDropMode(
+            QAbstractItemView.DragDropMode.InternalMove)
         self.meas_list.itemClicked.connect(self.selectionChanged)
 
         self.previewButton = QPushButton("Preview Data")

@@ -24,8 +24,8 @@ try:
                              QSyntaxHighlighter, QTextCharFormat, QTextCursor)
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                                  QGridLayout, QLineEdit, QListWidget,
-                                 QPlainTextEdit, QPushButton, QSplitter, QTextEdit,
-                                 QWidget)
+                                 QPlainTextEdit, QPushButton, QSplitter,
+                                 QTextEdit, QWidget)
 except ImportError:
     from PyQt5.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
     from PyQt5.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
@@ -255,7 +255,7 @@ class PythonHighlighter(QSyntaxHighlighter):
             while index.hasNext():
                 # We actually want the index of the nth match
                 match = index.next()
-                length = match.capturedLength(nth)#len(expression.cap(nth))
+                length = match.capturedLength(nth)  # len(expression.cap(nth))
                 self.setFormat(match.capturedStart(nth), length, format)
 
         self.setCurrentBlockState(0)
@@ -479,8 +479,10 @@ class MainWindow(QWidget):
         self.help_button = QPushButton("Help")
         self.help_button.clicked.connect(self.show_commands)
         self.system_list = QListWidget()
-        self.system_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.system_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.system_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection)
+        self.system_list.setDragDropMode(
+            QAbstractItemView.DragDropMode.InternalMove)
         self.addButton = QPushButton('add system')
         self.addButton.clicked.connect(self.show_file_dialog)
         self.delButton = QPushButton('remove system')

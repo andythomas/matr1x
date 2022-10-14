@@ -111,7 +111,8 @@ class guiObject(IntEnum):
         """
         if isinstance(wType, str):
             qlab = QLabel(wType)
-            qlab.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+            qlab.setSizePolicy(QSizePolicy.Policy.Preferred,
+                               QSizePolicy.Policy.Fixed)
             return qlab
         elif cls.button == wType:
             if col is not None:
