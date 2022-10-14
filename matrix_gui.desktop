@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=matrix GUI
+Name=Matrix GUI
 Comment=Measurement control graphical user interface
 Exec=matrix_gui
 Icon=matr1x-matrix_gui
