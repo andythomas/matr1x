@@ -22,8 +22,8 @@ try:
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
                                  QLabel, QLineEdit, QListWidget, QMainWindow,
-                                 QPushButton, QScrollArea, QSizePolicy, QTextEdit,
-                                 QVBoxLayout, QWidget)
+                                 QPushButton, QScrollArea, QSizePolicy,
+                                 QTextEdit, QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5.QtCore import QLocale, pyqtSignal
     from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
@@ -244,8 +244,10 @@ class MainWindow(QMainWindow):
         self.outputList = None
 
         self.systemList = QListWidget(self)
-        self.systemList.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        self.systemList.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.systemList.setSelectionMode(
+            QListWidget.SelectionMode.SingleSelection)
+        self.systemList.setDragDropMode(
+            QAbstractItemView.DragDropMode.InternalMove)
         self.systemList.model().rowsMoved.connect(self.filename_changed)
 
         addButton = QPushButton('add system')

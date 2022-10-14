@@ -12,16 +12,18 @@ import numpy as np
 try:
     from PyQt6.QtCore import QObject, Qt, pyqtSignal
     from PyQt6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
-                                 QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
-                                 QPushButton, QSizePolicy, QSlider, QToolButton,
-                                 QVBoxLayout)
+                                 QGroupBox, QHBoxLayout, QLabel, QLayout,
+                                 QLineEdit, QPushButton, QSizePolicy, QSlider,
+                                 QToolButton, QVBoxLayout)
 except ImportError:
     from PyQt5.QtCore import QObject, Qt, pyqtSignal
     from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
                                  QPushButton, QSizePolicy, QSlider, QToolButton,
                                  QVBoxLayout)
+
 import pyqtgraph as pg
+
 from .eval import delta
 
 
