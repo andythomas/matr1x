@@ -9,17 +9,28 @@ import time
 from os.path import dirname, getmtime, getsize, join
 
 import numpy as np
+
+# Try to import Qt6 and fallback to Qt5 if not available
+try:
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal
+    from PyQt6.QtGui import QIcon
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox,
+                                 QFileDialog, QGridLayout, QHBoxLayout, QLabel,
+                                 QLayout, QMainWindow, QMessageBox, QPushButton,
+                                 QToolButton, QWidget)
+except ImportError:
+    from PyQt5.QtCore import Qt, QThread, pyqtSignal
+    from PyQt5.QtGui import QIcon
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
+                                 QGridLayout, QHBoxLayout, QLabel, QLayout,
+                                 QMainWindow, QMessageBox, QPushButton, QToolButton,
+                                 QWidget)
+
 import pyqtgraph as pg
 import pyqtgraph.exporters
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
-                             QGridLayout, QHBoxLayout, QLabel, QLayout,
-                             QMainWindow, QMessageBox, QPushButton, QToolButton,
-                             QWidget)
 
 if os.name == 'nt':
     try:
@@ -61,7 +72,7 @@ class SweepPreview(QMainWindow):
 
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         if filename == "":
             filename = QFileDialog.getOpenFileName(
                 self, "Select ma file", "",
@@ -116,11 +127,11 @@ class SweepPreview(QMainWindow):
         l_file = QHBoxLayout()
 
         w_prev = QToolButton()
-        w_prev.setArrowType(Qt.LeftArrow)
+        w_prev.setArrowType(Qt.ArrowType.LeftArrow)
         w_prev.clicked.connect(self.previous_file)
 
         w_next = QToolButton()
-        w_next.setArrowType(Qt.RightArrow)
+        w_next.setArrowType(Qt.ArrowType.RightArrow)
         w_next.clicked.connect(self.next_file)
 
         self.w_file = QComboBox()
@@ -182,7 +193,7 @@ class SweepPreview(QMainWindow):
         # set rescaling behavior
         grid.setColumnStretch(1, 1)
         grid.setRowStretch(4, 1)
-        grid.setSizeConstraint(QLayout.SetNoConstraint)
+        grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
 
         self.widget = QWidget()
         self.widget.setLayout(grid)

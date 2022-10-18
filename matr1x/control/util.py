@@ -25,12 +25,21 @@ from enum import IntEnum
 from subprocess import PIPE, Popen
 
 import numpy
-from PyQt5 import QtCore
-from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                             QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QListWidget, QProgressBar, QPushButton,
-                             QSizePolicy, QTableView)
+
+try:
+    from PyQt6 import QtCore
+    from PyQt6.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
+                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
+                                 QListWidget, QProgressBar, QPushButton,
+                                 QSizePolicy, QTableView)
+except ImportError:
+    from PyQt5 import QtCore
+    from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
+                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
+                                 QListWidget, QProgressBar, QPushButton,
+                                 QSizePolicy, QTableView)
 
 from .. import datetimefmt, logfolder, usersfolder
 
@@ -102,7 +111,8 @@ class guiObject(IntEnum):
         """
         if isinstance(wType, str):
             qlab = QLabel(wType)
-            qlab.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            qlab.setSizePolicy(QSizePolicy.Policy.Preferred,
+                               QSizePolicy.Policy.Fixed)
             return qlab
         elif cls.button == wType:
             if col is not None:
@@ -682,7 +692,7 @@ class TableModel(QtCore.QAbstractTableModel):
         self._data = data
 
     def data(self, index, role):
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             # Note: self._data[index.row()][index.column()] will also work
             value = self._data[index.row(), index.column()]
             return str(value)
@@ -694,7 +704,7 @@ class TableModel(QtCore.QAbstractTableModel):
         return self._data.shape[1]
 
     def headerData(self, section, orientation, role):
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             if section == 0:
                 return "T (K)"
             elif section == 1:

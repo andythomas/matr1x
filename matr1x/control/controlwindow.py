@@ -16,12 +16,21 @@ from matr1x.control.util import constructLayout, var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import (generate_datafilename, take_measurement_point,
                          trigger_system, write_matrix_header)
-from PyQt5 import QtCore
-from PyQt5.QtGui import QColor, QIcon, QIntValidator, QPalette, QTextCursor
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QGridLayout,
-                             QLabel, QLineEdit, QMainWindow, QMessageBox,
-                             QPlainTextEdit, QPushButton, QScrollArea,
-                             QSizePolicy, QVBoxLayout, QWidget)
+
+try:
+    from PyQt6 import QtCore
+    from PyQt6.QtGui import QColor, QIcon, QIntValidator, QPalette, QTextCursor
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QFileDialog,
+                                 QGridLayout, QLabel, QLineEdit, QMainWindow,
+                                 QMessageBox, QPlainTextEdit, QPushButton,
+                                 QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+except ImportError:
+    from PyQt5 import QtCore
+    from PyQt5.QtGui import QColor, QIcon, QIntValidator, QPalette, QTextCursor
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog,
+                                 QGridLayout, QLabel, QLineEdit, QMainWindow,
+                                 QMessageBox, QPlainTextEdit, QPushButton,
+                                 QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -66,8 +75,8 @@ class CollapsibleBox(QWidget):
                                          checked=False)
         self.toggle_button.clicked.connect(self.button_toggled)
         self.content_widget = QScrollArea(maximumHeight=0, minimumHeight=0)
-        self.content_widget.setSizePolicy(QSizePolicy.Expanding,
-                                          QSizePolicy.Fixed)
+        self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                          QSizePolicy.Policy.Fixed)
         lay = QVBoxLayout(self)
         lay.addWidget(self.toggle_button)
         lay.addWidget(self.content_widget)
@@ -158,16 +167,16 @@ class ControlWindow(QMainWindow):
             __file__), '..', 'scripts', 'icons')
         self.setWindowIcon(QIcon(os.path.join(icondir, 'matr1x-control.png')))
         self.widget = QWidget()
-        self.widget.setSizePolicy(QSizePolicy.Expanding,
-                                  QSizePolicy.Fixed)
+        self.widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                  QSizePolicy.Policy.Fixed)
         self.master_layout = QVBoxLayout()
 
         self.grid = QGridLayout()
 
         qApp = QApplication.instance()
-        mainWindowBgColor = QPalette().color(QPalette.Window)
+        mainWindowBgColor = QPalette().color(QPalette.ColorRole.Window)
         qApp.setStyleSheet(
-            f"[readOnly=\"true\"] {{background-color: {mainWindowBgColor.name(QColor.HexRgb)} }}")
+            f"[readOnly=\"true\"] {{background-color: {mainWindowBgColor.name(QColor.NameFormat.HexRgb)} }}")
         # construct the layout from the GUI dicts
         ccol = 0
         for guidict in self.guidicts:
@@ -231,7 +240,7 @@ class ControlWindow(QMainWindow):
         if text.strip("\n") != "":
             self.status.appendPlainText(text.strip("\n"))
             try:
-                self.status.moveCursor(QTextCursor.End)
+                self.status.moveCursor(QTextCursor.MoveOperation.End)
             except Exception:  # upon cleanup after exception this can fail
                 pass
 

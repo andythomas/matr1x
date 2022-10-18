@@ -14,12 +14,22 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import get_latest_datafile
 from matr1x.scripts import MATRIX_GUI_PORT, matrix_preview, sweep_generator
 from matr1x.util import get_matrix_binary
-from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                             QFileDialog, QGridLayout, QLabel, QLineEdit,
-                             QListWidget, QPushButton, QTextEdit, QVBoxLayout,
-                             QWidget)
+
+# Try to import Qt6 and fallback to Qt5 if not available
+try:
+    from PyQt6.QtCore import QThread, pyqtSignal
+    from PyQt6.QtGui import QIcon
+    from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
+                                 QListWidget, QPushButton, QTextEdit,
+                                 QVBoxLayout, QWidget)
+except ImportError:
+    from PyQt5.QtCore import QThread, pyqtSignal
+    from PyQt5.QtGui import QIcon
+    from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
+                                 QListWidget, QPushButton, QTextEdit,
+                                 QVBoxLayout, QWidget)
 
 
 def signal_handler(signal, frame):
@@ -248,8 +258,10 @@ class MainWindow(QWidget):
 
         self.meas_list = QListWidget()
         self.meas_list.setVisible(False)
-        self.meas_list.setSelectionMode(1)
-        self.meas_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.meas_list.setSelectionMode(
+            QListWidget.SelectionMode.SingleSelection)
+        self.meas_list.setDragDropMode(
+            QAbstractItemView.DragDropMode.InternalMove)
         self.meas_list.itemClicked.connect(self.selectionChanged)
 
         self.previewButton = QPushButton("Preview Data")
@@ -332,7 +344,7 @@ class MainWindow(QWidget):
         filename = QFileDialog.getSaveFileName(
             self, 'Select ma file', folder,
             "Output files (*.ma7);;Old output files (*.ma6)",
-            options=QFileDialog.DontConfirmOverwrite)
+            options=QFileDialog.Option.DontConfirmOverwrite)
         if "" != filename[0]:
             self.outputEdit.setText(filename[0])
 

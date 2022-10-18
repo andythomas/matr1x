@@ -15,7 +15,11 @@ from matr1x.control.util import OutputRedirection, QtGracefulKiller, copyValues
 from matr1x.control.util import guiObject as go
 from matr1x.control.util import var
 from matr1x.devices.scpi_dev import makeSCPIdevice, set_cmd_funcs
-from PyQt5.QtWidgets import QApplication, QMessageBox, QWidget
+
+try:
+    from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
+except ImportError:
+    from PyQt5.QtWidgets import QApplication, QMessageBox, QWidget
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 

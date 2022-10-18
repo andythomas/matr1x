@@ -15,6 +15,24 @@ from ast import literal_eval
 from math import floor
 from os.path import basename, dirname, join, splitext
 
+# Try to import Qt6 and fallback to Qt5 if not available
+try:
+    from PyQt6.QtCore import QLocale, pyqtSignal
+    from PyQt6.QtGui import QDoubleValidator, QIcon, QIntValidator
+    from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                                 QComboBox, QDialog, QFileDialog, QGridLayout,
+                                 QLabel, QLineEdit, QListWidget, QMainWindow,
+                                 QPushButton, QScrollArea, QSizePolicy,
+                                 QTextEdit, QVBoxLayout, QWidget)
+except ImportError:
+    from PyQt5.QtCore import QLocale, pyqtSignal
+    from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
+    from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
+                                 QComboBox, QDialog, QFileDialog, QGridLayout,
+                                 QLabel, QLineEdit, QListWidget, QMainWindow,
+                                 QPushButton, QScrollArea, QSizePolicy, QTextEdit,
+                                 QVBoxLayout, QWidget)
+
 import pyqtgraph as pg
 from matr1x import datetimefmt
 from matr1x import systems as core_systems
@@ -24,13 +42,6 @@ from matr1x.gui_util import CustomViewBox
 from matr1x.util import (calculate_sweep, generate_col_index,
                          get_settable_columns, merge_systems)
 from numpy import linspace
-from PyQt5.QtCore import QLocale, pyqtSignal
-from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                             QComboBox, QDialog, QFileDialog, QGridLayout,
-                             QLabel, QLineEdit, QListWidget, QMainWindow,
-                             QPushButton, QScrollArea, QSizePolicy, QTextEdit,
-                             QVBoxLayout, QWidget)
 
 # overwrite core_systems with list of systems
 core_systems = [splitext(system)[0] for system in
@@ -38,7 +49,7 @@ core_systems = [splitext(system)[0] for system in
 
 # double validator that disallows comma
 lo = QLocale("C")
-lo.setNumberOptions(QLocale.RejectGroupSeparator)
+lo.setNumberOptions(QLocale.NumberOption.RejectGroupSeparator)
 validator = QDoubleValidator()
 validator.setLocale(lo)
 
@@ -233,8 +244,10 @@ class MainWindow(QMainWindow):
         self.outputList = None
 
         self.systemList = QListWidget(self)
-        self.systemList.setSelectionMode(1)
-        self.systemList.setDragDropMode(QAbstractItemView.InternalMove)
+        self.systemList.setSelectionMode(
+            QListWidget.SelectionMode.SingleSelection)
+        self.systemList.setDragDropMode(
+            QAbstractItemView.DragDropMode.InternalMove)
         self.systemList.model().rowsMoved.connect(self.filename_changed)
 
         addButton = QPushButton('add system')
@@ -244,8 +257,8 @@ class MainWindow(QMainWindow):
         delButton.clicked.connect(self.delete_selected_system)
 
         loadButton = QPushButton('Load inputfile')
-        loadButton.setSizePolicy(QSizePolicy(QSizePolicy.Preferred,
-                                             QSizePolicy.MinimumExpanding))
+        loadButton.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred,
+                                             QSizePolicy.Policy.MinimumExpanding))
         loadButton.clicked.connect(self.gui_from_sweep)
 
         fGrid = QGridLayout()
@@ -277,8 +290,8 @@ class MainWindow(QMainWindow):
         vBox.addLayout(sGrid)
 
         self.widget = QWidget()
-        self.widget.setSizePolicy(QSizePolicy.Expanding,
-                                  QSizePolicy.Fixed)
+        self.widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                  QSizePolicy.Policy.Fixed)
         self.widget.setLayout(vBox)
         self.setCentralWidget(self.widget)
 
