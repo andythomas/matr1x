@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import warnings
 from os.path import dirname, join
 
 import matr1x
@@ -38,12 +39,12 @@ except ImportError:
 from ..gui_util import EmittingStream
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
-logger.info("matrix_script starting")
+logger.info("matrix-script starting")
 
 if os.name == 'nt':
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.matrix_script.version'
+        myappid = 'python.matr1x.matrix-script.version'
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -372,7 +373,7 @@ class ExecThread(QThread):
             run the script
             the purpose of using a subprocess is to keep the namespace clear of
             all system files. That allows changes to the system while
-            matrix_script is running.
+            matrix-script is running.
         """
         with tempfile.NamedTemporaryFile(mode="w+b") as tf:
             for line in self.script:
@@ -381,7 +382,7 @@ class ExecThread(QThread):
             # is updated
             tf.flush()
             # pass the script that we want to execute and generate correct
-            # parameters to pass to matrix_script_process
+            # parameters to pass to matr1x/utils.py:matrix_script_process
             cmd = ("import matr1x.util as mu\n" +
                    f"mu.matrix_script_process({repr(tf.name)}, '" +
                    self.user + "', '" + self.sample + "', '" +
@@ -456,7 +457,7 @@ class MainWindow(QWidget):
 
     def init_ui(self):
         icondir = join(dirname(__file__), 'icons')
-        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix_script.png')))
+        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-script.png')))
         layout = QGridLayout()
 
         # Buttons
@@ -529,7 +530,7 @@ class MainWindow(QWidget):
         layout.setRowStretch(4, 1)
 
         self.setLayout(layout)
-        self.setWindowTitle('matrix_script')
+        self.setWindowTitle('Matrix Script')
 
     def show_file_dialog(self):
         """
@@ -804,6 +805,10 @@ class MainWindow(QWidget):
 
 
 def main():
+    if "_" in os.path.basename(sys.argv[0]):
+        warnings.warn(
+            "The executable name 'matrix_script' is deprecated. Use 'matrix-script' instead.",
+            FutureWarning)
     app = QApplication(sys.argv)
     with QtGracefulKiller():
         ex = MainWindow()

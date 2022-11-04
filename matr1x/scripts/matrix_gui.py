@@ -7,6 +7,7 @@ import signal
 import socket
 import subprocess
 import sys
+import warnings
 from os.path import dirname, exists, join
 
 import matr1x
@@ -43,7 +44,7 @@ signal.signal(signal.SIGINT, signal_handler)
 if os.name == 'nt':
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.matrix_gui.version'
+        myappid = 'python.matr1x.matrix-gui.version'
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -215,7 +216,7 @@ class MainWindow(QWidget):
         Initializes basic GUI matrix program
         """
         icondir = join(dirname(__file__), 'icons')
-        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix_gui.png')))
+        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-gui.png')))
         self.inputEdit = QLineEdit(self)
 
         inputButton = QPushButton("Select Input File")
@@ -310,7 +311,7 @@ class MainWindow(QWidget):
         vBox.addLayout(sGrid)
 
         self.setLayout(vBox)
-        self.setWindowTitle('matrix_gui')
+        self.setWindowTitle('Matrix GUI')
 
     def updateAutoGenFilename(self, state):
         if state is True:
@@ -466,6 +467,10 @@ class MainWindow(QWidget):
 
 
 def main():
+    if "_" in os.path.basename(sys.argv[0]):
+        warnings.warn(
+            "The executable name 'matrix_gui' is deprecated. Use 'matrix-gui' instead.",
+            FutureWarning)
     app = QApplication(sys.argv)
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process

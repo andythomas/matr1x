@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import traceback
+import warnings
 
 import numpy
 from matr1x import logfolder
@@ -55,7 +56,7 @@ clientdevice = makeSCPIdevice(cmd_list)
 if os.name == 'nt':
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.matrix_control_dummy.version'
+        myappid = 'python.matr1x.control-dummy.version'
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -210,6 +211,10 @@ class MainWindow(ControlWindow):
 
 
 def main():
+    if "_" in os.path.basename(sys.argv[0]):
+        warnings.warn(
+            "The executable name 'control_dummy' is deprecated. Use 'control-dummy' instead.",
+            FutureWarning)
     app = QApplication(sys.argv)
 
     lockfilename = os.path.join(

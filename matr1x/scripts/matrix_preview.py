@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 import time
+import warnings
 from os.path import dirname, getmtime, getsize, join
 
 import numpy as np
@@ -35,7 +36,7 @@ from matr1x.eval import loadmatrix
 if os.name == 'nt':
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.matrix_preview.version'
+        myappid = 'python.matr1x.matrix-preview.version'
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -106,7 +107,7 @@ class SweepPreview(QMainWindow):
         Initialize GUI for popup
         """
         icondir = join(dirname(__file__), 'icons')
-        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix_preview.png')))
+        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-preview.png')))
         grid = QGridLayout()
 
         pg.setConfigOption('background', 'w')
@@ -146,7 +147,7 @@ class SweepPreview(QMainWindow):
         self.w_status = QLabel("")
         self.w_status.setStyleSheet("QLabel { color : red; }")
 
-        self.setWindowTitle("matr1x_preview")
+        self.setWindowTitle("Matrix Preview")
 
         self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
         self.w_l[2].setVisible(False)
@@ -407,7 +408,7 @@ class SweepPreview(QMainWindow):
                 f"""
 The following error was raised when opening the file:
 {repr(exc_value)}
-Please investigate the error and eventually restart matrix_preview""")
+Please investigate the error and eventually restart matrix-preview""")
             sys.exit(-1)
 
         # update timer
@@ -699,6 +700,10 @@ Please investigate the error and eventually restart matrix_preview""")
 
 
 def main():
+    if "_" in os.path.basename(sys.argv[0]):
+        warnings.warn(
+            "The executable name 'matrix_preview' is deprecated. Use 'matrix-preview' instead.",
+            FutureWarning)
     app = QApplication(sys.argv)
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process

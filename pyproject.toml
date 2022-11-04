@@ -24,12 +24,17 @@ standa = ["PyUSMC", "pyximc"]
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
 matrix_gui = "matr1x.scripts.matrix_gui:main"
+matrix-gui = "matr1x.scripts.matrix_gui:main"
 
 [project.gui-scripts]
 sweep_generator = "matr1x.scripts.sweep_generator:main"
+sweep-generator = "matr1x.scripts.sweep_generator:main"
 matrix_script = "matr1x.scripts.matrix_script:main"
+matrix-script = "matr1x.scripts.matrix_script:main"
 matrix_preview = "matr1x.scripts.matrix_preview:main"
+matrix-preview = "matr1x.scripts.matrix_preview:main"
 control_dummy = "matr1x.control.control_dummy:main"
+control-dummy = "matr1x.control.control_dummy:main"
 
 
 [project.urls]
