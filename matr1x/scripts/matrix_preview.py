@@ -2,25 +2,27 @@
 # ---
 # (c) 2022 matr1x developers. All rights reserved.
 # ---
+import logging
 import os
 import signal
 import sys
+import threading
 import time
 import warnings
-from os.path import dirname, getmtime, getsize, join
+from os.path import abspath, dirname, getmtime, getsize, join
 
 import numpy as np
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal
+    from PyQt6.QtCore import QEvent, Qt, QThread, pyqtSignal
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox,
                                  QFileDialog, QGridLayout, QHBoxLayout, QLabel,
                                  QLayout, QMainWindow, QMessageBox, QPushButton,
                                  QToolButton, QWidget)
 except ImportError:
-    from PyQt5.QtCore import Qt, QThread, pyqtSignal
+    from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
     from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
                                  QGridLayout, QHBoxLayout, QLabel, QLayout,
@@ -33,6 +35,8 @@ from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
 
+logger = logging.getLogger(os.path.split(__file__)[-1])
+
 if os.name == 'nt':
     try:
         from ctypes import windll  # Only exists on Windows.
@@ -40,6 +44,16 @@ if os.name == 'nt':
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
+
+
+class Matr1xApplication (QApplication):
+    openfile = pyqtSignal(str)
+
+    def event(self, event):
+        if event.type() == QEvent.Type.FileOpen:
+            filename = event.file()
+            self.openfile.emit(filename)
+        return QApplication.event(self, event)
 
 
 class UpdateThread(QThread):
@@ -70,23 +84,57 @@ class SweepPreview(QMainWindow):
     parent: widget or None
       parent widget
     """
+    openfile_dialog = pyqtSignal()
 
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        if filename == "":
-            filename = QFileDialog.getOpenFileName(
-                self, "Select ma file", "",
-                "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
-            if "" != filename:
-                self.filename = filename
-            else:
-                # no file was provided, terminate
-                sys.exit()
+        self.filename = ""
+        # initialize basic GUI
+        self.init_basic_ui()
+
+        # signal from delayed file open
+        self.openfile_dialog.connect(self.load_button_pressed)
+        # handle MacOS specific FileOpenEvent from Matr1xApplication
+        QApplication.instance().openfile.connect(self.set_filename)
+
+        # initialize filename if available
+        if filename:
+            self.set_filename(filename)
         else:
-            self.filename = filename
+            self.file_open_thread = threading.Thread(
+                target=self._delayed_file_load_attempt)
+            logger.info(f"start delayed")
+            self.file_open_thread.start()
+
+    def _delayed_file_load_attempt(self):
+        """
+        Function to trigger opening the file open dialog.
+        On Linux/Windows the file open dialog opens immediately.
+        On MacOS only in case no FileOpen Event is generated in the meantime.
+        """
+        if sys.platform == "darwin":
+            # the mac uses an openfile event to signal the filename
+            # a 2020 intel machine required 100ms, 300ms seems like a save margin
+            time.sleep(0.3)
+        if not self.filename:
+            self.openfile_dialog.emit()
+
+    def load_button_pressed(self):
+        filename = QFileDialog.getOpenFileName(
+            self, "Select ma file", "",
+            "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
+        if filename:
+            self.clear_ui()
+            self.set_filename(filename)
+        else:
+            if not self.filename:
+                self.w_status.setText("Please open a file")
+
+    def set_filename(self, filename):
+        logger.info(f"opening {filename}")
+        self.filename = filename
         # get all files
-        self.file_dir = os.path.dirname(os.path.abspath(filename))
+        self.file_dir = os.path.dirname(abspath(filename))
         files = os.listdir(self.file_dir)
         self.data_files = (
             [os.path.join(self.file_dir, file)
@@ -102,29 +150,39 @@ class SweepPreview(QMainWindow):
         self.error = False
         self.init_ui()
 
-    def init_ui(self):
+    def init_basic_ui(self):
         """
-        Initialize GUI for popup
+        initialize basic GUI that works without chosen filename
         """
+        self.setWindowTitle("Matrix Preview")
+
+        # initialize empty window
         icondir = join(dirname(__file__), 'icons')
         self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-preview.png')))
-        grid = QGridLayout()
 
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
 
-        w_save = QPushButton("export plot")
-        w_save.clicked.connect(self.save_plot)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.grid = QGridLayout()
+        self.widget = QWidget()
 
-        w_update = QPushButton("update data")
-        w_update.clicked.connect(lambda: self.conditional_fetch_data(True))
+        w_load = QPushButton("load file")
+        w_load.clicked.connect(self.load_button_pressed)
+        self.w_status = QLabel("")
+        self.w_status.setStyleSheet("QLabel { color : red; }")
 
-        self.autoupdateBox = QCheckBox("auto update")
-        auinit = False
-        self.autoupdateBox.setChecked(auinit)
-        self.autoupdateBox.toggled.connect(self.updatethread)
-        self.updatethread(auinit)
+        self.grid.addWidget(w_load, 0, 0, 1, 1)
+        self.grid.addWidget(self.w_status, 6, 0, 1, -1)
 
+        self.widget.setLayout(self.grid)
+        self.setCentralWidget(self.widget)
+        self.show()
+
+    def init_ui(self):
+        """
+        Initialize GUI for popup
+        """
         l_file = QHBoxLayout()
 
         w_prev = QToolButton()
@@ -141,13 +199,20 @@ class SweepPreview(QMainWindow):
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
         l_file.addWidget(w_prev)
-        l_file.addWidget(self.w_file)
+        l_file.addWidget(self.w_file, stretch=1)
         l_file.addWidget(w_next)
 
-        self.w_status = QLabel("")
-        self.w_status.setStyleSheet("QLabel { color : red; }")
+        w_save = QPushButton("export plot")
+        w_save.clicked.connect(self.save_plot)
 
-        self.setWindowTitle("Matrix Preview")
+        w_update = QPushButton("update data")
+        w_update.clicked.connect(lambda: self.conditional_fetch_data(True))
+
+        self.autoupdateBox = QCheckBox("auto update")
+        auinit = False
+        self.autoupdateBox.setChecked(auinit)
+        self.autoupdateBox.toggled.connect(self.updatethread)
+        self.updatethread(auinit)
 
         self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
         self.w_l[2].setVisible(False)
@@ -176,30 +241,37 @@ class SweepPreview(QMainWindow):
         self.w_transpose.toggled.connect(self.transpose_toggled)
 
         self.spw = gu.SimplePlotWidget(self.raise_error, self.index_callback)
+        # minimum height of plot widget, could be removed but then
+        # window always needs to be resized
+        self.spw.setMinimumHeight(350)
         self.iv = None
 
-        grid.addLayout(l_file, 0, 0, 1, -1)
-        grid.addWidget(self.w_status, 6, 0, 1, -1)
-        grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
-        grid.addWidget(w_save, 1, 4)
-        grid.addWidget(w_update, 1, 2)
-        grid.addWidget(self.autoupdateBox, 1, 3)
+        self.grid.addLayout(l_file, 0, 1, 1, -1)
+        self.grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
+        self.grid.addWidget(w_save, 1, 4)
+        self.grid.addWidget(w_update, 1, 2)
+        self.grid.addWidget(self.autoupdateBox, 1, 3)
         for i in range(3):
-            grid.addWidget(self.w_l[i], i+1, 0)
-            grid.addWidget(self.w_index[i], i+1, 1)
-        grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
-        grid.addWidget(self.w_transpose, 2, 2, 1, 1)
-        grid.addWidget(self.spw, 4, 0, 1, -1)
+            self.grid.addWidget(self.w_l[i], i+1, 0)
+            self.grid.addWidget(self.w_index[i], i+1, 1)
+        self.grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
+        self.grid.addWidget(self.w_transpose, 2, 2, 1, 1)
+        self.grid.addWidget(self.spw, 4, 0, 1, -1)
 
         # set rescaling behavior
-        grid.setColumnStretch(1, 1)
-        grid.setRowStretch(4, 1)
-        grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        self.grid.setColumnStretch(1, 1)
+        self.grid.setRowStretch(4, 1)
+        self.grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
 
-        self.widget = QWidget()
-        self.widget.setLayout(grid)
-        self.setCentralWidget(self.widget)
-        self.show()
+    def clear_ui(self):
+        for i in reversed(range(2, self.grid.count())):
+            item = self.grid.takeAt(i)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+            else:
+                for j in range(item.layout().count()):
+                    item.layout().takeAt(0).widget().deleteLater()
 
     def save_plot(self):
         filename = QFileDialog.getSaveFileName(
@@ -704,7 +776,7 @@ def main():
         warnings.warn(
             "The executable name 'matrix_preview' is deprecated. Use 'matrix-preview' instead.",
             FutureWarning)
-    app = QApplication(sys.argv)
+    app = Matr1xApplication(sys.argv)
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
     if 'SIGTTOU' in dir(signal):  # signal only on POSIX compliant systems
