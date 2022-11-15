@@ -86,10 +86,13 @@ class MainWindow(ControlWindow):
                    "V3": var(dtype=(float, int), columns=[go.progressbar, go.lineedit],
                              log=True, unit="%"),
                    "V4": var(dtype=(bool, bool), columns=[go.checkbox, go.checkbox]),
+                   "toggle": var(dtype=(bool, bool), columns=[go.checkbox, go.togglebutton], init=["Slow", "Fast"]),
                    "Set": var(None, columns=[go.button, go.button],
-                              init=["Set", "Copy"])}
+                              init=["Set", "Copy"]),
+                   }
     exampleDict2 = {"Example2": var(None, columns="Readout"),
-                    "V5": var(float, columns=1, unit="mbar")}
+                    "V5": var(float, columns=1, unit="mbar"),
+                    }
 
     def __init__(self):
         # initialize local variable storage
@@ -98,6 +101,7 @@ class MainWindow(ControlWindow):
         self.v3 = 5.5
         self.v4 = False
         self.v5 = 0
+        self.toggle = False
 
         super().__init__("dummy", guidicts=[self.exampleDict,
                                             self.exampleDict2, ])
@@ -119,6 +123,9 @@ class MainWindow(ControlWindow):
         self.exampleDict["Set"].widgets[1].clicked.connect(self.write)
         self.exampleDict["Set"].widgets[2].clicked.connect(
             lambda: copyValues(self.exampleDict))
+        # connect the toggle buttons to the corresponding functions
+        self.exampleDict["toggle"].widgets[2].clicked.connect(
+            self.setToggleFunction)
 
     # device communication and related functions
     @catchEmitError
@@ -139,6 +146,19 @@ class MainWindow(ControlWindow):
             print("some value can not be converted to correct type")
             estr = traceback.format_exc()
             print(estr)
+
+    def setToggleFunction(self):
+        """
+        set toggle button functionality in hardware
+        """
+        # if it is checked
+        if self.exampleDict["toggle"].widgets[2].isChecked():
+            # here should go code to set the feature in the hardware
+            self.toggle = True
+        # if it is unchecked
+        else:
+            # here should go code to unset the feature in the hardware
+            self.toggle = False
 
     @catchEmitError
     def refreshDict(self):
@@ -167,6 +187,7 @@ class MainWindow(ControlWindow):
             self.exampleDict["V2"].value = self.v2
             self.exampleDict["V3"].value = self.v3
             self.exampleDict["V4"].value = self.v4
+            self.exampleDict["toggle"].value = self.toggle
 
             self.exampleDict2["V5"].value = self.v5
 
