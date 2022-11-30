@@ -149,7 +149,7 @@ class ControlWindow(QMainWindow):
                     if len(guidict[key]) > 2:
                         kwargs["unit"] = guidict[key][2]
                     guidict[key] = var(**kwargs)
-                    guidict[key].value = value
+                    guidict[key]._value = value
         # initialize GUI
         self.initUI()
         # set outputStream as stdout (i.e. all output is written to status)
