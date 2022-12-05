@@ -423,6 +423,8 @@ class SweepPreview(QMainWindow):
         """
         Fetches data from the file if force is True, or if the modification
         time is past the time of the latest update (stored in self.lu_time).
+        If force is false, this function was called from the updatethread,
+        therefore make it update all windows
         """
         ret = 0
         if force is True:
@@ -433,12 +435,18 @@ class SweepPreview(QMainWindow):
         elif getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
-            updated = False
+            pass
         elif self.lu_time < getmtime(self.filename):
             # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
-            self.reload_data()
+            ci = self.spw.w_plots.currentIndex()
+            for i in range(self.spw.w_plots.count()-1):
+                if ci == i:
+                    # skip current index as this one will be done last
+                    pass
+                self.spw.w_plots.setCurrentIndex(i)
+            self.spw.w_plots.setCurrentIndex(ci)
         return ret
 
     def reset(self):
