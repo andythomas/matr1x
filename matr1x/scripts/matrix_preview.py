@@ -95,7 +95,8 @@ class SweepPreview(QMainWindow):
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
-        QApplication.instance().openfile.connect(self.set_filename)
+        if hasattr(QApplication.instance(), 'openfile'):
+            QApplication.instance().openfile.connect(self.set_filename)
 
         # initialize filename if available
         if filename:
@@ -103,7 +104,7 @@ class SweepPreview(QMainWindow):
         else:
             self.file_open_thread = threading.Thread(
                 target=self._delayed_file_load_attempt)
-            logger.info(f"start delayed")
+            logger.info("start delayed")
             self.file_open_thread.start()
 
     def _delayed_file_load_attempt(self):
@@ -484,7 +485,7 @@ class SweepPreview(QMainWindow):
             # file could not be opened
             exc_type, exc_value, exc_traceback = sys.exc_info()
             a = QMessageBox.critical(
-                self, f"Error when opening file",
+                self, "Error when opening file",
                 f"""
 The following error was raised when opening the file:
 {repr(exc_value)}
