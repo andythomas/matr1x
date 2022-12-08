@@ -13,7 +13,6 @@ import textwrap
 import time
 from os.path import abspath, exists, expanduser, isabs, isfile, join, splitext
 
-import h5py
 import numpy as np
 
 from . import system as sl
@@ -918,6 +917,7 @@ def take_measurement_point(output_filename, system):
     for i, col in enumerate(system.columns):
         value = system.read_value(i)
         if system.hdf5 is True:
+            import h5py # obsolete here since the header is written first?
             with h5py.File(output_filename, "a", libver='latest') as datafile:
                 datafile.swmr_mode = True
                 assert datafile.swmr_mode
@@ -1009,6 +1009,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     print(f"Creating new datafile: {output_filename}")
     if system.hdf5 is True:
         telemetry.append(list(flatten(system.chunks, types=(list, ))))
+        import h5py
         with h5py.File(output_filename, 'w', libver='latest') as data_file:
             data_file.swmr_mode = True
             assert data_file.swmr_mode

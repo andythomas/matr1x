@@ -9,14 +9,10 @@ package as well as functions for processing data in the preview.
 
 import os
 import re
+import sys
 import warnings
 from os.path import isfile, join, split, splitext
 
-# disable file locking in h5py
-# seems this is needed before loading the package
-os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"  # noqa
-
-import h5py
 import numpy as np
 from natsort import natsorted
 
@@ -24,6 +20,16 @@ from natsort import natsorted
 ######################
 # File handling
 ######################
+def detect_hdf5(filename):
+    file = open(filename, "rb")
+    first_bytes = file.read(4)
+    file.close()
+    if (first_bytes==b'\x89HDF'):
+        return True
+    else:
+        return False
+
+
 def get_latest_datafile(path=None, basename=None):
     """
     automagically find latest datafile in 'path' which follows the pattern of
@@ -103,7 +109,9 @@ def loadmatrix(filename, structured=True, print_header=False):
     """
     tries = 0
     header = dict(columns=[], units=[])
-    if h5py.is_hdf5(filename):
+    if detect_hdf5(filename):
+        if 'h5py' not in sys.modules:
+            import h5py
         if not structured:
             raise NotImplementedError(
                 "The option structured=False is not supported for hdf5 files")
