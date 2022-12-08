@@ -63,7 +63,7 @@ def get_matrix_binary():
                                   stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
             return matrixname
-        except FileNotFoundError or subprocess.CalledProcessError:
+        except (FileNotFoundError, subprocess.CalledProcessError):
             continue
     raise FileNotFoundError("matrix executable could not be found")
 

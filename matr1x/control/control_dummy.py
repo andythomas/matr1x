@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import traceback
+import warnings
 
 import numpy
 from matr1x import logfolder
@@ -15,7 +16,11 @@ from matr1x.control.util import OutputRedirection, QtGracefulKiller, copyValues
 from matr1x.control.util import guiObject as go
 from matr1x.control.util import var
 from matr1x.devices.scpi_dev import makeSCPIdevice, set_cmd_funcs
-from PyQt5.QtWidgets import QApplication, QMessageBox, QWidget
+
+try:
+    from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
+except ImportError:
+    from PyQt5.QtWidgets import QApplication, QMessageBox, QWidget
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -51,7 +56,7 @@ clientdevice = makeSCPIdevice(cmd_list)
 if os.name == 'nt':
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.matrix_control_dummy.version'
+        myappid = 'python.matr1x.control-dummy.version'
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -227,6 +232,10 @@ class MainWindow(ControlWindow):
 
 
 def main():
+    if "_" in os.path.basename(sys.argv[0]):
+        warnings.warn(
+            "The executable name 'control_dummy' is deprecated. Use 'control-dummy' instead.",
+            FutureWarning)
     app = QApplication(sys.argv)
 
     lockfilename = os.path.join(

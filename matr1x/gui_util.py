@@ -7,12 +7,22 @@ This module contains gui related functions that are required by the sweep
 generator and matrix_gui
 """
 import numpy as np
+
+# Try to import Qt6 and fallback to Qt5 if not available
+try:
+    from PyQt6.QtCore import QObject, Qt, pyqtSignal
+    from PyQt6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
+                                 QGroupBox, QHBoxLayout, QLabel, QLayout,
+                                 QLineEdit, QPushButton, QSizePolicy, QSlider,
+                                 QToolButton, QVBoxLayout)
+except ImportError:
+    from PyQt5.QtCore import QObject, Qt, pyqtSignal
+    from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
+                                 QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
+                                 QPushButton, QSizePolicy, QSlider, QToolButton,
+                                 QVBoxLayout)
+
 import pyqtgraph as pg
-from PyQt5.QtCore import QObject, Qt, pyqtSignal
-from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
-                             QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
-                             QPushButton, QSizePolicy, QSlider, QToolButton,
-                             QVBoxLayout)
 
 from .eval import delta
 
@@ -37,13 +47,13 @@ class QRangeWidget(QGroupBox):
         self.base_title = title
         grid = QHBoxLayout()
         self.label = QLabel(title)
-        self.slider = QSlider(Qt.Horizontal)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(0, 0)
         self.slider.setValue(0)
         self.inc = QToolButton()
-        self.inc.setArrowType(Qt.RightArrow)
+        self.inc.setArrowType(Qt.ArrowType.RightArrow)
         self.dec = QToolButton()
-        self.dec.setArrowType(Qt.LeftArrow)
+        self.dec.setArrowType(Qt.ArrowType.LeftArrow)
         grid.addWidget(self.label)
         grid.addWidget(self.dec)
         grid.addWidget(self.slider, stretch=1)
@@ -230,7 +240,7 @@ class SimplePlotWidget(QGroupBox):
             # initialize slider widget and horizontal spacer line
             # and add to l_slider
             self.w_hline = QFrame()
-            self.w_hline.setFrameShape(QFrame.HLine)
+            self.w_hline.setFrameShape(QFrame.Shape.HLine)
             self.w_hline.setFixedHeight(2)
             self.w_hline.setVisible(False)
             if plot2d is True:
@@ -566,8 +576,8 @@ class SimplePlotWidget(QGroupBox):
 
         # Add GraphicsLayout and make most prominent widget
         self.gl = pg.GraphicsLayoutWidget()
-        self.gl.setSizePolicy(QSizePolicy.Expanding,
-                              QSizePolicy.Expanding)
+        self.gl.setSizePolicy(QSizePolicy.Policy.Expanding,
+                              QSizePolicy.Policy.Expanding)
 
         # have proxy that connects the position of the mouse on the
         # GraphicsLayout to display the x/y position on the current
@@ -603,7 +613,7 @@ class SimplePlotWidget(QGroupBox):
 
         grid.setColumnStretch(0, 1)
         grid.setRowStretch(3, 1)
-        grid.setSizeConstraint(QLayout.SetNoConstraint)
+        grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         grid.setContentsMargins(0, 0, 0, 0)
 
         self.setLayout(grid)
@@ -857,7 +867,7 @@ class CustomViewBox(pg.ViewBox):
 
     # reimplement right-click to autoscale plot
     def mouseClickEvent(self, ev):
-        if ev.button() == Qt.RightButton:
+        if ev.button() == Qt.MouseButton.RightButton:
             self.autoRange()
             # set autorange upon change of data
             self.enableAutoRange()
@@ -866,12 +876,12 @@ class CustomViewBox(pg.ViewBox):
 
     # reimplement drag event
     def mouseDragEvent(self, ev, axis=None):
-        if ev.button() in (Qt.RightButton, Qt.MidButton):
+        if ev.button() in (Qt.MouseButton.RightButton, Qt.MidButton):
             # enable pan mode
             self.setMouseMode(self.PanMode)
             pg.ViewBox.mouseDragEvent(self, ev, axis)
             self.setMouseMode(self.RectMode)
-        elif ev.button() == Qt.LeftButton and axis is not None:
+        elif ev.button() == Qt.MouseButton.LeftButton and axis is not None:
             # enable pan mode on individual axis
             self.setMouseMode(self.PanMode)
             pg.ViewBox.mouseDragEvent(self, ev, axis)
