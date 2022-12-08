@@ -111,6 +111,9 @@ def loadmatrix(filename, structured=True, print_header=False):
     header = dict(columns=[], units=[])
     if detect_hdf5(filename):
         if 'h5py' not in sys.modules:
+            # disable file locking in h5py
+            # seems this is needed before loading the package
+            os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"  # noqa
             import h5py
         if not structured:
             raise NotImplementedError(
@@ -205,24 +208,6 @@ def loadmatrix(filename, structured=True, print_header=False):
         # generate list of tuples with index and column name
         print([(i, col) for (i, col) in enumerate(header["columns"])])
     return header, data
-
-
-def loadh5matrix(filename, filehandle=False):
-    """
-    Utility function to load matrix data is hdf5 format.
-
-    Note: This function is deprecated and is replaced by loadmatrix(filename)!
-    """
-    if filehandle:
-        raise NotImplementedError(
-            """
-            use h5py.File(filename, 'r', swmr=True, libver='latest') to open
-            the datafile for reading if loadmatrix is not sufficient.
-            """)
-    else:
-        warnings.warn(
-            "loadh5matrix will be removed soon. use loadmatrix instead")
-        return loadmatrix(filename)
 
 
 ######################
