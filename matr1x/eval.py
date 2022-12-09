@@ -210,6 +210,24 @@ def loadmatrix(filename, structured=True, print_header=False):
     return header, data
 
 
+def loadh5matrix(filename, filehandle=False):
+    """
+    Utility function to load matrix data is hdf5 format.
+
+    Note: This function is deprecated and is replaced by loadmatrix(filename)!
+    """
+    if filehandle:
+        raise NotImplementedError(
+            """
+            use h5py.File(filename, 'r', swmr=True, libver='latest') to open
+            the datafile for reading if loadmatrix is not sufficient.
+            """)
+    else:
+        warnings.warn(
+            "loadh5matrix will be removed soon. use loadmatrix instead")
+        return loadmatrix(filename)
+
+
 ######################
 # Evaluation functions
 ######################
