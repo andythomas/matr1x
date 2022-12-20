@@ -31,14 +31,14 @@ try:
     from PyQt6.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QProgressBar, QPushButton,
+                                 QListWidget, QSpinBox, QProgressBar, QPushButton,
                                  QSizePolicy, QTableView)
 except ImportError:
     from PyQt5 import QtCore
     from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QProgressBar, QPushButton,
+                                 QListWidget, QSpinBox, QProgressBar, QPushButton,
                                  QSizePolicy, QTableView)
 
 from .. import datetimefmt, logfolder, usersfolder
@@ -108,6 +108,7 @@ class guiObject(IntEnum):
     progressbar = 3
     combobox = 4
     togglebutton = 5
+    spinbox = 6
 
     @classmethod
     def getWidget(cls, label, wType, init=None, col=None):
@@ -128,6 +129,7 @@ class guiObject(IntEnum):
           * 3 : matr1xProgressBar/QProgressBar
           * 4 : QComboBox
           * 5 : QPushButton(checkable=True)
+          * 6 : QSpinBox
         init : list, optional
           provides the values a QComboBox is initialized or with what a button
           is labelled.
@@ -163,6 +165,11 @@ class guiObject(IntEnum):
             return dummy
         elif cls.togglebutton == wType:
             return ToggleButton(init if init else label)
+        elif cls.spinbox == wType:
+            sb = QSpinBox()
+            if init is not None:
+                sb.setRange(*init)
+            return sb
         else:
             return None
 
@@ -273,16 +280,14 @@ class var(QObject):
         element = self.widgets[column]
         if isinstance(element, (QLineEdit, QLabel)):
             value = element.text()
-        elif isinstance(element, QProgressBar):
+        elif isinstance(element, (QSpinBox, QProgressBar)):
             value = element.value()
         elif isinstance(element, QComboBox):
             if self.variableType in [int, float]:
                 value = element.currentIndex()
             else:
                 value = element.currentText()
-        elif isinstance(element, QCheckBox):
-            value = element.checkState()
-        elif isinstance(element, QPushButton):
+        elif isinstance(element, (QCheckBox, QPushButton)):
             value = element.isChecked()
         else:
             raise TypeError(f"Unknown type of GUI element {type(element)}")
@@ -298,7 +303,7 @@ class var(QObject):
             if isinstance(self.widgets[1], QLineEdit):
                 self.valueChanged[str].connect(
                     self.widgets[1].setText)
-            elif isinstance(self.widgets[1], QProgressBar):
+            elif isinstance(self.widgets[1], (QSpinBox, QProgressBar)):
                 self.valueChanged[int].connect(
                     self.widgets[1].setValue)
             elif isinstance(self.widgets[1], QComboBox):
@@ -336,6 +341,8 @@ class var(QObject):
                     self.widgets[2].setCurrentText(self.value)
             elif isinstance(self.widgets[2], QCheckBox):
                 self.widgets[2].setChecked(bool(self.value))
+            elif isinstance(self.widgets[2], QSpinBox):
+                self.widgets[2].setValue(int(self.value))
 
     def __getitem__(self, idx):
         """
