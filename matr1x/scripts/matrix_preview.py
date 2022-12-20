@@ -107,6 +107,15 @@ class SweepPreview(QMainWindow):
             logger.info("start delayed")
             self.file_open_thread.start()
 
+    def _get_maximum_screen_width(self):
+        """
+        determine width of the biggest available screen.
+        """
+        width = 0
+        for screen in QApplication.instance().screens():
+            width = max(width, screen.geometry().width())
+        return width
+
     def _delayed_file_load_attempt(self):
         """
         Function to trigger opening the file open dialog.
@@ -263,6 +272,11 @@ class SweepPreview(QMainWindow):
         self.grid.setColumnStretch(1, 1)
         self.grid.setRowStretch(4, 1)
         self.grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        # although this seems counter intuitive. setting the minimum width
+        # limits the maximum window size in case long filenames are used.
+        # see #328
+        self.setMinimumWidth(800)
+        self.setMaximumWidth(self._get_maximum_screen_width())
 
     def clear_ui(self):
         for i in reversed(range(2, self.grid.count())):
