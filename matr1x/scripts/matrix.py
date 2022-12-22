@@ -20,11 +20,11 @@ import time
 import traceback
 
 import urwid
+from matr1x.system import MergedSystem
 from matr1x.util import (flatten, flush_input, generate_col_index,
-                         generate_datafilename, get_settable_columns,
-                         merge_systems, nonblocking_getch, print_formatted_line,
-                         take_measurement_point, telemetry_string,
-                         trigger_system, write_matrix_header)
+                         generate_datafilename, nonblocking_getch,
+                         print_formatted_line, telemetry_string,
+                         write_matrix_header)
 
 from . import MATRIX_GUI_PORT
 
@@ -136,9 +136,9 @@ def measurementloop(inputfile, output_filename, system,
         if datapoint[-1] == 1:  # logpoint argument
             # all values have been set, and a possible wait time has passed
             # now trigger all parameters in system
-            trigger_system(system)
+            system.trigger()
             # devices have been triggered, now read measurement
-            return_list = take_measurement_point(output_filename, system)
+            return_list = system.take_measurement_point(output_filename)
             # measurements have been saved to file, print to screen now
             readvalcb(return_list)
 
@@ -345,11 +345,11 @@ def main():
             # replace option with correct systems
 
     # merge all systems into new system (works also for single systems)
-    system = merge_systems(options.systemfile)
+    system = MergedSystem.from_files(options.systemfile)
 
     # get columns from input file to verify input file was generated with the
     # same system version (i.e. has the same parameter names and units)
-    settable, settable_names, settable_units = get_settable_columns(system)
+    settable, settable_names, settable_units = system.settable_columns()
 
     # verify that input file has correct columns and units
     if ((settable_names != settable_names_file or

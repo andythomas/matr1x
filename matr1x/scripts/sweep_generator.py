@@ -40,8 +40,8 @@ from matr1x import systems as core_systems
 from matr1x import systems_directory, usersfolder
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import CustomViewBox
-from matr1x.util import (calculate_sweep, generate_col_index,
-                         get_settable_columns, merge_systems)
+from matr1x.system import MergedSystem
+from matr1x.util import calculate_sweep, generate_col_index
 from numpy import linspace
 
 # overwrite core_systems with list of systems
@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
                      else filename for filename in filenames]
         self.systemFilename = ",".join(filenames)
         try:
-            self.system = merge_systems(filenames)
+            self.system = MergedSystem.from_files(filenames)
             for file in filenames:
                 modulestr += basename(splitext(file)[0]) + ","
             self.statusBar.append("Successfully imported -- " + modulestr)
@@ -359,10 +359,8 @@ class MainWindow(QMainWindow):
         # Initalize sweep lists
         self.col_sign = []
         # generate list of settable parameters
-        settables, self.flat_col, self.flat_unit = get_settable_columns(
-            self.system)
-        for i, (settable, col) in enumerate(zip(settables,
-                                                self.system.columns)):
+        settables, self.flat_col, self.flat_unit = self.system.settable_columns()
+        for i, (settable, col) in enumerate(zip(settables, self.system.columns)):
             # add a column for each settable parameter in the system
             if settable is True:
                 if isinstance(col, (tuple, list)):
