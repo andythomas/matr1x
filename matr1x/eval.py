@@ -24,7 +24,7 @@ def detect_hdf5(filename):
     file = open(filename, "rb")
     first_bytes = file.read(4)
     file.close()
-    if (first_bytes==b'\x89HDF'):
+    if (first_bytes == b'\x89HDF'):
         return True
     else:
         return False
