@@ -2,7 +2,6 @@
 # ---
 # (c) 2022 matr1x developers. All rights reserved.
 # ---
-import importlib
 import importlib.util
 import os
 import re
@@ -11,12 +10,9 @@ import sys
 import sysconfig
 import textwrap
 import time
-from os.path import abspath, exists, expanduser, isabs, isfile, join, splitext
+from os.path import abspath, exists, expanduser, isabs, splitext
 
 import numpy as np
-
-from . import system as sl
-from . import systems_directory
 
 # conditional import for non-blocking io
 if os.name == "nt":
@@ -67,43 +63,6 @@ def get_matrix_binary():
     raise FileNotFoundError("matrix executable could not be found")
 
 
-def import_system(filename):
-    """
-    Utility function to load system files from an arbitrary directory. If a
-    file with the given name cannot be found the system installed files are
-    searched for.
-
-    Parameters
-    ------
-    filename : string
-      path to file (can include '.py' extension)
-
-    Returns
-    -----
-    system : System
-      System as defined in the file
-    """
-    # this is necessary for sweep_generator and likely matrix_script as
-    # otherwise some parameters might be still stored in the matr1x.system
-    # module
-    importlib.reload(sl)
-
-    normfilename = filename.strip()
-    if isfile(normfilename):
-        mod = module_from_path(normfilename)
-    else:  # no file found, try installed system files
-        normfilename = splitext(normfilename)[0]
-        fullfilename = join(systems_directory,
-                            normfilename + ".py")
-
-        if isfile(fullfilename):
-            mod = module_from_path(fullfilename)
-        else:
-            mod = importlib.import_module("." + normfilename, "matr1x.systems")
-            mod.sys.__name__ = normfilename
-    return mod.sys
-
-
 def module_from_path(filename):
     # module path was defined, check that file exists
     if not isabs(filename):
@@ -117,82 +76,6 @@ def module_from_path(filename):
     # set the name of the system to reflect the filename
     mod.sys.__name__ = filename
     return mod
-
-
-def merge_systems(system_filenames):
-    """
-    Merges two systems, where the first should be the magnet setup
-    and the second one the one used for measurements
-
-    Parameters
-    -----
-    system_filenames : list
-      list of system paths that should be merged
-
-    Returns
-    ----
-    system : MergedSystem
-      MergedSystem instance that contains the descirption of all subsystems
-    """
-    systems = []
-    for filename in system_filenames:
-        # import the individual systems
-        systems.append(import_system(filename))
-    # this is necessary for sweep_generator and likely matrix_script as
-    # otherwise some parameters might be still stored in the matr1x.system
-    # module
-    importlib.reload(sl)
-    # return merged system
-    return sl.MergedSystem(systems)
-
-
-def grab_system_information(systems, settables=False):
-    """
-    Utility function to obtain meta information from a system
-
-    Imports a set of systems and imports these as matrix would do it.
-    Depending on settables, a human readable description of the system (devices
-    and parameters) is returned, or the number of settable columns.
-
-    The function is used by matrix_script to verify the system still
-    corresponds to the definition with which the script was created.
-    Additionally, it is used to generate the help string.
-
-    Parameters
-    ----
-    systems : list
-      List of system (file)names that should be imported
-    settables : bool, optional
-      controls whether to return the settable columns of the system (if True)
-      or whether a human readble string with the system definition is returned.
-
-    Returns
-    ----
-    system_descriptor : string
-      Returns a string with the list of devices and a string with
-      parameters that are available in the system (name + index)
-      Alternatively, returns the settable columns of the system
-    """
-    sys = merge_systems(systems)
-    if settables is True:
-        # return only settables
-        return get_settable_columns(sys)
-    else:
-        # generate string from devices, iterates over subsystems
-        dev_list = []
-        for dev, devtype in sys.devs.items():
-            dev_list.append(f"{dev} <> {devtype}\n")
-        dev_string = "device <> device type\n----------\n" + "".join(dev_list)
-        # generate string from setable parameters
-        par_list = []
-        for index, param in enumerate(sys.parameters):
-            if param.setter is not None:
-                par_list.append(f"{index} <y> {param.name}\n")
-            else:
-                par_list.append(f"{index} <n> {param.name}\n")
-        par_string = ("index <settable> parameter\n----------\n" +
-                      "".join(par_list))
-        return "----------\n".join((dev_string, par_string))
 
 
 def generate_datafilename(system, outputfile="", inputfile="", append=False):
@@ -312,8 +195,9 @@ def generate_script(systems, user_script):
     import matr1x as _matr1x
     import matr1x.util as _matrix_util
 
-    _system = _matrix_util.merge_systems(
-        [{", ".join(repr(s) for s in systems)}])
+    from matr1x.system import MergedSystem as _MergedSystem
+
+    _system = _MergedSystem.from_files([{", ".join(repr(s) for s in systems)}])
 
     # pass meta information
     _system.dcdata['Identifier'] = _sample
@@ -420,11 +304,11 @@ def generate_script(systems, user_script):
             _matrix_util.print_formatted_line(_matrix_util.flatten(_system.units))
 
 
-    # wrap trigger_system and take_measurement_point into measure_system
+    # wrap system.trigger and system.take_measurement_point into measure_system
     def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
         '''
         Perform the measurment of a single data point. This means a sequence of
-        trigger_system, and reading the data is performed.
+        system.trigger, and reading the data is performed.
 
         Parameters
         ----------
@@ -450,8 +334,8 @@ def generate_script(systems, user_script):
         preread = _time.time()
         if _filename == "":
             init_datafile("")
-        _matrix_util.trigger_system(_system)
-        return_list = _matrix_util.take_measurement_point(_filename, _system)
+        _system.trigger()
+        return_list = _system.take_measurement_point(_filename)
         if print_data:
             _matrix_util.print_formatted_line(return_list, prefix="Meas: ")
         if print_telemetry:
@@ -848,44 +732,6 @@ def check_dep(index, array, depth=0):
         return depth
 
 
-def get_settable_columns(system):
-    """
-    Function to obtain the settable columns for a given system. Used by matrix
-    and matrix_script to verify that the input file/input script was generated
-    with the same system as the one that is currently used.
-
-    Parameters
-    ----
-    system : System
-      System of which the settable columns should be returned
-
-    Returns
-    ----
-    settables : list
-      list of bools describing whether a parameter is settable or not
-    flattened_settable_names : list
-      list of strings containing the names of the settable columns
-    flattened_settable_units : list
-      list of strings containing the units of the settable columns
-    """
-    settables = [(False if par.setter is None else True)
-                 for par in system.parameters]
-    flattened_settable_names = []
-    flattened_settable_units = []
-    for names, units, settable in zip(system.columns,
-                                      system.units,
-                                      settables):
-        if settable is True:
-            if isinstance(names, (list, tuple)):
-                for name, unit in zip(names, units):
-                    flattened_settable_names.append(name)
-                    flattened_settable_units.append(unit)
-            else:
-                flattened_settable_names.append(names)
-                flattened_settable_units.append(units)
-    return (settables, flattened_settable_names, flattened_settable_units)
-
-
 def generate_col_index(index):
     """
     generates the column indices for matrix/sweep generator etc.
@@ -899,59 +745,6 @@ def generate_col_index(index):
     else:
         raise ValueError("index out of range, talk to the developer")
     return letter
-
-
-def take_measurement_point(output_filename, system):
-    """
-    takes one reading from all device specified in system
-    """
-    def h5save(h5d, val):
-        csize = h5d.chunks[0]
-        h5d.resize(h5d.shape[0]+csize, axis=0)
-        h5d[-csize:] = val
-        if csize > 1 or len(h5d.chunks) > 1:
-            return f"[{next(flatten(val))}, ...]"
-        return val
-
-    return_list = []
-    for i, col in enumerate(system.columns):
-        value = system.read_value(i)
-        if system.hdf5 is True:
-            import h5py # obsolete here since the header is written first?
-            with h5py.File(output_filename, "a", libver='latest') as datafile:
-                datafile.swmr_mode = True
-                assert datafile.swmr_mode
-                if isinstance(col, (list, tuple)):
-                    for j, column in enumerate(col):
-                        ret = h5save(datafile["data/" + column], value[j])
-                        return_list.append(ret)
-                else:
-                    ret = h5save(datafile["data/" + col], value)
-                    return_list.append(ret)
-        else:
-            if isinstance(value, (np.ndarray, list, tuple)):
-                # in case we get an iterable cast to list and append
-                return_list += list(value)
-            else:
-                return_list.append(value)
-
-    if system.hdf5 is False:
-        with open(output_filename, "a") as datafile:
-            # write datapoint to file
-            datafile.write(default_separator.join(str(v) for v in return_list))
-            datafile.write("\n")
-
-    # return device readout as list
-    return return_list
-
-
-def trigger_system(system):
-    """
-    triggers all devices in system by calling the trigger function with
-    specified in the system
-    """
-    for i in range(len(system.columns)):
-        system.trigger_value(i)
 
 
 def construct_query_string(query_dict, depth=2):

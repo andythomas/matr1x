@@ -106,9 +106,6 @@ class MainWindow(ControlWindow):
         super().__init__("dummy", guidicts=[self.exampleDict,
                                             self.exampleDict2, ])
 
-        # regenerate function entries in cmd_list
-        self.cmd_list = set_cmd_funcs(self, cmd_list)
-
     # GUI functions
     def initUI(self):
         """
@@ -134,6 +131,8 @@ class MainWindow(ControlWindow):
         init device connections
         """
         if self.devInit is False:
+            # regenerate function entries in cmd_list
+            self.cmd_list = set_cmd_funcs(self, cmd_list)
             self.devInit = True
 
     def write(self):

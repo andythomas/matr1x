@@ -7,9 +7,14 @@ This module contains the System class definition and corresponding utility
 functions
 """
 import collections
+import importlib
 import time
+from os.path import isfile, join, splitext
 
-from . import datetimefmt
+import numpy as np
+
+from . import datetimefmt, systems_directory
+from .util import default_separator, flatten, module_from_path
 
 
 def device_query(device_handle, config_params):
@@ -267,6 +272,38 @@ class System(object):
             Language="en",
         )
 
+    @classmethod
+    def from_file(cls, filename):
+        """
+        Utility function to load a system from a file. If a file with the given name
+        cannot be found the system installed files are searched.
+
+        Parameters
+        ------
+        filename : string
+          path to file (can include '.py' extension)
+
+        Returns
+        -----
+        system : System
+          System as defined in the file
+        """
+        normfilename = filename.strip()
+        if isfile(normfilename):
+            mod = module_from_path(normfilename)
+        else:  # no file found, try installed system files
+            normfilename = splitext(normfilename)[0]
+            fullfilename = join(systems_directory,
+                                normfilename + ".py")
+
+            if isfile(fullfilename):
+                mod = module_from_path(fullfilename)
+            else:
+                mod = importlib.import_module(
+                    "." + normfilename, "matr1x.systems")
+                mod.sys.__name__ = normfilename
+        return mod.sys
+
     @property
     def hdf5(self):
         """
@@ -494,6 +531,13 @@ class System(object):
                 self._inform_exception(i, trigger, "triggering")
                 raise
 
+    def trigger(self):
+        """
+        triggers a measurements of all parameters in the system.
+        """
+        for i in range(len(self.columns)):
+            self.trigger_value(i)
+
     def read_value(self, i):
         """
         Fetches readout value of parameter using the getter.
@@ -648,6 +692,135 @@ class System(object):
         """
         self.opened = False
 
+    def settable_columns(self):
+        """
+        Function to obtain the settable columns. Used by matrix and
+        matrix_script to verify that the input file/input script was generated
+        with the same system as the one that is currently used.
+
+        Returns
+        -------
+        settables : list
+          list of bools describing whether a parameter is settable or not
+        flattened_settable_names : list
+          list of strings containing the names of the settable columns
+        flattened_settable_units : list
+          list of strings containing the units of the settable columns
+        """
+        settables = [(False if par.setter is None else True)
+                     for par in self.parameters]
+        flattened_settable_names = []
+        flattened_settable_units = []
+        for names, units, settable in zip(self.columns,
+                                          self.units,
+                                          settables):
+            if settable is True:
+                if isinstance(names, (list, tuple)):
+                    for name, unit in zip(names, units):
+                        flattened_settable_names.append(name)
+                        flattened_settable_units.append(unit)
+                else:
+                    flattened_settable_names.append(names)
+                    flattened_settable_units.append(units)
+        return (settables, flattened_settable_names, flattened_settable_units)
+
+    def grab_information(self, settables=False):
+        """
+        Utility function to obtain meta information from a system
+
+        Depending on settables, a human readable description of the system (devices
+        and parameters) is returned, or the number of settable columns.
+
+        The function is used by matrix_script to verify the system still
+        corresponds to the definition with which the script was created.
+        Additionally, it is used to generate the help string.
+
+        Parameters
+        ----------
+        settables : bool, optional
+          controls whether to return the settable columns of the system (if True)
+          or whether a human readble string with the system definition is returned.
+
+        Returns
+        -------
+        system_descriptor : string
+          Returns a string with the list of devices and a string with
+          parameters that are available in the system (name + index)
+          Alternatively, returns the settable columns of the system
+        """
+        if settables is True:
+            # return only settables
+            return self.settable_columns()
+        else:
+            # generate string from devices, iterates over subsystems
+            dev_list = []
+            for dev, devtype in self.devs.items():
+                dev_list.append(f"{dev} <> {devtype}\n")
+            dev_string = "device <> device type\n----------\n" + \
+                "".join(dev_list)
+            # generate string from setable parameters
+            par_list = []
+            for index, param in enumerate(self.parameters):
+                if param.setter is not None:
+                    par_list.append(f"{index} <y> {param.name}\n")
+                else:
+                    par_list.append(f"{index} <n> {param.name}\n")
+            par_string = ("index <settable> parameter\n----------\n" +
+                          "".join(par_list))
+            return "----------\n".join((dev_string, par_string))
+
+    def take_measurement_point(self, datafilename):
+        """
+        takes one reading from all device and save it to the datafile
+
+        Parameters
+        ----------
+        datafilename: string
+         filename were to save the measurement
+        """
+        if self.hdf5:
+            # lazy import of h5py to only load it when it is required
+            import h5py
+
+            def h5save(h5d, val):
+                csize = h5d.chunks[0]
+                h5d.resize(h5d.shape[0]+csize, axis=0)
+                h5d[-csize:] = val
+                if csize > 1 or len(h5d.chunks) > 1:
+                    return f"[{next(flatten(val))}, ...]"
+                return val
+
+        return_list = []
+        for i, col in enumerate(self.columns):
+            value = self.read_value(i)
+            if self.hdf5 is True:
+                with h5py.File(datafilename, "a", libver='latest') as datafile:
+                    datafile.swmr_mode = True
+                    assert datafile.swmr_mode
+                    if isinstance(col, (list, tuple)):
+                        for j, column in enumerate(col):
+                            ret = h5save(datafile["data/" + column], value[j])
+                            return_list.append(ret)
+                    else:
+                        ret = h5save(datafile["data/" + col], value)
+                        return_list.append(ret)
+            else:
+                if isinstance(value, (np.ndarray, list, tuple)):
+                    # in case we get an iterable cast to list and append
+                    return_list += list(value)
+                else:
+                    return_list.append(value)
+
+        if self.hdf5 is False:
+            with open(datafilename, "a") as datafile:
+                # write datapoint to file
+                datafile.write(default_separator.join(str(v)
+                               for v in return_list))
+                datafile.write("\n")
+
+        # return device readout as list
+        return return_list
+
 
 class MergedSystem(System):
     """
@@ -708,6 +881,30 @@ class MergedSystem(System):
         if "timeUTC" not in self.columns:
             self.add_param("timeUTC", "s", default=None,
                            setter=time.sleep, getter=time.time)
+
+    @classmethod
+    def from_files(cls, system_filenames):
+        """
+        Merges multiple systems and return a MergedSystem-instance.
+        Note that the order of the systems matters when setting/reading parameters during a measurement.
+        Typically the core system (e.g. Magnet-cryostat) comes first and measurement systems afterwards.
+
+        Parameters
+        -----
+        system_filenames : list
+          list of system paths that should be merged
+
+        Returns
+        ----
+        system : MergedSystem
+          MergedSystem instance that contains the descirption of all subsystems
+        """
+        systems = []
+        for filename in system_filenames:
+            # import the individual systems
+            systems.append(System.from_file(filename))
+        # return merged system
+        return cls(systems)
 
     def _merge_dcdata(self, setdate=True):
         tmpdcdata = collections.defaultdict(set)
