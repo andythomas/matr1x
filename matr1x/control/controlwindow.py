@@ -266,7 +266,7 @@ class ControlWindow(QMainWindow):
     def configLog(self, checked):
         for guidict in self.guidicts:
             for var in guidict.values():
-                if not isinstance(var.widgets[1], (QLabel, QPushButton)):
+                if len(var.widgets) > 2 and not isinstance(var.widgets[1], (QLabel, QPushButton)):
                     if isinstance(var.widgets[-1], QCheckBox):
                         var.widgets[-1].setVisible(checked)
 
@@ -280,7 +280,7 @@ class ControlWindow(QMainWindow):
             for key in guidict:
                 var = guidict[key]
                 # make sure it is a loggable widget
-                if not isinstance(var.widgets[1], (QLabel, QPushButton)):
+                if len(var.widgets) > 2 and not isinstance(var.widgets[1], (QLabel, QPushButton)):
                     if bool(var.widgets[-1].checkState()):
                         # make sure check state is True and if so add to
                         # logged parameters
