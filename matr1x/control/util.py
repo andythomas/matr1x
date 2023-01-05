@@ -31,15 +31,15 @@ try:
     from PyQt6.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QSpinBox, QProgressBar, QPushButton,
-                                 QSizePolicy, QTableView)
+                                 QListWidget, QProgressBar, QPushButton,
+                                 QSizePolicy, QSpinBox, QTableView)
 except ImportError:
     from PyQt5 import QtCore
     from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QSpinBox, QProgressBar, QPushButton,
-                                 QSizePolicy, QTableView)
+                                 QListWidget, QProgressBar, QPushButton,
+                                 QSizePolicy, QSpinBox, QTableView)
 
 from .. import datetimefmt, logfolder, usersfolder
 

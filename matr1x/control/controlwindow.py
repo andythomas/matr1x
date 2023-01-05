@@ -14,8 +14,7 @@ from functools import wraps
 from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
 from matr1x.control.util import constructLayout, var
 from matr1x.gui_util import EmittingStream
-from matr1x.util import (generate_datafilename, take_measurement_point,
-                         trigger_system, write_matrix_header)
+from matr1x.util import generate_datafilename, write_matrix_header
 
 try:
     from PyQt6 import QtCore
@@ -348,8 +347,8 @@ class ControlWindow(QMainWindow):
                 interval = int(interval_text)
             if 0 == cnt:
                 # every interval seconds, perform log
-                trigger_system(self.S_log)
-                take_measurement_point(self.logfile, self.S_log)
+                self.S_log.trigger()
+                self.S_log.take_measurement_point(self.logfile)
             # ensure logging is interruptible even while waiting for
             # the next logpoint
             cnt = (cnt+1) % interval

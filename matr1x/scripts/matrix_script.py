@@ -577,12 +577,12 @@ class MainWindow(QWidget):
             print("==========")
             return
         # use external process to not have the systems in the namespace
-        info = subprocess.run([sys.executable, '-c',
-                               "from matr1x import " +
-                               "util;print(util" +
-                               ".grab_system_information(" +
-                               str(self.systems) + "))"],
-                              capture_output=True)
+        info = subprocess.run(
+            [sys.executable, '-c',
+             "from matr1x.system import MergedSystem;"
+             f"print(MergedSystem.from_files({self.systems}).grab_information())"
+             ],
+            capture_output=True)
         # print information string
         if info.returncode != 0:
             print("Error when trying to import system")
@@ -661,13 +661,13 @@ class MainWindow(QWidget):
         used for the loaded script match
         """
         try:
-            settable_info = subprocess.run([sys.executable, '-c',
-                                            "from matr1x import " +
-                                            "util;print(util" +
-                                            ".grab_system_information(" +
-                                            str(self.systems) +
-                                            ", settables=True))"],
-                                           capture_output=True)
+            settable_info = subprocess.run(
+                [sys.executable, '-c',
+                 "from matr1x.system import MergedSystem;"
+                 f"print(MergedSystem.from_files({self.systems}).grab_information(settables=True))"
+                 ],
+                capture_output=True)
+
             return ast.literal_eval(settable_info.stdout.decode().split("\n")[-2])
         except Exception:
             return None
