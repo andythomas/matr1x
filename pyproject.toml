@@ -4,7 +4,6 @@ version = "7.2.0"
 description = "Python package for data acquisition and measurement control"
 requires-python = ">=3.6"
 dependencies = [
-  "h5py",
   "natsort",
   "numpy",
   "pymeasure",
@@ -20,6 +19,7 @@ spi = ["spidev", "RPi"]
 qt5 = ["pyqtgraph >= 0.11.0", "PyQt5 >= 5.14.0"]
 qt6 = ["pyqtgraph >= 0.11.0", "PyQt6"]
 standa = ["PyUSMC", "pyximc"]
+h5py = ["h5py"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"

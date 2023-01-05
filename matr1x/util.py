@@ -12,7 +12,6 @@ import textwrap
 import time
 from os.path import abspath, exists, expanduser, isabs, splitext
 
-import h5py
 import numpy as np
 
 # conditional import for non-blocking io
@@ -803,6 +802,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     print(f"Creating new datafile: {output_filename}")
     if system.hdf5 is True:
         telemetry.append(list(flatten(system.chunks, types=(list, ))))
+        import h5py
         with h5py.File(output_filename, 'w', libver='latest') as data_file:
             data_file.swmr_mode = True
             assert data_file.swmr_mode
