@@ -153,7 +153,10 @@ class guiObject(IntEnum):
                     init = init[col]
             return QPushButton(init if init else label)
         elif cls.lineedit == wType:
-            return QLineEdit()
+            if col is not None:
+                if isinstance(init, (list, tuple)):
+                    init = init[col]
+            return QLineEdit(init if init else None)
         elif cls.checkbox == wType:
             return QCheckBox()
         elif cls.progressbar == wType:
@@ -468,7 +471,7 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit={}):
         init = layoutDictInit.get(key, layoutDict[key].init)
         if isinstance(spec, (tuple, list)):
             # iterable (i.e. multiple widgets in this row)
-            if len(spec) > count:
+            if len(spec) >= count:
                 # make sure count corresponds to the longest column number
                 count = len(spec) + 1
             dummy = []
@@ -484,14 +487,15 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit={}):
             dummy = [guiObject.getWidget(key, spec, init)]
 
         # set sensible default values and disable readout column
-        if dummy[0].minimumWidth() < 100:
-            dummy[0].setMinimumWidth(100)
-        if type(dummy[0]) is QLineEdit:
-            dummy[0].setReadOnly(True)
-        elif type(dummy[0]) is QComboBox:
-            dummy[0].setEnabled(False)
-        elif type(dummy[0]) is QCheckBox:
-            dummy[0].setEnabled(False)
+        if isinstance(dummy, (tuple,list)) and len(dummy) > 0:
+            if dummy[0].minimumWidth() < 100:
+                dummy[0].setMinimumWidth(100)
+            if type(dummy[0]) is QLineEdit:
+                dummy[0].setReadOnly(True)
+            elif type(dummy[0]) is QComboBox:
+                dummy[0].setEnabled(False)
+            elif type(dummy[0]) is QCheckBox:
+                dummy[0].setEnabled(False)
 
         # generate label for row
         unit = layoutDict[key].unit
@@ -506,7 +510,7 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit={}):
             # but skip hidden checkbox
             grid.addWidget(widget, row, cCol+col, 1, 1)
             col += 1
-        if not isinstance(dummy[0], (QLabel, QPushButton)):
+        if isinstance(dummy, (tuple, list)) and len(dummy) > 0 and not isinstance(dummy[0], (QLabel, QPushButton)):
             # prepare checkbox for controlling the data logging
             # only add if there is a value attached to the display
             checkbox = QCheckBox()
