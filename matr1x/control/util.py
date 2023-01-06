@@ -30,16 +30,16 @@ try:
     from PyQt6 import QtCore
     from PyQt6.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QProgressBar, QPushButton,
-                                 QSizePolicy, QSpinBox, QTableView)
+                                 QDoubleSpinBox, QFileDialog, QGridLayout,
+                                 QLabel, QLineEdit, QListWidget, QProgressBar,
+                                 QPushButton, QSizePolicy, QSpinBox, QTableView)
 except ImportError:
     from PyQt5 import QtCore
     from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QProgressBar, QPushButton,
-                                 QSizePolicy, QSpinBox, QTableView)
+                                 QDoubleSpinBox, QFileDialog, QGridLayout,
+                                 QLabel, QLineEdit, QListWidget, QProgressBar,
+                                 QPushButton, QSizePolicy, QSpinBox, QTableView)
 
 from .. import datetimefmt, logfolder, usersfolder
 
@@ -109,6 +109,7 @@ class guiObject(IntEnum):
     combobox = 4
     togglebutton = 5
     spinbox = 6
+    doublespinbox = 7
 
     @classmethod
     def getWidget(cls, label, wType, init=None, col=None):
@@ -130,6 +131,7 @@ class guiObject(IntEnum):
           * 4 : QComboBox
           * 5 : QPushButton(checkable=True)
           * 6 : QSpinBox
+          * 7 : QDoubleSpinBox
         init : list, optional
           provides the values a QComboBox is initialized or with what a button
           is labelled.
@@ -173,6 +175,11 @@ class guiObject(IntEnum):
             if init is not None:
                 sb.setRange(*init)
             return sb
+        elif cls.doublespinbox == wType:
+            sb = QDoubleSpinBox()
+            if init is not None:
+                sb.setRange(*init)
+            return sb
         else:
             return None
 
@@ -195,13 +202,6 @@ class var(QObject):
       list of GUI elements needed for this variable. typically here are two
       entries to view the current value in the first element and be able to
       alter it in the second. The values should be enumerations from guiObject.
-      Numerical values have the following meaning:
-      0 : button
-      1 : lineedit
-      2 : checkbox
-      3 : progress bar
-      4 : combobox
-      5 : togglebutton
     unit: str
       unit string used in the label and data logging.
     log: bool
@@ -283,7 +283,7 @@ class var(QObject):
         element = self.widgets[column]
         if isinstance(element, (QLineEdit, QLabel)):
             value = element.text()
-        elif isinstance(element, (QSpinBox, QProgressBar)):
+        elif isinstance(element, (QSpinBox, QDoubleSpinBox, QProgressBar)):
             value = element.value()
         elif isinstance(element, QComboBox):
             if self.variableType in [int, float]:
@@ -306,7 +306,7 @@ class var(QObject):
             if isinstance(self.widgets[1], QLineEdit):
                 self.valueChanged[str].connect(
                     self.widgets[1].setText)
-            elif isinstance(self.widgets[1], (QSpinBox, QProgressBar)):
+            elif isinstance(self.widgets[1], (QSpinBox, QDoubleSpinBox, QProgressBar)):
                 self.valueChanged[int].connect(
                     self.widgets[1].setValue)
             elif isinstance(self.widgets[1], QComboBox):
@@ -344,7 +344,7 @@ class var(QObject):
                     self.widgets[2].setCurrentText(self.value)
             elif isinstance(self.widgets[2], QCheckBox):
                 self.widgets[2].setChecked(bool(self.value))
-            elif isinstance(self.widgets[2], QSpinBox):
+            elif isinstance(self.widgets[2], (QSpinBox, QDoubleSpinBox)):
                 self.widgets[2].setValue(int(self.value))
 
     def __getitem__(self, idx):
