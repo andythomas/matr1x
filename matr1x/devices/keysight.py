@@ -7,7 +7,250 @@ from struct import unpack
 import numpy as np
 from wrapt import synchronized
 
+from .util import strToList
 from .visadevice import VisaDevice
+
+
+class KeysightB2961(VisaDevice):
+    """
+    Keysight B2961 DC (and low frequency AC) power supply
+
+    Typically connected via TCPIP::<IP-address>:5025::SOCKET
+    """
+    config_params = {"sourceMode": "sourceMode",
+                     "senseMode": "senseMode",
+                     "VOLT:RANGE": "VOLT:RANG?",
+                     "CURR:RANGE": "CURR:RANG?",
+                     "VOLT:NPLC": ":SENS:VOLT:NPLC?",
+                     "CURR:NPLC": ":SENS:CURR:NPLC?",
+                     "Output": "outputState",
+                     }
+
+    def __init__(self, interface, **kwargs):
+        if "write_termination" not in kwargs:
+            kwargs["write_termination"] = "\n"
+        if "read_termination" not in kwargs:
+            kwargs["read_termination"] = "\n"
+        super().__init__(interface, **kwargs)
+        # after initialization get the source function to determine
+        # whether voltage or current is the sourced
+        self.write(":SOUR:FUNC:MODE?")
+        self.sourceMode = self.read()
+        self.write(":SENS:FUNC?")
+        self.senseMode = self.read()
+        self.write(":OUTP?")
+        self.outputState = bool(self.read())
+        # set the SMU to always only return the three typ. interesting values
+        self.write(':FORM:ELEM:SENS VOLT,CURR,SOUR')
+
+    def configure(self, sourceMode=None, senseMode=None, fourWire=None,
+                  sourceAutoRange=None, sourceRange=None, senseLimit=None,
+                  output=None, delayAuto=None, delay=None, nplc=None,
+                  reset=False):
+        """
+        Configure the Keysight B2961A to source current/voltage and sense
+        voltage/current
+
+        Arguments:
+            sourceMode: "VOLT" or "CURR" -- predefined physical parameter
+            senseMode: "VOLT" or "CURR" -- measured parameter
+            fourWire:boolean -- Four wire measurement? Default: None (use
+                                current configuration)
+            sourceAutoRange:boolean -- Autodetect the source range? Default:
+                                       None
+            sourceRange:float -- Largest expected source current, device will
+                                 pick the next inclusive range. Default: None
+            senseLimit:float -- source compliance level
+            output:boolean -- Turn the output on? Default: None
+            delayAuto:boolean -- Automatically choose the delay for stabilizing
+                                 the output? Default: None
+            delay:float -- Delay in seconds for stabilizing the output before
+                           doing an internal measurement. WON'T AFFECT/DELAY
+                           OTHER DEVICES! Default: 0.1(s)
+            nplc:float -- number of power line cycles to average (4e-4 to 100)
+            reset:boolean -- If true, reset the device
+
+            Example:
+                .configure(fourWire=True, senseAutoRange=True,
+                           sourceRange=0.001, output=True)
+                The output will initially be turned off during configuration.
+                This will configure the Keithley 2450a to be in 4W sense mode,
+                detect the sense range automatically. The range is chosen to
+                include 1mA and the output is turned on.
+        """
+        # do nothing if sourcemode is not defined
+        if sourceMode is None:
+            return
+        # assert source and sense mode are correct
+        assert ((sourceMode == "VOLT") or (sourceMode == "CURR")), \
+               ("source (\"" + sourceMode + "\") and/or sense (\"" +
+                senseMode + "\") mode are incorrect")
+        # add get output here to reset the device to the previous state
+        self.output(False)
+        # sourceMode will now be sourceMode
+        self.sourceMode = sourceMode
+        if reset is True:
+            cmdlist = ["*RST"]
+        else:
+            cmdlist = []
+        # we want sourceIsenseV
+        cmdlist.append(":SOUR:FUNC:MODE {}".format(self.sourceMode))
+        if senseMode is not None:
+            self.senseMode = senseMode
+            cmdlist.append(":SENS:FUNC \"{}\"".format(self.senseMode))
+
+        if senseLimit is not None:
+            cmdlist.append(":SOUR:{}:PROT {}".format(self.sourceMode,
+                                                     float(senseLimit)))
+
+        if nplc is not None:
+            cmdlist.append(":SENS:{}:NPLC {}".format(self.sourceMode,
+                                                     float(nplc)))
+        if delayAuto is True:
+            cmdlist.append(":SENS:WAIT:AUTO ON")
+        elif delay is not None:
+            cmdlist.append(":SENS:WAIT:AUTO OFF")
+            cmdlist.append(":SENS:WAIT:OFFS {}".format(float(delay)))
+        if fourWire is True:
+            cmdlist.append(":SENS:REM ON")
+        elif fourWire is False:
+            cmdlist.append(":SENS:REM OFF")
+
+        if sourceAutoRange is True:
+            cmdlist.append(":SOUR:{}:RANG:AUTO ON".format(self.sourceMode))
+        elif sourceRange is not None:
+            cmdlist.append(":SOUR:{}:RANG:AUTO OFF".format(self.sourceMode))
+            cmdlist.append(":SOUR:{}:RANG {}".format(self.sourceMode,
+                                                     float(sourceRange)))
+
+        cmdlist.append(':FORM:ELEM:SENS VOLT,CURR,SOUR')
+
+        for cmd in cmdlist:
+            self.write(cmd)
+        self.output(output)
+
+    def output(self, state=False):
+        """
+        turn output on if state is True, off with when state is False,
+        otherwise do nothing
+        """
+        if state is True:
+            self.write(":OUTP ON")
+        elif state is False:
+            self.write(":OUTP OFF")
+
+    def setSource(self, value):
+        """
+        set the output value of the source to the defined value. This happens
+        immediately without changing the source output status!
+        """
+        cmd = ":SOUR:{} {}".format(self.sourceMode, float(value))
+        self.write(cmd)
+
+    def getMeas(self):
+        """perform a self triggered measurement and return the values"""
+        self.write("MEAS?")
+        return strToList(self.read())
+
+    def getSource(self):
+        self.write("MEAS:{}?".format(self.sourceMode))
+        return float(self.read())
+
+    def getSense(self):
+        self.write("MEAS:{}?".format(self.senseMode))
+        return float(self.read())
+
+    def setAcquisitionTriggerMode(self, mode='BUS', count=None):
+        """
+        set up the SMU for triggered aquisition of the measurement system.
+
+        Note: the source still has another independent trigger system which is
+        not changed by this function!
+
+        Arguments:
+            mode: trigger mode: AINT (=Automatic), BUS (for use with
+                  triggerReading), TIMER (for time trace recording)
+            count: amount of triggers (typically 1 for BUS), allowed are: None,
+                   integer, or inf
+        """
+        self.write(':TRIG:ACQ:SOUR {}'.format(mode))
+        if count:
+            self.write(':TRIG:ACQ:COUN {}'.format(count))
+
+    def triggerReading(self):
+        """sent a trigger to trigger a reading when trigger is set to BUS"""
+        self.write(':ABOR:ACQ')
+        self.write(':INIT:ACQ')
+        self.write(':ARM:ACQ')
+        self.write('*TRG')
+
+    def getReading(self):
+        """fetch measured data after a trigger was sent"""
+        self.write("FETCH?")
+        return strToList(self.read())
+
+    def configure_sine(self, amp, freq, offset=0, count='INF',
+                       onlysetamp=False):
+        """
+        configure for generation of a sign wave. use configure first to set up
+        the sourceMode!  use run_wave after this command to actually start the
+        output!
+
+        note: this function also sets up the phase marker output (mapped to
+        EXT1) which can be used as a sync signal for a lockin.
+
+        Arguments:
+            amp: amplitude of the sine wave
+            freq: frequency of the sine wave
+            offset: vertical offset of the sine wave (default 0)
+            count: number of sine wave to output. (default: INF)
+            onlyssetamp: flag to only set a new amplitude and leave the rest
+                         unchanged -> keeps the output on!
+        """
+        cmdlist = [':ABOR']
+
+        if onlysetamp:
+            cmdlist.append(':SOUR:ARB:{}:SIN:AMPL {}'.format(self.sourceMode,
+                                                             amp))
+            cmdlist.append(':INIT')
+        else:
+            cmdlist.append(':OUTP OFF')
+            # set sin mode
+            cmdlist.append(':SOUR:{}:MODE ARB'.format(self.sourceMode))
+            cmdlist.append(':SOUR:ARB:FUNC SIN')
+            cmdlist.append(':SOUR:ARB:{}:SIN:AMPL {}'.format(self.sourceMode,
+                                                             float(amp)))
+            cmdlist.append(':SOUR:ARB:{}:SIN:FREQ {}'.format(self.sourceMode,
+                                                             float(freq)))
+            cmdlist.append(':SOUR:ARB:{}:SIN:OFFS {}'.format(self.sourceMode,
+                                                             float(offset)))
+            # set number of repetitions
+            cmdlist.append(':SOUR:ARB:COUN {}'.format(count))
+            # set phase marker (trigger/sync) output
+            cmdlist.append(
+                ':SOUR:ARB:{}:SIN:PMAR:PHAS 0'.format(self.sourceMode))
+            cmdlist.append(
+                ':SOUR:ARB:{}:SIN:PMAR:STAT 1'.format(self.sourceMode))
+            cmdlist.append(
+                ':SOUR:ARB:{}:SIN:PMAR:SIGN ext1'.format(self.sourceMode))
+            cmdlist.append(':SOUR:DIG:EXT1:FUNC TOUT')
+            cmdlist.append(':SOUR:DIG:EXT1:POL POS')
+            cmdlist.append(':SOUR:DIG:EXT1:TOUT:WIDT 100e-6')
+
+            # generate triggers for source internally
+            cmdlist.append(':TRIG:TRAN:COUN 1')
+            cmdlist.append(':TRIG:TRAN:SOUR TIMER')
+
+        for cmd in cmdlist:
+            self.write(cmd)
+
+    def run_wave(self):
+        self.write(':INIT')
+        self.output(True)
+
+    def visualize_trace(self, dt=1e-3, points=1000):
+        self.setAcquisitionTriggerMode(mode='TIMER', count=points)
+        self.write(':TRIG:ACQ:TIM {}'.format(dt))
 
 
 class PNA5225b(VisaDevice):
