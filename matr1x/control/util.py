@@ -79,7 +79,7 @@ class ToggleButton(QPushButton):
     """
 
     def __init__(self, *args, **kwargs):
-        if isinstance(args[0], list):
+        if isinstance(args[0], (list, tuple)):
             label = args[0][0]
         else:
             label = args[0]
@@ -93,7 +93,7 @@ class ToggleButton(QPushButton):
         """
         super().setChecked(state)
         # if it is checked
-        if isinstance(self._labels, list):
+        if isinstance(self._labels, (list, tuple)):
             if state:
                 self.setText(self._labels[1])
             # if it is unchecked
@@ -112,18 +112,19 @@ class guiObject(IntEnum):
     doublespinbox = 7
 
     @classmethod
-    def getWidget(cls, label, wType, init=None, col=None):
+    def getWidget(cls, label, wType, init=None):
         """
         Retruns the widget of the correct type
 
         Parameters
-        ----
+        ----------
         label : str
-          label of widget/name of button
+          label of widget (used as a fallback string on the button if no init
+          value is given)
         wType : int or guiObject
           Can be one of:
 
-          * str : QLabel
+          * str : QLabel: string used as label text.
           * 0 : QPushButton
           * 1 : QLineEdit
           * 2 : QCheckBox
@@ -132,12 +133,22 @@ class guiObject(IntEnum):
           * 5 : QPushButton(checkable=True)
           * 6 : QSpinBox
           * 7 : QDoubleSpinBox
-        init : list, optional
-          provides the values a QComboBox is initialized or with what a button
-          is labelled.
-        col : int, optional
-          column number of the GUI element (used to find the correct init
-          value for button labels)
+        init : tuple, str, optional
+          provides the initialization values (button label, valid ranges,
+          combobox entries)
+
+        Examples
+        --------
+        - Generate a toggle button which changes its label upon being set:
+          getWidget("Property", guiObject.togglebutton, init=("Slow", "Fast"))
+        - Generate a QComboBox with prefilled options:
+          getWidget("Property", guiObject.combobox, init=("opt 1", "opt 2"))
+        - Generate a SpinBox (similar for DoubleSpinBox):
+          getWidget("Property", guiObject.spinbox, init=(0, 200))
+        - Generate a PushBotton with text "Set":
+          getWidget("Property", guiObject.button, init="Set")
+        - Generate a label with text "Example":
+          getWidget("Property", "Example")
 
         Returns
         -----
@@ -150,14 +161,8 @@ class guiObject(IntEnum):
                                QSizePolicy.Policy.Fixed)
             return qlab
         elif cls.button == wType:
-            if col is not None:
-                if isinstance(init, (list, tuple)):
-                    init = init[col]
             return QPushButton(init if init else label)
         elif cls.lineedit == wType:
-            if col is not None:
-                if isinstance(init, (list, tuple)):
-                    init = init[col]
             return QLineEdit(init if init else None)
         elif cls.checkbox == wType:
             return QCheckBox()
@@ -207,12 +212,14 @@ class var(QObject):
     log: bool
       boolean flag to set the default behavior in the logging config
     init: list
-      initialization values for a combobox
+      initialization values. This should be a list of the same length as
+      columns. If it is of non-list type its assumed to apply to all entries of
+      columns equally.
     """
     valueChanged = pyqtSignal([str], [float], [int], [bool])
     unitChanged = pyqtSignal([str])
 
-    def __init__(self, dtype=(float, str), outType=str, columns=[], unit="",
+    def __init__(self, dtype=(float, str), outType=str, columns=None, unit="",
                  log=False, init=None):
         super().__init__()
         if isinstance(dtype, Iterable):
@@ -226,7 +233,9 @@ class var(QObject):
         self._unit = unit
         self.log = log
         self.init = init
-        if not isinstance(columns, list):
+        if columns is None:
+            self.columns = []
+        elif not isinstance(columns, list):
             self.columns = [columns, ]
         else:
             self.columns = columns
@@ -417,7 +426,7 @@ class QtGracefulKiller():
         self.timer.stop()
 
 
-def constructLayout(grid, cCol, layoutDict, layoutDictInit={}):
+def constructLayout(grid, cCol, layoutDict):
     """
     Generates a multi column multi row layout as specified in
     layoutDict[key][1] starting at column cCol in gridLayout grid.
@@ -438,11 +447,6 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit={}):
     layoutDict : dict
       layout dict of correct format that describes the layout that is supposed
       to be generated
-    layoutDictInit : dict
-      If a combo box is specified in the layoutDict, the corresponding values
-      that it should be populated with should be specified here. This option is
-      deprecated and should not be used in new code. See var(init=...) as a
-      replacement.
 
     Returns
     -----
@@ -451,33 +455,43 @@ def constructLayout(grid, cCol, layoutDict, layoutDictInit={}):
 
     Example
     -----
-    layoutDict["this row"][1] = [1, 2] will result in a layout as
-    follows
+    layoutDict["this row"] = var((int, int), columns=[guiObject.lineedit, guiObject.checkbox])
+    will result in a layout as follows
 
     QLabel("this row") - QLineEdit - QCheckBox
 
     int to variable type conversion is specified in guiObject.getWidget, where
-    the widget is also initialized
-    layoutDict["row2"][1] = [4, 4] and layoutDictInit["row2"] = ["a", "b"]
+    the widget is also initialized.
+    var((int, int), columns=[guiObject.combobox, guiObject.combobox], init=("a", "b"))
+    results in:
 
     QLabel("this row") - QComboBox("a", "b") - QComboBox("a", "b")
+
+    Note: In all cases above the label and first GUI element will be declared
+    read only since the are assumed to serve to show a value read-out from an
+    instrument.
     """
     # number of columns that are added
     count = 0
     # current row
     row = 0
     for key in layoutDict:
+
         spec = layoutDict[key].columns
-        init = layoutDictInit.get(key, layoutDict[key].init)
+        init = layoutDict[key].init
         if isinstance(spec, (tuple, list)):
             # iterable (i.e. multiple widgets in this row)
             if len(spec) >= count:
                 # make sure count corresponds to the longest column number
                 count = len(spec) + 1
             dummy = []
-            for widget in spec:
+            for i, widget in enumerate(spec):
+                if isinstance(init, list):
+                    widgetinit = init[i]
+                else:
+                    widgetinit = init
                 dummy.append(guiObject.getWidget(
-                    key, widget, init, len(dummy)))
+                    key, widget, widgetinit))
         else:
             # not iterable, single widget in row
             if 2 > count:

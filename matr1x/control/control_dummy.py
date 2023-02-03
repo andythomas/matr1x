@@ -81,12 +81,12 @@ class MainWindow(ControlWindow):
     # preference for the parameter is set by the boolean "log" parameter.
     exampleDict = {"Example": var(None, columns=["Readout", "Setpoint"]),
                    "V1": var((int, int), columns=[go.combobox, go.combobox],
-                             log=True, init=["i1", "i2"]),
+                             log=True, init=("i1", "i2")),
                    "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
                    "V3": var(dtype=(float, int), columns=[go.progressbar, go.lineedit],
                              log=True, unit="%"),
                    "V4": var(dtype=(bool, bool), columns=[go.checkbox, go.checkbox]),
-                   "toggle": var(dtype=(bool, bool), columns=[go.checkbox, go.togglebutton], init=["Slow", "Fast"]),
+                   "toggle": var(dtype=(bool, bool), columns=[go.checkbox, go.togglebutton], init=[None, ("Slow", "Fast")]),
                    "Set": var(None, columns=[go.button, go.button],
                               init=["Set", "Copy"]),
                    }
