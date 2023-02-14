@@ -18,41 +18,35 @@ from os.path import basename, dirname, join, splitext
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import QLocale, pyqtSignal
-    from PyQt6.QtGui import QDoubleValidator, QIcon, QIntValidator
+    from PyQt6.QtCore import pyqtSignal
+    from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
                                  QLabel, QLineEdit, QListWidget, QMainWindow,
                                  QPushButton, QScrollArea, QSizePolicy,
                                  QTextEdit, QVBoxLayout, QWidget)
 except ImportError:
-    from PyQt5.QtCore import QLocale, pyqtSignal
-    from PyQt5.QtGui import QDoubleValidator, QIcon, QIntValidator
+    from PyQt5.QtCore import pyqtSignal
+    from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
                                  QLabel, QLineEdit, QListWidget, QMainWindow,
-                                 QPushButton, QScrollArea, QSizePolicy, QTextEdit,
-                                 QVBoxLayout, QWidget)
+                                 QPushButton, QScrollArea, QSizePolicy,
+                                 QTextEdit, QVBoxLayout, QWidget)
 
 import pyqtgraph as pg
 from matr1x import datetimefmt
 from matr1x import systems as core_systems
 from matr1x import systems_directory, usersfolder
 from matr1x.control.util import QtGracefulKiller
-from matr1x.gui_util import CustomViewBox
+from matr1x.gui_util import CustomViewBox, validator
 from matr1x.system import MergedSystem
 from matr1x.util import calculate_sweep, generate_col_index
-from numpy import linspace
+from numpy import linspace, uint
 
 # overwrite core_systems with list of systems
 core_systems = [splitext(system)[0] for system in
                 os.listdir(core_systems.__path__[0]) if "system" in system]
-
-# double validator that disallows comma
-lo = QLocale("C")
-lo.setNumberOptions(QLocale.NumberOption.RejectGroupSeparator)
-validator = QDoubleValidator()
-validator.setLocale(lo)
 
 if os.name == 'nt':
     try:
@@ -414,7 +408,7 @@ class MainWindow(QMainWindow):
                 if label[1] == "float":
                     # float entry add lineedit with double validator
                     lineEdit = LineEditFocus()
-                    lineEdit.setValidator(validator)
+                    lineEdit.setValidator(validator[float])
                     lineEdit.focusIn.connect(self.populate_sweep_grid)
                     self.grid.addWidget(lineEdit, row+1, col+1)
                 elif label[1] == "buttonA":
@@ -423,9 +417,9 @@ class MainWindow(QMainWindow):
                     appendButton.clicked.connect(self.append_sweep_col)
                     self.grid.addWidget(appendButton, row+1, col+1)
                 elif label[1] == "int":
-                    # int entry with int validator (maximum value 1E9)
+                    # int entry with int validator
                     lineEdit = LineEditFocus()
-                    lineEdit.setValidator(QIntValidator(0, int(1E9)))
+                    lineEdit.setValidator(validator[uint])
                     lineEdit.focusIn.connect(self.populate_sweep_grid)
                     self.grid.addWidget(lineEdit, row+1, col+1)
                 elif label[1] == "boolean":
@@ -739,9 +733,9 @@ class MainWindow(QMainWindow):
                 le = QLineEdit(self)
                 le.setText(str(param_set[i]))
                 if 3 == i:
-                    le.setValidator(QIntValidator(0, int(1E9)))
+                    le.setValidator(validator[uint])
                 else:
-                    le.setValidator(validator)
+                    le.setValidator(validator[float])
                 le.editingFinished.connect(
                     lambda: self.change_sweep_param(col))
                 self.sweepGrid.addWidget(le, row, i)
