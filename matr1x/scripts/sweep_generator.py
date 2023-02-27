@@ -18,7 +18,7 @@ from os.path import basename, dirname, join, splitext
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import pyqtSignal
+    from PyQt6.QtCore import Qt, pyqtSignal
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
@@ -26,7 +26,7 @@ try:
                                  QPushButton, QScrollArea, QSizePolicy,
                                  QTextEdit, QVBoxLayout, QWidget)
 except ImportError:
-    from PyQt5.QtCore import pyqtSignal
+    from PyQt5.QtCore import pyqtSignal, Qt
     from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
@@ -827,7 +827,10 @@ class MainWindow(QMainWindow):
                 elif "comboF" == label[1] and "Function" in label[0]:
                     self.functions.append(currentWidget.currentText())
                 elif "boolean" == label[1] and "Up" in label[0]:
-                    self.up_down.append(currentWidget.checkState())
+                    if currentWidget.checkState() == Qt.CheckState.Checked:
+                        self.up_down.append(2)
+                    else:
+                        self.up_down.append(0)
                 elif "int" == label[1] and "Repeat" in label[0]:
                     try:
                         text = currentWidget.text()
