@@ -37,7 +37,7 @@ def output_name_on_error(func):
     return wrapper
 
 
-class VisaDevice(object):
+class VisaDevice:
     """
     The VISA device class.
 
@@ -188,6 +188,18 @@ class VisaDevice(object):
                                           readout) if nbytes else readout))
         return readout
 
+    def _write_delay(self):
+        """
+        Wait to not exceed the communication speed the device can handle.
+        """
+        if self.timedelay is not None:
+            # make sure that enough time has passed so that a new command
+            # can be sent
+            while self.timedelay > time.time() - self.timer:
+                delta_t = self.timedelay - (time.time() - self.timer)
+                time.sleep(delta_t)
+            self.timer = time.time()
+
     @synchronized
     @output_name_on_error
     def write(self, command):
@@ -199,18 +211,10 @@ class VisaDevice(object):
         command : str
             The string to be sent.
         """
-        logger.debug(f"{self.name}: Write: {command}")
+        logger.debug("%s: Write: %s", self.name, command)
         if self.pts:
-            print('W: %s' % command)
-        if self.timedelay is not None:
-            # make sure that enough time has passed so that a new command
-            # can be send
-            while (self.timedelay > time.time() - self.timer):
-                # do we really want to do a busy wait here? I think since the
-                # typical timings are on the order of ms, there is not much
-                # else to do right?
-                pass
-            self.timer = time.time()
+            print(f'W: {command}')
+        self._write_delay()
         self.VISAdev.write(command)
 
     @synchronized
@@ -229,21 +233,16 @@ class VisaDevice(object):
         readout : str
             The recieved information.
         """
-        logger.debug(f"{self.name}: Query: {command}")
+        logger.debug("%s: Query: %s", self.name, command)
 
-        if self.timedelay is not None:
-            # make sure that enough time has passed so that a new command
-            # can be send
-            while (self.timedelay > time.time() - self.timer):
-                pass
-            self.timer = time.time()
+        self._write_delay()
         if self.pts:
-            print('W: %s' % command)
+            print(f'W: {command}')
         resp = self.VISAdev.query(command)
-        logger.debug('Answer: %s' % str(resp))
+        logger.debug('Answer: %s', str(resp))
         if self.pts:
-            print('R: %s' % resp)
-        return (resp)
+            print(f'R: {resp}')
+        return resp
 
     def id(self):
         r"""

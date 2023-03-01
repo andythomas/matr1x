@@ -207,7 +207,7 @@ class Parameter():
                          f"{cast.__name__ if not isinstance(cast, tuple) else cast}")
 
 
-class System(object):
+class System:
     """
     Defines a measurement setup/system
 

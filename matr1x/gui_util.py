@@ -10,13 +10,15 @@ import numpy as np
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import QObject, Qt, pyqtSignal
+    from PyQt6.QtCore import QLocale, QObject, Qt, pyqtSignal
+    from PyQt6.QtGui import QDoubleValidator, QIntValidator
     from PyQt6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLayout,
                                  QLineEdit, QPushButton, QSizePolicy, QSlider,
                                  QToolButton, QVBoxLayout)
 except ImportError:
-    from PyQt5.QtCore import QObject, Qt, pyqtSignal
+    from PyQt5.QtCore import QLocale, QObject, Qt, pyqtSignal
+    from PyQt5.QtGui import QDoubleValidator, QIntValidator
     from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
                                  QPushButton, QSizePolicy, QSlider, QToolButton,
@@ -25,6 +27,18 @@ except ImportError:
 import pyqtgraph as pg
 
 from .eval import delta
+
+# dictionary of commonly used validators
+validator = {
+    float: QDoubleValidator(),
+    int: QIntValidator(),
+    np.uint: QIntValidator(),
+}
+# for a double validator that disallows comma
+_lo = QLocale("C")
+_lo.setNumberOptions(QLocale.NumberOption.RejectGroupSeparator)
+validator[float].setLocale(_lo)
+validator[np.uint].setBottom(0)
 
 
 class QRangeWidget(QGroupBox):

@@ -810,6 +810,7 @@ def main():
             "The executable name 'matrix_script' is deprecated. Use 'matrix-script' instead.",
             FutureWarning)
     app = QApplication(sys.argv)
+    app.setDesktopFileName("matrix-script.desktop")
     with QtGracefulKiller():
         ex = MainWindow()
         ex.show()

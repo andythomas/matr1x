@@ -8,7 +8,7 @@ from .boss import BOSS  # noqa: F401
 from .cryogenics import CryogenicBipolarPS, CryogenicPS  # noqa: F401
 from .keithley import (Keithley2000, Keithley2182A, Keithley2400,  # noqa: F401
                        Keithley2450, Keithley2611A, Keithley2701, Keithley6221)
-from .keysight import PNA5225b  # noqa: F401
+from .keysight import KeysightB2961, PNA5225b  # noqa: F401
 from .lakeshore import Lakeshore335, Lakeshore340, Lakeshore475  # noqa: F401
 from .nanotec import NanotecPD4  # noqa: F401
 from .owis import Ps10  # noqa: F401

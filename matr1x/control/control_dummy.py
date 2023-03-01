@@ -12,15 +12,17 @@ import warnings
 import numpy
 from matr1x import logfolder
 from matr1x.control import ControlWindow, catchEmitError
-from matr1x.control.util import OutputRedirection, QtGracefulKiller, copyValues
+from matr1x.control.util import OutputRedirection, QtGracefulKiller
 from matr1x.control.util import guiObject as go
 from matr1x.control.util import var
 from matr1x.devices.scpi_dev import makeSCPIdevice, set_cmd_funcs
 
 try:
-    from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
+    from PyQt6.QtWidgets import (QApplication, QHBoxLayout, QMessageBox,
+                                 QPushButton, QWidget)
 except ImportError:
-    from PyQt5.QtWidgets import QApplication, QMessageBox, QWidget
+    from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QMessageBox,
+                                 QPushButton, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -81,12 +83,13 @@ class MainWindow(ControlWindow):
     # preference for the parameter is set by the boolean "log" parameter.
     exampleDict = {"Example": var(None, columns=["Readout", "Setpoint"]),
                    "V1": var((int, int), columns=[go.combobox, go.combobox],
-                             log=True, init=["i1", "i2"]),
+                             log=True, init=("i1", "i2")),
                    "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
-                   "V3": var(dtype=(float, int), columns=[go.progressbar, go.lineedit],
-                             log=True, unit="%"),
-                   "V4": var(dtype=(bool, bool), columns=[go.checkbox, go.checkbox]),
-                   "toggle": var(dtype=(bool, bool), columns=[go.checkbox, go.togglebutton], init=["Slow", "Fast"]),
+                   "V3": var(dtype=float, outType=int, columns=[go.progressbar,
+                                                                go.doublespinbox],
+                             log=True, unit="%", init=[None, (0, 100)]),
+                   "V4": var(dtype=bool, outType=bool, columns=[go.checkbox, go.checkbox]),
+                   "toggle": var(dtype=bool, outType=bool, columns=[go.checkbox, go.togglebutton], init=[None, ("Slow", "Fast")]),
                    "Set": var(None, columns=[go.button, go.button],
                               init=["Set", "Copy"]),
                    }
@@ -119,10 +122,19 @@ class MainWindow(ControlWindow):
         # connect the set buttons to the corresponding set functions
         self.exampleDict["Set"].widgets[1].clicked.connect(self.write)
         self.exampleDict["Set"].widgets[2].clicked.connect(
-            lambda: copyValues(self.exampleDict))
+            lambda: self.copyValues(self.exampleDict))
         # connect the toggle buttons to the corresponding functions
         self.exampleDict["toggle"].widgets[2].clicked.connect(
             self.setToggleFunction)
+
+        self.exampleDict["V3"].widgets[2].setDecimals(1)
+
+    def extra_layout(self, layout):
+        elayout = QHBoxLayout()
+        raisebutton = QPushButton("Raise Error")
+        raisebutton.clicked.connect(self.raiseError)
+        elayout.addWidget(raisebutton)
+        layout.insertLayout(0, elayout)
 
     # device communication and related functions
     @catchEmitError
@@ -145,6 +157,13 @@ class MainWindow(ControlWindow):
             print("some value can not be converted to correct type")
             estr = traceback.format_exc()
             print(estr)
+
+    @catchEmitError
+    def raiseError(self, nm):
+        """
+        raises an error for testing purposes
+        """
+        raise ValueError("This is an error for testing purpose.")
 
     def setToggleFunction(self):
         """
@@ -196,7 +215,7 @@ class MainWindow(ControlWindow):
                 # TODO: Maybe do this thirty seconds after a click or something
                 # like that?
                 time.sleep(0.1)  # sleep seems to be needed here on some setups
-                copyValues(self.exampleDict)
+                self.copyValues(self.exampleDict)
                 beginning = False
             if 0 == run_counter:
                 # add tasks which run only upon every tenths iteration

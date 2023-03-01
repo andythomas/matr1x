@@ -12,24 +12,26 @@ import types
 from functools import wraps
 
 from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
-from matr1x.control.util import constructLayout, var
+from matr1x.control.util import var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import generate_datafilename, write_matrix_header
 
 try:
-    from PyQt6 import QtCore
-    from PyQt6.QtGui import QColor, QIcon, QIntValidator, QPalette, QTextCursor
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QFileDialog,
-                                 QGridLayout, QLabel, QLineEdit, QMainWindow,
-                                 QMessageBox, QPlainTextEdit, QPushButton,
-                                 QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+    from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
+    from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
+                                 QFileDialog, QFrame, QGridLayout, QLabel,
+                                 QMainWindow, QMessageBox, QPlainTextEdit,
+                                 QPushButton, QScrollArea, QSizePolicy,
+                                 QSpinBox, QToolButton, QVBoxLayout, QWidget)
 except ImportError:
-    from PyQt5 import QtCore
-    from PyQt5.QtGui import QColor, QIcon, QIntValidator, QPalette, QTextCursor
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog,
-                                 QGridLayout, QLabel, QLineEdit, QMainWindow,
-                                 QMessageBox, QPlainTextEdit, QPushButton,
-                                 QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+    from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+    from PyQt5.QtGui import QColor, QIcon, QPalette, QTextCursor
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
+                                 QFileDialog, QFrame, QGridLayout, QLabel,
+                                 QMainWindow, QMessageBox, QPlainTextEdit,
+                                 QPushButton, QScrollArea, QSizePolicy,
+                                 QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -41,7 +43,7 @@ def catchEmitError(method):
     @wraps(method)
     def decorated_method(self, *args, **kwargs):
         try:
-            return method(self, *args, **kwargs)
+            method(self, *args, **kwargs)
         except Exception:
             # end the refreshDict thread
             self.terminate = True
@@ -55,42 +57,72 @@ def catchEmitError(method):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             self.sig_error.emit(exc_type, exc_value, exc_traceback,
                                 method.__name__)
-            while True:
-                # prevent prematurely cleaning up objects,
-                # this otherwise causes a segmentation fault
-                time.sleep(3)
+            # prevent prematurely cleaning up objects,
+            # this otherwise causes (sometimes) a segmentation faultset_argon_setpoint
+            time.sleep(0.05)
 
     return decorated_method
 
 
 class CollapsibleBox(QWidget):
-
-    redraw_activity = QtCore.pyqtSignal(bool)
+    # inspired from
+    # https://github.com/MichaelVoelkel/qt-collapsible-section/blob/master/Section.py
+    redraw_activity = pyqtSignal(bool)
 
     def __init__(self, title="", parent=None):
         super().__init__(parent)
+        self.toggle_button = QToolButton(self)
+        self.header_line = QFrame(self)
+        self.content_widget = QScrollArea(self)
+        self.main_layout = QGridLayout(self)
 
-        self.toggle_button = QPushButton(text=title, checkable=True,
-                                         checked=False)
-        self.toggle_button.clicked.connect(self.button_toggled)
-        self.content_widget = QScrollArea(maximumHeight=0, minimumHeight=0)
+        self.toggle_button.setStyleSheet("QToolButton {border: none;}")
+        self.toggle_button.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
+        self.toggle_button.setText(title)
+        self.toggle_button.setCheckable(True)
+        self.toggle_button.setChecked(False)
+
+        self.header_line.setFrameShape(QFrame.Shape.HLine)
+        self.header_line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.header_line.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                       QSizePolicy.Policy.Maximum)
+
         self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
                                           QSizePolicy.Policy.Fixed)
-        lay = QVBoxLayout(self)
-        lay.addWidget(self.toggle_button)
-        lay.addWidget(self.content_widget)
 
-    def button_toggled(self, checked):
-        if checked is True:
+        # start out collapsed
+        self.content_widget.setMaximumHeight(0)
+        self.content_widget.setMinimumHeight(0)
+
+        self.main_layout.setVerticalSpacing(0)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+
+        row = 0
+        self.main_layout.addWidget(self.toggle_button, row, 0, 1, 1,
+                                   Qt.AlignmentFlag.AlignLeft)
+        self.main_layout.addWidget(self.header_line, row, 2, 1, 1)
+        self.main_layout.addWidget(self.content_widget, row+1, 0, 1, 3)
+        self.setLayout(self.main_layout)
+
+        self.toggle_button.toggled.connect(self.toggle)
+
+    def toggle(self, collapsed):
+        if collapsed:
+            self.toggle_button.setArrowType(Qt.ArrowType.DownArrow)
             self.content_widget.setMaximumHeight(self.content_height+1000)
+            self.content_widget.setVisible(True)
             self.setMinimumHeight(self.collapsed_height)
             self.setMaximumHeight(self.combined_height+1000)
         else:
+            self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
             self.content_widget.setMaximumHeight(0)
             self.setMinimumHeight(self.collapsed_height)
             self.setMaximumHeight(self.collapsed_height)
+            self.content_widget.setVisible(False)
         self.updateGeometry()
-        self.redraw_activity.emit(checked)
+        self.redraw_activity.emit(collapsed)
 
     def setContentLayout(self, layout):
         lay = self.content_widget.layout()
@@ -102,11 +134,15 @@ class CollapsibleBox(QWidget):
 
 
 class ControlWindow(QMainWindow):
-    sig_error = QtCore.pyqtSignal(type, Exception, types.TracebackType, str)
-    activity = QtCore.pyqtSignal(str)
-    deactivate = QtCore.pyqtSignal(bool)
+    sig_error = pyqtSignal(type, Exception, types.TracebackType, str)
+    activity = pyqtSignal(str)
+    deactivate = pyqtSignal(bool)
 
     def __init__(self, name, guidicts=[], parent=None):
+        # work around a bug in PyQt which can cause a segfault after a Python
+        # exception. see issue #357
+        os.environ["QT_NO_FT_CACHE"] = "1"
+
         super().__init__(parent=parent)
         self.setWindowTitle(name)
         # initialize paramaters
@@ -160,33 +196,68 @@ class ControlWindow(QMainWindow):
     # GUI functions
     def initUI(self):
         """
-        Initializes GUI -> needs to overloaded/extended by any subclass
+        Initializes GUI -> needs to be extended by subclasses
         """
+        layout = self.basicUI()
+        self.guidictUI(layout)
+        self.extra_layout(layout)
+        self.statusloggingUI(layout)
+
+    def basicUI(self):
+        """Declare main GUI components and set Icon."""
         icondir = os.path.join(os.path.dirname(
             __file__), '..', 'scripts', 'icons')
         self.setWindowIcon(QIcon(os.path.join(icondir, 'matr1x-control.png')))
         self.widget = QWidget()
         self.widget.setSizePolicy(QSizePolicy.Policy.Expanding,
                                   QSizePolicy.Policy.Fixed)
-        self.master_layout = QVBoxLayout()
-
-        self.grid = QGridLayout()
+        self.main_layout = QVBoxLayout()
 
         qApp = QApplication.instance()
         mainWindowBgColor = QPalette().color(QPalette.ColorRole.Window)
         qApp.setStyleSheet(
             f"[readOnly=\"true\"] {{background-color: {mainWindowBgColor.name(QColor.NameFormat.HexRgb)} }}")
-        # construct the layout from the GUI dicts
-        ccol = 0
-        for guidict in self.guidicts:
-            ccol = constructLayout(self.grid, ccol, guidict)
+        self.widget.setLayout(self.main_layout)
+        self.setCentralWidget(self.widget)
+        return self.main_layout
 
-        self.collapsible_box = CollapsibleBox("Show logging and status",
-                                              parent=self)
-        self.collapsible_box.redraw_activity.connect(self.readjustSize)
+    def guidictUI(self, layout):
+        """Setup guidict columns (main part of the ControlWindow)."""
+        # construct the layout from the GUI dicts
+        for guidict in self.guidicts:
+            # create some frame and add it to the main layout
+            content = QDockWidget(list(guidict.keys())[0])
+            content.setFeatures(
+                QDockWidget.DockWidgetFeature.DockWidgetMovable)
+            container = QWidget()
+            column = QVBoxLayout(container)
+            content.setWidget(container)
+            grid = QGridLayout()
+            column.addLayout(grid)
+            column.addStretch()
+            self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
+
+            # fill it with the widgets from the variables
+            for row, (key, variable) in enumerate(guidict.items()):
+                variable.generate_widgets(key)
+
+                for col, widget in enumerate(variable.widgets):
+                    # add widgets to the grid layout at the correct position
+                    # but skip hidden checkbox
+                    if col == 0 and row == 0:
+                        continue
+                    grid.addWidget(widget, row, col, 1, 1)
+
+    def extra_layout(self, layout):
+        """Define extra fields needed for specific control GUIs"""
+
+    def statusloggingUI(self, layout):
+        """Setup status and logging user interface."""
+
+        collapsible_box = CollapsibleBox("Logging and Status", parent=self)
+        collapsible_box.redraw_activity.connect(self.readjustSize)
         self.status_grid = QGridLayout()
-        self.master_layout.addLayout(self.grid)
-        self.master_layout.addWidget(self.collapsible_box)
+        layout.addWidget(collapsible_box)
 
         # initialize status_grid with common widgets
         self.status = QPlainTextEdit(self)
@@ -200,18 +271,19 @@ class ControlWindow(QMainWindow):
         self.deactivate.connect(self.deactivate_gui)
         self.togglelog = QPushButton("start data log")
         self.togglelog.setCheckable(True)
-        self.selectlog = QPushButton("select data log file")
+        selectlog = QPushButton("select data log file")
         self.configlog = QPushButton("show logging config")
         self.configlog.setCheckable(True)
         self.loglabel = QLabel(os.path.basename(self.logfile))
         self.loglabel.setMaximumWidth(250)
         self.loglabel.setWordWrap(True)
         interval_label = QLabel("log interval (s):")
-        self.interval = QLineEdit("60")
+        self.interval = QSpinBox()
+        self.interval.setRange(1, 24*3600+1)
+        self.interval.setValue(60)
         self.interval.setMaximumWidth(70)
-        self.interval.setValidator(QIntValidator(1, 24*3600+1))
         self.togglelog.clicked.connect(self.toggleLog)
-        self.selectlog.clicked.connect(self.selectLog)
+        selectlog.clicked.connect(self.selectLog)
         self.configlog.clicked.connect(self.configLog)
 
         # add status and logging widgets
@@ -220,16 +292,27 @@ class ControlWindow(QMainWindow):
         self.status_grid.addWidget(self.interval, 0, 2, 1, 1)
         self.status_grid.addWidget(self.configlog, 1, 0, 1, 3)
         self.status_grid.addWidget(self.togglelog, 2, 0, 1, 3)
-        self.status_grid.addWidget(self.selectlog, 3, 0, 1, 3)
+        self.status_grid.addWidget(selectlog, 3, 0, 1, 3)
         self.status_grid.addWidget(self.loglabel, 4, 0, 2, 3)
         self.status_grid.addWidget(self.status, 0, 3, 7, 1)
         self.status_grid.setColumnStretch(3, 1)
         self.status_grid.setRowStretch(6, 1)
 
-        self.collapsible_box.setContentLayout(self.status_grid)
+        collapsible_box.setContentLayout(self.status_grid)
 
-        self.widget.setLayout(self.master_layout)
-        self.setCentralWidget(self.widget)
+    @staticmethod
+    def copyValues(copyDict):
+        """
+        Copies the values of a guiDict (dictionary with var-instances) from the
+        first to the second column.
+
+        Parameters
+        ------
+        copyDict : dict
+          guiDict for which the values shall be copied
+        """
+        for variable in copyDict.values():
+            variable.copy_value()
 
     def output_written(self, text):
         """
@@ -243,14 +326,16 @@ class ControlWindow(QMainWindow):
             except Exception:  # upon cleanup after exception this can fail
                 pass
 
+    @pyqtSlot(bool)
     def readjustSize(self, expanding=False):
         """
         resize window when the status and logging tab is minimized
         """
-        if expanding is False:
+        if not expanding:
             # if we are shrinking the window and disabling the control, hide
             # the logging-config buttons
-            self.configLog(expanding)
+            self.configLog(False)
+            self.configlog.setChecked(False)
 
         self.widget.adjustSize()
         self.adjustSize()
@@ -265,10 +350,10 @@ class ControlWindow(QMainWindow):
 
     def configLog(self, checked):
         for guidict in self.guidicts:
-            for var in guidict.values():
-                if len(var.widgets) > 2 and not isinstance(var.widgets[1], (QLabel, QPushButton)):
-                    if isinstance(var.widgets[-1], QCheckBox):
-                        var.widgets[-1].setVisible(checked)
+            for v in guidict.values():
+                if len(v.widgets) > 2 and not isinstance(v.widgets[1], (QLabel, QPushButton)):
+                    if isinstance(v.widgets[-1], QCheckBox):
+                        v.widgets[-1].setVisible(checked)
 
     def toggleLog(self, checkstate):
         # clear system of all parameters
@@ -342,9 +427,7 @@ class ControlWindow(QMainWindow):
         cnt = 0
         while not self.terminate_log:
             # get interval and initialize counter for seconds
-            interval_text = self.interval.text()
-            if "" != interval_text:
-                interval = int(interval_text)
+            interval = self.interval.value()
             if 0 == cnt:
                 # every interval seconds, perform log
                 self.S_log.trigger()
@@ -398,7 +481,7 @@ class ControlWindow(QMainWindow):
         self.stopServer()
         if self.running is True:
             self.terminate = True
-            self.runnnig = False
+            self.running = False
             # wait for refreshDict to terminate
             while self.terminated is False:
                 time.sleep(0.01)
@@ -425,22 +508,28 @@ class ControlWindow(QMainWindow):
             self.localServer.stop()
         self.localServer = None
 
-    @QtCore.pyqtSlot(str)
+    @pyqtSlot(str)
     def change_color(self, color):
         self.activityIndicator.setStyleSheet(f"background-color: {color}")
 
-    @QtCore.pyqtSlot(bool)
+    @pyqtSlot(bool)
     def deactivate_gui(self, flag):
+        """disable all GUI elements.
+
+        This is typically emitted after an error.
+        """
         if flag:
             # disable all GUI elements but look at execption list
-            for i in reversed(range(self.grid.count())):
-                self.grid.itemAt(i).widget().setEnabled(False)
+            for g in self.guidicts:
+                for v in g.values():
+                    for widget in v.widgets[1:]:
+                        widget.setEnabled(False)
             for i in reversed(range(self.status_grid.count())):
                 self.status_grid.itemAt(i).widget().setEnabled(False)
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
 
-    @QtCore.pyqtSlot(type, Exception, types.TracebackType, str)
+    @pyqtSlot(type, Exception, types.TracebackType, str)
     def handleError(self, exc_type, exc_value, exc_traceback, pointer):
         self.activity.emit("lightgray")
         self.deactivate.emit(True)
@@ -453,7 +542,7 @@ class ControlWindow(QMainWindow):
         # make a log entry and open a popup warning window
         timestamp = time.strftime(datetimefmt)
         print(timestamp)
-        logger.info(f"handling error in {pointer}: {repr(exc_value)}")
+        logger.info("handling error in %s: %s", pointer, repr(exc_value))
         traceback.print_tb(exc_traceback)
         # duplicate to stdout
         traceback.print_tb(exc_traceback, file=sys.stdout)

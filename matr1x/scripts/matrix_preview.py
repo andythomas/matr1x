@@ -800,6 +800,7 @@ def main():
             "The executable name 'matrix_preview' is deprecated. Use 'matrix-preview' instead.",
             FutureWarning)
     app = Matr1xApplication(sys.argv)
+    app.setDesktopFileName("matrix-preview.desktop")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
     if 'SIGTTOU' in dir(signal):  # signal only on POSIX compliant systems
