@@ -241,7 +241,14 @@ class System:
       configuration. Keys match the device names in .devs.
     """
 
-    def __init__(self):
+    def __init__(self, name=None):
+        """
+        Parameters
+        ----------
+        name : str, optional
+          name of the measurement system
+        """
+        self.__name__ = str(name)
         # initialize lists for later use
         self.parameters = []
         self.columns = []

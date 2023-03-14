@@ -903,3 +903,127 @@ def get_pt100_temp(res):
     b = -5.775e-7
     r0 = 100
     return (-a*r0+np.sqrt((a*r0)**2-4*b*r0*(r0 - res)))/(2*b*r0)
+
+
+class Command:
+    """
+    Class representing a command provided by a ControlGUI.
+
+    A command contains the data type of the connected variable and functions for
+    setting and getting and their respective arguments.
+    """
+
+    def __init__(self, dtype, setfunc, getfunc, setargs=None, getargs=None,
+                 polling_cmd=None):
+        """
+        Parameters
+        ----------
+        dtype: int, float, str, ...
+          data-type of the connected variable
+        setfunc: function(value, *args)
+          setter function to change the connected variable
+        getfunc: function(value, *args)
+          getter function to obtain the value of the variable
+        setargs: tuple, or None
+          optional additonal arguments for the setter function
+        getargs: tuple, or None
+          optional arguments for the getter function
+        polling_cmd: str or None
+          optional command to poll to check if the setpoint was reached
+
+        Note: setfunc/getfunc can also be a list/tuple with a device name and
+        device property.
+        """
+        self.dtype = dtype
+        self.setfunc = setfunc
+        self.getfunc = getfunc
+        if setargs is None:
+            self.setargs = []
+        else:
+            self.setargs = setargs
+        if getargs is None:
+            self.getargs = []
+        else:
+            self.getargs = getargs
+        self.polling_cmd = polling_cmd
+
+    @classmethod
+    def from_deprecated_list(cls, dlist):
+        """
+        Create a Command from the deprecated list format.
+
+        Parameters
+        ----------
+        dlist: list
+          list containing:
+          [type, setFunction, additional set args, GetFunction,
+           additional get args, [optional polling command]]
+
+        Returns
+        -------
+        a Command object with the settings equivalent to dlist
+        """
+        if len(dlist) < 5 or len(dlist) > 6:
+            raise ValueError(
+                "command entries must be a list of lenth 5 or 6")
+        if len(dlist) > 5:
+            pcmd = dlist[5]
+        else:
+            pcmd = None
+        return cls(dlist[0], dlist[1], dlist[3], setargs=dlist[2],
+                   getargs=dlist[4], polling_cmd=pcmd)
+
+
+class Get(Command):
+    """
+    Class representing a Getter-command of a ControlGUI
+    """
+
+    def __init__(self, dtype, getfunc, getargs=None):
+        """
+        Parameters
+        ----------
+        dtype: int, float, str, ...
+          data-type of the connected variable
+        getfunc: function(value, *args)
+          getter function to obtain the value of the variable
+        getargs: tuple, or None
+          optional arguments for the getter function
+        """
+        super().__init__(dtype, setfunc=None, getfunc=getfunc, getargs=getargs)
+
+
+class Set(Command):
+    """
+    Class representing a Setter-command of a controlGUI
+    """
+
+    def __init__(self, dtype, setfunc, setargs=None, polling_cmd=None):
+        """
+        Parameters
+        ----------
+        dtype: int, float, str, ...
+          data-type of the connected variable
+        setfunc: function(value, *args)
+          setter function to change the connected variable
+        setargs: tuple, or None
+          optional additonal arguments for the setter function
+        polling_cmd: str or None
+          optional command to poll to check if the setpoint was reached
+        """
+        super().__init__(dtype, setfunc, getfunc=None, setargs=setargs,
+                         polling_cmd=polling_cmd)
+
+
+def normalize_cmds(cmds):
+    """
+    make all commands instances of Command
+    """
+    # harmonize the cmds dictionary -> convert all to Command
+    outcmds = {}
+    for cmd, val in cmds.items():
+        if not isinstance(val, Command):
+            outcmds[cmd] = Command.from_deprecated_list(val)
+        else:
+            outcmds[cmd] = val
+    return outcmds

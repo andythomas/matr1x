@@ -71,18 +71,19 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                     # side interprets the value correctly (e.g. with
                     # ast.literal_eval).
                     # get command specifications
-                    dtype, _, _, getter, getargs = self.cmdvalues[idx][:5]
-                    if getter is None:
+                    c = self.cmdvalues[idx]
+
+                    if c.getfunc is None:
                         # no getter was provided
-                        response.append(cmd + " does not provide getter")
-                    if callable(getter):
-                        if isinstance(dtype, (tuple, list, numpy.ndarray)):
+                        response.append(cmd + " does not provide getfunc")
+                    if callable(c.getfunc):
+                        if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
                             response.append(",".join(
-                                str(r) for r in getter(*getargs)))
-                        elif dtype is bytes:
-                            response.append(getter(*getargs))
+                                str(r) for r in c.getfunc(*c.getargs)))
+                        elif c.dtype is bytes:
+                            response.append(c.getfunc(*c.getargs))
                         else:
-                            response.append(str(getter(*getargs)))
+                            response.append(str(c.getfunc(*c.getargs)))
             # cmd is a set request
             else:
                 # split at the first space, to separate command from value
@@ -105,38 +106,38 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                           f"sent from {self.client_address}")
                 else:
                     # get command specifications
-                    dtype, setter, setargs = self.cmdvalues[idx][:3]
-                    if setter is not None:
+                    c = self.cmdvalues[idx]
+                    if c.setfunc is not None:
                         try:
                             # for listed values, split value into individual
                             # values and cast to approprated "subtypes"
-                            if isinstance(dtype, (tuple, list, numpy.ndarray)):
+                            if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
                                 values = value.split(",")
                                 castval = []
-                                for i, tp in enumerate(dtype):
+                                for i, tp in enumerate(c.dtype):
                                     if tp == bool:
                                         # cast bool via int to avoid wrong
                                         # results
                                         castval.append(bool(int(values[i])))
                                     else:
                                         castval.append(tp(values[i]))
-                            elif dtype is None:
+                            elif c.dtype is None:
                                 # exclude none for typecasting
                                 pass
                             else:
                                 # typecast single value
-                                if dtype == bool:
+                                if c.dtype == bool:
                                     castval = bool(int(value))
                                 else:
-                                    castval = dtype(value)
+                                    castval = c.dtype(value)
                             # Call the set command with value and the
                             # additional parameters specified in the
                             # cmd_list
-                            if callable(setter):
-                                if dtype is None:
-                                    setter(*setargs)
+                            if callable(c.setfunc):
+                                if c.dtype is None:
+                                    c.setfunc(*c.setargs)
                                 else:
-                                    setter(castval, *setargs)
+                                    c.setfunc(castval, *c.setargs)
                         except (IndexError, TypeError, ValueError):
                             # in case of incorrectly sent command do nothing
                             pass
@@ -177,7 +178,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 
-class SCPI_TCP_Server(object):
+class SCPI_TCP_Server:
     """
     Define Polling Server
 
