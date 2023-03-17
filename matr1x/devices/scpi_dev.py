@@ -3,54 +3,35 @@
 # (c) 2022 matr1x developers. All rights reserved.
 # ---
 import ast
-import copy
 import pickle
 import re
 import time
-from operator import attrgetter
 
+from matr1x.util import Get, normalize_cmds
 from pymeasure.instruments import Instrument
 from pymeasure.instruments.validators import strict_discrete_set
 
 
-def set_cmd_funcs(cls, cmd_list, sys=None):
-    """
-    setter and getter functions are replaced by the respective class methods
-    or device functions from the system
-    """
-    # avoid in-place replacement of cmd_list
-    out_list = copy.deepcopy(cmd_list)
-    for cmd in out_list:
-        for i in (1, 3):  # for setter and getter
-            attrname = out_list[cmd][i]
-            if attrname is not None and not callable(attrname):
-                if isinstance(attrname, str):  # class property or function
-                    attr = attrgetter(attrname)(cls)
-                    if not callable(attr) and i == 1:
-                        out_list[cmd][i] = lambda value, c=cls, a=attrname: setattr(
-                            c, a, value)
-                    elif not callable(attr) and i == 3:
-                        out_list[cmd][i] = cls.__getattribute__
-                        out_list[cmd][i+1] = [attrname, ]
-                    else:
-                        out_list[cmd][i] = attr
-                elif isinstance(attrname, (tuple, list)):  # system device name and method
-                    if sys is None:
-                        raise ValueError(
-                            "System must be specified as third argument")
-                    devname, funcname = attrname
-                    func = attrgetter(funcname)(sys.devs[devname])
-                    out_list[cmd][i] = func
-    return out_list
-
-
-def makeSCPIdevice(cmd_list, sys=None):
+def makeSCPIdevice(*cmds, sys=True):
     """
     dynamically generate a pymeasure device which can be used in systems to
     connect to the SCPI commands
+
+    Parameters
+    ----------
+    cmds: dict
+      multiple dictionaries with commands. Those will be merged internally and
+      therefore must only contain unique keys.
+    sys: bool
+      flag to decide if config_params shall be defined on the device
     """
     typeplaceholder = {int: "%d", float: "%g", bool: "%d",
                        str: "%s", None: ""}
+
+    cmd_list = {}
+    # merge commands in arguments
+    for entry in cmds:
+        cmd_list.update(normalize_cmds(entry))
 
     def make_identifier(s):
         """create valid Python identifier by omitting invalid characters"""
@@ -125,61 +106,57 @@ def makeSCPIdevice(cmd_list, sys=None):
     attributes["config_params"] = {"id": "idn"}
 
     # add system query to config_params
-    if sys:
+    if sys and ":conf" not in cmd_list:
         attributes["config_params"]["SCPIdevconf"] = "conf"
-        cmd_list[":conf"] = [lambda b: pickle.loads(ast.literal_eval(b)),
-                             None, [],
-                             lambda: pickle.dumps(sys.query(), protocol=0), []]
+        cmd_list[":conf"] = Get(
+            lambda b: pickle.loads(ast.literal_eval(b)),
+            True
+        )
 
-    for cmd in cmd_list:
+    for name, cmd in cmd_list.items():
         # create an pymeasure attribute for every command
-        dtype, setfunc, setargs, getfunc, getargs = cmd_list[cmd][:5]
-
-        att = make_identifier(cmd)
-
+        att = make_identifier(name)
         try:
-            stringplaceholder = typeplaceholder[dtype]
-        except TypeError:
-            if isinstance(dtype, (tuple, list)):
+            stringplaceholder = typeplaceholder[cmd.dtype]
+        except (KeyError, TypeError):
+            if isinstance(cmd.dtype, (tuple, list)):
                 stringplaceholder = '%s'
-            else:
-                raise
-        except KeyError:
-            if setfunc is not None:
+            elif cmd.setfunc is not None:
                 raise
 
-        kwargs = dict()
-        if isinstance(dtype, (tuple, list)):
+        kwargs = {}
+        if isinstance(cmd.dtype, (tuple, list)):
             kwargs['cast'] = lambda x: x  # noop, handled in get_process
             kwargs['validator'] = strict_length
-            kwargs['values'] = len(dtype)
-            kwargs['set_process'] = lambda v, t=dtype: list2str(v, t)
-            kwargs['get_process'] = lambda v, t=dtype: castlist(v, t)
-        elif dtype == bool:
+            kwargs['values'] = len(cmd.dtype)
+            kwargs['set_process'] = lambda v, t=cmd.dtype: list2str(v, t)
+            kwargs['get_process'] = lambda v, t=cmd.dtype: castlist(v, t)
+        elif cmd.dtype == bool:
             kwargs['validator'] = strict_discrete_set
             kwargs['values'] = [True, False]
-            kwargs['get_process'] = lambda s: False if s == 'False' else True
+            kwargs['get_process'] = lambda s: s != 'False'
             kwargs['set_process'] = int
         else:
-            kwargs['cast'] = dtype
+            kwargs['cast'] = cmd.dtype
 
-        if setfunc is None:
+        if cmd.setfunc is None:
             attributes[att] = Instrument.measurement(
-                cmd + '?', f"get {att}", **kwargs)
-        elif getfunc is None:
-            if dtype is None:
+                name + '?', f"get {att}", **kwargs)
+        elif cmd.getfunc is None:
+            if cmd.dtype is None:
                 # create parameterless functions (e.g. trigger)
-                methods[f'{att}'] = create_parameterless(cmd)
+                methods[f'{att}'] = create_parameterless(name)
             else:
                 attributes[att] = Instrument.setting(
-                    cmd + f' {stringplaceholder}', f"set {att}", **kwargs)
+                    name + f' {stringplaceholder}', f"set {att}", **kwargs)
         else:  # here both setfunc and getfunc are real
-            attributes[att] = Instrument.control(cmd + '?', cmd + f' {stringplaceholder}',
-                                                 f"get/set {att}", **kwargs)
+            attributes[att] = Instrument.control(
+                name + '?', name + f' {stringplaceholder}',
+                f"get/set {att}", **kwargs)
         # create set and wait/poll method in case this is asked for
-        if len(cmd_list[cmd]) > 5:
+        if cmd.polling_cmd is not None:
             methods[f'set_{att}'] = create_setnwait(
-                att, make_identifier(cmd_list[cmd][5]))
+                att, make_identifier(cmd.polling_cmd))
 
     methods.update(attributes)
 

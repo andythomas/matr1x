@@ -2,4 +2,6 @@
 # ---
 # (c) 2022 matr1x developers. All rights reserved.
 # ---
-from .controlwindow import ControlWindow, catchEmitError  # noqa: F401
+from .controlwindow import ControlWindow  # noqa: F401
+from .util import (GuiDict, OutputRedirection, QtGracefulKiller,  # noqa: F401
+                   catchEmitError, control_main, guiObject, var)

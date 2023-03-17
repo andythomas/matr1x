@@ -2,66 +2,40 @@
 # ---
 # (c) 2022 matr1x developers. All rights reserved.
 # ---
+import ast
 import logging
 import os
+import pickle
 import sys
 import threading
 import time
 import traceback
 import types
-from functools import wraps
+import warnings
 
 from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
-from matr1x.control.util import var
+from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import EmittingStream
-from matr1x.util import generate_datafilename, write_matrix_header
+from matr1x.util import Get, generate_datafilename, write_matrix_header
 
 try:
     from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
     from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QGridLayout, QLabel,
-                                 QMainWindow, QMessageBox, QPlainTextEdit,
-                                 QPushButton, QScrollArea, QSizePolicy,
-                                 QSpinBox, QToolButton, QVBoxLayout, QWidget)
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QFileDialog, QFrame,
+                                 QGridLayout, QHBoxLayout, QLabel, QMainWindow,
+                                 QMessageBox, QPlainTextEdit, QPushButton,
+                                 QScrollArea, QSizePolicy, QSpinBox,
+                                 QToolButton, QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
     from PyQt5.QtGui import QColor, QIcon, QPalette, QTextCursor
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QGridLayout, QLabel,
-                                 QMainWindow, QMessageBox, QPlainTextEdit,
-                                 QPushButton, QScrollArea, QSizePolicy,
-                                 QSpinBox, QToolButton, QVBoxLayout, QWidget)
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QFrame,
+                                 QGridLayout, QHBoxLayout, QLabel, QMainWindow,
+                                 QMessageBox, QPlainTextEdit, QPushButton,
+                                 QScrollArea, QSizePolicy, QSpinBox,
+                                 QToolButton, QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
-
-
-def catchEmitError(method):
-    """
-    Define error handling decorator
-    """
-    @wraps(method)
-    def decorated_method(self, *args, **kwargs):
-        try:
-            method(self, *args, **kwargs)
-        except Exception:
-            # end the refreshDict thread
-            self.terminate = True
-            self.terminate_log = True
-            if method.__name__ == 'refreshDict':
-                # set terminated flag since our main loop is dead
-                self.terminated = True
-            elif method.__name__ == 'loggingFunc':
-                self.terminated_log = True
-            # report error to the main thread
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            self.sig_error.emit(exc_type, exc_value, exc_traceback,
-                                method.__name__)
-            # prevent prematurely cleaning up objects,
-            # this otherwise causes (sometimes) a segmentation faultset_argon_setpoint
-            time.sleep(0.05)
-
-    return decorated_method
 
 
 class CollapsibleBox(QWidget):
@@ -134,11 +108,25 @@ class CollapsibleBox(QWidget):
 
 
 class ControlWindow(QMainWindow):
+    """
+    Base class for control GUIs which prepares a lot of things behind the
+    scences for use in typical control GUIs
+
+    Parameters
+    ----------
+    name: str
+      Identifier string of the control GUI
+    guidicts: list, tuple of GuiDict
+      Several GuiDict objects which build the basis of the controlGUI
+    extra_cmds: dict, optional
+      Dictionary of commands offered for the measurement system. Commands from
+      the GuiDict object are merged together with this list.
+    """
     sig_error = pyqtSignal(type, Exception, types.TracebackType, str)
     activity = pyqtSignal(str)
     deactivate = pyqtSignal(bool)
 
-    def __init__(self, name, guidicts=[], parent=None):
+    def __init__(self, name, guidicts=None, extra_cmds=None, parent=None):
         # work around a bug in PyQt which can cause a segfault after a Python
         # exception. see issue #357
         os.environ["QT_NO_FT_CACHE"] = "1"
@@ -158,38 +146,71 @@ class ControlWindow(QMainWindow):
         # initialize error handling
         self.sig_error.connect(self.handleError)
         # SCPI TCP server placeholders
-        self.localServer = None
+        self._local_server = None
         # initialize data logging system
         self.S_log = system.System()
         self.S_log.__name__ = f"{name}_control_logging_system"
         # initialize data logging dictionaries
-        self.guidicts = guidicts
-        # harmonize the guidict data structure -> convert all to 'var'-objects
+        if guidicts:
+            self.guidicts = list(guidicts)
+        else:
+            self.guidicts = []
+        # harmonize guidict entries to 'var'-objects
         for guidict in self.guidicts:
-            for key in guidict:
-                if not isinstance(guidict[key], var):
-                    kwargs = dict()
-                    if isinstance(guidict[key][0], var):
+            for key, entry in guidict.items():
+                if not isinstance(entry, var):
+                    kwargs = {}
+                    if isinstance(entry[0], var):
                         kwargs["dtype"] = (guidict[key][0].variableType,
                                            guidict[key][0].outType)
-                        value = guidict[key][0].value
+                        value = entry[0].value
                     else:
-                        kwargs["dtype"] = guidict[key][0]
+                        kwargs["dtype"] = entry[0]
                         value = None
-                    if isinstance(guidict[key][1][-1], bool):
-                        kwargs["columns"] = guidict[key][1][:-1]
-                        kwargs["log"] = guidict[key][1][-1]
+                    if isinstance(entry[1][-1], bool):
+                        kwargs["columns"] = entry[1][:-1]
+                        kwargs["log"] = entry[1][-1]
                     else:
-                        kwargs["columns"] = guidict[key][1]
-                    if len(guidict[key]) > 2:
-                        kwargs["unit"] = guidict[key][2]
+                        kwargs["columns"] = entry[1]
+                    if len(entry) > 2:
+                        kwargs["unit"] = entry[2]
                     guidict[key] = var(**kwargs)
                     guidict[key]._value = value
+        # harmonize the guidict data structure -> convert all to GuiDict
+        for i, guidict in enumerate(self.guidicts):
+            if not isinstance(guidict, GuiDict):
+                warnings.warn(
+                    "Consider rewriting the GUI using the GuiDict class.",
+                    FutureWarning)
+
+                class _FakeGuiDict(GuiDict):
+                    data = guidict
+
+                    def refresh(self, *args):
+                        pass
+
+                self.guidicts[i] = _FakeGuiDict()
+        for guidict in self.guidicts:
+            guidict.refresh_worker.sig_error.connect(self.handleError)
         # initialize GUI
         self.initUI()
         # set outputStream as stdout (i.e. all output is written to status)
         self.output_stream = EmittingStream(text_written=self.output_written)
         sys.stdout = self.output_stream
+
+        # set parent reference on guidicts
+        for g in self.guidicts:
+            g.parent = self
+        # merge the guidicts Systems
+        if not hasattr(self, "S"):
+            self.S = system.MergedSystem([g.S for g in self.guidicts])
+        # store commands
+        self.cmd_list = {":conf": Get(
+            lambda b: pickle.loads(ast.literal_eval(b)).decode(),
+            lambda: pickle.dumps(self.S.query(), protocol=0)
+        )}
+        if extra_cmds:
+            self.cmd_list.update(extra_cmds)
         # show the GUI
         self.show()
 
@@ -225,31 +246,23 @@ class ControlWindow(QMainWindow):
         """Setup guidict columns (main part of the ControlWindow)."""
         # construct the layout from the GUI dicts
         for guidict in self.guidicts:
-            # create some frame and add it to the main layout
-            content = QDockWidget(list(guidict.keys())[0])
-            content.setFeatures(
-                QDockWidget.DockWidgetFeature.DockWidgetMovable)
-            container = QWidget()
-            column = QVBoxLayout(container)
-            content.setWidget(container)
-            grid = QGridLayout()
-            column.addLayout(grid)
-            column.addStretch()
+            content = guidict.create_GUI()
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
 
-            # fill it with the widgets from the variables
-            for row, (key, variable) in enumerate(guidict.items()):
-                variable.generate_widgets(key)
-
-                for col, widget in enumerate(variable.widgets):
-                    # add widgets to the grid layout at the correct position
-                    # but skip hidden checkbox
-                    if col == 0 and row == 0:
-                        continue
-                    grid.addWidget(widget, row, col, 1, 1)
-
     def extra_layout(self, layout):
-        """Define extra fields needed for specific control GUIs"""
+        """
+        Define extra fields needed for specific control GUIs.
+
+        By default a central panic buttton is privided which will signal to all
+        GUI elements to be put into a save state.
+        """
+        elayout = QHBoxLayout()
+        self.panicButton = QPushButton("Panic Button")
+        self.panicButton.setStyleSheet("background-color: red;")
+        self.panicButton.setCheckable(True)
+        elayout.addWidget(self.panicButton)
+        self.panicButton.clicked.connect(self.panic)
+        layout.insertLayout(0, elayout)
 
     def statusloggingUI(self, layout):
         """Setup status and logging user interface."""
@@ -263,10 +276,19 @@ class ControlWindow(QMainWindow):
         self.status = QPlainTextEdit(self)
         self.status.setReadOnly(True)
         self.keep_enabled.append(self.status)
-        self.activityIndicator = QLabel(" ")
-        self.activityIndicator.setFixedWidth(40)
-        self.activityIndicator.setFixedHeight(30)
-        self.activityIndicator.setStyleSheet("background-color: lightgray")
+        self.activityIndicator = []
+        activity_layout = QHBoxLayout()
+        activity_layout.setSpacing(0)
+        for idx, guidict in enumerate(self.guidicts):
+            ql = QLabel(" ")
+            ql.setFixedWidth(int(40/len(self.guidicts)))
+            ql.setFixedHeight(30)
+            ql.setStyleSheet("background-color: lightgray")
+            self.activityIndicator.append(ql)
+            guidict.refresh_worker.activity.connect(
+                lambda c, idx=idx: self.change_single_color(c, idx))
+            activity_layout.addWidget(ql)
+
         self.activity.connect(self.change_color)
         self.deactivate.connect(self.deactivate_gui)
         self.togglelog = QPushButton("start data log")
@@ -287,7 +309,7 @@ class ControlWindow(QMainWindow):
         self.configlog.clicked.connect(self.configLog)
 
         # add status and logging widgets
-        self.status_grid.addWidget(self.activityIndicator, 0, 0, 1, 1)
+        self.status_grid.addLayout(activity_layout, 0, 0, 1, 1)
         self.status_grid.addWidget(interval_label, 0, 1, 1, 1)
         self.status_grid.addWidget(self.interval, 0, 2, 1, 1)
         self.status_grid.addWidget(self.configlog, 1, 0, 1, 3)
@@ -310,9 +332,28 @@ class ControlWindow(QMainWindow):
         ------
         copyDict : dict
           guiDict for which the values shall be copied
+
+        This method is deprecated. It is now part of GuiDict. Its use should
+        vanish in the future.
         """
+        warnings.warn(
+            "copyValues is deprecated. Consider using GuiDict.copy_values.",
+            FutureWarning)
         for variable in copyDict.values():
             variable.copy_value()
+
+    @catchEmitError
+    def panic(self, checked):
+        """
+        Panic button was pressed. Signal panic mode to guidicts if the button is
+        checked.
+        """
+        if checked:
+            for g in self.guidicts:
+                g.panic()
+        else:
+            for g in self.guidicts:
+                g.unpanic()
 
     def output_written(self, text):
         """
@@ -341,12 +382,18 @@ class ControlWindow(QMainWindow):
         self.adjustSize()
 
     # device communication and related functions
+    @catchEmitError
     def connectDev(self):
         """
-        init device connections -> needs to be implemented by every subclass and
-        should set self.devInit to True once finished
+        init device connections
+
+        If this is overloaded its important that the self.devInit property is
+        set to True upon successful initialization of the devices.
         """
-        raise NotImplementedError
+        if self.devInit is False:
+            if self.S:
+                self.S.set()
+            self.devInit = True
 
     def configLog(self, checked):
         for guidict in self.guidicts:
@@ -451,7 +498,20 @@ class ControlWindow(QMainWindow):
         Typically this class shall be decorated with the error handler to catch
         and terminate upon an uncaught Python exception.
         """
-        raise NotImplementedError
+        # start guidicts and get minimum period
+        refresh_period = 1
+        for guidict in self.guidicts:
+            guidict.start()
+            refresh_period = min(refresh_period, guidict.refresh_period)
+        while True:
+            time.sleep(refresh_period)
+            if self.terminate:
+                for guidict in self.guidicts:
+                    guidict.stop()
+                break
+
+        # flag for stating that thread has ended
+        self.terminated = True
 
     # general local server and start stop overhead
     def __enter__(self):
@@ -466,6 +526,27 @@ class ControlWindow(QMainWindow):
         # initialize thread to refresh dicts
         # check if successful
         if self.devInit is True:
+            # merge all cmds from the GuiDicts and the extra cmds
+
+            class extraGuiDict(GuiDict):
+                cmds = self.cmd_list
+
+                def refresh(self, *args):
+                    pass
+
+            extra_gui_dict = extraGuiDict()
+            extra_gui_dict.set_cmd_funcs(window_obj=self, sys=self.S)
+            self.cmd_list = extra_gui_dict.cmds
+            for guidict in self.guidicts:
+                # convert function names to executables
+                guidict.set_cmd_funcs(window_obj=self, sys=self.S)
+                for name, cmd in guidict.cmds.items():
+                    if name in self.cmd_list:
+                        raise ValueError(
+                            f"command {name} from {guidict} is already present."
+                            "A command name must be unique!")
+                    self.cmd_list[name] = cmd
+
             self.t = threading.Thread(target=self.refreshDict, daemon=True)
             self.t.start()
             self.running = True
@@ -495,22 +576,26 @@ class ControlWindow(QMainWindow):
     def startServer(self):
         """
         starts the local TCP server with the driver functions specified
-        in self.cmd_list
+        in cmds
         """
-        self.localServer = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list)
-        self.localServer.start()
+        self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list)
+        self._local_server.start()
 
     def stopServer(self):
         """
         stops the local TCP server
         """
-        if self.localServer is not None:
-            self.localServer.stop()
-        self.localServer = None
+        if self._local_server is not None:
+            self._local_server.stop()
+        self._local_server = None
+
+    def change_single_color(self, color, idx):
+        self.activityIndicator[idx].setStyleSheet(f"background-color: {color}")
 
     @pyqtSlot(str)
     def change_color(self, color):
-        self.activityIndicator.setStyleSheet(f"background-color: {color}")
+        for ql in self.activityIndicator:
+            ql.setStyleSheet(f"background-color: {color}")
 
     @pyqtSlot(bool)
     def deactivate_gui(self, flag):
@@ -520,17 +605,36 @@ class ControlWindow(QMainWindow):
         """
         if flag:
             # disable all GUI elements but look at execption list
+            # GuiDict disable themselves, but repeat it here for backward
+            # compatibility
             for g in self.guidicts:
                 for v in g.values():
-                    for widget in v.widgets[1:]:
+                    for widget in v.widgets:
                         widget.setEnabled(False)
             for i in reversed(range(self.status_grid.count())):
-                self.status_grid.itemAt(i).widget().setEnabled(False)
+                w = self.status_grid.itemAt(i).widget()
+                if w:
+                    w.setEnabled(False)
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
 
     @pyqtSlot(type, Exception, types.TracebackType, str)
     def handleError(self, exc_type, exc_value, exc_traceback, pointer):
+        """
+        Signal slot to handle showing the error message and disabling the GUI
+        """
+        # end the refreshDict thread
+        self.terminate = True
+        self.terminate_log = True
+        # stop guidicts immediately on error (Prevents a sometimes occuring
+        # timeout error)
+        for guidict in self.guidicts:
+            guidict.stop()
+        if pointer == 'refreshDict':
+            # set terminated flag since our main loop is dead
+            self.terminated = True
+        elif pointer == 'loggingFunc':
+            self.terminated_log = True
         self.activity.emit("lightgray")
         self.deactivate.emit(True)
         qApp = QApplication.instance()

@@ -13,7 +13,12 @@ import numbers
 import os
 import re
 import signal
+import sys
 import time
+import types
+import warnings
+from abc import ABC, abstractmethod
+from collections import UserDict
 from collections.abc import Iterable
 from email import encoders
 from email.mime.audio import MIMEAudio
@@ -22,27 +27,59 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import IntEnum
+from functools import wraps
+from operator import attrgetter
 from subprocess import PIPE, Popen
 
 import numpy
 
 try:
     from PyQt6 import QtCore
-    from PyQt6.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
+    from PyQt6.QtCore import (QObject, Qt, QThread, QTimer, QVariant,
+                              pyqtSignal, pyqtSlot)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDoubleSpinBox, QFileDialog, QGridLayout,
-                                 QLabel, QLineEdit, QListWidget, QProgressBar,
-                                 QPushButton, QSizePolicy, QSpinBox, QTableView)
+                                 QDockWidget, QDoubleSpinBox, QFileDialog,
+                                 QGridLayout, QLabel, QLineEdit, QListWidget,
+                                 QMessageBox, QProgressBar, QPushButton,
+                                 QSizePolicy, QSpinBox, QTableView, QVBoxLayout,
+                                 QWidget)
 except ImportError:
     from PyQt5 import QtCore
-    from PyQt5.QtCore import QObject, Qt, QTimer, QVariant, pyqtSignal
+    from PyQt5.QtCore import QObject, Qt, QThread, QTimer, QVariant, pyqtSignal, pyqtSlot
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDoubleSpinBox, QFileDialog, QGridLayout,
-                                 QLabel, QLineEdit, QListWidget, QProgressBar,
-                                 QPushButton, QSizePolicy, QSpinBox, QTableView)
+                                 QDockWidget, QDoubleSpinBox, QFileDialog, QGridLayout,
+                                 QLabel, QLineEdit, QListWidget, QMessageBox, QProgressBar,
+                                 QPushButton, QSizePolicy, QSpinBox, QTableView,
+                                 QVBoxLayout, QWidget)
 
-from .. import datetimefmt, logfolder, usersfolder
+from .. import datetimefmt, logfolder, system, usersfolder
 from ..gui_util import validator
+from ..util import Command, normalize_cmds
+
+
+def catchEmitError(method):
+    """
+    Define error handling decorator (works only with ControlWindow which defines
+    a sig_error signal)
+    """
+    @wraps(method)
+    def decorated_method(self, *args, **kwargs):
+        try:
+            method(self, *args, **kwargs)
+        except Exception:
+            # report error to the main thread
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            if hasattr(self, "sig_error"):
+                self.sig_error.emit(exc_type, exc_value, exc_traceback,
+                                    method.__name__)
+            elif hasattr(self, "parent") and self.parent:
+                self.parent.sig_error.emit(exc_type, exc_value, exc_traceback,
+                                           method.__name__)
+            # prevent prematurely cleaning up objects,
+            # this otherwise causes (sometimes) a segmentation fault
+            time.sleep(0.05)
+
+    return decorated_method
 
 
 class matr1xProgressBar(QProgressBar):
@@ -103,6 +140,10 @@ class ToggleButton(QPushButton):
 
 
 class guiObject(IntEnum):
+    """
+    Enum object to make it easier to write readable code and identify GUI
+    elements by their name instead of only by a number
+    """
     button = 0
     lineedit = 1
     checkbox = 2
@@ -434,18 +475,15 @@ class var(QObject):
         """
         if idx == 0:
             return self
-        elif idx == 1:
+        if idx == 1:
             if self.widgets:
                 return self.widgets
-            else:
-                if isinstance(self.columns, list):
-                    return self.columns + [self.log, ]
-                else:
-                    return [self.columns, ] + [self.log, ]
-        elif idx == 2:
+            if isinstance(self.columns, list):
+                return self.columns + [self.log, ]
+            return [self.columns, ] + [self.log, ]
+        if idx == 2:
             return self.unit
-        else:
-            raise NotImplementedError
+        raise NotImplementedError
 
     def __setitem__(self, idx, value):
         """
@@ -465,8 +503,282 @@ class var(QObject):
 
         if self.unit:
             return 3
-        else:
-            return 2
+        return 2
+
+
+class GuiDict(UserDict, ABC):
+    """
+    Custom dictionary representing elemens and commands related to part of the
+    control GUI.
+
+    Derived classes have to implement the 'refresh' method which shall read
+    updated values from the hardware and write them into the local variable
+    storage.
+
+    Additionally a System object with related devices can be stored in this
+    class as object variable.
+
+    Important class variable which shall be overwritten are:
+
+    cmds : dict
+      list of commands for this device
+      e.g.: cmds = {":v1", Command(int, "setV1", "V1"),
+                    "*idn", Get(str, "id-string")}
+    data : dict with var entries
+      GUI dictionary elements
+      e.g.
+      data = {"Example": var(None, columns=["Readout", "Setpoint"]),
+              "V1": var((int, int), columns=[go.combobox, go.combobox],
+                        log=True, init=("i1", "i2")),
+              "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
+              "Set": var(None, columns=[go.button, go.button],
+                         init=["Set", "Copy"]),
+             }
+    refresh_period : float
+      period (in seconds) in which the timer attempts to run the refresh method
+      once. If the refresh method takes more executation time than this
+      period its called without further delay. It will never be called more
+      often then once per this period. (default: 1 sec)
+    """
+    cmds = {}
+    data = {}
+    refresh_period = 1
+
+    class _Worker(QObject):
+        """
+        Worker object for the refresh thread. This is needed for the QTimer to
+        work inside the QThread.
+        """
+        # activity signal to indicate an iteration of the refresh timer
+        activity = pyqtSignal(str)
+        sig_error = pyqtSignal(type, Exception, types.TracebackType, str)
+
+        def __init__(self, target, interval, parent=None):
+            super().__init__()
+            self.target = target  # target function for the refresh loop
+            self.interval = interval  # in milliseconds
+            self._parent = parent
+            self._timer = QTimer()  # fake definition
+
+        @pyqtSlot()
+        def run(self):
+            self._timer = QTimer()
+            self._timer.setInterval(self.interval)
+            counter = itertools.count(1)
+            self._timer.timeout.connect(lambda: self._target(next(counter)))
+            # start refresh immediately and then again after the timer timeout
+            self.target(0)
+            self._timer.start()
+
+        @pyqtSlot()
+        def stop(self):
+            self._timer.stop()
+            self.activity.emit("lightgray")
+
+        @catchEmitError
+        def _target(self, count):
+            """
+            encapsulate target function to emit the activity signal
+            """
+            if count % 2:
+                self.activity.emit("green")
+            else:
+                self.activity.emit("lightgreen")
+            self.target(count)
+
+    def __init__(self):
+        super().__init__(self.data)
+        if not hasattr(self, "S"):
+            self.S = system.System()
+        self._refresh_thread = QThread()
+        self._panic = False
+        self.refresh_worker = self._Worker(
+            target=self.refresh,
+            interval=self.refresh_period_ms,
+            parent=self,
+        )
+        self.refresh_worker.moveToThread(self._refresh_thread)
+        self._refresh_thread.started.connect(self.refresh_worker.run)
+        self._refresh_thread.finished.connect(self.refresh_worker.stop)
+        # reference to parent object which it will save in after its assigned
+        # this reference is used to raise an error on the parent if needed
+        self.parent = None
+
+    def create_GUI(self):
+        """
+        Create a QDockWidget to be attached to the main control GUI.
+
+        Also link all buttons to repective methods.
+        """
+        content = QDockWidget(list(self.keys())[0])
+        content.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        container = QWidget()
+        column = QVBoxLayout(container)
+        content.setWidget(container)
+        grid = QGridLayout()
+        column.addLayout(grid)
+        column.addStretch()
+
+        # fill it with the widgets from the variables
+        for row, (key, variable) in enumerate(self.items()):
+            variable.generate_widgets(key)
+
+            for col, widget in enumerate(variable.widgets):
+                # add widgets to the grid layout at the correct position
+                # but skip hidden checkbox
+                if col == 0 and row == 0:
+                    continue
+                grid.addWidget(widget, row, col, 1, 1)
+        return content
+
+    def copy_values(self):
+        """
+        Copies the values of a this GuiDict from the
+        first to the second column.
+        """
+        for variable in self.values():
+            variable.copy_value()
+
+    @property
+    def refresh_period_ms(self):
+        """Return refresh period in milliseconds."""
+        return int(self.refresh_period * 1000)
+
+    def stop(self, wait=True):
+        """Disable GUI fields and the update loop
+
+        Parameters
+        wait: bool, optional
+          flag to make this function block up to twice the refresh period or
+          until the refresh thread ended
+        """
+        self._refresh_thread.quit()
+        if wait:
+            self._refresh_thread.wait(2*self.refresh_period_ms)
+        for v in self.values():
+            for widget in v.widgets:
+                widget.setEnabled(False)
+
+    def start(self):
+        """Start the refresh loop in a dedicated thread."""
+        # initialize the system
+        self.S.set()
+        self._refresh_thread.start()
+
+    def set_cmd_funcs(self, window_obj=None, sys=None):
+        """
+        Replace setter and getter functions by the respective class methods,
+        variables or device functions from the system.
+        Also every entry is made to be an instance of Command.
+        """
+        self.cmds = normalize_cmds(self.cmds)
+        # replace entries with executable functions
+        for name, cmd in self.cmds.items():
+            setargs = None
+            getargs = None
+            # obtain set function
+            if callable(cmd.setfunc):
+                setfunc = cmd.setfunc
+                setargs = cmd.setargs
+            elif cmd.setfunc is None:
+                setfunc = None
+            elif isinstance(cmd.setfunc, str):
+                if hasattr(self, cmd.setfunc):  # if GuiDict method or property
+                    attr = attrgetter(cmd.setfunc)(self)
+                    if callable(attr):
+                        setfunc = attr
+                    else:
+                        def setfunc(value, c=self, a=cmd.setfunc): return setattr(
+                            c, a, value)
+                elif cmd.setfunc in self:  # if GuiDict.data entry
+                    setfunc = lambda value, c=self.data[cmd.setfunc]: setattr(
+                        c, "value", value)
+                elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
+                    attr = attrgetter(cmd.setfunc)(window_obj)
+                    if callable(attr):
+                        setfunc = attr
+                    else:
+                        def setfunc(value, c=window_obj,
+                                    a=cmd.setfunc): return setattr(c, a, value)
+            elif isinstance(cmd.setfunc, (tuple, list)):
+                # system device name and method
+                if sys is None:
+                    raise ValueError(
+                        "System must be specified as 'sys' keyword argument")
+                devname, funcname = cmd.setfunc
+                setfunc = attrgetter(funcname)(sys.devs[devname])
+            else:
+                raise ValueError(f"could not identify '{setfunc}' of '{name}'")
+
+            # obtain get function
+            if callable(cmd.getfunc):
+                getfunc = cmd.getfunc
+                getargs = cmd.getargs
+            elif cmd.getfunc is None:
+                getfunc = None
+            elif isinstance(cmd.getfunc, str):
+                if hasattr(self, cmd.getfunc):  # if GuiDict method or property
+                    attr = attrgetter(cmd.getfunc)(self)
+                    if callable(attr):
+                        getfunc = attr
+                    else:
+                        getfunc = self.__getattribute__
+                        getargs = [cmd.getfunc, ]
+                elif cmd.getfunc in self:  # if GuiDict.data entry
+                    getfunc = lambda c=self.data[cmd.getfunc]: getattr(
+                        c, "value")
+                elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
+                    attr = attrgetter(cmd.getfunc)(window_obj)
+                    if callable(attr):
+                        getfunc = attr
+                    else:
+                        def getfunc(
+                            c=window_obj, a=cmd.getfunc): return getattr(c, a)
+                elif cmd.dtype == str and getargs is None:
+                    def getfunc(v=cmd.getfunc): return cmd.dtype(v)
+            elif isinstance(cmd.getfunc, (tuple, list)):
+                # system device name and method
+                if sys is None:
+                    raise ValueError(
+                        "System must be specified as 'sys' keyword argument")
+                devname, funcname = cmd.getfunc
+                getfunc = attrgetter(funcname)(sys.devs[devname])
+            else:
+                raise ValueError(f"could not identify '{setfunc}' of '{name}'")
+
+            # set new Command in output list
+            self.cmds[name] = Command(cmd.dtype, setfunc, getfunc, setargs,
+                                      getargs, cmd.polling_cmd)
+        return self.cmds
+
+    def panic(self):
+        """
+        Enable panic mode and put everyting to a save state. Should be
+        overloaded by derived functions if needed.
+        """
+        self._panic = True
+
+    def unpanic(self):
+        """
+        Make device operational again
+        """
+        self._panic = False
+
+    @abstractmethod
+    def refresh(self, count):
+        """
+        Update values from the device and show them in the GUI.
+        This method has to be implementated by every derived class.
+
+        It should contain code to refresg the GUI values a single time (no
+        endless loop). If some items should be updated infrequently it can be
+        done by performing a modulo operation on the 'count' argument.
+        """
+        # an example implementation
+        # self.data["V2"].value = self.dev.get_value_from_hardware_somehow()
+        # if count % 10 == 0:
+        #     self.data["V1"].value = self.dev.get_another_value()
 
 
 class QtGracefulKiller():
@@ -789,3 +1101,79 @@ class WriteLakeshoreZonePID(QDialog):
         if hasattr(self._dev, "writeZonePID"):
             self._dev.writeZonePID(*self.data)
         self.close()
+
+
+def control_main(name, window_class, guidicts=None, extra_cmds=None,
+                 lockfile=True, package='matr1x', **kwargs):
+    """
+    Utility main function to avoid duplication in all control GUIs
+
+    Parameters
+    ----------
+    name : str
+      identifier string used as Window title and for the lock file
+    window_class : ControlWindow, QMainWindow
+      class derived from QMainWindow to be used to construct the GUI
+    guidicts : list, tuple
+      several GuiDict (or normal dict) objects with the description of the GUI
+    extra_cmds : dict
+      dictionary with commands for the measurement interface. While most
+      commands will be connected with the GuiDicts those which do not fit there
+      can be supplied here.
+    lockfile : bool, optional
+      boolean flag to specify if an lockfile shall be created/checked to avoid
+      multiple instances of the control GUI
+    package : str, optional
+      package name to identify the desktop file
+    kwargs : dict, optional
+      keyword arguments which are forwarded to the window_class constructor
+    """
+
+    if os.name == 'nt':
+        try:
+            from ctypes import windll  # Only exists on Windows.
+            myappid = f'python.{package}.{name}.version'
+            windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except ImportError:
+            pass
+
+    if "_dummy" in os.path.basename(sys.argv[0]):
+        warnings.warn(
+            "The executable name 'control_dummy' is deprecated. Use 'control-dummy' instead.",
+            FutureWarning)
+    app = QApplication(sys.argv)
+    app.setDesktopFileName(
+        f"python.{package}.{os.path.basename(sys.argv[0])}.desktop")
+
+    if lockfile:
+        lockfilename = os.path.join(
+            logfolder, f"{package}_gui_{name}.lock")
+        if os.path.exists(lockfilename):
+            QMessageBox.about(
+                QWidget(), "Lockfile exists",
+                f"""Lockfile ({lockfilename}) exists. The control GUI will not
+                start. Please make sure everything is save! Only then remove
+                the lockfile and restart the control GUI""")
+            sys.exit()
+        # generate lockfile
+        with open(lockfilename, "w", encoding="utf-8") as lockf:
+            lockf.write(f"{os.getpid()}\n")
+
+    logger = logging.getLogger(__name__)
+    logger.info("Starting GUI")
+    with QtGracefulKiller():
+        with window_class(name,
+                          guidicts=guidicts,
+                          extra_cmds=extra_cmds,
+                          **kwargs):
+            sys.stdout = OutputRedirection(sys.stdout, prefix=f"matr1x.{name}")
+            sys.stderr = OutputRedirection(sys.stderr, prefix=f"matr1x.{name}",
+                                           fallbackname="stderr")
+            ret = app.exec()
+    logger.info("Exiting GUI")
+    if lockfile:
+        # clean exit, remove lockfile
+        if os.path.exists(lockfilename):
+            os.remove(lockfilename)
+    sys.stdout = sys.__stdout__
+    sys.exit(ret)
