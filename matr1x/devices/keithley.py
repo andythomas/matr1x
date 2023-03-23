@@ -509,14 +509,14 @@ class Keithley2182A(VisaDevice):
         super().__init__(interface, **kwargs)
         self.triggered = False
 
-        tstore = self.VISAdev.timeout
-        self.VISAdev.timeout = 1
+        tstore = self.connection.timeout
+        self.connection.timeout = 1
         time.sleep(1)
         try:
             self.read(20)
         except Exception:
             pass
-        self.VISAdev.timeout = tstore
+        self.connection.timeout = tstore
 
     # high level functions
     @synchronized

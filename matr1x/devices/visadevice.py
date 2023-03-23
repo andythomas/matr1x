@@ -41,6 +41,8 @@ class VisaDevice:
     """
     The VISA device class.
 
+    Device connection is established upon initialization of this class.
+
     Parameters
     ----------
     interface : str
@@ -57,8 +59,8 @@ class VisaDevice:
        * visadebug : bool
          If True, enables the output of debugging information
          from the pyVISA library.
-       * All other kwargs are passed to VISAdev and can serve to configure
-         the interface. Most common are:
+       * All other kwargs are passed to the VISA resource connection and can
+         serve to configure the interface. Most common are:
 
          * write_termination : str
          * read_termination : str
@@ -74,15 +76,10 @@ class VisaDevice:
     ----------
     interface : str
         The used interface.
-    VISAdev : pyVISA resource
+    connection : pyVISA resource
         The pyVISA resource used for communication with the device.
         Usually only important if new features are to be implemented.
         Please refer to the pyVISA documentation for more information.
-
-    Returns
-    -------
-    dev : VISAdevice
-        The created device.
     """
     config_params = {}
     """
@@ -122,11 +119,11 @@ class VisaDevice:
             self.timedelay = None
 
         # Open the connection to the device
-        VISArm = pyvisa.ResourceManager(kwargs.pop("backend", ""))
+        self.manager = pyvisa.ResourceManager(kwargs.pop("backend", ""))
         if isinstance(self.interface, pyvisa.resources.Resource):
-            self.VISAdev = self.interface
+            self.connection = self.interface
             return
-        self.VISAdev = VISArm.open_resource(self.interface)
+        self.connection = self.manager.open_resource(self.interface)
         if self.pts:
             print(f"C: {self.name}")
         logger.info(f"Connection to {self.name} opened")
@@ -135,27 +132,27 @@ class VisaDevice:
         # against "wrong" device parameters
         # needs to be tested!
         for key, val in kwargs.items():
-            if hasattr(self.VISAdev, key):
-                setattr(self.VISAdev, key, val)
+            if hasattr(self.connection, key):
+                setattr(self.connection, key, val)
 
     @synchronized
     @output_name_on_error
     def read_very_eager(self):
         """read from device without blocking IO (timeout=0)"""
-        t = self.VISAdev.timeout
-        if isinstance(self.VISAdev, pyvisa.resources.GPIBInstrument):
+        t = self.connection.timeout
+        if isinstance(self.connection, pyvisa.resources.GPIBInstrument):
             # GPIB instruments need a finite timeout here since messages are
             # sent on demand? Please extensively test if you change this!
-            self.VISAdev.timeout = 10  # ms
+            self.connection.timeout = 10  # ms
         else:
-            self.VISAdev.timeout = 0  # ms
+            self.connection.timeout = 0  # ms
         ret = ""
         try:
             while True:
-                ret += self.VISAdev.read()
+                ret += self.connection.read()
         except pyvisa.errors.VisaIOError:
             pass
-        self.VISAdev.timeout = t
+        self.connection.timeout = t
         return ret
 
     @synchronized
@@ -178,9 +175,9 @@ class VisaDevice:
             The recived information.
         """
         if nbytes is None:
-            readout = self.VISAdev.read()
+            readout = self.connection.read()
         else:
-            readout = self.VISAdev.read_bytes(nbytes)
+            readout = self.connection.read_bytes(nbytes)
 
         logger.debug(f"{self.name} read {str(readout)}")
         if self.pts:
@@ -215,7 +212,7 @@ class VisaDevice:
         if self.pts:
             print(f'W: {command}')
         self._write_delay()
-        self.VISAdev.write(command)
+        self.connection.write(command)
 
     @synchronized
     @output_name_on_error
@@ -238,7 +235,7 @@ class VisaDevice:
         self._write_delay()
         if self.pts:
             print(f'W: {command}')
-        resp = self.VISAdev.query(command)
+        resp = self.connection.query(command)
         logger.debug('Answer: %s', str(resp))
         if self.pts:
             print(f'R: {resp}')

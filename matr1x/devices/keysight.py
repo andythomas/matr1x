@@ -292,7 +292,7 @@ class PNA5225b(VisaDevice):
           (Default = 60e3)
           The timeout of the ethernet connection.
         **kwargs :
-          Keyword arguments passed to the VISAdevice constructor.
+          Keyword arguments passed to the VisaDevice constructor.
         """
         super().__init__(interface, write_termination="\n",
                          read_termination="\n", timeout=timeout,

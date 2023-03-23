@@ -67,16 +67,16 @@ class CryogenicPS(VisaDevice):
     def query(self, command):
         self.read_very_eager()
         self.write(command)
-        time.sleep(self.VISAdev.query_delay)
+        time.sleep(self.connection.query_delay)
         return super().query("++read 10")
 
     @synchronized
     def getUpdate(self):
         self.read_very_eager()
         self.write("U")
-        time.sleep(self.VISAdev.query_delay)
+        time.sleep(self.connection.query_delay)
         self.write("++read")
-        time.sleep(self.VISAdev.query_delay)
+        time.sleep(self.connection.query_delay)
         ret = self.read()
         ret += self.read_very_eager()
         return ret
@@ -145,9 +145,9 @@ class CryogenicPS(VisaDevice):
         time.sleep(3*depth)
         try:
             self.write("R S")
-            time.sleep(self.VISAdev.query_delay)
+            time.sleep(self.connection.query_delay)
             self.write("++read")
-            time.sleep(self.VISAdev.query_delay)
+            time.sleep(self.connection.query_delay)
             ret = self.read()
             ret += self.read_very_eager()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
@@ -234,15 +234,15 @@ class CryogenicBipolarPS(VisaDevice):
     @synchronized
     def read_very_eager(self):
         """read from device without blocking IO (timeout=0)"""
-        t = self.VISAdev.timeout
-        self.VISAdev.timeout = 250
+        t = self.connection.timeout
+        self.connection.timeout = 250
         ret = ""
         try:
             while True:
-                ret += self.VISAdev.read()
+                ret += self.connection.read()
         except pyvisa.errors.VisaIOError:
             pass
-        self.VISAdev.timeout = t
+        self.connection.timeout = t
         return ret
 
     @synchronized
