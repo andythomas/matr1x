@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2023 matr1x developers. All rights reserved.
 # ---
 """
 This module contains the System class definition and corresponding utility
@@ -12,6 +12,7 @@ import time
 from os.path import isfile, join, splitext
 
 import numpy as np
+from pymeasure.instruments import Instrument
 
 from . import datetimefmt, systems_directory
 from .util import default_separator, flatten, module_from_path
@@ -258,6 +259,7 @@ class System:
 
         # initialize devices dict
         self.devs = {}
+        self._devs_init = {}  # variable holding dev init info for reopeneing
 
         # initialize flag to check whether system has been set
         self.opened = False
@@ -361,14 +363,16 @@ class System:
           dictionary with query configuration, see query function for details
         """
         if args is not None and kwargs is not None:
-            self.devs[name] = [descriptor, args, kwargs]
+            entry = [descriptor, args, kwargs]
         elif kwargs is not None:
-            self.devs[name] = [descriptor, tuple(), kwargs]
+            entry = [descriptor, tuple(), kwargs]
         elif args is not None:
-            self.devs[name] = [descriptor, args]
+            entry = [descriptor, args]
         else:
             # device instance can be initialized without arguments
-            self.devs[name] = [descriptor, tuple()]
+            entry = [descriptor, tuple()]
+        self.devs[name] = entry
+        self._devs_init[name] = entry
         if config_params is not None:
             self.system_config_params[name] = config_params
 
@@ -613,12 +617,12 @@ class System:
                     # initializing an instance of class dev[0] with args dev[1]
                     # and optionally kwargs in dev[2]
                     cls, devargs = dev[:2]
-                    devkwargs = dev[2] if len(dev) > 2 else dict()
+                    devkwargs = dev[2] if len(dev) > 2 else {}
                     if len(devargs) > 1 and "sharedwith" in devargs[0]:
                         # need to get connection from other device
                         devargs = list(devargs)
                         otherdev = devargs[0].split("::")[1]
-                        devargs[0] = self.devs[otherdev].VISAdev
+                        devargs[0] = self.devs[otherdev].connection
                         # also reuse mutex lock from other device
                         if "sharedlock" not in devkwargs:
                             devkwargs["sharedlock"] = self.devs[otherdev].sharedlock
@@ -688,7 +692,8 @@ class System:
         General reset function for deinitialization of system, currently does
         nothing.
 
-        The device will be left open/initialized unless the system is deleted.
+        The device will be left open/initialized unless the system is closed or
+        deleted.
 
         Parameters
         -----
@@ -698,6 +703,22 @@ class System:
           kwargs than be used here, currently not used
         """
         self.opened = False
+
+    def close(self):
+        """
+        close device connections and restore the virgin system.
+
+        After this function is called the System can be reinitialized by
+        calling System.set().
+        """
+        for dev in self.devs.values():
+            if hasattr(dev, "close"):  # VisaDevice and other custom devices
+                if callable(dev.close):
+                    dev.close()
+            if isinstance(dev, Instrument):  # pymeasure Instrument
+                dev.adapter.close()
+        # reset devs dictionary to allow reopening
+        self.devs.update(self._devs_init)
 
     def settable_columns(self):
         """

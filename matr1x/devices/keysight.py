@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2023 matr1x developers. All rights reserved.
 # ---
 from struct import unpack
 
@@ -292,7 +292,7 @@ class PNA5225b(VisaDevice):
           (Default = 60e3)
           The timeout of the ethernet connection.
         **kwargs :
-          Keyword arguments passed to the VISAdevice constructor.
+          Keyword arguments passed to the VisaDevice constructor.
         """
         super().__init__(interface, write_termination="\n",
                          read_termination="\n", timeout=timeout,

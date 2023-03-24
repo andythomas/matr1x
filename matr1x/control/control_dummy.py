@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2023 matr1x developers. All rights reserved.
 # ---
 
 import numpy
@@ -57,7 +57,6 @@ class exampleDict(GuiDict):
         "Set": var(None, columns=[go.button, go.button],
                    init=["Set", "Copy"]),
     }
-
     S = system.System(name="dummy")
     S.add_dev("dummy", dummy, args=("TCPIP::localhost::10007::SOCKET", ),
               kwargs={'p1': 1, 'p2': 0, 'p5': 5.5, 'p6': True})
@@ -149,7 +148,11 @@ class exampleDict2(GuiDict):
                                   "switch is pressed twice, or via the \n"
                                   "Panic Button."),
     }
+    # set a custom interval for the refresh function which updates the values
+    # from the hardware
     refresh_period = 0.3
+    # allow deactivating the GuiDict which also closes all device connections
+    allow_disabling = True
     v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
 
     def refresh(self, count):

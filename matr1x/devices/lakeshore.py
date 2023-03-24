@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2023 matr1x developers. All rights reserved.
 # ---
 import logging
 import math
@@ -47,7 +47,7 @@ class Lakeshore3xx(VisaDevice):
         if ret == "":
             logger.info(
                 f"{self.name}.query: empty reply, reopening interface ('{msg}', {ret})")
-            self.VISAdev.close()
+            self.connection.close()
             self.conn = False
             self.open()
             return self.query(msg, depth=depth+1)

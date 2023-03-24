@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2023 matr1x developers. All rights reserved.
 # ---
 import importlib.util
 import os
@@ -946,6 +946,18 @@ class Command:
         else:
             self.getargs = getargs
         self.polling_cmd = polling_cmd
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        r = f"{self.__class__.__name__}: {self.dtype}, {self.setfunc}"
+        if self.setargs:
+            r += "({self.setargs})"
+        r += f", {self.getfunc}"
+        if self.getargs:
+            r += f"({self.getargs})"
+        return r
 
     @classmethod
     def from_deprecated_list(cls, dlist):

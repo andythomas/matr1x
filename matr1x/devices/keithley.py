@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2023 matr1x developers. All rights reserved.
 # ---
 import time
 
@@ -509,14 +509,14 @@ class Keithley2182A(VisaDevice):
         super().__init__(interface, **kwargs)
         self.triggered = False
 
-        tstore = self.VISAdev.timeout
-        self.VISAdev.timeout = 1
+        tstore = self.connection.timeout
+        self.connection.timeout = 1
         time.sleep(1)
         try:
             self.read(20)
         except Exception:
             pass
-        self.VISAdev.timeout = tstore
+        self.connection.timeout = tstore
 
     # high level functions
     @synchronized

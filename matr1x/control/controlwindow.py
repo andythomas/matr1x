@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2023 matr1x developers. All rights reserved.
 # ---
 import ast
 import logging
@@ -21,19 +21,21 @@ from matr1x.util import Get, generate_datafilename, write_matrix_header
 try:
     from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
     from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QFileDialog, QFrame,
-                                 QGridLayout, QHBoxLayout, QLabel, QMainWindow,
-                                 QMessageBox, QPlainTextEdit, QPushButton,
-                                 QScrollArea, QSizePolicy, QSpinBox,
-                                 QToolButton, QVBoxLayout, QWidget)
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
+                                 QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+                                 QLabel, QMainWindow, QMessageBox,
+                                 QPlainTextEdit, QPushButton, QScrollArea,
+                                 QSizePolicy, QSpinBox, QToolButton,
+                                 QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
     from PyQt5.QtGui import QColor, QIcon, QPalette, QTextCursor
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QFrame,
-                                 QGridLayout, QHBoxLayout, QLabel, QMainWindow,
-                                 QMessageBox, QPlainTextEdit, QPushButton,
-                                 QScrollArea, QSizePolicy, QSpinBox,
-                                 QToolButton, QVBoxLayout, QWidget)
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
+                                 QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+                                 QLabel, QMainWindow, QMessageBox,
+                                 QPlainTextEdit, QPushButton, QScrollArea,
+                                 QSizePolicy, QSpinBox, QToolButton,
+                                 QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -243,11 +245,52 @@ class ControlWindow(QMainWindow):
         return self.main_layout
 
     def guidictUI(self, layout):
-        """Setup guidict columns (main part of the ControlWindow)."""
+        """Setup guidict columns (main part of the ControlWindow).
+
+        Parameters
+        ----------
+        layout : Qt-layout of main window.
+        """
         # construct the layout from the GUI dicts
+        self._dockwidgets = []
         for guidict in self.guidicts:
             content = guidict.create_GUI()
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
+            # connect signals so that at least one dock remains visible!
+            content.dockLocationChanged.connect(self.check_dock_status)
+            content.visibilityChanged.connect(self.check_dock_status)
+            content.dockClosed.connect(self.check_dock_status)
+            self._dockwidgets.append(content)
+
+    @pyqtSlot()
+    def check_dock_status(self):
+        """
+        In case of undocking/redocking check that at least one dockwidget
+        remains docked and eventually disable the undocking feature!
+        """
+        # count docked widgets
+        count_docked = sum(int(not dock.isFloating())
+                           for dock in self._dockwidgets)
+        # count visible widgets
+        count_vis = sum(int(dock.isVisible()) for dock in self._dockwidgets)
+        if count_docked <= 1 or count_vis <= 1:
+            # forbid last visible/docked widget to be undocked
+            for dock in self._dockwidgets:
+                if not dock.isFloating():
+                    dock.setFeatures(
+                        dock.features() &
+                        ~QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        else:
+            for dock in self._dockwidgets:
+                dock.setFeatures(
+                    dock.features() |
+                    QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        if count_vis <= 1:
+            # redock last visible widget
+            for dock in self._dockwidgets:
+                if dock.isWindow() and dock.isVisible():
+                    dock.setFloating(False)
+                    break
 
     def extra_layout(self, layout):
         """
@@ -605,9 +648,11 @@ class ControlWindow(QMainWindow):
         """
         if flag:
             # disable all GUI elements but look at execption list
-            # GuiDict disable themselves, but repeat it here for backward
-            # compatibility
             for g in self.guidicts:
+                # disable all GUI elements but look at execption list
+                g.dock.setEnabled(False)
+                # GuiDict disable themselves, but repeat it here for backward
+                # compatibility
                 for v in g.values():
                     for widget in v.widgets:
                         widget.setEnabled(False)
@@ -629,7 +674,7 @@ class ControlWindow(QMainWindow):
         # stop guidicts immediately on error (Prevents a sometimes occuring
         # timeout error)
         for guidict in self.guidicts:
-            guidict.stop()
+            guidict.stop(wait=False)
         if pointer == 'refreshDict':
             # set terminated flag since our main loop is dead
             self.terminated = True
