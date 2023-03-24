@@ -42,6 +42,8 @@ class VisaDevice:
     The VISA device class.
 
     Device connection is established upon initialization of this class.
+    The connection is closed by the `close` method after which the device can be
+    reinitialized even within the same Python process.
 
     Parameters
     ----------
@@ -134,6 +136,14 @@ class VisaDevice:
         for key, val in kwargs.items():
             if hasattr(self.connection, key):
                 setattr(self.connection, key, val)
+
+    def close(self):
+        """
+        Close device connection in a way which allows to reopen it later in the
+        same Python process
+        """
+        self.VISAdev.close()
+        self.manager.close()
 
     @synchronized
     @output_name_on_error

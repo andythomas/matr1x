@@ -25,8 +25,6 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     Handles the TCP connection and parses the commands specified
     in the servers cmd_list
     """
-    terminateNow = False
-
     @staticmethod
     def _normalize_cmd(cmd):
         """
@@ -40,6 +38,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         the (normalized) keys and the command instructions
         """
         super().setup()
+        self.terminate = False
         self.normkeys = [self._normalize_cmd(cmd) for cmd in
                          self.server.cmd_list]
         self.cmdvalues = list(self.server.cmd_list.values())
@@ -148,8 +147,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         handle that runs continuously and parses takes care of managing the
         interface
         """
-        print(f"{time.strftime(datetimefmt)}: {self.client_address}")
-        while not self.terminateNow:
+        while not self.terminate:
             response = None
             # read until \n and decode to utf-8
             data = str(self.rfile.readline(), 'utf-8').strip().lower()
@@ -252,6 +250,6 @@ class SCPI_TCP_Server:
             self.server.shutdown()
             self.server.socket.close()
             self.server.server_close()
-            self.server.RequestHandlerClass.terminateNow = True
+            self.server.RequestHandlerClass.terminate = True
             self.running = False
             logger.info(f"server stopped on {self.server.server_address}")

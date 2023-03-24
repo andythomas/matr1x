@@ -947,6 +947,18 @@ class Command:
             self.getargs = getargs
         self.polling_cmd = polling_cmd
 
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        r = f"{self.__class__.__name__}: {self.dtype}, {self.setfunc}"
+        if self.setargs:
+            r += "({self.setargs})"
+        r += f", {self.getfunc}"
+        if self.getargs:
+            r += f"({self.getargs})"
+        return r
+
     @classmethod
     def from_deprecated_list(cls, dlist):
         """

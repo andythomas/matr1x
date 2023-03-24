@@ -39,22 +39,24 @@ try:
                               pyqtSignal, pyqtSlot)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QDockWidget, QDoubleSpinBox, QFileDialog,
-                                 QGridLayout, QLabel, QLineEdit, QListWidget,
-                                 QMessageBox, QProgressBar, QPushButton,
-                                 QSizePolicy, QSpinBox, QTableView, QVBoxLayout,
-                                 QWidget)
+                                 QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+                                 QListWidget, QMessageBox, QProgressBar,
+                                 QPushButton, QSizePolicy, QSpinBox, QTableView,
+                                 QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5 import QtCore
     from PyQt5.QtCore import QObject, Qt, QThread, QTimer, QVariant, pyqtSignal, pyqtSlot
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDockWidget, QDoubleSpinBox, QFileDialog, QGridLayout,
-                                 QLabel, QLineEdit, QListWidget, QMessageBox, QProgressBar,
+                                 QDockWidget, QDoubleSpinBox, QFileDialog,
+                                 QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+                                 QListWidget, QMessageBox, QProgressBar,
                                  QPushButton, QSizePolicy, QSpinBox, QTableView,
                                  QVBoxLayout, QWidget)
 
 from .. import datetimefmt, logfolder, system, usersfolder
 from ..gui_util import validator
 from ..util import Command, normalize_cmds
+from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
 
 
 def catchEmitError(method):
@@ -80,63 +82,6 @@ def catchEmitError(method):
             time.sleep(0.05)
 
     return decorated_method
-
-
-class matr1xProgressBar(QProgressBar):
-    """
-    overload Progressbar to make it better suite the needs to show values in
-    the range between -5 and 105. Values outside that range are indicated by a
-    red color
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.setRange(-5, 105)
-        self.setFormat("%v")
-
-    def setValue(self, value):
-        if value > self.maximum() or value < self.minimum():
-            # change color
-            self.reset()
-            self.setStyleSheet("QProgressBar"
-                               "{"
-                               "background-color : red;"
-                               "}")
-        else:
-            self.setStyleSheet("QProgressBar"
-                               "{"
-                               "}")
-
-        super().setValue(value)
-
-
-class ToggleButton(QPushButton):
-    """
-    custom QPushButton to emulate a proper toggle button (including the change
-    of the button's label upon pushing)
-    """
-
-    def __init__(self, *args, **kwargs):
-        if isinstance(args[0], (list, tuple)):
-            label = args[0][0]
-        else:
-            label = args[0]
-        super().__init__(label, **kwargs)
-        self._labels = args[0]
-        self.setCheckable(True)
-
-    def setChecked(self, state):
-        """
-        change label of toggle button
-        """
-        super().setChecked(state)
-        # if it is checked
-        if isinstance(self._labels, (list, tuple)):
-            if state:
-                self.setText(self._labels[1])
-            # if it is unchecked
-            else:
-                self.setText(self._labels[0])
 
 
 class guiObject(IntEnum):
@@ -298,9 +243,9 @@ class var(QObject):
         """
         if newValue is None:
             self._value = None
-        else:
-            # cast the value to the internal type (most likely float)
-            self._value = self.variableType(newValue)
+            return
+        # cast the value to the internal type (most likely float)
+        self._value = self.variableType(newValue)
         # cast the output value to outType and emit matching signal
         self.valueChanged[self.outType].emit(self.outType(self._value))
 
@@ -539,10 +484,15 @@ class GuiDict(UserDict, ABC):
       once. If the refresh method takes more executation time than this
       period its called without further delay. It will never be called more
       often then once per this period. (default: 1 sec)
+    allow_disabling : bool
+      flag to decide if the GuiDict can be disabled. If this is set to True the
+      underlying devices should all provide a `close` method or be a pymeasure
+      Instrument. Otherwise likely reenabling will fail.
     """
     cmds = {}
     data = {}
     refresh_period = 1
+    allow_disabling = False
 
     class _Worker(QObject):
         """
@@ -610,17 +560,41 @@ class GuiDict(UserDict, ABC):
 
         Also link all buttons to repective methods.
         """
-        content = QDockWidget(list(self.keys())[0])
-        content.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable)
-        container = QWidget()
-        column = QVBoxLayout(container)
-        content.setWidget(container)
-        grid = QGridLayout()
-        column.addLayout(grid)
+        class MyQDockWidget(QDockWidget):
+            """
+            Modify QDockWidget to be able to track its closing
+            """
+            dockClosed = pyqtSignal()
+
+            def closeEvent(self, event):
+                super().closeEvent(event)
+                self.dockClosed.emit()
+
+        self.dock = MyQDockWidget(list(self.keys())[0])
+        self.dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        dockcontainer = QWidget()
+        column = QVBoxLayout(dockcontainer)
+        self.dock.setWidget(dockcontainer)
+        self.container = QWidget()
+        grid = QGridLayout(self.container)
+
+        # add enable widget to the content widget
+        enable_layout = QHBoxLayout()
+        enable_layout.addWidget(QLabel("Enable"))
+        self.enable_switch = AnimatedToggle()
+        self.enable_switch.setChecked(True)
+        self.enable_switch.setFixedSize(self.enable_switch.sizeHint())
+        if self.allow_disabling:
+            enable_layout.addWidget(self.enable_switch)
+            self.enable_switch.stateChanged.connect(self.makeEnabled)
+            column.addLayout(enable_layout)
+        column.addWidget(self.container)
         column.addStretch()
 
-        # fill it with the widgets from the variables
+        # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
             variable.generate_widgets(key)
 
@@ -630,7 +604,7 @@ class GuiDict(UserDict, ABC):
                 if col == 0 and row == 0:
                     continue
                 grid.addWidget(widget, row, col, 1, 1)
-        return content
+        return self.dock
 
     def copy_values(self):
         """
@@ -645,6 +619,12 @@ class GuiDict(UserDict, ABC):
         """Return refresh period in milliseconds."""
         return int(self.refresh_period * 1000)
 
+    def makeEnabled(self, state):
+        if state == 0:
+            self.stop()
+        else:
+            self.start()
+
     def stop(self, wait=True):
         """Disable GUI fields and the update loop
 
@@ -656,14 +636,28 @@ class GuiDict(UserDict, ABC):
         self._refresh_thread.quit()
         if wait:
             self._refresh_thread.wait(2*self.refresh_period_ms)
-        for v in self.values():
-            for widget in v.widgets:
-                widget.setEnabled(False)
+        self.container.setEnabled(False)
+        if self.allow_disabling:
+            self.dock.setFeatures(
+                self.dock.features() |
+                QDockWidget.DockWidgetFeature.DockWidgetClosable
+            )
+        self.S.reset()
+        self.S.close()
+        # set all values to None to avoid showing/logging something not updated
+        for variable in self.data.values():
+            variable.value = None
 
     def start(self):
         """Start the refresh loop in a dedicated thread."""
         # initialize the system
         self.S.set()
+        self.container.setEnabled(True)
+        if self.allow_disabling:
+            self.dock.setFeatures(
+                self.dock.features() &
+                ~QDockWidget.DockWidgetFeature.DockWidgetClosable
+            )
         self._refresh_thread.start()
 
     def set_cmd_funcs(self, window_obj=None, sys=None):
@@ -771,9 +765,12 @@ class GuiDict(UserDict, ABC):
         Update values from the device and show them in the GUI.
         This method has to be implementated by every derived class.
 
-        It should contain code to refresg the GUI values a single time (no
+        It should contain code to refresh the GUI values a single time (no
         endless loop). If some items should be updated infrequently it can be
-        done by performing a modulo operation on the 'count' argument.
+        done by performing a modulo operation on the 'count' argument. Also it
+        should never access the GUI elements directly but use the variable value
+        properties which trigger an update to the GUI correctly by emitting a
+        signal.
         """
         # an example implementation
         # self.data["V2"].value = self.dev.get_value_from_hardware_somehow()

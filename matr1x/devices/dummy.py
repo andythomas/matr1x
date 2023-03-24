@@ -5,6 +5,7 @@
 """
 module implementing a dummy device used for automatic testing of the code base.
 """
+import copy
 import logging
 
 from .. import scpi_tcpserver
@@ -54,8 +55,6 @@ class dummy(dummy_dev):
     config_params = {"conf": "_p1"}
 
     def __init__(self, adapter, **kwargs):
-        self.running = False
-        self.terminated = False
         self.localServer = None
 
         self._p1 = kwargs.pop("p1", 0)
@@ -66,7 +65,7 @@ class dummy(dummy_dev):
         self._p6 = kwargs.pop("p6", False)
         self._p7 = kwargs.pop("p7", False)
         # regenerate function entries in cmd_list
-        self.cmd_list = cmd_list
+        self.cmd_list = copy.deepcopy(cmd_list)  # keep original for reopening
         for cmd in self.cmd_list.values():
             # replace with real functions. This is more comprehensively
             # implemented in GuiDict.set_cmd_funcs
@@ -87,6 +86,13 @@ class dummy(dummy_dev):
             self.cmd_list, port=int(adapter.split("::")[2]))
         self.localServer.start()
         super().__init__(adapter)
+
+    def close(self):
+        """
+        cleanly close the device server.
+        """
+        self.localServer.stop()
+        self.adapter.close()
 
     # high level functions
     def trigger(self):
