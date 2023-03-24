@@ -926,7 +926,7 @@ def sendNotificationEmail(address, subject, msgtext, attachments=[]):
             print("ignoring error during sending email: {}".format(e))
 
 
-class OutputRedirection(object):
+class OutputRedirection:
     def __init__(self, stream, prefix='control', fallbackname=""):
         """
         object for output duplication into a file. Useful to avoid loss of
@@ -952,6 +952,12 @@ class OutputRedirection(object):
         if self.terminal is not None:
             self.terminal.flush()
         self.log.flush()
+
+    def close(self):
+        self.log.close()
+
+    def __exit__(self):
+        self.close()
 
 
 class SelectLakeshoreInput(QDialog):
@@ -1172,5 +1178,8 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
         # clean exit, remove lockfile
         if os.path.exists(lockfilename):
             os.remove(lockfilename)
+    sys.stdout.close()
+    sys.stderr.close()
+    sys.stderr = sys.__stderr__
     sys.stdout = sys.__stdout__
     sys.exit(ret)

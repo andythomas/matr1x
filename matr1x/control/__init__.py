@@ -4,4 +4,4 @@
 # ---
 from .controlwindow import ControlWindow  # noqa: F401
 from .util import (GuiDict, OutputRedirection, QtGracefulKiller,  # noqa: F401
-                   catchEmitError, control_main, guiObject, var)
+                   catchEmitError, control_main, guiObject, var, temp_statistics)
