@@ -550,8 +550,12 @@ class ControlWindow(QMainWindow):
         """
         # start guidicts and get minimum period
         refresh_period = 1
-        for guidict in self.guidicts:
-            guidict.start()
+        for dockw, guidict in zip(self._dockwidgets, self.guidicts):
+            if not dockw.isVisible():
+                guidict.enable_switch.setChecked(False)
+                guidict.restoreFeatures()
+            else:
+                guidict.start()
             refresh_period = min(refresh_period, guidict.refresh_period)
         while True:
             time.sleep(refresh_period)

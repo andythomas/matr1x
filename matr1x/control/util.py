@@ -606,8 +606,8 @@ class GuiDict(UserDict, ABC):
         enable_layout = QHBoxLayout()
         enable_layout.addWidget(QLabel("Enable"))
         self.enable_switch = AnimatedToggle()
-        self.enable_switch.setChecked(True)
         self.enable_switch.setFixedSize(self.enable_switch.sizeHint())
+        self.enable_switch.setChecked(True)
         if self.allow_disabling:
             enable_layout.addWidget(self.enable_switch)
             self.enable_switch.stateChanged.connect(self.makeEnabled)
@@ -646,6 +646,25 @@ class GuiDict(UserDict, ABC):
         else:
             self.start()
 
+    def restoreFeatures(self):
+        """
+        restore features based on enable switch setting.
+        """
+        if self.enable_switch.isChecked():
+            self.container.setEnabled(True)
+            if self.allow_disabling:
+                self.dock.setFeatures(
+                    self.dock.features() &
+                    ~QDockWidget.DockWidgetFeature.DockWidgetClosable
+                )
+        else:
+            self.container.setEnabled(False)
+            if self.allow_disabling:
+                self.dock.setFeatures(
+                    self.dock.features() |
+                    QDockWidget.DockWidgetFeature.DockWidgetClosable
+                )
+
     def stop(self, wait=True):
         """Disable GUI fields and the update loop
 
@@ -658,12 +677,7 @@ class GuiDict(UserDict, ABC):
             self._refresh_thread.quit()
             if wait:
                 self._refresh_thread.wait(2*self.refresh_period_ms)
-            self.container.setEnabled(False)
-            if self.allow_disabling:
-                self.dock.setFeatures(
-                    self.dock.features() |
-                    QDockWidget.DockWidgetFeature.DockWidgetClosable
-                )
+            self.restoreFeatures()
             self.S.reset()
             self.S.close()
             # set all values to None to avoid showing/logging something not updated
@@ -676,12 +690,7 @@ class GuiDict(UserDict, ABC):
         if not self.running:
             # initialize the system
             self.S.set()
-            self.container.setEnabled(True)
-            if self.allow_disabling:
-                self.dock.setFeatures(
-                    self.dock.features() &
-                    ~QDockWidget.DockWidgetFeature.DockWidgetClosable
-                )
+            self.restoreFeatures()
             self._refresh_thread.start()
             self.running = True
 
