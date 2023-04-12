@@ -18,7 +18,7 @@ from matr1x.util import Get, generate_datafilename, write_matrix_header
 
 try:
     from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt6.QtGui import (QColor, QKeySequence, QIcon, QPalette, QShortcut,
+    from PyQt6.QtGui import (QColor, QIcon, QKeySequence, QPalette, QShortcut,
                              QTextCursor)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
                                  QFileDialog, QFrame, QGridLayout, QHBoxLayout,
@@ -28,7 +28,7 @@ try:
                                  QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt5.QtGui import QColor, QKeySequence, QIcon, QPalette, QTextCursor
+    from PyQt5.QtGui import QColor, QIcon, QKeySequence, QPalette, QTextCursor
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
                                  QFileDialog, QFrame, QGridLayout, QHBoxLayout,
                                  QLabel, QMainWindow, QMessageBox,
