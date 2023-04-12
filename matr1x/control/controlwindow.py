@@ -9,11 +9,9 @@ import pickle
 import sys
 import threading
 import time
-import traceback
-import types
 import warnings
 
-from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
+from matr1x import logfolder, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import Get, generate_datafilename, write_matrix_header
@@ -124,7 +122,7 @@ class ControlWindow(QMainWindow):
       Dictionary of commands offered for the measurement system. Commands from
       the GuiDict object are merged together with this list.
     """
-    sig_error = pyqtSignal(type, Exception, types.TracebackType, str)
+    sig_error = pyqtSignal(type, Exception, str)
     activity = pyqtSignal(str)
     deactivate = pyqtSignal(bool)
 
@@ -550,7 +548,8 @@ class ControlWindow(QMainWindow):
             time.sleep(refresh_period)
             if self.terminate:
                 for guidict in self.guidicts:
-                    guidict.stop()
+                    if guidict.running:
+                        guidict.stop()
                 break
 
         # flag for stating that thread has ended
@@ -595,12 +594,12 @@ class ControlWindow(QMainWindow):
             self.running = True
             self.startServer()
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, exc_traceback):
         """
         stops the refreshDict function and closes devices
         """
         if exc_type is not None:
-            print(exc_type, exc_value, traceback)
+            print(exc_type, exc_value, exc_traceback)
 
         self.stopServer()
         if self.running is True:
@@ -663,8 +662,8 @@ class ControlWindow(QMainWindow):
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
 
-    @pyqtSlot(type, Exception, types.TracebackType, str)
-    def handleError(self, exc_type, exc_value, exc_traceback, pointer):
+    @pyqtSlot(type, Exception, str)
+    def handleError(self, exc_type, exc_value, pointer):
         """
         Signal slot to handle showing the error message and disabling the GUI
         """
@@ -674,7 +673,8 @@ class ControlWindow(QMainWindow):
         # stop guidicts immediately on error (Prevents a sometimes occuring
         # timeout error)
         for guidict in self.guidicts:
-            guidict.stop(wait=False)
+            if guidict.running:
+                guidict.stop(wait=False)
         if pointer == 'refreshDict':
             # set terminated flag since our main loop is dead
             self.terminated = True
@@ -687,18 +687,10 @@ class ControlWindow(QMainWindow):
         # stop SCPI server to reflect that something is wrong instead of
         # returning the same reading over and over
         self.stopServer()
-        # print timestamp and verbose error message to status display,
-        # make a log entry and open a popup warning window
-        timestamp = time.strftime(datetimefmt)
-        print(timestamp)
-        logger.info("handling error in %s: %s", pointer, repr(exc_value))
-        traceback.print_tb(exc_traceback)
-        # duplicate to stdout
-        traceback.print_tb(exc_traceback, file=sys.stdout)
+        # open a popup window to inform about the error
         a = QMessageBox.critical(
             self, f"Error in {pointer}",
-            f"""{timestamp}
-The following error was raised in {pointer}:
+            f"""The following error was raised in {pointer}:
 {repr(exc_value)}
 Please investigate the error and eventually restart the graphical user interface""")
         ret = qApp.exec()

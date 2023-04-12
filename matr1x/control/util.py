@@ -15,7 +15,7 @@ import re
 import signal
 import sys
 import time
-import types
+import traceback
 import warnings
 from abc import ABC, abstractmethod
 from collections import UserDict
@@ -69,14 +69,32 @@ def catchEmitError(method):
         try:
             method(self, *args, **kwargs)
         except Exception:
-            # report error to the main thread
+            # report error to the main thread if relevant part can't be disabled
             exc_type, exc_value, exc_traceback = sys.exc_info()
+            pointer = method.__name__
+            # print timestamp and verbose error message to status display,
+            # make a log entry
+            timestamp = time.strftime(datetimefmt)
+            print(timestamp)
+            logger = logging.getLogger(__name__)
+            logger.info("handling error in %s: %s", pointer, repr(exc_value))
+            traceback.print_tb(exc_traceback)
+            # duplicate to stdout
+            traceback.print_tb(exc_traceback, file=sys.stdout)
+            # if the GuiDict which raised the error allows disabling lets just
+            # disable it and swallow the error
+            if isinstance(self, (GuiDict, GuiDict._Worker)):
+                if isinstance(self, GuiDict._Worker):
+                    guidict = self.guidict
+                else:
+                    guidict = self
+                if guidict.allow_disabling:
+                    guidict.enable_switch.setChecked(False)
+                    return
             if hasattr(self, "sig_error"):
-                self.sig_error.emit(exc_type, exc_value, exc_traceback,
-                                    method.__name__)
+                self.sig_error.emit(exc_type, exc_value, pointer)
             elif hasattr(self, "parent") and self.parent:
-                self.parent.sig_error.emit(exc_type, exc_value, exc_traceback,
-                                           method.__name__)
+                self.parent.sig_error.emit(exc_type, exc_value, pointer)
             # prevent prematurely cleaning up objects,
             # this otherwise causes (sometimes) a segmentation fault
             time.sleep(0.05)
@@ -501,13 +519,13 @@ class GuiDict(UserDict, ABC):
         """
         # activity signal to indicate an iteration of the refresh timer
         activity = pyqtSignal(str)
-        sig_error = pyqtSignal(type, Exception, types.TracebackType, str)
+        sig_error = pyqtSignal(type, Exception, str)
 
         def __init__(self, target, interval, parent=None):
             super().__init__()
             self.target = target  # target function for the refresh loop
             self.interval = interval  # in milliseconds
-            self._parent = parent
+            self.guidict = parent
             self._timer = QTimer()  # fake definition
 
         @pyqtSlot()
@@ -553,6 +571,7 @@ class GuiDict(UserDict, ABC):
         # reference to parent object which it will save in after its assigned
         # this reference is used to raise an error on the parent if needed
         self.parent = None
+        self.running = False
 
     def create_GUI(self):
         """
@@ -633,32 +652,36 @@ class GuiDict(UserDict, ABC):
           flag to make this function block up to twice the refresh period or
           until the refresh thread ended
         """
-        self._refresh_thread.quit()
-        if wait:
-            self._refresh_thread.wait(2*self.refresh_period_ms)
-        self.container.setEnabled(False)
-        if self.allow_disabling:
-            self.dock.setFeatures(
-                self.dock.features() |
-                QDockWidget.DockWidgetFeature.DockWidgetClosable
-            )
-        self.S.reset()
-        self.S.close()
-        # set all values to None to avoid showing/logging something not updated
-        for variable in self.data.values():
-            variable.value = None
+        if self.running:
+            self._refresh_thread.quit()
+            if wait:
+                self._refresh_thread.wait(2*self.refresh_period_ms)
+            self.container.setEnabled(False)
+            if self.allow_disabling:
+                self.dock.setFeatures(
+                    self.dock.features() |
+                    QDockWidget.DockWidgetFeature.DockWidgetClosable
+                )
+            self.S.reset()
+            self.S.close()
+            # set all values to None to avoid showing/logging something not updated
+            for variable in self.data.values():
+                variable.value = None
+            self.running = False
 
     def start(self):
         """Start the refresh loop in a dedicated thread."""
-        # initialize the system
-        self.S.set()
-        self.container.setEnabled(True)
-        if self.allow_disabling:
-            self.dock.setFeatures(
-                self.dock.features() &
-                ~QDockWidget.DockWidgetFeature.DockWidgetClosable
-            )
-        self._refresh_thread.start()
+        if not self.running:
+            # initialize the system
+            self.S.set()
+            self.container.setEnabled(True)
+            if self.allow_disabling:
+                self.dock.setFeatures(
+                    self.dock.features() &
+                    ~QDockWidget.DockWidgetFeature.DockWidgetClosable
+                )
+            self._refresh_thread.start()
+            self.running = True
 
     def set_cmd_funcs(self, window_obj=None, sys=None):
         """
@@ -773,9 +796,9 @@ class GuiDict(UserDict, ABC):
         signal.
         """
         # an example implementation
-        # self.data["V2"].value = self.dev.get_value_from_hardware_somehow()
+        # self["V2"].value = self.S["dev"].get_value_from_hardware_somehow()
         # if count % 10 == 0:
-        #     self.data["V1"].value = self.dev.get_another_value()
+        #     self["V1"].value = self.S["dev"].get_another_value()
 
 
 class QtGracefulKiller():
@@ -806,52 +829,39 @@ class QtGracefulKiller():
         self.timer.stop()
 
 
-def temp_statistics(deltat, temp):
+def linear_trend(timestamps, data, interval=60):
     """
-    calculate temperature statistics (slope and standard deviation)
+    Calculate the slope and standard deviation of the data in the last
+    'interval' seconds.
 
     Parameters
     ----------
-    deltat : array-like
-      time intervals between data points in seconds
-    temp : array-like
-      past temperature data points (most recent data point has index 0!).
+    timestamps : array-like
+      time stamps of data in Unix-time in seconds (e.g. from `time.time()`)
+    data : array-like
+      past data points (most recent data point has index 0!).
       shape is assumed to be same for the two arguments
+    interval : float, optional
+      time interval of the data points which should be considered. Older data
+      points are ignored.
 
     Note: best use collections.deque and appendleft to generate the needed data
 
     Returns
     -------
-    s30, s90, std90
-      slope of past 30 and 90 seconds as well as standard deviation of last
-      90 seconds. If there are insufficient data points to calculate the
-      statistics each value will be None
+    slope, stdev
+      slope and standard deviation of past `interval` seconds. If there are
+      insufficient data points to calculate the statistics each value will be
+      `None`.
     """
-    t = numpy.cumsum(deltat) / 60  # convert time to min
-    ret = (None, None, None)
-    where30 = numpy.where(t < 3/6)[0]
-    where90 = numpy.where(t < 1.5)[0]
-    if len(where30) > 0:
-        imax = where30[-1]
-        if imax >= 2:
-            if numpy.all([isinstance(el, numbers.Number) for el in
-                          itertools.islice(temp, 0, imax)]):
-                slope = numpy.mean(numpy.gradient(
-                    list(itertools.islice(temp, 0, imax)),
-                    list(itertools.islice(-t, 0, imax))  # '-' represents past!
-                ))
-                ret = (slope, ret[1], ret[2])
-    if len(where90) > 0:
-        imax = where90[-1]
-        if imax >= 2:
-            if numpy.all([isinstance(el, numbers.Number) for el in
-                          itertools.islice(temp, 0, imax)]):
-                slope = numpy.mean(numpy.gradient(
-                    list(itertools.islice(temp, 0, imax)),
-                    list(itertools.islice(-t, 0, imax))
-                ))
-                std = numpy.std(list(itertools.islice(temp, 0, imax)))
-                ret = (ret[0], slope, std)
+    ret = (None, None)
+    mask = (time.time() - numpy.asarray(timestamps)) < interval
+    t, y = numpy.asarray(timestamps)[mask], numpy.asarray(data)[mask]
+    if len(t) >= 2:
+        if numpy.all([isinstance(el, numbers.Number) for el in y]):
+            slope = numpy.mean(numpy.gradient(y, t))
+            std = numpy.std(y)
+            ret = (slope, std)
     return ret
 
 
