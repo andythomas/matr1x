@@ -590,6 +590,8 @@ class GuiDict(UserDict, ABC):
                 self.dockClosed.emit()
 
         self.dock = MyQDockWidget(list(self.keys())[0])
+        self.dock.setObjectName(
+            f"matr1x/{self.parent.windowTitle()}/{list(self.keys())[0]}")
         self.dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable

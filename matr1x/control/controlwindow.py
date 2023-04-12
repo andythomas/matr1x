@@ -17,8 +17,9 @@ from matr1x.gui_util import EmittingStream
 from matr1x.util import Get, generate_datafilename, write_matrix_header
 
 try:
-    from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
-    from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
+    from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
+    from PyQt6.QtGui import (QColor, QKeySequence, QIcon, QPalette, QShortcut,
+                             QTextCursor)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
                                  QFileDialog, QFrame, QGridLayout, QHBoxLayout,
                                  QLabel, QMainWindow, QMessageBox,
@@ -26,13 +27,13 @@ try:
                                  QSizePolicy, QSpinBox, QToolButton,
                                  QVBoxLayout, QWidget)
 except ImportError:
-    from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
-    from PyQt5.QtGui import QColor, QIcon, QPalette, QTextCursor
+    from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
+    from PyQt5.QtGui import QColor, QKeySequence, QIcon, QPalette, QTextCursor
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
                                  QFileDialog, QFrame, QGridLayout, QHBoxLayout,
                                  QLabel, QMainWindow, QMessageBox,
                                  QPlainTextEdit, QPushButton, QScrollArea,
-                                 QSizePolicy, QSpinBox, QToolButton,
+                                 QShortcut, QSizePolicy, QSpinBox, QToolButton,
                                  QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -133,6 +134,9 @@ class ControlWindow(QMainWindow):
 
         super().__init__(parent=parent)
         self.setWindowTitle(name)
+        self.settings = QSettings("matr1x", name)
+        self.saveStateSc = QShortcut(QKeySequence('Ctrl+S'), self)
+        self.saveStateSc.activated.connect(self.saveCurrentState)
         # initialize paramaters
         self.running = False
         self.logging = False
@@ -192,15 +196,20 @@ class ControlWindow(QMainWindow):
                 self.guidicts[i] = _FakeGuiDict()
         for guidict in self.guidicts:
             guidict.refresh_worker.sig_error.connect(self.handleError)
+        # set parent reference on guidicts
+        for g in self.guidicts:
+            g.parent = self
         # initialize GUI
         self.initUI()
+        # restore geometry settings if available
+        if self.settings.value("geometry") is not None:
+            self.restoreGeometry(self.settings.value("geometry"))
+        if self.settings.value("windowState") is not None:
+            self.restoreState(self.settings.value("windowState"))
         # set outputStream as stdout (i.e. all output is written to status)
         self.output_stream = EmittingStream(text_written=self.output_written)
         sys.stdout = self.output_stream
 
-        # set parent reference on guidicts
-        for g in self.guidicts:
-            g.parent = self
         # merge the guidicts Systems
         if not hasattr(self, "S"):
             self.S = system.MergedSystem([g.S for g in self.guidicts])
@@ -661,6 +670,17 @@ class ControlWindow(QMainWindow):
                     w.setEnabled(False)
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
+
+    @pyqtSlot()
+    def saveCurrentState(self):
+        """
+        Save current window and dock geometry which will be reloaded upon
+        restart of the Control GUI.
+        If this should be done on every close this method should be called
+        from the closeEvent.
+        """
+        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("windowState", self.saveState())
 
     @pyqtSlot(type, Exception, str)
     def handleError(self, exc_type, exc_value, pointer):
