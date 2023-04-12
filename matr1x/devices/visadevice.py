@@ -8,7 +8,7 @@ defined. It is itself based on the pyvisa library which handles all the low
 level communication.
 """
 
-
+import copy
 import logging
 import threading
 import time
@@ -120,30 +120,45 @@ class VisaDevice:
         else:
             self.timedelay = None
 
-        # Open the connection to the device
-        self.manager = pyvisa.ResourceManager(kwargs.pop("backend", ""))
-        if isinstance(self.interface, pyvisa.resources.Resource):
-            self.connection = self.interface
-            return
-        self.connection = self.manager.open_resource(self.interface)
-        if self.pts:
-            print(f"C: {self.name}")
-        logger.info(f"Connection to {self.name} opened")
-        # apply kwargs to visadevice (say baudrate)
-        # should only modify available properties, so should be immune
-        # against "wrong" device parameters
-        # needs to be tested!
-        for key, val in kwargs.items():
-            if hasattr(self.connection, key):
-                setattr(self.connection, key, val)
+        self._kwargs = kwargs
+        self._opened = False
+        self.open()
+
+    def open(self):
+        """
+        open device communication port from parameters given to the constructor
+        method.
+        """
+        if not self._opened:
+            # copy kwargs dictionary to modify in this function
+            kwargs = copy.copy(self._kwargs)
+            # Open the connection to the device
+            self.manager = pyvisa.ResourceManager(kwargs.pop("backend", ""))
+            if isinstance(self.interface, pyvisa.resources.Resource):
+                self.connection = self.interface
+                return
+            self.connection = self.manager.open_resource(self.interface)
+            if self.pts:
+                print(f"C: {self.name}")
+            logger.info(f"Connection to {self.name} opened")
+            # apply kwargs to visadevice (say baudrate)
+            # should only modify available properties, so should be immune
+            # against "wrong" device parameters
+            # needs to be tested!
+            for key, val in kwargs.items():
+                if hasattr(self.connection, key):
+                    setattr(self.connection, key, val)
+            self._opened = True
 
     def close(self):
         """
         Close device connection in a way which allows to reopen it later in the
         same Python process
         """
-        self.VISAdev.close()
-        self.manager.close()
+        if self._opened:
+            self.connection.close()
+            self.manager.close()
+            self._opened = False
 
     @synchronized
     @output_name_on_error

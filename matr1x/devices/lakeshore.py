@@ -47,8 +47,7 @@ class Lakeshore3xx(VisaDevice):
         if ret == "":
             logger.info(
                 f"{self.name}.query: empty reply, reopening interface ('{msg}', {ret})")
-            self.connection.close()
-            self.conn = False
+            self.close()
             self.open()
             return self.query(msg, depth=depth+1)
         return ret

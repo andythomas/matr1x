@@ -3,14 +3,23 @@
 # (c) 2023 matr1x developers. All rights reserved.
 # ---
 
+import collections
+import time
+
 import numpy
 from matr1x import system
 from matr1x.control import ControlWindow, GuiDict, catchEmitError, control_main
 from matr1x.control import guiObject as go
-from matr1x.control import var
+from matr1x.control import linear_trend, var
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
 from matr1x.util import Command, Get
+
+try:
+    from PyQt6 import QtCore
+except ImportError:
+    from PyQt5 import QtCore
+
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
 # type can be one of int, float, bool, tuple or list.
@@ -70,7 +79,6 @@ class exampleDict(GuiDict):
         self["toggle"].widgets[2].clicked.connect(self.set_toggle)
         # adjust some widgets details
         self["V3"].widgets[2].setDecimals(1)
-
         return content
 
     def refresh(self, count):
@@ -103,7 +111,7 @@ class exampleDict(GuiDict):
         set toggle button functionality in hardware
         """
         # if it is checked
-        if self["toggle"].widgets[2].isChecked():
+        if state:
             # here should go code to set the feature in the hardware
             self.S.devs["dummy"].p7 = True
         # if it is unchecked
@@ -155,10 +163,46 @@ class exampleDict2(GuiDict):
     allow_disabling = True
     v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
 
+    class MyQObject(QtCore.QObject):
+        """
+        In order to be able to define pyqtSignals we need an object derived from
+        QObject here. In this example it is used to be able to set a tooltip
+        string in a thread safe manner.
+        """
+        tooltip = QtCore.pyqtSignal(str, str)
+
+    def __init__(self):
+        super().__init__()
+        # FIFO queues to calculate linear trend of varying value
+        N = 40  # length of all FIFO queues
+        self.dataseries = collections.deque(maxlen=N)
+        self.timestamps = collections.deque(maxlen=N)
+        # enable setting the tooltip
+        self.qobject = self.MyQObject()
+        # lambda function is needed here!
+        self.qobject.tooltip.connect(lambda *args: self.set_tooltip(*args))
+
     def refresh(self, count):
         self["V5"].value = self.v5
+        self.timestamps.appendleft(time.time())
+        self.dataseries.appendleft(self.v5)
         if count % 5 == 0:
+            # tasks performed every 5 iterations
+            # generate and update tooltip
+            slope, std = linear_trend(self.timestamps, self.dataseries)
+            if slope is not None and std is not None:
+                self.qobject.tooltip.emit(
+                    "V5",
+                    "last minute \n"
+                    f"slope: {slope/60:.3f}mbar/min\n"
+                    f"std: {std:.3f} mbar")
             self.v5 = round(30*numpy.random.random(), 3)
+
+    @QtCore.pyqtSlot(str, str)
+    def set_tooltip(self, label, tooltip):
+        """Set tooltip thread safe on any widget in the first column."""
+        if label in self:
+            self[label].widgets[1].setToolTip(tooltip)
 
 
 # define clientdevice to be used by measurement systems interfacing with this
