@@ -157,7 +157,6 @@ class VisaDevice:
         """
         if self._opened:
             self.connection.close()
-            self.manager.close()
             self._opened = False
 
     @synchronized
