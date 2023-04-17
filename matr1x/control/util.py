@@ -529,13 +529,17 @@ class GuiDict(UserDict, ABC):
             self._timer = QTimer()  # fake definition
 
         @pyqtSlot()
-        def run(self):
+        @pyqtSlot(bool)
+        def run(self, copy=True):
             self._timer = QTimer()
             self._timer.setInterval(self.interval)
             counter = itertools.count(1)
             self._timer.timeout.connect(lambda: self._target(next(counter)))
             # start refresh immediately and then again after the timer timeout
             self.target(0)
+            # copy values from readout to set fields upon first run
+            if copy:
+                self.guidict.copy_values()
             self._timer.start()
 
         @pyqtSlot()

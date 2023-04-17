@@ -90,9 +90,6 @@ class exampleDict(GuiDict):
         self["V4"].value = self.S.devs["dummy"].p6
         self["toggle"].value = self.S.devs["dummy"].p7
 
-        if count == 0:
-            self.copy_values()
-
         if self["V4"].value is False:
             raise ValueError("Test error raised inside refresh")
 
