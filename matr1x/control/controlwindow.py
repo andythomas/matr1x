@@ -211,6 +211,8 @@ class ControlWindow(QMainWindow):
             self.move(self.settings.value("pos"))
         if self.settings.value("windowState") is not None:
             self.restoreState(self.settings.value("windowState"))
+        # restore status visibility
+        self.status_box.toggle_button.setChecked(self.settings.value("status_visible", False, type=bool))
 
         # enable saving of geometry by Ctrl+S
         self.saveStateSc = QShortcut(QKeySequence('Ctrl+S'), self)
@@ -331,10 +333,10 @@ class ControlWindow(QMainWindow):
     def statusloggingUI(self, layout):
         """Setup status and logging user interface."""
 
-        collapsible_box = CollapsibleBox("Logging and Status", parent=self)
-        collapsible_box.redraw_activity.connect(self.readjustSize)
+        self.status_box = CollapsibleBox("Logging and Status", parent=self)
+        self.status_box.redraw_activity.connect(self.readjustSize)
         self.status_grid = QGridLayout()
-        layout.addWidget(collapsible_box)
+        layout.addWidget(self.status_box)
 
         # initialize status_grid with common widgets
         self.status = QPlainTextEdit(self)
@@ -384,7 +386,7 @@ class ControlWindow(QMainWindow):
         self.status_grid.setColumnStretch(3, 1)
         self.status_grid.setRowStretch(6, 1)
 
-        collapsible_box.setContentLayout(self.status_grid)
+        self.status_box.setContentLayout(self.status_grid)
 
     @staticmethod
     def copyValues(copyDict):
@@ -448,7 +450,6 @@ class ControlWindow(QMainWindow):
             self.adjustSize()
             self.setMinimumWidth(minw)
             self.setMaximumWidth(maxw)
-
 
     # device communication and related functions
     @catchEmitError
@@ -706,6 +707,7 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("size", self.size())
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
+        self.settings.setValue("status_visible", self.status_box.toggle_button.isChecked())
 
     @pyqtSlot(type, Exception, str)
     def handleError(self, exc_type, exc_value, pointer):
