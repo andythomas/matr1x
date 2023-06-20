@@ -212,7 +212,8 @@ class ControlWindow(QMainWindow):
         if self.settings.value("windowState") is not None:
             self.restoreState(self.settings.value("windowState"))
         # restore status visibility
-        self.status_box.toggle_button.setChecked(self.settings.value("status_visible", False, type=bool))
+        self.status_box.toggle_button.setChecked(
+            self.settings.value("status_visible", False, type=bool))
 
         # enable saving of geometry by Ctrl+S
         self.saveStateSc = QShortcut(QKeySequence('Ctrl+S'), self)
@@ -707,7 +708,8 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("size", self.size())
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
-        self.settings.setValue("status_visible", self.status_box.toggle_button.isChecked())
+        self.settings.setValue(
+            "status_visible", self.status_box.toggle_button.isChecked())
 
     @pyqtSlot(type, Exception, str)
     def handleError(self, exc_type, exc_value, pointer):
