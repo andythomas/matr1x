@@ -35,7 +35,7 @@ import numpy
 
 try:
     from PyQt6 import QtCore
-    from PyQt6.QtCore import (QObject, Qt, QThread, QTimer, QVariant,
+    from PyQt6.QtCore import (QObject, QSettings, Qt, QThread, QTimer, QVariant,
                               pyqtSignal, pyqtSlot)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QDockWidget, QDoubleSpinBox, QFileDialog,
@@ -45,7 +45,8 @@ try:
                                  QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5 import QtCore
-    from PyQt5.QtCore import QObject, Qt, QThread, QTimer, QVariant, pyqtSignal, pyqtSlot
+    from PyQt5.QtCore import (QObject, QSettings, Qt, QThread, QTimer, QVariant,
+                              pyqtSignal, pyqtSlot)
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QDockWidget, QDoubleSpinBox, QFileDialog,
                                  QGridLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -88,8 +89,14 @@ def catchEmitError(method):
                     guidict = self.guidict
                 else:
                     guidict = self
+                outstr = f"Error occured inside '{guidict.__class__.__name__}'"
+                logger.info(outstr)
+                print(outstr)
                 if guidict.allow_disabling:
                     guidict.enable_switch.setChecked(False)
+                    outstr = f"Ignoring last Exception since device can be deactivated."
+                    logger.info(outstr)
+                    print(outstr)
                     return
             if hasattr(self, "sig_error"):
                 self.sig_error.emit(exc_type, exc_value, pointer)
@@ -530,6 +537,7 @@ class GuiDict(UserDict, ABC):
 
         @pyqtSlot()
         @pyqtSlot(bool)
+        @catchEmitError
         def run(self, copy=True):
             self._timer = QTimer()
             self._timer.setInterval(self.interval)
@@ -589,13 +597,41 @@ class GuiDict(UserDict, ABC):
             """
             dockClosed = pyqtSignal()
 
+            def __init__(self, title, appname):
+                super().__init__(title)
+                self.application_name = appname
+                self.setObjectName(f"{appname}-{title}")
+                self.settings = QSettings("matr1x", appname)
+                self.disabled = False
+
+            @pyqtSlot()
+            def saveCurrentState(self):
+                """
+                Save current dock geometry and enable state.
+                """
+                self.settings.beginGroup(self.windowTitle())
+                self.settings.setValue("size", self.size())
+                self.settings.setValue("pos", self.pos())
+                self.settings.setValue("disabled", self.disabled)
+                self.settings.endGroup()
+
+            def restoreState(self):
+                """
+                Load stored dock geometry and disable state.
+                """
+                self.settings.beginGroup(self.windowTitle())
+                if self.settings.value("size") is not None:
+                    self.resize(self.settings.value("size"))
+                if self.settings.value("pos") is not None:
+                    self.move(self.settings.value("pos"))
+                self.disabled = self.settings.value("disabled", False, type=bool)
+                self.settings.endGroup()
+
             def closeEvent(self, event):
                 super().closeEvent(event)
                 self.dockClosed.emit()
 
-        self.dock = MyQDockWidget(list(self.keys())[0])
-        self.dock.setObjectName(
-            f"matr1x/{self.parent.windowTitle()}/{list(self.keys())[0]}")
+        self.dock = MyQDockWidget(list(self.keys())[0], self.parent.windowTitle())
         self.dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable
@@ -604,14 +640,12 @@ class GuiDict(UserDict, ABC):
         column = QVBoxLayout(dockcontainer)
         self.dock.setWidget(dockcontainer)
         self.container = QWidget()
-        grid = QGridLayout(self.container)
 
         # add enable widget to the content widget
         enable_layout = QHBoxLayout()
         enable_layout.addWidget(QLabel("Enable"))
         self.enable_switch = AnimatedToggle()
         self.enable_switch.setFixedSize(self.enable_switch.sizeHint())
-        self.enable_switch.setChecked(True)
         if self.allow_disabling:
             enable_layout.addWidget(self.enable_switch)
             self.enable_switch.stateChanged.connect(self.makeEnabled)
@@ -619,6 +653,19 @@ class GuiDict(UserDict, ABC):
         column.addWidget(self.container)
         column.addStretch()
 
+        # create content
+        self.create_content()
+
+        return self.dock
+
+    def create_content(self):
+        """create the real content of the GuiDict
+
+        This function takes the variables from the GuiDict and generates the
+        respective GUI widgets. If a user overwrites this function it will need
+        to attach its output to self.container!
+        """
+        grid = QGridLayout(self.container)
         # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
             variable.generate_widgets(key)
@@ -629,7 +676,6 @@ class GuiDict(UserDict, ABC):
                 if col == 0 and row == 0:
                     continue
                 grid.addWidget(widget, row, col, 1, 1)
-        return self.dock
 
     def copy_values(self):
         """
@@ -649,6 +695,7 @@ class GuiDict(UserDict, ABC):
             self.stop()
         else:
             self.start()
+        self.dock.disabled = not self.enable_switch.isChecked()
 
     def restoreFeatures(self):
         """
@@ -691,7 +738,7 @@ class GuiDict(UserDict, ABC):
 
     def start(self):
         """Start the refresh loop in a dedicated thread."""
-        if not self.running:
+        if not self.running and self.enable_switch.isChecked():
             # initialize the system
             self.S.set()
             self.restoreFeatures()
@@ -709,6 +756,8 @@ class GuiDict(UserDict, ABC):
         for name, cmd in self.cmds.items():
             setargs = None
             getargs = None
+            setfunc = None
+            getfunc = None
             # obtain set function
             if callable(cmd.setfunc):
                 setfunc = cmd.setfunc
@@ -741,7 +790,7 @@ class GuiDict(UserDict, ABC):
                 devname, funcname = cmd.setfunc
                 setfunc = attrgetter(funcname)(sys.devs[devname])
             else:
-                raise ValueError(f"could not identify '{setfunc}' of '{name}'")
+                raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
 
             # obtain get function
             if callable(cmd.getfunc):
@@ -777,7 +826,7 @@ class GuiDict(UserDict, ABC):
                 devname, funcname = cmd.getfunc
                 getfunc = attrgetter(funcname)(sys.devs[devname])
             else:
-                raise ValueError(f"could not identify '{setfunc}' of '{name}'")
+                raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
 
             # set new Command in output list
             self.cmds[name] = Command(cmd.dtype, setfunc, getfunc, setargs,

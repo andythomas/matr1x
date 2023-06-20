@@ -135,8 +135,6 @@ class ControlWindow(QMainWindow):
         super().__init__(parent=parent)
         self.setWindowTitle(name)
         self.settings = QSettings("matr1x", name)
-        self.saveStateSc = QShortcut(QKeySequence('Ctrl+S'), self)
-        self.saveStateSc.activated.connect(self.saveCurrentState)
         # initialize paramaters
         self.running = False
         self.logging = False
@@ -201,11 +199,24 @@ class ControlWindow(QMainWindow):
             g.parent = self
         # initialize GUI
         self.initUI()
-        # restore geometry settings if available
-        if self.settings.value("geometry") is not None:
-            self.restoreGeometry(self.settings.value("geometry"))
+        # restore settings of GuiDicts
+        for g in self.guidicts:
+            g.dock.restoreState()
+            g.enable_switch.setChecked(not g.dock.disabled)
+            g.restoreFeatures()
+        # restore geometry settings of main window
+        if self.settings.value("size") is not None:
+            self.resize(self.settings.value("size"))
+        if self.settings.value("pos") is not None:
+            self.move(self.settings.value("pos"))
         if self.settings.value("windowState") is not None:
             self.restoreState(self.settings.value("windowState"))
+
+        # enable saving of geometry by Ctrl+S
+        self.saveStateSc = QShortcut(QKeySequence('Ctrl+S'), self)
+        self.saveStateSc.activated.connect(self.saveCurrentState)
+        for g in self.guidicts:
+            self.saveStateSc.activated.connect(g.dock.saveCurrentState)
         # set outputStream as stdout (i.e. all output is written to status)
         self.output_stream = EmittingStream(text_written=self.output_written)
         sys.stdout = self.output_stream
@@ -222,6 +233,12 @@ class ControlWindow(QMainWindow):
             self.cmd_list.update(extra_cmds)
         # show the GUI
         self.show()
+
+        # connect signals so that at least one dock remains visible! (needs to be done after show!)
+        for g in self.guidicts:
+            g.dock.dockLocationChanged.connect(self.check_dock_status)
+            g.dock.visibilityChanged.connect(self.check_dock_status)
+            g.dock.dockClosed.connect(self.check_dock_status)
 
     # GUI functions
     def initUI(self):
@@ -259,15 +276,11 @@ class ControlWindow(QMainWindow):
         layout : Qt-layout of main window.
         """
         # construct the layout from the GUI dicts
-        self._dockwidgets = []
+        #self._dockwidgets = []
         for guidict in self.guidicts:
             content = guidict.create_GUI()
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
-            # connect signals so that at least one dock remains visible!
-            content.dockLocationChanged.connect(self.check_dock_status)
-            content.visibilityChanged.connect(self.check_dock_status)
-            content.dockClosed.connect(self.check_dock_status)
-            self._dockwidgets.append(content)
+            #self._dockwidgets.append(content)
 
     @pyqtSlot()
     def check_dock_status(self):
@@ -276,25 +289,28 @@ class ControlWindow(QMainWindow):
         remains docked and eventually disable the undocking feature!
         """
         # count docked widgets
-        count_docked = sum(int(not dock.isFloating())
-                           for dock in self._dockwidgets)
+        count_docked = sum(int(not g.dock.isFloating())
+                           for g in self.guidicts)
         # count visible widgets
-        count_vis = sum(int(dock.isVisible()) for dock in self._dockwidgets)
+        count_vis = sum(int(g.dock.isVisible()) for g in self.guidicts)
         if count_docked <= 1 or count_vis <= 1:
             # forbid last visible/docked widget to be undocked
-            for dock in self._dockwidgets:
+            for g in self.guidicts:
+                dock = g.dock
                 if not dock.isFloating():
                     dock.setFeatures(
                         dock.features() &
                         ~QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         else:
-            for dock in self._dockwidgets:
+            for g in self.guidicts:
+                dock = g.dock
                 dock.setFeatures(
                     dock.features() |
                     QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         if count_vis <= 1:
             # redock last visible widget
-            for dock in self._dockwidgets:
+            for g in self.guidicts:
+                dock = g.dock
                 if dock.isWindow() and dock.isVisible():
                     dock.setFloating(False)
                     break
@@ -549,8 +565,9 @@ class ControlWindow(QMainWindow):
         and terminate upon an uncaught Python exception.
         """
         # start guidicts and get minimum period
-        refresh_period = 1
-        for dockw, guidict in zip(self._dockwidgets, self.guidicts):
+        refresh_period = 0.1
+        for guidict in self.guidicts:
+            dockw = guidict.dock
             if not dockw.isVisible():
                 guidict.enable_switch.setChecked(False)
                 guidict.restoreFeatures()
@@ -683,7 +700,8 @@ class ControlWindow(QMainWindow):
         If this should be done on every close this method should be called
         from the closeEvent.
         """
-        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("size", self.size())
+        self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
 
     @pyqtSlot(type, Exception, str)
