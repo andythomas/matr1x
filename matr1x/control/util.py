@@ -327,8 +327,8 @@ class var(QObject):
 
         # set sensible default values and disable readout column
         if len(self.widgets) > 1:
-            if self.widgets[1].minimumWidth() < 80:
-                self.widgets[1].setMinimumWidth(80)
+            if self.widgets[1].minimumWidth() < 60:
+                self.widgets[1].setMinimumWidth(60)
             if isinstance(self.widgets[1], QLineEdit):
                 self.widgets[1].setReadOnly(True)
             elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):

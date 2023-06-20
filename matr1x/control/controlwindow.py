@@ -256,7 +256,7 @@ class ControlWindow(QMainWindow):
             __file__), '..', 'scripts', 'icons')
         self.setWindowIcon(QIcon(os.path.join(icondir, 'matr1x-control.png')))
         self.widget = QWidget()
-        self.widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+        self.widget.setSizePolicy(QSizePolicy.Policy.Preferred,
                                   QSizePolicy.Policy.Fixed)
         self.main_layout = QVBoxLayout()
 
@@ -436,14 +436,19 @@ class ControlWindow(QMainWindow):
         """
         resize window when the status and logging tab is minimized
         """
+        self.widget.adjustSize()
         if not expanding:
             # if we are shrinking the window and disabling the control, hide
             # the logging-config buttons
             self.configLog(False)
             self.configlog.setChecked(False)
+            # make window smaller in vertial direction
+            minw, maxw = self.minimumWidth(), self.maximumWidth()
+            self.setFixedWidth(self.width())
+            self.adjustSize()
+            self.setMinimumWidth(minw)
+            self.setMaximumWidth(maxw)
 
-        self.widget.adjustSize()
-        self.adjustSize()
 
     # device communication and related functions
     @catchEmitError
