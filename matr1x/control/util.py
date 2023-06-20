@@ -624,14 +624,16 @@ class GuiDict(UserDict, ABC):
                     self.resize(self.settings.value("size"))
                 if self.settings.value("pos") is not None:
                     self.move(self.settings.value("pos"))
-                self.disabled = self.settings.value("disabled", False, type=bool)
+                self.disabled = self.settings.value(
+                    "disabled", False, type=bool)
                 self.settings.endGroup()
 
             def closeEvent(self, event):
                 super().closeEvent(event)
                 self.dockClosed.emit()
 
-        self.dock = MyQDockWidget(list(self.keys())[0], self.parent.windowTitle())
+        self.dock = MyQDockWidget(
+            list(self.keys())[0], self.parent.windowTitle())
         self.dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable
@@ -790,7 +792,8 @@ class GuiDict(UserDict, ABC):
                 devname, funcname = cmd.setfunc
                 setfunc = attrgetter(funcname)(sys.devs[devname])
             else:
-                raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
+                raise ValueError(
+                    f"could not identify '{cmd.setfunc}' of '{name}'")
 
             # obtain get function
             if callable(cmd.getfunc):
@@ -826,7 +829,8 @@ class GuiDict(UserDict, ABC):
                 devname, funcname = cmd.getfunc
                 getfunc = attrgetter(funcname)(sys.devs[devname])
             else:
-                raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
+                raise ValueError(
+                    f"could not identify '{cmd.getfunc}' of '{name}'")
 
             # set new Command in output list
             self.cmds[name] = Command(cmd.dtype, setfunc, getfunc, setargs,

@@ -276,11 +276,9 @@ class ControlWindow(QMainWindow):
         layout : Qt-layout of main window.
         """
         # construct the layout from the GUI dicts
-        #self._dockwidgets = []
         for guidict in self.guidicts:
             content = guidict.create_GUI()
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
-            #self._dockwidgets.append(content)
 
     @pyqtSlot()
     def check_dock_status(self):
