@@ -689,8 +689,7 @@ class System:
 
     def reset(self, *args, **kwargs):
         """
-        General reset function for deinitialization of system, currently does
-        nothing.
+        General reset function for deinitialization of system, clears the read buffer of the instrument.
 
         The device will be left open/initialized unless the system is closed or
         deleted.
@@ -702,6 +701,21 @@ class System:
         kwargs : dict
           kwargs than be used here, currently not used
         """
+        for dev in self.devs.values():
+            if hasattr(dev, "adapter"):  # pymeasure device
+                try:
+                    dev.adapter.flush_read_buffer()
+                except Exception:
+                    pass
+            elif hasattr(dev, "connection"):  # VisaDevice
+                # read all bytes available and ignore them
+                read_termination = dev.connection.read_termination
+                dev.connection.read_termination = None
+                # Try except allows to set the read_termination even after an error.
+                try:
+                    dev.connection.read_raw()
+                finally:
+                    dev.connection.read_termination = read_termination
         self.opened = False
 
     def close(self):
