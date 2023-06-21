@@ -11,7 +11,7 @@ import threading
 import time
 import warnings
 
-from matr1x import logfolder, scpi_tcpserver, system
+from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import Get, generate_datafilename, write_matrix_header
@@ -21,7 +21,7 @@ try:
     from PyQt6.QtGui import (QColor, QIcon, QKeySequence, QPalette, QShortcut,
                              QTextCursor)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+                                 QFileDialog, QFrame, QHBoxLayout,
                                  QLabel, QMainWindow, QMessageBox,
                                  QPlainTextEdit, QPushButton, QScrollArea,
                                  QSizePolicy, QSpinBox, QToolButton,
@@ -30,7 +30,7 @@ except ImportError:
     from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
     from PyQt5.QtGui import QColor, QIcon, QKeySequence, QPalette, QTextCursor
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+                                 QFileDialog, QFrame, QHBoxLayout,
                                  QLabel, QMainWindow, QMessageBox,
                                  QPlainTextEdit, QPushButton, QScrollArea,
                                  QShortcut, QSizePolicy, QSpinBox, QToolButton,
@@ -49,7 +49,7 @@ class CollapsibleBox(QWidget):
         self.toggle_button = QToolButton(self)
         self.header_line = QFrame(self)
         self.content_widget = QScrollArea(self)
-        self.main_layout = QGridLayout(self)
+        self.main_layout = QVBoxLayout()
 
         self.toggle_button.setStyleSheet("QToolButton {border: none;}")
         self.toggle_button.setToolButtonStyle(
@@ -71,14 +71,14 @@ class CollapsibleBox(QWidget):
         self.content_widget.setMaximumHeight(0)
         self.content_widget.setMinimumHeight(0)
 
-        self.main_layout.setVerticalSpacing(0)
+        self.main_layout.setSpacing(0)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
 
-        row = 0
-        self.main_layout.addWidget(self.toggle_button, row, 0, 1, 1,
-                                   Qt.AlignmentFlag.AlignLeft)
-        self.main_layout.addWidget(self.header_line, row, 2, 1, 1)
-        self.main_layout.addWidget(self.content_widget, row+1, 0, 1, 3)
+        hline = QHBoxLayout()
+        hline.addWidget(self.toggle_button, 0, alignment=Qt.AlignmentFlag.AlignLeft)
+        hline.addWidget(self.header_line)
+        self.main_layout.addLayout(hline)
+        self.main_layout.addWidget(self.content_widget)
         self.setLayout(self.main_layout)
 
         self.toggle_button.toggled.connect(self.toggle)
@@ -90,7 +90,11 @@ class CollapsibleBox(QWidget):
             self.content_widget.setVisible(True)
             self.setMinimumHeight(self.collapsed_height)
             self.setMaximumHeight(self.combined_height+1000)
+            self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                              QSizePolicy.Policy.MinimumExpanding)
         else:
+            self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                              QSizePolicy.Policy.Fixed)
             self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
             self.content_widget.setMaximumHeight(0)
             self.setMinimumHeight(self.collapsed_height)
@@ -260,7 +264,7 @@ class ControlWindow(QMainWindow):
         self.setWindowIcon(QIcon(os.path.join(icondir, 'matr1x-control.png')))
         self.widget = QWidget()
         self.widget.setSizePolicy(QSizePolicy.Policy.Preferred,
-                                  QSizePolicy.Policy.Fixed)
+                                  QSizePolicy.Policy.Minimum)
         self.main_layout = QVBoxLayout()
 
         qApp = QApplication.instance()
@@ -268,6 +272,7 @@ class ControlWindow(QMainWindow):
         qApp.setStyleSheet(
             f"[readOnly=\"true\"] {{background-color: {mainWindowBgColor.name(QColor.NameFormat.HexRgb)} }}")
         self.widget.setLayout(self.main_layout)
+        self.main_layout.addStretch()
         self.setCentralWidget(self.widget)
         return self.main_layout
 
@@ -329,17 +334,16 @@ class ControlWindow(QMainWindow):
         self.panicButton.setCheckable(True)
         elayout.addWidget(self.panicButton)
         self.panicButton.clicked.connect(self.panic)
-        layout.insertLayout(0, elayout)
+        layout.addLayout(elayout)
 
     def statusloggingUI(self, layout):
         """Setup status and logging user interface."""
 
         self.status_box = CollapsibleBox("Logging and Status", parent=self)
         self.status_box.redraw_activity.connect(self.readjustSize)
-        self.status_grid = QGridLayout()
-        layout.addWidget(self.status_box)
+        layout.addWidget(self.status_box, stretch=1)
 
-        # initialize status_grid with common widgets
+        # initialize common widgets
         self.status = QPlainTextEdit(self)
         self.status.setReadOnly(True)
         self.keep_enabled.append(self.status)
@@ -348,9 +352,10 @@ class ControlWindow(QMainWindow):
         activity_layout.setSpacing(0)
         for idx, guidict in enumerate(self.guidicts):
             ql = QLabel(" ")
-            ql.setFixedWidth(int(40/len(self.guidicts)))
+            ql.setFixedWidth(int(100/len(self.guidicts)))
             ql.setFixedHeight(30)
             ql.setStyleSheet("background-color: lightgray")
+            ql.setToolTip(guidict.dock.windowTitle())
             self.activityIndicator.append(ql)
             guidict.refresh_worker.activity.connect(
                 lambda c, idx=idx: self.change_single_color(c, idx))
@@ -358,11 +363,14 @@ class ControlWindow(QMainWindow):
 
         self.activity.connect(self.change_color)
         self.deactivate.connect(self.deactivate_gui)
-        self.togglelog = QPushButton("start data log")
+        self.togglelog = QPushButton("start log")
         self.togglelog.setCheckable(True)
-        selectlog = QPushButton("select data log file")
-        self.configlog = QPushButton("show logging config")
+        self.togglelog.setMaximumWidth(70)
+        selectlog = QPushButton("select log file")
+        selectlog.setMaximumWidth(140)
+        self.configlog = QPushButton("show log config")
         self.configlog.setCheckable(True)
+
         self.loglabel = QLabel(os.path.basename(self.logfile))
         self.loglabel.setMaximumWidth(250)
         self.loglabel.setWordWrap(True)
@@ -371,23 +379,43 @@ class ControlWindow(QMainWindow):
         self.interval.setRange(1, 24*3600+1)
         self.interval.setValue(60)
         self.interval.setMaximumWidth(70)
+        clearlog = QPushButton("Clear Output")
         self.togglelog.clicked.connect(self.toggleLog)
         selectlog.clicked.connect(self.selectLog)
         self.configlog.clicked.connect(self.configLog)
+        clearlog.clicked.connect(self.status.clear)
 
         # add status and logging widgets
-        self.status_grid.addLayout(activity_layout, 0, 0, 1, 1)
-        self.status_grid.addWidget(interval_label, 0, 1, 1, 1)
-        self.status_grid.addWidget(self.interval, 0, 2, 1, 1)
-        self.status_grid.addWidget(self.configlog, 1, 0, 1, 3)
-        self.status_grid.addWidget(self.togglelog, 2, 0, 1, 3)
-        self.status_grid.addWidget(selectlog, 3, 0, 1, 3)
-        self.status_grid.addWidget(self.loglabel, 4, 0, 2, 3)
-        self.status_grid.addWidget(self.status, 0, 3, 7, 1)
-        self.status_grid.setColumnStretch(3, 1)
-        self.status_grid.setRowStretch(6, 1)
+        self.status_grid = QHBoxLayout()
+        leftcolumn = QVBoxLayout()
+        self.status_grid.addLayout(leftcolumn)
+        firstline = QHBoxLayout()
+        leftcolumn.addLayout(firstline)
+        firstline.addLayout(activity_layout)
+        firstline.addStretch()
+        secondline = QHBoxLayout()
+        leftcolumn.addLayout(secondline)
+        secondline.addWidget(interval_label)
+        secondline.addWidget(self.interval)
+        secondline.addWidget(self.configlog)
+        secondline.addStretch()
+        thirdline = QHBoxLayout()
+        leftcolumn.addLayout(thirdline)
+        thirdline.addWidget(selectlog)
+        thirdline.addWidget(self.togglelog)
+        thirdline.addStretch()
+        leftcolumn.addWidget(self.loglabel)
+        leftcolumn.addStretch()
+        lastline = QHBoxLayout()
+        leftcolumn.addLayout(lastline)
+        lastline.addStretch()
+        lastline.addWidget(clearlog)
 
+        rightcolumn = QVBoxLayout()
+        rightcolumn.addWidget(self.status)
+        self.status_grid.addLayout(rightcolumn, stretch=1)
         self.status_box.setContentLayout(self.status_grid)
+        self.status_box.toggle(False)
 
     @staticmethod
     def copyValues(copyDict):
@@ -597,7 +625,7 @@ class ControlWindow(QMainWindow):
         check also that the devices are initialized
         """
         # initialize devices
-        print("initializing devices")
+        print(f"{time.strftime(datetimefmt)}: initializing devices")
         self.connectDev()
 
         # initialize thread to refresh dicts
