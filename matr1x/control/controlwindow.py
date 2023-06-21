@@ -21,19 +21,18 @@ try:
     from PyQt6.QtGui import (QColor, QIcon, QKeySequence, QPalette, QShortcut,
                              QTextCursor)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QHBoxLayout,
-                                 QLabel, QMainWindow, QMessageBox,
-                                 QPlainTextEdit, QPushButton, QScrollArea,
-                                 QSizePolicy, QSpinBox, QToolButton,
-                                 QVBoxLayout, QWidget)
+                                 QFileDialog, QFrame, QHBoxLayout, QLabel,
+                                 QMainWindow, QMessageBox, QPlainTextEdit,
+                                 QPushButton, QScrollArea, QSizePolicy,
+                                 QSpinBox, QToolButton, QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
     from PyQt5.QtGui import QColor, QIcon, QKeySequence, QPalette, QTextCursor
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QHBoxLayout,
-                                 QLabel, QMainWindow, QMessageBox,
-                                 QPlainTextEdit, QPushButton, QScrollArea,
-                                 QShortcut, QSizePolicy, QSpinBox, QToolButton,
+                                 QFileDialog, QFrame, QHBoxLayout, QLabel,
+                                 QMainWindow, QMessageBox, QPlainTextEdit,
+                                 QPushButton, QScrollArea, QShortcut,
+                                 QSizePolicy, QSpinBox, QToolButton,
                                  QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -75,7 +74,8 @@ class CollapsibleBox(QWidget):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
 
         hline = QHBoxLayout()
-        hline.addWidget(self.toggle_button, 0, alignment=Qt.AlignmentFlag.AlignLeft)
+        hline.addWidget(self.toggle_button, 0,
+                        alignment=Qt.AlignmentFlag.AlignLeft)
         hline.addWidget(self.header_line)
         self.main_layout.addLayout(hline)
         self.main_layout.addWidget(self.content_widget)
