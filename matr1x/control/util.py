@@ -172,33 +172,32 @@ class guiObject(IntEnum):
             qlab.setSizePolicy(QSizePolicy.Policy.Preferred,
                                QSizePolicy.Policy.Fixed)
             return qlab
-        elif cls.button == wType:
+        if cls.button == wType:
             return QPushButton(init if init else label)
-        elif cls.lineedit == wType:
+        if cls.lineedit == wType:
             return QLineEdit(init if init else None)
-        elif cls.checkbox == wType:
+        if cls.checkbox == wType:
             return QCheckBox()
-        elif cls.progressbar == wType:
+        if cls.progressbar == wType:
             return matr1xProgressBar()
-        elif cls.combobox == wType:
+        if cls.combobox == wType:
             dummy = QComboBox()
             if init is not None:
                 dummy.insertItems(0, init)
             return dummy
-        elif cls.togglebutton == wType:
+        if cls.togglebutton == wType:
             return ToggleButton(init if init else label)
-        elif cls.spinbox == wType:
+        if cls.spinbox == wType:
             sb = QSpinBox()
             if init is not None:
                 sb.setRange(*init)
             return sb
-        elif cls.doublespinbox == wType:
+        if cls.doublespinbox == wType:
             sb = QDoubleSpinBox()
             if init is not None:
                 sb.setRange(*init)
             return sb
-        else:
-            return None
+        return None
 
 
 class var(QObject):
@@ -335,6 +334,8 @@ class var(QObject):
                 self.widgets[1].setEnabled(False)
         # apply a validator
         if len(self.widgets) > 2:
+            if self.widgets[2].minimumWidth() < 60:
+                self.widgets[2].setMinimumWidth(60)
             if isinstance(self.widgets[2], QLineEdit):
                 val = validator.get(self.variableType, None)
                 if val:

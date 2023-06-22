@@ -60,10 +60,10 @@ class CollapsibleBox(QWidget):
 
         self.header_line.setFrameShape(QFrame.Shape.HLine)
         self.header_line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.header_line.setSizePolicy(QSizePolicy.Policy.Expanding,
+        self.header_line.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
                                        QSizePolicy.Policy.Maximum)
 
-        self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+        self.content_widget.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
                                           QSizePolicy.Policy.Fixed)
 
         # start out collapsed
@@ -90,10 +90,10 @@ class CollapsibleBox(QWidget):
             self.content_widget.setVisible(True)
             self.setMinimumHeight(self.collapsed_height)
             self.setMaximumHeight(self.combined_height+1000)
-            self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+            self.content_widget.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
                                               QSizePolicy.Policy.MinimumExpanding)
         else:
-            self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+            self.content_widget.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
                                               QSizePolicy.Policy.Fixed)
             self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
             self.content_widget.setMaximumHeight(0)
@@ -320,6 +320,7 @@ class ControlWindow(QMainWindow):
                 if dock.isWindow() and dock.isVisible():
                     dock.setFloating(False)
                     break
+        self.adjustSize()
 
     def extra_layout(self, layout):
         """
