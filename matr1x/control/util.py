@@ -326,7 +326,8 @@ class var(QObject):
 
         # set sensible default values and disable readout column
         if len(self.widgets) > 1:
-            if self.widgets[1].minimumWidth() < 60:
+            if (not isinstance(self.widgets[1], QCheckBox) and
+                self.widgets[1].minimumWidth() < 60):
                 self.widgets[1].setMinimumWidth(60)
             if isinstance(self.widgets[1], QLineEdit):
                 self.widgets[1].setReadOnly(True)
@@ -334,12 +335,14 @@ class var(QObject):
                 self.widgets[1].setEnabled(False)
         # apply a validator
         if len(self.widgets) > 2:
-            if self.widgets[2].minimumWidth() < 60:
+            if (not isinstance(self.widgets[2], QCheckBox) and
+                self.widgets[2].minimumWidth() < 60):
                 self.widgets[2].setMinimumWidth(60)
             if isinstance(self.widgets[2], QLineEdit):
                 val = validator.get(self.variableType, None)
                 if val:
                     self.widgets[2].setValidator(val)
+
         # add config checkbox
         if len(self.widgets) > 1 and not isinstance(self.widgets[1],
                                                     (QLabel, QPushButton)):
