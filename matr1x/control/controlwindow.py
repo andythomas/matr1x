@@ -351,9 +351,12 @@ class ControlWindow(QMainWindow):
         self.activityIndicator = []
         activity_layout = QHBoxLayout()
         activity_layout.setSpacing(0)
+        indicator_width = 17
+        if len(self.guidicts)*indicator_width > 200:
+            indicator_width = 200 / len(self.guidicts)
         for idx, guidict in enumerate(self.guidicts):
             ql = QLabel(" ")
-            ql.setFixedWidth(int(100/len(self.guidicts)))
+            ql.setFixedWidth(indicator_width)
             ql.setFixedHeight(30)
             ql.setStyleSheet("background-color: lightgray")
             ql.setToolTip(guidict.dock.windowTitle())
@@ -390,21 +393,24 @@ class ControlWindow(QMainWindow):
         self.status_grid = QHBoxLayout()
         leftcolumn = QVBoxLayout()
         self.status_grid.addLayout(leftcolumn)
-        firstline = QHBoxLayout()
-        leftcolumn.addLayout(firstline)
-        firstline.addLayout(activity_layout)
-        firstline.addStretch()
-        secondline = QHBoxLayout()
-        leftcolumn.addLayout(secondline)
-        secondline.addWidget(interval_label)
-        secondline.addWidget(self.interval)
-        secondline.addWidget(self.configlog)
-        secondline.addStretch()
-        thirdline = QHBoxLayout()
-        leftcolumn.addLayout(thirdline)
-        thirdline.addWidget(selectlog)
-        thirdline.addWidget(self.togglelog)
-        thirdline.addStretch()
+        line1 = QHBoxLayout()
+        leftcolumn.addLayout(line1)
+        line1.addLayout(activity_layout)
+        line1.addStretch()
+        line2 = QHBoxLayout()
+        leftcolumn.addLayout(line2)
+        line2.addWidget(interval_label)
+        line2.addWidget(self.interval)
+        line2.addStretch()
+        line3 = QHBoxLayout()
+        leftcolumn.addLayout(line3)
+        line3.addWidget(self.configlog)
+        line3.addStretch()
+        line4 = QHBoxLayout()
+        leftcolumn.addLayout(line4)
+        line4.addWidget(selectlog)
+        line4.addWidget(self.togglelog)
+        line4.addStretch()
         leftcolumn.addWidget(self.loglabel)
         leftcolumn.addStretch()
         lastline = QHBoxLayout()
@@ -599,7 +605,7 @@ class ControlWindow(QMainWindow):
         and terminate upon an uncaught Python exception.
         """
         # start guidicts and get minimum period
-        refresh_period = 0.1
+        refresh_period = 1
         for guidict in self.guidicts:
             dockw = guidict.dock
             if not dockw.isVisible():
