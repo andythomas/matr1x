@@ -776,25 +776,30 @@ class GuiDict(UserDict, ABC):
                     if callable(attr):
                         setfunc = attr
                     else:
-                        def setfunc(value, c=self, a=cmd.setfunc): return setattr(
-                            c, a, value)
+                        def setfunc(value, c=self, a=cmd.setfunc):
+                            setattr(c, a, value)
                 elif cmd.setfunc in self:  # if GuiDict.data entry
-                    setfunc = lambda value, c=self.data[cmd.setfunc]: setattr(
-                        c, "value", value)
+                    def setfunc(value, c=self.data[cmd.setfunc]):
+                        setattr(c, "value", value)
                 elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
                     attr = attrgetter(cmd.setfunc)(window_obj)
                     if callable(attr):
                         setfunc = attr
                     else:
-                        def setfunc(value, c=window_obj,
-                                    a=cmd.setfunc): return setattr(c, a, value)
+                        def setfunc(value, c=window_obj, a=cmd.setfunc):
+                            setattr(c, a, value)
             elif isinstance(cmd.setfunc, (tuple, list)):
                 # system device name and method
                 if sys is None:
                     raise ValueError(
                         "System must be specified as 'sys' keyword argument")
                 devname, funcname = cmd.setfunc
-                setfunc = attrgetter(funcname)(sys.devs[devname])
+                attr = attrgetter(funcname)(sys.devs[devname])
+                if callable(attr):
+                    setfunc = attr
+                else:
+                    def setfunc(value, c=sys.devs[devname], a=funcname):
+                        setattr(c, a, value)
             else:
                 raise ValueError(
                     f"could not identify '{cmd.setfunc}' of '{name}'")
@@ -814,24 +819,30 @@ class GuiDict(UserDict, ABC):
                         getfunc = self.__getattribute__
                         getargs = [cmd.getfunc, ]
                 elif cmd.getfunc in self:  # if GuiDict.data entry
-                    getfunc = lambda c=self.data[cmd.getfunc]: getattr(
-                        c, "value")
+                    def getfunc(c=self.data[cmd.getfunc]):
+                        return getattr(c, "value")
                 elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
                     attr = attrgetter(cmd.getfunc)(window_obj)
                     if callable(attr):
                         getfunc = attr
                     else:
-                        def getfunc(
-                            c=window_obj, a=cmd.getfunc): return getattr(c, a)
+                        def getfunc(c=window_obj, a=cmd.getfunc):
+                            return getattr(c, a)
                 elif cmd.dtype == str and getargs is None:
-                    def getfunc(v=cmd.getfunc): return cmd.dtype(v)
+                    def getfunc(v=cmd.getfunc):
+                        return cmd.dtype(v)
             elif isinstance(cmd.getfunc, (tuple, list)):
                 # system device name and method
                 if sys is None:
                     raise ValueError(
                         "System must be specified as 'sys' keyword argument")
                 devname, funcname = cmd.getfunc
-                getfunc = attrgetter(funcname)(sys.devs[devname])
+                attr = attrgetter(funcname)(sys.devs[devname])
+                if callable(attr):
+                    getfunc = attr
+                else:
+                    def getfunc(c=sys.devs[devname], a=funcname):
+                        return getattr(c, a)
             else:
                 raise ValueError(
                     f"could not identify '{cmd.getfunc}' of '{name}'")
