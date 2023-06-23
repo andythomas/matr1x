@@ -353,7 +353,7 @@ class ControlWindow(QMainWindow):
         activity_layout.setSpacing(0)
         indicator_width = 17
         if len(self.guidicts)*indicator_width > 200:
-            indicator_width = 200 / len(self.guidicts)
+            indicator_width = int(200 / len(self.guidicts))
         for idx, guidict in enumerate(self.guidicts):
             ql = QLabel(" ")
             ql.setFixedWidth(indicator_width)
