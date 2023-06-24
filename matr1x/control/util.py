@@ -401,8 +401,11 @@ class var(QObject):
                 self.valueChanged[str].connect(
                     self.widgets[1].setText)
             elif isinstance(self.widgets[1],
-                            (QSpinBox, QDoubleSpinBox, QProgressBar)):
+                            (QSpinBox, QProgressBar)):
                 self.valueChanged[int].connect(
+                    self.widgets[1].setValue)
+            elif isinstance(self.widgets[1], QDoubleSpinBox):
+                self.valueChanged[float].connect(
                     self.widgets[1].setValue)
             elif isinstance(self.widgets[1], QComboBox):
                 self.valueChanged[int].connect(
@@ -439,8 +442,10 @@ class var(QObject):
                     self.widgets[2].setCurrentText(self.value)
             elif isinstance(self.widgets[2], QCheckBox):
                 self.widgets[2].setChecked(bool(self.value))
-            elif isinstance(self.widgets[2], (QSpinBox, QDoubleSpinBox)):
+            elif isinstance(self.widgets[2], QSpinBox):
                 self.widgets[2].setValue(int(self.value))
+            elif isinstance(self.widgets[2], QDoubleSpinBox):
+                self.widgets[2].setValue(float(self.value))
 
     def __getitem__(self, idx):
         """
@@ -747,6 +752,8 @@ class GuiDict(UserDict, ABC):
         if not self.running and self.enable_switch.isChecked():
             # initialize the system
             self.S.set()
+            # convert command function names to executables
+            self.set_cmd_funcs(window_obj=self.parent, sys=self.S)
             self.restoreFeatures()
             self._refresh_thread.start()
             self.running = True
@@ -757,11 +764,11 @@ class GuiDict(UserDict, ABC):
         variables or device functions from the system.
         Also every entry is made to be an instance of Command.
         """
-        self.cmds = normalize_cmds(self.cmds)
+        normalize_cmds(self.cmds)
         # replace entries with executable functions
         for name, cmd in self.cmds.items():
-            setargs = None
-            getargs = None
+            setargs = []
+            getargs = []
             setfunc = None
             getfunc = None
             # obtain set function
@@ -828,7 +835,7 @@ class GuiDict(UserDict, ABC):
                     else:
                         def getfunc(c=window_obj, a=cmd.getfunc):
                             return getattr(c, a)
-                elif cmd.dtype == str and getargs is None:
+                elif cmd.dtype == str and not cmd.getargs:
                     def getfunc(v=cmd.getfunc):
                         return cmd.dtype(v)
             elif isinstance(cmd.getfunc, (tuple, list)):
@@ -847,9 +854,11 @@ class GuiDict(UserDict, ABC):
                 raise ValueError(
                     f"could not identify '{cmd.getfunc}' of '{name}'")
 
-            # set new Command in output list
-            self.cmds[name] = Command(cmd.dtype, setfunc, getfunc, setargs,
-                                      getargs, cmd.polling_cmd)
+            # set new Command properties in existing list
+            self.cmds[name].setfunc = setfunc
+            self.cmds[name].getfunc = getfunc
+            self.cmds[name].setargs = setargs
+            self.cmds[name].getargs = getargs
         return self.cmds
 
     def panic(self):

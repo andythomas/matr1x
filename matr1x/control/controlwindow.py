@@ -650,14 +650,12 @@ class ControlWindow(QMainWindow):
             extra_gui_dict.set_cmd_funcs(window_obj=self, sys=self.S)
             self.cmd_list = extra_gui_dict.cmds
             for guidict in self.guidicts:
-                # convert function names to executables
-                guidict.set_cmd_funcs(window_obj=self, sys=self.S)
                 for name, cmd in guidict.cmds.items():
                     if name in self.cmd_list:
                         raise ValueError(
                             f"command {name} from {guidict} is already present."
                             "A command name must be unique!")
-                    self.cmd_list[name] = cmd
+                self.cmd_list.update(guidict.cmds)
 
             self.t = threading.Thread(target=self.refreshDict, daemon=True)
             self.t.start()
