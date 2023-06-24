@@ -56,7 +56,7 @@ except ImportError:
 
 from .. import datetimefmt, logfolder, system, usersfolder
 from ..gui_util import validator
-from ..util import Command, normalize_cmds
+from ..util import normalize_cmds
 from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
 
 
