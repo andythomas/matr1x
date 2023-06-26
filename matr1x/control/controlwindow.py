@@ -246,6 +246,7 @@ class ControlWindow(QMainWindow):
             g.dock.dockLocationChanged.connect(self.check_dock_status)
             g.dock.visibilityChanged.connect(self.check_dock_status)
             g.dock.dockClosed.connect(self.check_dock_status)
+            g.dock.topLevelChanged.connect(self.needToAdjustSize)
 
     # GUI functions
     def initUI(self):
@@ -320,6 +321,9 @@ class ControlWindow(QMainWindow):
                 if dock.isWindow() and dock.isVisible():
                     dock.setFloating(False)
                     break
+
+    @pyqtSlot()
+    def needToAdjustSize(self):
         self.adjustSize()
 
     def extra_layout(self, layout):
