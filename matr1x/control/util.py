@@ -35,8 +35,8 @@ import numpy
 
 try:
     from PyQt6 import QtCore
-    from PyQt6.QtCore import (QObject, QSettings, Qt, QThread, QTimer,
-                              QVariant, pyqtSignal, pyqtSlot)
+    from PyQt6.QtCore import (QObject, QSettings, Qt, QThread, QTimer, QVariant,
+                              pyqtSignal, pyqtSlot)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QDockWidget, QDoubleSpinBox, QFileDialog,
                                  QGridLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -327,7 +327,8 @@ class var(QObject):
         # set sensible default values and disable readout column
         if len(self.widgets) > 1:
             if (not isinstance(self.widgets[1], QCheckBox)):
-                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(): qsize
+                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(
+                ): qsize
             if isinstance(self.widgets[1], QLineEdit):
                 self.widgets[1].setReadOnly(True)
             elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
@@ -335,7 +336,8 @@ class var(QObject):
         # apply a validator
         if len(self.widgets) > 2:
             if (not isinstance(self.widgets[2], QCheckBox)):
-                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(): qsize
+                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(
+                ): qsize
             if isinstance(self.widgets[2], QLineEdit):
                 val = validator.get(self.variableType, None)
                 if val:
