@@ -452,12 +452,10 @@ class ControlWindow(QMainWindow):
         """
         if checked:
             for g in self.guidicts:
-                if g.running:
-                    g.panic()
+                g.panic()
         else:
             for g in self.guidicts:
-                if g.running:
-                    g.unpanic()
+                g.unpanic()
 
     def output_written(self, text):
         """

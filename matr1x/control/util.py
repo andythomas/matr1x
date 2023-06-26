@@ -867,11 +867,13 @@ class GuiDict(UserDict, ABC):
         overloaded by derived functions if needed.
         """
         self._panic = True
+        self.enable_switch.setEnabled(False)
 
     def unpanic(self):
         """
         Make device operational again
         """
+        self.enable_switch.setEnabled(True)
         self._panic = False
 
     @abstractmethod
