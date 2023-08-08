@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2022 matr1x developers. All rights reserved.
 # ---
 import logging
 import math
@@ -164,7 +164,7 @@ class ITC503(IsobusDevice):
         if "read_termination" not in kwargs:
             kwargs["read_termination"] = "\r"
         if "timeout" not in kwargs:
-            kwargs["timeout"] = 2000
+            kwargs["timeout"] = 10000
         if "cmdpers" not in kwargs:
             kwargs["cmdpers"] = 10
         if "stop_bits" not in kwargs:
@@ -227,7 +227,25 @@ class ITC503(IsobusDevice):
     def setPID(self, pid):
         for cmd, val, digits in zip(('P', 'I', 'D'), pid, (3, 1, 1)):
             self.query("{}{}".format(cmd, str(round(val, digits))))
-
+            
+    def setAutoPID(self, aPID):
+        aPID = int(bool(aPID))
+        self.write(f'$L{aPID:d}')
+        
+    def getAutoPID(self):
+        for depth in range(11):
+            ret = self.query('X', depth)
+            try:
+                astat = int(ret[12])
+                break
+            except (IndexError, ValueError):
+                logger.debug(f"index 3 not convertible to int, {ret}")
+                astat = 0
+        if astat in (1, 3):
+            return True
+        else:
+            return False
+        
 
 class IPS120(IsobusDevice):
     """
@@ -619,6 +637,7 @@ class IPS120_switchheater(IsobusDevice):
                 2 - RTOZ (Ramp to zero)
                 3 - CLMP (Clamped, when current is 0) - disallowed
         """
+        statedict = {0: "Hold", 1: "Ramp to Setpoint", 2: "Ramp to Zero"}  
         try:
             state = int(state)
             if 2 < state:
@@ -629,6 +648,7 @@ class IPS120_switchheater(IsobusDevice):
         except ValueError:
             return
         self.query("A{:d}".format(state))
+        self.statusmsg = f"Status {statedict.get(state, 'unknown')}"
 
     def getMagnetStatus(self):
         """ Get status of the magnet
