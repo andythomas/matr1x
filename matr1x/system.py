@@ -708,14 +708,15 @@ class System:
                 except Exception:
                     pass
             elif hasattr(dev, "connection"):  # VisaDevice
-                # read all bytes available and ignore them
-                read_termination = dev.connection.read_termination
-                dev.connection.read_termination = None
-                # Try except allows to set the read_termination even after an error.
-                try:
-                    dev.connection.read_raw()
-                finally:
-                    dev.connection.read_termination = read_termination
+                # # read all bytes available and ignore them
+                # read_termination = dev.connection.read_termination
+                # dev.connection.read_termination = None
+                # # Try except allows to set the read_termination even after an error.
+                # try:
+                #     dev.connection.read_raw()
+                # finally:
+                #     dev.connection.read_termination = read_termination
+                dev.read_very_eager()
         self.opened = False
 
     def close(self):
