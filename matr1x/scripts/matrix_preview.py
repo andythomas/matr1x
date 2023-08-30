@@ -354,6 +354,15 @@ class SweepPreview(QMainWindow):
                     self.w_index[i].addItems([""] + self.column_items)
                 self.reset()
                 self.spw.reset()
+        else:
+            ci = self.spw.w_plots.currentIndex()
+            for i in range(self.spw.w_plots.count()-1):
+                if i == ci:
+                    # skip plot that will remain selected
+                    continue
+                self.spw.w_plots.setCurrentIndex(i)
+            # reset active plot
+            self.spw.w_plots.setCurrentIndex(ci)
 
     def index_changed(self, newIndex):
         """
