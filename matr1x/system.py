@@ -182,7 +182,16 @@ class Parameter():
                 self.chunks = 1
         else:
             # make sure chunks are all int or raise error
-            self.chunks = self.verify(chunks, int)
+            if isinstance(name, (list, tuple)):
+                # if multiple columns are present, check each set of chunks
+                # individually. Required as verify has depth limit of 1, so
+                # cannot work with nested lists as required for multi
+                # dimensional chunked columns
+                self.chunks = []
+                for chunk in chunks:
+                    self.chunks.append(self.verify(chunk, int))
+            else:
+                self.chunks = self.verify(chunks, int)
 
     def __lt__(self, other):
         """define comparison function for sorting"""
@@ -389,6 +398,8 @@ class System:
         # check if hdf5 format has to be used
         if isinstance(parm.chunks, (list, tuple)):
             if not isinstance(parm.name, (list, tuple)):
+                self.hdf5 = True
+            elif any([isinstance(p, (tuple,)) for p in parm.chunks]):
                 self.hdf5 = True
             elif any([p > 1 for p in parm.chunks]):
                 self.hdf5 = True
