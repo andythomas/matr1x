@@ -11,27 +11,27 @@ import threading
 import time
 import warnings
 
-from matr1x import logfolder, scpi_tcpserver, system
+from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import Get, generate_datafilename, write_matrix_header
 
 try:
-    from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
-    from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
+    from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
+    from PyQt6.QtGui import (QColor, QIcon, QKeySequence, QPalette, QShortcut,
+                             QTextCursor)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QGridLayout, QHBoxLayout,
-                                 QLabel, QMainWindow, QMessageBox,
-                                 QPlainTextEdit, QPushButton, QScrollArea,
-                                 QSizePolicy, QSpinBox, QToolButton,
-                                 QVBoxLayout, QWidget)
+                                 QFileDialog, QFrame, QHBoxLayout, QLabel,
+                                 QMainWindow, QMessageBox, QPlainTextEdit,
+                                 QPushButton, QScrollArea, QSizePolicy,
+                                 QSpinBox, QToolButton, QVBoxLayout, QWidget)
 except ImportError:
-    from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
-    from PyQt5.QtGui import QColor, QIcon, QPalette, QTextCursor
+    from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
+    from PyQt5.QtGui import QColor, QIcon, QKeySequence, QPalette, QTextCursor
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QGridLayout, QHBoxLayout,
-                                 QLabel, QMainWindow, QMessageBox,
-                                 QPlainTextEdit, QPushButton, QScrollArea,
+                                 QFileDialog, QFrame, QHBoxLayout, QLabel,
+                                 QMainWindow, QMessageBox, QPlainTextEdit,
+                                 QPushButton, QScrollArea, QShortcut,
                                  QSizePolicy, QSpinBox, QToolButton,
                                  QVBoxLayout, QWidget)
 
@@ -48,7 +48,7 @@ class CollapsibleBox(QWidget):
         self.toggle_button = QToolButton(self)
         self.header_line = QFrame(self)
         self.content_widget = QScrollArea(self)
-        self.main_layout = QGridLayout(self)
+        self.main_layout = QVBoxLayout()
 
         self.toggle_button.setStyleSheet("QToolButton {border: none;}")
         self.toggle_button.setToolButtonStyle(
@@ -60,24 +60,25 @@ class CollapsibleBox(QWidget):
 
         self.header_line.setFrameShape(QFrame.Shape.HLine)
         self.header_line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.header_line.setSizePolicy(QSizePolicy.Policy.Expanding,
+        self.header_line.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
                                        QSizePolicy.Policy.Maximum)
 
-        self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+        self.content_widget.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
                                           QSizePolicy.Policy.Fixed)
 
         # start out collapsed
         self.content_widget.setMaximumHeight(0)
         self.content_widget.setMinimumHeight(0)
 
-        self.main_layout.setVerticalSpacing(0)
+        self.main_layout.setSpacing(0)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
 
-        row = 0
-        self.main_layout.addWidget(self.toggle_button, row, 0, 1, 1,
-                                   Qt.AlignmentFlag.AlignLeft)
-        self.main_layout.addWidget(self.header_line, row, 2, 1, 1)
-        self.main_layout.addWidget(self.content_widget, row+1, 0, 1, 3)
+        hline = QHBoxLayout()
+        hline.addWidget(self.toggle_button, 0,
+                        alignment=Qt.AlignmentFlag.AlignLeft)
+        hline.addWidget(self.header_line)
+        self.main_layout.addLayout(hline)
+        self.main_layout.addWidget(self.content_widget)
         self.setLayout(self.main_layout)
 
         self.toggle_button.toggled.connect(self.toggle)
@@ -89,7 +90,11 @@ class CollapsibleBox(QWidget):
             self.content_widget.setVisible(True)
             self.setMinimumHeight(self.collapsed_height)
             self.setMaximumHeight(self.combined_height+1000)
+            self.content_widget.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
+                                              QSizePolicy.Policy.MinimumExpanding)
         else:
+            self.content_widget.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
+                                              QSizePolicy.Policy.Fixed)
             self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
             self.content_widget.setMaximumHeight(0)
             self.setMinimumHeight(self.collapsed_height)
@@ -133,6 +138,7 @@ class ControlWindow(QMainWindow):
 
         super().__init__(parent=parent)
         self.setWindowTitle(name)
+        self.settings = QSettings("matr1x", name)
         # initialize paramaters
         self.running = False
         self.logging = False
@@ -192,15 +198,36 @@ class ControlWindow(QMainWindow):
                 self.guidicts[i] = _FakeGuiDict()
         for guidict in self.guidicts:
             guidict.refresh_worker.sig_error.connect(self.handleError)
+        # set parent reference on guidicts
+        for g in self.guidicts:
+            g.parent = self
         # initialize GUI
         self.initUI()
+        # restore settings of GuiDicts
+        for g in self.guidicts:
+            g.dock.restoreState()
+            g.enable_switch.setChecked(not g.dock.disabled)
+            g.restoreFeatures()
+        # restore geometry settings of main window
+        if self.settings.value("size") is not None:
+            self.resize(self.settings.value("size"))
+        if self.settings.value("pos") is not None:
+            self.move(self.settings.value("pos"))
+        if self.settings.value("windowState") is not None:
+            self.restoreState(self.settings.value("windowState"))
+        # restore status visibility
+        self.status_box.toggle_button.setChecked(
+            self.settings.value("status_visible", False, type=bool))
+
+        # enable saving of geometry by Ctrl+S
+        self.saveStateSc = QShortcut(QKeySequence('Ctrl+S'), self)
+        self.saveStateSc.activated.connect(self.saveCurrentState)
+        for g in self.guidicts:
+            self.saveStateSc.activated.connect(g.dock.saveCurrentState)
         # set outputStream as stdout (i.e. all output is written to status)
         self.output_stream = EmittingStream(text_written=self.output_written)
         sys.stdout = self.output_stream
 
-        # set parent reference on guidicts
-        for g in self.guidicts:
-            g.parent = self
         # merge the guidicts Systems
         if not hasattr(self, "S"):
             self.S = system.MergedSystem([g.S for g in self.guidicts])
@@ -213,6 +240,13 @@ class ControlWindow(QMainWindow):
             self.cmd_list.update(extra_cmds)
         # show the GUI
         self.show()
+
+        # connect signals so that at least one dock remains visible! (needs to be done after show!)
+        for g in self.guidicts:
+            g.dock.dockLocationChanged.connect(self.check_dock_status)
+            g.dock.visibilityChanged.connect(self.check_dock_status)
+            g.dock.dockClosed.connect(self.check_dock_status)
+            g.dock.topLevelChanged.connect(self.needToAdjustSize)
 
     # GUI functions
     def initUI(self):
@@ -230,8 +264,8 @@ class ControlWindow(QMainWindow):
             __file__), '..', 'scripts', 'icons')
         self.setWindowIcon(QIcon(os.path.join(icondir, 'matr1x-control.png')))
         self.widget = QWidget()
-        self.widget.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                  QSizePolicy.Policy.Fixed)
+        self.widget.setSizePolicy(QSizePolicy.Policy.Preferred,
+                                  QSizePolicy.Policy.Minimum)
         self.main_layout = QVBoxLayout()
 
         qApp = QApplication.instance()
@@ -239,6 +273,7 @@ class ControlWindow(QMainWindow):
         qApp.setStyleSheet(
             f"[readOnly=\"true\"] {{background-color: {mainWindowBgColor.name(QColor.NameFormat.HexRgb)} }}")
         self.widget.setLayout(self.main_layout)
+        self.main_layout.addStretch()
         self.setCentralWidget(self.widget)
         return self.main_layout
 
@@ -250,15 +285,9 @@ class ControlWindow(QMainWindow):
         layout : Qt-layout of main window.
         """
         # construct the layout from the GUI dicts
-        self._dockwidgets = []
         for guidict in self.guidicts:
             content = guidict.create_GUI()
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
-            # connect signals so that at least one dock remains visible!
-            content.dockLocationChanged.connect(self.check_dock_status)
-            content.visibilityChanged.connect(self.check_dock_status)
-            content.dockClosed.connect(self.check_dock_status)
-            self._dockwidgets.append(content)
 
     @pyqtSlot()
     def check_dock_status(self):
@@ -267,28 +296,38 @@ class ControlWindow(QMainWindow):
         remains docked and eventually disable the undocking feature!
         """
         # count docked widgets
-        count_docked = sum(int(not dock.isFloating())
-                           for dock in self._dockwidgets)
+        count_docked = sum(int(not g.dock.isFloating())
+                           for g in self.guidicts)
         # count visible widgets
-        count_vis = sum(int(dock.isVisible()) for dock in self._dockwidgets)
+        count_vis = sum(int(g.dock.isVisible()) for g in self.guidicts)
         if count_docked <= 1 or count_vis <= 1:
-            # forbid last visible/docked widget to be undocked
-            for dock in self._dockwidgets:
+            # forbid last visible/docked widget to be undocked/moved
+            for guidict in self.guidicts:
+                dock = guidict.dock
                 if not dock.isFloating():
                     dock.setFeatures(
                         dock.features() &
-                        ~QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        ~QDockWidget.DockWidgetFeature.DockWidgetFloatable &
+                        ~QDockWidget.DockWidgetFeature.DockWidgetMovable)
         else:
-            for dock in self._dockwidgets:
+            for guidict in self.guidicts:
+                dock = guidict.dock
                 dock.setFeatures(
                     dock.features() |
-                    QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                    QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                    QDockWidget.DockWidgetFeature.DockWidgetMovable)
         if count_vis <= 1:
             # redock last visible widget
-            for dock in self._dockwidgets:
+            for guidict in self.guidicts:
+                dock = guidict.dock
                 if dock.isWindow() and dock.isVisible():
+                    print(f"enforce docking of {dock.objectName()}")
                     dock.setFloating(False)
                     break
+
+    @pyqtSlot()
+    def needToAdjustSize(self):
+        self.adjustSize()
 
     def extra_layout(self, layout):
         """
@@ -303,40 +342,47 @@ class ControlWindow(QMainWindow):
         self.panicButton.setCheckable(True)
         elayout.addWidget(self.panicButton)
         self.panicButton.clicked.connect(self.panic)
-        layout.insertLayout(0, elayout)
+        layout.addLayout(elayout)
 
     def statusloggingUI(self, layout):
         """Setup status and logging user interface."""
 
-        collapsible_box = CollapsibleBox("Logging and Status", parent=self)
-        collapsible_box.redraw_activity.connect(self.readjustSize)
-        self.status_grid = QGridLayout()
-        layout.addWidget(collapsible_box)
+        self.status_box = CollapsibleBox("Logging and Status", parent=self)
+        self.status_box.redraw_activity.connect(self.readjustSize)
+        layout.addWidget(self.status_box, stretch=1)
 
-        # initialize status_grid with common widgets
+        # initialize common widgets
         self.status = QPlainTextEdit(self)
         self.status.setReadOnly(True)
         self.keep_enabled.append(self.status)
         self.activityIndicator = []
         activity_layout = QHBoxLayout()
         activity_layout.setSpacing(0)
+        indicator_width = 17
+        if len(self.guidicts)*indicator_width > 200:
+            indicator_width = int(200 / len(self.guidicts))
         for idx, guidict in enumerate(self.guidicts):
             ql = QLabel(" ")
-            ql.setFixedWidth(int(40/len(self.guidicts)))
+            ql.setFixedWidth(indicator_width)
             ql.setFixedHeight(30)
             ql.setStyleSheet("background-color: lightgray")
+            ql.setToolTip(guidict.dock.windowTitle())
             self.activityIndicator.append(ql)
             guidict.refresh_worker.activity.connect(
                 lambda c, idx=idx: self.change_single_color(c, idx))
+            guidict.refresh_worker.panic.connect(self.panic)
             activity_layout.addWidget(ql)
 
         self.activity.connect(self.change_color)
         self.deactivate.connect(self.deactivate_gui)
-        self.togglelog = QPushButton("start data log")
+        self.togglelog = QPushButton("start log")
         self.togglelog.setCheckable(True)
-        selectlog = QPushButton("select data log file")
-        self.configlog = QPushButton("show logging config")
+        self.togglelog.setMaximumWidth(70)
+        selectlog = QPushButton("select log file")
+        selectlog.setMaximumWidth(140)
+        self.configlog = QPushButton("show log config")
         self.configlog.setCheckable(True)
+
         self.loglabel = QLabel(os.path.basename(self.logfile))
         self.loglabel.setMaximumWidth(250)
         self.loglabel.setWordWrap(True)
@@ -345,23 +391,46 @@ class ControlWindow(QMainWindow):
         self.interval.setRange(1, 24*3600+1)
         self.interval.setValue(60)
         self.interval.setMaximumWidth(70)
+        clearlog = QPushButton("Clear Output")
         self.togglelog.clicked.connect(self.toggleLog)
         selectlog.clicked.connect(self.selectLog)
         self.configlog.clicked.connect(self.configLog)
+        clearlog.clicked.connect(self.status.clear)
 
         # add status and logging widgets
-        self.status_grid.addLayout(activity_layout, 0, 0, 1, 1)
-        self.status_grid.addWidget(interval_label, 0, 1, 1, 1)
-        self.status_grid.addWidget(self.interval, 0, 2, 1, 1)
-        self.status_grid.addWidget(self.configlog, 1, 0, 1, 3)
-        self.status_grid.addWidget(self.togglelog, 2, 0, 1, 3)
-        self.status_grid.addWidget(selectlog, 3, 0, 1, 3)
-        self.status_grid.addWidget(self.loglabel, 4, 0, 2, 3)
-        self.status_grid.addWidget(self.status, 0, 3, 7, 1)
-        self.status_grid.setColumnStretch(3, 1)
-        self.status_grid.setRowStretch(6, 1)
+        self.status_grid = QHBoxLayout()
+        leftcolumn = QVBoxLayout()
+        self.status_grid.addLayout(leftcolumn)
+        line1 = QHBoxLayout()
+        leftcolumn.addLayout(line1)
+        line1.addLayout(activity_layout)
+        line1.addStretch()
+        line2 = QHBoxLayout()
+        leftcolumn.addLayout(line2)
+        line2.addWidget(interval_label)
+        line2.addWidget(self.interval)
+        line2.addStretch()
+        line3 = QHBoxLayout()
+        leftcolumn.addLayout(line3)
+        line3.addWidget(self.configlog)
+        line3.addStretch()
+        line4 = QHBoxLayout()
+        leftcolumn.addLayout(line4)
+        line4.addWidget(selectlog)
+        line4.addWidget(self.togglelog)
+        line4.addStretch()
+        leftcolumn.addWidget(self.loglabel)
+        leftcolumn.addStretch()
+        lastline = QHBoxLayout()
+        leftcolumn.addLayout(lastline)
+        lastline.addStretch()
+        lastline.addWidget(clearlog)
 
-        collapsible_box.setContentLayout(self.status_grid)
+        rightcolumn = QVBoxLayout()
+        rightcolumn.addWidget(self.status)
+        self.status_grid.addLayout(rightcolumn, stretch=1)
+        self.status_box.setContentLayout(self.status_grid)
+        self.status_box.toggle(False)
 
     @staticmethod
     def copyValues(copyDict):
@@ -384,12 +453,17 @@ class ControlWindow(QMainWindow):
             variable.copy_value()
 
     @catchEmitError
-    def panic(self, checked):
+    @pyqtSlot(bool)
+    @pyqtSlot(bool, str)
+    def panic(self, checked, reason="Panic button"):
         """
         Panic button was pressed. Signal panic mode to guidicts if the button is
         checked.
         """
         if checked:
+            print(f"{time.strftime(datetimefmt)}: "
+                  f"Panic mode activated due to '{reason}'")
+            self.panicButton.setChecked(True)
             for g in self.guidicts:
                 g.panic()
         else:
@@ -413,14 +487,18 @@ class ControlWindow(QMainWindow):
         """
         resize window when the status and logging tab is minimized
         """
+        self.widget.adjustSize()
         if not expanding:
             # if we are shrinking the window and disabling the control, hide
             # the logging-config buttons
             self.configLog(False)
             self.configlog.setChecked(False)
-
-        self.widget.adjustSize()
-        self.adjustSize()
+            # make window smaller in vertial direction
+            minw, maxw = self.minimumWidth(), self.maximumWidth()
+            self.setFixedWidth(self.width())
+            self.adjustSize()
+            self.setMinimumWidth(minw)
+            self.setMaximumWidth(maxw)
 
     # device communication and related functions
     @catchEmitError
@@ -489,7 +567,7 @@ class ControlWindow(QMainWindow):
                                          daemon=True)
             self.tlog.start()
             self.logging = True
-            print("data logging started")
+            print(f"{time.strftime(datetimefmt)}: data logging started")
 
         elif self.logging is True:
             self.S_log.reset()
@@ -498,7 +576,7 @@ class ControlWindow(QMainWindow):
             # reset GUI
             self.configlog.setEnabled(True)
             self.togglelog.setText("start data log")
-            print("data logging stopped")
+            print(f"{time.strftime(datetimefmt)}: data logging stopped")
 
     def selectLog(self, *args):
         # allow selecting a logfile
@@ -542,7 +620,12 @@ class ControlWindow(QMainWindow):
         # start guidicts and get minimum period
         refresh_period = 1
         for guidict in self.guidicts:
-            guidict.start()
+            dockw = guidict.dock
+            if not dockw.isVisible():
+                guidict.enable_switch.setChecked(False)
+                guidict.restoreFeatures()
+            else:
+                guidict.start()
             refresh_period = min(refresh_period, guidict.refresh_period)
         while True:
             time.sleep(refresh_period)
@@ -562,7 +645,7 @@ class ControlWindow(QMainWindow):
         check also that the devices are initialized
         """
         # initialize devices
-        print("initializing devices")
+        print(f"{time.strftime(datetimefmt)}: initializing devices")
         self.connectDev()
 
         # initialize thread to refresh dicts
@@ -580,14 +663,12 @@ class ControlWindow(QMainWindow):
             extra_gui_dict.set_cmd_funcs(window_obj=self, sys=self.S)
             self.cmd_list = extra_gui_dict.cmds
             for guidict in self.guidicts:
-                # convert function names to executables
-                guidict.set_cmd_funcs(window_obj=self, sys=self.S)
                 for name, cmd in guidict.cmds.items():
                     if name in self.cmd_list:
                         raise ValueError(
                             f"command {name} from {guidict} is already present."
                             "A command name must be unique!")
-                    self.cmd_list[name] = cmd
+                self.cmd_list.update(guidict.cmds)
 
             self.t = threading.Thread(target=self.refreshDict, daemon=True)
             self.t.start()
@@ -661,6 +742,20 @@ class ControlWindow(QMainWindow):
                     w.setEnabled(False)
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
+
+    @pyqtSlot()
+    def saveCurrentState(self):
+        """
+        Save current window and dock geometry which will be reloaded upon
+        restart of the Control GUI.
+        If this should be done on every close this method should be called
+        from the closeEvent.
+        """
+        self.settings.setValue("size", self.size())
+        self.settings.setValue("pos", self.pos())
+        self.settings.setValue("windowState", self.saveState())
+        self.settings.setValue(
+            "status_visible", self.status_box.toggle_button.isChecked())
 
     @pyqtSlot(type, Exception, str)
     def handleError(self, exc_type, exc_value, pointer):

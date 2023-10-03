@@ -46,10 +46,10 @@ class exampleDict(GuiDict):
     # preference for the parameter is set by the boolean "log" parameter.
     cmds = {
         ":v1": Command(int, "setV1", "V1"),
-        ":v2": Command(float, "V2", "V2"),
-        ":v3": Command(float, "V3", "V3"),
+        ":v2": Command(float, ("dummy", "p2"), "V2"),
+        ":v3": Command(float, ("dummy", "p5"), "V3"),
         ":v2v3": Command((float, float), "setV2V3", "getV2V3"),
-        ":v4": Command(int, "V4", "V4"),
+        ":v4": Command(bool, ("dummy", "p6"), "V4"),
     }
     data = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
@@ -91,7 +91,8 @@ class exampleDict(GuiDict):
         self["toggle"].value = self.S.devs["dummy"].p7
 
         if self["V4"].value is False:
-            raise ValueError("Test error raised inside refresh")
+            # emit panic signel
+            self.refresh_worker.panic.emit(True, "value V4 is False")
 
     def write(self):
         """
@@ -143,7 +144,7 @@ class exampleDict(GuiDict):
 
 class exampleDict2(GuiDict):
     cmds = {
-        ":v5": Command(float, "V5", "V5"),
+        ":v5": Command(float, "v5", "V5"),
     }
     data = {
         "Example2": var(None, columns="Readout"),

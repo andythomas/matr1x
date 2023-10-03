@@ -1030,12 +1030,10 @@ class Set(Command):
 def normalize_cmds(cmds):
     """
     make all commands instances of Command
+
+    changes are performed inplace
     """
     # harmonize the cmds dictionary -> convert all to Command
-    outcmds = {}
     for cmd, val in cmds.items():
         if not isinstance(val, Command):
-            outcmds[cmd] = Command.from_deprecated_list(val)
-        else:
-            outcmds[cmd] = val
-    return outcmds
+            cmds[cmd] = Command.from_deprecated_list(val)

@@ -31,7 +31,8 @@ def makeSCPIdevice(*cmds, sys=True):
     cmd_list = {}
     # merge commands in arguments
     for entry in cmds:
-        cmd_list.update(normalize_cmds(entry))
+        normalize_cmds(entry)
+        cmd_list.update(entry)
 
     def make_identifier(s):
         """create valid Python identifier by omitting invalid characters"""

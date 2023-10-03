@@ -35,7 +35,7 @@ import numpy
 
 try:
     from PyQt6 import QtCore
-    from PyQt6.QtCore import (QObject, Qt, QThread, QTimer, QVariant,
+    from PyQt6.QtCore import (QObject, QSettings, Qt, QThread, QTimer, QVariant,
                               pyqtSignal, pyqtSlot)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QDockWidget, QDoubleSpinBox, QFileDialog,
@@ -45,7 +45,8 @@ try:
                                  QVBoxLayout, QWidget)
 except ImportError:
     from PyQt5 import QtCore
-    from PyQt5.QtCore import QObject, Qt, QThread, QTimer, QVariant, pyqtSignal, pyqtSlot
+    from PyQt5.QtCore import (QObject, QSettings, Qt, QThread, QTimer,
+                              QVariant, pyqtSignal, pyqtSlot)
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                                  QDockWidget, QDoubleSpinBox, QFileDialog,
                                  QGridLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -55,7 +56,7 @@ except ImportError:
 
 from .. import datetimefmt, logfolder, system, usersfolder
 from ..gui_util import validator
-from ..util import Command, normalize_cmds
+from ..util import normalize_cmds
 from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
 
 
@@ -88,8 +89,14 @@ def catchEmitError(method):
                     guidict = self.guidict
                 else:
                     guidict = self
+                outstr = f"Error occured inside '{guidict.__class__.__name__}'"
+                logger.info(outstr)
+                print(outstr)
                 if guidict.allow_disabling:
                     guidict.enable_switch.setChecked(False)
+                    outstr = f"Ignoring last Exception since device can be deactivated."
+                    logger.info(outstr)
+                    print(outstr)
                     return
             if hasattr(self, "sig_error"):
                 self.sig_error.emit(exc_type, exc_value, pointer)
@@ -165,33 +172,32 @@ class guiObject(IntEnum):
             qlab.setSizePolicy(QSizePolicy.Policy.Preferred,
                                QSizePolicy.Policy.Fixed)
             return qlab
-        elif cls.button == wType:
+        if cls.button == wType:
             return QPushButton(init if init else label)
-        elif cls.lineedit == wType:
+        if cls.lineedit == wType:
             return QLineEdit(init if init else None)
-        elif cls.checkbox == wType:
+        if cls.checkbox == wType:
             return QCheckBox()
-        elif cls.progressbar == wType:
+        if cls.progressbar == wType:
             return matr1xProgressBar()
-        elif cls.combobox == wType:
+        if cls.combobox == wType:
             dummy = QComboBox()
             if init is not None:
                 dummy.insertItems(0, init)
             return dummy
-        elif cls.togglebutton == wType:
+        if cls.togglebutton == wType:
             return ToggleButton(init if init else label)
-        elif cls.spinbox == wType:
+        if cls.spinbox == wType:
             sb = QSpinBox()
             if init is not None:
                 sb.setRange(*init)
             return sb
-        elif cls.doublespinbox == wType:
+        if cls.doublespinbox == wType:
             sb = QDoubleSpinBox()
             if init is not None:
                 sb.setRange(*init)
             return sb
-        else:
-            return None
+        return None
 
 
 class var(QObject):
@@ -320,18 +326,23 @@ class var(QObject):
 
         # set sensible default values and disable readout column
         if len(self.widgets) > 1:
-            if self.widgets[1].minimumWidth() < 80:
-                self.widgets[1].setMinimumWidth(80)
+            if (not isinstance(self.widgets[1], QCheckBox)):
+                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(
+                ): qsize
             if isinstance(self.widgets[1], QLineEdit):
                 self.widgets[1].setReadOnly(True)
             elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
                 self.widgets[1].setEnabled(False)
         # apply a validator
         if len(self.widgets) > 2:
+            if (not isinstance(self.widgets[2], QCheckBox)):
+                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(
+                ): qsize
             if isinstance(self.widgets[2], QLineEdit):
                 val = validator.get(self.variableType, None)
                 if val:
                     self.widgets[2].setValidator(val)
+
         # add config checkbox
         if len(self.widgets) > 1 and not isinstance(self.widgets[1],
                                                     (QLabel, QPushButton)):
@@ -390,8 +401,11 @@ class var(QObject):
                 self.valueChanged[str].connect(
                     self.widgets[1].setText)
             elif isinstance(self.widgets[1],
-                            (QSpinBox, QDoubleSpinBox, QProgressBar)):
+                            (QSpinBox, QProgressBar)):
                 self.valueChanged[int].connect(
+                    self.widgets[1].setValue)
+            elif isinstance(self.widgets[1], QDoubleSpinBox):
+                self.valueChanged[float].connect(
                     self.widgets[1].setValue)
             elif isinstance(self.widgets[1], QComboBox):
                 self.valueChanged[int].connect(
@@ -428,8 +442,10 @@ class var(QObject):
                     self.widgets[2].setCurrentText(self.value)
             elif isinstance(self.widgets[2], QCheckBox):
                 self.widgets[2].setChecked(bool(self.value))
-            elif isinstance(self.widgets[2], (QSpinBox, QDoubleSpinBox)):
+            elif isinstance(self.widgets[2], QSpinBox):
                 self.widgets[2].setValue(int(self.value))
+            elif isinstance(self.widgets[2], QDoubleSpinBox):
+                self.widgets[2].setValue(float(self.value))
 
     def __getitem__(self, idx):
         """
@@ -519,6 +535,7 @@ class GuiDict(UserDict, ABC):
         """
         # activity signal to indicate an iteration of the refresh timer
         activity = pyqtSignal(str)
+        panic = pyqtSignal(bool, str)
         sig_error = pyqtSignal(type, Exception, str)
 
         def __init__(self, target, interval, parent=None):
@@ -530,6 +547,7 @@ class GuiDict(UserDict, ABC):
 
         @pyqtSlot()
         @pyqtSlot(bool)
+        @catchEmitError
         def run(self, copy=True):
             self._timer = QTimer()
             self._timer.setInterval(self.interval)
@@ -589,26 +607,57 @@ class GuiDict(UserDict, ABC):
             """
             dockClosed = pyqtSignal()
 
+            def __init__(self, title, appname):
+                super().__init__(title)
+                self.application_name = appname
+                self.setObjectName(f"{appname}-{title}")
+                self.settings = QSettings("matr1x", appname)
+                self.disabled = False
+
+            @pyqtSlot()
+            def saveCurrentState(self):
+                """
+                Save current dock geometry and enable state.
+                """
+                self.settings.beginGroup(self.windowTitle())
+                self.settings.setValue("size", self.size())
+                self.settings.setValue("pos", self.pos())
+                self.settings.setValue("disabled", self.disabled)
+                self.settings.endGroup()
+
+            def restoreState(self):
+                """
+                Load stored dock geometry and disable state.
+                """
+                self.settings.beginGroup(self.windowTitle())
+                if self.settings.value("size") is not None:
+                    self.resize(self.settings.value("size"))
+                if self.settings.value("pos") is not None:
+                    self.move(self.settings.value("pos"))
+                self.disabled = self.settings.value(
+                    "disabled", False, type=bool)
+                self.settings.endGroup()
+
             def closeEvent(self, event):
                 super().closeEvent(event)
                 self.dockClosed.emit()
 
-        self.dock = MyQDockWidget(list(self.keys())[0])
+        self.dock = MyQDockWidget(
+            list(self.keys())[0], self.parent.windowTitle())
         self.dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
+        self.dock.setAllowedAreas(Qt.DockWidgetArea.TopDockWidgetArea)
         dockcontainer = QWidget()
         column = QVBoxLayout(dockcontainer)
         self.dock.setWidget(dockcontainer)
         self.container = QWidget()
-        grid = QGridLayout(self.container)
 
         # add enable widget to the content widget
         enable_layout = QHBoxLayout()
         enable_layout.addWidget(QLabel("Enable"))
         self.enable_switch = AnimatedToggle()
-        self.enable_switch.setChecked(True)
         self.enable_switch.setFixedSize(self.enable_switch.sizeHint())
         if self.allow_disabling:
             enable_layout.addWidget(self.enable_switch)
@@ -617,6 +666,19 @@ class GuiDict(UserDict, ABC):
         column.addWidget(self.container)
         column.addStretch()
 
+        # create content
+        self.create_content()
+
+        return self.dock
+
+    def create_content(self):
+        """create the real content of the GuiDict
+
+        This function takes the variables from the GuiDict and generates the
+        respective GUI widgets. If a user overwrites this function it will need
+        to attach its output to self.container!
+        """
+        grid = QGridLayout(self.container)
         # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
             variable.generate_widgets(key)
@@ -627,7 +689,6 @@ class GuiDict(UserDict, ABC):
                 if col == 0 and row == 0:
                     continue
                 grid.addWidget(widget, row, col, 1, 1)
-        return self.dock
 
     def copy_values(self):
         """
@@ -647,6 +708,26 @@ class GuiDict(UserDict, ABC):
             self.stop()
         else:
             self.start()
+        self.dock.disabled = not self.enable_switch.isChecked()
+
+    def restoreFeatures(self):
+        """
+        restore features based on enable switch setting.
+        """
+        if self.enable_switch.isChecked():
+            self.container.setEnabled(True)
+            if self.allow_disabling:
+                self.dock.setFeatures(
+                    self.dock.features() &
+                    ~QDockWidget.DockWidgetFeature.DockWidgetClosable
+                )
+        else:
+            self.container.setEnabled(False)
+            if self.allow_disabling:
+                self.dock.setFeatures(
+                    self.dock.features() |
+                    QDockWidget.DockWidgetFeature.DockWidgetClosable
+                )
 
     def stop(self, wait=True):
         """Disable GUI fields and the update loop
@@ -660,12 +741,7 @@ class GuiDict(UserDict, ABC):
             self._refresh_thread.quit()
             if wait:
                 self._refresh_thread.wait(2*self.refresh_period_ms)
-            self.container.setEnabled(False)
-            if self.allow_disabling:
-                self.dock.setFeatures(
-                    self.dock.features() |
-                    QDockWidget.DockWidgetFeature.DockWidgetClosable
-                )
+            self.restoreFeatures()
             self.S.reset()
             self.S.close()
             # set all values to None to avoid showing/logging something not updated
@@ -675,15 +751,12 @@ class GuiDict(UserDict, ABC):
 
     def start(self):
         """Start the refresh loop in a dedicated thread."""
-        if not self.running:
+        if not self.running and self.enable_switch.isChecked():
             # initialize the system
             self.S.set()
-            self.container.setEnabled(True)
-            if self.allow_disabling:
-                self.dock.setFeatures(
-                    self.dock.features() &
-                    ~QDockWidget.DockWidgetFeature.DockWidgetClosable
-                )
+            # convert command function names to executables
+            self.set_cmd_funcs(window_obj=self.parent, sys=self.S)
+            self.restoreFeatures()
             self._refresh_thread.start()
             self.running = True
 
@@ -693,85 +766,119 @@ class GuiDict(UserDict, ABC):
         variables or device functions from the system.
         Also every entry is made to be an instance of Command.
         """
-        self.cmds = normalize_cmds(self.cmds)
+        normalize_cmds(self.cmds)
         # replace entries with executable functions
         for name, cmd in self.cmds.items():
-            setargs = None
-            getargs = None
-            # obtain set function
-            if callable(cmd.setfunc):
-                setfunc = cmd.setfunc
-                setargs = cmd.setargs
-            elif cmd.setfunc is None:
-                setfunc = None
-            elif isinstance(cmd.setfunc, str):
-                if hasattr(self, cmd.setfunc):  # if GuiDict method or property
-                    attr = attrgetter(cmd.setfunc)(self)
-                    if callable(attr):
-                        setfunc = attr
-                    else:
-                        def setfunc(value, c=self, a=cmd.setfunc): return setattr(
-                            c, a, value)
-                elif cmd.setfunc in self:  # if GuiDict.data entry
-                    setfunc = lambda value, c=self.data[cmd.setfunc]: setattr(
-                        c, "value", value)
-                elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
-                    attr = attrgetter(cmd.setfunc)(window_obj)
-                    if callable(attr):
-                        setfunc = attr
-                    else:
-                        def setfunc(value, c=window_obj,
-                                    a=cmd.setfunc): return setattr(c, a, value)
-            elif isinstance(cmd.setfunc, (tuple, list)):
-                # system device name and method
-                if sys is None:
-                    raise ValueError(
-                        "System must be specified as 'sys' keyword argument")
-                devname, funcname = cmd.setfunc
-                setfunc = attrgetter(funcname)(sys.devs[devname])
-            else:
-                raise ValueError(f"could not identify '{setfunc}' of '{name}'")
+            setfunc, setargs = self._create_setfunc(name, cmd, window_obj, sys)
+            getfunc, getargs = self._create_getfunc(name, cmd, window_obj, sys)
 
-            # obtain get function
-            if callable(cmd.getfunc):
-                getfunc = cmd.getfunc
-                getargs = cmd.getargs
-            elif cmd.getfunc is None:
-                getfunc = None
-            elif isinstance(cmd.getfunc, str):
-                if hasattr(self, cmd.getfunc):  # if GuiDict method or property
-                    attr = attrgetter(cmd.getfunc)(self)
-                    if callable(attr):
-                        getfunc = attr
-                    else:
-                        getfunc = self.__getattribute__
-                        getargs = [cmd.getfunc, ]
-                elif cmd.getfunc in self:  # if GuiDict.data entry
-                    getfunc = lambda c=self.data[cmd.getfunc]: getattr(
-                        c, "value")
-                elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
-                    attr = attrgetter(cmd.getfunc)(window_obj)
-                    if callable(attr):
-                        getfunc = attr
-                    else:
-                        def getfunc(
-                            c=window_obj, a=cmd.getfunc): return getattr(c, a)
-                elif cmd.dtype == str and getargs is None:
-                    def getfunc(v=cmd.getfunc): return cmd.dtype(v)
-            elif isinstance(cmd.getfunc, (tuple, list)):
-                # system device name and method
-                if sys is None:
-                    raise ValueError(
-                        "System must be specified as 'sys' keyword argument")
-                devname, funcname = cmd.getfunc
-                getfunc = attrgetter(funcname)(sys.devs[devname])
-            else:
-                raise ValueError(f"could not identify '{setfunc}' of '{name}'")
-
-            # set new Command in output list
-            self.cmds[name] = Command(cmd.dtype, setfunc, getfunc, setargs,
-                                      getargs, cmd.polling_cmd)
+            # set new Command properties in existing list
+            self.cmds[name].setfunc = setfunc
+            self.cmds[name].getfunc = getfunc
+            self.cmds[name].setargs = setargs
+            self.cmds[name].getargs = getargs
         return self.cmds
+
+    def _create_setfunc(self, name, cmd, window_obj=None, sys=None):
+        """
+        create the setter function from the command definition. The function
+        determines what the user intended by the specified cmd and generates an
+        appropriate function.
+        """
+        setargs = []
+        setfunc = None
+        # obtain set function
+        if callable(cmd.setfunc):
+            setfunc = cmd.setfunc
+            setargs = cmd.setargs
+        elif cmd.setfunc is None:
+            setfunc = None
+        elif isinstance(cmd.setfunc, str):
+            if hasattr(self, cmd.setfunc):  # if GuiDict method or property
+                attr = attrgetter(cmd.setfunc)(self)
+                if callable(attr):
+                    setfunc = attr
+                else:
+                    def setfunc(value, c=self, a=cmd.setfunc):
+                        setattr(c, a, value)
+            elif cmd.setfunc in self:  # if GuiDict.data entry
+                def setfunc(value, c=self.data[cmd.setfunc]):
+                    setattr(c, "value", value)
+            elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
+                attr = attrgetter(cmd.setfunc)(window_obj)
+                if callable(attr):
+                    setfunc = attr
+                else:
+                    def setfunc(value, c=window_obj, a=cmd.setfunc):
+                        setattr(c, a, value)
+        elif isinstance(cmd.setfunc, (tuple, list)):
+            # system device name and method
+            if sys is None:
+                raise ValueError(
+                    "System must be specified as 'sys' keyword argument")
+            devname, funcname = cmd.setfunc
+            attr = attrgetter(funcname)(sys.devs[devname])
+            if callable(attr):
+                setfunc = attr
+            else:
+                def setfunc(value, c=sys.devs[devname], a=funcname):
+                    setattr(c, a, value)
+        else:
+            raise ValueError(
+                f"could not identify '{cmd.setfunc}' of '{name}'")
+        return setfunc, setargs
+
+    def _create_getfunc(self, name, cmd, window_obj=None, sys=None):
+        """
+        create the getter function from the command definition. The function
+        determines what the user intended by the specified cmd and generates an
+        appropriate function.
+        """
+        getargs = []
+        getfunc = None
+        # obtain get function
+        if callable(cmd.getfunc):
+            getfunc = cmd.getfunc
+            getargs = cmd.getargs
+        elif cmd.getfunc is None:
+            getfunc = None
+        elif isinstance(cmd.getfunc, str):
+            if hasattr(self, cmd.getfunc):  # if GuiDict method or property
+                attr = attrgetter(cmd.getfunc)(self)
+                if callable(attr):
+                    getfunc = attr
+                else:
+                    getfunc = self.__getattribute__
+                    getargs = [cmd.getfunc, ]
+            elif cmd.getfunc in self:  # if GuiDict.data entry
+                def getfunc(c=self.data[cmd.getfunc]):
+                    return getattr(c, "value")
+            elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
+                attr = attrgetter(cmd.getfunc)(window_obj)
+                if callable(attr):
+                    getfunc = attr
+                else:
+                    def getfunc(c=window_obj, a=cmd.getfunc):
+                        return getattr(c, a)
+            elif cmd.dtype == str and not cmd.getargs:
+                def getfunc(v=cmd.getfunc):
+                    return cmd.dtype(v)
+        elif isinstance(cmd.getfunc, (tuple, list)):
+            # system device name and method
+            if sys is None:
+                raise ValueError(
+                    "System must be specified as 'sys' keyword argument")
+            devname, funcname = cmd.getfunc
+            attr = attrgetter(funcname)(sys.devs[devname])
+            if callable(attr):
+                getfunc = attr
+            else:
+                def getfunc(c=sys.devs[devname], a=funcname):
+                    return getattr(c, a)
+        else:
+            raise ValueError(
+                f"could not identify '{cmd.getfunc}' of '{name}'")
+        return getfunc, getargs
 
     def panic(self):
         """
@@ -779,11 +886,13 @@ class GuiDict(UserDict, ABC):
         overloaded by derived functions if needed.
         """
         self._panic = True
+        self.enable_switch.setEnabled(False)
 
     def unpanic(self):
         """
         Make device operational again
         """
+        self.enable_switch.setEnabled(True)
         self._panic = False
 
     @abstractmethod
@@ -940,7 +1049,7 @@ def sendNotificationEmail(address, subject, msgtext, attachments=[]):
             print("ignoring error during sending email: {}".format(e))
 
 
-class OutputRedirection(object):
+class OutputRedirection:
     def __init__(self, stream, prefix='control', fallbackname=""):
         """
         object for output duplication into a file. Useful to avoid loss of
@@ -966,6 +1075,12 @@ class OutputRedirection(object):
         if self.terminal is not None:
             self.terminal.flush()
         self.log.flush()
+
+    def close(self):
+        self.log.close()
+
+    def __exit__(self):
+        self.close()
 
 
 class SelectLakeshoreInput(QDialog):
@@ -1154,7 +1269,7 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
             FutureWarning)
     app = QApplication(sys.argv)
     app.setDesktopFileName(
-        f"python.{package}.{os.path.basename(sys.argv[0])}.desktop")
+        f"python.{package}.{os.path.basename(sys.argv[0])}")
 
     if lockfile:
         lockfilename = os.path.join(
@@ -1186,5 +1301,8 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
         # clean exit, remove lockfile
         if os.path.exists(lockfilename):
             os.remove(lockfilename)
+    sys.stdout.close()
+    sys.stderr.close()
+    sys.stderr = sys.__stderr__
     sys.stdout = sys.__stdout__
     sys.exit(ret)
