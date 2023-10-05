@@ -114,7 +114,12 @@ def loadmatrix(filename, structured=True, print_header=False):
             # disable file locking in h5py
             # seems this is needed before loading the package
             os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"  # noqa
-            import h5py
+            import h5py  # this import does not generate a global variable
+
+            # in the scope of the calling program?!
+        elif 'h5py' not in globals():
+            # workaround for previous comment on import
+            h5py = sys.modules['h5py']
         if not structured:
             raise NotImplementedError(
                 "The option structured=False is not supported for hdf5 files")
@@ -197,9 +202,18 @@ def loadmatrix(filename, structured=True, print_header=False):
         # we now have (i+1) as the number of lines to skip
         if structured is True:
             # generate a structured array with the column names as identifier
-            data = np.genfromtxt(filename, skip_header=i,
-                                 delimiter="\t", names=structured)
-            header["columns"] = data.dtype.names
+            try:
+                data = np.genfromtxt(filename, skip_header=i,
+                                     delimiter="\t", names=structured,
+                                     dtype=None)
+            except IndexError:
+                # IndexError is raised in case an incomplete header is present
+                print("loadmatrix: incomplete data file header")
+                data = np.empty(0)
+            if data.dtype.names is not None:
+                header["columns"] = data.dtype.names
+            else:
+                header["columns"] = []
         else:
             # otherwise generates a plain array only from the data
             data = np.genfromtxt(filename, skip_header=i+1, delimiter="\t")

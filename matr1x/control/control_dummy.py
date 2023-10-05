@@ -91,7 +91,8 @@ class exampleDict(GuiDict):
         self["toggle"].value = self.S.devs["dummy"].p7
 
         if self["V4"].value is False:
-            raise ValueError("Test error raised inside refresh")
+            # emit panic signel
+            self.refresh_worker.panic.emit(True, "value V4 is False")
 
     def write(self):
         """

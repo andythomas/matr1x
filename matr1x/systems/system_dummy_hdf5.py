@@ -61,5 +61,10 @@ sys.add_param(
     chunks=[1, 1])
 sys.add_param(
     "devhdfp4_2d", "cnt",
-    getter=lambda: numpy.asarray(sys.devs["devhdf"].p4).reshape((2, 2)), chunks=(2, 2))
+    getter=lambda: numpy.asarray(sys.devs["devhdf"].p4).reshape((2, 2)),
+    chunks=(2, 2))
+sys.add_param(
+    ["rand2d_1", "rand2d_2"], ["cnt", "cnt"],
+    getter=lambda: numpy.random.random((2, 4, 4)),
+    chunks=[(4, 4), (4, 4)])
 # ============================

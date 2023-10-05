@@ -50,5 +50,9 @@ sys.add_param(
     "guiv4", "bool",
     ["gui", "v4"],
     ["gui", "v4"])
+sys.add_param(
+    "guiv5", "float",
+    None,
+    ["gui", "v5"])
 
 # ============================

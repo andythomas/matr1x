@@ -73,10 +73,12 @@ def test_matrix_dummy_hdf5():
     files.sort(key=os.path.getmtime)
     assert len(files) >= 1
     h, d = matr1x.eval.loadmatrix(files[-1])
-    assert len(h["columns"]) == 6  # check number of data columns
+    assert len(h["columns"]) == 8  # check number of data columns
     assert d["devhdfp4_flat"].shape == (10*4, )  # check shape of dataset
     assert d["devhdfp4_1d"].shape == (10, 4)  # check shape of dataset
     assert d["devhdfp4_2d"].shape == (10, 2, 2)  # check shape of dataset
+    assert d["rand2d_1"].shape == (10, 4, 4)  # check shape of dataset
+    assert d["rand2d_2"].shape == (10, 4, 4)  # check shape of dataset
     assert d["timeUTC"].shape == (10, )  # check shape of dataset
 
 

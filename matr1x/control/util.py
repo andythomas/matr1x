@@ -535,6 +535,7 @@ class GuiDict(UserDict, ABC):
         """
         # activity signal to indicate an iteration of the refresh timer
         activity = pyqtSignal(str)
+        panic = pyqtSignal(bool, str)
         sig_error = pyqtSignal(type, Exception, str)
 
         def __init__(self, target, interval, parent=None):
@@ -647,6 +648,7 @@ class GuiDict(UserDict, ABC):
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
+        self.dock.setAllowedAreas(Qt.DockWidgetArea.TopDockWidgetArea)
         dockcontainer = QWidget()
         column = QVBoxLayout(dockcontainer)
         self.dock.setWidget(dockcontainer)
@@ -767,92 +769,8 @@ class GuiDict(UserDict, ABC):
         normalize_cmds(self.cmds)
         # replace entries with executable functions
         for name, cmd in self.cmds.items():
-            setargs = []
-            getargs = []
-            setfunc = None
-            getfunc = None
-            # obtain set function
-            if callable(cmd.setfunc):
-                setfunc = cmd.setfunc
-                setargs = cmd.setargs
-            elif cmd.setfunc is None:
-                setfunc = None
-            elif isinstance(cmd.setfunc, str):
-                if hasattr(self, cmd.setfunc):  # if GuiDict method or property
-                    attr = attrgetter(cmd.setfunc)(self)
-                    if callable(attr):
-                        setfunc = attr
-                    else:
-                        def setfunc(value, c=self, a=cmd.setfunc):
-                            setattr(c, a, value)
-                elif cmd.setfunc in self:  # if GuiDict.data entry
-                    def setfunc(value, c=self.data[cmd.setfunc]):
-                        setattr(c, "value", value)
-                elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
-                    attr = attrgetter(cmd.setfunc)(window_obj)
-                    if callable(attr):
-                        setfunc = attr
-                    else:
-                        def setfunc(value, c=window_obj, a=cmd.setfunc):
-                            setattr(c, a, value)
-            elif isinstance(cmd.setfunc, (tuple, list)):
-                # system device name and method
-                if sys is None:
-                    raise ValueError(
-                        "System must be specified as 'sys' keyword argument")
-                devname, funcname = cmd.setfunc
-                attr = attrgetter(funcname)(sys.devs[devname])
-                if callable(attr):
-                    setfunc = attr
-                else:
-                    def setfunc(value, c=sys.devs[devname], a=funcname):
-                        setattr(c, a, value)
-            else:
-                raise ValueError(
-                    f"could not identify '{cmd.setfunc}' of '{name}'")
-
-            # obtain get function
-            if callable(cmd.getfunc):
-                getfunc = cmd.getfunc
-                getargs = cmd.getargs
-            elif cmd.getfunc is None:
-                getfunc = None
-            elif isinstance(cmd.getfunc, str):
-                if hasattr(self, cmd.getfunc):  # if GuiDict method or property
-                    attr = attrgetter(cmd.getfunc)(self)
-                    if callable(attr):
-                        getfunc = attr
-                    else:
-                        getfunc = self.__getattribute__
-                        getargs = [cmd.getfunc, ]
-                elif cmd.getfunc in self:  # if GuiDict.data entry
-                    def getfunc(c=self.data[cmd.getfunc]):
-                        return getattr(c, "value")
-                elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
-                    attr = attrgetter(cmd.getfunc)(window_obj)
-                    if callable(attr):
-                        getfunc = attr
-                    else:
-                        def getfunc(c=window_obj, a=cmd.getfunc):
-                            return getattr(c, a)
-                elif cmd.dtype == str and not cmd.getargs:
-                    def getfunc(v=cmd.getfunc):
-                        return cmd.dtype(v)
-            elif isinstance(cmd.getfunc, (tuple, list)):
-                # system device name and method
-                if sys is None:
-                    raise ValueError(
-                        "System must be specified as 'sys' keyword argument")
-                devname, funcname = cmd.getfunc
-                attr = attrgetter(funcname)(sys.devs[devname])
-                if callable(attr):
-                    getfunc = attr
-                else:
-                    def getfunc(c=sys.devs[devname], a=funcname):
-                        return getattr(c, a)
-            else:
-                raise ValueError(
-                    f"could not identify '{cmd.getfunc}' of '{name}'")
+            setfunc, setargs = self._create_setfunc(name, cmd, window_obj, sys)
+            getfunc, getargs = self._create_getfunc(name, cmd, window_obj, sys)
 
             # set new Command properties in existing list
             self.cmds[name].setfunc = setfunc
@@ -860,6 +778,107 @@ class GuiDict(UserDict, ABC):
             self.cmds[name].setargs = setargs
             self.cmds[name].getargs = getargs
         return self.cmds
+
+    def _create_setfunc(self, name, cmd, window_obj=None, sys=None):
+        """
+        create the setter function from the command definition. The function
+        determines what the user intended by the specified cmd and generates an
+        appropriate function.
+        """
+        setargs = []
+        setfunc = None
+        # obtain set function
+        if callable(cmd.setfunc):
+            setfunc = cmd.setfunc
+            setargs = cmd.setargs
+        elif cmd.setfunc is None:
+            setfunc = None
+        elif isinstance(cmd.setfunc, str):
+            if hasattr(self, cmd.setfunc):  # if GuiDict method or property
+                attr = attrgetter(cmd.setfunc)(self)
+                if callable(attr):
+                    setfunc = attr
+                else:
+                    def setfunc(value, c=self, a=cmd.setfunc):
+                        setattr(c, a, value)
+            elif cmd.setfunc in self:  # if GuiDict.data entry
+                def setfunc(value, c=self.data[cmd.setfunc]):
+                    setattr(c, "value", value)
+            elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
+                attr = attrgetter(cmd.setfunc)(window_obj)
+                if callable(attr):
+                    setfunc = attr
+                else:
+                    def setfunc(value, c=window_obj, a=cmd.setfunc):
+                        setattr(c, a, value)
+        elif isinstance(cmd.setfunc, (tuple, list)):
+            # system device name and method
+            if sys is None:
+                raise ValueError(
+                    "System must be specified as 'sys' keyword argument")
+            devname, funcname = cmd.setfunc
+            attr = attrgetter(funcname)(sys.devs[devname])
+            if callable(attr):
+                setfunc = attr
+            else:
+                def setfunc(value, c=sys.devs[devname], a=funcname):
+                    setattr(c, a, value)
+        else:
+            raise ValueError(
+                f"could not identify '{cmd.setfunc}' of '{name}'")
+        return setfunc, setargs
+
+    def _create_getfunc(self, name, cmd, window_obj=None, sys=None):
+        """
+        create the getter function from the command definition. The function
+        determines what the user intended by the specified cmd and generates an
+        appropriate function.
+        """
+        getargs = []
+        getfunc = None
+        # obtain get function
+        if callable(cmd.getfunc):
+            getfunc = cmd.getfunc
+            getargs = cmd.getargs
+        elif cmd.getfunc is None:
+            getfunc = None
+        elif isinstance(cmd.getfunc, str):
+            if hasattr(self, cmd.getfunc):  # if GuiDict method or property
+                attr = attrgetter(cmd.getfunc)(self)
+                if callable(attr):
+                    getfunc = attr
+                else:
+                    getfunc = self.__getattribute__
+                    getargs = [cmd.getfunc, ]
+            elif cmd.getfunc in self:  # if GuiDict.data entry
+                def getfunc(c=self.data[cmd.getfunc]):
+                    return getattr(c, "value")
+            elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
+                attr = attrgetter(cmd.getfunc)(window_obj)
+                if callable(attr):
+                    getfunc = attr
+                else:
+                    def getfunc(c=window_obj, a=cmd.getfunc):
+                        return getattr(c, a)
+            elif cmd.dtype == str and not cmd.getargs:
+                def getfunc(v=cmd.getfunc):
+                    return cmd.dtype(v)
+        elif isinstance(cmd.getfunc, (tuple, list)):
+            # system device name and method
+            if sys is None:
+                raise ValueError(
+                    "System must be specified as 'sys' keyword argument")
+            devname, funcname = cmd.getfunc
+            attr = attrgetter(funcname)(sys.devs[devname])
+            if callable(attr):
+                getfunc = attr
+            else:
+                def getfunc(c=sys.devs[devname], a=funcname):
+                    return getattr(c, a)
+        else:
+            raise ValueError(
+                f"could not identify '{cmd.getfunc}' of '{name}'")
+        return getfunc, getargs
 
     def panic(self):
         """
@@ -1250,7 +1269,7 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
             FutureWarning)
     app = QApplication(sys.argv)
     app.setDesktopFileName(
-        f"python.{package}.{os.path.basename(sys.argv[0])}.desktop")
+        f"python.{package}.{os.path.basename(sys.argv[0])}")
 
     if lockfile:
         lockfilename = os.path.join(

@@ -301,24 +301,27 @@ class ControlWindow(QMainWindow):
         # count visible widgets
         count_vis = sum(int(g.dock.isVisible()) for g in self.guidicts)
         if count_docked <= 1 or count_vis <= 1:
-            # forbid last visible/docked widget to be undocked
-            for g in self.guidicts:
-                dock = g.dock
+            # forbid last visible/docked widget to be undocked/moved
+            for guidict in self.guidicts:
+                dock = guidict.dock
                 if not dock.isFloating():
                     dock.setFeatures(
                         dock.features() &
-                        ~QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        ~QDockWidget.DockWidgetFeature.DockWidgetFloatable &
+                        ~QDockWidget.DockWidgetFeature.DockWidgetMovable)
         else:
-            for g in self.guidicts:
-                dock = g.dock
+            for guidict in self.guidicts:
+                dock = guidict.dock
                 dock.setFeatures(
                     dock.features() |
-                    QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                    QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                    QDockWidget.DockWidgetFeature.DockWidgetMovable)
         if count_vis <= 1:
             # redock last visible widget
-            for g in self.guidicts:
-                dock = g.dock
+            for guidict in self.guidicts:
+                dock = guidict.dock
                 if dock.isWindow() and dock.isVisible():
+                    print(f"enforce docking of {dock.objectName()}")
                     dock.setFloating(False)
                     break
 
@@ -367,6 +370,7 @@ class ControlWindow(QMainWindow):
             self.activityIndicator.append(ql)
             guidict.refresh_worker.activity.connect(
                 lambda c, idx=idx: self.change_single_color(c, idx))
+            guidict.refresh_worker.panic.connect(self.panic)
             activity_layout.addWidget(ql)
 
         self.activity.connect(self.change_color)
@@ -449,12 +453,17 @@ class ControlWindow(QMainWindow):
             variable.copy_value()
 
     @catchEmitError
-    def panic(self, checked):
+    @pyqtSlot(bool)
+    @pyqtSlot(bool, str)
+    def panic(self, checked, reason="Panic button"):
         """
         Panic button was pressed. Signal panic mode to guidicts if the button is
         checked.
         """
         if checked:
+            print(f"{time.strftime(datetimefmt)}: "
+                  f"Panic mode activated due to '{reason}'")
+            self.panicButton.setChecked(True)
             for g in self.guidicts:
                 g.panic()
         else:
@@ -558,7 +567,7 @@ class ControlWindow(QMainWindow):
                                          daemon=True)
             self.tlog.start()
             self.logging = True
-            print("data logging started")
+            print(f"{time.strftime(datetimefmt)}: data logging started")
 
         elif self.logging is True:
             self.S_log.reset()
@@ -567,7 +576,7 @@ class ControlWindow(QMainWindow):
             # reset GUI
             self.configlog.setEnabled(True)
             self.togglelog.setText("start data log")
-            print("data logging stopped")
+            print(f"{time.strftime(datetimefmt)}: data logging stopped")
 
     def selectLog(self, *args):
         # allow selecting a logfile

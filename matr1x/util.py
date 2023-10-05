@@ -888,7 +888,7 @@ def flatten(iterable, types=(tuple, list, np.ndarray)):
     for el in iterable:
         if ((isinstance(el, types) and not
              isinstance(el, (str, bytes)))):
-            yield from flatten(el)
+            yield from flatten(el, types=types)
         else:
             yield el
 

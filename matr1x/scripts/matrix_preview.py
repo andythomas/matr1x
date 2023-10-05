@@ -129,6 +129,13 @@ class SweepPreview(QMainWindow):
         if not self.filename:
             self.openfile_dialog.emit()
 
+    def eventFilter(self, f_object, f_event):
+        if f_object == self.w_file:
+            if f_event.type() == QEvent.Type.MouseButtonPress:
+                self.update_file_combo()
+            return False
+        return False
+
     def load_button_pressed(self):
         filename = QFileDialog.getOpenFileName(
             self, "Select ma file", "",
@@ -145,12 +152,7 @@ class SweepPreview(QMainWindow):
         self.filename = filename
         # get all files
         self.file_dir = os.path.dirname(abspath(filename))
-        files = os.listdir(self.file_dir)
-        self.data_files = (
-            [os.path.join(self.file_dir, file)
-             for file in files if "ma7" in file or "ma6" in file])
-        self.data_files = sorted(
-            self.data_files, key=lambda t: os.stat(t).st_mtime)
+        self.file_list_refresh()
         self.file_index = self.data_files.index(
             os.path.join(self.file_dir, os.path.basename(filename)))
         self.udthread = None
@@ -159,6 +161,26 @@ class SweepPreview(QMainWindow):
         self.multidim = False
         self.error = False
         self.init_ui()
+        self.w_file.installEventFilter(self)
+
+    def file_list_refresh(self):
+        files = os.listdir(self.file_dir)
+        self.data_files = (
+            [os.path.join(self.file_dir, file)
+             for file in files if "ma7" in file or "ma6" in file])
+        self.data_files = sorted(
+            self.data_files, key=lambda t: os.stat(t).st_mtime)
+
+    def update_file_combo(self):
+        self.file_list_refresh()
+        ctext = self.w_file.currentText()
+        self.w_file.currentIndexChanged.disconnect()
+        self.w_file.clear()
+        self.w_file.addItems(self.data_files)
+        index = self.data_files.index(ctext)
+        self.w_file.setCurrentIndex(index)  # current index can differ from
+        # self.file_index, problem?
+        self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
     def init_basic_ui(self):
         """
@@ -301,10 +323,12 @@ class SweepPreview(QMainWindow):
             self.spw.save_plot(filename)
 
     def previous_file(self):
+        self.update_file_combo()
         if self.file_index > 0:
             self.w_file.setCurrentIndex(self.file_index-1)
 
     def next_file(self):
+        self.update_file_combo()
         if self.file_index < len(self.data_files) - 1:
             self.w_file.setCurrentIndex(self.file_index+1)
 
@@ -330,6 +354,15 @@ class SweepPreview(QMainWindow):
                     self.w_index[i].addItems([""] + self.column_items)
                 self.reset()
                 self.spw.reset()
+        else:
+            ci = self.spw.w_plots.currentIndex()
+            for i in range(self.spw.w_plots.count()-1):
+                if i == ci:
+                    # skip plot that will remain selected
+                    continue
+                self.spw.w_plots.setCurrentIndex(i)
+            # reset active plot
+            self.spw.w_plots.setCurrentIndex(ci)
 
     def index_changed(self, newIndex):
         """
