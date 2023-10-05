@@ -170,6 +170,8 @@ class ITC503(IsobusDevice):
             kwargs["cmdpers"] = 10
         if "stop_bits" not in kwargs:
             kwargs["stop_bits"] = constants.StopBits.two
+        if "query_delay" not in kwargs:
+            kwargs["query_delay"] = 0.1
         super().__init__(interface, **kwargs)
         self.query("C3")
 
