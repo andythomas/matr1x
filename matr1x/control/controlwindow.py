@@ -461,13 +461,15 @@ class ControlWindow(QMainWindow):
         checked.
         """
         if checked:
-            print(f"{time.strftime(datetimefmt)}: "
+            logger.info(f"{time.strftime(datetimefmt)}: "
                   f"Panic mode activated due to '{reason}'")
+            self.panicButton.setText(f"Panic mode activated due to '{reason}'")
             self.panicButton.setChecked(True)
             for g in self.guidicts:
                 g.panic()
         else:
             for g in self.guidicts:
+                self.panicButton.setText("Panic Button")
                 g.unpanic()
 
     def output_written(self, text):

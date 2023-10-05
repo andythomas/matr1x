@@ -41,11 +41,12 @@ class IsobusDevice(VisaDevice):
         super().write(cmd)
 
     @synchronized
-    def query(self, msg, depth=0):
+    def query(self, msg, depth=0, max_depth=4):
         with self.sharedlock:
-            time.sleep(3*depth)  # add progressive delay on repeated failure
+            if depth > 0:
+                time.sleep(3+depth)  # add progressive delay on repeated failure
             self.read_very_eager()
-            if depth > 10:
+            if depth > max_depth:
                 logger.info(
                     f"{self.name}.query: maximum depth exeeded ('{msg}')")
                 self.read_very_eager()
@@ -62,22 +63,22 @@ class IsobusDevice(VisaDevice):
             except UnicodeDecodeError:
                 logger.info(
                     f"{self.name}.query: UnicodeDecodeError, {msg}, {depth}")
-                return self.query(msg, depth+1)
+                return self.query(msg, depth+1, max_depth=max_depth)
             except errors.VisaIOError:
                 logger.info(
                     f"{self.name}.query: VisaIOError, {msg}, {depth}")
-                return self.query(msg, depth+1)
+                return self.query(msg, depth+1, max_depth=max_depth)
 
             if ret is None:
                 logger.info(f"{self.name}.query: None, {msg}, {depth}")
-                ret = self.query(msg, depth+1)
+                ret = self.query(msg, depth+1, max_depth=max_depth)
             if "?" in ret:
                 logger.info(f"{self.name}.query: reply '?', {msg}, {depth}")
-                ret = self.query(msg, depth+1)
+                ret = self.query(msg, depth+1, max_depth=max_depth)
             elif "" == ret:
                 logger.info(
                     f"{self.name}.query: empty reply, {msg}, {depth}")
-                ret = self.query(msg, depth+1)
+                ret = self.query(msg, depth+1, max_depth=max_depth)
             elif msg[0] not in ret:
                 logger.info(
                     f"{self.name}.query: wrong reply character, {msg}, {depth}, {ret}")
@@ -85,14 +86,14 @@ class IsobusDevice(VisaDevice):
                     self.read_very_eager()
                 except UnicodeDecodeError:
                     pass
-                ret = self.query(msg, depth+1)
+                ret = self.query(msg, depth+1, max_depth=max_depth)
             return ret
 
     @synchronized
-    def query_float(self, msg, depth=0):
+    def query_float(self, msg, depth=0, max_depth=4):
         """routine to query a float including error checking"""
         with self.sharedlock:
-            ret = self.query(msg, depth)
+            ret = self.query(msg, depth=depth, max_depth=max_depth)
             try:
                 return float(ret[1:])
             except ValueError:
@@ -164,7 +165,7 @@ class ITC503(IsobusDevice):
         if "read_termination" not in kwargs:
             kwargs["read_termination"] = "\r"
         if "timeout" not in kwargs:
-            kwargs["timeout"] = 10000
+            kwargs["timeout"] = 2000
         if "cmdpers" not in kwargs:
             kwargs["cmdpers"] = 10
         if "stop_bits" not in kwargs:
@@ -175,6 +176,7 @@ class ITC503(IsobusDevice):
     def setTVTI(self, temp):
         self.write(f'$T{temp:.2f}')
 
+    @synchronized
     def getTVTI(self, setp=False, channel=1):
         temp = self.query_float('R{:d}'.format(channel))
         if setp is False:
@@ -233,7 +235,7 @@ class ITC503(IsobusDevice):
         self.write(f'$L{aPID:d}')
         
     def getAutoPID(self):
-        for depth in range(11):
+        for depth in range(6):
             ret = self.query('X', depth)
             try:
                 astat = int(ret[12])
@@ -245,7 +247,74 @@ class ITC503(IsobusDevice):
             return True
         else:
             return False
-        
+    
+    def getSweepMode(self):
+        for depth in range(6):
+            ret = self.query('X', depth)
+            try:
+                sweepstat = int(ret[7:9])
+                break
+            except (IndexError, ValueError):
+                logger.debug(f"index 7-9 not convertible to int, {ret}")
+                sweepstat = 0
+        if sweepstat == 0:
+            return False
+        else:
+            return True
+
+    @synchronized
+    def setSweepMode(self, flag):
+        """
+        Sets the controller into sweep mode. Sweep is started according to the
+        previously defined parameters. and made to start at the current temperature
+        """
+        if flag:
+            current_temp = self.getTVTI()
+            self.query("x001")
+            self.query("y001")
+            self.query(f"s{current_temp:.2f}")
+            self.query("x000")
+            self.query("y000")
+            self.query("S1")
+        else:
+            self.query("S0")
+
+    @synchronized
+    def getSweepTime(self):
+        """
+        get sweep time in minutes
+        """
+        self.query("x002")
+        self.query("y002")
+        ret = self.query_float(f"r", max_depth=3)
+        self.query("x000")
+        self.query("y000")
+        return ret
+
+    @synchronized
+    def setSweepTime(self, time):
+        """
+        set sweep time in minutes
+        """
+        self.query("x002")
+        self.query("y002")
+        self.query(f"s{time:.1f}")
+        self.query("x000")
+        self.query("y000")
+    
+    @synchronized
+    def setSweepTarget(self, temp):
+        """
+        set the target temperature of the sweep
+        """
+        self.query("x002")
+        self.query("y001")
+        self.query(f"s{temp:.1f}")
+        self.query("x016")  # repeat at last step so that heater stays on at the end
+        self.query(f"s{temp:.1f}")
+        self.query("x000")
+        self.query("y000")       
+
 
 class IPS120(IsobusDevice):
     """
@@ -433,11 +502,11 @@ class IPS120_switchheater(IsobusDevice):
         if "timeout" not in kwargs:
             kwargs["timeout"] = 2000
         if "cmdpers" not in kwargs:
-            kwargs["cmdpers"] = 10
+            kwargs["cmdpers"] = 20
         if "stop_bits" not in kwargs:
             kwargs["stop_bits"] = constants.StopBits.two
         if "query_delay" not in kwargs:
-            kwargs["query_delay"] = 0.2
+            kwargs["query_delay"] = 0.08
         super().__init__(interface, **kwargs)
         self.query("C3")
         self.persistentField = self.getPersistentField()
