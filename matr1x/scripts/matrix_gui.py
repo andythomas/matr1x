@@ -358,6 +358,8 @@ class MainWindow(QWidget):
             self.sg.show()
         elif self.sg.isVisible() is False:
             self.sg.show()
+        elif self.sg.isMinimized() is True:
+            self.sg.showNormal()
         else:
             self.sg.raise_()
 
