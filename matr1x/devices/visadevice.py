@@ -229,14 +229,21 @@ class VisaDevice:
 
         Parameters
         ----------
-        command : str
-            The string to be sent.
+        command : str or bytes
+            If a string is passed, terminator is appended and the message is
+            encoded before being sent to the devices.
+            If bytes are passed, this function falls back to visa's write_raw
+            function, which does not modify the commend but just transmits the
+            the bytes to the device (no terminator is appended!).
         """
         logger.debug("%s: Write: %s", self.name, command)
         if self.pts:
             print(f'W: {command}')
         self._write_delay()
-        self.connection.write(command)
+        if isinstance(command, bytes):
+            self.connection.write_raw(command)
+        else:
+            self.connection.write(command)
 
     @synchronized
     @output_name_on_error
