@@ -62,7 +62,12 @@ def makeSCPIdevice(*cmds, sys=True):
         ret = []
         for v, t in zip(values, dtype):
             if t == bool:
-                castval = False if v == 'False' else True
+                if v == 'False':
+                    castval = False
+                elif v == 'True':
+                    castval = True
+                else:
+                    castval = None
             else:
                 castval = t(v)
             ret.append(castval)
@@ -134,8 +139,8 @@ def makeSCPIdevice(*cmds, sys=True):
             kwargs['get_process'] = lambda v, t=cmd.dtype: castlist(v, t)
         elif cmd.dtype == bool:
             kwargs['validator'] = strict_discrete_set
-            kwargs['values'] = [True, False]
-            kwargs['get_process'] = lambda s: s != 'False'
+            kwargs['values'] = [True, False, None]
+            kwargs['get_process'] = lambda s: castlist([s, ], [bool, ])[0]
             kwargs['set_process'] = int
         else:
             kwargs['cast'] = cmd.dtype

@@ -6,6 +6,7 @@
 This module contains utility function for generating control guis or devices
 based on the scpi_tcp_server
 """
+import copy
 import itertools
 import logging
 import mimetypes
@@ -594,6 +595,11 @@ class GuiDict(UserDict, ABC):
         # this reference is used to raise an error on the parent if needed
         self.parent = None
         self.running = False
+        # buffer original commands
+        normalize_cmds(self.cmds)
+        self._orig_cmds = copy.deepcopy(self.cmds)
+        # initialize all with None
+        self._reset()
 
     def create_GUI(self):
         """
@@ -744,11 +750,21 @@ class GuiDict(UserDict, ABC):
             self.restoreFeatures()
             self.S.reset()
             self.S.close()
-            # set all values to None to avoid showing/logging something not updated
-            for variable in self.data.values():
-                variable.value = None
+            # reset variables and commands
+            self._reset()
             self.running = False
 
+    def _reset(self):
+        """reset all values and cmd functions to None.
+
+        This is done to avoid logging or reporting something not updated.
+        """
+        for variable in self.data.values():
+            variable.value = None
+        for cmd in self.cmds.values():
+            cmd.reset_to_None()
+
+    @catchEmitError
     def start(self):
         """Start the refresh loop in a dedicated thread."""
         if not self.running and self.enable_switch.isChecked():
@@ -766,9 +782,8 @@ class GuiDict(UserDict, ABC):
         variables or device functions from the system.
         Also every entry is made to be an instance of Command.
         """
-        normalize_cmds(self.cmds)
         # replace entries with executable functions
-        for name, cmd in self.cmds.items():
+        for name, cmd in self._orig_cmds.items():
             setfunc, setargs = self._create_setfunc(name, cmd, window_obj, sys)
             getfunc, getargs = self._create_getfunc(name, cmd, window_obj, sys)
 
