@@ -51,6 +51,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         # multiple cmds support, separate commands with ;
         cmds = data.strip().split(";")
         for cmd in cmds:
+            logger.debug("received command: %s", cmd)
             # cmd is a get request
             if "?" in cmd:
                 # normalize command to have same format as keys in cmd_list
@@ -73,8 +74,10 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                     c = self.cmdvalues[idx]
 
                     if c.getfunc is None:
-                        # no getter was provided
-                        response.append(cmd + " does not provide getfunc")
+                        # no getter is set
+                        logger.debug("getter is None for command: %s", cmd)
+                        response.append("None")
+                        continue
                     if callable(c.getfunc):
                         if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
                             response.append(",".join(
@@ -83,6 +86,8 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                             response.append(c.getfunc(*c.getargs))
                         else:
                             response.append(str(c.getfunc(*c.getargs)))
+                    else:
+                        logger.debug("no valid getter for command: %s", cmd)
             # cmd is a set request
             else:
                 # split at the first space, to separate command from value
@@ -140,6 +145,8 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                         except (IndexError, TypeError, ValueError):
                             # in case of incorrectly sent command do nothing
                             pass
+                    else:
+                        logger.debug("no valid setter for command: %s", cmd)
         return response
 
     def handle(self):

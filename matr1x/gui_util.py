@@ -890,7 +890,7 @@ class CustomViewBox(pg.ViewBox):
 
     # reimplement drag event
     def mouseDragEvent(self, ev, axis=None):
-        if ev.button() in (Qt.MouseButton.RightButton, Qt.MidButton):
+        if ev.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
             # enable pan mode
             self.setMouseMode(self.PanMode)
             pg.ViewBox.mouseDragEvent(self, ev, axis)

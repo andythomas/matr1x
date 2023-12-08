@@ -30,7 +30,7 @@ def test_matrix_dummy():
     inputfile = os.path.join(path, "sys_dummy_sweep_all.4t")
     basename = os.path.splitext(inputfile)[0]
     existingfiles = glob.glob(basename + "*")
-    cmd = ["matrix", "-i", inputfile]
+    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
@@ -48,7 +48,8 @@ def test_matrix_dummy():
 def test_matrix_dummy_merged():
     inputfile = os.path.join(path, "sys_dummy_merged.7t")
     outputfile = os.path.join(path, "test_merged.ma7")
-    cmd = ["matrix", "-i", inputfile, "-o", outputfile, "--plain"]
+    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o",
+           outputfile, "--plain"]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
@@ -64,7 +65,8 @@ def test_matrix_dummy_merged():
 def test_matrix_dummy_hdf5():
     inputfile = os.path.join(path, "sys_dummy_hdf5_sweep.3t")
     outputfile = os.path.join(path, "test_hdf5.h5.ma7")
-    cmd = ["matrix", "-i", inputfile, "-o", outputfile, "--plain"]
+    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o",
+           outputfile, "--plain"]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0

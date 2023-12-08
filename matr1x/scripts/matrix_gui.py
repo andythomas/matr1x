@@ -358,6 +358,8 @@ class MainWindow(QWidget):
             self.sg.show()
         elif self.sg.isVisible() is False:
             self.sg.show()
+        elif self.sg.isMinimized() is True:
+            self.sg.showNormal()
         else:
             self.sg.raise_()
 
@@ -472,7 +474,7 @@ def main():
             "The executable name 'matrix_gui' is deprecated. Use 'matrix-gui' instead.",
             FutureWarning)
     app = QApplication(sys.argv)
-    app.setDesktopFileName("matrix-gui.desktop")
+    app.setDesktopFileName("matrix-gui")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
     if 'SIGTTOU' in dir(signal):  # signal only on POSIX compliant systems

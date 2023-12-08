@@ -959,6 +959,12 @@ class Command:
             r += f"({self.getargs})"
         return r
 
+    def reset_to_None(self):
+        self.setfunc = None
+        self.getfunc = None
+        self.setargs = []
+        self.getargs = []
+
     @classmethod
     def from_deprecated_list(cls, dlist):
         """

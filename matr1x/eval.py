@@ -179,6 +179,9 @@ def loadmatrix(filename, structured=True, print_header=False):
                         header[key] = val
                     else:
                         strippedline = line.lstrip("# ").rstrip('\n')
+                        if strippedline == "Matrix outputfile":
+                            # catches first line in legacy file format
+                            continue
                         key, val = strippedline.split(':', maxsplit=1)
                         key = key.strip()
                         if val.strip() == "None":
