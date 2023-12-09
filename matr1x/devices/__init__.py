@@ -12,7 +12,7 @@ from .keithley import (Keithley2000, Keithley2182A, Keithley2400,  # noqa: F401
 from .keysight import KeysightB2961, PNA5225b  # noqa: F401
 from .lakeshore import Lakeshore335, Lakeshore340, Lakeshore475  # noqa: F401
 from .nanotec import NanotecPD4  # noqa: F401
-from .owis import Ps10  # noqa: F401
+from .owis import SMS, Ps10  # noqa: F401
 from .oxford import ILM200, IPS120, ITC503, IPS120_switchheater  # noqa: F401
 from .oxford_mercury import (MercuryIPS, MercuryITC,  # noqa: F401
                              MercurySingleAxisIPS)

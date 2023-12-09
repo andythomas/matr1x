@@ -12,6 +12,257 @@ from .visadevice import VisaDevice
 logger = logging.getLogger(__name__)
 
 
+class SMS(VisaDevice):
+    # SM INT controller with two SMK 02 - Z stepper motor drivers
+    # currently attached motor seems to have 200 steps/motor revolution
+    # 1400:1 gear ratio, recalculate to single degree
+    _axes = {0: "X", 1: "Y", 2: "Z", 3: "R"}
+
+    def __init__(self, interface, **kwargs):
+        """
+        OWIS SMS motor controller class
+
+        As programmed here for a rotary stepper motor. To go to any other unit,
+        replace _steps_per_deg with what ever unit conversion (e.g. steps/mm) and
+        all units will be in mm consequently.
+
+        Parameters
+        --------
+        stepfreq: string
+            VISA address, e.g. ASRL/dev/ttyUSB0::INSTR
+        all kwargs are passed on to VisaDevice
+        """
+        if "write_termination" not in kwargs:
+            kwargs["write_termination"] = "\r"
+        if "read_termination" not in kwargs:
+            kwargs["read_termination"] = "\r"
+        if "cmdpers" not in kwargs:
+            kwargs["cmdpers"] = 50
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = 80e3
+        if "baud_rate" not in kwargs:
+            kwargs["baud_rate"] = 2400
+
+        super().__init__(interface, **kwargs)
+
+        # define class variables
+        self._steps_per_deg = 200*1400/360
+        self._settings = {ax: {} for ax, it in self._axes.items()}
+        self._limits = {
+            ax: {"lo": -40, "hi": 400} for ax, it in self._axes.items()}
+
+    # high level functions
+    def id(self):
+        """
+        Returns the device ID
+        """
+        ret = self.query("VD")
+        # read additional bits from interface (\n\x00)
+        self.read_very_eager()
+        return ret
+
+    def configure_drive(self, stepfreq, ramp, startfreq, ax=0):
+        """
+        Utility function to configure the drive settings used by move_abs
+        and move_rel. If drive/axis settings are not configured, device internal
+        defaults are used.
+
+        maximum frequency is 15 kHz.
+        (stepfreq-startfreq)/ramp must be >= 100 Hz/s (watch units).
+        for details refer to the manual
+
+        Parameters
+        --------
+        stepfreq: int
+            Step frequency in Hz
+        ramp: int
+            Ramp time in ms
+        startfreq: int
+            Start frequency in Hz at the beginning of the Ramp
+        ax: int <= 3
+            axis to be configured
+        """
+        # cast to int
+        stepfreq = int(stepfreq)
+        startfreq = int(startfreq)
+        ramp = int(ramp)
+        # check validity:
+        if (stepfreq - startfreq)/(ramp/1000) < 100:
+            # >= 100 Hz/s is required
+            return
+        self._settings[ax]["stepfreq"] = stepfreq
+        self._settings[ax]["ramp"] = ramp
+        self._settings[ax]["startfreq"] = startfreq
+
+    def initialize(self, ax=0):
+        """
+        initializes the axis and drives the stage to position 0.
+        MOTION STARTS IMMEDIATELY, if axis is not at zero!
+
+        Parameters
+        --------
+        ax: int <= 3
+            axis to be configured
+        """
+        self.write(f"I{self._axes[ax]}")
+
+    def move_abs(self, pos, ax=0):
+        """
+        moves to new position and blocks until position is reached.
+        Adjust the timeout for very long strides.
+
+        Parameters
+        --------
+        pos: float
+            Desired absolute position (in units defined by _steps_per_deg
+        ax: int <= 3
+            axis to be configured
+        """
+        if pos > self._limits[ax]["hi"] or pos < self._limits[ax]["lo"]:
+            # only allows rotations within limits
+            return
+        pos *= self._steps_per_deg
+        if self.get_moving():
+            # ignore command if still moving
+            return
+        if self._settings[ax] != {}:
+            self.query("GA{}{:d},{:d},{:d},{:d};S;".format(
+                self._axes[ax],
+                int(pos),
+                self._settings[ax]["stepfreq"],
+                self._settings[ax]["ramp"],
+                self._settings[ax]["startfreq"]))
+        else:
+            self.query(f"GA{self._axes[ax]}{int(pos):d};S;")
+
+    def move_rel(self, pos, ax=0):
+        """
+        Moves relative to current position by pos and blocks until position is
+        reached. Adjust the timeout for very long strides.
+
+        Parameters
+        --------
+        pos: float
+            Desired relative position (in units defined by _steps_per_deg
+        ax: int <= 3
+            axis to be configured
+        """
+        if abs(pos) > abs(self._limits[ax]["hi"]-self._limits[ax]["lo"]):
+            # ignore rotations that are guaranteed to exceed the limit
+            return
+        pos *= self._steps_per_deg
+        if self.get_moving():
+            # ignore command if still moving
+            return
+        if self._settings[ax] != {}:
+            self.query("GP{}{:d},{:d},{:d},{:d};S;".format(
+                self._axes[ax],
+                int(pos),
+                self._settings[ax]["stepfreq"],
+                self._settings[ax]["ramp"],
+                self._settings[ax]["startfreq"]))
+        else:
+            self.query(f"GP{self._axes[ax]}{int(pos):d};S;")
+
+    def move_abs_nonblocking(self, pos, ax=0):
+        """
+        moves to new position.
+
+        Parameters
+        --------
+        pos: float
+            Desired absolute position (in units defined by _steps_per_deg
+        ax: int <= 3
+            axis to be configured
+        """
+        if pos > self._limits[ax]["hi"] or pos < self._limits[ax]["lo"]:
+            # only allows rotations within limits
+            return
+        pos *= self._steps_per_deg
+        if self.get_moving():
+            # ignore command if still moving
+            return
+        if self._settings[ax] != {}:
+            self.write("A{}{:d},{:d},{:d},{:d}".format(
+                self._axes[ax],
+                int(pos),
+                self._settings[ax]["stepfreq"],
+                self._settings[ax]["ramp"],
+                self._settings[ax]["startfreq"]))
+        else:
+            self.write(f"A{self._axes[ax]}{int(pos):d}")
+        # wait to make reasonably sure command reaches the driver
+        time.sleep(0.25)
+        self.write(f"S")
+
+    def move_rel_nonblocking(self, pos, ax=0):
+        """
+        Moves relative to current position by pos.
+
+        Parameters
+        --------
+        pos: float
+            Desired relative position (in units defined by _steps_per_deg
+        ax: int <= 3
+            axis to be configured
+        """
+        if abs(pos) > abs(self._limits[ax]["hi"]-self._limits[ax]["lo"]):
+            # ignore rotations that are guaranteed to exceed the limit
+            return
+        pos *= self._steps_per_deg
+        if self.get_moving():
+            # ignore command if still moving
+            return
+        if self._settings[ax] != {}:
+            self.write("P{}{:d},{:d},{:d},{:d}".format(
+                self._axes[ax],
+                int(pos),
+                self._settings[ax]["stepfreq"],
+                self._settings[ax]["ramp"],
+                self._settings[ax]["startfreq"]))
+        else:
+            self.write(f"P{self._axes[ax]}{int(pos):d}")
+        # wait to make reasonably sure command reaches the driver
+        time.sleep(0.25)
+        self.write(f"S")
+
+    def get_moving(self, ax=0):
+        """
+        Checks the speed of axis one and verifies wether it turns to 0
+
+        Parameters
+        --------
+        ax: int <= 3
+            axis to be configured
+        """
+        ret = self.query("B")
+        return "j" == ret[3+3*ax]
+
+    def get_pos(self, ax=0):
+        """
+        Returns the position of an axis. Units are defined by _step_per_deg
+
+        Parameters
+        --------
+        ax: int <= 3
+            axis to be configured
+        """
+        return float(
+            self.query(
+                f"C{self._axes[ax]}").replace("CX", ""))/self._steps_per_deg
+
+    def stop(self, ax=0):
+        """
+        Stops the motion of axis
+
+        Parameters
+        --------
+        ax: int <= 3
+            axis to be configured
+        """
+        self.write("E{self._axes[ax]}")
+
+
 class Ps10(VisaDevice):
     # DMT100 has 50 microsteps, 200 steps/motor revolution
     # 180:1 gear ratio, recalculate to single degree
