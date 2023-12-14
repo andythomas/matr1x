@@ -20,7 +20,8 @@ from matr1x.util import generate_script
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
+    from PyQt6.QtCore import (QEvent, QRect, QRegularExpression, QSize, Qt,
+                              QThread, pyqtSignal)
     from PyQt6.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
                              QSyntaxHighlighter, QTextCharFormat, QTextCursor)
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
@@ -28,7 +29,8 @@ try:
                                  QPlainTextEdit, QPushButton, QSplitter,
                                  QTextEdit, QWidget)
 except ImportError:
-    from PyQt5.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
+    from PyQt5.QtCore import (QEvent, QRect, QRegularExpression, QSize, Qt,
+                              QThread, pyqtSignal)
     from PyQt5.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
                              QSyntaxHighlighter, QTextCharFormat, QTextCursor)
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
@@ -48,6 +50,16 @@ if os.name == 'nt':
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
+
+
+class Matr1xApplication (QApplication):
+    openfile = pyqtSignal(str)
+
+    def event(self, event):
+        if event.type() == QEvent.Type.FileOpen:
+            filename = event.file()
+            self.openfile.emit(filename)
+        return QApplication.event(self, event)
 
 
 class LineNumberArea(QWidget):
@@ -416,7 +428,7 @@ class MainWindow(QWidget):
     Define layout, runs everything
     """
 
-    def __init__(self):
+    def __init__(self, filename=None):
         """
         Initialize the GUI for scripted matrix control
         """
@@ -454,6 +466,10 @@ class MainWindow(QWidget):
         """)
         self.status_preview.setMarkdown(welcome_string)
         print("==========")
+        # If filename is passed when matrix-script is started, start
+        # by loading the file
+        if filename is not None:
+            self.load_from_filename(filename)
 
     def init_ui(self):
         icondir = join(dirname(__file__), 'icons')
@@ -722,16 +738,11 @@ class MainWindow(QWidget):
         output_file.write(newscript)
         output_file.close()
 
-    def load_from_file(self):
+    def load_from_filename(self, filename):
         """
-        loads the script to file, making sure that header information specified
-        still agree with the corresponding system
+        loads the script from file denoted by filename, making sure that
+        header information specified still agree with the corresponding system
         """
-        filename = QFileDialog.getOpenFileName(
-            self, 'Select Script',
-            matr1x.usersfolder,
-            "matrix files (*.matrix)")
-        filename = filename[0]
         if "" == filename:
             print("Please specify file")
             print("==========")
@@ -803,16 +814,30 @@ class MainWindow(QWidget):
             self.script_edit.insertPlainText(line)
         input_file.close()
 
+    def load_from_file(self):
+        """
+        wrapper function for load_from_filename, that opens file dialog first
+        """
+        filename = QFileDialog.getOpenFileName(
+            self, 'Select Script',
+            matr1x.usersfolder,
+            "matrix files (*.matrix)")
+        filename = filename[0]
+        self.load_from_filename(filename)
+
 
 def main():
     if "_" in os.path.basename(sys.argv[0]):
         warnings.warn(
             "The executable name 'matrix_script' is deprecated. Use 'matrix-script' instead.",
             FutureWarning)
-    app = QApplication(sys.argv)
+    app = Matr1xApplication(sys.argv)
     app.setDesktopFileName("matrix-script")
     with QtGracefulKiller():
-        ex = MainWindow()
+        if len(sys.argv) < 2:
+            ex = MainWindow()
+        else:
+            ex = MainWindow(filename=sys.argv[1])
         ex.show()
         ret = app.exec()
         sys.stdout = sys.__stdout__

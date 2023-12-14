@@ -820,7 +820,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
             init_hdf5_skel(data_file, *telemetry)
     else:
         telemetry += [default_separator]
-        with open(output_filename, 'w') as data_file:
+        with open(output_filename, 'w', encoding="utf-8") as data_file:
             for dckey, dcvalue in system.dcdata.items():
                 if dcvalue is None:
                     data_file.write(f"# DC.{dckey} : None\n")

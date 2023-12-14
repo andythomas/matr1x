@@ -859,7 +859,7 @@ class System:
                     return_list.append(value)
 
         if self.hdf5 is False:
-            with open(datafilename, "a") as datafile:
+            with open(datafilename, "a", encoding="utf-8") as datafile:
                 # write datapoint to file
                 datafile.write(default_separator.join(str(v)
                                for v in return_list))
