@@ -41,7 +41,7 @@ class IsobusDevice(VisaDevice):
         super().write(cmd)
 
     @synchronized
-    def query(self, msg, depth=0, max_depth=4):
+    def query(self, msg, depth=0, max_depth=2):
         with self.sharedlock:
             if depth > 0:
                 time.sleep(3+depth)  # add progressive delay on repeated failure
@@ -49,11 +49,12 @@ class IsobusDevice(VisaDevice):
             if depth > max_depth:
                 logger.info(
                     f"{self.name}.query: maximum depth exeeded ('{msg}')")
-                self.read_very_eager()
-                if msg == 'X':
-                    return 'X00000000000000'
-                else:
-                    return f"{msg[0]}0.00"
+                ret = super().query(cmd)
+                #self.read_very_eager()
+                #if msg == 'X':
+                #    return 'X00000000000000'
+                #else:
+                #    return f"{msg[0]}0.00"
             if self.isobus_addr is not None:
                 cmd = f"@{self.isobus_addr}{msg}"
             else:
@@ -315,9 +316,9 @@ class ITC503(IsobusDevice):
         self.query("x016")  # repeat at last step so that heater stays on at the end
         self.query(f"s{temp:.1f}")
         self.query("x000")
-        self.query("y000")       
-
-
+        self.query("y000") 
+         
+        
 class IPS120(IsobusDevice):
     """
     Driver for IPS120 or Mercury-IPS in IPS120 mode
