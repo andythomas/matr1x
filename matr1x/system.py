@@ -208,6 +208,8 @@ class Parameter():
     def verify(self, param, cast):
         """verifies param is of correct type or raises error"""
         if isinstance(param, (list, tuple)):
+            if all([isinstance(val, (list, tuple)) for val in param]):
+                return param
             if all([isinstance(val, cast) for val in param]):
                 return param
         else:

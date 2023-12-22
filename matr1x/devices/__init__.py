@@ -19,6 +19,7 @@ from .oxford_mercury import (MercuryIPS, MercuryITC,  # noqa: F401
 from .pfeiffer import MPT200  # noqa: F401
 from .physikinstrumente import MercuryC663  # noqa: F401
 from .pico import PicoVNA  # noqa: F401
+from .rohdeschwarz import FSW8  # noqa: F401
 from .standa import Standa8SMC1  # noqa: F401
 from .thorlabs import BSC103  # noqa: F401
 from .visadevice import VisaDevice  # noqa: F401
