@@ -34,6 +34,8 @@ try:
                                  QMessageBox, QPushButton, QSplitter, QTextEdit,
                                  QWidget)
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5.QtCore import QEvent, QThread, QObject, Qt, pyqtSignal
     from PyQt5.QtGui import (QColor, QFont, QIcon, QPalette, QTextCursor)
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,

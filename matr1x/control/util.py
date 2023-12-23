@@ -47,6 +47,8 @@ try:
                                  QPushButton, QSizePolicy, QSpinBox, QTableView,
                                  QVBoxLayout, QWidget)
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5 import QtCore
     from PyQt5.QtCore import (QObject, QSettings, Qt, QThread, QTimer,
                               QVariant, pyqtSignal, pyqtSlot)

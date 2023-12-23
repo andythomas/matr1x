@@ -6,6 +6,8 @@
 This module contains gui related functions that are required by the sweep
 generator and matrix_gui
 """
+import warnings
+
 import numpy as np
 
 # Try to import Qt6 and fallback to Qt5 if not available
@@ -17,6 +19,8 @@ try:
                                  QLineEdit, QPushButton, QSizePolicy, QSlider,
                                  QToolButton, QVBoxLayout)
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5.QtCore import QLocale, QObject, Qt, pyqtSignal
     from PyQt5.QtGui import QDoubleValidator, QIntValidator
     from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,

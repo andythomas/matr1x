@@ -25,6 +25,8 @@ try:
                                  QListWidget, QPushButton, QTextEdit,
                                  QVBoxLayout, QWidget)
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5.QtCore import QThread, pyqtSignal
     from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,

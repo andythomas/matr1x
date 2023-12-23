@@ -26,6 +26,8 @@ try:
                                  QPushButton, QScrollArea, QSizePolicy,
                                  QSpinBox, QToolButton, QVBoxLayout, QWidget)
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
     from PyQt5.QtGui import QColor, QIcon, QKeySequence, QPalette, QTextCursor
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
