@@ -21,6 +21,8 @@ try:
     from PyQt6.QtWidgets import (QApplication, QHBoxLayout, QMessageBox,
                                  QPushButton, QWidget)
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QMessageBox,
                                  QPushButton, QWidget)
 

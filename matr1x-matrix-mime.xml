@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/matr1x-matrix">
+         <comment xml:lang="en">matrix script file</comment>
+         <glob pattern="*.matrix"/>
+  </mime-type>
+</mime-info>

@@ -113,7 +113,6 @@ def loadmatrix(filename, structured=True, print_header=False):
         if 'h5py' not in sys.modules:
             # disable file locking in h5py
             # seems this is needed before loading the package
-            os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"  # noqa
             import h5py  # this import does not generate a global variable
 
             # in the scope of the calling program?!
@@ -128,7 +127,8 @@ def loadmatrix(filename, structured=True, print_header=False):
             try:
                 # use swmr read mode, to avoid corrupting the data during the
                 # measurement (where it is written to by the matrix process)
-                h5f = h5py.File(filename, 'r', swmr=True, libver='latest')
+                h5f = h5py.File(filename, 'r', swmr=True, libver='latest',
+                                locking=False)
                 break
             except OSError:
                 # retry in case file is just written by the data acqusition

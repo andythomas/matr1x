@@ -14,6 +14,8 @@ import numbers
 import os
 import re
 import signal
+import smtplib
+import ssl
 import sys
 import time
 import traceback
@@ -45,6 +47,8 @@ try:
                                  QPushButton, QSizePolicy, QSpinBox, QTableView,
                                  QVBoxLayout, QWidget)
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5 import QtCore
     from PyQt5.QtCore import (QObject, QSettings, Qt, QThread, QTimer,
                               QVariant, pyqtSignal, pyqtSlot)
@@ -55,7 +59,7 @@ except ImportError:
                                  QPushButton, QSizePolicy, QSpinBox, QTableView,
                                  QVBoxLayout, QWidget)
 
-from .. import datetimefmt, logfolder, system, usersfolder
+from .. import confparser, datetimefmt, logfolder, system, usersfolder
 from ..gui_util import validator
 from ..util import normalize_cmds
 from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
@@ -1053,13 +1057,33 @@ def sendNotificationEmail(address, subject, msgtext, attachments=[]):
             att.add_header('Content-Disposition', 'attachment', filename=fname)
             msg.attach(att)
 
+        # read email config
+        (smtp_srv,
+         smtp_user,
+         frommail,
+         passwd) = [confparser.get("email", field, fallback=None) for field in ("smtp_server",
+                                                                                "smtp_user",
+                                                                                "fromemail",
+                                                                                "password")]
+        port = confparser.get("email", "smtp_port", fallback=465)
+        context = ssl.create_default_context()
+
         try:
-            p = Popen(["/usr/sbin/sendmail", "-t"], stdin=PIPE)
-            p.communicate(msg.as_bytes())
-            p.wait()
-            logger = logging.getLogger(__name__)
-            logger.info(
-                "notification email {} sent to {}".format(msgtext, address))
+            if all(var is not None for var in (smtp_srv, smtp_user, frommail, passwd)):
+                with smtplib.SMTP_SSL(smtp_srv, port, context=context) as server:
+                    server.login(smtp_user, passwd)
+                    server.send_message(
+                        msg, from_addr=frommail, to_addrs=address)
+            elif os.name == 'posix':
+                p = Popen(["sendmail", "-t"], stdin=PIPE)
+                p.communicate(msg.as_bytes())
+                p.wait()
+                logger = logging.getLogger(__name__)
+                logger.info(
+                    "notification email {} sent to {}".format(msgtext, address))
+            else:
+                print(
+                    "no email configuration found; see documentation on how to set it up")
         except Exception as e:
             print("ignoring error during sending email: {}".format(e))
 

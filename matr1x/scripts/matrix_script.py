@@ -2,10 +2,13 @@
 # ---
 # (c) 2023 matr1x developers. All rights reserved.
 # ---
+from __future__ import unicode_literals
+
 import ast
 import getpass
 import logging
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -14,32 +17,1058 @@ import textwrap
 import warnings
 from os.path import dirname, join
 
+import autopep8
 import matr1x
+import pyflakes.api
+import pyflakes.reporter
 from matr1x.control.util import QtGracefulKiller
-from matr1x.util import generate_script
+from matr1x.util import generate_script, generate_script_prefix_suffix
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
-    from PyQt6.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
-                             QSyntaxHighlighter, QTextCharFormat, QTextCursor)
+    from PyQt6.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
+    from PyQt6.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
+    from PyQt6.QtGui import QColor, QFont, QIcon, QPalette, QTextCursor
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                                  QGridLayout, QLineEdit, QListWidget,
-                                 QPlainTextEdit, QPushButton, QSplitter,
-                                 QTextEdit, QWidget)
+                                 QMessageBox, QPushButton, QSplitter, QTextEdit,
+                                 QWidget)
 except ImportError:
-    from PyQt5.QtCore import QRect, QRegularExpression, QSize, Qt, QThread
-    from PyQt5.QtGui import (QColor, QFont, QIcon, QPainter, QPalette,
-                             QSyntaxHighlighter, QTextCharFormat, QTextCursor)
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
+    from PyQt5.QtCore import QEvent, QThread, QObject, Qt, pyqtSignal
+    from PyQt5.QtGui import (QColor, QFont, QIcon, QPalette, QTextCursor)
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                                  QGridLayout, QLineEdit, QListWidget,
-                                 QPlainTextEdit, QPushButton, QSplitter, QTextEdit,
-                                 QWidget)
+                                 QMessageBox, QPushButton, QSplitter,
+                                 QTextEdit, QWidget)
+    from PyQt5.Qsci import QsciScintilla, QsciLexerPython, QsciAPIs
 
 from ..gui_util import EmittingStream
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 logger.info("matrix-script starting")
+
+# define syntax styles, currently only a single style for ~white background
+# is implemented, in the future also support dark mode?
+STYLES = {
+    QsciLexerPython.Default: QColor('black'),
+    QsciLexerPython.Keyword: QColor('blue'),
+    QsciLexerPython.Operator: QColor('red'),
+    QsciLexerPython.FunctionMethodName: QColor('darkGreen'),
+    QsciLexerPython.ClassName: QColor('darkBlue'),
+    QsciLexerPython.HighlightedIdentifier: QColor('darkCyan'),
+    QsciLexerPython.SingleQuotedString: QColor('darkMagenta'),
+    QsciLexerPython.SingleQuotedFString: QColor('darkMagenta'),
+    QsciLexerPython.TripleSingleQuotedString: QColor('darkMagenta'),
+    QsciLexerPython.TripleSingleQuotedFString: QColor('darkMagenta'),
+    QsciLexerPython.DoubleQuotedString: QColor('darkRed'),
+    QsciLexerPython.DoubleQuotedFString: QColor('darkRed'),
+    QsciLexerPython.TripleDoubleQuotedString: QColor('darkRed'),
+    QsciLexerPython.TripleDoubleQuotedString: QColor('darkRed'),
+    QsciLexerPython.Comment: QColor("#666666"),
+    QsciLexerPython.Identifier: QColor('black'),
+    QsciLexerPython.Number: QColor('brown'),
+}
+
+SCRIPT_OFFSET = len(generate_script_prefix_suffix("")[0].split('\n'))
+
+
+class Matr1xApplication (QApplication):
+    openfile = pyqtSignal(str)
+
+    def event(self, event):
+        if event.type() == QEvent.Type.FileOpen:
+            filename = event.file()
+            self.openfile.emit(filename)
+        return QApplication.event(self, event)
+
+
+class CustomReporter(pyflakes.reporter.Reporter):
+
+    def __init__(self, stream, hook):
+        """
+        only use a single stream from errors and warnings
+        provide a hook to handle the linter errors
+
+        Parameters:
+            hook : function
+                callback to call on script errors. Should accept the line,
+                column (cursor position), a message, its arguments, and
+                a number which styles the response
+        """
+        super().__init__(stream, stream)
+        self.linter_hook = hook
+
+    def flake(self, message):
+        """
+        Reimplementing the flaker function, called if formatting or similar
+        error is found (naming etc.)
+        """
+        self.linter_hook(message.lineno-SCRIPT_OFFSET, message.col-4,
+                         message.message % message.message_args,
+                         message.message_args, 0)
+
+    def syntaxError(self, filename, msg, lineno, offset, text):
+        """
+        Reimplementing the syntax error function, handles the messages
+        and properly initializes the linter hook
+        """
+        if text is None:
+            line = None
+        else:
+            line = text.splitlines()[-1]
+
+        m = re.search(r'line (\d+)', msg)
+        if m is not None:
+            lineno = int(m.groups(0)[0])
+            line = None
+        else:
+            # lineno might be None if the error was during tokenization
+            # lineno might be 0 if the error came from stdin
+            lineno = max(lineno or 0, 1)
+
+        lineno -= SCRIPT_OFFSET
+
+        msg = re.sub(r'line (\d+)', f"line {lineno+1}", msg)
+
+        if offset is not None:
+            if offset >= 4:
+                offset -= 5
+        else:
+            offset = 0
+        if line is not None:
+            ret = (f"{msg} : {line.lstrip()}", (f"{line.lstrip()[offset:]}",))
+        else:
+            ret = (f"{msg}", ("",))
+        self.linter_hook(lineno, offset, *ret, 1)
+
+
+# below code is adapted from the eric7 editor
+# -*- coding: utf-8 -*-
+# Copyright (c) 2007 - 2023 Detlev Offenbach <detlev@die-offenbachs.de>
+# license is GPLv3
+#
+def rxIndex(rx, txt):
+    """
+    Function to get the index (start position) of a regular expression match
+    within some text.
+
+    @param rx regular expression object as created by re.compile()
+    @type re.Pattern
+    @param txt text to be scanned
+    @type str
+    @return start position of the match or -1 indicating no match was found
+    @rtype int
+    """
+    match = rx.search(txt)
+    if match is None:
+        return -1
+    else:
+        return match.start()
+
+
+class CompleterPython(QObject):
+    """
+    Class implementing a python completer
+    """
+
+    def __init__(self, editor, parent=None):
+        """
+        Constructor
+
+        @param editor reference to the editor object (QScintilla.Editor)
+        @param parent reference to the parent object (QObject)
+            If parent is None, we set the editor as the parent.
+        """
+        if parent is None:
+            parent = editor
+
+        super().__init__(parent)
+
+        self.editor = editor
+        self.enabled = False
+
+        self.__defRX = re.compile(
+            r"^[ \t]*(async[ \t]+)?(def|cdef|cpdef) \w+\(")
+        self.__defSelfRX = re.compile(
+            r"^[ \t]*(async[ \t]+)?(def|cdef|cpdef) \w+\([ \t]*self[ \t]*[,)]"
+        )
+        self.__defClsRX = re.compile(
+            r"^[ \t]*(async[ \t]+)?(def|cdef|cpdef) \w+\([ \t]*cls[ \t]*[,)]"
+        )
+        self.__classRX = re.compile(r"^[ \t]*(cdef[ \t]+)?class \w+[(:]")
+        self.__importRX = re.compile(r"^[ \t]*from [\w.]+ ")
+        self.__classmethodRX = re.compile(r"^[ \t]*@classmethod")
+        self.__staticmethodRX = re.compile(r"^[ \t]*@staticmethod")
+
+        self.__defOnlyRX = re.compile(r"^[ \t]*def ")
+
+        self.__ifRX = re.compile(r"^[ \t]*if ")
+        self.__elifRX = re.compile(r"^[ \t]*elif ")
+        self.__elseRX = re.compile(r"^[ \t]*else:")
+
+        self.__tryRX = re.compile(r"^[ \t]*try:")
+        self.__finallyRX = re.compile(r"^[ \t]*finally:")
+        self.__exceptRX = re.compile(r"^[ \t]*except ")
+        self.__exceptcRX = re.compile(r"^[ \t]*except:")
+
+        self.__whileRX = re.compile(r"^[ \t]*while ")
+        self.__forRX = re.compile(r"^[ \t]*(async[ \t]+)?for ")
+
+        self.__trailingBlankRe = re.compile(r"(?:,)(\s*)\r?\n")
+
+        self.__openBrackets = ('(', '[', '{')
+        self.__closeBrackets = (')', ']', '}')
+
+        # configure completer, see eric7 documentation for behavior
+        self.__insertClosingBrace = False
+        self.__indentBrace = True
+        self.__skipBrace = True
+        self.__insertQuote = False
+        self.__dedentElse = True
+        self.__dedentExcept = True
+        self.__py24StyleTry = True
+        self.__insertImport = True
+        self.__insertSelf = True
+        self.__insertBlank = False
+        self.__colonDetection = True
+        self.__dedentDef = True
+
+    def setEnabled(self, enable):
+        """
+        Public slot to set the enabled state.
+
+        @param enable flag indicating the new enabled state (boolean)
+        """
+        if enable:
+            if not self.enabled:
+                self.editor.SCN_CHARADDED.connect(self.charAdded)
+        else:
+            if self.enabled:
+                self.editor.SCN_CHARADDED.disconnect(self.charAdded)
+        self.enabled = enable
+
+    def isEnabled(self):
+        """
+        Public method to get the enabled state.
+
+        @return enabled state (boolean)
+        """
+        return self.enabled
+
+    def charAdded(self, charNumber):
+        """
+        Public slot called to handle the user entering a character.
+
+        @param charNumber value of the character entered (integer)
+        """
+        char = chr(charNumber)
+        if char not in ["(", ")", "{", "}", "[", "]", " ", ",", "'",
+                        '"', "\n", ":"]:
+            return  # take the short route
+
+        line, col = self.editor.getCursorPosition()
+
+        if (
+            self.__inComment(line, col)
+            or (char != '"' and self.__inDoubleQuotedString())
+            or (char != '"' and self.__inTripleDoubleQuotedString())
+            or (char != "'" and self.__inSingleQuotedString())
+            or (char != "'" and self.__inTripleSingleQuotedString())
+        ):
+            return
+
+        # open parenthesis
+        # insert closing parenthesis and self
+        if char == "(":
+            txt = self.editor.text(line)[:col]
+            self.editor.beginUndoAction()
+            if self.__insertSelf and self.__defRX.fullmatch(txt) is not None:
+                if self.__isClassMethodDef():
+                    self.editor.insert("cls")
+                    self.editor.setCursorPosition(line, col + 3)
+                elif self.__isStaticMethodDef():
+                    # nothing to insert
+                    pass
+                elif self.__isClassMethod():
+                    self.editor.insert("self")
+                    self.editor.setCursorPosition(line, col + 4)
+            if self.__insertClosingBrace:
+                if self.__defRX.fullmatch(txt) is not None or (
+                    self.__classRX.fullmatch(
+                        txt) is not None and txt.endswith("(")
+                ):
+                    self.editor.insert("):")
+                else:
+                    self.editor.insert(")")
+            self.editor.endUndoAction()
+
+        # closing parenthesis
+        # skip matching closing parenthesis
+        elif char in [")", "}", "]"]:
+            txt = self.editor.text(line)
+            if col < len(txt) and char == txt[col] and self.__skipBrace:
+                self.editor.setSelection(line, col, line, col + 1)
+                self.editor.removeSelectedText()
+
+        # space
+        # insert import, dedent to if for elif, dedent to try for except,
+        # dedent def
+        elif char == " ":
+            txt = self.editor.text(line)[:col]
+            if self.__insertImport and self.__importRX.fullmatch(txt):
+                self.editor.beginUndoAction()
+                if self.__importBraceType:
+                    self.editor.insert("import ()")
+                    self.editor.setCursorPosition(line, col + 8)
+                else:
+                    self.editor.insert("import ")
+                    self.editor.setCursorPosition(line, col + 7)
+                self.editor.endUndoAction()
+            elif self.__dedentElse and self.__elifRX.fullmatch(txt):
+                self.__dedentToIf()
+            elif self.__dedentExcept and self.__exceptRX.fullmatch(txt):
+                self.__dedentExceptToTry()
+            elif self.__dedentDef and self.__defOnlyRX.fullmatch(txt):
+                self.__dedentDefStatement()
+
+        # comma
+        # insert blank
+        elif char == "," and self.__insertBlank:
+            self.editor.insert(" ")
+            self.editor.setCursorPosition(line, col + 1)
+
+        # open curly brace
+        # insert closing brace
+        elif char == "{" and self.__insertClosingBrace:
+            self.editor.insert("}")
+
+        # open bracket
+        # insert closing bracket
+        elif char == "[" and self.__insertClosingBrace:
+            self.editor.insert("]")
+
+        # double quote
+        # insert double quote
+        elif char == '"' and self.__insertQuote:
+            self.editor.insert('"')
+
+        # quote
+        # insert quote
+        elif char == "'" and self.__insertQuote:
+            self.editor.insert("'")
+
+        # colon
+        # skip colon, dedent to if for else:
+        elif char == ":":
+            text = self.editor.text(line)
+            if col < len(text) and char == text[col]:
+                if self.__colonDetection:
+                    self.editor.setSelection(line, col, line, col + 1)
+                    self.editor.removeSelectedText()
+            else:
+                txt = text[:col]
+                if self.__dedentElse and self.__elseRX.fullmatch(txt):
+                    self.__dedentElseToIfWhileForTry()
+                elif self.__dedentExcept and self.__exceptcRX.fullmatch(txt):
+                    self.__dedentExceptToTry()
+                elif self.__dedentExcept and self.__finallyRX.fullmatch(txt):
+                    self.__dedentFinallyToTry()
+
+        # new line
+        # indent to opening brace
+        elif char == "\n" and self.__indentBrace:
+            txt = self.editor.text(line - 1)
+            if self.__insertBlank and self.__trailingBlankRe.search(txt):
+                match = self.__trailingBlankRe.search(txt)
+                if match is not None:
+                    startBlanks = match.start(1)
+                    endBlanks = match.end(1)
+                    if startBlanks != -1 and startBlanks != endBlanks:
+                        # previous line ends with whitespace, e.g. caused by
+                        # blank insertion above
+                        self.editor.setSelection(
+                            line - 1, startBlanks, line - 1, endBlanks
+                        )
+                        self.editor.removeSelectedText()
+                        # get the line again for next check
+                        txt = self.editor.text(line - 1)
+
+                    self.editor.setCursorPosition(line, 0)
+                    self.editor.editorCommand(QsciScintilla.SCI_VCHOME)
+
+            if re.search(":\r?\n", txt) is None:
+                self.editor.beginUndoAction()
+                stxt = txt.strip()
+                if stxt and stxt[-1] in self.__openBrackets:
+                    # indent one more level
+                    self.editor.indent(line)
+                    self.editor.editorCommand(QsciScintilla.SCI_VCHOME)
+                else:
+                    # indent to the level of the opening brace
+                    openCount = len(re.findall("[({[]", txt))
+                    closeCount = len(re.findall(r"[)}\]]", txt))
+                    if openCount > closeCount:
+                        openCount = 0
+                        closeCount = 0
+                        openList = list(re.finditer("[({[]", txt))
+                        index = len(openList) - 1
+                        while index > -1 and openCount == closeCount:
+                            lastOpenIndex = openList[index].start()
+                            txt2 = txt[lastOpenIndex:]
+                            openCount = len(re.findall("[({[]", txt2))
+                            closeCount = len(re.findall(r"[)}\]]", txt2))
+                            index -= 1
+                        if openCount > closeCount and lastOpenIndex > col:
+                            self.editor.insert(" " * (lastOpenIndex - col + 1))
+                            self.editor.setCursorPosition(line,
+                                                          lastOpenIndex + 1)
+                self.editor.endUndoAction()
+
+    def __dedentToIf(self):
+        """
+        Private method to dedent the last line to the last if statement with
+        less (or equal) indentation.
+        """
+        line, col = self.editor.getCursorPosition()
+        indentation = self.editor.indentation(line)
+        ifLine = line - 1
+        while ifLine >= 0:
+            txt = self.editor.text(ifLine)
+            edInd = self.editor.indentation(ifLine)
+            if rxIndex(self.__elseRX, txt) == 0 and edInd <= indentation:
+                indentation = edInd - 1
+            elif (
+                rxIndex(self.__ifRX, txt) == 0 or rxIndex(
+                    self.__elifRX, txt) == 0
+            ) and edInd <= indentation:
+                self.editor.cancelList()
+                self.editor.setIndentation(line, edInd)
+                break
+            ifLine -= 1
+
+    def __dedentElseToIfWhileForTry(self):
+        """
+        Private method to dedent the line of the else statement to the last
+        if, while, for or try statement with less (or equal) indentation.
+        """
+        line, col = self.editor.getCursorPosition()
+        indentation = self.editor.indentation(line)
+        if line > 0:
+            prevInd = self.editor.indentation(line - 1)
+        ifLine = line - 1
+        while ifLine >= 0:
+            txt = self.editor.text(ifLine)
+            edInd = self.editor.indentation(ifLine)
+            if (rxIndex(self.__elseRX, txt) == 0 and edInd <= indentation) or (
+                rxIndex(self.__elifRX, txt) == 0
+                and edInd == indentation
+                and edInd == prevInd
+            ):
+                indentation = edInd - 1
+            elif (
+                rxIndex(self.__ifRX, txt) == 0
+                or rxIndex(self.__whileRX, txt) == 0
+                or rxIndex(self.__forRX, txt) == 0
+                or rxIndex(self.__tryRX, txt) == 0
+            ) and edInd <= indentation:
+                self.editor.cancelList()
+                self.editor.setIndentation(line, edInd)
+                break
+            ifLine -= 1
+
+    def __dedentExceptToTry(self):
+        """
+        Private method to dedent the line of the except statement to the last
+        try statement with less (or equal) indentation.
+        """
+        line, col = self.editor.getCursorPosition()
+        indentation = self.editor.indentation(line)
+        tryLine = line - 1
+        while tryLine >= 0:
+            txt = self.editor.text(tryLine)
+            edInd = self.editor.indentation(tryLine)
+            if (
+                rxIndex(self.__exceptcRX, txt) == 0
+                or rxIndex(self.__finallyRX, txt) == 0
+            ) and edInd <= indentation:
+                indentation = edInd - 1
+            elif (
+                rxIndex(self.__exceptRX, txt) == 0 or rxIndex(
+                    self.__tryRX, txt) == 0
+            ) and edInd <= indentation:
+                self.editor.cancelList()
+                self.editor.setIndentation(line, edInd)
+                break
+            tryLine -= 1
+
+    def __dedentFinallyToTry(self):
+        """
+        Private method to dedent the line of the except statement to the last
+        try statement with less (or equal) indentation.
+        """
+        line, col = self.editor.getCursorPosition()
+        indentation = self.editor.indentation(line)
+        tryLine = line - 1
+        while tryLine >= 0:
+            txt = self.editor.text(tryLine)
+            edInd = self.editor.indentation(tryLine)
+            if rxIndex(self.__finallyRX, txt) == 0 and edInd <= indentation:
+                indentation = edInd - 1
+            elif (
+                rxIndex(self.__tryRX, txt) == 0
+                or rxIndex(self.__exceptcRX, txt) == 0
+                or rxIndex(self.__exceptRX, txt) == 0
+            ) and edInd <= indentation:
+                self.editor.cancelList()
+                self.editor.setIndentation(line, edInd)
+                break
+            tryLine -= 1
+
+    def __dedentDefStatement(self):
+        """
+        Private method to dedent the line of the def statement to a previous
+        def statement or class statement.
+        """
+        line, col = self.editor.getCursorPosition()
+        indentation = self.editor.indentation(line)
+        tryLine = line - 1
+        inMultiLineString = False
+        while tryLine >= 0:
+            txt = self.editor.text(tryLine)
+            if txt.count('"""') % 2 != 0 or txt.count("'''") % 2 != 0:
+                inMultiLineString = not inMultiLineString
+            if not inMultiLineString:
+                edInd = self.editor.indentation(tryLine)
+                newInd = -1
+                if rxIndex(self.__defRX, txt) == 0 and edInd < indentation:
+                    newInd = edInd
+                elif rxIndex(self.__classRX, txt) == 0 and edInd < indentation:
+                    newInd = edInd + (
+                        self.editor.indentationWidth() or
+                        self.editor.tabWidth()
+                    )
+                if newInd >= 0:
+                    self.editor.cancelList()
+                    self.editor.setIndentation(line, newInd)
+                    break
+            tryLine -= 1
+
+    def __isClassMethod(self):
+        """
+        Private method to check, if the user is defining a class method.
+
+        @return flag indicating the definition of a class method (boolean)
+        """
+        line, col = self.editor.getCursorPosition()
+        indentation = self.editor.indentation(line)
+        curLine = line - 1
+        inMultiLineString = False
+        while curLine >= 0:
+            txt = self.editor.text(curLine)
+            if txt.count('"""') % 2 != 0 or txt.count("'''") % 2 != 0:
+                inMultiLineString = not inMultiLineString
+            if not inMultiLineString:
+                if (
+                    (
+                        rxIndex(self.__defSelfRX, txt) == 0
+                        or rxIndex(self.__defClsRX, txt) == 0
+                    )
+                    and self.editor.indentation(curLine) == indentation
+                ) or (
+                    rxIndex(self.__classRX, txt) == 0
+                    and self.editor.indentation(curLine) < indentation
+                ):
+                    return True
+                elif (
+                    rxIndex(self.__defRX, txt) == 0
+                    and self.editor.indentation(curLine) <= indentation
+                ):
+                    return False
+            curLine -= 1
+        return False
+
+    def __isClassMethodDef(self):
+        """
+        Private method to check, if the user is defing a class method
+        (@classmethod).
+
+        @return flag indicating the definition of a class method (boolean)
+        """
+        line, col = self.editor.getCursorPosition()
+        indentation = self.editor.indentation(line)
+        curLine = line - 1
+        if (
+            rxIndex(self.__classmethodRX, self.editor.text(curLine)) == 0
+            and self.editor.indentation(curLine) == indentation
+        ):
+            return True
+        return False
+
+    def __isStaticMethodDef(self):
+        """
+        Private method to check, if the user is defing a static method
+        (@staticmethod) method.
+
+        @return flag indicating the definition of a static method (boolean)
+        """
+        line, col = self.editor.getCursorPosition()
+        indentation = self.editor.indentation(line)
+        curLine = line - 1
+        if (
+            rxIndex(self.__staticmethodRX, self.editor.text(curLine)) == 0
+            and self.editor.indentation(curLine) == indentation
+        ):
+            return True
+        return False
+
+    def __inComment(self, line, col):
+        """
+        Private method to check, if the cursor is inside a comment.
+
+        @param line current line (integer)
+        @param col current position within line (integer)
+        @return flag indicating, if the cursor is inside a comment (boolean)
+        """
+        txt = self.editor.text(line)
+        if col == len(txt):
+            col -= 1
+        while col >= 0:
+            if txt[col] == "#":
+                return True
+            col -= 1
+        return False
+
+    def __inDoubleQuotedString(self):
+        """
+        Private method to check, if the cursor is within a double quoted
+        string.
+
+        @return flag indicating, if the cursor is inside a double
+            quoted string (boolean)
+        """
+        return self.editor.currentStyle() == QsciLexerPython.DoubleQuotedString
+
+    def __inTripleDoubleQuotedString(self):
+        """
+        Private method to check, if the cursor is within a triple double
+        quoted string.
+
+        @return flag indicating, if the cursor is inside a triple double
+            quoted string (boolean)
+        """
+        return (self.editor.currentStyle() ==
+                QsciLexerPython.TripleDoubleQuotedString)
+
+    def __inSingleQuotedString(self):
+        """
+        Private method to check, if the cursor is within a single quoted
+        string.
+
+        @return flag indicating, if the cursor is inside a single
+            quoted string (boolean)
+        """
+        return self.editor.currentStyle() == QsciLexerPython.SingleQuotedString
+
+    def __inTripleSingleQuotedString(self):
+        """
+        Private method to check, if the cursor is within a triple single
+        quoted string.
+
+        @return flag indicating, if the cursor is inside a triple single
+            quoted string (boolean)
+        """
+        return (self.editor.currentStyle() ==
+                QsciLexerPython.TripleSingleQuotedString)
+
+
+class QScintillaCustom(QsciScintilla):
+    """
+    Commenting functionality adapted from
+    https://github.com/matkuki/qscintilla_docs/blob/master/examples/commenting.py
+    License is GPLv3.
+    """
+    comment_string = "# "
+    line_ending = "\n"
+
+    def __init__(self, stream, parent=None):
+        super().__init__(parent=parent)
+        self.output_stream = stream
+        self.reporter = CustomReporter(self.output_stream,
+                                       self.handle_linter)
+
+    def keyPressEvent(self, event):
+        # Check pressed key information
+        key = event.key()
+        key_modifiers = QApplication.keyboardModifiers()
+        if (key == Qt.Key.Key_Slash and
+                key_modifiers == Qt.KeyboardModifier.ControlModifier):
+            # toggle comment on selected lines
+            self.toggle_commenting()
+            return
+        if (key == Qt.Key.Key_8 and
+                key_modifiers == Qt.KeyboardModifier.ControlModifier):
+            # reformat code using autopep8
+            self.setText(autopep8.fix_code(self.text(), options=None))
+            return
+        if (key == Qt.Key.Key_L and
+                key_modifiers == Qt.KeyboardModifier.ControlModifier):
+            # run the linter
+            self.run_linter()
+            return
+        if key == Qt.Key.Key_QuoteDbl:
+            # check that something is selected
+            if bool(self.SendScintilla(self.SCI_GETSELECTIONEMPTY)) is False:
+                self.add_block_commenting('"')
+                return
+        if key == Qt.Key.Key_Apostrophe:
+            # check that something is selected
+            if bool(self.SendScintilla(self.SCI_GETSELECTIONEMPTY)) is False:
+                self.add_block_commenting("'")
+                return
+        # Execute the superclasses event
+        super().keyPressEvent(event)
+
+    def run_linter(self):
+        """
+        convenience function to call the linter, generates the script
+        according to what matrix_script would do when one presses the run
+        button. Custom definitions for parameters that are passed by the
+        process are made here.
+        """
+        # remove potential annotations from previous linting run
+        self.clearAnnotations()
+        lastLine = len(self.text().split("\n")) - 1
+        lenLast = len(self.text().split("\n")[-1])
+        # remove potential indicators from previous linting run
+        for i in range(2):
+            self.clearIndicatorRange(0, 0, lastLine, lenLast, i)
+        if self.text().strip() != "":
+            # add initial definitions that are passed to the script
+            # externally to avoid linter errors, make sure not to add an
+            # additional line here
+            script = "wait=lambda x:x;print=lambda x:x;_user='';"
+            script += "_sample='';_scriptname='';"
+            script += generate_script("", self.text())
+            ret = pyflakes.api.check(script, 'sc', reporter=self.reporter)
+            print(f"Linter found {ret if ret != 0 else 'no'} error" +
+                  ("." if ret == 1 else "s."))
+            return ret
+        print("Nothing to lint")
+        return 0
+
+    def handle_linter(self, line, col, message, message_args, style):
+        """
+        call back function that is passed to the reporter of the linter.
+        """
+        if line < 0 or line >= len(self.text().split("\n")):
+            print("error outside script", message)
+        # remove comment to add verbose output of linter to status_preview
+        # print(f"Error in line {line+1} at position {col+1} : \n  {message}")
+        self.indicatorDefine(QsciScintilla.IndicatorStyle.FullBoxIndicator,
+                             style)
+        if len(message_args) > 0:
+            self.fillIndicatorRange(line, col, line, col+len(message_args[0]),
+                                    style)
+        else:
+            self.fillIndicatorRange(line, col, line, col+0,
+                                    style)
+        self.annotate(line, message, style)
+        # move the cursor to the position of the last error
+        self.setCursorPosition(line, col)
+
+    def add_block_commenting(self, char):
+        """
+        function to handle the block commenting
+        """
+        selections = self.get_selections()
+        if selections is None:
+            return
+        while self.merge_test(selections) is True:
+            selections = self.merge_selections(selections)
+        self.beginUndoAction()
+        for i, sel in enumerate(selections):
+            self.set_block_commenting(sel[0], sel[1], char)
+        self.SendScintilla(self.SCI_CLEARSELECTIONS)
+        for i, sel in enumerate(selections):
+            start_index = self.positionFromLineIndex(sel[0], 0)
+            # Check if ending line is the last line in the editor
+            last_line = sel[1]
+            if last_line == self.lines() - 1:
+                end_index = self.positionFromLineIndex(
+                    sel[1], len(self.text(last_line)))
+            else:
+                end_index = self.positionFromLineIndex(
+                    sel[1], len(self.text(last_line))-1)
+            if i == 0:
+                self.SendScintilla(
+                    self.SCI_SETSELECTION, start_index, end_index)
+            else:
+                self.SendScintilla(
+                    self.SCI_ADDSELECTION, start_index, end_index)
+        # Set the end of the undo action
+        self.endUndoAction()
+
+    def toggle_commenting(self):
+        """
+        function to handle the comment toggling using # comments
+        if one of the lines is not commented, adds a # to one line,
+        otherwise removes one from all lines.
+        """
+        # Check if the selections are valid
+        selections = self.get_selections()
+        if selections is None:
+            return
+        # Merge overlapping selections
+        while self.merge_test(selections) is True:
+            selections = self.merge_selections(selections)
+        # Start the undo action that can undo all commenting at once
+        self.beginUndoAction()
+        # Loop over selections and comment them
+        for i, sel in enumerate(selections):
+            all_commented = True
+            # check if any of the lines is not commented, if so comment all
+            # but empty selected lines
+            for line in range(sel[0], sel[1] + 1):
+                line_text = self.text(line).lstrip()
+                if line_text == "":
+                    continue
+                if not line_text.startswith(self.comment_string):
+                    all_commented = False
+            self.set_commenting(
+                sel[0], sel[1],
+                self._uncomment if all_commented else self._comment)
+        # Select back the previously selected regions
+        self.SendScintilla(self.SCI_CLEARSELECTIONS)
+        for i, sel in enumerate(selections):
+            start_index = self.positionFromLineIndex(sel[0], 0)
+            # Check if ending line is the last line in the editor
+            last_line = sel[1]
+            if last_line == self.lines() - 1:
+                end_index = self.positionFromLineIndex(
+                    sel[1], len(self.text(last_line)))
+            else:
+                end_index = self.positionFromLineIndex(
+                    sel[1], len(self.text(last_line)) - 1)
+            if i == 0:
+                self.SendScintilla(
+                    self.SCI_SETSELECTION, start_index, end_index)
+            else:
+                self.SendScintilla(
+                    self.SCI_ADDSELECTION, start_index, end_index)
+        # Set the end of the undo action
+        self.endUndoAction()
+
+    def get_selections(self):
+        """
+        Obtain the selections 
+        """
+        # Get the selection and store them in a list
+        selections = []
+        for i in range(self.SendScintilla(self.SCI_GETSELECTIONS)):
+            selection = (
+                self.SendScintilla(self.SCI_GETSELECTIONNSTART, i),
+                self.SendScintilla(self.SCI_GETSELECTIONNEND, i)
+            )
+            # Add selection to list
+            from_line, from_index = self.lineIndexFromPosition(selection[0])
+            to_line, to_index = self.lineIndexFromPosition(selection[1])
+            selections.append((from_line, to_line))
+        selections.sort()
+        # Return selection list
+        return selections
+
+    def merge_test(self, selections):
+        """
+        Test if merging of selections is needed
+        """
+        for i in range(1, len(selections)):
+            # Get the line numbers
+            previous_end_line = selections[i-1][1]
+            current_start_line = selections[i][0]
+            if previous_end_line == current_start_line:
+                return True
+        # Merging is not needed
+        return False
+
+    def merge_selections(self, selections):
+        """
+        This function merges selections with overlapping lines
+        """
+        # Test if merging is required
+        if len(selections) < 2:
+            return selections
+        merged_selections = []
+        skip_flag = False
+        for i in range(1, len(selections)):
+            # Get the line numbers
+            previous_start_line = selections[i-1][0]
+            previous_end_line = selections[i-1][1]
+            current_start_line = selections[i][0]
+            current_end_line = selections[i][1]
+            # Test for merge
+            if previous_end_line == current_start_line and skip_flag is False:
+                merged_selections.append(
+                    (previous_start_line, current_end_line)
+                )
+                skip_flag = True
+            else:
+                if skip_flag is False:
+                    merged_selections.append(
+                        (previous_start_line, previous_end_line)
+                    )
+                skip_flag = False
+                # Add the last selection only if it was not merged
+                if i == (len(selections) - 1):
+                    merged_selections.append(
+                        (current_start_line, current_end_line)
+                    )
+        # Return the merged selections
+        return merged_selections
+
+    def set_block_commenting(self, arg_from_line, arg_to_line, char):
+        # Get the cursor information
+        from_line = arg_from_line
+        to_line = arg_to_line
+        # Check if ending line is the last line in the editor
+        last_line = to_line
+        if last_line == self.lines() - 1:
+            to_index = len(self.text(to_line))
+        else:
+            to_index = len(self.text(to_line))-1
+        # Set the selection from the beginning of the cursor line
+        # to the end of the last selection line
+        self.setSelection(
+            from_line, 0, to_line, to_index
+        )
+        # Get the selected text and split it into lines
+        selected_text = self.selectedText()
+        selected_list = selected_text.split("\n")
+        # Find the smallest indent level
+        indent_levels = []
+        for line in selected_list:
+            indent_levels.append(len(line) - len(line.lstrip()))
+        min_indent_level = min(indent_levels)
+        # Add the commenting character to every line
+        selected_list[0] = (selected_list[0][:min_indent_level] + char +
+                            selected_list[0][min_indent_level:])
+        selected_list[-1] += char
+        # Replace the whole selected text with the merged lines
+        # containing the commenting characters
+        replace_text = self.line_ending.join(selected_list)
+        self.replaceSelectedText(replace_text)
+
+    def set_commenting(self, arg_from_line, arg_to_line, func):
+        # Get the cursor information
+        from_line = arg_from_line
+        to_line = arg_to_line
+        # Check if ending line is the last line in the editor
+        last_line = to_line
+        if last_line == self.lines() - 1:
+            to_index = len(self.text(to_line))
+        else:
+            to_index = len(self.text(to_line))-1
+        # Set the selection from the beginning of the cursor line
+        # to the end of the last selection line
+        self.setSelection(
+            from_line, 0, to_line, to_index
+        )
+        # Get the selected text and split it into lines
+        selected_text = self.selectedText()
+        selected_list = selected_text.split("\n")
+        # Find the smallest indent level
+        indent_levels = []
+        for line in selected_list:
+            indent_levels.append(len(line) - len(line.lstrip()))
+        min_indent_level = min(indent_levels)
+        # Add the commenting character to every line
+        for i, line in enumerate(selected_list):
+            selected_list[i] = func(line, min_indent_level)
+        # Replace the whole selected text with the merged lines
+        # containing the commenting characters
+        replace_text = self.line_ending.join(selected_list)
+        self.replaceSelectedText(replace_text)
+
+    def _comment(self, line, indent_level):
+        if line.strip() != "":
+            return (line[:indent_level] + self.comment_string +
+                    line[indent_level:])
+        else:
+            return line
+
+    def _uncomment(self, line, indent_level):
+        if line.strip().startswith(self.comment_string):
+            return line.replace(self.comment_string, "", 1)
+        else:
+            return line
+
+    def styleAt(self, pos):
+        """
+        Public method to get the style at a position in the text.
+
+        @param pos position in the text (integer)
+        @return style at the requested position or 0, if the position
+            is negative or past the end of the document (integer)
+        """
+        return self.SendScintilla(QsciScintilla.SCI_GETSTYLEAT, pos)
+
+    def currentStyle(self):
+        """
+        Public method to get the style at the current position.
+
+        @return style at the current position (integer)
+        """
+        return self.styleAt(self.currentPosition())
+
+    def currentPosition(self):
+        """
+        Public method to get the current position.
+
+        @return absolute position of the cursor (integer)
+        """
+        return self.SendScintilla(QsciScintilla.SCI_GETCURRENTPOS)
+
+    def editorCommand(self, cmd):
+        """
+        Public method to perform a simple editor command.
+
+        @param cmd the scintilla command to be performed (integer)
+        """
+        self.SendScintilla(cmd)
+
+
+class CustomLexer(QsciLexerPython):
+
+    def keywords(self, val):
+        # reimplement a custom lexer to also handle the matrix_script custom
+        # commands for code highlighting
+        if 2 != val:
+            return super().keywords(val)
+        return ("init_datafile measure_system wait set_value trigger_value "
+                "read_value meta_data devs")
+
+
+class CustomQsciAPI(QsciAPIs):
+    # definition of custom commands that are supposed to be autocompleted
+    autocompletions = [
+        "meta_data", "meta_data['Creator']", "meta_data['Identifier']",
+        "devs", "wait(float seconds)",
+        "init_datafile(str filename, str comment="", bool append=False, "
+        "bool print_header=True, int ntot=None)",
+        "measure_system(bool print_data=True, bool print_telemetry=True)",
+        "set_value(int value_index, value)",
+        "set_value(str name, value)",
+        "read_value(int value_index)",
+        "read_value(str name)",
+        "trigger_value(int value_index)",
+        "trigger_value(str name)", ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for ac in self.autocompletions:
+            self.add(ac)
+
 
 if os.name == 'nt':
     try:
@@ -48,276 +1077,6 @@ if os.name == 'nt':
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
-
-
-class LineNumberArea(QWidget):
-    """
-    adapted from the QT c++ example "Code Editor Example"
-    """
-
-    def __init__(self, editor):
-        super().__init__(editor)
-        self.codeeditor = editor
-
-    def sizeHint(self):
-        return QSize(self.editor.lineNumberAreaWidth(), 0)
-
-    def paintEvent(self, event):
-        self.codeeditor.lineNumberAreaPaintEvent(event)
-
-
-class CodeEditor(QPlainTextEdit):
-    """
-    adapted from the QT c++ example "Code Editor Example"
-    """
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.lineNumberArea = LineNumberArea(self)
-
-        self.blockCountChanged.connect(self.updateLineNumberAreaWidth)
-        self.updateRequest.connect(self.updateLineNumberArea)
-
-        self.updateLineNumberAreaWidth(0)
-
-    def lineNumberAreaWidth(self):
-        digits = 1
-        count = max(1, self.blockCount())
-        while count >= 10:
-            count /= 10
-            digits += 1
-        space = 4 + self.fontMetrics().horizontalAdvance('9') * digits
-        return space
-
-    def updateLineNumberAreaWidth(self, _):
-        self.setViewportMargins(self.lineNumberAreaWidth(), 0, 0, 0)
-
-    def updateLineNumberArea(self, rect, dy):
-        if dy:
-            self.lineNumberArea.scroll(0, dy)
-        else:
-            self.lineNumberArea.update(0, rect.y(), self.lineNumberArea.width(),
-                                       rect.height())
-
-        if rect.contains(self.viewport().rect()):
-            self.updateLineNumberAreaWidth(0)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-
-        cr = self.contentsRect()
-        self.lineNumberArea.setGeometry(
-            QRect(cr.left(), cr.top(),
-                  self.lineNumberAreaWidth(), cr.height()))
-
-    def lineNumberAreaPaintEvent(self, event):
-        painter = QPainter(self.lineNumberArea)
-
-        block = self.firstVisibleBlock()
-        blockNumber = block.blockNumber()
-        top = self.blockBoundingGeometry(block).translated(
-            self.contentOffset()).top()
-        bottom = top + self.blockBoundingRect(block).height()
-
-        while block.isValid() and (top <= event.rect().bottom()):
-            if block.isVisible() and (bottom >= event.rect().top()):
-                number = str(blockNumber + 1)
-                painter.setPen(Qt.GlobalColor.black)
-                painter.drawText(0, int(top), int(self.lineNumberArea.width()),
-                                 int(self.fontMetrics().height()),
-                                 Qt.AlignmentFlag.AlignRight, number)
-
-            block = block.next()
-            top = bottom
-            bottom = top + self.blockBoundingRect(block).height()
-            blockNumber += 1
-
-
-# syntax highlighting taken from
-# https://wiki.python.org/moin/PyQt/Python%20syntax%20highlighting
-def format(color, style=''):
-    """Return a QTextCharFormat with the given attributes.
-    """
-    _color = QColor()
-    _color.setNamedColor(color)
-
-    _format = QTextCharFormat()
-    _format.setForeground(_color)
-    if 'bold' in style:
-        _format.setFontWeight(QFont.Weight.Bold)
-    if 'italic' in style:
-        _format.setFontItalic(True)
-
-    return _format
-
-
-# Syntax styles that can be shared by all languages
-STYLES = {
-    'keyword': format('blue'),
-    'operator': format('red'),
-    'brace': format('darkGray'),
-    'defclass': format('black', 'bold'),
-    'string': format('magenta'),
-    'string2': format('darkMagenta'),
-    'comment': format('darkGreen', 'italic'),
-    'self': format('black', 'italic'),
-    'numbers': format('brown'),
-}
-
-
-class PythonHighlighter(QSyntaxHighlighter):
-    """
-    Syntax highlighter for the Python language.
-    """
-    # Python keywords
-    keywords = [
-        'and', 'assert', 'break', 'class', 'continue', 'def',
-        'del', 'elif', 'else', 'except', 'exec', 'finally',
-        'for', 'from', 'global', 'if', 'import', 'in',
-        'is', 'lambda', 'not', 'or', 'pass', 'print',
-        'raise', 'return', 'try', 'while', 'yield',
-        'None', 'True', 'False',
-    ]
-
-    # Python operators
-    operators = [
-        '=',
-        # Comparison
-        '==', '!=', '<', '<=', '>', '>=',
-        # Arithmetic
-        r'\+', '-', r'\*', '/', '//', r'\%', r'\*\*',
-        # In-place
-        r'\+=', '-=', r'\*=', '/=', r'\%=',
-        # Bitwise
-        r'\^', r'\|', r'\&', r'\~', '>>', '<<',
-    ]
-
-    # Python braces
-    braces = [
-        r'\{', r'\}', r'\(', r'\)', r'\[', r'\]',
-    ]
-
-    def __init__(self, document):
-        super().__init__(document)
-
-        # Multi-line strings (expression, flag, style)
-        # FIXME: The triple-quotes in these two lines will mess up the
-        # syntax highlighting from this point onward
-        self.tri_single = (QRegularExpression("'''"), 1, STYLES['string2'])
-        self.tri_double = (QRegularExpression('"""'), 2, STYLES['string2'])
-
-        rules = []
-
-        # Keyword, operator, and brace rules
-        rules += [(r'\b%s\b' % w, 0, STYLES['keyword'])
-                  for w in PythonHighlighter.keywords]
-        rules += [(r'%s' % o, 0, STYLES['operator'])
-                  for o in PythonHighlighter.operators]
-        rules += [(r'%s' % b, 0, STYLES['brace'])
-                  for b in PythonHighlighter.braces]
-
-        # All other rules
-        rules += [
-            # 'self'
-            (r'\bself\b', 0, STYLES['self']),
-
-            # Double-quoted string, possibly containing escape sequences
-            (r'"[^"\\]*(\\.[^"\\]*)*"', 0, STYLES['string']),
-            # Single-quoted string, possibly containing escape sequences
-            (r"'[^'\\]*(\\.[^'\\]*)*'", 0, STYLES['string']),
-
-            # 'def' followed by an identifier
-            (r'\bdef\b\s*(\w+)', 1, STYLES['defclass']),
-            # 'class' followed by an identifier
-            (r'\bclass\b\s*(\w+)', 1, STYLES['defclass']),
-
-            # From '#' until a newline
-            (r'#[^\n]*', 0, STYLES['comment']),
-
-            # Numeric literals
-            (r'\b[+-]?[0-9]+[lL]?\b', 0, STYLES['numbers']),
-            (r'\b[+-]?0[xX][0-9A-Fa-f]+[lL]?\b', 0, STYLES['numbers']),
-            (r'\b[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\b',
-             0, STYLES['numbers']),
-        ]
-
-        # Build a QRegExp for each pattern
-        self.rules = [(QRegularExpression(pat), index, fmt)
-                      for (pat, index, fmt) in rules]
-
-    def highlightBlock(self, text):
-        """
-        Apply syntax highlighting to the given block of text.
-        """
-        # Do other syntax formatting
-        for expression, nth, format in self.rules:
-            index = expression.globalMatch(text)
-
-            while index.hasNext():
-                # We actually want the index of the nth match
-                match = index.next()
-                length = match.capturedLength(nth)  # len(expression.cap(nth))
-                self.setFormat(match.capturedStart(nth), length, format)
-
-        self.setCurrentBlockState(0)
-
-        # Do multi-line strings
-        in_multiline = self.match_multiline(text, *self.tri_single)
-        if not in_multiline:
-            in_multiline = self.match_multiline(text, *self.tri_double)
-
-    def match_multiline(self, text, delimiter, in_state, style):
-        """
-        Do highlighting of multi-line strings. ``delimiter`` should be a
-        ``QRegExp`` for triple-single-quotes or triple-double-quotes, and
-        ``in_state`` should be a unique integer to represent the corresponding
-        state changes when inside those strings. Returns True if we're still
-        inside a multi-line string when this function is finished.
-        """
-        index = delimiter.globalMatch(text)
-        # If inside triple-single quotes, start at 0
-        if self.previousBlockState() == in_state:
-            start = 0
-            add = 0
-        # Otherwise, look for the delimiter on this line
-        else:
-            if index.hasNext():
-                match = index.next()
-                start = match.capturedStart()
-                # Move past this match
-                add = match.capturedLength()
-            else:
-                # no match found, return -1
-                start = -1
-
-        # As long as there's a delimiter match on this line...
-        while start >= 0:
-            # Look for the ending delimiter
-            if index.hasNext():
-                match = index.next()
-                # Ending delimiter on this line?
-                end = match.capturedEnd()
-                length = end - start + add + match.capturedLength()
-                self.setCurrentBlockState(0)
-            # No; multi-line string
-            else:
-                self.setCurrentBlockState(in_state)
-                length = len(text) - start + add
-            # Apply formatting
-            self.setFormat(start, length, style)
-            # Look for the next match
-            if index.hasNext():
-                match = index.next()
-                start = match.capturedStart()
-                add = match.capturedLength()
-            else:
-                start = -1
-
-        # Return True if still inside a multi-line string, False otherwise
-        if self.currentBlockState() == in_state:
-            return True
-        else:
-            return False
 
 
 class ExecThread(QThread):
@@ -416,7 +1175,7 @@ class MainWindow(QWidget):
     Define layout, runs everything
     """
 
-    def __init__(self):
+    def __init__(self, filename=None):
         """
         Initialize the GUI for scripted matrix control
         """
@@ -424,36 +1183,43 @@ class MainWindow(QWidget):
         self.systems = []
         self.scriptname = ""
 
-        self.init_ui()
-
         self.output_stream = EmittingStream(text_written=self.output_written)
+
+        self.init_ui()
         # set outputStream as stdout (i.e. all output is written to status
         # preview
         sys.stdout = self.output_stream
 
-        welcome_string = textwrap.dedent(f"""
+        welcome_string = textwrap.dedent(f"""\
         Welcome {getpass.getuser()},
         available general functions are:
-        ```
-         init_datafile(filename, comment="", append=False, print_header=True)
-         measure_system(print_data=True, print_telemetry=True)
-         wait(seconds)
-        ```
-        `wait` also acts as breakpoint to pause execution.
-        System parameters can be accessed via:
-        ```
-         set_value(value_index/name, value)
-         trigger_value(value_index/name)
-         read_value(value_index/name)
-        ```
-        Use the help button to get a list of available parameters and devices
-        Devices can be accessed via the 'devs' dictionary. The meta data of
-        the system is available through the 'meta_data' dictionary.
 
-        Note that no variable names should start with an underscore!
-        """)
-        self.status_preview.setMarkdown(welcome_string)
+            init_datafile(filename, comment="", append=False,
+                          print_header=True, ntot=None)
+                          # ntot is total number of points in measurement
+                          # and is used to calculate measurement duration
+            measure_system(print_data=True, print_telemetry=True)
+            wait(seconds)  # also acts as a breakpoint to pause execution
+
+        System parameters can be accessed via:
+
+            set_value(value_index/name, value)
+            trigger_value(value_index/name)
+            read_value(value_index/name)
+            devs  # dictionary that contains all devices
+            meta_data  # dictionary that contains all meta information
+                       # Keywords "Creator" and "Identifier" contain
+                       # user and sample information from the line edits
+
+        Use the help button to get a list of available parameters and devices.
+
+        Note that no variable names should start with an underscore!""")
+        self.status_preview.setText(welcome_string)
         print("==========")
+        # If filename is passed when matrix-script is started, start
+        # by loading the file
+        if filename is not None:
+            self.load_from_filename(filename)
 
     def init_ui(self):
         icondir = join(dirname(__file__), 'icons')
@@ -477,8 +1243,10 @@ class MainWindow(QWidget):
         self.save_button.clicked.connect(self.save_to_file)
         self.load_button = QPushButton("Load recipe")
         self.load_button.clicked.connect(self.load_from_file)
-        self.help_button = QPushButton("Help")
-        self.help_button.clicked.connect(self.show_commands)
+        self.help_sys_button = QPushButton("Help system")
+        self.help_sys_button.clicked.connect(self.show_commands)
+        self.help_edit_button = QPushButton("Help editor")
+        self.help_edit_button.clicked.connect(self.show_editor_commands)
         self.system_list = QListWidget()
         self.system_list.setSelectionMode(
             QAbstractItemView.SelectionMode.SingleSelection)
@@ -494,19 +1262,60 @@ class MainWindow(QWidget):
         self.sample_edit.setPlaceholderText("sample name")
         self.user_edit = QLineEdit(self)
         self.user_edit.setPlaceholderText("user name")
-        # TextEdits
-        self.script_edit = CodeEditor(self)
+        # Font
         mono_font = QFont("Monospace")
         mono_font.setStyleHint(QFont.StyleHint.TypeWriter)
-        self.script_edit.document().setDefaultFont(mono_font)
-        self.highlighter = PythonHighlighter(self.script_edit.document())
+        # TextEdits
         self.status_preview = QTextEdit(self)
         self.status_preview.setReadOnly(True)
         self.status_preview.setCurrentFont(mono_font)
         # self.status_preview.textChanged.connect(self.status_preview.setMarkdown)
         palette = self.status_preview.palette()
         palette.setColor(QPalette.ColorRole.Base, QColor(233, 233, 233))
+        palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
         self.status_preview.setPalette(palette)
+        # CodeEditor
+        self.script_edit = QScintillaCustom(self.output_stream, self)
+        lexer = CustomLexer(self)
+        self.script_edit.setLexer(lexer)
+        lexer.setDefaultColor(QColor('#000000'))
+        lexer.setPaper(QColor(233, 233, 233))
+        lexer.setFont(mono_font)
+        for stl, clr in STYLES.items():
+            lexer.setColor(clr, stl)
+        autocomp = CompleterPython(self.script_edit)
+        autocomp.setEnabled(True)
+        # make caret more visible, highlight current line
+        self.script_edit.setCaretWidth(2)
+        self.script_edit.setCaretLineVisible(True)
+        self.script_edit.setCaretLineBackgroundColor(QColor(225, 225, 225))
+        # line numbers in margin
+        self.script_edit.setMarginLineNumbers(1, True)
+        self.script_edit.setMarginWidth(1, "#000")
+        # indentation and wrapping
+        self.script_edit.setTabWidth(4)
+        self.script_edit.setIndentationsUseTabs(False)
+        self.script_edit.setAutoIndent(True)
+        self.script_edit.setBackspaceUnindents(True)
+        self.script_edit.setWrapMode(QsciScintilla.WrapMode.WrapNone)
+        self.script_edit.setScrollWidth(200)
+        self.script_edit.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.script_edit.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # autocompletion, source is document and custom commands
+        api = CustomQsciAPI(lexer)
+        api.prepare()
+        self.script_edit.setCallTipsVisible(3)
+        self.script_edit.setAutoCompletionSource(
+            QsciScintilla.AutoCompletionSource.AcsAll)
+        self.script_edit.setAutoCompletionThreshold(1)
+        self.script_edit.setAutoCompletionCaseSensitivity(True)
+        self.script_edit.setAutoCompletionFillupsEnabled(True)
+        self.script_edit.setBraceMatching(
+            QsciScintilla.BraceMatch.SloppyBraceMatch)
+        self.script_edit.setAnnotationDisplay(
+            QsciScintilla.AnnotationDisplay.AnnotationBoxed)
 
         # initialize widgets in layout
         splitter = QSplitter(self)
@@ -521,13 +1330,17 @@ class MainWindow(QWidget):
         layout.addWidget(self.pause_button, 10, 6, 1, 2)
         layout.addWidget(self.save_button, 9, 0, 1, 2)
         layout.addWidget(self.load_button, 10, 0, 1, 2)
-        layout.addWidget(self.help_button, 12, 0, 1, 2)
+        layout.addWidget(self.help_sys_button, 11, 0, 1, 2)
+        layout.addWidget(self.help_edit_button, 12, 0, 1, 2)
         layout.addWidget(self.system_list, 9, 2, 3, 4)
         layout.addWidget(self.addButton, 12, 2, 1, 2)
         layout.addWidget(self.delButton, 12, 4, 1, 2)
 
         # configure stretch to go only into textEdits
         layout.setRowStretch(4, 1)
+
+        # set focus to text editor
+        self.script_edit.setFocus()
 
         self.setLayout(layout)
         self.setWindowTitle('Matrix Script')
@@ -549,8 +1362,8 @@ class MainWindow(QWidget):
 
     def delete_selected_system(self):
         """
-        Removes selected system from system_list. If no selection is active the
-        last system will be removed.
+        Removes selected system from system_list. If no selection is active
+        the last system will be removed.
         """
         selected = self.system_list.selectedItems()
         if len(selected) > 0:
@@ -569,6 +1382,19 @@ class MainWindow(QWidget):
         print("Script terminated by user - " +
               "file integrity might be compromised")
 
+    def show_editor_commands(self):
+        """ prints shortcuts and editor functions """
+        help_string = textwrap.dedent("""
+        The editor includes following features:
+          ctrl+l - Linting with pyflakes
+          ctrl+8 - autoformatting with autopep8
+          ctrl+/ - toggling of comments in selection
+          " or ' with selection - make block comment
+          ctrl+z - undo command (including block comments with ' or ")
+          ctrl+y - undo undo
+        """)
+        print(help_string)
+
     def show_commands(self):
         """ prints information about current system to the status display """
         self.update_systems()
@@ -580,7 +1406,8 @@ class MainWindow(QWidget):
         info = subprocess.run(
             [sys.executable, '-c',
              "from matr1x.system import MergedSystem;"
-             f"print(MergedSystem.from_files({self.systems}).grab_information())"
+             f"print(MergedSystem.from_files({self.systems})."
+             "grab_information())"
              ],
             capture_output=True)
         # print information string
@@ -632,13 +1459,35 @@ class MainWindow(QWidget):
             print("No system selected")
             print("==========")
             return
+        # avoid script execution for empty scripts?
+        # if self.script_edit.text().strip() == "":
+        #    print("No script to execute")
+        #    print("==========")
+        #    return
+        # run linter to make sure there are no errors
+        if 0 != self.script_edit.run_linter():
+            print("Script execution was halted because of linter errors")
+            print("==========")
+            qApp = QApplication.instance()
+            qApp.processEvents()
+            # open a popup window to inform about the error
+            a = QMessageBox()
+            a.setText("Linter error")
+            a.setInformativeText("Error found in script, "
+                                 "continue anyway?")
+            a.setStandardButtons(QMessageBox.StandardButton.Ok |
+                                 QMessageBox.StandardButton.Cancel)
+            a.setDefaultButton(QMessageBox.StandardButton.Ok)
+            ret = a.exec()
+            if ret == QMessageBox.StandardButton.Cancel:
+                return
         self.script_edit.setReadOnly(True)
         self.start_button.setEnabled(False)
         self.addButton.setEnabled(False)
         self.delButton.setEnabled(False)
         print("### Running script now")
         # define basic part of script, imports relevant commands
-        user_script = self.script_edit.toPlainText()
+        user_script = self.script_edit.text()
         script = generate_script(self.systems, user_script)
         self.thread = ExecThread(self.sample_edit.text(),
                                  self.user_edit.text(),
@@ -664,11 +1513,13 @@ class MainWindow(QWidget):
             settable_info = subprocess.run(
                 [sys.executable, '-c',
                  "from matr1x.system import MergedSystem;"
-                 f"print(MergedSystem.from_files({self.systems}).grab_information(settables=True))"
+                 f"print(MergedSystem.from_files({self.systems})."
+                 "grab_information(settables=True))"
                  ],
                 capture_output=True)
 
-            return ast.literal_eval(settable_info.stdout.decode().split("\n")[-2])
+            return ast.literal_eval(
+                settable_info.stdout.decode().split("\n")[-2])
         except Exception:
             return None
 
@@ -698,19 +1549,25 @@ class MainWindow(QWidget):
         self.update_systems()
 
         header = ""
-        try:
-            # get settable information to put into the header (columns/units)
-            settable_info = self.get_settable_info()
+        if 0 < len(self.systems):
+            # only attempt generating a header if a system is selected
+            try:
+                # get settable information to put into the header
+                # (columns/units)
+                settable_info = self.get_settable_info()
 
-            # write matrix file header
-            header += "# system def : " + \
-                ",".join(repr(s).strip("'") for s in self.systems) + "\n"
-            header += "# system names : " + ",".join(settable_info[1]) + "\n"
-            header += "# system units : " + ",".join(settable_info[2]) + "\n"
-        except Exception:
-            print("error in generating settable_info from file, telemetry "
-                  "header could not be generated")
-        script = self.script_edit.toPlainText()
+                # write matrix file header
+                header += "# system def : " + \
+                    ",".join(repr(s).strip("'") for s in self.systems) + "\n"
+                header += "# system names : " + \
+                    ",".join(settable_info[1]) + "\n"
+                header += "# system units : " + \
+                    ",".join(settable_info[2]) + "\n"
+            except Exception:
+                print("error in generating settable_info from file, telemetry "
+                      "header could not be generated")
+        # take out script and remove trailling newlines
+        script = self.script_edit.text().rstrip()
         newscript = header
         for i, line in enumerate(script.split("\n")):
             if i < 3 and "# system " in line:
@@ -718,20 +1575,15 @@ class MainWindow(QWidget):
                 continue
             newscript += line + "\n"
         # set new script in editor and save it to the file
-        self.script_edit.setPlainText(newscript)
+        self.script_edit.setText(newscript)
         output_file.write(newscript)
         output_file.close()
 
-    def load_from_file(self):
+    def load_from_filename(self, filename):
         """
-        loads the script to file, making sure that header information specified
-        still agree with the corresponding system
+        loads the script from file denoted by filename, making sure that
+        header information specified still agree with the corresponding system
         """
-        filename = QFileDialog.getOpenFileName(
-            self, 'Select Script',
-            matr1x.usersfolder,
-            "matrix files (*.matrix)")
-        filename = filename[0]
         if "" == filename:
             print("Please specify file")
             print("==========")
@@ -751,8 +1603,8 @@ class MainWindow(QWidget):
             if 0 == i:
                 if "# system def : " in line:
                     # load system from definition in file
-                    system_line = line.strip().replace(
-                        "# system def : ", "")
+                    system_line = line.replace(
+                        "# system def : ", "").strip()
                     for syst in system_line.split(","):
                         try:
                             self.system_list.addItem(syst)
@@ -760,8 +1612,8 @@ class MainWindow(QWidget):
                             settable_info = self.get_settable_info()
                         except KeyError:
                             sys_err = True
-                            print("System that was used to generate the " +
-                                  "script was not found in installed systems." +
+                            print("System that was used to generate the "
+                                  "script was not found in installed systems."
                                   " Please check .matrix.conf file.")
                             print("==========\n")
                 else:
@@ -800,19 +1652,34 @@ class MainWindow(QWidget):
                     print("Could not verify column units, please verify"
                           " that columns have not changed")
                     print("==========\n")
-            self.script_edit.insertPlainText(line)
+            self.script_edit.append(line)
         input_file.close()
+
+    def load_from_file(self):
+        """
+        wrapper function for load_from_filename, that opens file dialog first
+        """
+        filename = QFileDialog.getOpenFileName(
+            self, 'Select Script',
+            matr1x.usersfolder,
+            "matrix files (*.matrix)")
+        filename = filename[0]
+        self.load_from_filename(filename)
 
 
 def main():
     if "_" in os.path.basename(sys.argv[0]):
         warnings.warn(
-            "The executable name 'matrix_script' is deprecated. Use 'matrix-script' instead.",
+            "The executable name 'matrix_script' is deprecated. "
+            "Use 'matrix-script' instead.",
             FutureWarning)
-    app = QApplication(sys.argv)
+    app = Matr1xApplication(sys.argv)
     app.setDesktopFileName("matrix-script")
     with QtGracefulKiller():
-        ex = MainWindow()
+        if len(sys.argv) < 2:
+            ex = MainWindow()
+        else:
+            ex = MainWindow(filename=sys.argv[1])
         ex.show()
         ret = app.exec()
         sys.stdout = sys.__stdout__

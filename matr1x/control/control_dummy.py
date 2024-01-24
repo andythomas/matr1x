@@ -5,6 +5,7 @@
 
 import collections
 import time
+import warnings
 
 import numpy
 from matr1x import system
@@ -18,6 +19,8 @@ from matr1x.util import Command, Get
 try:
     from PyQt6 import QtCore
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5 import QtCore
 
 

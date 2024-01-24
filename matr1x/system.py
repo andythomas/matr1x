@@ -208,6 +208,8 @@ class Parameter():
     def verify(self, param, cast):
         """verifies param is of correct type or raises error"""
         if isinstance(param, (list, tuple)):
+            if all([isinstance(val, (list, tuple)) for val in param]):
+                return param
             if all([isinstance(val, cast) for val in param]):
                 return param
         else:
@@ -859,7 +861,7 @@ class System:
                     return_list.append(value)
 
         if self.hdf5 is False:
-            with open(datafilename, "a") as datafile:
+            with open(datafilename, "a", encoding="utf-8") as datafile:
                 # write datapoint to file
                 datafile.write(default_separator.join(str(v)
                                for v in return_list))

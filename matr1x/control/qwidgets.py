@@ -5,6 +5,7 @@
 # https://www.pythonguis.com/tutorials/pyqt6-animated-widgets/
 # accessed 03.03.2023
 # ---
+import warnings
 
 try:
     from PyQt6.QtCore import (QEasingCurve, QPoint, QPointF, QPropertyAnimation,
@@ -12,6 +13,8 @@ try:
     from PyQt6.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPen
     from PyQt6.QtWidgets import QCheckBox, QProgressBar, QPushButton
 except ImportError:
+    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
+                  DeprecationWarning)
     from PyQt5.QtCore import (QEasingCurve, QPoint, QPointF, QPropertyAnimation,
                               QRectF, QSize, Qt, pyqtProperty, pyqtSlot)
     from PyQt5.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPen
