@@ -1252,10 +1252,10 @@ class MainWindow(QWidget):
             QAbstractItemView.SelectionMode.SingleSelection)
         self.system_list.setDragDropMode(
             QAbstractItemView.DragDropMode.InternalMove)
-        self.addButton = QPushButton('add system')
-        self.addButton.clicked.connect(self.show_file_dialog)
-        self.delButton = QPushButton('remove system')
-        self.delButton.clicked.connect(self.delete_selected_system)
+        self.add_button = QPushButton('add system')
+        self.add_button.clicked.connect(self.show_file_dialog)
+        self.del_button = QPushButton('remove system')
+        self.del_button.clicked.connect(self.delete_selected_system)
 
         # LineEdits
         self.sample_edit = QLineEdit(self)
@@ -1333,8 +1333,8 @@ class MainWindow(QWidget):
         layout.addWidget(self.help_sys_button, 11, 0, 1, 2)
         layout.addWidget(self.help_edit_button, 12, 0, 1, 2)
         layout.addWidget(self.system_list, 9, 2, 3, 4)
-        layout.addWidget(self.addButton, 12, 2, 1, 2)
-        layout.addWidget(self.delButton, 12, 4, 1, 2)
+        layout.addWidget(self.add_button, 12, 2, 1, 2)
+        layout.addWidget(self.del_button, 12, 4, 1, 2)
 
         # configure stretch to go only into textEdits
         layout.setRowStretch(4, 1)
@@ -1349,9 +1349,14 @@ class MainWindow(QWidget):
         """
         Opens a QFileDialog with filter system*.py
         """
+        cnt = self.system_list.count()
+        if 0 < cnt:
+            filename = os.path.dirname(self.system_list.item(cnt-1).text())
+        else:
+            filename = matr1x.systems_directory
         # get filenames from dialog
         filename = QFileDialog.getOpenFileName(
-            self, 'Select system file', matr1x.systems_directory,
+            self, 'Select system file', filename,
             "system files (system*.py)")[0]
         if "" == filename:
             return
@@ -1442,8 +1447,8 @@ class MainWindow(QWidget):
         self.kill_button.setEnabled(False)
         self.script_edit.setReadOnly(False)
         self.start_button.setEnabled(True)
-        self.addButton.setEnabled(True)
-        self.delButton.setEnabled(True)
+        self.add_button.setEnabled(True)
+        self.del_button.setEnabled(True)
         print("Execution finished")
         print("==========")
         del self.thread
@@ -1483,8 +1488,8 @@ class MainWindow(QWidget):
                 return
         self.script_edit.setReadOnly(True)
         self.start_button.setEnabled(False)
-        self.addButton.setEnabled(False)
-        self.delButton.setEnabled(False)
+        self.add_button.setEnabled(False)
+        self.del_button.setEnabled(False)
         print("### Running script now")
         # define basic part of script, imports relevant commands
         user_script = self.script_edit.text()
@@ -1530,7 +1535,8 @@ class MainWindow(QWidget):
         """
         filename = QFileDialog.getSaveFileName(
             self, 'Specify Script',
-            matr1x.usersfolder,
+            (matr1x.usersfolder if "" == self.scriptname
+                else dirname(self.scriptname)),
             "matrix files (*.matrix)")
         filename = filename[0]
         if "" == filename:
@@ -1661,7 +1667,8 @@ class MainWindow(QWidget):
         """
         filename = QFileDialog.getOpenFileName(
             self, 'Select Script',
-            matr1x.usersfolder,
+            (matr1x.usersfolder if "" == self.scriptname
+                else dirname(self.scriptname)),
             "matrix files (*.matrix)")
         filename = filename[0]
         self.load_from_filename(filename)

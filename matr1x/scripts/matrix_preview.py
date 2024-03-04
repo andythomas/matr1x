@@ -482,6 +482,7 @@ class SweepPreview(QMainWindow):
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
             self.reload_data()
+            self.refresh_all_plots()
         elif getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
@@ -490,14 +491,20 @@ class SweepPreview(QMainWindow):
             # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
-            ci = self.spw.w_plots.currentIndex()
-            for i in range(self.spw.w_plots.count()-1):
-                if ci == i:
-                    # skip current index as this one will be done last
-                    pass
-                self.spw.w_plots.setCurrentIndex(i)
-            self.spw.w_plots.setCurrentIndex(ci)
+            self.refresh_all_plots()
         return ret
+
+    def refresh_all_plots(self):
+        """
+        refresh all subplots by selecting each individually
+        """
+        ci = self.spw.w_plots.currentIndex()
+        for i in range(self.spw.w_plots.count()-1):
+            if ci == i:
+                # skip current index as this one will be done last
+                pass
+            self.spw.w_plots.setCurrentIndex(i)
+        self.spw.w_plots.setCurrentIndex(ci)
 
     def reset(self):
         self.w_plot2d.setChecked(False)

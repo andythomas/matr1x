@@ -773,9 +773,15 @@ class MainWindow(QMainWindow):
         """
         Opens a QFileDialog with filter system*.py
         """
+        # start from path of last element in systems list if one is present
+        cnt = self.systemList.count()
+        if 0 < cnt:
+            filename = os.path.dirname(self.systemList.item(cnt-1).text())
+        else:
+            filename = systems_directory
         # get filenames from dialog
         filename = QFileDialog.getOpenFileName(
-            self, 'Select system file', systems_directory,
+            self, 'Select system file', filename,
             "system files (system*.py)")[0]
         if "" == filename:
             return
