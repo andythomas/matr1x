@@ -28,7 +28,8 @@ from matr1x.util import generate_script, generate_script_prefix_suffix
 try:
     from PyQt6.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
     from PyQt6.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
-    from PyQt6.QtGui import QColor, QFont, QIcon, QPalette, QTextCursor
+    from PyQt6.QtGui import (QColor, QFont, QIcon, QKeySequence, QPalette,
+                             QShortcut, QTextCursor)
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                                  QGridLayout, QLineEdit, QListWidget,
                                  QMessageBox, QPushButton, QSplitter, QTextEdit,
@@ -37,7 +38,8 @@ except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5.QtCore import QEvent, QThread, QObject, Qt, pyqtSignal
-    from PyQt5.QtGui import (QColor, QFont, QIcon, QPalette, QTextCursor)
+    from PyQt5.QtGui import (QColor, QFont, QIcon, QKeySequence, QPalette,
+                             QShortcut, QTextCursor)
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                                  QGridLayout, QLineEdit, QListWidget,
                                  QMessageBox, QPushButton, QSplitter,
@@ -748,8 +750,8 @@ class QScintillaCustom(QsciScintilla):
             # add initial definitions that are passed to the script
             # externally to avoid linter errors, make sure not to add an
             # additional line here
-            script = "wait=lambda x:x;print=lambda x:x;_user='';"
-            script += "_sample='';_scriptname='';"
+            script = "wait=lambda x:x;print=lambda x:x;input=lambda x:x;"
+            script += "_user='';_sample='';_scriptname='';"
             script += generate_script("", self.text())
             ret = pyflakes.api.check(script, 'sc', reporter=self.reporter)
             print(f"Linter found {ret if ret != 0 else 'no'} error" +
@@ -862,7 +864,7 @@ class QScintillaCustom(QsciScintilla):
 
     def get_selections(self):
         """
-        Obtain the selections 
+        Obtain the selections
         """
         # Get the selection and store them in a list
         selections = []
@@ -1046,15 +1048,16 @@ class CustomLexer(QsciLexerPython):
         if 2 != val:
             return super().keywords(val)
         return ("init_datafile measure_system wait set_value trigger_value "
-                "read_value meta_data devs")
+                "read_value meta_data devs input")
 
 
 class CustomQsciAPI(QsciAPIs):
     # definition of custom commands that are supposed to be autocompleted
     autocompletions = [
         "meta_data", "meta_data['Creator']", "meta_data['Identifier']",
-        "devs", "wait(float seconds)",
-        "init_datafile(str filename, str comment="", bool append=False, "
+        "devs", "wait(float seconds, str message='', float silent=10)",
+        "input(str message='')",
+        "init_datafile(str filename, str comment='', bool append=False, "
         "bool print_header=True, int ntot=None)",
         "measure_system(bool print_data=True, bool print_telemetry=True)",
         "set_value(int value_index, value)",
@@ -1093,6 +1096,17 @@ class ExecThread(QThread):
         self.user = user
         self.script = script
         self.datafilefallback = fallbackname
+
+    def pass_input(self, inp):
+        """ communicate user input to the subprocess' stdin """
+        if self.proc is None or self.conn is None:
+            return
+        if inp == "":
+            return
+        if inp[-1] != "\n":
+            # input needs to have terminating character
+            inp += "\n"
+        self.conn.send(("i"+inp).encode("utf-8"))
 
     def pause(self):
         """ communicate pause to the subprocess' stdin """
@@ -1166,7 +1180,7 @@ class ExecThread(QThread):
             # wait until the subprocess terminates and pipe its stdout to the
             # user window
             while self.proc.poll() is None:
-                print(self.proc.stdout.readline().decode())
+                sys.stdout.write(self.proc.stdout.read(1).decode())
             self.conn.close()
 
 
@@ -1192,29 +1206,35 @@ class MainWindow(QWidget):
 
         welcome_string = textwrap.dedent(f"""\
         Welcome {getpass.getuser()},
-        available general functions are:
+        Available functions are:
 
-            init_datafile(filename, comment="", append=False,
-                          print_header=True, ntot=None)
-                          # ntot is total number of points in measurement
-                          # and is used to calculate measurement duration
-            measure_system(print_data=True, print_telemetry=True)
-            wait(seconds)  # also acts as a breakpoint to pause execution
+          init_datafile(filename, comment="", append=False,
+                        print_header=True, ntot=None)
+            # ntot is total number of points in a given measurement
+            # and is used to calculate measurement duration
+          measure_system(print_setpoint=True, print_data=True,
+                         print_telemetry=True)
+            # performs a single measurement as specified in system
+          wait(seconds, message="", silent=10)
+            # waits for seconds and acts as a breakpoint to pause and
+            # abort the execution, for seconds>silent, prints message
+          input(message="")
+            # waits for user input via the send button
 
         System parameters can be accessed via:
 
-            set_value(value_index/name, value)
-            trigger_value(value_index/name)
-            read_value(value_index/name)
-            devs  # dictionary that contains all devices
-            meta_data  # dictionary that contains all meta information
-                       # Keywords "Creator" and "Identifier" contain
-                       # user and sample information from the line edits
+          set_value(value_index/name, value)
+          trigger_value(value_index/name)
+          read_value(value_index/name)
+          devs  # dictionary that contains all devices
+          meta_data  # dictionary that contains all meta information
+                     # Keywords "Creator" and "Identifier" contain
+                     # user and sample information from the line edits
 
         Use the help button to get a list of available parameters and devices.
 
         Note that no variable names should start with an underscore!""")
-        self.status_preview.setText(welcome_string)
+        print(welcome_string)
         print("==========")
         # If filename is passed when matrix-script is started, start
         # by loading the file
@@ -1232,6 +1252,9 @@ class MainWindow(QWidget):
         self.abort_button = QPushButton("Abort")
         self.abort_button.setEnabled(False)
         self.abort_button.clicked.connect(self.abort_thread)
+        self.send_button = QPushButton("Send to matrix")
+        self.send_button.setVisible(False)
+        self.send_button.clicked.connect(self.send_to_thread)
         self.kill_button = QPushButton("Kill")
         self.kill_button.setEnabled(False)
         self.kill_button.clicked.connect(self.kill_thread)
@@ -1241,6 +1264,9 @@ class MainWindow(QWidget):
         self.pause_button.clicked.connect(self.pause_thread)
         self.save_button = QPushButton("Save recipe")
         self.save_button.clicked.connect(self.save_to_file)
+        # enable saving of script by Ctrl+S
+        self.save_scriptsc = QShortcut(QKeySequence('Ctrl+S'), self)
+        self.save_scriptsc.activated.connect(self.save_to_file)
         self.load_button = QPushButton("Load recipe")
         self.load_button.clicked.connect(self.load_from_file)
         self.help_sys_button = QPushButton("Help system")
@@ -1258,6 +1284,9 @@ class MainWindow(QWidget):
         self.del_button.clicked.connect(self.delete_selected_system)
 
         # LineEdits
+        self.send_edit = QLineEdit(self)
+        self.send_edit.setPlaceholderText("text to send to script")
+        self.send_edit.setVisible(False)
         self.sample_edit = QLineEdit(self)
         self.sample_edit.setPlaceholderText("sample name")
         self.user_edit = QLineEdit(self)
@@ -1324,6 +1353,8 @@ class MainWindow(QWidget):
         layout.addWidget(splitter, 4, 0, 4, 8)
         layout.addWidget(self.sample_edit, 8, 0, 1, 4)
         layout.addWidget(self.user_edit, 8, 4, 1, 4)
+        layout.addWidget(self.send_edit, 8, 0, 1, 6)
+        layout.addWidget(self.send_button, 8, 6, 1, 2)
         layout.addWidget(self.start_button, 9, 6, 1, 2)
         layout.addWidget(self.abort_button, 11, 6, 1, 2)
         layout.addWidget(self.kill_button, 12, 6, 1, 2)
@@ -1376,7 +1407,12 @@ class MainWindow(QWidget):
         elif 0 < self.system_list.count():
             self.system_list.takeItem(self.system_list.count()-1)
 
+    def send_to_thread(self):
+        self.thread.pass_input(self.send_edit.text())
+
     def pause_thread(self):
+        # disable send button during pause
+        self.send_button.setEnabled(not self.pause_button.isChecked())
         self.thread.pause()
 
     def abort_thread(self):
@@ -1397,6 +1433,7 @@ class MainWindow(QWidget):
           " or ' with selection - make block comment
           ctrl+z - undo command (including block comments with ' or ")
           ctrl+y - undo undo
+          ctrl+s - save script to file
         """)
         print(help_string)
 
@@ -1430,25 +1467,60 @@ class MainWindow(QWidget):
     def output_written(self, text):
         """
         appends the most recent text to the end of the display and makes sure
-        that the cursor remains at the end
+        that the cursor remains at the end. This function also tries to mimick
+        the behavior of a carriage return in the output text. At the position of
+        a carriage return the current line is deleted and replaced by the new
+        text.
         """
-        if text.strip("\n") != "":
-            self.status_preview.append(text.strip("\n"))
+        if "\r" in text:
+            before, after = text.split("\r", maxsplit=1)
+            self.status_preview.insertPlainText(before)
+            # return cursor to beginning of line by deleting its content
+            cursor = self.status_preview.textCursor()
+            self.status_preview.moveCursor(
+                QTextCursor.MoveOperation.StartOfLine,
+                QTextCursor.MoveMode.MoveAnchor)
+            self.status_preview.moveCursor(
+                QTextCursor.MoveOperation.EndOfLine,
+                QTextCursor.MoveMode.KeepAnchor)
+            cursor.removeSelectedText()
+            if "\r" in after:
+                self.output_written(after)
+            else:
+                cursor.insertText(after)
+        else:
+            self.status_preview.insertPlainText(text)
             self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
+        sb = self.status_preview.verticalScrollBar()
+        sb.setValue(sb.maximum())
+
+    def enable_buttons(self, flag):
+        """
+        helper function to switch the buttons from thread running to
+        thread stopped mode
+
+        Parameters:
+            flag:boolean - True means script is running
+        """
+        self.pause_button.setEnabled(flag)
+        self.pause_button.setChecked(False)
+        self.abort_button.setEnabled(flag)
+        self.send_button.setVisible(flag)
+        self.send_edit.setVisible(flag)
+        self.user_edit.setVisible(not flag)
+        self.sample_edit.setVisible(not flag)
+        self.kill_button.setEnabled(flag)
+        self.script_edit.setReadOnly(flag)
+        self.start_button.setEnabled(not flag)
+        self.add_button.setEnabled(not flag)
+        self.del_button.setEnabled(not flag)
 
     def process_finished(self):
         """
         once the process is finished, return all buttons to original state and
         clean up thread
         """
-        self.pause_button.setEnabled(False)
-        self.pause_button.setChecked(False)
-        self.abort_button.setEnabled(False)
-        self.kill_button.setEnabled(False)
-        self.script_edit.setReadOnly(False)
-        self.start_button.setEnabled(True)
-        self.add_button.setEnabled(True)
-        self.del_button.setEnabled(True)
+        self.enable_buttons(False)
         print("Execution finished")
         print("==========")
         del self.thread
@@ -1486,10 +1558,6 @@ class MainWindow(QWidget):
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
                 return
-        self.script_edit.setReadOnly(True)
-        self.start_button.setEnabled(False)
-        self.add_button.setEnabled(False)
-        self.del_button.setEnabled(False)
         print("### Running script now")
         # define basic part of script, imports relevant commands
         user_script = self.script_edit.text()
@@ -1501,9 +1569,7 @@ class MainWindow(QWidget):
         self.thread.finished.connect(self.process_finished)
         logger.info("The following user script was run:\n" + user_script)
         self.thread.start()
-        self.abort_button.setEnabled(True)
-        self.pause_button.setEnabled(True)
-        self.kill_button.setEnabled(True)
+        self.enable_buttons(True)
 
     def update_systems(self):
         self.systems = [os.path.normpath(self.system_list.item(j).text())

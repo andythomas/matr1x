@@ -2,6 +2,7 @@
 # ---
 # (c) 2023 matr1x developers. All rights reserved.
 # ---
+import datetime
 import importlib.util
 import os
 import re
@@ -450,43 +451,105 @@ def matrix_script_process(filename, user="", sample="",
             self.scriptname = scriptname
             self.pause_flag = False
             self.interrupt_flag = False
+            self.recv_flag = False
+            self.recv = ""
 
         def pause(self, state):
             """ pause the execution at the breakpoint """
             self.pause_flag = bool(state)
             if state is True:
-                self.print("paused")
+                self.print("\npaused")
 
         def stop(self):
             """ set the interrupt flag, so that the execution is stopped at
                 the breakpoint the execution at the breakpoint """
             self.interrupt_flag = True
 
-        def breakpoint(self, sleep):
+        def breakpoint(self, sleep, message="", silent=10):
             """ breakpoint function that handles the interrupt as well
-                as the waiting/sleep times """
-            sleep_mod = sleep % 1
-            sleep = int(sleep)
-            for i in range(sleep):
-                time.sleep(1)
-            time.sleep(sleep_mod)
-            while self.pause_flag is True and self.interrupt_flag is False:
-                time.sleep(0.5)
+                as the waiting/sleep times
+
+            The function prints out some message if the wait time exceeds the
+            value of the silent argument.
+            """
+            t0 = time.time()
+            end = datetime.datetime.today() + datetime.timedelta(seconds=sleep)
+            if sleep > silent:
+                msg = "" if not message else f" ({message})"
+                until = f" until {end.strftime('%H:%M:%S')}"
+                self.print(f"Waiting {sleep:.0f} seconds{msg}{until}")
+
+            while (time.time() - t0) < sleep:
+                now = time.time()
+                remaining = sleep - (now - t0)
+                if remaining > 1.1:
+                    # if multiple seconds remaining, wait in chunks of 1s
+                    if sleep > silent:
+                        self.print(
+                            f"\r{remaining:.0f} seconds remaining", end="")
+                    time.sleep(1)
+                else:
+                    # wait remaining time
+                    time.sleep(remaining)
+                    if sleep > silent:
+                        self.print("\rWaiting done")
+                    break
+                # interrupt during long waits to stop clock from ticking
+                # is ignored for short waits
+                self.check_for_interrupt_and_pause()
+            # force one breakpoint independent of wait time (also for wait(0))
+            self.check_for_interrupt_and_pause()
+
+        def check_for_interrupt_and_pause(self):
             if self.interrupt_flag is True:
+                # script will be aborted
                 raise KeyboardInterrupt
+            while self.pause_flag is True and self.interrupt_flag is False:
+                # execution paused, wait for 100ms and recheck
+                time.sleep(0.1)
+
+        def input(self, message=""):
+            t0 = time.time()
+            if self.recv != "" and not self.recv_flag:
+                self.recv = ""
+            if "" == message:
+                self.print("waiting for user input")
+            else:
+                self.print(message)
+            while (self.recv == "" or self.recv_flag is True):
+                time.sleep(0.1)
+                if (time.time() - t0) > 60:
+                    self.print("still waiting for user input")
+                    t0 = time.time()
+                self.check_for_interrupt_and_pause()
+            # remove trailling line feed
+            ret = self.recv.strip()
+            # print output
+            self.print(f"User input received: {ret}")
+            self.recv = ""
+            return ret
 
         # callback function that handles the input
         def handle_input(self, inp):
             """ handles input that is passed to the thread """
-            if inp == "p":
-                self.pause(not self.pause_flag)
-            elif inp == "q":
-                self.stop()
+            if self.recv_flag is False:
+                if inp == "p":
+                    self.pause(not self.pause_flag)
+                elif inp == "q":
+                    self.stop()
+                elif inp == "i":
+                    # reset input if already available
+                    self.recv = ""
+                    self.recv_flag = True
+                return
+            if inp == "\n":
+                self.recv_flag = False
+            self.recv += inp
 
-        def print(self, *args):
+        def print(self, *args, **kwargs):
             """ reimplemented print that directly flushes the stdout """
-            print(*args)
-            sys.stdout.flush()
+            kwargs["flush"] = True
+            print(*args, **kwargs)
 
         def run(self):
             """ run the script and provide meaningful error information
@@ -495,6 +558,7 @@ def matrix_script_process(filename, user="", sample="",
                 try:
                     _vars = {"wait": self.breakpoint,
                              "print": self.print,
+                             "input": self.input,
                              "_user": self.user,
                              "_sample": self.sample,
                              "_scriptname": self.scriptname}
@@ -560,13 +624,25 @@ def matrix_script_process(filename, user="", sample="",
             try:
                 datachunk = client_socket.recv(1)
                 if len(datachunk) > 0:
-                    thread.handle_input(datachunk.decode())
+                    try:
+                        thread.handle_input(datachunk.decode("utf-8"))
+                    except UnicodeDecodeError:
+                        # unicode symbol that consists of two symbols was
+                        # likely found, try to recv one more symbol
+                        datachunk += client_socket.recv(1)
+                        try:
+                            thread.handle_input(datachunk.decode("utf-8"))
+                        except UnicodeDecodeError:
+                            # not the relevant error -> something went wrong
+                            pass
             except OSError:  # for Python >= 3.10 this can be TimeoutError
                 # recv timed out, no data was sent
                 pass
         # this sleep prevents a deadlock scenario which otherwise heavily slows
         # down matrix_script execution
-        time.sleep(0.1)
+        time.sleep(0.001)
+        # this sleep SIGNIFICANTLY slows down matr1x interthread communication
+        # can this be made shorter? -> changed to 0.001
 
     if connected is True:
         # close socket
