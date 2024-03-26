@@ -1472,8 +1472,6 @@ class MainWindow(QWidget):
         a carriage return the current line is deleted and replaced by the new
         text.
         """
-        # be sure to add anything at the end of the output window
-        self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
         if "\r" in text:
             before, after = text.split("\r", maxsplit=1)
             self.status_preview.insertPlainText(before)
