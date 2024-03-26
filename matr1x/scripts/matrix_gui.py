@@ -330,7 +330,9 @@ class MainWindow(QWidget):
         """
         folder = self.inputEdit.text()
         if "" == folder:
-            folder = matr1x.usersfolder
+            folder = self.outputEdit.text()
+            if "" == folder:
+                folder = matr1x.usersfolder
         filename = QFileDialog.getOpenFileName(self, 'Select input file',
                                                folder,
                                                "input files (*.*t)")
@@ -343,7 +345,9 @@ class MainWindow(QWidget):
         """
         folder = self.outputEdit.text()
         if "" == folder:
-            folder = matr1x.usersfolder
+            folder = self.inputEdit.text()
+            if "" == folder:
+                folder = matr1x.usersfolder
         filename = QFileDialog.getSaveFileName(
             self, 'Select ma file', folder,
             "Output files (*.ma7);;Old output files (*.ma6)",
