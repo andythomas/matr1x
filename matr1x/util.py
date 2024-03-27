@@ -356,7 +356,7 @@ def generate_script_prefix_suffix(systems):
     """)
     suffix = textwrap.dedent("""
     except KeyboardInterrupt:
-        print("script has been aborted by user, calling reset")
+        print("\\nscript has been aborted by user, calling reset")
     # ===== end user area =====
     # the reset function is called at the script end only, but we nevertheless
     # specify the last datafile name to be as close as possible to the behavior

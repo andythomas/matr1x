@@ -1180,7 +1180,18 @@ class ExecThread(QThread):
             # wait until the subprocess terminates and pipe its stdout to the
             # user window
             while self.proc.poll() is None:
-                sys.stdout.write(self.proc.stdout.read(1).decode())
+                char = self.proc.stdout.read(1).decode()
+                # following if/else construct is to ignore \r\n sequences
+                # those keep occuring on Windows
+                if char == '\r':
+                    nextchar = self.proc.stdout.read(1).decode()
+                    if nextchar == '\n':
+                        sys.stdout.write(nextchar)
+                    else:
+                        sys.stdout.write(char)
+                        sys.stdout.write(nextchar)
+                else:
+                    sys.stdout.write(char)
             self.conn.close()
 
 
@@ -1456,11 +1467,13 @@ class MainWindow(QWidget):
         if info.returncode != 0:
             print("Error when trying to import system")
             print("----------")
-            print((info.stderr).decode())
+            self.status_preview.append((info.stderr).decode())
+            self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
         else:
             print("Devices and commands for " + ", ".join(self.systems))
             print("----------")
-            print((info.stdout).decode())
+            self.status_preview.append((info.stdout).decode())
+            self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
         print("==========")
         self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
 
