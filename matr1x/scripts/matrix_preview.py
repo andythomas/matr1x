@@ -483,6 +483,7 @@ class SweepPreview(QMainWindow):
             ret = self.fetch_data(check=check)
             self.reload_data()
             self.refresh_all_plots()
+            self.refresh_columns_size()
         elif getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
@@ -491,8 +492,19 @@ class SweepPreview(QMainWindow):
             # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
+            self.reload_data()
             self.refresh_all_plots()
+            self.refresh_columns_size()
         return ret
+
+    def refresh_columns_size(self):
+        self.column_items = [
+            f"{name} ({unit}), shape: {shape}" for name, unit, shape
+            in zip(self.names, self.units, self.shapes)]
+        # change names to reflect the dimensions
+        for i in range(3):
+            for j, item in enumerate(self.column_items):
+                self.w_index[i].setItemText(j+1, item)
 
     def refresh_all_plots(self):
         """
