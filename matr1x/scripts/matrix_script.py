@@ -791,18 +791,17 @@ class QScintillaCustom(QsciScintilla):
             selections = self.merge_selections(selections)
         self.beginUndoAction()
         for i, sel in enumerate(selections):
-            self.set_block_commenting(sel[0], sel[1], char)
+            self.setSelection(sel[0], sel[2], sel[1], sel[3])
+            # Add the commenting char to the beginning and end of the
+            # selected text
+            self.replaceSelectedText(char + self.selectedText() + char)
         self.SendScintilla(self.SCI_CLEARSELECTIONS)
         for i, sel in enumerate(selections):
-            start_index = self.positionFromLineIndex(sel[0], 0)
-            # Check if ending line is the last line in the editor
-            last_line = sel[1]
-            if last_line == self.lines() - 1:
-                end_index = self.positionFromLineIndex(
-                    sel[1], len(self.text(last_line)))
-            else:
-                end_index = self.positionFromLineIndex(
-                    sel[1], len(self.text(last_line))-1)
+            start_index = self.positionFromLineIndex(sel[0], sel[2])
+            # if beginning and end of selection are in the same line, two
+            # symbols are added
+            increment = 1 if sel[0] != sel[1] else 2
+            end_index = self.positionFromLineIndex(sel[1], sel[3]+increment)
             if i == 0:
                 self.SendScintilla(
                     self.SCI_SETSELECTION, start_index, end_index)
@@ -832,27 +831,35 @@ class QScintillaCustom(QsciScintilla):
             all_commented = True
             # check if any of the lines is not commented, if so comment all
             # but empty selected lines
-            for line in range(sel[0], sel[1] + 1):
+            if sel[0] != sel[1] and sel[3] == 0:
+                # check if cursor is at the very beginning of the line and
+                # more than one line is selected
+                lmax = sel[1]
+            else:
+                lmax = sel[1] + 1
+            for line in range(sel[0], lmax):
                 line_text = self.text(line).lstrip()
                 if line_text == "":
                     continue
                 if not line_text.startswith(self.comment_string):
                     all_commented = False
             self.set_commenting(
-                sel[0], sel[1],
+                sel[0], lmax-1,
                 self._uncomment if all_commented else self._comment)
         # Select back the previously selected regions
         self.SendScintilla(self.SCI_CLEARSELECTIONS)
+        # shift depending on the comment
+        shift = -2 if all_commented else 2
         for i, sel in enumerate(selections):
-            start_index = self.positionFromLineIndex(sel[0], 0)
-            # Check if ending line is the last line in the editor
-            last_line = sel[1]
-            if last_line == self.lines() - 1:
+            # shift the start index by the commenting string
+            start_index = self.positionFromLineIndex(sel[0],
+                                                     sel[2] + shift)
+            if sel[3] == 0:
                 end_index = self.positionFromLineIndex(
-                    sel[1], len(self.text(last_line)))
+                    sel[1], sel[3])
             else:
                 end_index = self.positionFromLineIndex(
-                    sel[1], len(self.text(last_line)) - 1)
+                    sel[1], sel[3] + shift)
             if i == 0:
                 self.SendScintilla(
                     self.SCI_SETSELECTION, start_index, end_index)
@@ -876,7 +883,7 @@ class QScintillaCustom(QsciScintilla):
             # Add selection to list
             from_line, from_index = self.lineIndexFromPosition(selection[0])
             to_line, to_index = self.lineIndexFromPosition(selection[1])
-            selections.append((from_line, to_line))
+            selections.append((from_line, to_line, from_index, to_index))
         selections.sort()
         # Return selection list
         return selections
@@ -929,36 +936,18 @@ class QScintillaCustom(QsciScintilla):
         # Return the merged selections
         return merged_selections
 
-    def set_block_commenting(self, arg_from_line, arg_to_line, char):
-        # Get the cursor information
-        from_line = arg_from_line
-        to_line = arg_to_line
-        # Check if ending line is the last line in the editor
-        last_line = to_line
-        if last_line == self.lines() - 1:
-            to_index = len(self.text(to_line))
-        else:
-            to_index = len(self.text(to_line))-1
+    def set_block_commenting(self, from_line, to_line, from_index,
+                             to_index, char):
         # Set the selection from the beginning of the cursor line
         # to the end of the last selection line
         self.setSelection(
-            from_line, 0, to_line, to_index
+            from_line, from_index, to_line, to_index
         )
         # Get the selected text and split it into lines
         selected_text = self.selectedText()
-        selected_list = selected_text.split("\n")
-        # Find the smallest indent level
-        indent_levels = []
-        for line in selected_list:
-            indent_levels.append(len(line) - len(line.lstrip()))
-        min_indent_level = min(indent_levels)
-        # Add the commenting character to every line
-        selected_list[0] = (selected_list[0][:min_indent_level] + char +
-                            selected_list[0][min_indent_level:])
-        selected_list[-1] += char
+        replace_text = char + selected_text + char
         # Replace the whole selected text with the merged lines
         # containing the commenting characters
-        replace_text = self.line_ending.join(selected_list)
         self.replaceSelectedText(replace_text)
 
     def set_commenting(self, arg_from_line, arg_to_line, func):
