@@ -12,19 +12,23 @@ import numpy as np
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import QLocale, QObject, Qt, pyqtSignal
+    from PyQt6.QtCore import (QAbstractTableModel, QLocale, QObject, Qt,
+                              pyqtSignal)
     from PyQt6.QtGui import QDoubleValidator, QIntValidator
-    from PyQt6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
-                                 QGroupBox, QHBoxLayout, QLabel, QLayout,
-                                 QLineEdit, QPushButton, QSizePolicy, QSlider,
-                                 QToolButton, QVBoxLayout)
+    from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDockWidget, QFrame,
+                                 QGridLayout, QGroupBox, QHBoxLayout, QLabel,
+                                 QLayout, QLineEdit, QPushButton, QSizePolicy,
+                                 QSlider, QTableView, QToolButton, QVBoxLayout)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
-    from PyQt5.QtCore import QLocale, QObject, Qt, pyqtSignal
+    from PyQt5.QtCore import (QAbstractTableModel, QLocale, QObject, Qt,
+                              pyqtSignal)
     from PyQt5.QtGui import QDoubleValidator, QIntValidator
     from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
-                                 QGroupBox, QHBoxLayout, QLabel, QLayout, QLineEdit,
+                                 QDockWidget, QTableView,
+                                 QGroupBox, QHBoxLayout, QLabel, QLayout,
+                                 QLineEdit,
                                  QPushButton, QSizePolicy, QSlider, QToolButton,
                                  QVBoxLayout)
 
@@ -151,6 +155,71 @@ class QRangeWidget(QGroupBox):
         Returns maximum value of slider
         """
         return self.slider.maximum()
+
+
+class MetaViewerWidget(QDockWidget):
+    """
+    Viewer for meta data stored in ma7 file
+    """
+    class TableModel(QAbstractTableModel):
+        def __init__(self, data):
+            super().__init__()
+            self._data = data
+
+        def data(self, index, role):
+            if role == Qt.ItemDataRole.DisplayRole:
+                return self._data[index.row()][index.column()]
+
+        def setData(self, data):
+            """
+            takes a new data set and updates the table
+            """
+            self.beginResetModel()
+            self._data = data
+            self.endResetModel()
+
+        def rowCount(self, index):
+            return len(self._data)
+
+        def columnCount(self, index):
+            return len(self._data[0])
+
+    def __init__(self, metadata):
+        super().__init__()
+
+        self.table_view = QTableView()
+
+        self.model = self.TableModel(self.parse_header(metadata))
+        self.table_view.setModel(self.model)
+        self.table_view.resizeRowsToContents()
+
+        # make last column stretch whenresized
+        self.table_view.horizontalHeader().setStretchLastSection(True)
+
+        self.setSizePolicy(QSizePolicy.Policy.Expanding,
+                           QSizePolicy.Policy.Expanding)
+        self.table_view.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                      QSizePolicy.Policy.Expanding)
+        self.setWidget(self.table_view)
+
+    def update_data(self, meta):
+        """
+        Updates the data stored in the model and resizes
+        the table to fit the contents
+        """
+        self.model.setData(self.parse_header(meta))
+        self.table_view.resizeRowsToContents()
+
+    def parse_header(self, hdr):
+        """
+        Parse a matrix header and prepare for display in the table view
+        """
+        data = []
+        for key, val in hdr.items():
+            if key in ["columns", "units"]:
+                continue
+            data.append([key, val])
+        return data
 
 
 class SimplePlotWidget(QGroupBox):

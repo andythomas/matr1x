@@ -18,9 +18,9 @@ try:
     from PyQt6.QtCore import QEvent, Qt, QThread, pyqtSignal
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox,
-                                 QFileDialog, QGridLayout, QHBoxLayout, QLabel,
-                                 QLayout, QMainWindow, QMessageBox, QPushButton,
-                                 QToolButton, QWidget)
+                                 QDockWidget, QFileDialog, QGridLayout,
+                                 QHBoxLayout, QLabel, QLayout, QMainWindow,
+                                 QMessageBox, QPushButton, QToolButton, QWidget)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
@@ -126,7 +126,8 @@ class SweepPreview(QMainWindow):
         """
         if sys.platform == "darwin":
             # the mac uses an openfile event to signal the filename
-            # a 2020 intel machine required 100ms, 300ms seems like a save margin
+            # a 2020 intel machine required 100ms, 300ms seems like a save
+            # margin
             time.sleep(0.3)
         if not self.filename:
             self.openfile_dialog.emit()
@@ -232,9 +233,18 @@ class SweepPreview(QMainWindow):
         self.w_file.setCurrentIndex(self.file_index)
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
+        w_meta = QPushButton("show meta data")
+        w_meta.setCheckable(True)
+        w_meta.toggled.connect(self.toggle_meta)
+
         l_file.addWidget(w_prev)
         l_file.addWidget(self.w_file, stretch=1)
         l_file.addWidget(w_next)
+        l_file.addWidget(w_meta)
+
+        self.w_meta_view = gu.MetaViewerWidget(self.header)
+        self.w_meta_view.setFeatures(
+            QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
 
         w_save = QPushButton("export plot")
         w_save.clicked.connect(self.save_plot)
@@ -302,6 +312,10 @@ class SweepPreview(QMainWindow):
         self.setMinimumWidth(800)
         self.setMaximumWidth(self._get_maximum_screen_width())
 
+        self.w_meta_view.setVisible(False)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
+                           self.w_meta_view)
+
     def clear_ui(self):
         for i in reversed(range(2, self.grid.count())):
             item = self.grid.takeAt(i)
@@ -311,6 +325,12 @@ class SweepPreview(QMainWindow):
             else:
                 for j in range(item.layout().count()):
                     item.layout().takeAt(0).widget().deleteLater()
+
+    def toggle_meta(self, state):
+        if state is True:
+            self.w_meta_view.setVisible(True)
+        else:
+            self.w_meta_view.setVisible(False)
 
     def save_plot(self):
         filename = QFileDialog.getSaveFileName(
@@ -365,6 +385,7 @@ class SweepPreview(QMainWindow):
                 self.spw.w_plots.setCurrentIndex(i)
             # reset active plot
             self.spw.w_plots.setCurrentIndex(ci)
+        self.w_meta_view.update_data(self.header)
 
     def index_changed(self, newIndex):
         """
