@@ -1145,10 +1145,9 @@ class ExecThread(QThread):
             tf.flush()
             # pass the script that we want to execute and generate correct
             # parameters to pass to matr1x/utils.py:matrix_script_process
-            cmd = ("import matr1x.util as mu\n" +
-                   f"mu.matrix_script_process({repr(tf.name)}, '" +
-                   self.user + "', '" + self.sample + "', '" +
-                   self.datafilefallback + "')")
+            cmd = (f"""import matr1x.util as mu
+mu.matrix_script_process({repr(tf.name)}, {repr(self.user)} ,
+                         {repr(self.sample)}, {repr(self.datafilefallback)})""")
             # start socket that is used to communicate with the child process
             # that runs the script
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
