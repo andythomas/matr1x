@@ -69,7 +69,7 @@ class FSW8(VisaDevice):
         """
         Reset the VNA using the SYST:FPRESET command.
         Note that this does not reset the data transfer format!
-        Use \*RST for this
+        Use *RST for this
         """
         # self.write("SYST:PRES")  # SYSTem:PRESet
         self.write('*RST')
@@ -106,8 +106,8 @@ class FSW8(VisaDevice):
         avgType : str
             (Default = 'rms')
             The average typ of the mesurement.
-            Currently implemented are 'rms': Power (RMS) averaging, 
-            'log' : Log-Power (video) averaging and 'scalar' : Voltage 
+            Currently implemented are 'rms': Power (RMS) averaging,
+            'log' : Log-Power (video) averaging and 'scalar' : Voltage
             averaging.
         scale : str
           (Default = 'log')
@@ -153,7 +153,7 @@ class FSW8(VisaDevice):
                 print("Please choose a valid detector type! Your input was:{}".format(
                     avgType))
             self.write("AVER:STAT ON")
-            self.write("AVER:COUN {}".format(average))
+            self.write(f"AVER:COUN {average}")
             self.maxAverage = max(average, self.maxAverage)
         else:
             self.write("AVER:STAT OFF")
@@ -166,20 +166,20 @@ class FSW8(VisaDevice):
             self.write("INP:GAIN:STAT OFF")
         time.sleep(0.5)
 
-        if attAuto == True:  # automatic internal attenuator
+        if attAuto is True:  # automatic internal attenuator
             self.write("INP:ATT:AUTO ON")
         else:
             self.write("INP:ATT:AUTO OFF")
             self.write(f"INP:ATT {attVal}dB")
         time.sleep(0.5)
 
-        self.write("SWE:POIN {}".format(str(swePoints)))
-        self.write("BWID:RES {} Hz".format(str(resBW)))
+        self.write(f"SWE:POIN {str(swePoints)}")
+        self.write(f"BWID:RES {str(resBW)} Hz")
         if vidBW:
-            self.write("BWID:VID {} Hz".format(str(vidBW)))
+            self.write(f"BWID:VID {str(vidBW)} Hz")
         else:
             self.write("BAND:VID:AUTO ON")
-        self.write("DISP:TRAC:Y:RLEV {}dbm".format(str(refLev)))
+        self.write(f"DISP:TRAC:Y:RLEV {str(refLev)}dbm")
         time.sleep(0.5)
 
         if sweType == 'fft':  # selects the sweep type
@@ -189,8 +189,8 @@ class FSW8(VisaDevice):
         elif sweType == 'auto':
             self.write("SWE:TYPE AUTO")
         else:
-            print("Please choose a valid sweep type! Your input was:{}".format(
-                avgType))
+            print(
+                f"Please choose a valid sweep type! Your input was:{avgType}")
         time.sleep(0.5)
 
         # Set optimization parameters in FFT mode
@@ -210,9 +210,9 @@ class FSW8(VisaDevice):
     def noise_cancellation(self, state=False):
         """
         Turns noise cancellation on and off.
-        If noise cancellation is on, the R&S FSW performs a reference 
-        measurement to determine its inherent noise and subtracts the 
-        result from the channel power measurement result (first active 
+        If noise cancellation is on, the R&S FSW performs a reference
+        measurement to determine its inherent noise and subtracts the
+        result from the channel power measurement result (first active
         trace only).
         """
         if state is True:
@@ -222,8 +222,8 @@ class FSW8(VisaDevice):
 
     @synchronized
     def setFreq(self, fCent, fSpan):
-        self.write("FREQ:CENT {} HZ".format(str(fCent)))
-        self.write("FREQ:SPAN {} HZ".format(str(fSpan)))
+        self.write(f"FREQ:CENT {str(fCent)} HZ")
+        self.write(f"FREQ:SPAN {str(fSpan)} HZ")
 
     @synchronized
     def setStartStopFreq(self, fStart, fStop):
@@ -234,7 +234,7 @@ class FSW8(VisaDevice):
     def startSweep(self):
         """
         Prepare the PSA for triggering a sweep.
-        The PSA disables the continuous trigger and therefore enables 
+        The PSA disables the continuous trigger and therefore enables
         manual triggering. Any currently running sweeps are aborted.
         """
         # aborts the measurement in the current channel and resets the

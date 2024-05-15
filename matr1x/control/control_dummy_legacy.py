@@ -91,7 +91,8 @@ class MainWindow(ControlWindow):
                                                                 go.doublespinbox],
                              log=True, unit="%", init=[None, (0, 100)]),
                    "V4": var(dtype=bool, outType=bool, columns=[go.checkbox, go.checkbox]),
-                   "toggle": var(dtype=bool, outType=bool, columns=[go.checkbox, go.togglebutton], init=[None, ("Slow", "Fast")]),
+                   "toggle": var(dtype=bool, outType=bool, columns=[go.checkbox, go.togglebutton],
+                                 init=[None, ("Slow", "Fast")]),
                    "Set": var(None, columns=[go.button, go.button],
                               init=["Set", "Copy"]),
                    }

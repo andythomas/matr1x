@@ -50,8 +50,7 @@ class Standa8SMC4():
         Reads speed from motor
         """
         mvst = self.pyximc.move_settings_t()
-        result = self.lib.get_move_settings(self._device_id,
-                                            ctypes.byref(mvst))
+        self.lib.get_move_settings(self._device_id, ctypes.byref(mvst))
         return mvst.Speed
 
     def setSpeed(self, speed):
@@ -64,7 +63,7 @@ class Standa8SMC4():
         returns position of motor
         """
         x_pos = self.pyximc.get_position_t()
-        result = self.lib.get_position(self._device_id, ctypes.byref(x_pos))
+        self.lib.get_position(self._device_id, ctypes.byref(x_pos))
         return float(x_pos.Position) + float(x_pos.uPosition)/256.
 
     def move(self, distance):

@@ -785,7 +785,7 @@ class ControlWindow(QMainWindow):
         # returning the same reading over and over
         self.stopServer()
         # open a popup window to inform about the error
-        a = QMessageBox.critical(
+        _ = QMessageBox.critical(
             self, f"Error in {pointer}",
             f"""The following error was raised in {pointer}:
 {repr(exc_value)}

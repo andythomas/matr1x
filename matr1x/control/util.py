@@ -99,7 +99,7 @@ def catchEmitError(method):
                 print(outstr)
                 if guidict.allow_disabling:
                     guidict.enable_switch.setChecked(False)
-                    outstr = f"Ignoring last Exception since device can be deactivated."
+                    outstr = "Ignoring last Exception since device can be deactivated."
                     logger.info(outstr)
                     print(outstr)
                     return

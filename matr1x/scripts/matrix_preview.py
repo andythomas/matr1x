@@ -573,7 +573,7 @@ class SweepPreview(QMainWindow):
         except Exception:
             # file could not be opened
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            a = QMessageBox.critical(
+            _ = QMessageBox.critical(
                 self, "Error when opening file",
                 f"""
 The following error was raised when opening the file:

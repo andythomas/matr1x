@@ -548,22 +548,22 @@ class Keithley2182A(VisaDevice):
         """
         cmdList = []
         if reset is True:
-            self.write(f"*RST")
+            self.write("*RST")
             time.sleep(0.05)
         # we want to measure volts
-        cmdList.append(f":SENS:FUNC \"VOLT\"")
+        cmdList.append(":SENS:FUNC \"VOLT\"")
         if NPLC is not None:
             cmdList.append(f":SENS:VOLT:NPLC {float(NPLC):f}")
         if digits is not None:
             cmdList.append(f":SENS:VOLT:DIG {int(digits):d}")
         if rangeAuto is True:
-            cmdList.append(f":SENS:VOLT:RANG:AUTO ON")
+            cmdList.append(":SENS:VOLT:RANG:AUTO ON")
         elif range is not None:
-            cmdList.append(f":SENS:VOLT:RANG:AUTO OFF")
+            cmdList.append(":SENS:VOLT:RANG:AUTO OFF")
             cmdList.append(
                 f":SENS:VOLT:RANG {float(range):f}")
         if dFil is True:
-            cmdList.append(f":SENS:VOLT:DFIL:STATE ON")
+            cmdList.append(":SENS:VOLT:DFIL:STATE ON")
             if window is not None:
                 cmdList.append(
                     f":SENS:VOLT:DFIL:WIND {float(window):f}")
@@ -571,25 +571,25 @@ class Keithley2182A(VisaDevice):
                 cmdList.append(
                     f":SENS:VOLT:DFIL:COUN {int(count):d}")
             if repeatingFilter is True:
-                cmdList.append(f":SENS:VOLT:DFIL:TCON REP")
+                cmdList.append(":SENS:VOLT:DFIL:TCON REP")
             elif repeatingFilter is False:
-                cmdList.append(f":SENS:VOLT:DFIL:TCON MOV")
+                cmdList.append(":SENS:VOLT:DFIL:TCON MOV")
         elif dFil is False:
-            cmdList.append(f":SENS:VOLT:DFIL:STATE OFF")
+            cmdList.append(":SENS:VOLT:DFIL:STATE OFF")
         if trigBus is True:
-            cmdList.append(f":ABOR")
+            cmdList.append(":ABOR")
             # Only triggered reading
-            cmdList.append(f":INIT:CONT OFF")
-            cmdList.append(f":TRIG:SOUR BUS")
-            cmdList.append(f":TRIG:COUN INF")
-            cmdList.append(f":INIT")
+            cmdList.append(":INIT:CONT OFF")
+            cmdList.append(":TRIG:SOUR BUS")
+            cmdList.append(":TRIG:COUN INF")
+            cmdList.append(":INIT")
         for cmd in cmdList:
             self.write(cmd)
         time.sleep(0.2)
 
     def triggerReading(self):
         if self.triggered is False:
-            self.write(f"*TRG")
+            self.write("*TRG")
             self.triggered = True
 
     def getReading(self):
