@@ -137,17 +137,24 @@ class VisaDevice:
             if isinstance(self.interface, pyvisa.resources.Resource):
                 self.connection = self.interface
                 return
-            self.connection = self.manager.open_resource(self.interface)
-            if self.pts:
-                print(f"C: {self.name}")
-            logger.info(f"Connection to {self.name} opened")
-            # apply kwargs to visadevice (say baudrate)
-            # should only modify available properties, so should be immune
-            # against "wrong" device parameters
-            # needs to be tested!
-            for key, val in kwargs.items():
-                if hasattr(self.connection, key):
-                    setattr(self.connection, key, val)
+            try:
+                self.connection = self.manager.open_resource(self.interface)
+                if self.pts:
+                    print(f"C: {self.name}")
+                logger.info("Connection to %s opened", self.name)
+                # apply kwargs to visadevice (say baudrate)
+                # should only modify available properties, so should be immune
+                # against "wrong" device parameters
+                for key, val in kwargs.items():
+                    if hasattr(self.connection, key):
+                        setattr(self.connection, key, val)
+            except Exception as e:
+                logger.info("Exception during opening of %s", self.name)
+                try:
+                    self.connection.close()
+                except AttributeError:
+                    pass
+                raise e
             self._opened = True
 
     def close(self):
