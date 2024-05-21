@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import warnings
 from os.path import dirname, join
 
@@ -750,8 +751,9 @@ class QScintillaCustom(QsciScintilla):
             # add initial definitions that are passed to the script
             # externally to avoid linter errors, make sure not to add an
             # additional line here
-            script = "wait=lambda x:x;print=lambda x:x;input=lambda x:x;"
-            script += "_user='';_sample='';_scriptname='';"
+            script = "_wait=lambda x:x;_print=lambda x:x;_input=lambda x:x;"
+            script += "_report_line=lambda x:x;_user='';_sample='';"
+            script += "_scriptname='';"
             script += generate_script("", self.text())
             ret = pyflakes.api.check(script, 'sc', reporter=self.reporter)
             print(f"Linter found {ret if ret != 0 else 'no'} error" +
@@ -1073,10 +1075,24 @@ if os.name == 'nt':
 
 class ExecThread(QThread):
 
-    def __init__(self, sample, user, script, fallbackname):
+    def __init__(self, sample, user, script, fallbackname, callback):
         """
         initialize thread that handles script execution with meta data and
         script
+
+        Parameters:
+            sample : string
+                sample name from gui that will be used in the meta data
+            user : string
+                user name from gui that will be used in the meta data
+            script : string
+                user script that is supposed to be run by the ExecThread.
+            fallbackname : string
+                filename used to initialize the data file if not specified
+                in the script
+            callback : function
+                callback to report the currently executing line number to.
+                Must accept a single integer parameter.
         """
         super().__init__()
         self.proc = None
@@ -1085,9 +1101,10 @@ class ExecThread(QThread):
         self.user = user
         self.script = script
         self.datafilefallback = fallbackname
+        self.callback = callback
 
     def pass_input(self, inp):
-        """ communicate user input to the subprocess' stdin """
+        """ communicate user input to the subprocess """
         if self.proc is None or self.conn is None:
             return
         if inp == "":
@@ -1098,7 +1115,7 @@ class ExecThread(QThread):
         self.conn.send(("i"+inp).encode("utf-8"))
 
     def pause(self):
-        """ communicate pause to the subprocess' stdin """
+        """ communicate pause to the subprocess """
         if self.proc is None or self.conn is None:
             return
         self.conn.send("p".encode())
@@ -1126,6 +1143,26 @@ class ExecThread(QThread):
         except OSError:
             # this will likely not happen
             print("thread terminated gracefully")
+
+    def recv_line(self, inp):
+        """
+        receives a line from the input and extracts the current line
+        executing from the message, all other input is printed.
+
+        TODO: not tolerant against split strings, i.e. if sent string
+        is longer than 1024, one can expect a problematic behavior. Migrate
+        to ZMQ and directly pass strings as python objects?
+        """
+        pattern = r"__lineno(-?\d+)__\n"
+        for line in inp.split("\0"):
+            match = re.search(pattern, line)
+            if match:
+                digits = match.group(1)
+                if int(digits) > 0:
+                    self.callback(int(digits))
+            printstr = re.sub(pattern, "", line)
+            if printstr != "":
+                print(printstr, end="")
 
     def run(self):
         """
@@ -1168,18 +1205,36 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.user)} ,
             # wait until the subprocess terminates and pipe its stdout to the
             # user window
             while self.proc.poll() is None:
-                char = self.proc.stdout.read(1).decode()
-                # following if/else construct is to ignore \r\n sequences
-                # those keep occuring on Windows
-                if char == '\r':
-                    nextchar = self.proc.stdout.read(1).decode()
-                    if nextchar == '\n':
-                        sys.stdout.write(nextchar)
-                    else:
-                        sys.stdout.write(char)
-                        sys.stdout.write(nextchar)
-                else:
-                    sys.stdout.write(char)
+                try:
+                    datachunk = self.conn.recv(1024)
+                    if len(datachunk) > 0:
+                        try:
+                            decoded = datachunk.decode("utf-8")
+                            j = 0
+                            while decoded[-1] != "\0":
+                                datachunk = self.conn.recv(1024)
+                                decoded += datachunk.decode("utf-8")
+                                j += 1
+                                if len(datachunk) == 0:
+                                    print("nothing received, error in thread "
+                                          "communication")
+                                    break
+                                elif j % 250 == 0:
+                                    print("receiving very long string, "
+                                          "please stand by - iteration "
+                                          f"{j//250}")
+                                    # give the main thread a chance to
+                                    # print the statement,
+                                    # this time and the maximum message length
+                                    # defines the timeout of the socket client
+                                    # in util.py
+                                    time.sleep(0.005)
+                            self.recv_line(decoded)
+                        except UnicodeDecodeError:
+                            # on decode error, report and continue
+                            print("decode error in thread communication")
+                except OSError:
+                    pass
             self.conn.close()
 
 
@@ -1187,6 +1242,8 @@ class MainWindow(QWidget):
     """
     Define layout, runs everything
     """
+    # signal that is used to handle the highlighting of code execution
+    highlight_line = pyqtSignal(int)
 
     def __init__(self, filename=None):
         """
@@ -1407,17 +1464,21 @@ class MainWindow(QWidget):
             self.system_list.takeItem(self.system_list.count()-1)
 
     def send_to_thread(self):
+        """ passes input to thread """
         self.thread.pass_input(self.send_edit.text())
 
     def pause_thread(self):
+        """ pauses thread execution """
         # disable send button during pause
         self.send_button.setEnabled(not self.pause_button.isChecked())
         self.thread.pause()
 
     def abort_thread(self):
+        """ aborts thread execution """
         self.thread.abort()
 
     def kill_thread(self):
+        """ kills the thread """
         self.thread.kill()
         print("Script terminated by user - " +
               "file integrity might be compromised")
@@ -1469,31 +1530,66 @@ class MainWindow(QWidget):
         """
         appends the most recent text to the end of the display and makes sure
         that the cursor remains at the end. This function also tries to mimick
-        the behavior of a carriage return in the output text. At the position of
-        a carriage return the current line is deleted and replaced by the new
-        text.
+        the behavior of a carriage return in the output text. At the position
+        of a carriage return the current line is deleted and replaced by the
+        new text.
         """
+        if len(text) > 20000:
+            # if receiving very long print statements, limit display to 20k
+            # symbols. This is necessary because performance of QTextEdit is
+            # insufficient to handle very large texts
+            prefix = "Received very long print statement, first 20k symbols:\n"
+            text = prefix + text[:20000]
         if "\r" in text:
             before, after = text.split("\r", maxsplit=1)
             self.status_preview.insertPlainText(before)
+            # make sure cursor is at the end of the inserted text (required
+            # if there is a \n in `before`).
+            self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
             # return cursor to beginning of line by deleting its content
             cursor = self.status_preview.textCursor()
-            self.status_preview.moveCursor(
-                QTextCursor.MoveOperation.StartOfLine,
-                QTextCursor.MoveMode.MoveAnchor)
+            # select the content of the last line and clear the text
             self.status_preview.moveCursor(
                 QTextCursor.MoveOperation.EndOfLine,
+                QTextCursor.MoveMode.MoveAnchor)
+            self.status_preview.moveCursor(
+                QTextCursor.MoveOperation.StartOfLine,
                 QTextCursor.MoveMode.KeepAnchor)
             cursor.removeSelectedText()
             if "\r" in after:
+                # recursion for long strings
                 self.output_written(after)
             else:
-                cursor.insertText(after)
+                # insert text after \r at the cursor location
+                self.status_preview.insertPlainText(after)
         else:
             self.status_preview.insertPlainText(text)
             self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
         sb = self.status_preview.verticalScrollBar()
         sb.setValue(sb.maximum())
+
+    def highlight(self, number):
+        """
+        clears all annotations and highlights the line that is currently being
+        executed
+
+        Parameters:
+            number:integer - line number to be highlighted
+        """
+        self.clear_annotations()
+        self.script_edit.indicatorDefine(
+            QsciScintilla.IndicatorStyle.FullBoxIndicator, 1)
+        self.script_edit.fillIndicatorRange(number, 0, number+1, 0, 1)
+
+    def clear_annotations(self):
+        """
+        helper function that clears all annotations in the QScntilla edit
+        """
+        self.script_edit.clearAnnotations()
+        lastLine = len(self.script_edit.text().split("\n")) - 1
+        lenLast = len(self.script_edit.text().split("\n")[-1])
+        self.script_edit.clearIndicatorRange(
+            0, 0, lastLine, lenLast, 1)
 
     def enable_buttons(self, flag):
         """
@@ -1503,6 +1599,11 @@ class MainWindow(QWidget):
         Parameters:
             flag:boolean - True means script is running
         """
+        if flag is True:
+            self.highlight_line.connect(self.highlight)
+        else:
+            self.highlight_line.disconnect()
+            self.clear_annotations()
         self.pause_button.setEnabled(flag)
         self.pause_button.setChecked(False)
         self.abort_button.setEnabled(flag)
@@ -1515,6 +1616,13 @@ class MainWindow(QWidget):
         self.start_button.setEnabled(not flag)
         self.add_button.setEnabled(not flag)
         self.del_button.setEnabled(not flag)
+
+    def emit_line_signal(self, lineno):
+        """
+        emits signal that highlights the currently executing line number,
+        used as callback for ExecThread
+        """
+        self.highlight_line.emit(lineno)
 
     def process_finished(self):
         """
@@ -1566,7 +1674,8 @@ class MainWindow(QWidget):
         self.thread = ExecThread(self.sample_edit.text(),
                                  self.user_edit.text(),
                                  script,
-                                 self.scriptname)
+                                 self.scriptname,
+                                 self.emit_line_signal)
         self.thread.finished.connect(self.process_finished)
         logger.info("The following user script was run:\n" + user_script)
         self.thread.start()

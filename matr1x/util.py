@@ -187,6 +187,7 @@ def generate_script_prefix_suffix(systems):
       corresponding suffix of the scriot, finishes the try statement
     """
     prefix = textwrap.dedent(f"""
+    import inspect as _inspect
     import math as _math
     import os as _os
     import time as _time
@@ -208,6 +209,12 @@ def generate_script_prefix_suffix(systems):
     _starttime = _time.time()
     _preset = _starttime
 
+    def lineno_decorator(func):
+        def wrapper(*args, **kwargs):
+            _report_line(_inspect.currentframe().f_back.f_lineno)
+            return func(*args, **kwargs)
+        return wrapper
+
     def _reset_setvalues():
         global _setvalues
         _setvalues = []
@@ -222,6 +229,7 @@ def generate_script_prefix_suffix(systems):
     meta_data = _system.dcdata
 
     # redefine set_value to limit user typing requirements
+    @lineno_decorator
     def set_value(col, value):
         '''
         wrapper for _system.set_values to allow storing all set parameters
@@ -241,14 +249,32 @@ def generate_script_prefix_suffix(systems):
             _setvalues[i] = setv
         return setv
 
-    trigger_value = _system.trigger_value
-    read_value = _system.read_value
+    @lineno_decorator
+    def trigger_value(*args, **kwargs):
+        _system.trigger_value(*args, **kwargs)
+
+    @lineno_decorator
+    def read_value(*args, **kwargs):
+        return _system.read_value(*args, **kwargs)
+
+    @lineno_decorator
+    def wait(*args, **kwargs):
+        _wait(*args, **kwargs)
+
+    @lineno_decorator
+    def print(*args, **kwargs):
+        _print(*args, **kwargs)
+
+    @lineno_decorator
+    def input(*args, **kwargs):
+        _input(*args, **kwargs)
 
     # initialize system and put devs into namespace
     print("setting devices")
     _system.set()  # here is a difference to matrix (no arguments), see PR #203
     devs = _system.devs
 
+    @lineno_decorator
     def init_datafile(filename, comment="", append=False, print_header=True,
                       ntot=None):
         '''
@@ -304,6 +330,7 @@ def generate_script_prefix_suffix(systems):
 
 
     # wrap system.trigger and system.take_measurement_point into measure_system
+    @lineno_decorator
     def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
         '''
         Perform the measurment of a single data point. This means a sequence of
@@ -442,7 +469,7 @@ def matrix_script_process(filename, user="", sample="",
           user name
         """
 
-        def __init__(self, script, sample, user, scriptname):
+        def __init__(self, script, sample, user, scriptname, socket):
             """ initialize all variable """
             super().__init__()
             self.script = script
@@ -453,6 +480,8 @@ def matrix_script_process(filename, user="", sample="",
             self.interrupt_flag = False
             self.recv_flag = False
             self.recv = ""
+            self.n_pref = ""
+            self.socket = socket
 
         def pause(self, state):
             """ pause the execution at the breakpoint """
@@ -546,19 +575,38 @@ def matrix_script_process(filename, user="", sample="",
                 self.recv_flag = False
             self.recv += inp
 
+        def report_line(self, lineno):
+            """
+            reports currently executing line number to the
+            matrix-script
+            format is __lineno{+-number of line}__
+            """
+            if self.socket is None:
+                # only print line number if connected to a socket
+                return
+            self.print(f"__lineno{lineno-self.n_pref-1:d}__")
+
         def print(self, *args, **kwargs):
-            """ reimplemented print that directly flushes the stdout """
-            kwargs["flush"] = True
-            print(*args, **kwargs)
+            """ reimplemented print that communicates via the socket  """
+            end = kwargs.get("end", "\n")
+            sep = kwargs.get("sep", " ")
+            sendstr = sep.join(map(str, args)) + end + "\0"
+            if self.socket is None:
+                print(sendstr[:-1])
+            else:
+                self.socket.sendall(sendstr.encode("utf-8"))
 
         def run(self):
             """ run the script and provide meaningful error information
                 if the script exits with an error """
             try:
+                self.n_pref = len(
+                    generate_script_prefix_suffix("")[0].split('\n')) - 1
                 try:
-                    _vars = {"wait": self.breakpoint,
-                             "print": self.print,
-                             "input": self.input,
+                    _vars = {"_wait": self.breakpoint,
+                             "_print": self.print,
+                             "_report_line": self.report_line,
+                             "_input": self.input,
                              "_user": self.user,
                              "_sample": self.sample,
                              "_scriptname": self.scriptname}
@@ -573,10 +621,8 @@ def matrix_script_process(filename, user="", sample="",
                     line = int(ms.group(1))
                     # replace line number to match the user defined script
                     # to that end, determine number of lines in prefix
-                    n_pref = len(
-                        generate_script_prefix_suffix("")[0].split('\n'))
                     tbstr = re.sub(r"line (\d+)",
-                                   "line " + str(int(ms.group(1))-n_pref+1),
+                                   "line " + str(int(ms.group(1))-self.n_pref),
                                    tbstr)
                     tbstr = tbstr.replace("<module>", "script")
                     tbstr = tbstr.replace("file \"<string>\"",
@@ -601,18 +647,30 @@ def matrix_script_process(filename, user="", sample="",
         for line in file:
             script += line.decode()
 
-    # initialize the thread
-    thread = ExecThread(script, sample, user, scriptname)
-
+    # initialize communication to matrix script
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         client_socket.connect(("127.0.0.1", MATRIX_SCRIPT_PORT))
         # make socket non-blocking
-        client_socket.settimeout(0.1)
+        client_socket.settimeout(0.05)
+        # timeout should be chosen so that the server socket can receive the
+        # full message within the timeout
+        # Since currently the server socket delays the receiving by 5 ms every
+        # 250 1024 byte segments, once more then 10 of such segments are
+        # expected, the timeout will occur (not accounting for the internal
+        # delays of the socket operations). Consequently, we impose a maximum
+        # message length of < 2.5 MByte here, which I assume is a large print
+        # statement and should be completely irrelevant.
         connected = True
     except ConnectionRefusedError:
         # GUI not running - script was not run from graphical user interface.
         connected = False
+
+    # initialize the thread
+    if connected is True:
+        thread = ExecThread(script, sample, user, scriptname, client_socket)
+    else:
+        thread = ExecThread(script, sample, user, scriptname, None)
 
     # start the thread that runs the script
     thread.start()
