@@ -162,6 +162,7 @@ class SweepPreview(QMainWindow):
         self.fetch_data()
         self.multidim = False
         self.error = False
+        self.clear_ui()
         self.init_ui()
         self.w_file.installEventFilter(self)
 
