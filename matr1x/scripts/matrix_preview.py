@@ -143,7 +143,6 @@ class SweepPreview(QMainWindow):
             self, "Select ma file", "",
             "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
         if filename:
-            self.clear_ui()
             self.set_filename(filename)
         else:
             if not self.filename:
