@@ -144,7 +144,6 @@ class SweepPreview(QMainWindow):
             self, "Select ma file", "",
             "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
         if filename:
-            self.clear_ui()
             self.set_filename(filename)
         else:
             if not self.filename:
@@ -163,6 +162,7 @@ class SweepPreview(QMainWindow):
         self.fetch_data()
         self.multidim = False
         self.error = False
+        self.clear_ui()
         self.init_ui()
         self.w_file.installEventFilter(self)
 
