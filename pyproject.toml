@@ -6,6 +6,7 @@ requires-python = ">=3.6"
 dependencies = [
   "natsort",
   "numpy",
+  "psutil",
   "pymeasure",
   "pyserial",
   "pyvisa",

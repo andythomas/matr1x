@@ -217,5 +217,4 @@ def main():
     control_main("dummy",
                  ControlWindow,
                  guidicts=(exampleDict(), exampleDict2()),
-                 extra_cmds=common_commands,
-                 lockfile=True)
+                 extra_cmds=common_commands)

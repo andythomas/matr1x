@@ -252,7 +252,7 @@ def main():
     lockfilename = os.path.join(
         logfolder, os.path.splitext(os.path.split(__file__)[-1])[0] + ".lock")
     if os.path.exists(lockfilename):
-        QMessageBox.about(
+        QMessageBox.critical(
             QWidget(), "Lockfile exists",
             f"""Lockfile ({lockfilename}) exists. The control GUI will not
             start. Please make sure everything is save! Only then remove the

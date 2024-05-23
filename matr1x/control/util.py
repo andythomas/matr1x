@@ -35,6 +35,7 @@ from operator import attrgetter
 from subprocess import PIPE, Popen
 
 import numpy
+import psutil
 
 try:
     from PyQt6 import QtCore
@@ -1314,13 +1315,21 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
         lockfilename = os.path.join(
             logfolder, f"{package}_gui_{name}.lock")
         if os.path.exists(lockfilename):
-            QMessageBox.about(
-                QWidget(), "Lockfile exists",
-                f"""Lockfile ({lockfilename}) exists. The control GUI will not
-                start. Please make sure everything is save! Only then remove
-                the lockfile and restart the control GUI""")
-            sys.exit()
-        # generate lockfile
+            # check if process still running
+            with open(lockfilename, "r", encoding="utf-8") as lockf:
+                otherpid = int(lockf.read())
+            try:
+                psutil.Process(otherpid)
+                QMessageBox.critical(
+                    QWidget(), "Other instance running",
+                    f"""Another instance of '{name}' was found running.
+The control GUI can not start.
+Kill the other process ({otherpid}) before restarting.""")
+                sys.exit()
+            except psutil.NoSuchProcess:
+                # this is the normal behavior in this case -> move on.
+                pass
+        # generate lockfile and write in the process ID
         with open(lockfilename, "w", encoding="utf-8") as lockf:
             lockf.write(f"{os.getpid()}\n")
 
