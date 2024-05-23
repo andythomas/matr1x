@@ -36,7 +36,7 @@ matrix_script = "matr1x.scripts.matrix_script:main"
 matrix-script = "matr1x.scripts.matrix_script:main"
 matrix_preview = "matr1x.scripts.matrix_preview:main"
 matrix-preview = "matr1x.scripts.matrix_preview:main"
-control_dummy = "matr1x.control.control_dummy_legacy:main"
+control-dummy-legacy = "matr1x.control.control_dummy_legacy:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
 

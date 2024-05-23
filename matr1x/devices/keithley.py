@@ -4,7 +4,7 @@
 # ---
 import time
 
-from numpy import asfarray, ceil
+from numpy import asarray, ceil
 from wrapt import synchronized
 
 from .visadevice import VisaDevice
@@ -1347,7 +1347,7 @@ class Keithley6221(VisaDevice):
         # while(not self.queryDone()):
         # time.sleep(0.1)
         ret = self.query("TRAC:DATA?")
-        return asfarray(ret.split(",")).reshape(-1, 2).T
+        return asarray(ret.split(","), dtype='float64').reshape(-1, 2).T
 
     @synchronized
     def waveGo(self):
