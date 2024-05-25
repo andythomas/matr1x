@@ -101,6 +101,9 @@ class Parameter():
       default value for parameter, if not None this value is always unless
       another value is specified in the measurement.
       If None (default), no default value is set/used.
+    dtypes: string or list of strings
+      dtype specified for saving into hdf5 files, not used for ascii files
+      default value is "f8" (8 byte float)
     chunks: int or list of ints
       length of the readback value, if a list is returned for a single
       parameter, set to the length of that list.
@@ -144,15 +147,22 @@ class Parameter():
     """
 
     def __init__(self, name, unit, setter=None, getter=None,
-                 default=None, chunks=None, trigger=None):
+                 default=None, dtypes=None, chunks=None, trigger=None):
         # general error checking
-        if isinstance(name, (list, tuple)) or isinstance(unit, (list, tuple)):
+        if any([isinstance(name, (list, tuple)),
+                isinstance(unit, (list, tuple))]):
             if not (isinstance(unit, (list, tuple)) and
-                    isinstance(name, (list, tuple))):
-                raise TypeError("Name and unit must be of the same type"
-                                "(i.e. both list or both string)")
+                    isinstance(name, (list, tuple)) and
+                    (dtypes is None or isinstance(dtypes, (list, type)))):
+                raise TypeError("Name, unit must be of the same type"
+                                " together with dtypes "
+                                "(i.e. all list or all string, "
+                                "dtypes can also be None)")
             elif len(name) != len(unit):
                 raise ValueError("Name and unit have unequal length")
+            elif dtypes is not None:
+                if len(name) != len(dtypes):
+                    raise ValueError("Name and dtypes have unequal length")
             for val, key in zip([chunks, default], ["chunks", "default"]):
                 if val is not None:
                     if not isinstance(val, (list, tuple)):
@@ -168,6 +178,14 @@ class Parameter():
         # set identifiers
         self.unit = self.verify(unit, str)
         self.name = self.verify(name, str)
+        if dtypes is None:
+            # initialize dtypes to default value if unspecified
+            if isinstance(self.unit, (list, tuple)):
+                self.dtypes = ["f8"]*len(self.unit)
+            else:
+                self.dtypes = "f8"
+        else:
+            self.dtypes = self.verify(dtypes, str)
         # generate defaults or set to None
         if default is not None:
             # make sure default are all floats or raise error
@@ -239,6 +257,8 @@ class System:
       contains the column names extracted from the individual parameters.
     units : list
       contains the units extracted from the individual parameters.
+    dtypes : list
+      contains the dtypes extracted from the individual parameters.
     default_values : list
       contains the default_values extracted from the individual parameters.
     chunks : list
@@ -266,6 +286,7 @@ class System:
         self.columns = []
         self.default_values = []
         self.units = []
+        self.dtypes = []
         self.chunks = []
 
         # initialize devices dict
@@ -341,7 +362,7 @@ class System:
             self.dcdata["Format"] = "text/plain; charset=UTF-8"
 
     def add_param(self, name, unit, setter=None, getter=None,
-                  default=None, chunks=None, trigger=None):
+                  default=None, dtype=None, chunks=None, trigger=None):
         """
         Adds a parameter to the list of parameters, for definition
         of the passed parameters :ref:`check parameter
@@ -351,6 +372,7 @@ class System:
                                          setter=setter,
                                          getter=getter,
                                          default=default,
+                                         dtypes=dtype,
                                          trigger=trigger,
                                          chunks=chunks))
         self.add_parameter_to_lists(self.parameters[-1])
@@ -397,6 +419,7 @@ class System:
         self.units.append(parm.unit)
         self.default_values.append(parm.default)
         self.chunks.append(parm.chunks)
+        self.dtypes.append(parm.dtypes)
         # check if hdf5 format has to be used
         if isinstance(parm.chunks, (list, tuple)):
             if not isinstance(parm.name, (list, tuple)):
@@ -413,11 +436,12 @@ class System:
         Clears all system parameters and the lists that have been generated
         """
         del (self.parameters, self.columns, self.default_values,
-             self.units, self.chunks)
+             self.units, self.dtypes, self.chunks)
         self.parameters = []
         self.columns = []
         self.default_values = []
         self.units = []
+        self.dtypes = []
         self.chunks = []
 
     def generate_lists(self):
@@ -577,7 +601,7 @@ class System:
 
         Returns
         -----
-        readout : float or list of floats
+        readout : type returned by getter or "nan"
           returns the readout from the device/parameter getter
         """
         if i in self.columns:

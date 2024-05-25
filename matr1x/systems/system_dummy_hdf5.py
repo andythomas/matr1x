@@ -50,7 +50,7 @@ sys.add_dev("devhdf", dummy,
 # define columns for measurement
 sys.add_param(
     "devhdfp4_flat", "cnt",
-    getter=["devhdf", "p4"], chunks=4)
+    getter=["devhdf", "p4"], dtype="f8", chunks=4)
 sys.add_param(
     "devhdfp4_1d", "cnt",
     getter=["devhdf", "p4"], chunks=(4,))
@@ -58,7 +58,7 @@ sys.add_param(
     ["devhdf p3a", "devhdf p3b"], ["cnta", "cntb"],
     ["devhdf", "p3"],
     ["devhdf", "p3"],
-    chunks=[1, 1])
+    chunks=[1, 1], dtype=["i8", "i8"])
 sys.add_param(
     "devhdfp4_2d", "cnt",
     getter=lambda: numpy.asarray(sys.devs["devhdf"].p4).reshape((2, 2)),

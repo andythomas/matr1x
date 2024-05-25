@@ -967,6 +967,7 @@ def write_matrix_header(output_filename, output_filemode, inputfile, system,
     # prepare datafile
     print(f"Creating new datafile: {output_filename}")
     if system.hdf5 is True:
+        telemetry.append(list(flatten(system.dtypes)))
         telemetry.append(list(flatten(system.chunks, types=(list, ))))
         import h5py
         with h5py.File(output_filename, 'w', libver='latest') as data_file:
@@ -1021,7 +1022,7 @@ def init_ascii_header(file_handle, columns, units, separator):
     file_handle.write(separator.join(columns) + "\n")
 
 
-def init_hdf5_skel(file_handle, columns, units, chunks):
+def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):
     """
     Initialize a HDF5 file skeleton for a measurement file.
 
@@ -1035,15 +1036,19 @@ def init_hdf5_skel(file_handle, columns, units, chunks):
       column units to be written into the header
     chunks : list
       list of ints that define the chunk length of the individual datasets
+    dtypes : list
+      list of strings specifying the dtype of the individual datasets
     """
     data_grp = file_handle.create_group("data")
-    for col, uni, chu in zip(columns, units, chunks):
+    for col, uni, chu, dtype in zip(columns, units, chunks, dtypes):
         if isinstance(chu, tuple):
             data_grp.create_dataset(col, (0, *chu), maxshape=(None, *chu),
-                                    chunks=(1, *chu), dtype="f8")
+                                    chunks=(1, *chu), dtype=dtype,
+                                    compression=True)
         else:
             data_grp.create_dataset(col, (0,), maxshape=(None,),
-                                    chunks=(chu,), dtype="f8")
+                                    chunks=(chu,), dtype=dtype,
+                                    compression=True)
         data_grp[col].attrs["unit"] = uni
 
 
