@@ -18,7 +18,7 @@ from matr1x.util import Get, generate_datafilename, write_matrix_header
 
 try:
     from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt6.QtGui import (QColor, QIcon, QKeySequence, QPalette, QShortcut,
+    from PyQt6.QtGui import (QIcon, QKeySequence, QPalette, QShortcut,
                              QTextCursor)
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
                                  QFileDialog, QFrame, QHBoxLayout, QLabel,
@@ -29,7 +29,7 @@ except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt5.QtGui import QColor, QIcon, QKeySequence, QPalette, QTextCursor
+    from PyQt5.QtGui import QIcon, QKeySequence, QPalette, QTextCursor
     from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
                                  QFileDialog, QFrame, QHBoxLayout, QLabel,
                                  QMainWindow, QMessageBox, QPlainTextEdit,
@@ -272,8 +272,6 @@ class ControlWindow(QMainWindow):
 
         qApp = QApplication.instance()
         mainWindowBgColor = QPalette().color(QPalette.ColorRole.Window)
-        qApp.setStyleSheet(
-            f"[readOnly=\"true\"] {{background-color: {mainWindowBgColor.name(QColor.NameFormat.HexRgb)} }}")
         self.widget.setLayout(self.main_layout)
         self.main_layout.addStretch()
         self.setCentralWidget(self.widget)

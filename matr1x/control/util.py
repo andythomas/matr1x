@@ -128,6 +128,7 @@ class guiObject(IntEnum):
     togglebutton = 5
     spinbox = 6
     doublespinbox = 7
+    labeltext = 8
 
     @classmethod
     def getWidget(cls, label, wType, init=None):
@@ -151,6 +152,7 @@ class guiObject(IntEnum):
           * 5 : QPushButton(checkable=True)
           * 6 : QSpinBox
           * 7 : QDoubleSpinBox
+          * 8 : QLabel: used as Value indicator
         init : tuple, str, optional
           provides the initialization values (button label, valid ranges,
           combobox entries)
@@ -178,6 +180,11 @@ class guiObject(IntEnum):
             qlab.setSizePolicy(QSizePolicy.Policy.Preferred,
                                QSizePolicy.Policy.Fixed)
             return qlab
+        if cls.labeltext == wType:
+            label = QLabel(init if init else None)
+            label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse)
+            return label
         if cls.button == wType:
             return QPushButton(init if init else label)
         if cls.lineedit == wType:
@@ -187,10 +194,10 @@ class guiObject(IntEnum):
         if cls.progressbar == wType:
             return matr1xProgressBar()
         if cls.combobox == wType:
-            dummy = QComboBox()
+            qcombo = QComboBox()
             if init is not None:
-                dummy.insertItems(0, init)
-            return dummy
+                qcombo.insertItems(0, init)
+            return qcombo
         if cls.togglebutton == wType:
             return ToggleButton(init if init else label)
         if cls.spinbox == wType:
@@ -403,7 +410,7 @@ class var(QObject):
         widget
         """
         if len(self.widgets) >= 2:
-            if isinstance(self.widgets[1], QLineEdit):
+            if isinstance(self.widgets[1], (QLineEdit, QLabel)):
                 self.valueChanged[str].connect(
                     self.widgets[1].setText)
             elif isinstance(self.widgets[1],
@@ -439,7 +446,7 @@ class var(QObject):
         """
         # check that a set-field exists, otherwise pass
         if len(self.columns) >= 2:
-            if isinstance(self.widgets[2], QLineEdit):
+            if isinstance(self.widgets[2], (QLineEdit, QLabel)):
                 self.widgets[2].setText(str(self.value))
             elif isinstance(self.widgets[2], QComboBox):
                 if self.variableType is int:

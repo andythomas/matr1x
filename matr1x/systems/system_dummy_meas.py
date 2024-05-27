@@ -59,7 +59,7 @@ sys.dcdata["Source"] = "dummy system for testing system merging"
 # query options which allow to readout the configuration of a device which will
 # be stored in the data file header.
 sys.add_dev("devmeas", dummy, args=("TCPIP::localhost::10005::SOCKET", ),
-            kwargs={"p1": 5, "p4": [5, 3, 2, 1]}, config_params={"p4":
+            kwargs={"p5": 5, "p4": [5, 3, 2, 1]}, config_params={"p4":
                                                                  "p4"})
 
 # ============================
@@ -86,5 +86,5 @@ sys.add_param(
 sys.add_param(
     "devmeas p1", "cnt",
     None,
-    ["devmeas", "p1"])
+    ["devmeas", "p5"])
 # ============================

@@ -35,7 +35,7 @@ logger = logging.getLogger(os.path.split(__file__)[-1])
 # type can be one of int, float, bool, tuple or list.
 cmd_list = {"*idn": [None, None, [], str,
                      ["dummy_control"]],
-            ":v1": [int,
+            ":v1": [str,
                     "setV1", [],
                     "v1", []],
             ":v3": [float,
@@ -84,9 +84,9 @@ class MainWindow(ControlWindow):
     # shown in the label and included in the logging file. The logging
     # preference for the parameter is set by the boolean "log" parameter.
     exampleDict = {"Example": var(None, columns=["Readout", "Setpoint"]),
-                   "V1": var((int, int), columns=[go.combobox, go.combobox],
-                             log=True, init=("i1", "i2")),
-                   "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
+                   "V1": var(str, columns=[go.labeltext, go.combobox],
+                             log=True, init=[None, ("i1", "i2")]),
+                   "V2": var(float, columns=[go.labeltext, go.lineedit], unit="mT"),
                    "V3": var(dtype=float, outType=int, columns=[go.progressbar,
                                                                 go.doublespinbox],
                              log=True, unit="%", init=[None, (0, 100)]),
@@ -97,12 +97,12 @@ class MainWindow(ControlWindow):
                               init=["Set", "Copy"]),
                    }
     exampleDict2 = {"Example2": var(None, columns="Readout"),
-                    "V5": var(float, columns=1, unit="mbar"),
+                    "V5": var(float, columns=go.labeltext, unit="mbar"),
                     }
 
     def __init__(self):
         # initialize local variable storage
-        self.v1 = 1
+        self.v1 = 'i1'
         self.v2 = 0
         self.v3 = 5.5
         self.v4 = False
@@ -231,8 +231,7 @@ class MainWindow(ControlWindow):
     # driver functions begin here
     # example functions
     def setV1(self, val):
-        if 0 == val or 1 == val:
-            self.v1 = val
+        self.v1 = val
 
     def setV2V3(self, val):
         self.v2 = val[0]

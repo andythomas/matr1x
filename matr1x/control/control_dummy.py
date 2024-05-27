@@ -37,18 +37,13 @@ class exampleDict(GuiDict):
     # Initialize dicts for GUI display as well as variable storage
     # Variables are stored in dict[key].value, GUI elements in dict[key].widgets
     # The GUI is initialized with the elements specified in dict[key].columns, where
-    # key is label and
-    # 0 : button
-    # 1 : lineedit
-    # 2 : checkbox
-    # 3 : progress
-    # 4 : combobox
+    # key is label and entries should be of type guiObject.
     # A list means multiple widgets on one row
     # The unit of a variable can be set using the "unit" parameter and is then
     # shown in the label and included in the logging file. The logging
     # preference for the parameter is set by the boolean "log" parameter.
     cmds = {
-        ":v1": Command(int, "setV1", "V1"),
+        ":v1": Command(str, "setV1", "V1"),
         ":v2": Command(float, ("dummy", "p2"), "V2"),
         ":v3": Command(float, ("dummy", "p5"), "V3"),
         ":v2v3": Command((float, float), "setV2V3", "getV2V3"),
@@ -56,9 +51,9 @@ class exampleDict(GuiDict):
     }
     data = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
-        "V1": var((int, int), columns=[go.combobox, go.combobox],
-                  log=True, init=("i1", "i2")),
-        "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
+        "V1": var(dtype=str, columns=[go.labeltext, go.combobox],
+                  log=True, init=[None, ("i1", "i2")]),
+        "V2": var(float, columns=[go.labeltext, go.lineedit], unit="mT"),
         "V3": var(dtype=float, outType=int, columns=[go.progressbar,
                                                      go.doublespinbox],
                   log=True, unit="%", init=[None, (0, 100)]),
@@ -71,7 +66,7 @@ class exampleDict(GuiDict):
     }
     S = system.System(name="dummy")
     S.add_dev("dummy", dummy, args=("TCPIP::localhost::10007::SOCKET", ),
-              kwargs={'p1': 1, 'p2': 0, 'p5': 5.5, 'p6': True})
+              kwargs={'p1': 'i1', 'p2': 0, 'p5': 5.5, 'p6': True})
 
     def create_GUI(self):
         content = super().create_GUI()
@@ -123,8 +118,7 @@ class exampleDict(GuiDict):
 
     # example functions
     def setV1(self, val):
-        if val in (0, 1):
-            self.S.devs["dummy"].p1 = val
+        self.S.devs["dummy"].p1 = val
 
     def setV2V3(self, val):
         self.S.devs["dummy"].p2 = val[0]
@@ -151,7 +145,7 @@ class exampleDict2(GuiDict):
     }
     data = {
         "Example2": var(None, columns="Readout"),
-        "V5": var(float, columns=1, unit="mbar"),
+        "V5": var(float, columns=go.labeltext, unit="mbar"),
         "Info": var(None, columns="For testing purposes errors are raised \n"
                                   "when V4 is set to False, the toggle \n"
                                   "switch is pressed twice, or via the \n"
