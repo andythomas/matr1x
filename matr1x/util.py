@@ -148,10 +148,10 @@ def generate_datafilename(system, outputfile="", inputfile="", append=False):
 
 def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
     """
-    print a formated line with data values
+    return a formated line with data values
     """
     entry_string = "{:>%d}  " % column_width
-    sys.stdout.write(f"{prefix:>6}")
+    outstr = f"{prefix:>6}"
     for v in vlist:
         if isinstance(v, str) and len(v) > column_width:
             vstr = v[-column_width:]
@@ -163,9 +163,9 @@ def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
             vstr = f"{v:8.6g}"
         elif isinstance(v, int):
             vstr = f"{v:d}"
-        sys.stdout.write(entry_string.format(vstr))
-    sys.stdout.write(f"{appendix}\n")
-    sys.stdout.flush()  # flush here is important for matrix_script
+        outstr += entry_string.format(vstr)
+    outstr += f"{appendix}"
+    print(outstr)
 
 
 def generate_script_prefix_suffix(systems):
@@ -262,10 +262,6 @@ def generate_script_prefix_suffix(systems):
         _wait(*args, **kwargs)
 
     @lineno_decorator
-    def print(*args, **kwargs):
-        _print(*args, **kwargs)
-
-    @lineno_decorator
     def input(*args, **kwargs):
         _input(*args, **kwargs)
 
@@ -325,8 +321,10 @@ def generate_script_prefix_suffix(systems):
                 _filename, mode, _scriptname or "matrix script generated",
                 _system, query_dict)
         if print_header:
-            _matrix_util.print_formatted_line(_matrix_util.flatten(_system.columns))
-            _matrix_util.print_formatted_line(_matrix_util.flatten(_system.units))
+            _matrix_util.print_formatted_line(
+                _matrix_util.flatten(_system.columns))
+            _matrix_util.print_formatted_line(
+                _matrix_util.flatten(_system.units))
 
 
     # wrap system.trigger and system.take_measurement_point into measure_system
@@ -350,20 +348,23 @@ def generate_script_prefix_suffix(systems):
          be printed
         '''
         global _preset, _npoints
-        if print_setpoint:
-            _matrix_util.print_formatted_line(
-                _matrix_util.flatten(_setvalues), prefix="Set : ")
-        _reset_setvalues()
-        # wait(0) to have breakpoint even when user does not use it in script
-        wait(0)
+        # _wait(0) to have breakpoint even when user does not use it in script
+        _wait(0)
         _npoints += 1
         preread = _time.time()
         if _filename == "":
             init_datafile("")
+
+        if print_setpoint:
+            _matrix_util.print_formatted_line(
+                _matrix_util.flatten(_setvalues), prefix="Set : ")
+        _reset_setvalues()
+
         _system.trigger()
         return_list = _system.take_measurement_point(_filename)
         if print_data:
-            _matrix_util.print_formatted_line(return_list, prefix="Meas: ")
+            _matrix_util.print_formatted_line(
+                return_list, prefix="Meas: ")
         if print_telemetry:
             elapsed = (_time.time() - _starttime)
             if _ntot:
@@ -373,6 +374,9 @@ def generate_script_prefix_suffix(systems):
             print(_matrix_util.telemetry_string.format(
                 _npoints, _ntot or -1, elapsed/60, remaining, preread-_preset,
                 _time.time()-preread))
+        if print_data or print_telemetry or print_setpoint:
+            # isolate different iterations of measure system by a space
+            print("")
         _preset = _time.time()
         return return_list
 
@@ -468,6 +472,27 @@ def matrix_script_process(filename, user="", sample="",
         user : str
           user name
         """
+        class Unbuffered:
+            """
+            implements a wrapper on stdout to make sure data is passed
+            on immediately and messages are terminated with \0 to allow
+            using \n and \r in print conventionally without breaking
+            the formatting
+            """
+
+            def __init__(self, stream):
+                self.stream = stream
+
+            def write(self, data):
+                self.stream.write(data + "\0")
+                self.stream.flush()
+
+            def writelines(self, datas):
+                self.stream.writelines(datas)
+                self.stream.flush()
+
+            def __getattr__(self, attr):
+                return getattr(self.stream, attr)
 
         def __init__(self, script, sample, user, scriptname, socket):
             """ initialize all variable """
@@ -482,12 +507,16 @@ def matrix_script_process(filename, user="", sample="",
             self.recv = ""
             self.n_pref = ""
             self.socket = socket
+            if self.socket is not None:
+                # pass on all stdout to socket
+                file = socket.makefile("w", buffering=None)
+                sys.stdout = self.Unbuffered(file)
 
         def pause(self, state):
             """ pause the execution at the breakpoint """
             self.pause_flag = bool(state)
             if state is True:
-                self.print("\npaused")
+                print("\npaused")
 
         def stop(self):
             """ set the interrupt flag, so that the execution is stopped at
@@ -506,7 +535,7 @@ def matrix_script_process(filename, user="", sample="",
             if sleep > silent:
                 msg = "" if not message else f" ({message})"
                 until = f" until {end.strftime('%H:%M:%S')}"
-                self.print(f"Waiting {sleep:.0f} seconds{msg}{until}")
+                print(f"Waiting {sleep:.0f} seconds{msg}{until}")
 
             while (time.time() - t0) < sleep:
                 now = time.time()
@@ -514,14 +543,13 @@ def matrix_script_process(filename, user="", sample="",
                 if remaining > 1.1:
                     # if multiple seconds remaining, wait in chunks of 1s
                     if sleep > silent:
-                        self.print(
-                            f"\r{remaining:.0f} seconds remaining", end="")
+                        print(f"\r{remaining:.0f} seconds remaining", end="")
                     time.sleep(1)
                 else:
                     # wait remaining time
                     time.sleep(remaining)
                     if sleep > silent:
-                        self.print("\rWaiting done")
+                        print("\rWaiting done")
                     break
                 # interrupt during long waits to stop clock from ticking
                 # is ignored for short waits
@@ -542,19 +570,19 @@ def matrix_script_process(filename, user="", sample="",
             if self.recv != "" and not self.recv_flag:
                 self.recv = ""
             if "" == message:
-                self.print("waiting for user input")
+                print("waiting for user input")
             else:
-                self.print(message)
+                print(message)
             while (self.recv == "" or self.recv_flag is True):
                 time.sleep(0.1)
                 if (time.time() - t0) > 60:
-                    self.print("still waiting for user input")
+                    print("still waiting for user input")
                     t0 = time.time()
                 self.check_for_interrupt_and_pause()
             # remove trailling line feed
             ret = self.recv.strip()
             # print output
-            self.print(f"User input received: {ret}")
+            print(f"User input received: {ret}")
             self.recv = ""
             return ret
 
@@ -584,17 +612,9 @@ def matrix_script_process(filename, user="", sample="",
             if self.socket is None:
                 # only print line number if connected to a socket
                 return
-            self.print(f"__lineno{lineno-self.n_pref-1:d}__")
-
-        def print(self, *args, **kwargs):
-            """ reimplemented print that communicates via the socket  """
-            end = kwargs.get("end", "\n")
-            sep = kwargs.get("sep", " ")
-            sendstr = sep.join(map(str, args)) + end + "\0"
-            if self.socket is None:
-                print(sendstr[:-1])
-            else:
-                self.socket.sendall(sendstr.encode("utf-8"))
+            lineno -= self.n_pref + 1
+            if lineno > -1:
+                print(f"__lineno{lineno:d}__", end="")
 
         def run(self):
             """ run the script and provide meaningful error information
@@ -604,7 +624,6 @@ def matrix_script_process(filename, user="", sample="",
                     generate_script_prefix_suffix("")[0].split('\n')) - 1
                 try:
                     _vars = {"_wait": self.breakpoint,
-                             "_print": self.print,
                              "_report_line": self.report_line,
                              "_input": self.input,
                              "_user": self.user,
@@ -612,7 +631,7 @@ def matrix_script_process(filename, user="", sample="",
                              "_scriptname": self.scriptname}
                     exec(self.script, _vars)
                 except Exception:
-                    self.print("script exited with error:")
+                    print("script exited with error:")
                     # get traceback information and format accordingly
                     tbinfo = traceback.format_exception(*sys.exc_info())
                     tbstr = "".join(tbinfo[2:])
@@ -628,7 +647,7 @@ def matrix_script_process(filename, user="", sample="",
                     tbstr = tbstr.replace("file \"<string>\"",
                                           "\"{}\"".format(
                                               self.script.split("\n")[line-1]))
-                    self.print(tbstr)
+                    print(tbstr)
                     if line < 1:
                         print(" error during device initialization\n")
             except KeyboardInterrupt:
@@ -703,6 +722,10 @@ def matrix_script_process(filename, user="", sample="",
         # can this be made shorter? -> changed to 0.001
 
     if connected is True:
+        # wait for all data from socket to be received by the other side
+        # necessary to make sure all output is actually sent to other side
+        # before socket is closed.
+        client_socket.shutdown(socket.SHUT_WR)
         # close socket
         client_socket.close()
 

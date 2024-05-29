@@ -14,7 +14,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import time
 import warnings
 from os.path import dirname, join
 
@@ -1050,7 +1049,7 @@ class CustomQsciAPI(QsciAPIs):
         "input(str message='')",
         "init_datafile(str filename, str comment='', bool append=False, "
         "bool print_header=True, int ntot=None)",
-        "measure_system(bool print_data=True, bool print_telemetry=True)",
+        "measure_system(bool print_setpoint=True, bool print_data=True, bool print_telemetry=True)",
         "set_value(int value_index, value)",
         "set_value(str name, value)",
         "read_value(int value_index)",
@@ -1153,8 +1152,13 @@ class ExecThread(QThread):
         is longer than 1024, one can expect a problematic behavior. Migrate
         to ZMQ and directly pass strings as python objects?
         """
-        pattern = r"__lineno(-?\d+)__\n"
-        for line in inp.split("\0"):
+        pattern = r"__lineno(-?\d+)__"
+        lines = inp.split("\n")
+        for i, line in enumerate(lines[:-1]):
+            # add "\n" to all but the last element in split
+            # (last element contains everything after last "\n")
+            lines[i] += "\n"
+        for line in lines:
             match = re.search(pattern, line)
             if match:
                 digits = match.group(1)
@@ -1197,7 +1201,7 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.user)} ,
             self.proc = subprocess.Popen([sys.executable, "-c", cmd],
                                          stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE,
-                                         stderr=subprocess.STDOUT)
+                                         stderr=subprocess.STDOUT, bufsize=0)
             # accept a connection from the subprocess
             # will block until a new client connects, might want to use select
             # here to make sure the subprocess actually connects?
@@ -1206,35 +1210,13 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.user)} ,
             # user window
             while self.proc.poll() is None:
                 try:
-                    datachunk = self.conn.recv(1024)
+                    datachunk = self.conn.recv(8192).decode()
                     if len(datachunk) > 0:
-                        try:
-                            decoded = datachunk.decode("utf-8")
-                            j = 0
-                            while decoded[-1] != "\0":
-                                datachunk = self.conn.recv(1024)
-                                decoded += datachunk.decode("utf-8")
-                                j += 1
-                                if len(datachunk) == 0:
-                                    print("nothing received, error in thread "
-                                          "communication")
-                                    break
-                                elif j % 250 == 0:
-                                    print("receiving very long string, "
-                                          "please stand by - iteration "
-                                          f"{j//250}")
-                                    # give the main thread a chance to
-                                    # print the statement,
-                                    # this time and the maximum message length
-                                    # defines the timeout of the socket client
-                                    # in util.py
-                                    time.sleep(0.005)
-                            self.recv_line(decoded)
-                        except UnicodeDecodeError:
-                            # on decode error, report and continue
-                            print("decode error in thread communication")
+                        while datachunk[-1] != "\0":
+                            datachunk += self.conn.recv(8192).decode()
+                        self.recv_line(datachunk.replace("\0", ""))
                 except OSError:
-                    pass
+                    print("OS error in thread communication")
             self.conn.close()
 
 
@@ -1630,7 +1612,7 @@ class MainWindow(QWidget):
         clean up thread
         """
         self.enable_buttons(False)
-        print("Execution finished")
+        print("\nExecution finished")
         print("==========")
         del self.thread
 
