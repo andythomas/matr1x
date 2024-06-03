@@ -26,10 +26,10 @@ except ImportError:
                   DeprecationWarning)
     from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
     from PyQt5.QtGui import QIcon
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLayout,
-                                 QMainWindow, QMessageBox, QPushButton, QToolButton,
-                                 QWidget)
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox,
+                                 QDockWidget, QFileDialog, QGridLayout,
+                                 QHBoxLayout, QLabel, QLayout, QMainWindow,
+                                 QMessageBox, QPushButton, QToolButton, QWidget)
 
 import pyqtgraph as pg
 import pyqtgraph.exporters

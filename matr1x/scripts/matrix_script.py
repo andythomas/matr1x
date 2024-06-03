@@ -39,10 +39,10 @@ except ImportError:
                   DeprecationWarning)
     from PyQt5.QtCore import QEvent, QThread, QObject, Qt, pyqtSignal
     from PyQt5.QtGui import (QColor, QFont, QIcon, QKeySequence, QPalette,
-                             QShortcut, QTextCursor)
+                             QTextCursor)
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                                  QGridLayout, QLineEdit, QListWidget,
-                                 QMessageBox, QPushButton, QSplitter,
+                                 QMessageBox, QPushButton, QShortcut, QSplitter,
                                  QTextEdit, QWidget)
     from PyQt5.Qsci import QsciScintilla, QsciLexerPython, QsciAPIs
 
