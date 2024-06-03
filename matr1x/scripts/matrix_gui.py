@@ -480,6 +480,9 @@ def main():
             "The executable name 'matrix_gui' is deprecated. Use 'matrix-gui' instead.",
             FutureWarning)
     app = QApplication(sys.argv)
+    if os.name == 'nt':
+        # enable modern mode on windows which allows for darkmode
+        app.setStyle('fusion')
     app.setDesktopFileName("matrix-gui")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process

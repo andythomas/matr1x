@@ -914,6 +914,9 @@ def main():
             "The executable name 'sweep_generator' is deprecated. Use 'sweep-generator' instead.",
             FutureWarning)
     app = QApplication(sys.argv)
+    if os.name == 'nt':
+        # enable modern mode on windows which allows for darkmode
+        app.setStyle('fusion')
     with QtGracefulKiller():
         mw = MainWindow()
         mw.show()

@@ -1839,6 +1839,9 @@ def main():
             "Use 'matrix-script' instead.",
             FutureWarning)
     app = Matr1xApplication(sys.argv)
+    if os.name == 'nt':
+        # enable modern mode on windows which allows for darkmode
+        app.setStyle('fusion')
     app.setDesktopFileName("matrix-script")
     with QtGracefulKiller():
         if len(sys.argv) < 2:

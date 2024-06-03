@@ -875,6 +875,9 @@ def main():
             "The executable name 'matrix_preview' is deprecated. Use 'matrix-preview' instead.",
             FutureWarning)
     app = Matr1xApplication(sys.argv)
+    if os.name == 'nt':
+        # enable modern mode on windows which allows for darkmode
+        app.setStyle('fusion')
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
