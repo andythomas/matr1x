@@ -1153,7 +1153,7 @@ class ExecThread(QThread):
         to ZMQ and directly pass strings as python objects?
         """
         pattern = r"__lineno(-?\d+)__"
-        lines = inp.split("\n")
+        lines = inp.split(os.linesep)
         for i, line in enumerate(lines[:-1]):
             # add "\n" to all but the last element in split
             # (last element contains everything after last "\n")
