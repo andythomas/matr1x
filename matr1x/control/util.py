@@ -244,7 +244,7 @@ class var(QObject):
     unitChanged = pyqtSignal([str])
 
     def __init__(self, dtype=(float, str), outType=str, columns=None, unit="",
-                 log=False, init=None):
+                 log=False, init=None, hide=False):
         super().__init__()
         if isinstance(dtype, Iterable):
             self.variableType = dtype[0]
@@ -257,6 +257,7 @@ class var(QObject):
         self._unit = unit
         self.log = log
         self.init = init
+        self.hide = hide
         if columns is None:
             self.columns = []
         elif not isinstance(columns, list):
@@ -358,7 +359,7 @@ class var(QObject):
 
         # add config checkbox
         if len(self.widgets) > 1 and not isinstance(self.widgets[1],
-                                                    (QLabel, QPushButton)):
+                                                    QPushButton):
             # prepare checkbox for controlling the data logging
             # only add if there is a value attached to the display
             checkbox = QCheckBox()
@@ -607,6 +608,7 @@ class GuiDict(UserDict, ABC):
         # this reference is used to raise an error on the parent if needed
         self.parent = None
         self.running = False
+        self.showlog = False
         # buffer original commands
         normalize_cmds(self.cmds)
         self._orig_cmds = copy.deepcopy(self.cmds)
@@ -672,15 +674,25 @@ class GuiDict(UserDict, ABC):
         self.dock.setWidget(dockcontainer)
         self.container = QWidget()
 
-        # add enable widget to the content widget
-        enable_layout = QHBoxLayout()
-        enable_layout.addWidget(QLabel("Enable"))
+        # add top controls (hiding/enable) to the content widget
+        control_layout = QHBoxLayout()
+        self.extend_switch = AnimatedToggle()
+        self.extend_switch.setFixedSize(self.extend_switch.sizeHint())
         self.enable_switch = AnimatedToggle()
         self.enable_switch.setFixedSize(self.enable_switch.sizeHint())
+        has_hiding = any(variable.hide for variable in self.values())
+        if has_hiding:
+            control_layout.addWidget(QLabel("Full info"))
+            self.extend_switch.toggled.connect(self.toggle_hidden)
+            self.extend_switch.setChecked(True)
+            control_layout.addWidget(self.extend_switch)
+        control_layout.addStretch()
         if self.allow_disabling:
-            enable_layout.addWidget(self.enable_switch)
+            control_layout.addWidget(QLabel("Enable"))
+            control_layout.addWidget(self.enable_switch)
             self.enable_switch.stateChanged.connect(self.makeEnabled)
-            column.addLayout(enable_layout)
+        if has_hiding or self.allow_disabling:
+            column.addLayout(control_layout)
         column.addWidget(self.container)
         column.addStretch()
 
@@ -696,17 +708,31 @@ class GuiDict(UserDict, ABC):
         respective GUI widgets. If a user overwrites this function it will need
         to attach its output to self.container!
         """
+
         grid = QGridLayout(self.container)
         # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
             variable.generate_widgets(key)
-
             for col, widget in enumerate(variable.widgets):
                 # add widgets to the grid layout at the correct position
                 # but skip hidden checkbox
                 if col == 0 and row == 0:
                     continue
                 grid.addWidget(widget, row, col, 1, 1)
+
+    def toggle_hidden(self, state):
+        if state:
+            for variable in self.values():
+                if isinstance(variable, var) and variable.hide:
+                    for i, w in enumerate(variable.widgets):
+                        if (i == len(variable.widgets)-1 and not self.showlog):
+                            continue
+                        w.show()
+        else:
+            for variable in self.values():
+                if isinstance(variable, var) and variable.hide:
+                    for w in variable.widgets:
+                        w.hide()
 
     def copy_values(self):
         """

@@ -56,7 +56,7 @@ class exampleDict(GuiDict):
         "V2": var(float, columns=[go.labeltext, go.lineedit], unit="mT"),
         "V3": var(dtype=float, outType=int, columns=[go.progressbar,
                                                      go.doublespinbox],
-                  log=True, unit="%", init=[None, (0, 100)]),
+                  log=True, unit="%", init=[None, (0, 100)], hide=True),
         "V4": var(dtype=bool, outType=bool, columns=[go.checkbox, go.checkbox]),
         "toggle": var(dtype=bool, outType=bool, columns=[go.checkbox,
                                                          go.togglebutton],
@@ -84,9 +84,12 @@ class exampleDict(GuiDict):
         # always set the value (never change GUI directly!!!)
         self["V1"].value = self.S.devs["dummy"].p1
         self["V2"].value = self.S.devs["dummy"].p2
-        self["V3"].value = self.S.devs["dummy"].p5
         self["V4"].value = self.S.devs["dummy"].p6
         self["toggle"].value = self.S.devs["dummy"].p7
+
+        if self.extend_switch.isChecked():
+            # update hidable items only when shown
+            self["V3"].value = self.S.devs["dummy"].p5
 
         if self["V4"].value is False:
             # emit panic signel
@@ -149,7 +152,8 @@ class exampleDict2(GuiDict):
         "Info": var(None, columns="For testing purposes errors are raised \n"
                                   "when V4 is set to False, the toggle \n"
                                   "switch is pressed twice, or via the \n"
-                                  "Panic Button."),
+                                  "Panic Button.",
+                    hide=True),
     }
     # set a custom interval for the refresh function which updates the values
     # from the hardware
