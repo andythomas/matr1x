@@ -20,6 +20,17 @@ cfiles = confparser.read([
 datetimefmt = confparser.get("matr1x", "datetime_format",
                              fallback="%Y-%m-%dT%H:%M:%S")
 
+# load setting for the execution path of matrix-script scripts. With the default
+# value of None this will be the directory in which matrix-script was started.
+# Using the start menu integration this typically is the home folder of the
+# current user. Alternatively it can be the directory in which '*.matrix' file
+# is stored ("<script-location>") or any valid folder.
+matrix_script_execution_path = confparser.get("matr1x", "script-path",
+                                              fallback=None)
+if matrix_script_execution_path not in (None, "<script-location>"):
+    if not os.path.exists(matrix_script_execution_path):
+        matrix_script_execution_path = None
+
 usersfolder = os.path.expanduser(confparser.get("matr1x", "usersDirectory",
                                  fallback=os.path.join('~', 'users')))
 if not os.path.exists(usersfolder):

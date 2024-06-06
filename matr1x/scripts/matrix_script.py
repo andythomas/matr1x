@@ -1088,7 +1088,8 @@ class ExecThread(QThread):
                 user script that is supposed to be run by the ExecThread.
             fallbackname : string
                 filename used to initialize the data file if not specified
-                in the script
+                in the script. Its directory path will be used as execution
+                directory.
             callback : function
                 callback to report the currently executing line number to.
                 Must accept a single integer parameter.

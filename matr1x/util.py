@@ -197,6 +197,13 @@ def generate_script_prefix_suffix(systems):
 
     from matr1x.system import MergedSystem as _MergedSystem
 
+    # change execution directory if requested
+    if _matr1x.matrix_script_execution_path == "<script-location>":
+        if _os.path.dirname(_scriptname):
+            _os.chdir(_os.path.dirname(_scriptname))
+    elif _matr1x.matrix_script_execution_path:
+        _os.chdir(_matr1x.matrix_script_execution_path)
+
     _system = _MergedSystem.from_files([{", ".join(repr(s) for s in systems)}])
 
     # pass meta information
@@ -446,7 +453,9 @@ def matrix_script_process(filename, user="", sample="",
       sample name that is written into the meta data of the output file
     scriptname: str
       script name used as fallback template for the datafile name if its not
-      set in the script.
+      set in the script and the directory of this file is used as a base
+      directory for executing the script. This means Python files inside this
+      directory can be imported by the user-script
     """
     # import required dependencies
     import re
