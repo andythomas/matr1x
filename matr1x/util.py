@@ -197,6 +197,7 @@ def generate_script_prefix_suffix(systems):
 
     from matr1x.system import MergedSystem as _MergedSystem
 
+
     # change execution directory if requested
     if _matr1x.matrix_script_execution_path == "<script-location>":
         if _os.path.dirname(_scriptname):
@@ -216,11 +217,13 @@ def generate_script_prefix_suffix(systems):
     _starttime = _time.time()
     _preset = _starttime
 
+
     def lineno_decorator(func):
         def wrapper(*args, **kwargs):
             _report_line(_inspect.currentframe().f_back.f_lineno)
             return func(*args, **kwargs)
         return wrapper
+
 
     def _reset_setvalues():
         global _setvalues
@@ -231,9 +234,11 @@ def generate_script_prefix_suffix(systems):
             else:
                 _setvalues.append(None)
 
+
     _reset_setvalues()  # initialize the setvalues variable
     # bring meta_data into namespace
     meta_data = _system.dcdata
+
 
     # redefine set_value to limit user typing requirements
     @lineno_decorator
@@ -256,26 +261,32 @@ def generate_script_prefix_suffix(systems):
             _setvalues[i] = setv
         return setv
 
+
     @lineno_decorator
     def trigger_value(*args, **kwargs):
         _system.trigger_value(*args, **kwargs)
+
 
     @lineno_decorator
     def read_value(*args, **kwargs):
         return _system.read_value(*args, **kwargs)
 
+
     @lineno_decorator
     def wait(*args, **kwargs):
         _wait(*args, **kwargs)
+
 
     @lineno_decorator
     def input(*args, **kwargs):
         _input(*args, **kwargs)
 
+
     # initialize system and put devs into namespace
     print("setting devices")
     _system.set()  # here is a difference to matrix (no arguments), see PR #203
     devs = _system.devs
+
 
     @lineno_decorator
     def init_datafile(filename, comment="", append=False, print_header=True,

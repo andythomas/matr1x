@@ -10,6 +10,7 @@ import tempfile
 
 import matr1x.eval
 import matr1x.util
+import pyflakes.api
 import pytest
 
 path = os.path.dirname(os.path.realpath(__file__))
@@ -82,6 +83,24 @@ def test_matrix_dummy_hdf5():
     assert d["rand2d_1"].shape == (10, 4, 4)  # check shape of dataset
     assert d["rand2d_2"].shape == (10, 4, 4)  # check shape of dataset
     assert d["timeUTC"].shape == (10, )  # check shape of dataset
+
+
+def test_matrix_script_pyflakes():
+    # prepares and runs a test script in the same fashion as done by
+    # matrix_script, code is partially duplicated but should not require
+    # changes except for bugfixes
+    inputfile = os.path.join(path, "test.matrix")
+    with open(inputfile, "r") as f:
+        user_script = f.read()
+    script = "_wait=lambda x:x; _print=lambda x:x; _input=lambda x:x; "
+    script += "_report_line=lambda x:x; _user=''; _sample=''; "
+    script += "_scriptname=''\n"
+    script += matr1x.util.generate_script(["system_dummy_feature",
+                                           "system_dummy_meas"],
+                                          user_script)
+    print(script)
+    ret = pyflakes.api.check(script, 'sc')
+    assert ret == 0
 
 
 def test_matrix_script_dummy_merged():
