@@ -20,21 +20,20 @@ try:
     from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
     from PyQt6.QtGui import (QIcon, QKeySequence, QPalette, QShortcut,
                              QTextCursor)
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QHBoxLayout, QLabel,
-                                 QMainWindow, QMessageBox, QPlainTextEdit,
-                                 QPushButton, QScrollArea, QSizePolicy,
-                                 QSpinBox, QToolButton, QVBoxLayout, QWidget)
+    from PyQt6.QtWidgets import (QApplication, QDockWidget, QFileDialog, QFrame,
+                                 QHBoxLayout, QLabel, QMainWindow, QMessageBox,
+                                 QPlainTextEdit, QPushButton, QScrollArea,
+                                 QSizePolicy, QSpinBox, QToolButton,
+                                 QVBoxLayout, QWidget)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
     from PyQt5.QtGui import QIcon, QKeySequence, QPalette, QTextCursor
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QHBoxLayout, QLabel,
-                                 QMainWindow, QMessageBox, QPlainTextEdit,
-                                 QPushButton, QScrollArea, QShortcut,
-                                 QSizePolicy, QSpinBox, QToolButton,
+    from PyQt5.QtWidgets import (QApplication, QDockWidget, QFileDialog, QFrame,
+                                 QHBoxLayout, QLabel, QMainWindow, QMessageBox,
+                                 QPlainTextEdit, QPushButton, QScrollArea,
+                                 QShortcut, QSizePolicy, QSpinBox, QToolButton,
                                  QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -518,9 +517,11 @@ class ControlWindow(QMainWindow):
         for guidict in self.guidicts:
             guidict.showlog = checked
             for v in guidict.values():
-                if len(v.widgets) > 2 and not isinstance(v.widgets[1], QPushButton):
-                    if isinstance(v.widgets[-1], QCheckBox):
-                        v.widgets[-1].setVisible(checked)
+                # check that widget is not only a label, is not hidden
+                # and is actually a value that should be logged
+                if len(v.widgets) > 2 and (v.widgets[0].isHidden() is False
+                                           and v.log is not None):
+                    v.widgets[-1].setVisible(checked)
 
     def toggleLog(self, checkstate):
         # clear system of all parameters
@@ -532,8 +533,9 @@ class ControlWindow(QMainWindow):
             for key in guidict:
                 var = guidict[key]
                 # make sure it is a loggable widget
-                if len(var.widgets) > 2 and not isinstance(var.widgets[1], QPushButton):
-                    if bool(var.widgets[-1].checkState()):
+                if len(var.widgets) > 2 and var.log is not None:
+                    print(var.widgets[-1].checkState())
+                    if var.widgets[-1].checkState() == Qt.CheckState.Checked:
                         # make sure check state is True and if so add to
                         # logged parameters
                         self.S_log.add_param(

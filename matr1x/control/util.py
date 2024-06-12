@@ -233,8 +233,10 @@ class var(QObject):
       alter it in the second. The values should be enumerations from guiObject.
     unit: str
       unit string used in the label and data logging.
-    log: bool
-      boolean flag to set the default behavior in the logging config
+    log: bool or None
+      boolean flag to set the default behavior in the logging config, if None
+      no checkbox is shown
+      If dType is None, this value is ignored
     init: list
       initialization values. This should be a list of the same length as
       columns. If it is of non-list type its assumed to apply to all entries of
@@ -255,7 +257,10 @@ class var(QObject):
 
         self._value = None
         self._unit = unit
-        self.log = log
+        if self.variableType is None:
+            self.log = None
+        else:
+            self.log = log
         self.init = init
         self.hide = hide
         if columns is None:
@@ -358,8 +363,7 @@ class var(QObject):
                     self.widgets[2].setValidator(val)
 
         # add config checkbox
-        if len(self.widgets) > 1 and not isinstance(self.widgets[1],
-                                                    QPushButton):
+        if len(self.widgets) > 1 and self.log is not None:
             # prepare checkbox for controlling the data logging
             # only add if there is a value attached to the display
             checkbox = QCheckBox()
@@ -410,7 +414,7 @@ class var(QObject):
         connects the valueChanged signal of self.value to the corresponding
         widget
         """
-        if len(self.widgets) >= 2:
+        if len(self.widgets) >= 2 and self.variableType is not None:
             if isinstance(self.widgets[1], (QLineEdit, QLabel)):
                 self.valueChanged[str].connect(
                     self.widgets[1].setText)
@@ -446,7 +450,7 @@ class var(QObject):
         copies the read values into the set field
         """
         # check that a set-field exists, otherwise pass
-        if len(self.columns) >= 2:
+        if len(self.columns) >= 2 and self.variableType is not None:
             if isinstance(self.widgets[2], (QLineEdit, QLabel)):
                 self.widgets[2].setText(str(self.value))
             elif isinstance(self.widgets[2], QComboBox):
