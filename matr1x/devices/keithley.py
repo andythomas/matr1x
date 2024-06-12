@@ -1328,6 +1328,48 @@ class Keithley6221(VisaDevice):
             self.write(cmd)
 
     @synchronized
+    def generateDelta(self, i, nplc, sdel, count, rang,
+                      compliance=10, comp_abort=True,
+                      reset=False):
+        """
+        Initializes K6221 into pulse delta mode
+
+        Arguments:
+        -----
+        i:float[-0.105:0.105]
+          peak pulse current in A
+        nplc:int
+          resolution on 2182 (integer PLC)
+        sdel:float
+          source delay in s
+        count:int
+          count of delta measurements
+        rang:str
+          range of nanovoltmeter in V
+        compliance:float
+          voltage compliance
+        comp_abort:bool
+          abort on compliance triggered
+        reset:bool
+          resets the device before configuring the sequence
+        """
+        if reset is True:
+            cmdList = ["*RST"]
+        else:
+            cmdList = []
+        cmdList.append("SYST:COMM:SER:SEND \"VOLT:RANG {}\"".format(rang))
+        cmdList.append("SYST:COMM:SER:SEND \"VOLT:NPLC {}\"".format(nplc))
+        cmdList.append("SOUR:DELT:HIGH {}".format(i))
+        cmdList.append("SOUR:DELT:DEL {}".format(sdel))
+        cmdList.append("SOUR:DELT:COUN {}".format(count))
+        cmdList.append(
+            "SOUR:DELT:CAB {}".format("ON" if comp_abort else "OFF"))
+        cmdList.append("SOUR:CURR:COMP {}".format(compliance))
+        cmdList.append("TRAC:POIN {}".format(count))
+        for cmd in cmdList:
+            self.write(cmd)
+
+    @synchronized
     def pulseGo(self):
         """
         arm pulse mode and run measurement, waiting for the result
@@ -1337,9 +1379,24 @@ class Keithley6221(VisaDevice):
         self.write("INIT:IMM")
         self.query("*OPC?")
 
+    @synchronized
+    def deltaGo(self):
+        """
+        arm pulse mode and run measurement, waiting for the result
+        """
+        if 0 == int(self.query("SOUR:DELT:ARM?")):
+            self.write("SOUR:DELT:ARM")
+            time.sleep(5)
+        self.write("INIT:IMM")
+        print(self.query("*OPC?"))
+
     def pulseStop(self):
         """ abort pulse mode """
         self.write("SOUR:SWE:ABOR")
+
+    def deltaStop(self):
+        """ abort delta mode """
+        self.pulseStop()
 
     def fetchData(self, wait=True):
         """ get data trace and return as array """
