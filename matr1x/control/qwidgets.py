@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # AnimatedToggle adapted from
 # https://www.pythonguis.com/tutorials/pyqt6-animated-widgets/
 # accessed 03.03.2023
