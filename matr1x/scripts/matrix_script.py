@@ -15,7 +15,7 @@ import sys
 import tempfile
 import textwrap
 import warnings
-from os.path import dirname, join
+from os.path import basename, dirname, join
 
 import autopep8
 import matr1x
@@ -1235,6 +1235,7 @@ class MainWindow(QWidget):
         super().__init__()
         self.systems = []
         self.scriptname = ""
+        self.systems_dirty = False
 
         self.output_stream = EmittingStream(text_written=self.output_written)
 
@@ -1279,6 +1280,47 @@ class MainWindow(QWidget):
         # by loading the file
         if filename is not None:
             self.load_from_filename(filename)
+
+    def closeEvent(self, event):
+        """
+        Capture the close event to query user whether he still wants to
+        save changes to the script
+
+        do we also want to terminate/abort the currently executing script when
+        matrix is terminated?
+        """
+        if self.systems_dirty and "" != self.scriptname:
+            # if no file is given, nothing is saved
+            self.update_systems()
+            newscript = self.generate_save_content()
+            with open(self.scriptname, "r") as f:
+                saved_text = f.read()
+                if saved_text == newscript:
+                    self.systems_dirty = False
+
+        if self.script_edit.isModified() or self.systems_dirty:
+            qApp = QApplication.instance()
+            qApp.processEvents()
+            a = QMessageBox(parent=self)
+            a.setIcon(QMessageBox.Icon.Question)
+            a.setText("The script has been modified")
+            a.setInformativeText("Do you want to save your changes?")
+            a.setStandardButtons(QMessageBox.StandardButton.Save |
+                                 QMessageBox.StandardButton.Discard |
+                                 QMessageBox.StandardButton.Cancel)
+            a.setDefaultButton(QMessageBox.StandardButton.Save)
+            # Is this the best default button?
+            ret = a.exec()
+            if ret == QMessageBox.StandardButton.Cancel:
+                event.ignore()
+                return
+            if ret == QMessageBox.StandardButton.Save:
+                # save the file
+                if -1 == self.save_to_file():
+                    # if save fails, ignore message
+                    event.ignore()
+                    return
+        event.accept()
 
     def init_ui(self):
         icondir = join(dirname(__file__), 'icons')
@@ -1344,6 +1386,8 @@ class MainWindow(QWidget):
         self.status_preview.setPalette(palette)
         # CodeEditor
         self.script_edit = QScintillaCustom(self.output_stream, self)
+        # Connect text edit signals to the slot that checks for changes
+        self.script_edit.modificationChanged.connect(self.update_window_title)
         lexer = CustomLexer(self)
         self.script_edit.setLexer(lexer)
         lexer.setDefaultColor(QColor('#000000'))
@@ -1413,7 +1457,19 @@ class MainWindow(QWidget):
         self.script_edit.setFocus()
 
         self.setLayout(layout)
-        self.setWindowTitle('Matrix Script')
+        self.update_window_title()
+
+    def update_window_title(self):
+        text = "Matrix Script"
+        if self.script_edit.isModified() or self.systems_dirty:
+            text += ": *"
+        elif self.scriptname:
+            text += ": "
+        if self.scriptname:
+            text += basename(self.scriptname)
+        elif self.script_edit.isModified() or self.systems_dirty:
+            text += "<unsaved>"
+        self.setWindowTitle(text)
 
     def show_file_dialog(self):
         """
@@ -1431,9 +1487,11 @@ class MainWindow(QWidget):
         if "" == filename:
             return
         if os.path.dirname(filename) == matr1x.systems_directory:
-            self.system_list.addItem(os.path.basename(filename))
+            self.system_list.addItem(basename(filename))
         else:
             self.system_list.addItem(filename)
+        self.systems_dirty = True
+        self.update_window_title()
 
     def delete_selected_system(self):
         """
@@ -1445,6 +1503,8 @@ class MainWindow(QWidget):
             self.system_list.takeItem(self.system_list.row(selected[0]))
         elif 0 < self.system_list.count():
             self.system_list.takeItem(self.system_list.count()-1)
+        self.systems_dirty = True
+        self.update_window_title()
 
     def send_to_thread(self):
         """ passes input to thread """
@@ -1640,7 +1700,7 @@ class MainWindow(QWidget):
             qApp = QApplication.instance()
             qApp.processEvents()
             # open a popup window to inform about the error
-            a = QMessageBox()
+            a = QMessageBox(parent=self)
             a.setText("Linter error")
             a.setInformativeText("Error found in script, "
                                  "continue anyway?")
@@ -1701,7 +1761,7 @@ class MainWindow(QWidget):
         if "" == filename:
             print("Please specify file")
             print("==========")
-            return
+            return -1
         elif ".matrix" not in filename:
             filename += ".matrix"
         try:
@@ -1709,10 +1769,20 @@ class MainWindow(QWidget):
         except (OSError, IOError):
             print("File cannot be opened")
             print("==========")
-            return
+            return -1
         self.scriptname = filename
         self.update_systems()
+        # set new script in editor and save it to the file
+        newscript = self.generate_save_content()
+        self.script_edit.setText(newscript)
+        output_file.write(newscript)
+        output_file.close()
+        self.script_edit.setModified(False)
+        self.systems_dirty = False
+        self.update_window_title()
+        return 0
 
+    def generate_save_content(self):
         header = ""
         if 0 < len(self.systems):
             # only attempt generating a header if a system is selected
@@ -1739,10 +1809,7 @@ class MainWindow(QWidget):
                 # if there are already definitions of the system, skip them
                 continue
             newscript += line + "\n"
-        # set new script in editor and save it to the file
-        self.script_edit.setText(newscript)
-        output_file.write(newscript)
-        output_file.close()
+        return newscript
 
     def load_from_filename(self, filename):
         """
@@ -1819,6 +1886,9 @@ class MainWindow(QWidget):
                     print("==========\n")
             self.script_edit.append(line)
         input_file.close()
+        self.script_edit.setModified(False)
+        self.systems_dirty = False
+        self.update_window_title()
 
     def load_from_file(self):
         """
@@ -1834,7 +1904,7 @@ class MainWindow(QWidget):
 
 
 def main():
-    if "_" in os.path.basename(sys.argv[0]):
+    if "_" in basename(sys.argv[0]):
         warnings.warn(
             "The executable name 'matrix_script' is deprecated. "
             "Use 'matrix-script' instead.",
