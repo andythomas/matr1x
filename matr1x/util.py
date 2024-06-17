@@ -37,6 +37,15 @@ telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
                     "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
 
 
+def get_package_path(package_name):
+    """determine path of a python package
+    """
+    spec = importlib.util.find_spec(package_name)
+    if spec and spec.origin:
+        return os.path.dirname(spec.origin)
+    return None
+
+
 def get_matrix_binary():
     """
     check if matrix binary is on the path and otherwise try known python binary

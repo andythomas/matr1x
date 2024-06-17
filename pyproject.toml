@@ -28,6 +28,7 @@ qt6 = ["pyqtgraph >= 0.11.0",
        "autopep8"]
 standa = ["PyUSMC", "pyximc"]
 h5py = ["h5py"]
+git = ["pygit2"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
