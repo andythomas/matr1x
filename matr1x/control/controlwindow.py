@@ -14,7 +14,7 @@ import warnings
 from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import EmittingStream
-from matr1x.util import Get, generate_datafilename, write_matrix_header
+from matr1x.util import Get
 
 try:
     from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
@@ -546,8 +546,8 @@ class ControlWindow(QMainWindow):
             return
         if self.logging is False:
             # generate new log filename
-            self.logfile, mode = generate_datafilename(self.S_log,
-                                                       outputfile=self.logfile)
+            self.logfile = self.S_log.generate_datafilename(
+                outputfile=self.logfile)
             self.loglabel.setText(os.path.basename(self.logfile))
             # initialize system
             self.S_log.dcdata['Description'] = "Graphical interface logging data"
@@ -555,9 +555,8 @@ class ControlWindow(QMainWindow):
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             query_dict = self.S_log.query()
-            write_matrix_header(
-                self.logfile, mode, "matrix script generated",
-                self.S_log, query_dict)
+            self.S_log.write_matrix_header(
+                "matrix script generated", query_dict)
             # turn off config and set data
             self.configLog(False)
             self.configlog.setEnabled(False)

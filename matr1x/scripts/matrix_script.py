@@ -767,6 +767,7 @@ class QScintillaCustom(QsciScintilla):
         """
         if line < 0 or line >= len(self.text().split("\n")):
             print("error outside script", message)
+            return
         # remove comment to add verbose output of linter to status_preview
         # print(f"Error in line {line+1} at position {col+1} : \n  {message}")
         self.indicatorDefine(QsciScintilla.IndicatorStyle.FullBoxIndicator,
@@ -1038,13 +1039,13 @@ class CustomLexer(QsciLexerPython):
         if 2 != val:
             return super().keywords(val)
         return ("init_datafile measure_system wait set_value trigger_value "
-                "read_value meta_data devs input")
+                "read_value meta_data devs sys input")
 
 
 class CustomQsciAPI(QsciAPIs):
     # definition of custom commands that are supposed to be autocompleted
     autocompletions = [
-        "meta_data", "meta_data['Creator']", "meta_data['Identifier']",
+        "sys", "meta_data", "meta_data['Creator']", "meta_data['Identifier']",
         "devs", "wait(float seconds, str message='', float silent=10)",
         "input(str message='')",
         "init_datafile(str filename, str comment='', bool append=False, "
@@ -1267,6 +1268,7 @@ class MainWindow(QWidget):
           trigger_value(value_index/name)
           read_value(value_index/name)
           devs  # dictionary that contains all devices
+          sys  # merged system object from the selected systems
           meta_data  # dictionary that contains all meta information
                      # Keywords "Creator" and "Identifier" contain
                      # user and sample information from the line edits
@@ -1720,7 +1722,7 @@ class MainWindow(QWidget):
                                  self.scriptname,
                                  self.emit_line_signal)
         self.thread.finished.connect(self.process_finished)
-        logger.info("The following user script was run:\n" + user_script)
+        logger.info("The following user script was run:\n%s", user_script)
         self.thread.start()
         self.enable_buttons(True)
 

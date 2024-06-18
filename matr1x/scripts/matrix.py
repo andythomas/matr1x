@@ -22,9 +22,8 @@ import traceback
 import urwid
 from matr1x.system import MergedSystem
 from matr1x.util import (flatten, flush_input, generate_col_index,
-                         generate_datafilename, nonblocking_getch,
-                         print_formatted_line, telemetry_string,
-                         write_matrix_header)
+                         nonblocking_getch, print_formatted_line,
+                         telemetry_string)
 
 from . import MATRIX_GUI_PORT
 
@@ -98,7 +97,7 @@ def parse_inputfile(inputfile, system):
                 yield datapoint
 
 
-def measurementloop(inputfile, output_filename, system,
+def measurementloop(inputfile, system,
                     setvalcb=lambda s: None, readvalcb=lambda r: None,
                     telemetrycb=lambda s: None, inputcb=lambda n: 0):
     """
@@ -138,7 +137,7 @@ def measurementloop(inputfile, output_filename, system,
             # now trigger all parameters in system
             system.trigger()
             # devices have been triggered, now read measurement
-            return_list = system.take_measurement_point(output_filename)
+            return_list = system.take_measurement_point()
             # measurements have been saved to file, print to screen now
             readvalcb(return_list)
 
@@ -155,7 +154,7 @@ def measurementloop(inputfile, output_filename, system,
     return 0
 
 
-def measure_plain(inputfile, output_filename, system):
+def measure_plain(inputfile, system):
     """
     measurement loop with plain print output to the terminal
     (mainly for continuous integration on Github actions)
@@ -183,7 +182,7 @@ def measure_plain(inputfile, output_filename, system):
     # print header
     print_formatted_line(list(flatten(system.columns)))
     print_formatted_line(list(flatten(system.units)))
-    ret = measurementloop(inputfile, output_filename, system,
+    ret = measurementloop(inputfile, system,
                           lambda s: print_formatted_line(s, "Set : "),
                           lambda r: print_formatted_line(r, "Meas: "),
                           lambda t: print(t),
@@ -192,7 +191,7 @@ def measure_plain(inputfile, output_filename, system):
     return ret
 
 
-def measure_urwid(inputfile, output_filename, systemfile, system):
+def measure_urwid(inputfile, systemfile, system):
     """
     measurement loop with urwid based output to the terminal
     """
@@ -201,7 +200,7 @@ def measure_urwid(inputfile, output_filename, systemfile, system):
     info = urwid.Text(
         "Pause/Quit graciously with p/q after current cycle", align='center')
     outf = urwid.Text(" output filename : " +
-                      output_filename + "\n", wrap='clip')
+                      system.filename + "\n", wrap='clip')
     inpf = urwid.Text(" Input filename  : " +
                       inputfile + "\n", wrap='clip')
     systemf = urwid.Text(" systemfile      : " +
@@ -286,7 +285,7 @@ def measure_urwid(inputfile, output_filename, systemfile, system):
             loop.draw_screen()
             return 0
 
-        ret = measurementloop(inputfile, output_filename, system, setvalcb,
+        ret = measurementloop(inputfile, system, setvalcb,
                               readvalcb, telemetrycb, inputcb)
 
     return ret, msg
@@ -364,8 +363,8 @@ def main():
             exit()
 
     # obtain output file name and mode used to open the file
-    output_filename, output_filemode = generate_datafilename(
-        system, options.outputfile, options.inputfile, options.append)
+    output_filename = system.generate_datafilename(
+        options.outputfile, options.inputfile, options.append)
     report_filename_to_gui(output_filename)
 
     # initialize devices and notify user what is going on
@@ -384,8 +383,7 @@ def main():
         system.dcdata["Creator"] = options.user
     if options.sample is not None:
         system.dcdata["Identifier"] = options.sample
-    write_matrix_header(output_filename, output_filemode,
-                        options.inputfile, system, query_dict)
+    system.write_matrix_header(options.inputfile, query_dict)
 
     # do the loop
     print("entering loop now")
@@ -398,10 +396,10 @@ def main():
                 control_string += " and enter"
                 # print help string for pause in plain version on windows
             print(control_string)
-            ret = measure_plain(options.inputfile, output_filename, system)
+            ret = measure_plain(options.inputfile, system)
         else:
-            ret, msg = measure_urwid(options.inputfile, output_filename,
-                                     options.systemfile, system)
+            ret, msg = measure_urwid(
+                options.inputfile, options.systemfile, system)
             if msg:
                 print(msg)
     except KeyboardInterrupt as e:

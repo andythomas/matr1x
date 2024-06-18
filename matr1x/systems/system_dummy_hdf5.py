@@ -13,24 +13,23 @@ import numpy
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
 
+
 # ============================
 # This area contains the required MeasSystem definition and
 # the optional reimplementation of the set and reset function
 # ============================
+class MeasSystem(System):
+    def __init__(self):
+        super().__init__()
+        self.dcdata["Source"] = "dummy system with HDF5 for testing matr1x-matrix"
 
+    def get_p4(self, shape=-1):
+        return numpy.asarray(self.devs["devhdf"].p4).reshape(shape)
 # ============================
 
+
 # initialize system
-sys = System()
-sys.dcdata["Source"] = "dummy system with HDF5 for testing matr1x-matrix"
-
-
-# ========================================================================
-# define custom functions here
-# ========================================================================
-# ========================================================================
-
-
+sys = MeasSystem()
 # ========================================================================
 # This is the main system area
 # Device definition and configuration takes place here, but devices do
@@ -61,10 +60,12 @@ sys.add_param(
     chunks=[1, 1], dtype=["i8", "i8"])
 sys.add_param(
     "devhdfp4_2d", "cnt",
-    getter=lambda: numpy.asarray(sys.devs["devhdf"].p4).reshape((2, 2)),
+    getter='get_p4',
+    getter_kwargs={"shape": (2, 2)},
     chunks=(2, 2))
 sys.add_param(
     ["rand2d_1", "rand2d_2"], ["cnt", "cnt"],
-    getter=lambda: numpy.random.random((2, 4, 4)),
+    getter=numpy.random.random,
+    getter_args=[(2, 4, 4), ],
     chunks=[(4, 4), (4, 4)])
 # ============================

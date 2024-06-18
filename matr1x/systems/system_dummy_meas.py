@@ -30,14 +30,6 @@ sys = System()
 sys.dcdata["Source"] = "dummy system for testing system merging"
 # ============================
 
-
-# ========================================================================
-# define custom functions here
-# ========================================================================
-
-# ========================================================================
-
-
 # ========================================================================
 # This is the main system area
 # Device definition and configuration takes place here, but devices do

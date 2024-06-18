@@ -5,13 +5,12 @@
 import datetime
 import importlib.util
 import os
-import re
 import subprocess
 import sys
 import sysconfig
 import textwrap
 import time
-from os.path import abspath, exists, expanduser, isabs, splitext
+from os.path import abspath, isabs
 
 import numpy as np
 
@@ -30,8 +29,6 @@ sweepFunctions = {"x^2": lambda x: np.power(x, 2), "sqrt": np.sqrt,
 # default separator
 default_separator = "\t"
 
-# default output extension
-output_extension = ".ma7"
 # telemetry string template
 telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
                     "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
@@ -88,73 +85,6 @@ def module_from_path(filename):
     return mod
 
 
-def generate_datafilename(system, outputfile="", inputfile="", append=False):
-    """
-    generate output datafile name. No file should be overwritten. If
-    append=True an existing datafile can be amended. In all other cases a new
-    file will name is generated.
-
-    The datafilename will be generated either from the outputfile (preferred)
-    or the inputfile-name. An appropriate extension is generated.
-
-    Parameters
-    ----------
-    system: System instance
-    outputfile: str, optional
-      output filename which should be used. Potentially a running number will
-      be added to avoid overwriting an existing file
-    inputfile: str, optional
-      if outputfile is empty this string will be used to generate a datafile
-      name
-    append: bool, optional
-      flag to decide if one should append to an potentially existing datafile
-
-    Returns
-    -------
-    datafilename, filemode
-    """
-    # check whether hdf5 is required and change output extensions
-    if system.hdf5 is True:
-        # append h5 to filename to discern filetypes
-        file_extension = ".h5" + output_extension
-    else:
-        file_extension = output_extension
-    refileext = file_extension.replace('.', r'\.')
-
-    if outputfile:
-        datafile = expanduser(outputfile)
-    else:  # no output file given -> input filename as template
-        datafile = expanduser(splitext(inputfile)[0])
-    # check if file extension was provided
-    if not re.search(f"{refileext}$", datafile):
-        datafile = re.sub(r"(\.h5)?\.ma\d$", "", datafile) + file_extension
-    if not exists(datafile):
-        # use the unmodified file name
-        return datafile, "w"
-    elif append is True:
-        return datafile, "w"  # here we return "w" because file does not exist
-    else:
-        # in case extension and running number are already attached to
-        # the filename, replace in outputfile
-        outfile = re.sub(r"(_\d+)?(\.h5)?\.ma\d$", "", datafile)
-
-        # check filename and increase "extension number" to protect existing
-        # data
-        for extension in range(1, 10000):
-            if exists(f"{outfile}_{extension}{file_extension}"):
-                continue
-            else:
-                break
-
-        if bool(append) is True and 0 != extension:
-            # if there is a file with that name already, change to the append mode
-            return f"{outfile}_{extension-1}{file_extension}", "a"
-        else:
-            # in this case start a new file
-            # append the next possible number as file extension
-            return f"{outfile}_{extension}{file_extension}", "w"
-
-
 def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
     """
     return a formated line with data values
@@ -200,6 +130,7 @@ def generate_script_prefix_suffix(systems):
     import math as _math
     import os as _os
     import time as _time
+    import types as _types
 
     import matr1x as _matr1x
     import matr1x.util as _matrix_util
@@ -219,7 +150,6 @@ def generate_script_prefix_suffix(systems):
     # pass meta information
     _system.dcdata['Identifier'] = _sample
     _system.dcdata['Creator'] = _user
-    _filename = ""  # datafile name
     _setvalues = []  # buffer for set values for printing
     _npoints = 0  # internal measurement point counter
     _ntot = None  # total number of measurement points for telemetry
@@ -227,11 +157,28 @@ def generate_script_prefix_suffix(systems):
     _preset = _starttime
 
 
-    def lineno_decorator(func):
+    def _lineno_decorator(func):
+        "decorator to report the executing line number back to the GUI"
         def wrapper(*args, **kwargs):
             _report_line(_inspect.currentframe().f_back.f_lineno)
             return func(*args, **kwargs)
         return wrapper
+
+
+    def _breakpoint(func):
+        "decorator to add a breakpoint check"
+        def wrapper(*args, **kwargs):
+            _wait(0)
+            return func(*args, **kwargs)
+        return wrapper
+
+
+    def _inject_decorator(instance, decorator):
+        for attr_name in dir(instance):
+            attr = getattr(instance, attr_name)
+            if isinstance(attr, _types.MethodType):
+                decorated_attr = decorator(attr)
+                setattr(instance, attr_name, decorated_attr)
 
 
     def _reset_setvalues():
@@ -244,13 +191,17 @@ def generate_script_prefix_suffix(systems):
                 _setvalues.append(None)
 
 
+    # inject breakpoint decorator to system methods
+    _inject_decorator(_system, _breakpoint)
+    for sys in _system.subsys:
+        _inject_decorator(sys, _breakpoint)
     _reset_setvalues()  # initialize the setvalues variable
-    # bring meta_data into namespace
+    # bring meta_data and system into namespace
     meta_data = _system.dcdata
-
+    sys = _system
 
     # redefine set_value to limit user typing requirements
-    @lineno_decorator
+    @_lineno_decorator
     def set_value(col, value):
         '''
         wrapper for _system.set_values to allow storing all set parameters
@@ -270,34 +221,33 @@ def generate_script_prefix_suffix(systems):
             _setvalues[i] = setv
         return setv
 
-
-    @lineno_decorator
+    @_lineno_decorator
     def trigger_value(*args, **kwargs):
         _system.trigger_value(*args, **kwargs)
 
-
-    @lineno_decorator
+    @_lineno_decorator
     def read_value(*args, **kwargs):
         return _system.read_value(*args, **kwargs)
 
-
-    @lineno_decorator
+    @_lineno_decorator
     def wait(*args, **kwargs):
         _wait(*args, **kwargs)
 
-
-    @lineno_decorator
+    @_lineno_decorator
     def input(*args, **kwargs):
         _input(*args, **kwargs)
 
 
     # initialize system and put devs into namespace
     print("setting devices")
-    _system.set()  # here is a difference to matrix (no arguments), see PR #203
+    # system.set is called before the filename is set so we have no arguments
+    # here -> this is a difference to matrix
+    _system.set()
     devs = _system.devs
 
 
-    @lineno_decorator
+    @_lineno_decorator
+    @_breakpoint
     def init_datafile(filename, comment="", append=False, print_header=True,
                       ntot=None):
         '''
@@ -322,31 +272,25 @@ def generate_script_prefix_suffix(systems):
           total number of expected datapoints for estimation of remaining
           measurement time.
         '''
-        global _filename, _ntot, _npoints, _starttime
+        global _ntot, _npoints, _starttime
 
         _ntot = ntot
         _npoints = 0  # reset the number of measurement points
         _starttime = _time.time()
 
-        # generate fallback option for the datafile name
-        systemstring = "__".join(['{"', '".join(map(os.path.basename, systems))}'])
-        timestamp = _time.strftime(_matr1x.datetimefmt, _time.localtime())
-        fallbackname = "%s_%s" % (timestamp, systemstring)
-
-        _filename, mode = _matrix_util.generate_datafilename(
-            _system,
+        filename = _system.generate_datafilename(
             outputfile=filename,
-            inputfile=_os.path.basename(_scriptname) or fallbackname,
+            inputfile=_os.path.basename(_scriptname),
             append=append)
-        if append == False or not _os.path.exists(_filename):
+        if append == False or not _os.path.exists(filename):
             # write header to file
             print("running config query")
             query_dict = _system.query()
             print("configuration acquired, initializing file")
             _system.dcdata["Description"] = comment
-            _matrix_util.write_matrix_header(
-                _filename, mode, _scriptname or "matrix script generated",
-                _system, query_dict)
+            _system.write_matrix_header(
+                _scriptname or "matrix script generated",
+                query_dict)
         if print_header:
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_system.columns))
@@ -355,7 +299,8 @@ def generate_script_prefix_suffix(systems):
 
 
     # wrap system.trigger and system.take_measurement_point into measure_system
-    @lineno_decorator
+    @_lineno_decorator
+    @_breakpoint
     def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
         '''
         Perform the measurment of a single data point. This means a sequence of
@@ -375,11 +320,9 @@ def generate_script_prefix_suffix(systems):
          be printed
         '''
         global _preset, _npoints
-        # _wait(0) to have breakpoint even when user does not use it in script
-        _wait(0)
         _npoints += 1
         preread = _time.time()
-        if _filename == "":
+        if not _system.filename:
             init_datafile("")
 
         if print_setpoint:
@@ -388,7 +331,7 @@ def generate_script_prefix_suffix(systems):
         _reset_setvalues()
 
         _system.trigger()
-        return_list = _system.take_measurement_point(_filename)
+        return_list = _system.take_measurement_point()
         if print_data:
             _matrix_util.print_formatted_line(
                 return_list, prefix="Meas: ")
@@ -419,7 +362,7 @@ def generate_script_prefix_suffix(systems):
     # the reset function is called at the script end only, but we nevertheless
     # specify the last datafile name to be as close as possible to the behavior
     # of matrix
-    _system.reset(output_file=_filename)
+    _system.reset()
     """)
     return prefix, suffix
 
@@ -937,17 +880,15 @@ def check_dep(index, array, depth=0):
             # multiple occurences of index in array
             d = []
             occ = -1
-            for j in range(cnt):
+            for _ in range(cnt):
                 # follow all branches of the occurences to get the actual
                 # maximum hirarchy of the occurence
                 occ = array.index(index, occ+1)
                 d.append(check_dep(occ, array, depth+1))
             return max(d)
-        else:
-            return check_dep(array.index(index), array, depth+1)
-    else:
-        # if no more occurence is in the array, then return the current depth
-        return depth
+        return check_dep(array.index(index), array, depth+1)
+    # if no more occurence is in the array, then return the current depth
+    return depth
 
 
 def generate_col_index(index):
@@ -987,73 +928,6 @@ def construct_query_string(query_dict, depth=2):
                 v = v.replace('"', '\"')
             ret += "#"*depth + f" {k} : \"{v}\"\n"
     return ret
-
-
-def write_matrix_header(output_filename, output_filemode, inputfile, system,
-                        query_dict):
-    """
-    prepares the header of a matrix file for the matrix program, inserts all
-    relevant information including the setstr
-
-    Arguments
-    ----
-    output_filename : str
-      filename of the ouput file
-    output_filemode : str
-      controls whether append is true, can be "w" or "a", if mode is "a" do not
-      add the header a second time
-    inputfile : str
-      filename of the inputfile to be placed in the header
-    system : System
-      The System object that is used for the measurement.
-    query_dict : dict
-        Gives the device settings returned by the device_query
-        function to be appended to the file header
-    """
-    if "a" == output_filemode:
-        # in case append is true, do not create a new header
-        return
-    # prepare file definitions (column header and units)
-    telemetry = [list(flatten(system.columns)),
-                 list(flatten(system.units))]
-    # prepare datafile
-    print(f"Creating new datafile: {output_filename}")
-    if system.hdf5 is True:
-        telemetry.append(list(flatten(system.dtypes)))
-        telemetry.append(list(flatten(system.chunks, types=(list, ))))
-        import h5py
-        with h5py.File(output_filename, 'w', libver='latest') as data_file:
-            data_file.swmr_mode = True
-            assert data_file.swmr_mode
-            data_file.attrs["Input filename"] = inputfile
-            data_file.attrs["System filename"] = system.__name__
-            data_file.attrs["Device query"] = construct_query_string(
-                query_dict)
-            for dckey, dcvalue in system.dcdata.items():
-                if dcvalue is None:
-                    # mark non-existing value
-                    data_file.attrs[f"DC.{dckey}"] = "__None__"
-                else:
-                    data_file.attrs[f"DC.{dckey}"] = dcvalue
-
-            init_hdf5_skel(data_file, *telemetry)
-    else:
-        telemetry += [default_separator]
-        with open(output_filename, 'w', encoding="utf-8") as data_file:
-            for dckey, dcvalue in system.dcdata.items():
-                if dcvalue is None:
-                    data_file.write(f"# DC.{dckey} : None\n")
-                else:
-                    dcentry = dcvalue.replace("\n", "\n## ")
-                    dcentry = dcentry.replace('"', '\"')
-                    data_file.write(f"# DC.{dckey} : \"{dcentry}\"\n")
-            data_file.write(f"# Input filename : \"{inputfile}\"\n")
-            data_file.write("# System filename : ")
-            data_file.write("\"" + system.__name__ + "\"\n")
-            data_file.write("# Device query : \n")
-            data_file.write(construct_query_string(query_dict))
-
-            init_ascii_header(data_file, *telemetry)
 
 
 def init_ascii_header(file_handle, columns, units, separator):

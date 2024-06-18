@@ -9,6 +9,9 @@ import sys
 import tempfile
 from datetime import date
 
+# default datafile extension
+output_extension = ".ma7"
+
 # parse global default config
 confparser = configparser.ConfigParser()
 
