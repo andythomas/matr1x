@@ -534,7 +534,6 @@ class ControlWindow(QMainWindow):
                 var = guidict[key]
                 # make sure it is a loggable widget
                 if len(var.widgets) > 2 and var.log is not None:
-                    print(var.widgets[-1].checkState())
                     if var.widgets[-1].checkState() == Qt.CheckState.Checked:
                         # make sure check state is True and if so add to
                         # logged parameters
