@@ -207,6 +207,7 @@ class ControlWindow(QMainWindow):
         # restore settings of GuiDicts
         for g in self.guidicts:
             g.dock.restoreState()
+            g.extend_switch.setChecked(g.dock.extended)
             g.enable_switch.setChecked(not g.dock.disabled)
             g.restoreFeatures()
         # restore geometry settings of main window

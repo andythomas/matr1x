@@ -373,6 +373,9 @@ class var(QObject):
             self.widgets.append(checkbox)
         # connect variable value with the widgets
         self.connect_signal()
+        if self.hide:
+            for w in self.widgets:
+                w.hide()
 
     def updateLabel(self, newunit):
         label = self.widgets[0].text()
@@ -637,6 +640,7 @@ class GuiDict(UserDict, ABC):
                 self.setObjectName(f"{appname}-{title}")
                 self.settings = QSettings("matr1x", appname)
                 self.disabled = False
+                self.extended = False
 
             @pyqtSlot()
             def saveCurrentState(self):
@@ -647,6 +651,7 @@ class GuiDict(UserDict, ABC):
                 self.settings.setValue("size", self.size())
                 self.settings.setValue("pos", self.pos())
                 self.settings.setValue("disabled", self.disabled)
+                self.settings.setValue("extended", self.extended)
                 self.settings.endGroup()
 
             def restoreState(self):
@@ -660,6 +665,8 @@ class GuiDict(UserDict, ABC):
                     self.move(self.settings.value("pos"))
                 self.disabled = self.settings.value(
                     "disabled", False, type=bool)
+                self.extended = self.settings.value(
+                    "extended", False, type=bool)
                 self.settings.endGroup()
 
             def closeEvent(self, event):
@@ -687,8 +694,8 @@ class GuiDict(UserDict, ABC):
         has_hiding = any(variable.hide for variable in self.values())
         if has_hiding:
             control_layout.addWidget(QLabel("Full info"))
-            self.extend_switch.toggled.connect(self.toggle_hidden)
-            self.extend_switch.setChecked(True)
+            self.extend_switch.stateChanged.connect(self.toggle_hidden)
+            self.extend_switch.setChecked(False)
             control_layout.addWidget(self.extend_switch)
         control_layout.addStretch()
         if self.allow_disabling:
@@ -726,6 +733,7 @@ class GuiDict(UserDict, ABC):
 
     def toggle_hidden(self, state):
         if state:
+            self.dock.extended = True
             for variable in self.values():
                 if isinstance(variable, var) and variable.hide:
                     for i, w in enumerate(variable.widgets):
@@ -733,6 +741,7 @@ class GuiDict(UserDict, ABC):
                             continue
                         w.show()
         else:
+            self.dock.extended = False
             for variable in self.values():
                 if isinstance(variable, var) and variable.hide:
                     for w in variable.widgets:
