@@ -4,10 +4,13 @@
 # ---
 import configparser
 import logging
+import os
 import os.path
 import sys
 import tempfile
 from datetime import date
+
+from .util import create_temp_dir_with_symlinks, get_package_path
 
 # default datafile extension
 output_extension = ".ma7"
@@ -49,6 +52,26 @@ if "<pkgroot>/" in systems_directory:
         systems_directory.replace("<pkgroot>/", ""))
 # expand eventual home
 systems_directory = os.path.expanduser(systems_directory)
+
+_system_names = ['matr1x-systems', ]
+_system_directories = [systems_directory, ]
+for section in confparser.sections():
+    if section != "matr1x":
+        if confparser.has_option(section, "systemsDirectory"):
+            sysdir = confparser.get(section, "systemsDirectory")
+            if "<pkgroot>/" in sysdir:
+                sysdir = os.path.join(
+                    get_package_path(section),
+                    sysdir.replace("<pkgroot>/", ""))
+            _system_names.append(f"{section}-systems")
+            _system_directories.append(sysdir)
+
+system_shortcut_directory = _system_directories[-1]
+_tmp_link_dir = create_temp_dir_with_symlinks(_system_names,
+                                              _system_directories)
+if len(_system_names) > 1:
+    system_shortcut_directory = os.path.join(_tmp_link_dir.name,
+                                             _system_names[-1])
 
 # set up logging, mostly for debugging purposes.
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This

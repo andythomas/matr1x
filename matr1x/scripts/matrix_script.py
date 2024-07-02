@@ -1237,6 +1237,7 @@ class MainWindow(QWidget):
         self.systems = []
         self.scriptname = ""
         self.systems_dirty = False
+        self.last_loaded_file = None
 
         self.output_stream = EmittingStream(text_written=self.output_written)
 
@@ -1477,17 +1478,17 @@ class MainWindow(QWidget):
         """
         Opens a QFileDialog with filter system*.py
         """
-        cnt = self.system_list.count()
-        if 0 < cnt:
-            filename = os.path.dirname(self.system_list.item(cnt-1).text())
-        else:
-            filename = matr1x.systems_directory
+        directory = matr1x.system_shortcut_directory
+        if self.last_loaded_file:
+            directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog
         filename = QFileDialog.getOpenFileName(
-            self, 'Select system file', filename,
+            self, 'Select system file', directory,
             "system files (system*.py)")[0]
         if "" == filename:
             return
+        self.last_loaded_file = filename
+        filename = os.path.realpath(filename)
         if os.path.dirname(filename) == matr1x.systems_directory:
             self.system_list.addItem(basename(filename))
         else:

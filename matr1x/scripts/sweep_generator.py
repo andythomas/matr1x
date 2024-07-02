@@ -37,9 +37,9 @@ except ImportError:
                                  QTextEdit, QVBoxLayout, QWidget)
 
 import pyqtgraph as pg
-from matr1x import datetimefmt
+from matr1x import datetimefmt, system_shortcut_directory
 from matr1x import systems as core_systems
-from matr1x import systems_directory, usersfolder
+from matr1x import usersfolder
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import CustomViewBox, validator
 from matr1x.system import MergedSystem
@@ -225,6 +225,7 @@ class MainWindow(QMainWindow):
         self.functions = []
         self.sweepParams = []
         self.systemFilename = ""
+        self.last_loaded_file = None
 
         # gui variables
         self.nRowPreview = 3
@@ -320,6 +321,9 @@ class MainWindow(QMainWindow):
         filenames = [splitext(basename(filename))[0] if
                      splitext(basename(filename))[0] in core_systems
                      else filename for filename in filenames]
+        # update entries in GUI list
+        for j, systemfile in enumerate(filenames):
+            self.systemList.item(j).setText(systemfile)
         self.systemFilename = ",".join(filenames)
         try:
             self.system = MergedSystem.from_files(filenames)
@@ -773,19 +777,17 @@ class MainWindow(QMainWindow):
         """
         Opens a QFileDialog with filter system*.py
         """
-        # start from path of last element in systems list if one is present
-        cnt = self.systemList.count()
-        if 0 < cnt:
-            filename = os.path.dirname(self.systemList.item(cnt-1).text())
-        else:
-            filename = systems_directory
+        directory = system_shortcut_directory
+        if self.last_loaded_file:
+            directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog
         filename = QFileDialog.getOpenFileName(
-            self, 'Select system file', filename,
+            self, 'Select system file', directory,
             "system files (system*.py)")[0]
         if "" == filename:
             return
-        self.systemList.addItem(filename)
+        self.last_loaded_file = filename
+        self.systemList.addItem(os.path.realpath(filename))
         self.filename_changed()
 
     def delete_selected_system(self):

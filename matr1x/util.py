@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import sysconfig
+import tempfile
 import textwrap
 import time
 from os.path import abspath, isabs
@@ -41,6 +42,43 @@ def get_package_path(package_name):
     if spec and spec.origin:
         return os.path.dirname(spec.origin)
     return None
+
+
+def create_temp_dir_with_symlinks(names, targets):
+    """create temporary directory with symlinks
+
+    this function works similar on all major platforms,
+    but uses different ways to achieve this.
+
+    Parameters
+    ----------
+    names: list
+     names of the symlinks
+    targets: list
+     target folders for the links
+
+    Returns
+    -------
+    TemporaryDirectory instance
+    """
+    # Create a temporary directory
+    temp_dir = tempfile.TemporaryDirectory(prefix="systemdir-links-")
+
+    # Create symbolic links in the temporary directory
+    for name, target in zip(names, targets):
+        if not os.path.isdir(target):
+            raise ValueError(f"The target {target} is not a directory.")
+        link_name = os.path.join(temp_dir.name, name)
+        if os.name == 'nt':
+            subprocess.check_call(
+                ['cmd', '/c', 'mklink', '/J', link_name, target],
+                stdout=subprocess.DEVNULL,
+            )
+        else:
+            os.symlink(target, link_name)
+
+    # Return the temporary directory object
+    return temp_dir
 
 
 def get_matrix_binary():
