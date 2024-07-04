@@ -7,6 +7,7 @@ import logging
 from .boss import BOSS  # noqa: F401
 from .cryogenics import CryogenicBipolarPS, CryogenicPS  # noqa: F401
 from .cryomagnetics import CS04  # noqa: F401
+from .cryovac import TIC500  # noqa: F401
 from .danfysik import Danfysik9100  # noqa: F401
 from .hp import HP3245A  # noqa: F401
 from .keithley import (Keithley2000, Keithley2182A, Keithley2400,  # noqa: F401
