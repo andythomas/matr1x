@@ -299,6 +299,8 @@ class System:
           name of the measurement system
         """
         self.__name__ = str(name)
+        # define merged system reference
+        self.merged_system = None
         # initialize lists for later use
         self.parameters = []
         self.columns = []
@@ -846,9 +848,9 @@ class System:
             idx = self.columns.index(i)
         else:
             idx = i
-        getter = self.parameters[i].getter
-        args = self.parameters[i].getter_args
-        kwargs = self.parameters[i].getter_kwargs
+        getter = self.parameters[idx].getter
+        args = self.parameters[idx].getter_args
+        kwargs = self.parameters[idx].getter_kwargs
         if getter is not None:
             try:
                 if callable(getter):
@@ -1233,9 +1235,11 @@ class MergedSystem(System):
     """
 
     def __init__(self, systems):
-        super().__init__()
         # save subsystems into system
         self.subsys = systems
+        # initialize superclass
+        # here self.subsys is already used when initializing the filename, so this needs to come here
+        super().__init__()
         # define __name__
         self.__name__ = ",".join([subsys.__name__ for subsys in
                                   self.subsys])
@@ -1245,6 +1249,7 @@ class MergedSystem(System):
             self.system_config_params = {**self.system_config_params,
                                          **sys.system_config_params}
             self.parameters += sys.parameters
+            sys.merged_system = self
         self._merge_dcdata()
         self._check_hdf5()
         # sort parameters to have timeUTC as last column
@@ -1300,6 +1305,20 @@ class MergedSystem(System):
                 return getattr(sys, attr)
         raise AttributeError(
             f"'{self.__class__.__name__}' object has no attribute '{attr}'")
+
+    @property
+    def filename(self):
+        """Filename property getter."""
+        return self._filename
+
+    @filename.setter
+    def filename(self, value):
+        """The filename property setter.
+
+        This is needed to keep the filename on the subsystems in sync."""
+        for sys in self.subsys:
+            sys.filename = value
+        self._filename = value
 
     def _merge_dcdata(self, setdate=True):
         tmpdcdata = collections.defaultdict(set)

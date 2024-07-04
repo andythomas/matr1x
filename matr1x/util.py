@@ -318,7 +318,7 @@ def generate_script_prefix_suffix(systems):
 
         filename = _system.generate_datafilename(
             outputfile=filename,
-            inputfile=_os.path.basename(_scriptname),
+            inputfile=_scriptname,
             append=append)
         if append == False or not _os.path.exists(filename):
             # write header to file
