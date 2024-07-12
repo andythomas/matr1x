@@ -8,6 +8,7 @@ in a reasonably straight forward fashion. Heavily relies on numpy.linspace
 for the creation of the sweep segments.
 """
 import os
+import re
 import sys
 import time
 import traceback
@@ -23,8 +24,8 @@ try:
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
                                  QLabel, QLineEdit, QListWidget, QMainWindow,
-                                 QPushButton, QScrollArea, QSizePolicy,
-                                 QTextEdit, QVBoxLayout, QWidget)
+                                 QMessageBox, QPushButton, QScrollArea,
+                                 QSizePolicy, QTextEdit, QVBoxLayout, QWidget)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
@@ -33,8 +34,8 @@ except ImportError:
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
                                  QLabel, QLineEdit, QListWidget, QMainWindow,
-                                 QPushButton, QScrollArea, QSizePolicy,
-                                 QTextEdit, QVBoxLayout, QWidget)
+                                 QMessageBox, QPushButton, QScrollArea,
+                                 QSizePolicy, QTextEdit, QVBoxLayout, QWidget)
 
 import pyqtgraph as pg
 from matr1x import datetimefmt, system_shortcut_directory
@@ -296,6 +297,34 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Sweep Generator')
 
         self.populated = False
+        # Define the allowed extension pattern
+        self.allowed_extension_pattern = re.compile(r'\.\d+t$')
+        # Enable dragging and dropping onto the widget
+        self.setAcceptDrops(True)
+
+    def is_valid_extension(self, file_path):
+        return self.allowed_extension_pattern.search(file_path) is not None
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if len(urls) == 1:
+            file_path = urls[0].toLocalFile()
+            if self.is_valid_extension(file_path):
+                self.open_file(file_path)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Invalid File",
+                    f"Only files with extensions matching .<number>t are supported.")
+        else:
+            QMessageBox.warning(self, "Multiple Files",
+                                "Please drop only a single file.")
 
     def reset_layout(self):
         # reset layout to clean state
@@ -869,6 +898,10 @@ class MainWindow(QMainWindow):
         # get filename from dialog
         filename = QFileDialog.getOpenFileName(
             self, 'Select input file', usersfolder, "t files (*.*t)")[0]
+
+        self.open_file(filename)
+
+    def open_file(self, filename):
         # load system from file, define read out parameters to parse
         params = {"# params : ": None, "# loop_over : ": None,
                   "# functions : ": None, "# up_down : ": None,

@@ -32,8 +32,8 @@ try:
                              QShortcut, QTextCursor)
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                                  QGridLayout, QLineEdit, QListWidget,
-                                 QMessageBox, QPushButton, QSplitter, QTextEdit,
-                                 QWidget)
+                                 QMainWindow, QMessageBox, QPushButton,
+                                 QSplitter, QTextEdit, QWidget)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
@@ -42,8 +42,8 @@ except ImportError:
                              QTextCursor)
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
                                  QGridLayout, QLineEdit, QListWidget,
-                                 QMessageBox, QPushButton, QShortcut, QSplitter,
-                                 QTextEdit, QWidget)
+                                 QMainWindow, QMessageBox, QPushButton,
+                                 QShortcut, QSplitter, QTextEdit, QWidget)
     from PyQt5.Qsci import QsciScintilla, QsciLexerPython, QsciAPIs
 
 from ..gui_util import EmittingStream
@@ -84,6 +84,38 @@ class Matr1xApplication (QApplication):
             filename = event.file()
             self.openfile.emit(filename)
         return QApplication.event(self, event)
+
+
+class DroppableWidget(QWidget):
+    fileDropped = pyqtSignal(str)  # Custom signal to emit file path
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)  # Enable drag and drop for this widget
+
+    def is_valid_extension(self, file_path):
+        return file_path.endswith(MainWindow.extension)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if len(urls) == 1:
+            file_path = urls[0].toLocalFile()
+            if self.is_valid_extension(file_path):
+                self.fileDropped.emit(file_path)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Invalid Action",
+                    f"Only files with {MainWindow.extension} extension can be dropped.")
+        else:
+            QMessageBox.warning(self, "Multiple Files",
+                                "Please drop only a single file.")
 
 
 class CustomReporter(pyflakes.reporter.Reporter):
@@ -685,7 +717,7 @@ class CompleterPython(QObject):
                 QsciLexerPython.TripleSingleQuotedString)
 
 
-class QScintillaCustom(QsciScintilla):
+class QScintillaCustom(QsciScintilla, DroppableWidget):
     """
     Commenting functionality adapted from
     https://github.com/matkuki/qscintilla_docs/blob/master/examples/commenting.py
@@ -693,6 +725,7 @@ class QScintillaCustom(QsciScintilla):
     """
     comment_string = "# "
     line_ending = "\n"
+    fileDropped = pyqtSignal(str)
 
     def __init__(self, stream, parent=None):
         super().__init__(parent=parent)
@@ -1222,12 +1255,13 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.user)} ,
             self.conn.close()
 
 
-class MainWindow(QWidget):
+class MainWindow(QMainWindow):
     """
     Define layout, runs everything
     """
     # signal that is used to handle the highlighting of code execution
     highlight_line = pyqtSignal(int)
+    extension = ".matrix"
 
     def __init__(self, filename=None):
         """
@@ -1238,6 +1272,7 @@ class MainWindow(QWidget):
         self.scriptname = ""
         self.systems_dirty = False
         self.last_loaded_file = None
+        self.is_running = False
 
         self.output_stream = EmittingStream(text_written=self.output_written)
 
@@ -1328,7 +1363,10 @@ class MainWindow(QWidget):
     def init_ui(self):
         icondir = join(dirname(__file__), 'icons')
         self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-script.png')))
-        layout = QGridLayout()
+        self.central_widget = DroppableWidget(self)
+        self.central_widget.fileDropped.connect(self.load_from_filename)
+        self.setCentralWidget(self.central_widget)
+        layout = QGridLayout(self.central_widget)
 
         # Buttons
         self.start_button = QPushButton("Start recipe")
@@ -1431,6 +1469,7 @@ class MainWindow(QWidget):
             QsciScintilla.BraceMatch.SloppyBraceMatch)
         self.script_edit.setAnnotationDisplay(
             QsciScintilla.AnnotationDisplay.AnnotationBoxed)
+        self.script_edit.fileDropped.connect(self.load_from_filename)
 
         # initialize widgets in layout
         splitter = QSplitter(self)
@@ -1459,7 +1498,6 @@ class MainWindow(QWidget):
         # set focus to text editor
         self.script_edit.setFocus()
 
-        self.setLayout(layout)
         self.update_window_title()
 
     def update_window_title(self):
@@ -1645,6 +1683,7 @@ class MainWindow(QWidget):
         Parameters:
             flag:boolean - True means script is running
         """
+        self.is_running = flag
         if flag is True:
             self.highlight_line.connect(self.highlight)
         else:
@@ -1759,14 +1798,14 @@ class MainWindow(QWidget):
             self, 'Specify Script',
             (matr1x.usersfolder if "" == self.scriptname
                 else dirname(self.scriptname)),
-            "matrix files (*.matrix)")
+            f"matrix files (*{self.extension})")
         filename = filename[0]
         if "" == filename:
             print("Please specify file")
             print("==========")
             return -1
-        elif ".matrix" not in filename:
-            filename += ".matrix"
+        elif not filename.endswith(self.extension):
+            filename += self.extension
         try:
             output_file = open(filename, 'w')
         except (OSError, IOError):
@@ -1819,6 +1858,8 @@ class MainWindow(QWidget):
         loads the script from file denoted by filename, making sure that
         header information specified still agree with the corresponding system
         """
+        if self.is_running:
+            return
         if "" == filename:
             print("Please specify file")
             print("==========")
@@ -1901,7 +1942,7 @@ class MainWindow(QWidget):
             self, 'Select Script',
             (matr1x.usersfolder if "" == self.scriptname
                 else dirname(self.scriptname)),
-            "matrix files (*.matrix)")
+            f"matrix files (*{self.extension})")
         filename = filename[0]
         self.load_from_filename(filename)
 

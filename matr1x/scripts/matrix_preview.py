@@ -87,6 +87,7 @@ class SweepPreview(QMainWindow):
       parent widget
     """
     openfile_dialog = pyqtSignal()
+    allowed_extensions = ('.ma6', '.ma7')
 
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
@@ -98,16 +99,40 @@ class SweepPreview(QMainWindow):
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
         if hasattr(QApplication.instance(), 'openfile'):
-            QApplication.instance().openfile.connect(self.set_filename)
+            QApplication.instance().openfile.connect(self.open_file)
 
         # initialize filename if available
         if filename:
-            self.set_filename(filename)
+            self.open_file(filename)
         else:
             self.file_open_thread = threading.Thread(
                 target=self._delayed_file_load_attempt)
             logger.info("start delayed")
             self.file_open_thread.start()
+
+    def is_valid_extension(self, file_path):
+        return file_path.endswith(self.allowed_extensions)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if len(urls) == 1:
+            file_path = urls[0].toLocalFile()
+            if self.is_valid_extension(file_path):
+                self.open_file(file_path)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Invalid File",
+                    f"Only files with extensions {', '.join(self.allowed_extensions)} are supported.")
+        else:
+            QMessageBox.warning(self, "Multiple Files",
+                                "Please drop only a single file.")
 
     def _get_maximum_screen_width(self):
         """
@@ -144,12 +169,12 @@ class SweepPreview(QMainWindow):
             self, "Select ma file", "",
             "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
         if filename:
-            self.set_filename(filename)
+            self.open_file(filename)
         else:
             if not self.filename:
                 self.w_status.setText("Please open a file")
 
-    def set_filename(self, filename):
+    def open_file(self, filename):
         logger.info(f"opening {filename}")
         self.filename = filename
         # get all files
@@ -170,7 +195,7 @@ class SweepPreview(QMainWindow):
         files = os.listdir(self.file_dir)
         self.data_files = (
             [os.path.join(self.file_dir, file)
-             for file in files if "ma7" in file or "ma6" in file])
+             for file in files if self.is_valid_extension(file)])
         self.data_files = sorted(
             self.data_files, key=lambda t: os.stat(t).st_mtime)
 
@@ -212,6 +237,9 @@ class SweepPreview(QMainWindow):
 
         self.widget.setLayout(self.grid)
         self.setCentralWidget(self.widget)
+
+        # Enable dragging and dropping onto the widget
+        self.setAcceptDrops(True)
         self.show()
 
     def init_ui(self):
