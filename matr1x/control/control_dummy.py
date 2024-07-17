@@ -150,10 +150,10 @@ class exampleDict2(GuiDict):
     data = {
         "Example2": var(None, columns="Readout"),
         "V5": var(float, columns=go.labeltext, unit="mbar"),
-        "Info": var(None, columns="For testing purposes errors are raised \n"
-                                  "when V4 is set to False, the toggle \n"
-                                  "switch is pressed twice, or via the \n"
-                                  "Panic Button.",
+        "Info": var(str, columns="For testing purposes errors are raised \n"
+                    "when V4 is set to False, the toggle \n"
+                    "switch is pressed twice, or via the \n"
+                    "Panic Button.",
                     hide=True),
     }
     # set a custom interval for the refresh function which updates the values
@@ -179,8 +179,7 @@ class exampleDict2(GuiDict):
         self.timestamps = collections.deque(maxlen=N)
         # enable setting the tooltip
         self.qobject = self.MyQObject()
-        # lambda function is needed here!
-        self.qobject.tooltip.connect(lambda *args: self.set_tooltip(*args))
+        self.qobject.tooltip.connect(self.set_tooltip)
 
     def refresh(self, count):
         self["V5"].value = self.v5
@@ -198,7 +197,6 @@ class exampleDict2(GuiDict):
                     f"std: {std:.3f} mbar")
             self.v5 = round(30*numpy.random.random(), 3)
 
-    @QtCore.pyqtSlot(str, str)
     def set_tooltip(self, label, tooltip):
         """Set tooltip thread safe on any widget in the first column."""
         if label in self:

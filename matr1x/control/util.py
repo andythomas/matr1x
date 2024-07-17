@@ -454,19 +454,24 @@ class var(QObject):
         """
         # check that a set-field exists, otherwise pass
         if len(self.columns) >= 2 and self.variableType is not None:
-            if isinstance(self.widgets[2], (QLineEdit, QLabel)):
-                self.widgets[2].setText(str(self.value))
-            elif isinstance(self.widgets[2], QComboBox):
-                if self.variableType is int:
-                    self.widgets[2].setCurrentIndex(self.value)
-                if self.variableType is str:
-                    self.widgets[2].setCurrentText(self.value)
-            elif isinstance(self.widgets[2], QCheckBox):
-                self.widgets[2].setChecked(bool(self.value))
-            elif isinstance(self.widgets[2], QSpinBox):
-                self.widgets[2].setValue(int(self.value))
-            elif isinstance(self.widgets[2], QDoubleSpinBox):
-                self.widgets[2].setValue(float(self.value))
+            try:
+                if isinstance(self.widgets[2], (QLineEdit, QLabel)):
+                    self.widgets[2].setText(str(self.value))
+                elif isinstance(self.widgets[2], QComboBox):
+                    if self.variableType is int:
+                        self.widgets[2].setCurrentIndex(self.value)
+                    if self.variableType is str:
+                        self.widgets[2].setCurrentText(self.value)
+                elif isinstance(self.widgets[2], QCheckBox):
+                    self.widgets[2].setChecked(bool(self.value))
+                elif isinstance(self.widgets[2], QSpinBox):
+                    self.widgets[2].setValue(int(self.value))
+                elif isinstance(self.widgets[2], QDoubleSpinBox):
+                    self.widgets[2].setValue(float(self.value))
+            except TypeError:
+                # allow a type mismatch in case a variable is not set
+                if self.value is not None:
+                    raise
 
     def __getitem__(self, idx):
         """
