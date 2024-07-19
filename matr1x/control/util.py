@@ -1387,6 +1387,7 @@ Kill the other process ({otherpid}) before restarting.""")
         with open(lockfilename, "w", encoding="utf-8") as lockf:
             lockf.write(f"{os.getpid()}\n")
 
+    kwargs['package'] = package
     logger = logging.getLogger(__name__)
     logger.info("Starting GUI")
     with QtGracefulKiller():
@@ -1394,8 +1395,10 @@ Kill the other process ({otherpid}) before restarting.""")
                           guidicts=guidicts,
                           extra_cmds=extra_cmds,
                           **kwargs):
-            sys.stdout = OutputRedirection(sys.stdout, prefix=f"matr1x.{name}")
-            sys.stderr = OutputRedirection(sys.stderr, prefix=f"matr1x.{name}",
+            sys.stdout = OutputRedirection(sys.stdout,
+                                           prefix=f"{package}.{name}")
+            sys.stderr = OutputRedirection(sys.stderr,
+                                           prefix=f"{package}.{name}",
                                            fallbackname="stderr")
             ret = app.exec()
     logger.info("Exiting GUI")

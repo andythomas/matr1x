@@ -1109,13 +1109,13 @@ class System:
         if not output_filename and self._file_mode == "a":
             # in case append is true, do not create a new header
             return
-        elif exists(self.filename):
+        if exists(self.filename):
             return
         # prepare file definitions (column header and units)
         telemetry = [list(flatten(self.columns)),
                      list(flatten(self.units))]
         # prepare datafile
-        print(f"Creating new datafile: {output_filename}")
+        print(f"Creating new datafile: {self.filename}")
         if self.hdf5 is True:
             telemetry.append(list(flatten(self.dtypes)))
             telemetry.append(list(flatten(self.chunks, types=(list, ))))

@@ -4,6 +4,7 @@
 # ---
 import ast
 import logging
+import numbers
 import os
 import pickle
 import sys
@@ -11,7 +12,8 @@ import threading
 import time
 import warnings
 
-from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
+from matr1x import (datetimefmt, logfolder, output_extension, scpi_tcpserver,
+                    system)
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import Get
@@ -127,23 +129,33 @@ class ControlWindow(QMainWindow):
     extra_cmds: dict, optional
       Dictionary of commands offered for the measurement system. Commands from
       the GuiDict object are merged together with this list.
+    parent: Qt parent class
+    package: str
+      package name used in the generated log files
+    logging: bool, or number
+      flag to enable logging on startup of the control GUI. If a numerical
+      value is given than the integer part of it will be used as interval (in
+      seconds) for the logging function.
     """
     sig_error = pyqtSignal(type, Exception, str)
     activity = pyqtSignal(str)
     deactivate = pyqtSignal(bool)
 
-    def __init__(self, name, guidicts=None, extra_cmds=None, parent=None):
+    def __init__(self, name, guidicts=None, extra_cmds=None, parent=None,
+                 package="matr1x", logging=False):
         # work around a bug in PyQt which can cause a segfault after a Python
         # exception. see issue #357
         os.environ["QT_NO_FT_CACHE"] = "1"
 
         super().__init__(parent=parent)
         self.setWindowTitle(name)
-        self.settings = QSettings("matr1x", name)
+        self.settings = QSettings(package, name)
         # initialize paramaters
         self.running = False
         self.logging = False
-        self.logfile = os.path.join(logfolder, name + ".ma7")
+        self.logfile = os.path.join(
+            logfolder,
+            f"{package}.{name}_{time.strftime(datetimefmt)}{output_extension}")
         self.terminate_log = False
         self.terminated_log = False
         self.terminate = False
@@ -156,7 +168,7 @@ class ControlWindow(QMainWindow):
         self._local_server = None
         # initialize data logging system
         self.S_log = system.System()
-        self.S_log.__name__ = f"{name}_control_logging_system"
+        self.S_log.__name__ = f"{package}.{name}_control_logging_system"
         # initialize data logging dictionaries
         if guidicts:
             self.guidicts = list(guidicts)
@@ -249,6 +261,13 @@ class ControlWindow(QMainWindow):
             g.dock.visibilityChanged.connect(self.check_dock_status)
             g.dock.dockClosed.connect(self.check_dock_status)
             g.dock.topLevelChanged.connect(self.needToAdjustSize)
+
+        # enable logging if requested by arguments
+        self._run_log_on_start = False
+        if logging:
+            self._run_log_on_start = True
+            if isinstance(logging, numbers.Number):
+                self.interval.setValue(logging)
 
     # GUI functions
     def initUI(self):
@@ -377,7 +396,7 @@ class ControlWindow(QMainWindow):
         self.deactivate.connect(self.deactivate_gui)
         self.togglelog = QPushButton("start log")
         self.togglelog.setCheckable(True)
-        self.togglelog.setMaximumWidth(70)
+        self.togglelog.setMaximumWidth(120)
         selectlog = QPushButton("select log file")
         selectlog.setMaximumWidth(140)
         self.configlog = QPushButton("show log config")
@@ -525,6 +544,7 @@ class ControlWindow(QMainWindow):
                     v.widgets[-1].setVisible(checked)
 
     def toggleLog(self, checkstate):
+        self.togglelog.setChecked(checkstate)
         # clear system of all parameters
         self.S_log.clear_parameters()
         # add timestamp to system
@@ -532,15 +552,15 @@ class ControlWindow(QMainWindow):
         # set up system with selected values
         for i, guidict in enumerate(self.guidicts):
             for key in guidict:
-                var = guidict[key]
+                variable = guidict[key]
                 # make sure it is a loggable widget
-                if len(var.widgets) > 2 and var.log is not None:
-                    if var.widgets[-1].checkState() == Qt.CheckState.Checked:
+                if len(variable.widgets) > 2 and variable.log is not None:
+                    if variable.widgets[-1].checkState() == Qt.CheckState.Checked:
                         # make sure check state is True and if so add to
                         # logged parameters
                         self.S_log.add_param(
                             f"dict{i}/{key}", "",
-                            getter=lambda v=var: v.value)
+                            getter=lambda v=variable: v.value)
         if len(self.S_log.parameters) == 1:
             print("No logging parameters were selected")
             return
@@ -584,10 +604,10 @@ class ControlWindow(QMainWindow):
         # allow selecting a logfile
         filename = QFileDialog.getSaveFileName(
             self, "Select log file", logfolder,
-            "data log files (*.ma7)")[0]
+            f"data log files (*{output_extension})")[0]
         self.logfile = filename or self.logfile
-        if "ma7" not in self.logfile:
-            self.logfile += ".ma7"
+        if not self.logfile.endswith(output_extension):
+            self.logfile += output_extension
         self.loglabel.setText(os.path.basename(self.logfile))
 
     @catchEmitError
@@ -611,7 +631,6 @@ class ControlWindow(QMainWindow):
         """
         This is the main loop updating the GUI fields!
         Here, the read out needs to be conducted thread safe.
-        Needs to be implemented by every subclass.
 
         The main loop should terminate once self.terminate is set to True and
         set self.terminated once its successfully finished.
@@ -619,8 +638,11 @@ class ControlWindow(QMainWindow):
         Typically this class shall be decorated with the error handler to catch
         and terminate upon an uncaught Python exception.
         """
-        # start guidicts and get minimum period
-        refresh_period = 1
+        # start guidicts and get minimum/maximum period
+        # minimal period used as check interval for the shutdown
+        min_period = 1
+        # maximal period serves as delay for the potential start of the log
+        max_period = 1
         for guidict in self.guidicts:
             dockw = guidict.dock
             if not dockw.isVisible():
@@ -628,9 +650,16 @@ class ControlWindow(QMainWindow):
                 guidict.restoreFeatures()
             else:
                 guidict.start()
-            refresh_period = min(refresh_period, guidict.refresh_period)
+            min_period = min(min_period, guidict.refresh_period)
+            max_period = max(max_period, guidict.refresh_period)
+        if self._run_log_on_start:
+            # delay log start by one refresh_period with the hope that then all
+            # values are initialized
+            timer = threading.Timer(max_period,
+                                    lambda: self.toggleLog(True))
+            timer.start()
         while True:
-            time.sleep(refresh_period)
+            time.sleep(min_period)
             if self.terminate:
                 for guidict in self.guidicts:
                     if guidict.running:
@@ -665,7 +694,7 @@ class ControlWindow(QMainWindow):
             extra_gui_dict.set_cmd_funcs(window_obj=self, sys=self.S)
             self.cmd_list = extra_gui_dict.cmds
             for guidict in self.guidicts:
-                for name, cmd in guidict.cmds.items():
+                for name in guidict.cmds.keys():
                     if name in self.cmd_list:
                         raise ValueError(
                             f"command {name} from {guidict} is already present."
