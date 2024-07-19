@@ -11,7 +11,7 @@ import sysconfig
 import tempfile
 import textwrap
 import time
-from os.path import abspath, isabs
+from os.path import abspath, isabs, isdir, isfile, join, relpath, sep
 
 import numpy as np
 
@@ -42,6 +42,51 @@ def get_package_path(package_name):
     if spec and spec.origin:
         return os.path.dirname(spec.origin)
     return None
+
+
+def get_importable_module_name(filename):
+    """
+    Obtain import module name if the filename corresponds to an installed
+    Python (sub)module, otherwise returns False.
+    """
+    # Normalize the path
+    filename = abspath(filename)
+
+    # Check if the file exists and is a Python file or
+    # a directory with __init__.py
+    if filename.endswith('.py') and isfile(filename):
+        module_path = filename[:-3]  # Remove the .py extension
+    elif isdir(filename) and isfile(join(filename, '__init__.py')):
+        module_path = filename
+    else:
+        return False
+
+    # Find the most specific base path in sys.path that matches
+    # the start of the module_path
+    best_match = None
+    best_len = 0
+
+    for base_path in sys.path:
+        base_path = abspath(base_path)
+        if module_path.startswith(base_path) and len(base_path) > best_len:
+            best_match = base_path
+            best_len = len(base_path)
+
+    if best_match:
+        # Remove the base_path from the module_path and convert to module name
+        relative_path = relpath(module_path, best_match)
+        module_name = relative_path.replace(sep, '.')
+
+        # Check if the module is installed
+        try:
+            spec = importlib.util.find_spec(module_name)
+            if spec is not None:
+                return module_name
+            return False
+        except ImportError:
+            return False
+    else:
+        return False
 
 
 def create_temp_dir_with_symlinks(names, targets):

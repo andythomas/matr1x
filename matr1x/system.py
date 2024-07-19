@@ -10,12 +10,12 @@ import collections
 import importlib
 import re
 import time
-from os.path import exists, expanduser, isfile, join, splitext
+from os.path import exists, expanduser, isfile, splitext
 
 import numpy as np
 from pymeasure.instruments import Instrument
 
-from . import datetimefmt, output_extension, systems_directory
+from . import datetimefmt, output_extension
 from .util import (construct_query_string, default_separator, flatten,
                    init_ascii_header, init_hdf5_skel, module_from_path)
 
@@ -356,16 +356,16 @@ class System:
         if isfile(normfilename):
             mod = module_from_path(normfilename)
         else:  # no file found, try installed system files
-            normfilename = splitext(normfilename)[0]
-            fullfilename = join(systems_directory,
-                                normfilename + ".py")
+            if normfilename.endswith(".py"):
+                normfilename = splitext(normfilename)[0]
 
-            if isfile(fullfilename):
-                mod = module_from_path(fullfilename)
-            else:
+            try:
+                mod = importlib.import_module(normfilename)
+            except ModuleNotFoundError:
+                # try matr1x system as fallback
                 mod = importlib.import_module(
                     "." + normfilename, "matr1x.systems")
-                mod.sys.__name__ = normfilename
+            mod.sys.__name__ = normfilename
         return mod.sys
 
     @property

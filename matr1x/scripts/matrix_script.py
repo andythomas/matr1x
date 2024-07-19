@@ -22,7 +22,8 @@ import matr1x
 import pyflakes.api
 import pyflakes.reporter
 from matr1x.control.util import QtGracefulKiller
-from matr1x.util import generate_script, generate_script_prefix_suffix
+from matr1x.util import (generate_script, generate_script_prefix_suffix,
+                         get_importable_module_name)
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
@@ -1527,8 +1528,9 @@ class MainWindow(QMainWindow):
             return
         self.last_loaded_file = filename
         filename = os.path.realpath(filename)
-        if os.path.dirname(filename) == matr1x.systems_directory:
-            self.system_list.addItem(basename(filename))
+        module_name = get_importable_module_name(filename)
+        if module_name:
+            self.system_list.addItem(module_name)
         else:
             self.system_list.addItem(filename)
         self.systems_dirty = True

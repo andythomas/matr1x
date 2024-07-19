@@ -38,18 +38,13 @@ except ImportError:
                                  QSizePolicy, QTextEdit, QVBoxLayout, QWidget)
 
 import pyqtgraph as pg
-from matr1x import datetimefmt, system_shortcut_directory
-from matr1x import systems as core_systems
-from matr1x import usersfolder
+from matr1x import datetimefmt, system_shortcut_directory, usersfolder
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import CustomViewBox, validator
 from matr1x.system import MergedSystem
-from matr1x.util import calculate_sweep, generate_col_index
+from matr1x.util import (calculate_sweep, generate_col_index,
+                         get_importable_module_name)
 from numpy import linspace, uint
-
-# overwrite core_systems with list of systems
-core_systems = [splitext(system)[0] for system in
-                os.listdir(core_systems.__path__[0]) if "system" in system]
 
 if os.name == 'nt':
     try:
@@ -347,9 +342,6 @@ class MainWindow(QMainWindow):
             self.reset_layout()
             return
         modulestr = ""
-        filenames = [splitext(basename(filename))[0] if
-                     splitext(basename(filename))[0] in core_systems
-                     else filename for filename in filenames]
         # update entries in GUI list
         for j, systemfile in enumerate(filenames):
             self.systemList.item(j).setText(systemfile)
@@ -816,7 +808,12 @@ class MainWindow(QMainWindow):
         if "" == filename:
             return
         self.last_loaded_file = filename
-        self.systemList.addItem(os.path.realpath(filename))
+        filename = os.path.realpath(filename)
+        module_name = get_importable_module_name(filename)
+        if module_name:
+            self.systemList.addItem(module_name)
+        else:
+            self.systemList.addItem(filename)
         self.filename_changed()
 
     def delete_selected_system(self):
@@ -935,7 +932,8 @@ class MainWindow(QMainWindow):
                 elif "comboF" == label[1] and "Function" in label[0]:
                     currentWidget.setCurrentText(self.functions[col])
                 elif "boolean" == label[1] and "Up" in label[0]:
-                    currentWidget.setCheckState(self.up_down[col])
+                    currentWidget.setCheckState(
+                        Qt.CheckState(self.up_down[col]))
                 elif "int" == label[1] and "Repeat" in label[0]:
                     if 1 == self.repeat[col]:
                         currentWidget.setText("")

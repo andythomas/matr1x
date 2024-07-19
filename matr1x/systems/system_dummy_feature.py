@@ -98,7 +98,7 @@ sys.dcdata["Source"] = "dummy system for testing matr1x-matrix"
 sys.add_dev("dev1", dummy, args=("TCPIP::localhost::10008::SOCKET", ),
             kwargs={"p1": 5, "p4": [5, 3, 2, 1]}, config_params={"p4":
                                                                  "p4"})
-sys.add_dev("dev2", dummy, args=("TCPIP::localhost::10007::SOCKET", ))
+sys.add_dev("dev2", dummy, args=("TCPIP::localhost::10009::SOCKET", ))
 
 # ============================
 # define columns for measurement
@@ -114,17 +114,17 @@ sys.add_dev("dev2", dummy, args=("TCPIP::localhost::10007::SOCKET", ))
 # to be used when setting the device (used if no value is specified
 # in the sweep file)
 sys.add_param(
-    ["dev p3a", "dev p3b"], ["cnta", "cntb"],
+    ["dev1 p3a", "dev1 p3b"], ["cnta", "cntb"],
     ["dev1", "p3"],
     ["dev1", "p3"])
 sys.add_param(
-    "dev p2", "cnt",
+    "dev1 p2", "cnt",
     setter=["dev1", "p2"],
     getter=["dev1", "p2"],
     trigger=["dev1", "trg"],
     default=5.)
 sys.add_param(
-    "dev p1", "cnt",
+    "dev1 p1", "cnt",
     None,
     ["dev1", "p1"])
 sys.add_param(
