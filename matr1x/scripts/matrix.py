@@ -306,9 +306,9 @@ def main():
                         help="Name of the operator/user for the data file header")
     parser.add_argument("-S", "--sample", default=None,
                         help="sample identification for the data file header")
-    parser.add_argument("-af", "--append", default=0, type=int,
-                        help="instead of appending a continuous number" +
-                        "to the output file, append to last file")
+    parser.add_argument("-af", "--append", action='store_true',
+                        help="instead of appending a continuous number " +
+                        "to the output file, append to output file.")
     parser.add_argument("-p", "--plain", action='store_true',
                         help="use plain output instead of the urwid library")
 
