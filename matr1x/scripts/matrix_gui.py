@@ -3,6 +3,7 @@
 # (c) 2024 matr1x developers. All rights reserved.
 # ---
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -22,8 +23,8 @@ try:
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QPushButton, QTextEdit,
-                                 QVBoxLayout, QWidget)
+                                 QListWidget, QMessageBox, QPushButton,
+                                 QTextEdit, QVBoxLayout, QWidget)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
@@ -31,8 +32,8 @@ except ImportError:
     from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QPushButton, QTextEdit,
-                                 QVBoxLayout, QWidget)
+                                 QListWidget, QMessageBox, QPushButton,
+                                 QTextEdit, QVBoxLayout, QWidget)
 
 
 def signal_handler(signal, frame):
@@ -207,6 +208,35 @@ class MainWindow(QWidget):
         self.thread = ExecThread()
         self.thread.filename_received.connect(self.outputEdit.setText)
         self.thread.finished.connect(self.processFinished)
+
+        # Define the allowed extension pattern
+        self.allowed_extension_pattern = re.compile(r'\.\d+t$')
+        # Enable dragging and dropping onto the widget
+        self.setAcceptDrops(True)
+
+    def is_valid_extension(self, file_path):
+        return self.allowed_extension_pattern.search(file_path) is not None
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if len(urls) == 1:
+            file_path = urls[0].toLocalFile()
+            if self.is_valid_extension(file_path):
+                self.inputEdit.setText(file_path)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Invalid File",
+                    f"Only files with extensions matching .<number>t are supported.")
+        else:
+            QMessageBox.warning(self, "Multiple Files",
+                                "Please drop only a single file.")
 
     def closeEvent(self, event):
         if self.sg is not None:
