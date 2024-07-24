@@ -1102,6 +1102,7 @@ class System:
             self.filename = output_filename
         if not output_filename and self._file_mode == "a":
             # in case append is true, do not create a new header
+            print(f"Appending to datafile: {self.filename}")
             return
         if exists(self.filename):
             return
