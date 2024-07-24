@@ -153,9 +153,11 @@ class ControlWindow(QMainWindow):
         # initialize paramaters
         self.running = False
         self.logging = False
-        self.logfile = os.path.join(
-            logfolder,
-            f"{package}.{name}_{time.strftime(datetimefmt)}{output_extension}")
+        filename = f"{package}.{name}_{time.strftime(datetimefmt)}{output_extension}"
+        if os.name == 'nt':
+            # Windows does not like : in filenames
+            filename = filename.replace(":", "")
+        self.logfile = os.path.join(logfolder, filename)
         self.terminate_log = False
         self.terminated_log = False
         self.terminate = False
@@ -266,7 +268,7 @@ class ControlWindow(QMainWindow):
         self._run_log_on_start = False
         if logging:
             self._run_log_on_start = True
-            if isinstance(logging, numbers.Number):
+            if not isinstance(logging, bool) and isinstance(logging, numbers.Number):
                 self.interval.setValue(logging)
 
     # GUI functions
