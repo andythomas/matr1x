@@ -511,7 +511,7 @@ class System:
             self.filename = datafile
             self._file_mode = "w"
             return self.filename
-        if append is True:
+        if append:
             self.filename = datafile
             self._file_mode = "a"
             return self.filename
@@ -527,13 +527,7 @@ class System:
                 continue
             break
 
-        if bool(append) is True and 0 != extension:
-            # if there is a file with that name already:
-            # change to the append mode
-            self.filename = f"{outfile}_{extension-1}{file_extension}"
-            self._file_mode = "a"
-            return self.filename
-        # in this case start a new file
+        # as last resort start a new file
         # append the next possible number as file extension
         self.filename = f"{outfile}_{extension}{file_extension}"
         self._file_mode = "w"
@@ -1108,6 +1102,7 @@ class System:
             self.filename = output_filename
         if not output_filename and self._file_mode == "a":
             # in case append is true, do not create a new header
+            print(f"Appending to datafile: {self.filename}")
             return
         if exists(self.filename):
             return
