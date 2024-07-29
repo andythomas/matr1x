@@ -8,6 +8,7 @@ functions
 """
 import collections
 import importlib
+import os
 import re
 import time
 from os.path import exists, expanduser, isfile, splitext
@@ -503,6 +504,9 @@ class System:
         else:  # no output nor input file, generate from system names
             timestamp = time.strftime(datetimefmt, time.localtime())
             datafile = f"{timestamp}_{self.__name__}"
+            if os.name == 'nt':
+                # Windows does not like : in filenames
+                datafile = datafile.replace(":", "")
         # check if file extension was provided
         if not re.search(f"{refileext}$", datafile):
             datafile = re.sub(r"(\.h5)?\.ma\d$", "", datafile) + file_extension
