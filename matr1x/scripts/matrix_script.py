@@ -1701,6 +1701,8 @@ class MainWindow(QMainWindow):
         self.kill_button.setEnabled(flag)
         self.script_edit.setReadOnly(flag)
         self.start_button.setEnabled(not flag)
+        self.load_button.setEnabled(not flag)
+        self.help_sys_button.setEnabled(not flag)
         self.add_button.setEnabled(not flag)
         self.del_button.setEnabled(not flag)
 
