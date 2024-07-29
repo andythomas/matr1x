@@ -215,6 +215,8 @@ def generate_script_prefix_suffix(systems):
     import time as _time
     import types as _types
 
+    import wrapt
+
     import matr1x as _matr1x
     import matr1x.util as _matrix_util
 
@@ -240,20 +242,24 @@ def generate_script_prefix_suffix(systems):
     _preset = _starttime
 
 
-    def _lineno_decorator(func):
+    @wrapt.decorator
+    def _lineno_decorator(wrapped, instance, args, kwargs):
         "decorator to report the executing line number back to the GUI"
-        def wrapper(*args, **kwargs):
-            _report_line(_inspect.currentframe().f_back.f_lineno)
-            return func(*args, **kwargs)
-        return wrapper
+        frame = _inspect.currentframe().f_back
+        caller_name = frame.f_code.co_name
+        caller_filename = frame.f_code.co_filename
+        line_number = frame.f_lineno
+        if caller_name == "<module>" and caller_filename == "<string>":
+            # report line only if called directly from script
+            _report_line(line_number)
+        return wrapped(*args, **kwargs)
 
 
-    def _breakpoint(func):
+    @wrapt.decorator
+    def _breakpoint(wrapped, instance, args, kwargs):
         "decorator to add a breakpoint check"
-        def wrapper(*args, **kwargs):
-            _wait(0)
-            return func(*args, **kwargs)
-        return wrapper
+        _wait(0)
+        return wrapped(*args, **kwargs)
 
 
     def _inject_decorator(instance, decorator):
@@ -273,11 +279,13 @@ def generate_script_prefix_suffix(systems):
             else:
                 _setvalues.append(None)
 
-
-    # inject breakpoint decorator to system methods
+    # inject line number decorator to time.sleep
+    _time.sleep = _lineno_decorator(_time.sleep)
+    # inject breakpoint and line number decorators to system methods
     _inject_decorator(_system, _breakpoint)
-    for sys in _system.subsys:
-        _inject_decorator(sys, _breakpoint)
+    for subsys in _system.subsys:
+        _inject_decorator(subsys, _breakpoint)
+        _inject_decorator(subsys, _lineno_decorator)
     _reset_setvalues()  # initialize the setvalues variable
     # bring meta_data and system into namespace
     meta_data = _system.dcdata
