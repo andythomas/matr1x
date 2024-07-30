@@ -142,6 +142,11 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                                     c.setfunc(*c.setargs)
                                 else:
                                     c.setfunc(castval, *c.setargs)
+                                # send back ASCII acknowledge character
+                                # this is crucial on Linux where the
+                                # request/reply pattern has to be strictly
+                                # obeyed, otherwise some ~40ms delay is caused.
+                                response.append('\x06')
                         except (IndexError, TypeError, ValueError):
                             # in case of incorrectly sent command do nothing
                             pass

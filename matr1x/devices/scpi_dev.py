@@ -84,6 +84,13 @@ def makeSCPIdevice(*cmds, sys=True):
         """query function, needs to be present to work with system"""
         return self.ask(cmd)
 
+    def check_set_errors(self):
+        reply = self.read()
+        if reply != '\x06':
+            raise ValueError(
+                "Wrong reply received when there should be an acknowledge.")
+        return []
+
     def create_setnwait(attr, pollattr):
         """return a set and wait method which can be used in system files"""
 
@@ -99,6 +106,7 @@ def makeSCPIdevice(*cmds, sys=True):
 
         def parameterless(self, cmd=cmd):
             Instrument.write(self, cmd)
+            check_set_errors(self)
         return parameterless
 
     def id(self):
@@ -106,7 +114,11 @@ def makeSCPIdevice(*cmds, sys=True):
         return self.idn
 
     attributes = dict()
-    methods = {"__init__": constructor, "query": query, "id": id}
+    methods = {"__init__": constructor,
+               "query": query,
+               "id": id,
+               "check_set_errors": check_set_errors,
+               }
 
     # make id standard config parameter
     attributes["config_params"] = {"id": "idn"}
@@ -153,9 +165,11 @@ def makeSCPIdevice(*cmds, sys=True):
                 # create parameterless functions (e.g. trigger)
                 methods[f'{att}'] = create_parameterless(name)
             else:
+                kwargs['check_set_errors'] = True
                 attributes[att] = Instrument.setting(
                     name + f' {stringplaceholder}', f"set {att}", **kwargs)
         else:  # here both setfunc and getfunc are real
+            kwargs['check_set_errors'] = True
             attributes[att] = Instrument.control(
                 name + '?', name + f' {stringplaceholder}',
                 f"get/set {att}", **kwargs)
