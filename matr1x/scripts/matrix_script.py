@@ -19,7 +19,8 @@ from os.path import basename, dirname, join
 
 import autopep8
 import matr1x
-import pyflakes.api
+import pyflakes.checker
+import pyflakes.messages
 import pyflakes.reporter
 from matr1x.control.util import QtGracefulKiller
 from matr1x.util import (generate_script, generate_script_prefix_suffix,
@@ -73,6 +74,29 @@ STYLES = {
     QsciLexerPython.Identifier: QColor('black'),
     QsciLexerPython.Number: QColor('brown'),
 }
+
+# pyflakes warnings that trigger an error
+LINTER_ERRORS = [
+    "UndefinedName",
+    "UndefinedExport",
+    "UndefinedLocal",
+    "DuplicateArgument",
+    "ReturnOutsideFunction",
+    "YieldOutsideFunction",
+    "ContinueOutsideLoop",
+    "BreakOutsideLoop",
+    "IfTuple",
+    "AssertTuple",
+    "IsLiteral",
+    "StringDotFormatExtraNamedArguments",
+    "StringDotFormatMissingArgument",
+    "StringDotFormatInvalidFormat",
+    "StringDotFormatInvalidFormat",
+    "PercentFormatInvalidFormat",
+    "PercentFormatPositionalCountMismatch",
+    "PercentFormatExtraNamedArguments",
+    "PercentFormatMissingArgument",
+]
 
 SCRIPT_OFFSET = len(generate_script_prefix_suffix("")[0].split('\n'))
 
@@ -140,9 +164,12 @@ class CustomReporter(pyflakes.reporter.Reporter):
         Reimplementing the flaker function, called if formatting or similar
         error is found (naming etc.)
         """
+        style = 0
+        if message.__class__.__name__ in LINTER_ERRORS:
+            style = 1
         self.linter_hook(message.lineno-SCRIPT_OFFSET, message.col-4,
                          message.message % message.message_args,
-                         message.message_args, 0)
+                         message.message_args, style)
 
     def syntaxError(self, filename, msg, lineno, offset, text):
         """
@@ -772,6 +799,8 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         according to what matrix_script would do when one presses the run
         button. Custom definitions for parameters that are passed by the
         process are made here.
+
+        Returns -1 if a syntax error was found
         """
         # remove potential annotations from previous linting run
         self.clearAnnotations()
@@ -788,10 +817,43 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             script += "_report_line=lambda x:x;_user='';_sample='';"
             script += "_scriptname='';"
             script += generate_script("", self.text())
-            ret = pyflakes.api.check(script, 'sc', reporter=self.reporter)
-            print(f"Linter found {ret if ret != 0 else 'no'} error" +
-                  ("." if ret == 1 else "s."))
-            return ret
+            # reimplement the pyflakes.api.check function
+            scriptname = "sc"
+            ret_err = 0
+            try:
+                tree = ast.parse(script, filename=scriptname)
+            except SyntaxError as e:
+                self.reporter.syntaxError(scriptname, e.args[0], e.lineno,
+                                          e.offset, e.text)
+                ret_err = -1
+            except Exception:
+                self.reporter(scriptname, "problem decoding source")
+                ret_err = -1
+            if ret_err == -1:
+                print("Linter found a syntax error.")
+                return ret_err
+            w = pyflakes.checker.Checker(tree, filename=scriptname)
+            w.messages.sort(key=lambda m: m.lineno)
+            n_err = 0
+            for warning in w.messages:
+                self.reporter.flake(warning)
+                if warning.__class__.__name__ in LINTER_ERRORS:
+                    ret_err = -1
+                    n_err += 1
+            n_msg = len(w.messages)
+            n_warn = n_msg - n_err
+            print_str = "Linter found "
+            if n_msg == 0:
+                print_str += "no issues."
+                print(print_str)
+            else:
+                if n_err > 0:
+                    print_str += f"{n_err} error{'s' if n_err > 1 else ''}"
+                    print_str += " and " if n_warn > 0 else "."
+                if n_warn > 0:
+                    print_str += f"{n_warn} warning{'s' if n_warn > 1 else ''}."
+                print(print_str)
+            return ret_err
         print("Nothing to lint")
         return 0
 
@@ -806,12 +868,13 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         # print(f"Error in line {line+1} at position {col+1} : \n  {message}")
         self.indicatorDefine(QsciScintilla.IndicatorStyle.FullBoxIndicator,
                              style)
+        offset = 0
         if len(message_args) > 0:
-            self.fillIndicatorRange(line, col, line, col+len(message_args[0]),
-                                    style)
-        else:
-            self.fillIndicatorRange(line, col, line, col+0,
-                                    style)
+            # TODO: Look at all message_args and see which make sense to
+            # include here
+            if isinstance(message_args[0], (str, tuple, list)):
+                offset = len(message_args[0])
+        self.fillIndicatorRange(line, col, line, col+offset, style)
         self.annotate(line, message, style)
         # move the cursor to the position of the last error
         self.setCursorPosition(line, col)
@@ -1740,7 +1803,7 @@ class MainWindow(QMainWindow):
         #    print("==========")
         #    return
         # run linter to make sure there are no errors
-        if 0 != self.script_edit.run_linter():
+        if -1 == self.script_edit.run_linter():
             print("Script execution was halted because of linter errors")
             print("==========")
             qApp = QApplication.instance()
