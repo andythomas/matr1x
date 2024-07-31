@@ -48,7 +48,7 @@ def parse_inputfile(inputfile, system):
         # get key
         key = arg[0]
         # properly handles "aa", "ab", "ba" and also logpoint (last)
-        return sum([(ord(c)-96)*26**i for i, c in enumerate(key[::-1])])
+        return sum((ord(c) - 96) * 26**i for (i, c) in enumerate(key[::-1]))
     # define the line parser for the matrix inputfile
     # parses parameters as 0 = -a val(s), 1 = -b val(s), etc.
     pointparser = argparse.ArgumentParser(add_help=False)
@@ -65,8 +65,9 @@ def parse_inputfile(inputfile, system):
     with open(inputfile, 'r') as parameterfile:
         for nr, line in enumerate(parameterfile):
             # jump over comments
-            if (line[0] != "#"):
-                # divide the string into a list and read the values into datapoint
+            if line[0] != "#":
+                # divide the string into a list and
+                # read the values into datapoint
                 parameterlist = shlex.split(line)
                 for i, arg in enumerate(parameterlist):
                     if (arg[0] == '-') and arg[1].isdigit():
@@ -154,10 +155,11 @@ def measurementloop(inputfile, system,
     return 0
 
 
-def measure_plain(inputfile, system):
+def measure_plain(inputfile, system, quiet=False):
     """
-    measurement loop with plain print output to the terminal
-    (mainly for continuous integration on Github actions)
+    measurement loop with plain print output to the terminal or reduced output
+    when quiet is set to True. This measurement mode is mainly used for
+    continuous integration on Github actions and use on MS Windows.
     """
 
     def inputcb(n):
@@ -165,7 +167,7 @@ def measure_plain(inputfile, system):
         if key in ('q', 'Q'):
             sys.stdout.write(f"Note: aborted with q after {n} points\n\n\n")
             return 1
-        elif key in ('p', 'P'):
+        if key in ('p', 'P'):
             sys.stdout.write("paused - continue with 'p'\n")
             # wait for unpause with p
             while True:
@@ -175,18 +177,25 @@ def measure_plain(inputfile, system):
                     sys.stdout.write(
                         f"Note: aborted with q after {n} points\n\n\n")
                     return 1
-                elif key in ('p', 'P'):
+                if key in ('p', 'P'):
                     break
         return 0
 
-    # print header
-    print_formatted_line(list(flatten(system.columns)))
-    print_formatted_line(list(flatten(system.units)))
-    ret = measurementloop(inputfile, system,
-                          lambda s: print_formatted_line(s, "Set : "),
-                          lambda r: print_formatted_line(r, "Meas: "),
-                          lambda t: print(t),
-                          inputcb)
+    if not quiet:
+        # print header
+        print_formatted_line(list(flatten(system.columns)))
+        print_formatted_line(list(flatten(system.units)))
+
+        ret = measurementloop(inputfile, system,
+                              lambda s: print_formatted_line(s, "Set : "),
+                              lambda s: print_formatted_line(s, "Meas: "),
+                              print, inputcb)
+    else:
+        ret = measurementloop(inputfile, system,
+                              readvalcb=lambda s: print(
+                                  ".", end="", flush=True),
+                              inputcb=inputcb)
+        print("")  # produce newline at end of measurement
 
     return ret
 
@@ -264,7 +273,7 @@ def measure_urwid(inputfile, systemfile, system):
                 if key in ('q', 'Q'):
                     msg += f"Note: aborted with q after {n} points"
                     return 1
-                elif key in ('p', 'P'):
+                if key in ('p', 'P'):
                     msg += f"paused at {time.time()} after {n} points\n"
                     status.set_text("paused - continue with 'p'")
                     loop.draw_screen()
@@ -276,7 +285,7 @@ def measure_urwid(inputfile, systemfile, system):
                             if key in ('q', 'Q'):
                                 msg += f"Note: aborted with q after {n} points"
                                 return 1
-                            elif key in ('p', 'P'):
+                            if key in ('p', 'P'):
                                 flag = False
                     status.set_text("")
                     loop.draw_screen()
@@ -311,6 +320,8 @@ def main():
                         "to the output file, append to output file.")
     parser.add_argument("-p", "--plain", action='store_true',
                         help="use plain output instead of the urwid library")
+    parser.add_argument("-q", "--quiet", action='store_true',
+                        help="produce reduced output (no measurement data)")
 
     # parse the command line
     options = parser.parse_args()
@@ -337,7 +348,7 @@ def main():
     # import self made libraries
     if options.systemfile is None:
         if systemfile is None:
-            exit("no system file specified")
+            sys.exit("no system file specified")
         else:
             # find system from input file
             options.systemfile = systemfile
@@ -348,7 +359,7 @@ def main():
 
     # get columns from input file to verify input file was generated with the
     # same system version (i.e. has the same parameter names and units)
-    settable, settable_names, settable_units = system.settable_columns()
+    _, settable_names, settable_units = system.settable_columns()
 
     # verify that input file has correct columns and units
     if ((settable_names != settable_names_file or
@@ -360,7 +371,7 @@ def main():
               "Are you sure you want to continue?\n")
         resp = input("Please enter (y/n): ").strip()
         if "y" != resp:
-            exit()
+            sys.exit()
 
     # obtain output file name and mode used to open the file
     output_filename = system.generate_datafilename(
@@ -390,13 +401,13 @@ def main():
     # read the parameter input file
     try:
         # enforce plain interface on Windows because urwid would fail
-        if options.plain or os.name == 'nt':
+        if options.plain or options.quiet or os.name == 'nt':
             control_string = "To pause or quit after next point, press p/q"
             if os.name != 'nt':
                 control_string += " and enter"
-                # print help string for pause in plain version on windows
+            # print help string for pause in plain version
             print(control_string)
-            ret = measure_plain(options.inputfile, system)
+            ret = measure_plain(options.inputfile, system, quiet=options.quiet)
         else:
             ret, msg = measure_urwid(
                 options.inputfile, options.systemfile, system)
