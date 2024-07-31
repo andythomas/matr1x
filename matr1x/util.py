@@ -684,7 +684,7 @@ def matrix_script_process(filename, user="", sample="",
                 if the script exits with an error """
             try:
                 self.n_pref = len(
-                    generate_script_prefix_suffix("")[0].split('\n')) - 1
+                    generate_script_prefix_suffix("")[0].splitlines())
                 try:
                     _vars = {"_wait": self.breakpoint,
                              "_report_line": self.report_line,
@@ -707,9 +707,9 @@ def matrix_script_process(filename, user="", sample="",
                                    "line " + str(int(ms.group(1))-self.n_pref),
                                    tbstr)
                     tbstr = tbstr.replace("<module>", "script")
-                    tbstr = tbstr.replace("file \"<string>\"",
+                    tbstr = tbstr.replace("File \"<string>\"",
                                           "\"{}\"".format(
-                                              self.script.split("\n")[line-1]))
+                                              self.script.splitlines()[line-1]))
                     print(tbstr)
                     if line < 1:
                         print(" error during device initialization\n")

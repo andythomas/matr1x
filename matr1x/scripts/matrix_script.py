@@ -804,11 +804,11 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         """
         # remove potential annotations from previous linting run
         self.clearAnnotations()
-        lastLine = len(self.text().split("\n")) - 1
-        lenLast = len(self.text().split("\n")[-1])
+        last_line = len(self.text().splitlines()) - 1
+        len_last = len(self.text().splitlines()[-1])
         # remove potential indicators from previous linting run
         for i in range(2):
-            self.clearIndicatorRange(0, 0, lastLine, lenLast, i)
+            self.clearIndicatorRange(0, 0, last_line, len_last, i)
         if self.text().strip() != "":
             # add initial definitions that are passed to the script
             # externally to avoid linter errors, make sure not to add an
@@ -861,7 +861,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         """
         call back function that is passed to the reporter of the linter.
         """
-        if line < 0 or line >= len(self.text().split("\n")):
+        if line < 0 or line >= len(self.text().splitlines()):
             print("error outside script", message)
             return
         # remove comment to add verbose output of linter to status_preview
@@ -1066,7 +1066,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         )
         # Get the selected text and split it into lines
         selected_text = self.selectedText()
-        selected_list = selected_text.split("\n")
+        selected_list = selected_text.splitlines()
         # Find the smallest indent level
         indent_levels = []
         for line in selected_list:
@@ -1735,10 +1735,10 @@ class MainWindow(QMainWindow):
         helper function that clears all annotations in the QScntilla edit
         """
         self.script_edit.clearAnnotations()
-        lastLine = len(self.script_edit.text().split("\n")) - 1
-        lenLast = len(self.script_edit.text().split("\n")[-1])
+        last_line = len(self.script_edit.text().splitlines()) - 1
+        len_last = len(self.script_edit.text().splitlines()[-1])
         self.script_edit.clearIndicatorRange(
-            0, 0, lastLine, lenLast, 1)
+            0, 0, last_line, len_last, 1)
 
     def enable_buttons(self, flag):
         """
@@ -1850,9 +1850,8 @@ class MainWindow(QMainWindow):
                  "grab_information(settables=True))"
                  ],
                 capture_output=True)
-
             return ast.literal_eval(
-                settable_info.stdout.decode().split("\n")[-2])
+                settable_info.stdout.decode().splitlines()[-1])
         except Exception:
             return None
 
@@ -1913,7 +1912,7 @@ class MainWindow(QMainWindow):
         # take out script and remove trailling newlines
         script = self.script_edit.text().rstrip()
         newscript = header
-        for i, line in enumerate(script.split("\n")):
+        for i, line in enumerate(script.splitlines()):
             if i < 3 and "# system " in line:
                 # if there are already definitions of the system, skip them
                 continue
