@@ -23,7 +23,8 @@ import pyflakes.checker
 import pyflakes.messages
 import pyflakes.reporter
 from matr1x.control.util import QtGracefulKiller
-from matr1x.util import (generate_script, generate_script_prefix_suffix,
+from matr1x.util import (create_temp_dir_with_symlinks, generate_script,
+                         generate_script_prefix_suffix,
                          get_importable_module_name)
 
 # Try to import Qt6 and fallback to Qt5 if not available
@@ -1337,6 +1338,7 @@ class MainWindow(QMainWindow):
         self.systems_dirty = False
         self.last_loaded_file = None
         self.is_running = False
+        self.shortcut_dir = None
 
         self.output_stream = EmittingStream(text_written=self.output_written)
 
@@ -1580,7 +1582,13 @@ class MainWindow(QMainWindow):
         """
         Opens a QFileDialog with filter system*.py
         """
-        directory = matr1x.system_shortcut_directory
+        directory = matr1x.system_directories[-1]
+        if not self.shortcut_dir and len(matr1x.system_names) > 1:
+            self.shortcut_dir = create_temp_dir_with_symlinks(
+                matr1x.system_names, matr1x.system_directories)
+        if self.shortcut_dir:
+            directory = os.path.join(self.shortcut_dir.name,
+                                     matr1x.system_names[-1])
         if self.last_loaded_file:
             directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog

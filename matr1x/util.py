@@ -11,6 +11,7 @@ import sysconfig
 import tempfile
 import textwrap
 import time
+from contextlib import contextmanager
 from os.path import abspath, isabs, isdir, isfile, join, relpath, sep
 
 import numpy as np
@@ -21,6 +22,22 @@ if os.name == "nt":
 else:
     import termios
     from select import select
+
+# allow error handling while using with
+
+
+@contextmanager
+def open_and_error(filename, mode="r"):
+    try:
+        f = open(filename, mode)
+    except Exception as error:
+        yield None, error
+    else:
+        try:
+            yield f, None
+        finally:
+            f.close()
+
 
 # sweep functions for sweep generator
 sweepFunctions = {"x^2": lambda x: np.power(x, 2), "sqrt": np.sqrt,

@@ -22,20 +22,10 @@ import traceback
 import urwid
 from matr1x.system import MergedSystem
 from matr1x.util import (flatten, flush_input, generate_col_index,
-                         nonblocking_getch, print_formatted_line,
-                         telemetry_string)
+                         nonblocking_getch, open_and_error,
+                         print_formatted_line, telemetry_string)
 
 from . import MATRIX_GUI_PORT
-
-
-def report_filename_to_gui(filename):
-    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        clientSocket.connect(("127.0.0.1", MATRIX_GUI_PORT))
-    except ConnectionRefusedError:
-        # GUI not running, just ignore this error
-        return
-    clientSocket.send(filename.encode())
 
 
 def parse_inputfile(inputfile, system):
@@ -329,33 +319,54 @@ def main():
     # flush input buffer to avoid old inputs to mess with a new measurement
     flush_input()
 
+    # initialize socket to GUI, done in the beginning to ensure that the GUI
+    # is not stuck waiting for the connection
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        client_socket.connect(("127.0.0.1", MATRIX_GUI_PORT))
+    except ConnectionRefusedError:
+        # GUI not running, just ignore this error
+        client_socket = None
+
     # check input file header for system file information
     systemfile = None
-    with open(options.inputfile, 'r') as f:
-        for line in f:
-            if "# System" in line:
-                systemfile = line.replace(
-                    "# System filename : ", "").split(",")
-            if "# Settable columns" in line:
-                settable_names_file = line.strip().replace(
-                    "# Settable columns : ", "").split(",")
-            if "# Settable units" in line:
-                settable_units_file = line.strip().replace(
-                    "# Settable units : ", "").split(",")
-            if "#" != line[0]:
-                break
+    with open_and_error(options.inputfile, 'r') as (f, err):
+        if err:
+            print("matrix: error:", err)
+            sys.exit(1)
+        else:
+            for line in f:
+                if "# System" in line:
+                    systemfile = line.replace(
+                        "# System filename : ", "").split(",")
+                if "# Settable columns" in line:
+                    settable_names_file = line.strip().replace(
+                        "# Settable columns : ", "").split(",")
+                if "# Settable units" in line:
+                    settable_units_file = line.strip().replace(
+                        "# Settable units : ", "").split(",")
+                if "#" != line[0]:
+                    break
 
     # import self made libraries
     if options.systemfile is None:
         if systemfile is None:
-            sys.exit("no system file specified")
+            print("matrix: error: no system file specified")
+            sys.exit(1)
         else:
             # find system from input file
             options.systemfile = systemfile
             # replace option with correct systems
 
     # merge all systems into new system (works also for single systems)
-    system = MergedSystem.from_files(options.systemfile)
+    try:
+        system = MergedSystem.from_files(options.systemfile)
+    except ModuleNotFoundError:
+        print("matrix: error: system file does not exist")
+        sys.exit(1)
+    except PermissionError:
+        print("matrix: error: system file not readable")
+        sys.exit(1)
 
     # get columns from input file to verify input file was generated with the
     # same system version (i.e. has the same parameter names and units)
@@ -371,12 +382,16 @@ def main():
               "Are you sure you want to continue?\n")
         resp = input("Please enter (y/n): ").strip()
         if "y" != resp:
-            sys.exit()
+            sys.exit(0)
 
     # obtain output file name and mode used to open the file
     output_filename = system.generate_datafilename(
         options.outputfile, options.inputfile, options.append)
-    report_filename_to_gui(output_filename)
+
+    # report filename to GUI if GUI is active and close socket
+    if client_socket is not None:
+        client_socket.send(output_filename.encode())
+        client_socket.close()
 
     # initialize devices and notify user what is going on
     print("setting devices")
@@ -384,7 +399,11 @@ def main():
 
     # acquire configuration from devices and notify user what is going on
     print("devices set, acquiring configuration")
-    query_dict = system.query()
+    try:
+        query_dict = system.query()
+    except Exception:
+        print(f"matrix: error: could not aquire configuration.")
+        sys.exit(1)
 
     # initialize header and insert command line options into measurement
     # file (can include device config etc.)
@@ -394,7 +413,11 @@ def main():
         system.dcdata["Creator"] = options.user
     if options.sample is not None:
         system.dcdata["Identifier"] = options.sample
-    system.write_matrix_header(options.inputfile, query_dict)
+    try:
+        system.write_matrix_header(options.inputfile, query_dict)
+    except IOError:
+        print("matrix: error: cannot create output file")
+        sys.exit(1)
 
     # do the loop
     print("entering loop now")

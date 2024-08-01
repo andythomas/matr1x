@@ -936,22 +936,27 @@ class System:
         retquery = {}
         for key, dev in self.devs.items():
             # get device
-            if key in self.system_config_params.keys() and hasattr(
-                    dev, "config_params"):
-                # device config_params are specified in system and device
-                retquery[key] = device_query(
-                    dev, {**self.system_config_params[key],
-                          **dev.config_params})
-            elif key in self.system_config_params.keys():
-                # device config query is specified in system
-                retquery[key] = device_query(dev,
-                                             self.system_config_params[key])
-            elif hasattr(dev, "config_params"):
-                # device has config query specified, should return dictionary
-                retquery[key] = device_query(dev, dev.config_params)
-            else:
-                # no query details available
-                retquery[key] = {}
+            try:
+                if key in self.system_config_params.keys() and hasattr(
+                        dev, "config_params"):
+                    # device config_params are specified in system and device
+                    retquery[key] = device_query(
+                        dev, {**self.system_config_params[key],
+                              **dev.config_params})
+                elif key in self.system_config_params.keys():
+                    # device config query is specified in system
+                    retquery[key] = device_query(dev,
+                                                 self.system_config_params[key])
+                elif hasattr(dev, "config_params"):
+                    # device has config query specified, should return dictionary
+                    retquery[key] = device_query(dev, dev.config_params)
+                else:
+                    # no query details available
+                    retquery[key] = {}
+            except Exception as error:
+                print(
+                    f"system: error: could not access '{key}': {dev} {error}")
+                raise
         return retquery
 
     def reset(self, *args, **kwargs):

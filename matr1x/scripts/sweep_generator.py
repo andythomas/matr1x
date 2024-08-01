@@ -38,12 +38,12 @@ except ImportError:
                                  QSizePolicy, QTextEdit, QVBoxLayout, QWidget)
 
 import pyqtgraph as pg
-from matr1x import datetimefmt, system_shortcut_directory, usersfolder
+from matr1x import datetimefmt, system_directories, system_names, usersfolder
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import CustomViewBox, validator
 from matr1x.system import MergedSystem
-from matr1x.util import (calculate_sweep, generate_col_index,
-                         get_importable_module_name)
+from matr1x.util import (calculate_sweep, create_temp_dir_with_symlinks,
+                         generate_col_index, get_importable_module_name)
 from numpy import linspace, uint
 
 if os.name == 'nt':
@@ -208,6 +208,7 @@ class MainWindow(QMainWindow):
 
         self.system = system
         self.inputcb = inputcb
+        self.shortcut_dir = None
 
         # column variables
         self.flat_col = []
@@ -798,7 +799,13 @@ class MainWindow(QMainWindow):
         """
         Opens a QFileDialog with filter system*.py
         """
-        directory = system_shortcut_directory
+        directory = system_directories[-1]
+        if not self.shortcut_dir and len(system_names) > 1:
+            self.shortcut_dir = create_temp_dir_with_symlinks(
+                system_names, system_directories)
+        if self.shortcut_dir:
+            directory = os.path.join(self.shortcut_dir.name,
+                                     system_names[-1])
         if self.last_loaded_file:
             directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog

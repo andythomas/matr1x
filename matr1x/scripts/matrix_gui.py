@@ -427,6 +427,9 @@ class MainWindow(QWidget):
         if "" == inputFile:
             self.statusBar.append("No input file specified")
             return
+        if not exists(inputFile):
+            self.statusBar.append("Input file does not exist")
+            return
         param = (inputFile, outputFile,
                  self.userField.text(), self.sampleField.text(),
                  self.commentField.toPlainText())
