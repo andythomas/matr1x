@@ -449,6 +449,11 @@ class SimplePlotWidget(QGroupBox):
                     self.md = True
                     slider.setVisible(True)
                     slider.set_range(0, dshape[1]-1)
+                elif ((len(dshape) > 1 and dshape[1] == 1) and
+                      self.plot2d is False):
+                    # array is 2d and second dimension is exactly 1
+                    # do not show sliders in this case (only one element)
+                    self.md = True
                 else:
                     # reset hidden slider to zero to avoid intereference
                     # with new data

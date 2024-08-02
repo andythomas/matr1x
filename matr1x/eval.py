@@ -220,6 +220,8 @@ def loadmatrix(filename, structured=True, print_header=False):
         else:
             # otherwise generates a plain array only from the data
             data = np.genfromtxt(filename, skip_header=i+1, delimiter="\t")
+        if data.shape == ():
+            data = np.atleast_1d(data)
 
     if print_header is True:
         # generate list of tuples with index and column name
