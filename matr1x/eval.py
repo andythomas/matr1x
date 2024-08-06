@@ -21,13 +21,11 @@ from natsort import natsorted
 # File handling
 ######################
 def detect_hdf5(filename):
-    file = open(filename, "rb")
-    first_bytes = file.read(4)
-    file.close()
-    if (first_bytes == b'\x89HDF'):
+    with open(filename, "rb") as file:
+        first_bytes = file.read(4)
+    if first_bytes == b'\x89HDF':
         return True
-    else:
-        return False
+    return False
 
 
 def get_latest_datafile(path=None, basename=None):
@@ -77,11 +75,11 @@ def get_latest_datafile(path=None, basename=None):
 
     if len(files) > 0:
         return join(usedpath, files[-1])
-    else:
-        return None
+    return None
 
 
-def loadmatrix(filename, structured=True, print_header=False):
+def loadmatrix(filename, structured=True, print_header=False,
+               replace_None=False):
     """
     Utility function to open matrix ascii data as well as hdf5 files generated
     by matrix.
@@ -99,6 +97,8 @@ def loadmatrix(filename, structured=True, print_header=False):
     print_header : bool, optional
       if true, prints the column names read from the file together with their
       index
+    replace_None : boolean, optional
+      set to True to replace None values by nan to allow plotting
 
     Returns
     -------
@@ -108,7 +108,7 @@ def loadmatrix(filename, structured=True, print_header=False):
     the data object
     """
     tries = 0
-    header = dict(columns=[], units=[])
+    header = {"columns": [], "units": []}
     if detect_hdf5(filename):
         if 'h5py' not in sys.modules:
             # disable file locking in h5py
@@ -137,7 +137,7 @@ def loadmatrix(filename, structured=True, print_header=False):
             raise OSError("File could not be opened even after 10 tries")
 
         # generate header
-        header['columns'] = [key for key in h5f["data"].keys()]
+        header['columns'] = list(h5f["data"].keys())
         header['units'] = [it.attrs["unit"] for it in h5f["data"].values()]
         for key, val in h5f.attrs.items():
             if val == "__None__":
@@ -166,10 +166,10 @@ def loadmatrix(filename, structured=True, print_header=False):
         h5f.close()
 
     else:
-        with open(filename, "r") as matrixFile:
+        with open(filename, "r") as matrix_file:
             headerlines = 0
             depth = 0
-            for i, line in enumerate(matrixFile):
+            for i, line in enumerate(matrix_file):
                 # parse header from lines that start with hashtag
                 if "#" == line[0]:
                     if line[depth+1] == '#':  # multiline entry
@@ -203,12 +203,15 @@ def loadmatrix(filename, structured=True, print_header=False):
                 header[key] = val.strip('"')  # strip " from header strings
 
         # we now have (i+1) as the number of lines to skip
+        kwargs = {'delimiter': '\t'}
+        if replace_None:
+            kwargs['missing_values'] = 'None'
+            kwargs['filling_values'] = np.nan
         if structured is True:
             # generate a structured array with the column names as identifier
             try:
                 data = np.genfromtxt(filename, skip_header=i,
-                                     delimiter="\t", names=structured,
-                                     dtype=None)
+                                     names=structured, dtype=None, **kwargs)
             except IndexError:
                 # IndexError is raised in case an incomplete header is present
                 print("loadmatrix: incomplete data file header")
@@ -219,13 +222,13 @@ def loadmatrix(filename, structured=True, print_header=False):
                 header["columns"] = []
         else:
             # otherwise generates a plain array only from the data
-            data = np.genfromtxt(filename, skip_header=i+1, delimiter="\t")
+            data = np.genfromtxt(filename, skip_header=i+1, **kwargs)
         if data.shape == ():
             data = np.atleast_1d(data)
 
     if print_header is True:
         # generate list of tuples with index and column name
-        print([(i, col) for (i, col) in enumerate(header["columns"])])
+        print(list(enumerate(header["columns"])))
     return header, data
 
 
@@ -241,10 +244,9 @@ def loadh5matrix(filename, filehandle=False):
             use h5py.File(filename, 'r', swmr=True, libver='latest') to open
             the datafile for reading if loadmatrix is not sufficient.
             """)
-    else:
-        warnings.warn(
-            "loadh5matrix will be removed soon. use loadmatrix instead")
-        return loadmatrix(filename)
+    warnings.warn(
+        "loadh5matrix will be removed soon. use loadmatrix instead")
+    return loadmatrix(filename)
 
 
 ######################
@@ -272,9 +274,8 @@ def delta(data):
     if len(data) % 2:
         return (np.add(data[:-1:2], data[1::2])/2,
                 np.subtract(data[:-1:2], data[1::2])/2)
-    else:
-        return (np.add(data[::2], data[1::2])/2,
-                np.subtract(data[::2], data[1::2])/2)
+    return (np.add(data[::2], data[1::2])/2,
+            np.subtract(data[::2], data[1::2])/2)
 
 
 def delta3p(data):
@@ -304,6 +305,5 @@ def delta3p(data):
                        2*data[1:-off:3])/4,
                 np.subtract(np.add(data[:-off:3], data[2:-off:3]),
                             2*data[1:-off:3])/4)
-    else:
-        return (np.add(np.add(data[::3], data[2::3]), 2*data[1::3])/4,
-                np.subtract(np.add(data[::3], data[2::3]), 2*data[1::3])/4)
+    return (np.add(np.add(data[::3], data[2::3]), 2*data[1::3])/4,
+            np.subtract(np.add(data[::3], data[2::3]), 2*data[1::3])/4)

@@ -582,7 +582,8 @@ class SweepPreview(QMainWindow):
         """
         try:
             ret = 0
-            self.header, self.data = loadmatrix(self.filename)
+            self.header, self.data = loadmatrix(self.filename,
+                                                replace_None=True)
             names = self.header["columns"]
             units = self.header["units"]
             shapes = [self.data[col].shape for col in names]
