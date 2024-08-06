@@ -98,10 +98,12 @@ class ExecThread(QThread):
         print(f"matrix ended with returncode: {ret}")
 
     def run_as_fg_process(self, *args, **kwargs):
+        # Code of this function was adapted from
+        # https://stackoverflow.com/a/66727983/3504203,
+        # it was published under CC BY-SA 4.0,
+        # https://creativecommons.org/licenses/by-sa/4.0/
+        # Modifications were made to use a primitive fallback on MS Windows.
         """
-        from https://stackoverflow.com/a/66727983/3504203
-        On Windows a primitive fallback is used!
-
         the "correct" way of spawning a new subprocess:
         signals like C-c must only go
         to the child process, and not to this python.

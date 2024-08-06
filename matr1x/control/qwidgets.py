@@ -3,7 +3,7 @@
 # (c) 2024 matr1x developers. All rights reserved.
 # AnimatedToggle adapted from
 # https://www.pythonguis.com/tutorials/pyqt6-animated-widgets/
-# accessed 03.03.2023
+# licensed under MIT-license
 # ---
 import warnings
 
@@ -22,12 +22,31 @@ except ImportError:
 
 
 class AnimatedToggle(QCheckBox):
+    # This text is included pursuant to the obligations of this upstream licence
+    # and must be retained in any derivatives of this class.
+    # This specific class may be used under the terms of the MIT-license:
+    # Permission is hereby granted, free of charge, to any person obtaining a
+    # copy of this software and associated documentation files (the “Software”),
+    # to deal in the Software without restriction, including without limitation
+    # the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    # and/or sell copies of the Software, and to permit persons to whom the
+    # Software is furnished to do so, subject to the following conditions:
+    #
+    # The above copyright notice and this permission notice shall be included in
+    # all copies or substantial portions of the Software.
+    #
+    # THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+    # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    # DEALINGS IN THE SOFTWARE.
     """
     Animated toggle switch used for GuiDict activation/deactivation.
 
     Code was adapted from
     https://www.pythonguis.com/tutorials/pyqt6-animated-widgets
-    (accessed 03.03.2023)
     """
     _transparent_pen = QPen(Qt.GlobalColor.transparent)
     _light_grey_pen = QPen(Qt.GlobalColor.lightGray)

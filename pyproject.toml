@@ -3,6 +3,18 @@ name = "matr1x"
 version = "7.2.0"
 description = "Python package for data acquisition and measurement control"
 requires-python = ">=3.6"
+license = {text = "GPL-3.0-or-later"}
+classifiers = [
+  "Private :: Do Not Upload",
+  "Development Status :: 5 - Production/Stable",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering",
+  "Intended Audience :: Science/Research",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+]
 dependencies = [
   "natsort",
   "numpy",

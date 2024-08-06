@@ -207,10 +207,12 @@ class CustomReporter(pyflakes.reporter.Reporter):
         self.linter_hook(lineno, offset, *ret, 1)
 
 
-# below code is adapted from the eric7 editor
+# code of the rxIndex function, CompleterPython and QScintillaCustom classes
+# unless otherwise noted adapted from the eric7 editor
+# https://eric-ide.python-projects.org/index.html
 # -*- coding: utf-8 -*-
 # Copyright (c) 2007 - 2023 Detlev Offenbach <detlev@die-offenbachs.de>
-# license is GPLv3
+# licensed under GPLv3
 #
 def rxIndex(rx, txt):
     """
@@ -232,6 +234,7 @@ def rxIndex(rx, txt):
 
 
 class CompleterPython(QObject):
+    # adapted from https://hg.die-offenbachs.homelinux.org/eric/file/eric7/src/eric7/QScintilla/TypingCompleters/CompleterPython.py
     """
     Class implementing a python completer
     """
@@ -747,10 +750,11 @@ class CompleterPython(QObject):
 
 
 class QScintillaCustom(QsciScintilla, DroppableWidget):
+    # adapted from https://hg.die-offenbachs.homelinux.org/eric/file/eric7/src/eric7/QScintilla/QsciScintillaCompat.py
+    # with commenting functionality from https://github.com/matkuki/qscintilla_docs/blob/master/examples/commenting.py
+    # both licensed under GPLv3
     """
-    Commenting functionality adapted from
-    https://github.com/matkuki/qscintilla_docs/blob/master/examples/commenting.py
-    License is GPLv3.
+    Custom QSciScintilla editor with basic commenting functionality.
     """
     comment_string = "# "
     line_ending = "\n"
