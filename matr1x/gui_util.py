@@ -1,11 +1,15 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
 # (c) 2024 matr1x developers. All rights reserved.
+# CustomDateAxis adapted from
+# https://pyqtgraph.readthedocs.io/en/latest/_modules/pyqtgraph/graphicsItems/AxisItem.html#AxisItem.tickValues
+# licensed under MIT-license
 # ---
 """
 This module contains gui related functions that are required by the sweep
 generator and matrix_gui
 """
+import datetime
 import warnings
 
 import numpy as np
@@ -313,6 +317,14 @@ class SimplePlotWidget(QGroupBox):
                 else:
                     self.plt.setPen(None)
 
+            self.date_axis = {
+                "bottom": CustomDateAxisItem(orientation='bottom'),
+                "top": CustomDateAxisItem(orientation='top'),
+                "left": CustomDateAxisItem(orientation='left'),
+                "right": CustomDateAxisItem(orientation='right')}
+            self.ordinary_axis = {"bottom": self.pw.getAxis("bottom"),
+                                  "left": self.pw.getAxis("left")}
+
             # initialize storage variables
             self.labels = ["", "", ""]
             self.units = ["", "", ""]
@@ -496,8 +508,8 @@ class SimplePlotWidget(QGroupBox):
                 # for 2d plot, select index of current data element
                 self._handle_multidim_data()
                 self.plt.setCurrentIndex(val)
-                self.pw.setTitle(f"p{self.index} - {self.x[val]} "
-                                 f"{self.units[0]}")
+                self.pw.setTitle(f"p{self.index} at {self.labels[1]} "
+                                 f"= {self.x[val]} {self.units[1]}")
             else:
                 # for curve, handle the data and replot
                 self._handle_multidim_data()
@@ -584,9 +596,13 @@ class SimplePlotWidget(QGroupBox):
                     self.plt.setImage(self.z, pos=[0, 0], scale=[1, 1],
                                       xvals=self.x,
                                       axes={"t": 0, "x": 1, "y": 2})
+                    # make sure top and right axis are hidden
+                    for i, ax in zip(range(2), ["right", "top"]):
+                        self.pw.hideAxis(ax)
                     # set labels to array index, same as on the y-axis
-                    self.pw.setLabel("bottom", self.labels[2],
-                                     self.units[2])
+                    self.pw.setLabel("bottom", self.labels[2], self.units[2])
+                    self.vb.setAspectLocked(False)
+                    self.vb.invertY(False)
                 else:
                     # 2d data follows different dimensioning scheme
                     x0, x1 = self.x[0], self.x[-1]
@@ -599,11 +615,14 @@ class SimplePlotWidget(QGroupBox):
                     # pcolormesh would support x/y/z data
                     # self.plt.setData(self.z)  # for pcolormesh
                     # self.bar.setImageItem(self.plt)  # support colorbar
-                    self.pw.setLabel("bottom", self.labels[1],
-                                     self.units[1])
+                    for i, ax in zip(range(1, 3), ["top", "right"]):
+                        if self.labels[i] == "timeUTC":
+                            self.pw.setAxisItems({ax: self.date_axis[ax]})
+                        elif self.pw.getAxis(ax).isVisible():
+                            self.pw.hideAxis(ax)
+                    for i, ax in zip(range(1, 3), ["bottom", "left"]):
+                        self.pw.setLabel(ax, self.labels[i], self.units[i])
                 self.pw.getAxis("left").textWidth = 0
-                self.pw.setLabel("left", self.labels[2],
-                                 self.units[2])
                 # remove aspect lock for free zooming and do not invert y axis
                 self.vb.setAspectLocked(False)
                 self.vb.invertY(False)
@@ -611,10 +630,13 @@ class SimplePlotWidget(QGroupBox):
                 # for curves apply math, set labels and data
                 z, x = self._get_math(self.z, self.x)
                 self.pw.getAxis("left").textWidth = 0
-                self.pw.setLabel("bottom", self.labels[1],
-                                 self.units[1])
-                self.pw.setLabel("left", self.labels[0],
-                                 self.units[0])
+                for i, ax in zip(range(2), ["right", "top"]):
+                    if self.labels[i] == "timeUTC":
+                        self.pw.setAxisItems({ax: self.date_axis[ax]})
+                    elif self.pw.getAxis(ax).isVisible():
+                        self.pw.hideAxis(ax)
+                for i, ax in zip(range(2), ["left", "bottom"]):
+                    self.pw.setLabel(ax, self.labels[i], self.units[i])
                 self.plt.setData(x=x, y=z, *args, **kwargs)
 
     def __init__(self, cb_error, cb_index, parent=None):
@@ -980,6 +1002,113 @@ class CustomViewBox(pg.ViewBox):
             self.setMouseMode(self.RectMode)
         else:
             pg.ViewBox.mouseDragEvent(self, ev, axis)
+
+
+class CustomDateAxisItem(pg.DateAxisItem):
+    # This text is included pursuant to the obligations of this upstream licence
+    # and must be retained in any derivatives of this class.
+    # This specific class may be used under the terms of the MIT-license:
+    # Permission is hereby granted, free of charge, to any person obtaining a
+    # copy of this software and associated documentation files (the “Software”),
+    # to deal in the Software without restriction, including without limitation
+    # the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    # and/or sell copies of the Software, and to permit persons to whom the
+    # Software is furnished to do so, subject to the following conditions:
+    #
+    # The above copyright notice and this permission notice shall be included in
+    # all copies or substantial portions of the Software.
+    #
+    # THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+    # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    # DEALINGS IN THE SOFTWARE.
+
+    def tickValues(self, minVal, maxVal, size,):
+        """
+        Return the values and spacing of ticks to draw::
+
+            [
+                (spacing, [major ticks]),
+                (spacing, [minor ticks]),
+                ...
+            ]
+
+        By default, this method calls tickSpacing to determine the correct
+        tick locations.
+        """
+        minVal, maxVal = sorted((minVal, maxVal))
+
+        minVal *= self.scale
+        maxVal *= self.scale
+
+        ticks = []
+        tickLevels = self.tickSpacing(minVal, maxVal, size)
+        allValues = np.array([])
+        for i in range(len(tickLevels)):
+            spacing, offset = tickLevels[i]
+
+            # determine starting tick
+            start = (np.ceil((minVal-offset) / spacing) * spacing) + offset
+
+            # determine number of ticks
+            num = int((maxVal-start) / spacing) + 1
+            values = (np.arange(num) * spacing + start) / self.scale
+            # remove any ticks that were present in higher levels
+            # we assume here that if the difference between a tick value and
+            # a previously seen tick value
+            # is less than spacing/100, then they are 'equal' and we can
+            # ignore the new tick.
+            close = np.any(
+                np.isclose(allValues, values[:, np.newaxis],
+                           rtol=0, atol=spacing/self.scale*0.01),
+                axis=-1
+            )
+            values = values[~close]
+            allValues = np.concatenate([allValues, values])
+            ticks.append((spacing/self.scale, values.tolist()))
+
+        if self.logMode:
+            # not tested
+            return self.logTickValues(minVal, maxVal, size, ticks)
+
+        return ticks
+
+    def tickStrings(self, values, scale, spacing):
+        """
+        Return the labels corresponding to the tick values depending on the
+        spacing
+
+            [ tick labels corresponding to values ]
+
+        """
+
+        # Choose the date format based on the scale
+        if spacing < 0.5:  # less than 0.5 seconds
+            fmt = '%S.%f'
+        elif spacing < 5:  # less than 5 seconds
+            fmt = '%M:%S.%f'
+        elif spacing < 100:  # less than a minute
+            fmt = '%H:%M:%S'
+        elif spacing < 4000:  # less than an hour
+            fmt = '%H:%M'
+        elif spacing < 80000:  # less than a day
+            fmt = '%m-%d %H:%M'
+        elif spacing < 6e5:  # less than a week
+            fmt = '%m-%d %Hh'
+        elif spacing < 2.5e6:  # less than a month
+            fmt = '%y-%m-%d'
+        else:
+            fmt = '%Y-%m-%d'
+
+        # Convert timestamps to formatted date strings
+        if spacing >= 5:
+            return [datetime.datetime.fromtimestamp(
+                value).strftime(fmt) for value in values]
+        return [datetime.datetime.fromtimestamp(
+            value).strftime(fmt).rstrip("0") for value in values]
 
 
 class EmittingStream(QObject):
