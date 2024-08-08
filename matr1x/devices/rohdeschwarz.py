@@ -9,36 +9,38 @@ from .visadevice import VisaDevice
 
 class FSW8(VisaDevice):
     """
-    The device class for the Agilent PSA E4440A.
+    The device class for the Rohde & Schwarz FSW8 spectrum analyzer.
     It can possibly be used with different models with little changes.
     """
-    config_params = {"n_points": "SWE:POIN?",
-                     "resBW_Hz": "BWID:RES?",
-                     "vidBW_Hz": "BWID:VID?",
-                     "refLev_dBm": "DISP:TRAC:Y:RLEV?",
-                     "intPreamp_status": "INP:GAIN:STAT?",
-                     "intPreamp_value_dB": "INP:GAIN:VAL?",
-                     "average_status": "AVER:STAT?",
-                     "average_type": "AVER:TYPE?",
-                     "n_average": "AVERage:COUNt?",
-                     "attenuation_auto_status": "INP:ATT:AUTO?",
-                     "attenuation_value_dB": "INP:ATT?",
-                     "sweep_type": "SWE:TYPE?",
-                     "sweep_time_s": "SWE:TIME?",
-                     "sweep_optimization": "SWE:OPT?",
-                     "detector_type": "DET?",
-                     "coupling_type": "INP:COUP?",
-                     "noise_cancellation": "POW:NCOR?",
-                     }
+
+    config_params = {
+        "n_points": "SWE:POIN?",
+        "resBW_Hz": "BWID:RES?",
+        "vidBW_Hz": "BWID:VID?",
+        "refLev_dBm": "DISP:TRAC:Y:RLEV?",
+        "intPreamp_status": "INP:GAIN:STAT?",
+        "intPreamp_value_dB": "INP:GAIN:VAL?",
+        "average_status": "AVER:STAT?",
+        "average_type": "AVER:TYPE?",
+        "n_average": "AVERage:COUNt?",
+        "attenuation_auto_status": "INP:ATT:AUTO?",
+        "attenuation_value_dB": "INP:ATT?",
+        "sweep_type": "SWE:TYPE?",
+        "sweep_time_s": "SWE:TIME?",
+        "sweep_optimization": "SWE:OPT?",
+        "detector_type": "DET?",
+        "coupling_type": "INP:COUP?",
+        "noise_cancellation": "POW:NCOR?",
+    }
 
     maxAverage = 1
     """
-    The maximum average setting of all configured channels.
-    The VNA will trigger that many sweeps, so the averaging
-    requirement for each channel is satisfied.
+    The maximum average setting.
+    The FSW8 will trigger that many sweeps, so the averaging
+    requirement is satisfied.
     """
 
-    def __init__(self, interface, reset=True, timeout=60e6, **kwargs):
+    def __init__(self, interface, reset=True, timeout=60e3, **kwargs):
         """
         Initialize the device.
 
@@ -54,66 +56,105 @@ class FSW8(VisaDevice):
           (Default = True)
           If true, the PSA is reset on object creation using the reset method.
         timeout : int
-          (Default = 60e3)
+          (Default = 60e3 ms)
           The timeout of the ethernet connection.
         **kwargs :
           Keyword arguments passed to the VISAdevice constructor.
         """
-        super().__init__(interface, write_termination="\n",
-                         read_termination="\n", timeout=timeout,
-                         **kwargs)
+        super().__init__(
+            interface,
+            write_termination="\n",
+            read_termination="\n",
+            timeout=timeout,
+            **kwargs,
+        )
         if reset:
             self.reset()
 
     def reset(self):
         """
-        Reset the VNA using the SYST:FPRESET command.
-        Note that this does not reset the data transfer format!
-        Use *RST for this
+        Reset the FSW8.
         """
-        # self.write("SYST:PRES")  # SYSTem:PRESet
-        self.write('*RST')
-        self.write('INIT:CONT OFF')
+        self.write("*RST")
+        self.write("INIT:CONT OFF")
         self.maxAverage = 1
 
     @synchronized
-    def configureSweep(self, swePoints, refLev, resBW, vidBW=None,
-                       intpreamp=None,
-                       average=None, avgType='power',
-                       attAuto=True, attVal=0,
-                       detector='rms',
-                       sweType='fft', getData=False):
+    def configureSweep(
+        self,
+        swePoints,
+        refLev,
+        resBW,
+        vidBW=None,
+        intpreamp=None,
+        average=None,
+        avgType="power",
+        detector="rms",
+        attAuto=True,
+        attVal=0,
+        sweType="fft",
+        getData=False,
+    ):
         """
-        Change the sweep settings in the given channel.
+        Change the sweep settings.
         Frequency units are in Hz.
-        'MIN'/'MAX' arguments can be used insted of actual numbers,
-        and use the highest/lowest setting the VNA is cappable of.
 
         Parameters
         ----------
-        fStart : int
-            The frequency on which the sweep starts.
-        fEnd : int
-            The frequency on which the sweep end.
-        fPoints : int or 'MIN'/'MAX'
+        swePoints : int
             The number of points per sweep.
-        if_bw : int
-            The bandwidth of the digital IF filter.
-            A lower value usually means a slower, but more accurate mesurement.
+        refLev : int
+            Defines the reference level for a spurious emission measurement
+            range.
+        resBW : int
+            Defines the resolution bandwidth and decouples the resolution
+            bandwidth from the span.
+            In the Real-Time application, the resolution bandwidth is always
+            coupled to the span.
+        vidBW : int
+            (Default = None)
+            Defines the video bandwidth.
+            If not None, the command decouples the video bandwidth from the
+            resolution bandwidths.
+        intpreamp : int
+            (Default = None)
+            Turns the internal preamplifier on and off. It requires the
+            optional preamplifier hardware.
+            Note that if an optional external preamplifier is activated, the
+            internal preamplifier is automatically disabled, and vice versa.
+            For R&S FSW 8 or 13 models, the preamplification is defined by
+            INPut<ip>:GAIN[:VALue].
         average : int
-             (Default = None)
+            (Default = None)
             The number of averages which make up the final values.
         avgType : str
-            (Default = 'rms')
+            (Default = 'power')
             The average typ of the mesurement.
+            Currently implemented are 'power': Power levels are converted
+            into Watt prior averaging, 'linear' : Power values are
+            averaged before being converted to logarithmic values
+            and 'logarithmic' : Logarithmic power values are averaged.
+        detector : str
+            (Default = 'rms')
+            The detector typ of the mesurement.
             Currently implemented are 'rms': Power (RMS) averaging,
             'log' : Log-Power (video) averaging and 'scalar' : Voltage
             averaging.
-        scale : str
-          (Default = 'log')
-          The display format of the mesurement.
-          Currently implemented are 'lin': linear and 'log' :
-          logarithmic scale.
+        attAuto : bool
+          (Default = True)
+          Couples or decouples the attenuation to the reference level.
+          Thus, when the reference level is changed, the R&S FSW determines
+          the signal level for optimal internal data processing and sets
+          the required attenuation accordingly.
+        attVal : int
+          (Default = 0)
+          Defines the total attenuation for RF input.
+        sweType : str
+          (Default = 'fft')
+          Selects the sweep type.
+          Currently implemented are 'fft' : FFT mode, 'sweep' : Sweep list
+          and 'auto' : Automatic selection of the sweep type between sweep
+          mode and FFT.
         getData : bool
              (Default =  False)
             If true, trigger a sweep and return the results directly.
@@ -123,14 +164,14 @@ class FSW8(VisaDevice):
             The sweep data (if getData is true).
         """
         if average:
-            if avgType == 'linear':
+            if avgType == "linear":
                 self.write("AVER:TYPE LIN")
                 # The power values are averaged before they are converted
                 # to logarithmic values.
-            elif avgType == 'logarithmic':
+            elif avgType == "logarithmic":
                 self.write("AVER:TYPE VID")
                 # The logarithmic power values are averaged.
-            elif avgType == 'power':
+            elif avgType == "power":
                 self.write("AVER:TYPE POW")
                 # The power level values are converted into unit Watt prior
                 # to averaging. After the averaging, the data is converted
@@ -140,18 +181,18 @@ class FSW8(VisaDevice):
                 # power averaging mode for correct power measurements in FFT
                 # sweep mode
             else:
-                print("Please choose a valid average type! Your input was:{}".format(
-                    avgType))
+                print(
+                    "Please choose a valid average type! Your input was:{}".format(avgType))
             time.sleep(0.5)
-            if detector == 'rms':
+            if detector == "rms":
                 # Calculates the root mean square of all samples contained in a sweep point.
                 self.write("DETector RMS")
-            elif detector == 'average':
+            elif detector == "average":
                 # Calculates the linear average of all samples contained in a sweep point
                 self.write("DETector AVER")
             else:
-                print("Please choose a valid detector type! Your input was:{}".format(
-                    avgType))
+                print(
+                    "Please choose a valid detector type! Your input was:{}".format(avgType))
             self.write("AVER:STAT ON")
             self.write(f"AVER:COUN {average}")
             self.maxAverage = max(average, self.maxAverage)
@@ -178,15 +219,16 @@ class FSW8(VisaDevice):
         if vidBW:
             self.write(f"BWID:VID {str(vidBW)} Hz")
         else:
+            # automatic video bandwidth selection
             self.write("BAND:VID:AUTO ON")
         self.write(f"DISP:TRAC:Y:RLEV {str(refLev)}dbm")
         time.sleep(0.5)
 
-        if sweType == 'fft':  # selects the sweep type
+        if sweType == "fft":  # selects the sweep type
             self.write("SWE:TYPE FFT")
-        elif sweType == 'sweep':
+        elif sweType == "sweep":
             self.write("SWE:TYPE SWE")
-        elif sweType == 'auto':
+        elif sweType == "auto":
             self.write("SWE:TYPE AUTO")
         else:
             print(
@@ -233,8 +275,8 @@ class FSW8(VisaDevice):
     @synchronized
     def startSweep(self):
         """
-        Prepare the PSA for triggering a sweep.
-        The PSA disables the continuous trigger and therefore enables
+        Prepare the FSW8 for triggering a sweep.
+        The FSW8 disables the continuous trigger and therefore enables
         manual triggering. Any currently running sweeps are aborted.
         """
         # aborts the measurement in the current channel and resets the
@@ -261,7 +303,7 @@ class FSW8(VisaDevice):
         self.write("*WAI")
 
     @synchronized
-    def getData(self, precision='single'):
+    def getData(self, precision="single"):
         """
         Transfer mesurement data from the VNA.
 
@@ -281,18 +323,20 @@ class FSW8(VisaDevice):
         data : np.array
             The mesured data from the specified channel.
         """
-        precdict = {'single': ('REAL,32', 4, '>f', 'float32'),
-                    'double': ('REAL,64', 8, '>d', 'float64'),
-                    'ascii': ('ASC,0', None, None)}
+        precdict = {
+            "single": ("REAL,32", 4, ">f", "float32"),
+            "double": ("REAL,64", 8, ">d", "float64"),
+            "ascii": ("ASC,0", None, None),
+        }
 
         try:
-            self.write('FORM {}'.format(precdict[precision][0]))
+            self.write("FORM {}".format(precdict[precision][0]))
         except KeyError:
-            print('{} is not a valid precision'.format(str(precision)))
+            print("{} is not a valid precision".format(str(precision)))
             # return
-        if precision == 'ascii':
+        if precision == "ascii":
             data = self.query("TRAC:DATA? TRACE1")
-            return np.fromstring(data, sep=',').transpose()
+            return np.fromstring(data, sep=",").transpose()
 
         byte_width = precdict[precision][1]
         self.write("TRAC:DATA? TRACE1")
@@ -301,16 +345,16 @@ class FSW8(VisaDevice):
         header2 = self.read(n_header_bytes)
         n_data_bytes = 0
         for i, hbyte in enumerate(header2):
-            n_data_bytes += 10**(n_header_bytes - i - 1) * int(chr(hbyte))
+            n_data_bytes += 10 ** (n_header_bytes - i - 1) * int(chr(hbyte))
         data = self.read(n_data_bytes)
         self.read(1)
 
         values = []
-        for i in range(int(len(data)/byte_width)):
-            data_bit = data[i*byte_width:(i+1)*byte_width]
+        for i in range(int(len(data) / byte_width)):
+            data_bit = data[i * byte_width: (i + 1) * byte_width]
             values.append(unpack(precdict[precision][2], data_bit))
         # add ravel to remove unnecessary dimensions of the array
-        return (np.array(values, dtype=precdict[precision][3]).ravel())
+        return np.array(values, dtype=precdict[precision][3]).ravel()
 
     @synchronized
     def getSweepData(self, channel):
@@ -334,7 +378,7 @@ class FSW8(VisaDevice):
     @synchronized
     def readSweepParams(self):
         """
-        Read the sweep parameters from the VNA.
+        Read the sweep parameters from the FSW8.
         Frequencies are returned in Hz.
 
         Parameters
