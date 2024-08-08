@@ -151,7 +151,10 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                             # in case of incorrectly sent command do nothing
                             pass
                     else:
-                        logger.debug("no valid setter for command: %s", cmd)
+                        logger.debug("'None' setter for command: %s", cmd)
+                        # return "acknowledgement" anyways to allow to continue
+                        # also see comment few lines above why this is in addition needed.
+                        response.append('\x06')
         return response
 
     def handle(self):
