@@ -402,7 +402,7 @@ def main():
     try:
         query_dict = system.query()
     except Exception:
-        print(f"matrix: error: could not aquire configuration.")
+        print("matrix: error: could not aquire configuration.")
         sys.exit(1)
 
     # initialize header and insert command line options into measurement

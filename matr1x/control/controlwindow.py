@@ -20,8 +20,7 @@ from matr1x.util import Get
 
 try:
     from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt6.QtGui import (QIcon, QKeySequence, QPalette, QShortcut,
-                             QTextCursor)
+    from PyQt6.QtGui import QIcon, QKeySequence, QShortcut, QTextCursor
     from PyQt6.QtWidgets import (QApplication, QDockWidget, QFileDialog, QFrame,
                                  QHBoxLayout, QLabel, QMainWindow, QMessageBox,
                                  QPlainTextEdit, QPushButton, QScrollArea,
@@ -31,7 +30,7 @@ except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt5.QtGui import QIcon, QKeySequence, QPalette, QTextCursor
+    from PyQt5.QtGui import QIcon, QKeySequence, QTextCursor
     from PyQt5.QtWidgets import (QApplication, QDockWidget, QFileDialog, QFrame,
                                  QHBoxLayout, QLabel, QMainWindow, QMessageBox,
                                  QPlainTextEdit, QPushButton, QScrollArea,
@@ -291,8 +290,6 @@ class ControlWindow(QMainWindow):
                                   QSizePolicy.Policy.Minimum)
         self.main_layout = QVBoxLayout()
 
-        qApp = QApplication.instance()
-        mainWindowBgColor = QPalette().color(QPalette.ColorRole.Window)
         self.widget.setLayout(self.main_layout)
         self.main_layout.addStretch()
         self.setCentralWidget(self.widget)

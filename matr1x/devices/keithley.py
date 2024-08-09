@@ -554,7 +554,9 @@ class Keithley2182A(VisaDevice):
     # high level functions
     @synchronized
     def configure(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None, range=None, rangeAuto=None, trigBus=None, repeatingFilter=None, reset=False
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
     ):
         """
         Configure the Keitley K2182 to detect voltages
@@ -647,7 +649,9 @@ class Keithley2701(VisaDevice):
     # high level functions
     @synchronized
     def configure4WireOhm(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None, range=None, rangeAuto=None, trigBus=None, repeatingFilter=None, reset=False
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
     ):
         """
         Configure the Keitley 2701 to detect 4wire resistance
@@ -710,7 +714,9 @@ class Keithley2701(VisaDevice):
 
     @synchronized
     def configure2WireOhm(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None, range=None, rangeAuto=None, trigBus=None, repeatingFilter=None, reset=False
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
     ):
         """
         Configure the Keitley 2701 to detect 2wire resistance
@@ -774,7 +780,9 @@ class Keithley2701(VisaDevice):
 
     @synchronized
     def configureVolt(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None, range=None, rangeAuto=None, trigBus=None, repeatingFilter=None, reset=False
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
     ):
         """
         Configure the Keitley 2701 to detect voltages
@@ -873,7 +881,9 @@ class Keithley2000(VisaDevice):
 
     @synchronized
     def configure4WireOhm(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None, range=None, rangeAuto=None, trigBus=None, repeatingFilter=None, reset=False
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
     ):
         """
         Configure the Keitley 2000 to detect 4wire resistance
@@ -935,7 +945,9 @@ class Keithley2000(VisaDevice):
 
     @synchronized
     def configure2WireOhm(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None, range=None, rangeAuto=None, trigBus=None, repeatingFilter=None, reset=False
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
     ):
         """
         Configure the Keitley 2000 to detect 2wire resistance
@@ -998,7 +1010,9 @@ class Keithley2000(VisaDevice):
 
     @synchronized
     def configureVolt(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None, range=None, rangeAuto=None, trigBus=None, repeatingFilter=None, reset=False
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
     ):
         """
         Configure the Keitley 2000 to detect voltages

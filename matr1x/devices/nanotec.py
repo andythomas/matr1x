@@ -167,7 +167,7 @@ class NanotecPD4(VisaDevice):
             self.moving = True
             self.connection.timeout = int(
                 1.5 * abs(1e3 * (int(moves) - position) / speed) + 1e3)
-            while self.moving == True:
+            while self.moving:
                 try:
                     returnStatement = self.read()
                     if returnStatement == "001j161":
@@ -203,7 +203,7 @@ class NanotecPD4(VisaDevice):
         output: None
         """
         position = self.readMoves()
-        speed = self.readInitSpeed()
+        self.readInitSpeed()
         if unit == "deg":
             moves = int(float(self.zero_offset) + float(pos)
                         * float(self.steps_per_deg))
@@ -235,13 +235,13 @@ class NanotecPD4(VisaDevice):
         """
         initRotDir = self.rot_dir
         self.moveClip(posDeg, unit)
-        if self.status_enable == False:
+        if not self.status_enable:
             isMoving = True
-            while isMoving == True:
+            while isMoving:
                 isMoving = self.getMovingStatus()
                 time.sleep(0.1)
         else:
-            while self.moving == True:
+            while self.moving:
                 try:
                     returnStatement = self.read()
                     if returnStatement == "001j161":

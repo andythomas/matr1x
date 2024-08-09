@@ -699,8 +699,8 @@ class PSG8257D(VisaDevice):
           before returning.
         """
         # get number of points and sweep time for timeout estimation
-        n_points = float(self.query(f":SOUR:SWE:POIN?"))
-        sweep_time = float(self.query(f":SOUR:SWE:TIME?"))
+        n_points = float(self.query(":SOUR:SWE:POIN?"))
+        sweep_time = float(self.query(":SOUR:SWE:TIME?"))
 
         self.write(":ABOR")
         # estimate of sweep time by VNA + 1ms for frequency change
@@ -1009,8 +1009,8 @@ class PSA_E4440A(VisaDevice):
           before returning.
         """
         # get number of points and sweep time for timeout estimation
-        n_points = float(self.query(f":SOUR:SWE:POIN?"))
-        sweep_time = float(self.query(f":SOUR:SWE:TIME?"))
+        n_points = float(self.query(":SOUR:SWE:POIN?"))
+        sweep_time = float(self.query(":SOUR:SWE:TIME?"))
 
         for i in range(self.maxAverage):
             # estimate of sweep time by VNA + 1ms for frequency change

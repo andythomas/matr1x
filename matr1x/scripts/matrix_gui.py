@@ -235,7 +235,7 @@ class MainWindow(QWidget):
                 QMessageBox.warning(
                     self,
                     "Invalid File",
-                    f"Only files with extensions matching .<number>t are supported.")
+                    "Only files with extensions matching .<number>t are supported.")
         else:
             QMessageBox.warning(self, "Multiple Files",
                                 "Please drop only a single file.")

@@ -81,7 +81,7 @@ if "<pkgroot>/" in _systems_directory:
 # expand eventual home
 _systems_directory = os.path.expanduser(_systems_directory)
 if not os.path.isdir(_systems_directory):
-    print(f"matrix.conf: option matr1x/systemsDirectory is invalid, using "
+    print("matrix.conf: option matr1x/systemsDirectory is invalid, using "
           "fallback")
     # use fallback option
     _systems_directory = os.path.join(
