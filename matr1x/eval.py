@@ -14,6 +14,7 @@ import warnings
 from os.path import isfile, join, split, splitext
 
 import numpy as np
+import pandas as pd
 from natsort import natsorted
 
 
@@ -98,7 +99,7 @@ def loadmatrix(filename, structured=True, print_header=False,
       if true, prints the column names read from the file together with their
       index
     replace_None : boolean, optional
-      set to True to replace None values by nan to allow plotting
+      set to True to replace None values by 0 to allow plotting
 
     Returns
     -------
@@ -203,28 +204,48 @@ def loadmatrix(filename, structured=True, print_header=False,
                 header[key] = val.strip('"')  # strip " from header strings
 
         # we now have (i+1) as the number of lines to skip
-        kwargs = {'delimiter': '\t'}
+        kwargs = {'sep': '\t', 'low_memory': False, 'comment': '#'}
         if replace_None:
-            kwargs['missing_values'] = 'None'
-            kwargs['filling_values'] = np.nan
+            kwargs['na_values'] = 'None'
         if structured is True:
             # generate a structured array with the column names as identifier
             try:
-                data = np.genfromtxt(filename, skip_header=i,
-                                     names=structured, dtype=None, **kwargs)
+                data = pd.read_csv(filename, skiprows=i, **kwargs)
             except IndexError:
                 # IndexError is raised in case an incomplete header is present
                 print("loadmatrix: incomplete data file header")
                 data = np.empty(0)
-            if data.dtype.names is not None:
-                header["columns"] = data.dtype.names
-            else:
-                header["columns"] = []
+            header["columns"] = data.columns.tolist()
         else:
             # otherwise generates a plain array only from the data
-            data = np.genfromtxt(filename, skip_header=i+1, **kwargs)
-        if data.shape == ():
-            data = np.atleast_1d(data)
+            kwargs["header"] = None
+            data = pd.read_csv(filename, skiprows=i+1, **kwargs)
+        if replace_None:
+            # Define replacement values based on data types
+            replacement_values = {
+                'bool': False,
+                'int': -1,
+                'float': np.nan,
+                'object': 'NaN',  # 'object' dtype is often used for strings in Pandas
+            }
+            # Replace missing values
+            for column in data.columns:
+                if pd.api.types.is_bool_dtype(data[column]):
+                    data[column] = data[column].fillna(
+                        replacement_values['bool'])
+                elif pd.api.types.is_integer_dtype(data[column]):
+                    data[column] = data[column].fillna(
+                        replacement_values['int'])
+                elif pd.api.types.is_float_dtype(data[column]):
+                    data[column] = data[column].fillna(
+                        replacement_values['float'])
+                elif pd.api.types.is_object_dtype(data[column]):
+                    data[column] = data[column].fillna(
+                        replacement_values['object'])
+        if structured is True:
+            data = data.to_records(index=False)
+        else:
+            data = data.to_numpy()
 
     if print_header is True:
         # generate list of tuples with index and column name

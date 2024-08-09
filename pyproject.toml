@@ -18,6 +18,7 @@ classifiers = [
 dependencies = [
   "natsort",
   "numpy",
+  "pandas",
   "psutil",
   "pyflakes",
   "pymeasure",
