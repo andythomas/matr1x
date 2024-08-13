@@ -64,5 +64,8 @@ homepage = "https://github.com/andythomas/IFW_software"
 requires = ["flit_core >=3.6,<4"]
 build-backend = "flit_core.buildapi"
 
+[tool.ruff]
+line-length = 120
+
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
