@@ -18,36 +18,70 @@ import warnings
 from os.path import basename, dirname, join
 
 import autopep8
-import matr1x
 import pyflakes.checker
 import pyflakes.messages
 import pyflakes.reporter
+
+import matr1x
 from matr1x.control.util import QtGracefulKiller
-from matr1x.util import (create_temp_dir_with_symlinks, generate_script,
-                         generate_script_prefix_suffix,
-                         get_importable_module_name)
+from matr1x.gui_util import TextInputDialog, YesNoAbortDialog
+from matr1x.util import (
+    create_temp_dir_with_symlinks,
+    generate_script,
+    generate_script_prefix_suffix,
+    get_importable_module_name,
+)
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
     from PyQt6.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
     from PyQt6.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
-    from PyQt6.QtGui import (QColor, QFont, QIcon, QKeySequence, QPalette,
-                             QShortcut, QTextCursor)
-    from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
-                                 QGridLayout, QLineEdit, QListWidget,
-                                 QMainWindow, QMessageBox, QPushButton,
-                                 QSplitter, QTextEdit, QWidget)
+    from PyQt6.QtGui import (
+        QColor,
+        QFont,
+        QIcon,
+        QKeySequence,
+        QPalette,
+        QShortcut,
+        QTextCursor,
+    )
+    from PyQt6.QtWidgets import (
+        QAbstractItemView,
+        QApplication,
+        QDialog,
+        QFileDialog,
+        QGridLayout,
+        QLineEdit,
+        QListWidget,
+        QMainWindow,
+        QMessageBox,
+        QPushButton,
+        QSplitter,
+        QTextEdit,
+        QWidget,
+    )
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
-    from PyQt5.QtCore import QEvent, QThread, QObject, Qt, pyqtSignal
-    from PyQt5.QtGui import (QColor, QFont, QIcon, QKeySequence, QPalette,
-                             QTextCursor)
-    from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QFileDialog,
-                                 QGridLayout, QLineEdit, QListWidget,
-                                 QMainWindow, QMessageBox, QPushButton,
-                                 QShortcut, QSplitter, QTextEdit, QWidget)
-    from PyQt5.Qsci import QsciScintilla, QsciLexerPython, QsciAPIs
+    from PyQt5.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
+    from PyQt5.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
+    from PyQt5.QtGui import QColor, QFont, QIcon, QKeySequence, QPalette, QTextCursor
+    from PyQt5.QtWidgets import (
+        QAbstractItemView,
+        QApplication,
+        QDialog,
+        QFileDialog,
+        QGridLayout,
+        QLineEdit,
+        QListWidget,
+        QMainWindow,
+        QMessageBox,
+        QPushButton,
+        QShortcut,
+        QSplitter,
+        QTextEdit,
+        QWidget,
+    )
 
 from ..gui_util import EmittingStream
 
@@ -1140,8 +1174,10 @@ class CustomLexer(QsciLexerPython):
         # commands for code highlighting
         if 2 != val:
             return super().keywords(val)
-        return ("init_datafile measure_system wait set_value trigger_value "
-                "read_value meta_data devs sys input")
+        return (
+            "init_datafile measure_system wait set_value trigger_value "
+            "read_value meta_data devs sys input input_bool"
+        )
 
 
 class CustomQsciAPI(QsciAPIs):
@@ -1149,7 +1185,8 @@ class CustomQsciAPI(QsciAPIs):
     autocompletions = [
         "sys", "meta_data", "meta_data['Creator']", "meta_data['Identifier']",
         "devs", "wait(float seconds, str message='', float silent=10)",
-        "input(str message='')",
+        "input(str query='')",
+        "input_bool(str query='')",
         "init_datafile(str filename, str comment='', bool append=False, "
         "bool print_header=True, int ntot=None)",
         "measure_system(bool print_setpoint=True, bool print_data=True, bool print_telemetry=True)",
@@ -1158,7 +1195,8 @@ class CustomQsciAPI(QsciAPIs):
         "read_value(int value_index)",
         "read_value(str name)",
         "trigger_value(int value_index)",
-        "trigger_value(str name)", ]
+        "trigger_value(str name)",
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1176,8 +1214,12 @@ if os.name == 'nt':
 
 
 class ExecThread(QThread):
+    # signal initiating user input from the GUI.
+    input_signal = pyqtSignal(str, str)
+    # signal to report the currently executing line number to the editor.
+    lineno_signal = pyqtSignal(int)
 
-    def __init__(self, sample, user, script, fallbackname, callback):
+    def __init__(self, sample, user, script, fallbackname):
         """
         initialize thread that handles script execution with meta data and
         script
@@ -1193,9 +1235,6 @@ class ExecThread(QThread):
                 filename used to initialize the data file if not specified
                 in the script. Its directory path will be used as execution
                 directory.
-            callback : function
-                callback to report the currently executing line number to.
-                Must accept a single integer parameter.
         """
         super().__init__()
         self.proc = None
@@ -1204,15 +1243,12 @@ class ExecThread(QThread):
         self.user = user
         self.script = script
         self.datafilefallback = fallbackname
-        self.callback = callback
 
     def pass_input(self, inp):
         """ communicate user input to the subprocess """
         if self.proc is None or self.conn is None:
             return
-        if inp == "":
-            return
-        if inp[-1] != "\n":
+        if len(inp) < 1 or inp[-1] != "\n":
             # input needs to have terminating character
             inp += "\n"
         self.conn.send(("i"+inp).encode("utf-8"))
@@ -1249,28 +1285,36 @@ class ExecThread(QThread):
 
     def recv_line(self, inp):
         """
-        receives a line from the input and extracts the current line
-        executing from the message, all other input is printed.
+        receives a line from the input and handles it accordingly.
+
+        From inp the current executing line or an input request are attemped
+        to find, all other input is printed.
 
         TODO: not tolerant against split strings, i.e. if sent string
         is longer than 1024, one can expect a problematic behavior. Migrate
         to ZMQ and directly pass strings as python objects?
         """
-        pattern = r"__lineno(-?\d+)__"
+        pattern_lineno = r"__lineno(-?\d+)__"
+        pattern_input = r"__input_(?P<type>[^:]+):(?P<strlabel>.+)__"
         lines = inp.split(os.linesep)
         for i, line in enumerate(lines[:-1]):
             # add "\n" to all but the last element in split
             # (last element contains everything after last "\n")
             lines[i] += "\n"
         for line in lines:
-            match = re.search(pattern, line)
-            if match:
-                digits = match.group(1)
-                if int(digits) > 0:
-                    self.callback(int(digits))
-            printstr = re.sub(pattern, "", line)
-            if printstr != "":
-                print(printstr, end="")
+            if match := re.search(pattern_lineno, line):
+                digits = int(match.group(1))
+                if digits >= 0:
+                    self.lineno_signal.emit(digits)
+                line = re.sub(pattern_lineno, "", line)
+            if match := re.search(pattern_input, line):
+                type = match.group('type')
+                strlabel = match.group('strlabel')
+                print(f"Requesting input type: {type}, Query: {strlabel}")
+                self.input_signal.emit(strlabel, type)
+                line = re.sub(pattern_input, "", line)
+            if line != "":
+                print(line, end="")
 
     def run(self):
         """
@@ -1328,8 +1372,6 @@ class MainWindow(QMainWindow):
     """
     Define layout, runs everything
     """
-    # signal that is used to handle the highlighting of code execution
-    highlight_line = pyqtSignal(int)
     extension = ".matrix"
 
     def __init__(self, filename=None):
@@ -1351,7 +1393,8 @@ class MainWindow(QMainWindow):
         # preview
         sys.stdout = self.output_stream
 
-        welcome_string = textwrap.dedent(f"""\
+        welcome_string = textwrap.dedent(
+            f"""\
         Welcome {getpass.getuser()},
         Available functions are:
 
@@ -1365,8 +1408,10 @@ class MainWindow(QMainWindow):
           wait(seconds, message="", silent=10)
             # waits for seconds and acts as a breakpoint to pause and
             # abort the execution, for seconds>silent, prints message
-          input(message="")
-            # waits for user input via the send button
+          input(query="")
+            # waits for user text input
+          input_bool(question="")
+            # waits for user to answer a yes/no question.
 
         System parameters can be accessed via:
 
@@ -1381,7 +1426,8 @@ class MainWindow(QMainWindow):
 
         Use the help button to get a list of available parameters and devices.
 
-        Note that no variable names should start with an underscore!""")
+        Note that no variable names should start with an underscore!"""
+        )
         print(welcome_string)
         print("==========")
         # If filename is passed when matrix-script is started, start
@@ -1444,9 +1490,6 @@ class MainWindow(QMainWindow):
         self.abort_button = QPushButton("Abort")
         self.abort_button.setEnabled(False)
         self.abort_button.clicked.connect(self.abort_thread)
-        self.send_button = QPushButton("Send to matrix")
-        self.send_button.setVisible(False)
-        self.send_button.clicked.connect(self.send_to_thread)
         self.kill_button = QPushButton("Kill")
         self.kill_button.setEnabled(False)
         self.kill_button.clicked.connect(self.kill_thread)
@@ -1476,9 +1519,6 @@ class MainWindow(QMainWindow):
         self.del_button.clicked.connect(self.delete_selected_system)
 
         # LineEdits
-        self.send_edit = QLineEdit(self)
-        self.send_edit.setPlaceholderText("text to send to script")
-        self.send_edit.setVisible(False)
         self.sample_edit = QLineEdit(self)
         self.sample_edit.setPlaceholderText("sample name")
         self.user_edit = QLineEdit(self)
@@ -1548,8 +1588,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(splitter, 4, 0, 4, 8)
         layout.addWidget(self.sample_edit, 8, 0, 1, 4)
         layout.addWidget(self.user_edit, 8, 4, 1, 4)
-        layout.addWidget(self.send_edit, 8, 0, 1, 6)
-        layout.addWidget(self.send_button, 8, 6, 1, 2)
         layout.addWidget(self.start_button, 9, 6, 1, 2)
         layout.addWidget(self.abort_button, 11, 6, 1, 2)
         layout.addWidget(self.kill_button, 12, 6, 1, 2)
@@ -1624,14 +1662,37 @@ class MainWindow(QMainWindow):
         self.systems_dirty = True
         self.update_window_title()
 
-    def send_to_thread(self):
-        """ passes input to thread """
-        self.thread.pass_input(self.send_edit.text())
+    def get_script_input(self, query: str, type: str):
+        """
+        Open a text dialog and forward input to the script.
+
+        Parameters
+        ----------
+        query: str
+         label to explain the user what they input
+        type: str
+         Type of expected input. can be 'string' or 'bool'
+        """
+        if type == "string":
+            dialog = TextInputDialog(query, parent=self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                ret = dialog.input.text()
+            else:
+                # abort executing script
+                self.abort_thread()
+                return
+        elif type == "bool":
+            dialog = YesNoAbortDialog(query)
+            ret = dialog.exec_and_get_response()
+            if ret == "abort":
+                self.abort_thread()
+                return
+        else:
+            ret = ""
+        self.thread.pass_input(ret)
 
     def pause_thread(self):
         """ pauses thread execution """
-        # disable send button during pause
-        self.send_button.setEnabled(not self.pause_button.isChecked())
         self.thread.pause()
 
     def abort_thread(self):
@@ -1729,7 +1790,7 @@ class MainWindow(QMainWindow):
         sb = self.status_preview.verticalScrollBar()
         sb.setValue(sb.maximum())
 
-    def highlight(self, number):
+    def highlight(self, number: int):
         """
         clears all annotations and highlights the line that is currently being
         executed
@@ -1761,32 +1822,20 @@ class MainWindow(QMainWindow):
             flag:boolean - True means script is running
         """
         self.is_running = flag
-        if flag is True:
-            self.highlight_line.connect(self.highlight)
-        else:
-            self.highlight_line.disconnect()
+        if not flag:
             self.clear_annotations()
         self.pause_button.setEnabled(flag)
         self.pause_button.setChecked(False)
         self.abort_button.setEnabled(flag)
-        self.send_button.setVisible(flag)
-        self.send_edit.setVisible(flag)
-        self.user_edit.setVisible(not flag)
-        self.sample_edit.setVisible(not flag)
         self.kill_button.setEnabled(flag)
         self.script_edit.setReadOnly(flag)
+        self.user_edit.setEnabled(not flag)
+        self.sample_edit.setEnabled(not flag)
         self.start_button.setEnabled(not flag)
         self.load_button.setEnabled(not flag)
         self.help_sys_button.setEnabled(not flag)
         self.add_button.setEnabled(not flag)
         self.del_button.setEnabled(not flag)
-
-    def emit_line_signal(self, lineno):
-        """
-        emits signal that highlights the currently executing line number,
-        used as callback for ExecThread
-        """
-        self.highlight_line.emit(lineno)
 
     def process_finished(self):
         """
@@ -1838,8 +1887,9 @@ class MainWindow(QMainWindow):
         self.thread = ExecThread(self.sample_edit.text(),
                                  self.user_edit.text(),
                                  script,
-                                 self.scriptname,
-                                 self.emit_line_signal)
+                                 self.scriptname)
+        self.thread.lineno_signal.connect(self.highlight)
+        self.thread.input_signal.connect(self.get_script_input)
         self.thread.finished.connect(self.process_finished)
         logger.info("The following user script was run:\n%s", user_script)
         self.thread.start()

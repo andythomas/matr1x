@@ -202,6 +202,9 @@ def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
             vstr = f"{v:8.6g}"
         elif isinstance(v, int):
             vstr = f"{v:d}"
+        else:
+            # unknown datatype, continue without error
+            vstr = "???"
         outstr += entry_string.format(vstr)
     outstr += f"{appendix}"
     print(outstr)
@@ -225,7 +228,8 @@ def generate_script_prefix_suffix(systems):
     suffix : str
       corresponding suffix of the scriot, finishes the try statement
     """
-    prefix = textwrap.dedent(f"""
+    prefix = textwrap.dedent(
+        f"""
     import inspect as _inspect
     import math as _math
     import os as _os
@@ -331,19 +335,59 @@ def generate_script_prefix_suffix(systems):
 
     @_lineno_decorator
     def trigger_value(*args, **kwargs):
+        '''
+        execute sys.trigger_value. all arguments are forwarded.
+        '''
         _system.trigger_value(*args, **kwargs)
 
     @_lineno_decorator
     def read_value(*args, **kwargs):
+        '''
+        execute sys.read_value. all arguments are forwarded.
+        '''
         return _system.read_value(*args, **kwargs)
 
     @_lineno_decorator
     def wait(*args, **kwargs):
+        '''
+        wait for a given period.
+
+        During a wait the script can always be paused/stopped.
+
+        Parameters
+        ----------
+        sleep: float
+         wait time in seconds
+        message : str, optional
+         a string which is printed if the sleep exceeds the silent argument
+        silent : float, optional
+         if the wait time exceeds this value a message string will be printed
+        '''
         _wait(*args, **kwargs)
 
     @_lineno_decorator
     def input(*args, **kwargs):
-        _input(*args, **kwargs)
+        '''
+        ask user to provide some free text input.
+
+        Parameters
+        ----------
+        query: str
+         query string presented to the user so they know what to enter
+        '''
+        return _input(*args, **kwargs)
+
+    @_lineno_decorator
+    def input_bool(query: str):
+        '''
+        ask user to answer a yes/no question.
+
+        If the user answers yes the return value will be True and False otherwise.
+        '''
+        ret = _input(query, type='bool')
+        if ret == "yes":
+            return True
+        return False
 
 
     # initialize system and put devs into namespace
@@ -462,8 +506,10 @@ def generate_script_prefix_suffix(systems):
     # merge user input into script
     # ==== begin user area ====
     try:
-    """)
-    suffix = textwrap.dedent("""
+    """
+    )
+    suffix = textwrap.dedent(
+        """
     except KeyboardInterrupt:
         print("\\nscript has been aborted by user, calling reset")
     # ===== end user area =====
@@ -471,7 +517,8 @@ def generate_script_prefix_suffix(systems):
     # specify the last datafile name to be as close as possible to the behavior
     # of matrix
     _system.reset()
-    """)
+    """
+    )
     return prefix, suffix
 
 
@@ -585,7 +632,7 @@ def matrix_script_process(filename, user="", sample="",
             self.interrupt_flag = False
             self.recv_flag = False
             self.recv = ""
-            self.n_pref = ""
+            self.n_pref = 0
             self.socket = socket
             if self.socket is not None:
                 # pass on all stdout to socket
@@ -645,14 +692,14 @@ def matrix_script_process(filename, user="", sample="",
                 # execution paused, wait for 100ms and recheck
                 time.sleep(0.1)
 
-        def input(self, message=""):
+        def input(self, message="", type="string"):
             t0 = time.time()
             if self.recv != "" and not self.recv_flag:
                 self.recv = ""
             if "" == message:
-                print("waiting for user input")
+                print(f"__input_{type}:User input requested, see executing line for context.__")
             else:
-                print(message)
+                print(f"__input_{type}:{message}__")
             while (self.recv == "" or self.recv_flag is True):
                 time.sleep(0.1)
                 if (time.time() - t0) > 60:

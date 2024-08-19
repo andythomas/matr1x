@@ -6,8 +6,8 @@
 # licensed under MIT-license
 # ---
 """
-This module contains gui related functions that are required by the sweep
-generator and matrix_gui
+This module contains gui related functions that are required by the
+sweep-generator, matrix-gui, matrix-preview, and matrix-script.
 """
 import datetime
 import warnings
@@ -16,25 +16,53 @@ import numpy as np
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import (QAbstractTableModel, QLocale, QObject, Qt,
-                              pyqtSignal)
+    from PyQt6.QtCore import QAbstractTableModel, QLocale, QObject, Qt, pyqtSignal
     from PyQt6.QtGui import QDoubleValidator, QIntValidator
-    from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDockWidget, QFrame,
-                                 QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                                 QLayout, QLineEdit, QPushButton, QSizePolicy,
-                                 QSlider, QTableView, QToolButton, QVBoxLayout)
+    from PyQt6.QtWidgets import (
+        QCheckBox,
+        QComboBox,
+        QDialog,
+        QDockWidget,
+        QFrame,
+        QGridLayout,
+        QGroupBox,
+        QHBoxLayout,
+        QLabel,
+        QLayout,
+        QLineEdit,
+        QMessageBox,
+        QPushButton,
+        QSizePolicy,
+        QSlider,
+        QTableView,
+        QToolButton,
+        QVBoxLayout,
+    )
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
-    from PyQt5.QtCore import (QAbstractTableModel, QLocale, QObject, Qt,
-                              pyqtSignal)
+    from PyQt5.QtCore import QAbstractTableModel, QLocale, QObject, Qt, pyqtSignal
     from PyQt5.QtGui import QDoubleValidator, QIntValidator
-    from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout,
-                                 QDockWidget, QTableView,
-                                 QGroupBox, QHBoxLayout, QLabel, QLayout,
-                                 QLineEdit,
-                                 QPushButton, QSizePolicy, QSlider, QToolButton,
-                                 QVBoxLayout)
+    from PyQt5.QtWidgets import (
+        QCheckBox,
+        QComboBox,
+        QDialog,
+        QDockWidget,
+        QFrame,
+        QGridLayout,
+        QGroupBox,
+        QHBoxLayout,
+        QLabel,
+        QLayout,
+        QLineEdit,
+        QMessageBox,
+        QPushButton,
+        QSizePolicy,
+        QSlider,
+        QTableView,
+        QToolButton,
+        QVBoxLayout,
+    )
 
 import pyqtgraph as pg
 
@@ -1123,3 +1151,87 @@ class EmittingStream(QObject):
 
     def flush(self):
         pass
+
+
+class TextInputDialog(QDialog):
+    """Modal dialog for text input for matrix-script."""
+    def __init__(self, query: str, parent=None):
+        """
+        Initialize the text input dialog with a its GUI elements.
+
+        Parameters
+        ----------
+        query : str
+            The text to display on the label above the input field.
+        parent : QWidget, optional
+            The parent widget of the dialog.
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Matrix-script input")
+
+        self.label = QLabel(query, self)
+        self.input = QLineEdit(self)
+        self.input.setPlaceholderText("input to send to script")
+
+        self.ok_button = QPushButton("Send input", self)
+        self.abort_button = QPushButton("Abort script", self)
+
+        self.ok_button.clicked.connect(self.accept)
+        self.abort_button.clicked.connect(self.reject)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.ok_button)
+        button_layout.addWidget(self.abort_button)
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.label)
+        main_layout.addWidget(self.input)
+        main_layout.addLayout(button_layout)
+
+        self.setLayout(main_layout)
+
+        # Ensure the dialog stays on top of the main window
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+
+
+class YesNoAbortDialog(QMessageBox):
+    """Modal dialog for boolean input for matrix-script."""
+    def __init__(self, question: str, parent=None):
+        """
+        Initialize the yes/no dialog with a question and buttons.
+
+        Parameters
+        ----------
+        question : str
+            The question to display on the label.
+        parent : QWidget, optional
+            The parent widget of the dialog.
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Question")
+        self.setText(question)
+        self.setIcon(QMessageBox.Icon.Question)
+
+        # Add custom buttons
+        self.yes_button = self.addButton("Yes", QMessageBox.ButtonRole.AcceptRole)
+        self.no_button = self.addButton("No", QMessageBox.ButtonRole.RejectRole)
+        self.abort_button = self.addButton("Abort script", QMessageBox.ButtonRole.DestructiveRole)
+
+    def exec_and_get_response(self):
+        """
+        Show the dialog and return the button clicked by the user.
+
+        Returns
+        -------
+        str
+            The response based on the button clicked ("Yes", "No", or "Abort").
+        """
+        self.exec()
+
+        if self.clickedButton() == self.yes_button:
+            return "yes"
+        elif self.clickedButton() == self.no_button:
+            return "no"
+        elif self.clickedButton() == self.abort_button:
+            return "abort"
+        return "Unknown"
