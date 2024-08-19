@@ -13,6 +13,7 @@ import re
 import time
 from os.path import exists, expanduser, isfile, splitext
 
+import h5py
 import numpy as np
 from pymeasure.instruments import Instrument
 
@@ -1123,7 +1124,6 @@ class System:
         if self.hdf5 is True:
             telemetry.append(list(flatten(self.dtypes)))
             telemetry.append(list(flatten(self.chunks, types=(list, ))))
-            import h5py
             with h5py.File(self.filename, 'w', libver='latest') as data_file:
                 data_file.swmr_mode = True
                 assert data_file.swmr_mode
@@ -1169,8 +1169,6 @@ class System:
         """
         dfilename = datafilename if datafilename else self.filename
         if self.hdf5:
-            # lazy import of h5py to only load it when it is required
-            import h5py
 
             def h5save(h5d, val):
                 csize = h5d.chunks[0]

@@ -2,7 +2,7 @@
 name = "matr1x"
 version = "7.3.0"
 description = "Python package for data acquisition and measurement control"
-requires-python = ">=3.6"
+requires-python = ">=3.8"
 license = {text = "GPL-3.0-or-later"}
 classifiers = [
   "Private :: Do Not Upload",
@@ -25,7 +25,6 @@ dependencies = [
   "pyserial",
   "pyvisa",
   "pyvisa-py",
-  'pyvisa-py < 0.6.0; python_version < "3.8"',
   "urwid>2.0",
   "wrapt",
   "pyqtgraph >= 0.11.0",
@@ -33,11 +32,11 @@ dependencies = [
   "PyQt6 >= 6.5.0 ; platform_system == 'Windows'",
   "PyQt6-QScintilla",
   "autopep8",
+  "h5py",
 ]
 [project.optional-dependencies]
 spi = ["spidev", "RPi"]
 standa = ["PyUSMC", "pyximc"]
-h5py = ["h5py"]
 git = ["pygit2"]
 
 [project.scripts]

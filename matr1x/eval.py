@@ -13,6 +13,7 @@ import sys
 import warnings
 from os.path import isfile, join, split, splitext
 
+import h5py
 import numpy as np
 import pandas as pd
 from natsort import natsorted
@@ -111,15 +112,6 @@ def loadmatrix(filename, structured=True, print_header=False,
     tries = 0
     header = {"columns": [], "units": []}
     if detect_hdf5(filename):
-        if 'h5py' not in sys.modules:
-            # disable file locking in h5py
-            # seems this is needed before loading the package
-            import h5py  # this import does not generate a global variable
-
-            # in the scope of the calling program?!
-        elif 'h5py' not in globals():
-            # workaround for previous comment on import
-            h5py = sys.modules['h5py']
         if not structured:
             raise NotImplementedError(
                 "The option structured=False is not supported for hdf5 files")
