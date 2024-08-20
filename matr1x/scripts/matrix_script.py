@@ -1762,6 +1762,7 @@ class MainWindow(QMainWindow):
             # insufficient to handle very large texts
             prefix = "Received very long print statement, first 20k symbols:\n"
             text = prefix + text[:20000]
+        self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
         if "\r" in text:
             before, after = text.split("\r", maxsplit=1)
             self.status_preview.insertPlainText(before)
