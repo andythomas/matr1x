@@ -504,7 +504,10 @@ class System:
             # generate fallback option for the datafile name
         else:  # no output nor input file, generate from system names
             timestamp = time.strftime(datetimefmt, time.localtime())
-            datafile = f"{timestamp}_{self.__name__}"
+            _, filename = os.path.split(self.__name__)
+            if filename.endswith(".py"):
+                filename = filename[:-3]
+            datafile = f"{timestamp}_{filename}"
             if os.name == 'nt':
                 # Windows does not like : in filenames
                 datafile = datafile.replace(":", "")
@@ -1209,6 +1212,50 @@ class System:
         # return device readout as list
         return return_list
 
+    def add_comment(self, message, datafilename=None):
+        """
+        Adds comment to the datafile.
+
+        Parameters
+        ----------
+        datafilename: None, str, optional
+         filename where to save the measurement. If not specified the
+         internally stored filename is used.
+        """
+        dfilename = datafilename if datafilename else self.filename
+
+        if dfilename is None:
+            # if not valid datafile was initialized do nothing.
+            return
+
+        if self.hdf5 is True:
+            # lazy import of h5py to only load it when it is required
+            import h5py
+
+            with h5py.File(dfilename, "a", libver="latest") as datafile:
+                datafile.swmr_mode = True
+                assert datafile.swmr_mode
+                comments = datafile["comments"]
+                # Resize the dataset to accommodate the new comment string
+                current_size = comments.shape[0]
+                comments.resize((current_size + 1,))
+                new_entry = np.array(
+                    [
+                        (
+                            message,
+                            time.strftime(f"{datetimefmt}", time.localtime()),
+                        )
+                    ],
+                    dtype=comments.dtype,
+                )
+                comments[current_size] = new_entry
+        else:
+            with open(dfilename, "a", encoding="utf-8") as datafile:
+                # write comment to file
+                # TODO check how multiline string containing \n works
+                datafile.write(f"# {message}")
+                datafile.write("\n")
+
 
 class MergedSystem(System):
     """
@@ -1398,6 +1445,8 @@ class MergedSystem(System):
           kwargs than be used here, currently not used
         """
         # close all individual systems again
+        if "status" in kwargs:
+            self.add_comment(f"sequence run was labeled '{kwargs['status']}'")
         self.opened = False
         for sys in self.subsys:
             sys.reset(*args, **kwargs)

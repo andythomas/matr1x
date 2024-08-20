@@ -852,9 +852,9 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             # add initial definitions that are passed to the script
             # externally to avoid linter errors, make sure not to add an
             # additional line here
-            script = "_wait=lambda x:x;_print=lambda x:x;_input=lambda x:x;"
-            script += "_report_line=lambda x:x;_user='';_sample='';"
-            script += "_scriptname='';"
+            script = "_interrupt=lambda x, s:x;_print=lambda x:x;"
+            script += "_input=lambda x:x;_report_line=lambda x:x;_user='';"
+            script += "_sample='';_scriptname='';"
             script += generate_script("", self.text())
             # reimplement the pyflakes.api.check function
             scriptname = "sc"
@@ -1697,6 +1697,8 @@ class MainWindow(QMainWindow):
 
     def abort_thread(self):
         """ aborts thread execution """
+        if self.pause_button.isChecked():
+            self.pause_button.setEnabled(False)
         self.thread.abort()
 
     def kill_thread(self):

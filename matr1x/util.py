@@ -243,7 +243,6 @@ def generate_script_prefix_suffix(systems):
 
     from matr1x.system import MergedSystem as _MergedSystem
 
-
     # change execution directory if requested
     if _matr1x.matrix_script_execution_path == "<script-location>":
         if _os.path.dirname(_scriptname):
@@ -261,6 +260,7 @@ def generate_script_prefix_suffix(systems):
     _ntot = None  # total number of measurement points for telemetry
     _starttime = _time.time()
     _preset = _starttime
+    _reset_kwargs = {{}}
 
 
     @wrapt.decorator
@@ -279,12 +279,49 @@ def generate_script_prefix_suffix(systems):
     @wrapt.decorator
     def _breakpoint(wrapped, instance, args, kwargs):
         "decorator to add a breakpoint check"
-        _wait(0)
-        return wrapped(*args, **kwargs)
+        # avoid recursive loop (a decorated function calling another)
+        # If the wrapped object is a method, attach _calling to the instance
+        if instance is not None:
+            if not hasattr(instance, '_calling'):
+                instance._calling = False
+
+            if instance._calling:
+                # do not call decoration recursively
+                return wrapped(*args, **kwargs)
+
+            instance._calling = True
+            try:
+                _interrupt(0, system=_system)
+                result = wrapped(*args, **kwargs)
+            finally:
+                instance._calling = False
+        else:
+            # If the wrapped object is a function,
+            # attach _calling to the function itself
+            if not hasattr(wrapped, '_calling'):
+                wrapped._calling = False
+
+            if wrapped._calling:
+                # do not call decoration recursively
+                return wrapped(*args, **kwargs)
+
+            wrapped._calling = True
+            try:
+                _interrupt(0, system=_system)
+                result = wrapped(*args, **kwargs)
+            finally:
+                wrapped._calling = False
+        return result
 
 
     def _inject_decorator(instance, decorator):
         for attr_name in dir(instance):
+            if attr_name in ['add_comment',]:
+                # exclude this methods from decoration since they are
+                # potentially called from inside the decorator. anything called
+                # inside the _interupt function should be added here/not
+                # decorated.
+                continue
             attr = getattr(instance, attr_name)
             if isinstance(attr, _types.MethodType):
                 decorated_attr = decorator(attr)
@@ -363,10 +400,10 @@ def generate_script_prefix_suffix(systems):
         silent : float, optional
          if the wait time exceeds this value a message string will be printed
         '''
-        _wait(*args, **kwargs)
+        _interrupt(*args, system=_system, **kwargs)
 
     @_lineno_decorator
-    def input(*args, **kwargs):
+    def input(query: str):
         '''
         ask user to provide some free text input.
 
@@ -375,7 +412,7 @@ def generate_script_prefix_suffix(systems):
         query: str
          query string presented to the user so they know what to enter
         '''
-        return _input(*args, **kwargs)
+        return _input(query, system=_system)
 
     @_lineno_decorator
     def input_bool(query: str):
@@ -384,7 +421,7 @@ def generate_script_prefix_suffix(systems):
 
         If the user answers yes the return value will be True and False otherwise.
         '''
-        ret = _input(query, type='bool')
+        ret = _input(query, system=_system, type='bool')
         if ret == "yes":
             return True
         return False
@@ -511,12 +548,16 @@ def generate_script_prefix_suffix(systems):
     suffix = textwrap.dedent(
         """
     except KeyboardInterrupt:
-        print("\\nscript has been aborted by user, calling reset")
+        print("\\nscript has been aborted by user.")
+        x = input_bool("Shall the termination of the sequence lead to marking the "
+                   "datafile unsuccessful?")
+        if x:
+            _reset_kwargs["status"] = "unsuccessful"
     # ===== end user area =====
     # the reset function is called at the script end only, but we nevertheless
     # specify the last datafile name to be as close as possible to the behavior
     # of matrix
-    _system.reset()
+    _system.reset(**_reset_kwargs)
     """
     )
     return prefix, suffix
@@ -648,14 +689,16 @@ def matrix_script_process(filename, user="", sample="",
         def stop(self):
             """ set the interrupt flag, so that the execution is stopped at
                 the breakpoint the execution at the breakpoint """
+            self.pause_flag = False
             self.interrupt_flag = True
 
-        def breakpoint(self, sleep, message="", silent=10):
-            """ breakpoint function that handles the interrupt as well
+        def interrupt(self, sleep, message="", silent=10, system=None):
+            """interupt function that handles the interrupting as well
                 as the waiting/sleep times
 
             The function prints out some message if the wait time exceeds the
-            value of the silent argument.
+            value of the silent argument. If the execution is paused or quit a
+            comment is added to the datafile.
             """
             t0 = time.time()
             end = datetime.datetime.today() + datetime.timedelta(seconds=sleep)
@@ -680,19 +723,33 @@ def matrix_script_process(filename, user="", sample="",
                     break
                 # interrupt during long waits to stop clock from ticking
                 # is ignored for short waits
-                self.check_for_interrupt_and_pause()
+                self.check_for_interrupt_and_pause(system)
             # force one breakpoint independent of wait time (also for wait(0))
-            self.check_for_interrupt_and_pause()
+            self.check_for_interrupt_and_pause(system)
 
-        def check_for_interrupt_and_pause(self):
+        def check_for_interrupt_and_pause(self, system):
+            """Functions checking for the pause and interupt flag.
+
+            If one of those flags is set the execution is either halted or a
+            keyboard interupt is sent to the script.
+            """
+            # This function is used as part of the decorator of many functions
+            # inside the script. Make sure that all functions called here are
+            # not decorated themselves. (e.g. system.add_comment)
             if self.interrupt_flag is True:
                 # script will be aborted
+                if system:
+                    system.add_comment("measurement aborted on user request")
+                self.interrupt_flag = False
                 raise KeyboardInterrupt
+            if self.pause_flag:
+                if system:
+                    system.add_comment("measurement paused on user request")
             while self.pause_flag is True and self.interrupt_flag is False:
                 # execution paused, wait for 100ms and recheck
                 time.sleep(0.1)
 
-        def input(self, message="", type="string"):
+        def input(self, message="", system=None, type="string"):
             t0 = time.time()
             if self.recv != "" and not self.recv_flag:
                 self.recv = ""
@@ -705,7 +762,7 @@ def matrix_script_process(filename, user="", sample="",
                 if (time.time() - t0) > 60:
                     print("still waiting for user input")
                     t0 = time.time()
-                self.check_for_interrupt_and_pause()
+                self.check_for_interrupt_and_pause(system)
             # remove trailling line feed
             ret = self.recv.strip()
             # print output
@@ -750,12 +807,14 @@ def matrix_script_process(filename, user="", sample="",
                 self.n_pref = len(
                     generate_script_prefix_suffix("")[0].splitlines())
                 try:
-                    _vars = {"_wait": self.breakpoint,
-                             "_report_line": self.report_line,
-                             "_input": self.input,
-                             "_user": self.user,
-                             "_sample": self.sample,
-                             "_scriptname": self.scriptname}
+                    _vars = {
+                        "_interrupt": self.interrupt,
+                        "_report_line": self.report_line,
+                        "_input": self.input,
+                        "_user": self.user,
+                        "_sample": self.sample,
+                        "_scriptname": self.scriptname,
+                    }
                     exec(self.script, _vars)
                 except Exception:
                     print("script exited with error:")
@@ -1120,7 +1179,17 @@ def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):
     dtypes : list
       list of strings specifying the dtype of the individual datasets
     """
+    # lazy import of h5py to only load it when it is required
+    import h5py
     data_grp = file_handle.create_group("data")
+    dt = np.dtype(
+        [
+            ("message", h5py.string_dtype(encoding="utf-8")),
+            ("timestamp", h5py.string_dtype(encoding="utf-8")),
+        ]
+    )
+    # Create an empty dataset for comments
+    file_handle.create_dataset("comments", shape=(0,), maxshape=(None,), dtype=dt)
     for col, uni, chu, dtype in zip(columns, units, chunks, dtypes):
         if isinstance(chu, tuple):
             data_grp.create_dataset(col, (0, *chu), maxshape=(None, *chu),

@@ -141,7 +141,7 @@ def measurementloop(inputfile, system,
                 time.time()-preread))
         # handle input on the end of one measurement point
         if inputcb(point_idx+1) != 0:
-            break
+            return 1
     return 0
 
 
@@ -156,16 +156,22 @@ def measure_plain(inputfile, system, quiet=False):
         key = nonblocking_getch()
         if key in ('q', 'Q'):
             sys.stdout.write(f"Note: aborted with q after {n} points\n\n\n")
+            system.add_comment(
+                f"measurement aborted by keyboard input after {n} points"
+            )
             return 1
         if key in ('p', 'P'):
             sys.stdout.write("paused - continue with 'p'\n")
+            system.add_comment("measurement paused by keyboard input")
             # wait for unpause with p
             while True:
                 time.sleep(0.1)
                 key = nonblocking_getch()
-                if key in ('q', 'Q'):
-                    sys.stdout.write(
-                        f"Note: aborted with q after {n} points\n\n\n")
+                if key in ("q", "Q"):
+                    sys.stdout.write(f"Note: aborted with q after {n} points\n\n\n")
+                    system.add_comment(
+                        "measurement aborted by keyboard input " f"after {n} points"
+                    )
                     return 1
                 if key in ('p', 'P'):
                     break
@@ -262,10 +268,14 @@ def measure_urwid(inputfile, systemfile, system):
             for key in loop.screen.get_input():
                 if key in ('q', 'Q'):
                     msg += f"Note: aborted with q after {n} points"
+                    system.add_comment(
+                        "measurement aborted by keyboard input " f"after {n} points"
+                    )
                     return 1
                 if key in ('p', 'P'):
                     msg += f"paused at {time.time()} after {n} points\n"
                     status.set_text("paused - continue with 'p'")
+                    system.add_comment("measurement paused by keyboard input")
                     loop.draw_screen()
                     # wait for unpause with p
                     flag = True
@@ -274,6 +284,11 @@ def measure_urwid(inputfile, systemfile, system):
                         for key in loop.screen.get_input():
                             if key in ('q', 'Q'):
                                 msg += f"Note: aborted with q after {n} points"
+                                system.add_comment(
+                                    "measurement aborted by "
+                                    f"keyboard input after {n} "
+                                    "points"
+                                )
                                 return 1
                             if key in ('p', 'P'):
                                 flag = False
@@ -442,8 +457,20 @@ def main():
               "Traceback of error:\n")
         traceback.print_tb(e.__traceback__)
         ret = 1
+    reset_kwargs = {
+        "input_file": options.inputfile,
+        "output_file": output_filename,
+    }
+    if ret == 1:
+        x = input(
+            "Shall the termination of the sequence lead to marking the "
+            "datafile unsuccessful? (Y/n)"
+        )
+        if x.lower().startswith("y") or x == "":
+            print("marking file unsuccessful")
+            reset_kwargs["status"] = "unsuccessful"
     print("resetting devices")
     # reset system/devices
-    system.reset(input_file=options.inputfile, output_file=output_filename)
+    system.reset(**reset_kwargs)
     # set returncode of the measurementloop as our exit status
     sys.exit(ret)
