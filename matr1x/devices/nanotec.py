@@ -6,6 +6,7 @@ import re
 import time
 
 from numpy import clip, sign
+from pyvisa.errors import VisaIOError
 from wrapt import synchronized
 
 from .visadevice import VisaDevice
@@ -172,7 +173,7 @@ class NanotecPD4(VisaDevice):
                     returnStatement = self.read()
                     if returnStatement == "001j161":
                         self.moving = False
-                except:
+                except VisaIOError:
                     self.moving = True
         else:
             self.query("#1s" + str(int(moves)))  # sets moves
@@ -246,7 +247,9 @@ class NanotecPD4(VisaDevice):
                     returnStatement = self.read()
                     if returnStatement == "001j161":
                         self.moving = False
-                except:  # TODO : not write bare except
+                except VisaIOError:
+                    # why is this required at all?
+                    # TODO: Test on device
                     self.moving = True
         self.setRotDir(initRotDir)
 
@@ -308,7 +311,7 @@ class NanotecPD4(VisaDevice):
         """
         answer = self.query("#1$")
         status = answer.replace("001$", "")
-        isMoving = (int(status) & 0b00000001) == False
+        isMoving = (int(status) & 0b00000001) is False
         self.moving = isMoving
         return isMoving
 

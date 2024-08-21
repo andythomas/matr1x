@@ -283,11 +283,11 @@ class PNA5225b(VisaDevice):
         self.write(f"SENS{channel}:AVER:CLE")  # SENSe<cnum>:AVERage_CLEar
         for i in range(self.maxAverage):
             # estimate of sweep time by VNA + 1ms for frequency change
-            self.interface.timeout = 1e3 * sweep_time + n_points + 10e3
+            self.connection.timeout = 1e3 * sweep_time + n_points + 10e3
             self.write("INIT:IMM")
             self.query("*OPC?")
             # reset timeout to default
-            self.interface.timeout = self.timeout
+            self.connection.timeout = self.timeout
 
     @synchronized
     def getData(self, channel, precision="single"):
@@ -704,11 +704,11 @@ class PSG8257D(VisaDevice):
 
         self.write(":ABOR")
         # estimate of sweep time by VNA + 1ms for frequency change
-        self.interface.timeout = 1e3 * sweep_time + n_points + 10e3
+        self.connection.timeout = 1e3 * sweep_time + n_points + 10e3
         self.write("INIT:IMM")
         self.query("*OPC?")
         # reset timeout to default
-        self.interface.timeout = self.timeout
+        self.connection.timeout = self.timeout
 
     @synchronized
     def configureSweep(self, fStart, fStop, fPoints, stepDwell):
@@ -1014,11 +1014,11 @@ class PSA_E4440A(VisaDevice):
 
         for i in range(self.maxAverage):
             # estimate of sweep time by VNA + 1ms for frequency change
-            self.interface.timeout = 1e3 * sweep_time + n_points + 10e3
+            self.connection.timeout = 1e3 * sweep_time + n_points + 10e3
             self.write("INIT:IMM")
             self.query("*OPC?")
             # reset timeout to default
-            self.interface.timeout = self.timeout
+            self.connection.timeout = self.timeout
 
     @synchronized
     def getData(self, precision="single"):
