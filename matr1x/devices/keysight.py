@@ -5,6 +5,7 @@
 from struct import unpack
 
 import numpy as np
+import time
 from wrapt import synchronized
 
 from .util import strToList
@@ -1374,3 +1375,305 @@ class KeysightB2961(VisaDevice):
     def visualize_trace(self, dt=1e-3, points=1000):
         self.setAcquisitionTriggerMode(mode="TIMER", count=points)
         self.write(":TRIG:ACQ:TIM {}".format(dt))
+
+
+class Agilent8114A(VisaDevice):
+    """
+    Driver for Agilent 8114A High Power Pulse Generator
+
+    Manual can be found here:
+    https://www.keysight.com/us/en/assets/9018-05116/user-manuals/9018-05116.pdf
+    """
+
+    config_params = {}
+
+    def __init__(self, interface, **kwargs):
+        self.local = False
+        self.output = False
+        self.voltage = 0
+        self.offset = 0
+        self.imp_int = 0
+        self.imp_ext = 0
+        self.polarity = 0
+        self.period = 0
+        if "write_termination" not in kwargs:
+            kwargs["write_termination"] = "\r"
+        if "read_termination" not in kwargs:
+            kwargs["read_termination"] = "\r"
+        super().__init__(interface, **kwargs)
+        # after initialization get the source function to determine
+        # whether voltage or current is the sourced
+
+    # high level functions
+    def reset(self):
+        """reset instrument to factory details"""
+        self.write("*RST")
+
+    def display_state(self, display):
+        """
+        Set display state on or off
+
+        Arguments
+        -----
+        display : bool
+         True is on, False is off
+        """
+        if display:
+            self.write("DISP ON")
+        else:
+            self.write("DISP OFF")
+
+    def set_output(self, output):
+        """
+        Enable or disable output
+
+        Arguments
+        -----
+        output : bool
+         True is on, False is off
+        """
+        if output:
+            self.write("OUTP ON")
+            self.output = True
+        else:
+            self.write("OUTP OFF")
+            self.output = False
+
+    def last_button(self):
+        """returns last pressed button"""
+        return self.query("SYST:KEY?")
+
+    def set_imp_int(self, imp):
+        """
+        Set impedance of input, can be 50 Ohm or 100 Ohm
+
+        Arguments
+        -----
+        imp : bool
+         True is 50 Ohm, False is 100 Ohm
+        """
+        if imp:
+            self.write("OUTP:IMP 50 OHM")
+            self.imp_int = 50
+        else:
+            self.write("OUTP:IMP 100 OHM")
+            self.imp_int = 100
+
+    def set_imp_ext(self, imp):
+        """
+        Set impedance of output
+
+        Disables the output for the setting and reenables if output was on
+        before command was called
+
+        Arguments
+        -----
+        imp : float
+         [0.1 to 999e3] Ohm, controls the output impedance
+        """
+        store = self.output
+        if store:
+            self.set_output(False)
+        if imp > 0.1 and imp < 999e3:
+            self.write(f"OUTP:IMP:EXT {imp:.1f} OHM")
+        else:
+            self.write("OUTP:IMP:EXT 50 OHM")
+            imp = 50
+        if store:
+            self.set_output(True)
+        self.imp_ext = imp
+
+    def set_polarity(self, polarity):
+        """
+        Set pulse voltage polarity
+
+        Arguments
+        -----
+        polarity : float
+         should not be 0. Positive polarity for values larger than 0
+        """
+        if polarity > 0:
+            self.write("OUTP:POL POS")
+        elif polarity < 0:
+            self.write("OUTP:POL NEG")
+        self.polarity = np.sign(polarity)
+
+    def set_voltage(self, voltage):
+        """
+        Set peak pulse voltage
+
+        Arguments
+        -----
+        voltage : float
+         [1, 100] V
+        """
+        if voltage >= 1 and voltage <= 100:
+            self.write("HOLD VOLT ")
+            self.write(f"VOLT {voltage:.3f} V")
+            self.voltage = voltage
+
+    def set_voltage_offset(self, voltage):
+        """
+        Set voltage offset in volt
+
+        Arguments
+        -----
+        voltage : float
+         [-25, 25] V
+        """
+        if abs(voltage) <= 25:
+            self.write("HOLD VOLT ")
+            self.write(f"VOLT:BAS {voltage:.3f} V")
+            self.offset = voltage
+
+    def set_period(self, period):
+        """
+        Set pulse period
+
+        Arguments
+        -----
+        period : float
+         [66.7 ns .... 999ms] for single pulse specify in ns
+        """
+        if period > 66.6:
+            self.write(f"PULS:PER {period:.1f} NS")
+            self.period = period
+
+    def set_width(self, width):
+        """
+        Set pulse width
+
+        Arguments
+        -----
+        period : float
+         [10 ns .... 949ms] for single pulse specify in ns
+        """
+        if width >= 10 and width < 949e6:
+            self.write(f"PULS:WIDT {width:.0f} ns")
+            self.width = width
+
+    def set_duty(self, duty):
+        """
+        Set duty cycle
+
+        width = duty/100*period
+
+        Arguments
+        -----
+        duty : float
+         [0.1% ... 99.9%] duty cycle
+        """
+        if duty > 0.1 and duty < 99.9:
+            self.write(f"PULSE:DCYC {duty:.1f} PCT")
+
+    def set_duty_lim(self, lim):
+        """
+        Specify maximum duty cycle
+
+        Arguments
+        ------
+        lim : float
+         limiting duty cycle
+        """
+        self.write(f"PULSE:LIM:DCYC {lim:.1f} PCT")
+
+    def set_num(self, count):
+        """
+        Specify number of pulses to be sent
+
+        Arguments
+        -----
+        count : int
+         number of pulses
+        """
+        self.write(f"TRIG:COUN {int(count):d}")
+        self.write("PULS:DOUB OFF")
+
+    def control(self, state):
+        """
+        sets control state to local or remote
+
+        Arguments
+        -----
+        state : string
+          either "loc" or "rem"
+        """
+        if state == "loc":
+            self.write("SYST:KEY 19")
+            self.local = True
+        elif state == "rem":
+            self.local = False
+            pass
+
+    def set_trigger(self, trig):
+        """
+        Choice = countinuous - start with output =1
+        Choice = external / edge / positive slope
+        Choice = manual trigger -> will be used with the function
+        Start() below. It replaces MAN Key button
+
+        Arguments
+        -----
+        trig : string
+         one of "continuous", "triggered external", "triggered edge",
+         "triggered positive", "triggered manually"
+        """
+        if "continuous" == trig:
+            self.write("TRIG:SOUR IMM")
+        elif "triggered external" == trig:
+            self.write("TRIG:SOUR EXT")
+        elif "triggered edge" == trig:
+            self.write("TRIG:SENS EDGE")
+        elif "triggered positive" == trig:
+            self.write("TRIG:SLOP POS")
+        elif "triggered manually" == trig:
+            self.write("TRIG:SOUR MAN")
+
+    def start_pulsing(self):
+        """
+        Starts pulsing
+        """
+        if self.local is True:
+            self.control("loc")
+
+        if self.output is False:
+            self.write("SYST:KEY 19")
+            self.write("SYST:KEY 0")
+            self.set_output(True)
+
+        self.write("SYST:KEY 16")
+        time.sleep(0.1)
+
+    def configure(self, p_amp, p_offset, p_width, p_period, p_count, dut_imp):
+        """
+        Configure the Agilent 8114A, utility function
+
+        Arguments
+        -----
+        reset : bool
+          If true, reset the device
+        p_amp : float
+          pulse amplitude
+        p_offset : float
+          pulse offset
+        p_width : float
+          pulse width
+        p_period : float
+          pulse period
+        p_count : int
+          number of pulses
+        dut_imp : float
+          impedance of device under test
+        """
+        self.reset()
+        time.sleep(0.1)
+
+        self.set_voltage(abs(p_amp))
+        self.set_voltage_offset(p_offset)
+        self.set_period(p_period)
+
+        self.set_width(p_width)
+        self.set_num(p_count)
+        self.set_polarity(p_amp)
+        self.set_trigger("triggered manually")
+        self.set_imp_ext(dut_imp)
