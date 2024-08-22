@@ -949,10 +949,6 @@ class MainWindow(QMainWindow):
 
 
 def main():
-    if "_" in basename(sys.argv[0]):
-        warnings.warn(
-            "The executable name 'sweep_generator' is deprecated. Use 'sweep-generator' instead.",
-            FutureWarning)
     app = QApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode

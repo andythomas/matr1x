@@ -1354,10 +1354,6 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
         except ImportError:
             pass
 
-    if "_dummy" in os.path.basename(sys.argv[0]):
-        warnings.warn(
-            "The executable name 'control_dummy' is deprecated. Use 'control-dummy' instead.",
-            FutureWarning)
     app = QApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode

@@ -510,10 +510,6 @@ class MainWindow(QWidget):
 
 
 def main():
-    if "_" in os.path.basename(sys.argv[0]):
-        warnings.warn(
-            "The executable name 'matrix_gui' is deprecated. Use 'matrix-gui' instead.",
-            FutureWarning)
     app = QApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode

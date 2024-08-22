@@ -2079,11 +2079,6 @@ class MainWindow(QMainWindow):
 
 
 def main():
-    if "_" in basename(sys.argv[0]):
-        warnings.warn(
-            "The executable name 'matrix_script' is deprecated. "
-            "Use 'matrix-script' instead.",
-            FutureWarning)
     app = Matr1xApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode

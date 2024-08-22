@@ -899,10 +899,6 @@ Please investigate the error and eventually restart matrix-preview""")
 
 
 def main():
-    if "_" in os.path.basename(sys.argv[0]):
-        warnings.warn(
-            "The executable name 'matrix_preview' is deprecated. Use 'matrix-preview' instead.",
-            FutureWarning)
     app = Matr1xApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
