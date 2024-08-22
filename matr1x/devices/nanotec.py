@@ -191,7 +191,7 @@ class NanotecPD4(VisaDevice):
             moving = True
             while moving is True:
                 time.sleep(0.01)
-                moving = self.isMoving()
+                moving = self.getMovingStatus()
 
     @synchronized
     def moveClip(self, pos, unit):
