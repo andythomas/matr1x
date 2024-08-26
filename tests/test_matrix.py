@@ -92,7 +92,7 @@ def test_matrix_script_pyflakes():
     inputfile = os.path.join(path, "test.matrix")
     with open(inputfile, "r") as f:
         user_script = f.read()
-    script = "_wait=lambda x:x; _print=lambda x:x; _input=lambda x:x; "
+    script = "_interrupt=lambda x:x; _print=lambda x:x; _input=lambda x:x; "
     script += "_report_line=lambda x:x; _user=''; _sample=''; "
     script += "_scriptname=''\n"
     script += matr1x.util.generate_script(["system_dummy_feature",
