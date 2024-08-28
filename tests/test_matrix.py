@@ -12,16 +12,17 @@ import matr1x.eval
 import matr1x.util
 import pyflakes.api
 import pytest
+from matr1x import output_extension
 
 path = os.path.dirname(os.path.realpath(__file__))
 
 
 @pytest.fixture(autouse=True)
-def clean_ma7_files():
-    existingfiles = glob.glob(os.path.join(path, "*.ma7"))
+def clean_data_files():
+    existingfiles = glob.glob(os.path.join(path, f"*{output_extension}"))
     # run test
     yield
-    files = glob.glob(os.path.join(path, "*.ma7"))
+    files = glob.glob(os.path.join(path, f"*{output_extension}"))
     newfiles = set(files) - set(existingfiles)
     for f in newfiles:
         os.remove(f)
@@ -48,14 +49,14 @@ def test_matrix_dummy():
 
 def test_matrix_dummy_merged():
     inputfile = os.path.join(path, "sys_dummy_merged.7t")
-    outputfile = os.path.join(path, "test_merged.ma7")
+    outputfile = os.path.join(path, f"test_merged{output_extension}")
     cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o",
            outputfile, "--plain"]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
     # open latest datafile and check data shape
-    files = glob.glob(os.path.join(path, "test_merged*.ma7"))
+    files = glob.glob(os.path.join(path, f"test_merged*{output_extension}"))
     files.sort(key=os.path.getmtime)
     assert len(files) >= 1
     h, d = matr1x.eval.loadmatrix(files[-1], structured=True)
@@ -65,14 +66,14 @@ def test_matrix_dummy_merged():
 
 def test_matrix_dummy_hdf5():
     inputfile = os.path.join(path, "sys_dummy_hdf5_sweep.3t")
-    outputfile = os.path.join(path, "test_hdf5.h5.ma7")
+    outputfile = os.path.join(path, f"test_hdf5.h5{output_extension}")
     cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o",
            outputfile, "--plain"]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
     # open latest datafile and check data shape
-    files = glob.glob(os.path.join(path, "test_hdf5*.ma7"))
+    files = glob.glob(os.path.join(path, f"test_hdf5*{output_extension}"))
     files.sort(key=os.path.getmtime)
     assert len(files) >= 1
     h, d = matr1x.eval.loadmatrix(files[-1])
@@ -108,10 +109,8 @@ def test_matrix_script_dummy_merged():
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
     inputfile = os.path.join(path, "test.matrix")
-    user_script = ""
     with open(inputfile, "r") as f:
-        for line in f:
-            user_script += line
+        user_script = f.read()
     script = matr1x.util.generate_script(["system_dummy_feature",
                                           "system_dummy_meas"],
                                          user_script)
@@ -123,7 +122,7 @@ def test_matrix_script_dummy_merged():
                   f"mu.matrix_script_process({repr(tf.name)}, '', '')")
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
-        files = glob.glob(os.path.join(path, "epische_messdatei.ma7"))
+        files = glob.glob(os.path.join(path, f"epische_messdatei{output_extension}"))
         assert len(files) >= 1
         h, d = matr1x.eval.loadmatrix(files[-1], structured=None)
         assert len(h["columns"]) == 10

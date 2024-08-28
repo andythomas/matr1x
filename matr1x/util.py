@@ -319,7 +319,7 @@ def generate_script_prefix_suffix(systems):
             if attr_name in ['add_comment',]:
                 # exclude this methods from decoration since they are
                 # potentially called from inside the decorator. anything called
-                # inside the _interupt function should be added here/not
+                # inside the _interrupt function should be added here/not
                 # decorated.
                 continue
             attr = getattr(instance, attr_name)
@@ -1159,7 +1159,6 @@ def init_ascii_header(file_handle, columns, units, separator):
     """
     file_handle.write(separator.join(columns) + "\n")
     file_handle.write(separator.join(units) + "\n")
-    file_handle.write(separator.join(columns) + "\n")
 
 
 def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):

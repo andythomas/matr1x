@@ -1252,9 +1252,8 @@ class System:
         else:
             with open(dfilename, "a", encoding="utf-8") as datafile:
                 # write comment to file
-                # TODO check how multiline string containing \n works
-                datafile.write(f"# {message}")
-                datafile.write("\n")
+                for line in message.split("\n"):
+                    datafile.write(f"# {line}\n")
 
 
 class MergedSystem(System):

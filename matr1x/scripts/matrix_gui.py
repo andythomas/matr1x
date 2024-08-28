@@ -382,7 +382,7 @@ class MainWindow(QWidget):
                 folder = matr1x.usersfolder
         filename = QFileDialog.getSaveFileName(
             self, 'Select ma file', folder,
-            "Output files (*.ma7);;Old output files (*.ma6)",
+            "Output files (*.ma8);; Old output files (*.ma7 *.ma6)",
             options=QFileDialog.Option.DontConfirmOverwrite)
         if "" != filename[0]:
             self.outputEdit.setText(filename[0])

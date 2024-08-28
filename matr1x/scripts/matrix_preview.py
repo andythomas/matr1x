@@ -82,12 +82,12 @@ class SweepPreview(QMainWindow):
     Parameters
     ----------
     filename: str
-      name of matrix file (.ma6 or .ma7)
+      name of matrix file (.ma6, .ma7, .ma8)
     parent: widget or None
       parent widget
     """
     openfile_dialog = pyqtSignal()
-    allowed_extensions = ('.ma6', '.ma7')
+    allowed_extensions = (".ma6", ".ma7", ".ma8")
 
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
@@ -166,8 +166,8 @@ class SweepPreview(QMainWindow):
 
     def load_button_pressed(self):
         filename = QFileDialog.getOpenFileName(
-            self, "Select ma file", "",
-            "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
+            self, "Select ma file", "", "matrix data files (*.ma8 *.ma7 *.ma6)"
+        )[0]
         if filename:
             self.open_file(filename)
         else:

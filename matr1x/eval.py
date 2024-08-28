@@ -110,6 +110,7 @@ def loadmatrix(filename, structured=True, print_header=False,
     """
     tries = 0
     header = {"columns": [], "units": []}
+    extension = os.path.splitext(filename)[-1]
     if detect_hdf5(filename):
         if not structured:
             raise NotImplementedError(
@@ -129,8 +130,13 @@ def loadmatrix(filename, structured=True, print_header=False,
             raise OSError("File could not be opened even after 10 tries")
 
         # generate header
-        header['columns'] = list(h5f["data"].keys())
-        header['units'] = [it.attrs["unit"] for it in h5f["data"].values()]
+        header["columns"] = list(h5f["data"].keys())
+        header["units"] = [it.attrs["unit"] for it in h5f["data"].values()]
+        header["comments"] = []
+        for entry in h5f["comments"]:
+            message = entry[0].decode("utf-8")
+            timestamp = entry[1].decode("utf-8")
+            header["comments"].append(f"{timestamp}: {message}")
         for key, val in h5f.attrs.items():
             if val == "__None__":
                 header[key] = None
@@ -161,7 +167,7 @@ def loadmatrix(filename, structured=True, print_header=False,
         with open(filename, "r") as matrix_file:
             headerlines = 0
             depth = 0
-            for i, line in enumerate(matrix_file):
+            for nheader, line in enumerate(matrix_file):
                 # parse header from lines that start with hashtag
                 if "#" == line[0]:
                     if line[depth+1] == '#':  # multiline entry
@@ -182,35 +188,50 @@ def loadmatrix(filename, structured=True, print_header=False,
                             val = val[1:]  # remove initial space
                         header[key] = val
                 else:
-                    # the first three lines without hashtag are header lines
                     if headerlines == 0:
                         header["columns"] = line.strip("\n").split("\t")
                     if headerlines == 1:
                         header["units"] = line.strip("\n").split("\t")
                     headerlines += 1
+                    # for ma6, ma7 files the first three lines without hash are header lines
                     if headerlines == 3:
                         break
+                    # ma8 files have only two header lines without hash
+                    if extension.endswith("8") and headerlines == 2:
+                        break
+            # Read further comment lines in the file
+            comments = [
+                (i, line) for i, line in enumerate(matrix_file) if line.startswith("#")
+            ]
+            # combine multiline comments and note after which datapoint the
+            # comment was in the file
+            header["comments"] = []
+            lastdpoint = -1
+            for i, (linenr, msg) in enumerate(comments):
+                dpoint = linenr - i
+                message = msg.removeprefix("# ").removesuffix("\n")
+                if dpoint == lastdpoint:
+                    header["comments"][-1] += f"\n{message}"
+                else:
+                    header["comments"].append(f"after {dpoint} points: {message}")
+                lastdpoint = dpoint
         for key, val in header.items():
             if isinstance(val, str):
                 header[key] = val.strip('"')  # strip " from header strings
 
         # we now have (i+1) as the number of lines to skip
-        kwargs = {'sep': '\t', 'low_memory': False, 'comment': '#'}
+        kwargs = {"sep": "\t", "low_memory": False, "comment": "#", "header": None}
         if replace_None:
             kwargs['na_values'] = 'None'
         if structured is True:
             # generate a structured array with the column names as identifier
-            try:
-                data = pd.read_csv(filename, skiprows=i, **kwargs)
-            except IndexError:
-                # IndexError is raised in case an incomplete header is present
-                print("loadmatrix: incomplete data file header")
-                data = np.empty(0)
-            header["columns"] = data.columns.tolist()
-        else:
-            # otherwise generates a plain array only from the data
-            kwargs["header"] = None
-            data = pd.read_csv(filename, skiprows=i+1, **kwargs)
+            kwargs["names"] = header["columns"]
+        try:
+            data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)
+        except IndexError:
+            # IndexError is raised in case an incomplete header is present
+            print("loadmatrix: incomplete data file header")
+            data = np.empty(0)
         if replace_None:
             # Define replacement values based on data types
             replacement_values = {

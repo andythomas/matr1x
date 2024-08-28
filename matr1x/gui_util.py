@@ -191,7 +191,9 @@ class QRangeWidget(QGroupBox):
 
 class MetaViewerWidget(QDockWidget):
     """
-    Viewer for meta data stored in ma7 file
+    Viewer for meta data stored in matrix data files
+
+    Extensive meta data are only include in datafiles of version 7 or higher.
     """
     class TableModel(QAbstractTableModel):
         def __init__(self, data):

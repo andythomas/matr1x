@@ -2,7 +2,7 @@
 Type=Application
 Version=1.0
 Name=Matrix Preview
-Comment=Data file previewer for ma7 files
+Comment=Previewer for matr1x data files
 Exec=matrix-preview %f
 Icon=matr1x-matrix-preview
 Terminal=false

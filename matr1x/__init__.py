@@ -13,7 +13,7 @@ from datetime import date
 from .util import get_package_path
 
 # default datafile extension
-output_extension = ".ma7"
+output_extension = ".ma8"
 
 # parse global default config
 confparser = configparser.ConfigParser()
