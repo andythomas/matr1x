@@ -2,6 +2,7 @@
 # ---
 # (c) 2024 matr1x developers. All rights reserved.
 # ---
+"""Display data and allow simple data manipulation."""
 import logging
 import os
 import signal
@@ -49,9 +50,12 @@ if os.name == 'nt':
 
 
 class Matr1xApplication (QApplication):
+    """Allow double-click file open on a Mac."""
+
     openfile = pyqtSignal(str)
 
     def event(self, event):
+        """Catch file open on a Mac."""
         if event.type() == QEvent.Type.FileOpen:
             filename = event.file()
             self.openfile.emit(filename)
@@ -59,25 +63,30 @@ class Matr1xApplication (QApplication):
 
 
 class UpdateThread(QThread):
+    """Handle the thread."""
+
     update_now = pyqtSignal()
 
     def __init__(self, interval):
+        """Init thread and set sleep interval."""
         QThread.__init__(self)
         self.stopFlag = False
         self.interval = interval
 
     def run(self):
+        """Run thread and sleep in intervals."""
         while not self.stopFlag:
             time.sleep(self.interval)
             self.update_now.emit()
 
     def terminate(self):
+        """Terminate the thread."""
         self.stopFlag = True
 
 
 class SweepPreview(QMainWindow):
     """
-    Data viewer for matrix files
+    Data viewer for matrix files.
 
     Parameters
     ----------
@@ -86,6 +95,7 @@ class SweepPreview(QMainWindow):
     parent: widget or None
       parent widget
     """
+
     openfile_dialog = pyqtSignal()
     allowed_extensions = (".ma6", ".ma7", ".ma8")
 
@@ -111,15 +121,18 @@ class SweepPreview(QMainWindow):
             self.file_open_thread.start()
 
     def is_valid_extension(self, file_path):
+        """Return True if extension is valid."""
         return file_path.endswith(self.allowed_extensions)
 
     def dragEnterEvent(self, event):
+        """Enable drag and drop (1)."""
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
+        """Enable drag and drop (2)."""
         urls = event.mimeData().urls()
         if len(urls) == 1:
             file_path = urls[0].toLocalFile()
@@ -135,9 +148,7 @@ class SweepPreview(QMainWindow):
                                 "Please drop only a single file.")
 
     def _get_maximum_screen_width(self):
-        """
-        determine width of the biggest available screen.
-        """
+        """Determine width of the biggest available screen."""
         width = 0
         for screen in QApplication.instance().screens():
             width = max(width, screen.geometry().width())
@@ -145,7 +156,8 @@ class SweepPreview(QMainWindow):
 
     def _delayed_file_load_attempt(self):
         """
-        Function to trigger opening the file open dialog.
+        Trigger opening the file open dialog.
+
         On Linux/Windows the file open dialog opens immediately.
         On MacOS only in case no FileOpen Event is generated in the meantime.
         """
@@ -158,6 +170,7 @@ class SweepPreview(QMainWindow):
             self.openfile_dialog.emit()
 
     def eventFilter(self, f_object, f_event):
+        """Update the file view if required."""
         if f_object == self.w_file:
             if f_event.type() == QEvent.Type.MouseButtonPress:
                 self.update_file_combo()
@@ -165,6 +178,7 @@ class SweepPreview(QMainWindow):
         return False
 
     def load_button_pressed(self):
+        """Open file dialog to chose the input file."""
         filename = QFileDialog.getOpenFileName(
             self, "Select ma file", "", "matrix data files (*.ma8 *.ma7 *.ma6)"
         )[0]
@@ -175,6 +189,7 @@ class SweepPreview(QMainWindow):
                 self.w_status.setText("Please open a file")
 
     def open_file(self, filename):
+        """Read the data from the file."""
         logger.info(f"opening {filename}")
         self.filename = filename
         # get all files
@@ -192,6 +207,7 @@ class SweepPreview(QMainWindow):
         self.w_file.installEventFilter(self)
 
     def file_list_refresh(self):
+        """Refresh all files with the correct extension in the selected directory."""
         files = os.listdir(self.file_dir)
         self.data_files = (
             [os.path.join(self.file_dir, file)
@@ -200,6 +216,7 @@ class SweepPreview(QMainWindow):
             self.data_files, key=lambda t: os.stat(t).st_mtime)
 
     def update_file_combo(self):
+        """Update the combo box that displays the file names."""
         self.file_list_refresh()
         ctext = self.w_file.currentText()
         self.w_file.currentIndexChanged.disconnect()
@@ -211,9 +228,7 @@ class SweepPreview(QMainWindow):
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
     def init_basic_ui(self):
-        """
-        initialize basic GUI that works without chosen filename
-        """
+        """Initialize basic GUI that works without chosen filename."""
         self.setWindowTitle("Matrix Preview")
 
         # initialize empty window
@@ -243,9 +258,7 @@ class SweepPreview(QMainWindow):
         self.show()
 
     def init_ui(self):
-        """
-        Initialize GUI for popup
-        """
+        """Initialize GUI for popup."""
         l_file = QHBoxLayout()
 
         w_prev = QToolButton()
@@ -345,6 +358,7 @@ class SweepPreview(QMainWindow):
                            self.w_meta_view)
 
     def clear_ui(self):
+        """Clear the UI."""
         for i in reversed(range(2, self.grid.count())):
             item = self.grid.takeAt(i)
             widget = item.widget()
@@ -355,12 +369,14 @@ class SweepPreview(QMainWindow):
                     item.layout().takeAt(0).widget().deleteLater()
 
     def toggle_meta(self, state):
+        """Toggle the meta data view."""
         if state is True:
             self.w_meta_view.setVisible(True)
         else:
             self.w_meta_view.setVisible(False)
 
     def save_plot(self):
+        """Ask for filename and save the displayed data in a png file."""
         filename = QFileDialog.getSaveFileName(
             self, 'Select output png file', self.file_dir,
             "png files (*.png)")[0]
@@ -373,16 +389,19 @@ class SweepPreview(QMainWindow):
             self.spw.save_plot(filename)
 
     def previous_file(self):
+        """Determine the previous file."""
         self.update_file_combo()
         if self.file_index > 0:
             self.w_file.setCurrentIndex(self.file_index-1)
 
     def next_file(self):
+        """Determine the next file."""
         self.update_file_combo()
         if self.file_index < len(self.data_files) - 1:
             self.w_file.setCurrentIndex(self.file_index+1)
 
     def file_index_changed(self, index):
+        """Update info when index changes."""
         self.file_index = index
         self.filename = self.data_files[self.file_index]
         check = self.conditional_fetch_data(True, check=True)
@@ -416,9 +435,7 @@ class SweepPreview(QMainWindow):
         self.w_meta_view.update_data(self.header)
 
     def index_changed(self, newIndex):
-        """
-        If index is changed, reload the new data and handle the gui interaction
-        """
+        """If index changed, reload the new data and handle the gui interaction."""
         if self.w_index[0] == self.sender():
             if newIndex == 0:
                 self.w_index[1].setEnabled(False)
@@ -428,9 +445,7 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def transpose_toggled(self, check_state):
-        """
-        transpose has been toggled, reload data
-        """
+        """Transpose has been toggled, reload data."""
         if (self.w_plot2d.isChecked() is True and
                 self.w_plot2d_comp.isChecked() is False):
             if len(self.shapes[self.w_index[0].currentIndex()-1]) < 3:
@@ -443,9 +458,7 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def plotting_toggled(self, check_state):
-        """
-        Switch the currently selected plotting view to 2D
-        """
+        """Switch the currently selected plotting view to 2D."""
         self.w_l[0].setText("z" if check_state is True else "y")
         self.w_plot2d_comp.setVisible(check_state)
         if self.w_plot2d_comp.isChecked() is True and not check_state:
@@ -457,10 +470,7 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def plotting_complex(self, check_state):
-        """
-        Turn on the more complex 2D plotting widget provided by pyqtgraph
-        instead of using the SimplePlotWidget
-        """
+        """Turn on the more complex 2D plotting widget provided by pyqtgraph instead of using the SimplePlotWidget."""
         if check_state is True:
             self.spw.setVisible(False)
             if self.iv is None:
@@ -478,10 +488,7 @@ class SweepPreview(QMainWindow):
         self.plotting_toggled(check_state or self.w_plot2d.isChecked())
 
     def raise_error(self, error):
-        """
-        raise the error flag, can be used as callback function to set errors
-        from the SimplePlotWidget
-        """
+        """Raise the error flag, can be used as callback function to set errors from the SimplePlotWidget."""
         if error != "":
             self.w_status.setVisible(True)
             self.w_status.setText(error)
@@ -491,10 +498,7 @@ class SweepPreview(QMainWindow):
             self.w_status.setVisible(False)
 
     def index_callback(self, plot_object):
-        """
-        callback function that handles a change of the ploted index via the
-        plot selector of the SimplePlotWidget
-        """
+        """Handle a change of the ploted index via the plot selector of the SimplePlotWidget (callback)."""
         self.w_plot2d.blockSignals(True)
         self.w_plot2d.setChecked(plot_object.plot2d)
         self.w_plot2d.blockSignals(False)
@@ -505,10 +509,7 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def updatethread(self, state):
-        """
-        Function that runs and terminates a thread that reloads the data from
-        the file if the filename has changed.
-        """
+        """Run and terminate a thread that reloads the data from the file if the filename has changed."""
         if state is True:
             # start updatethread with 2s refresh time
             self.udthread = UpdateThread(2)
@@ -520,10 +521,12 @@ class SweepPreview(QMainWindow):
 
     def conditional_fetch_data(self, force=False, check=False):
         """
+        Fetch data from the file.
+
         Fetches data from the file if force is True, or if the modification
         time is past the time of the latest update (stored in self.lu_time).
         If force is false, this function was called from the updatethread,
-        therefore make it update all windows
+        therefore make it update all windows.
         """
         ret = 0
         if force is True:
@@ -547,6 +550,7 @@ class SweepPreview(QMainWindow):
         return ret
 
     def refresh_columns_size(self):
+        """Refresh size of all columns."""
         self.column_items = [
             f"{name} ({unit}), shape: {shape}" for name, unit, shape
             in zip(self.names, self.units, self.shapes)]
@@ -556,9 +560,7 @@ class SweepPreview(QMainWindow):
                 self.w_index[i].setItemText(j+1, item)
 
     def refresh_all_plots(self):
-        """
-        refresh all subplots by selecting each individually
-        """
+        """Refresh all subplots by selecting each individually."""
         ci = self.spw.w_plots.currentIndex()
         for i in range(self.spw.w_plots.count()-1):
             if ci == i:
@@ -568,6 +570,7 @@ class SweepPreview(QMainWindow):
         self.spw.w_plots.setCurrentIndex(ci)
 
     def reset(self):
+        """Reset the actual data view."""
         self.w_plot2d.setChecked(False)
         self.w_plot2d_comp.setChecked(False)
         self.w_transpose.setChecked(False)
@@ -577,9 +580,7 @@ class SweepPreview(QMainWindow):
             self.iv = None
 
     def fetch_data(self, check=False):
-        """
-        Function that actually handles the data operations
-        """
+        """Handle the data operations."""
         try:
             ret = 0
             self.header, self.data = loadmatrix(self.filename,
@@ -615,10 +616,7 @@ Please investigate the error and eventually restart matrix-preview""")
         return ret
 
     def reload_data(self):
-        """
-        wraps the 1d and 2d plotting functions and decides which one is
-        appropriate from the state of the gui
-        """
+        """Wrap the 1d and 2d plotting functions and decide which one is appropriate from the state of the gui."""
         if (self.w_plot2d.isChecked() is True or
                 self.w_plot2d_comp.isChecked() is True):
             ret = self.reload_data_2d()
@@ -628,9 +626,7 @@ Please investigate the error and eventually restart matrix-preview""")
         self.handle_error(ret)
 
     def handle_error(self, ret):
-        """
-        Handles a possible dimension error of the reload_data function
-        """
+        """Handle a possible dimension error of the reload_data function."""
         if ret < 0:
             if ret == -3:
                 self.raise_error("no data selected")
@@ -663,6 +659,7 @@ Please investigate the error and eventually restart matrix-preview""")
             self.w_status.setVisible(False)
 
     def reload_data_2d(self):
+        """Reload the data in the 2d case."""
         indexZ, indexX, indexY = [
             self.w_index[i].currentIndex() - 1 for i in range(3)]
         x = {}
@@ -789,8 +786,9 @@ Please investigate the error and eventually restart matrix-preview""")
 
     def reload_data_curve(self):
         """
-        Reloads the data and tries to make the dimensions suitable for a 1D
-        curve plot by smart guessing from the data dimension.
+        Reload the data.
+
+        Try to make the dimensions suitable for a 1D curve plot by smart guessing from the data dimension.
         """
         indexY, indexX = [self.w_index[i].currentIndex() - 1 for i in range(2)]
         x = {}
@@ -899,6 +897,7 @@ Please investigate the error and eventually restart matrix-preview""")
 
 
 def main():
+    """Set the basic GUI parameters and run."""
     app = Matr1xApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode

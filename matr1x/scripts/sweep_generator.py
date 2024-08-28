@@ -3,9 +3,9 @@
 # (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
-This module contains a gui application for the creation of sweeps for matrix
-in a reasonably straight forward fashion. Heavily relies on numpy.linspace
-for the creation of the sweep segments.
+Generate sweeps for matrix via a straightforward GUI.
+
+It heavily relies on numpy.linspace for the creation of the sweep segments.
 """
 import os
 import re
@@ -56,28 +56,29 @@ if os.name == 'nt':
 
 
 class LineEditFocus(QLineEdit):
-    """
-    Reimplements LineEdit with focusInEvent
-    """
+    """Reimplement LineEdit with focusInEvent."""
+
     focusIn = pyqtSignal()
 
     def __init__(self, parent=None, string=None):
+        """Init QLineEdit."""
         if string is not None:
             super().__init__(string)
         else:
             super().__init__(None)
 
     def focusInEvent(self, e, parent=None):
+        """Reimplement LineEdit with focusInEvent."""
         super().focusInEvent(e)
         self.focusIn.emit()
 
 
 class SweepPreviewPopup(QDialog):
     """
-    Popup showing the sweep as list and as plot
+    Show the sweep as list and as plot in a pop-up.
 
     Parameters
-    ------
+    ----------
     index : int
       index of column in sweep to be displayed on startup
     sweep : list
@@ -146,33 +147,25 @@ class SweepPreviewPopup(QDialog):
         self.show()
 
     def indexChanged(self, newIndex):
-        """
-        If index is changed, show the interface for new index
-        """
+        """Show the interface for new index if index is changed."""
         self.plotListRangeX(newIndex)
         self.updateTextEdit(newIndex)
 
     def updateTextEdit(self, index):
-        """
-        Updates the textEdit to show the current sweep[index]
-        """
+        """Update the textEdit to show the current sweep[index]."""
         self.textEdit.clear()
         for index, item in zip(range(len(self.sweep[index])),
                                self.sweep[index]):
             self.textEdit.append(str(index) + "\t| " + str(item))
 
     def mouseMoved(self, ev):
-        """
-        implement event to update cursor position while pointer is in plot
-        """
+        """Implement event to update cursor position while pointer is in plot."""
         mousePoint = self.vb.mapSceneToView(ev[0])
         self.posLabel.setText("x: {:e}\ny: {:e}".format(mousePoint.x(),
                                                         mousePoint.y()))
 
     def plotListRangeX(self, index):
-        """
-        Updates the plot to show sweep[index] against its range
-        """
+        """Update the plot to show sweep[index] against its range."""
         self.pw.getAxis("left").textWidth = 0
         length = len(self.sweep[index])
         self.plt.setData(x=linspace(0, length, length),
@@ -183,18 +176,16 @@ class SweepPreviewPopup(QDialog):
                                   self.units[index].strip() + "]"))
 
     def closePopup(self):
-        """
-        Obvious...
-        """
+        """Close the pop-up."""
         self.close()
 
 
 class MainWindow(QMainWindow):
     """
-    Define main layout, runs everything
+    Define main layout, run everything.
 
     Parameters
-    ------
+    ----------
     system : str
       path to system(s) for which an input file should be generated
     inputcb : function handle
@@ -299,15 +290,18 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
 
     def is_valid_extension(self, file_path):
+        """Return True if extension is valid."""
         return self.allowed_extension_pattern.search(file_path) is not None
 
     def dragEnterEvent(self, event):
+        """Enable drag and drop (1)."""
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
+        """Enable drag and drop (2)."""
         urls = event.mimeData().urls()
         if len(urls) == 1:
             file_path = urls[0].toLocalFile()
@@ -323,7 +317,7 @@ class MainWindow(QMainWindow):
                                 "Please drop only a single file.")
 
     def reset_layout(self):
-        # reset layout to clean state
+        """Reset layout to clean state."""
         if self.populated:
             self.clear_layout(self.grid)
             self.clear_layout(self.gridUtility)
@@ -333,9 +327,7 @@ class MainWindow(QMainWindow):
         self.adjustSize()
 
     def filename_changed(self):
-        """
-        On filenameChanged import new system
-        """
+        """Import new system on changed filename."""
         # get new system filename
         filenames = [self.systemList.item(j).text()
                      for j in range(self.systemList.count())]
@@ -367,9 +359,7 @@ class MainWindow(QMainWindow):
             self.statusBar.append(tbstr)
 
     def import_system(self):
-        """
-        Import specified system and populate layout
-        """
+        """Import specified system and populate layout."""
         if len(self.system.columns) != len(self.system.units):
             # simple sanity check
             self.statusBar.append("Lists with columns, units and settable" +
@@ -425,9 +415,7 @@ class MainWindow(QMainWindow):
                               " - enjoy!")
 
     def populate_layout(self):
-        """
-        Populate sweep controls dynamically from specifications in self.labels
-        """
+        """Populate sweep controls dynamically from specifications in self.labels."""
         for col in range(self.nParmsUsed):
             for label, row in zip(self.labels, range(len(self.labels))):
                 if 0 == col:
@@ -528,9 +516,7 @@ class MainWindow(QMainWindow):
         self.gridUtility.setColumnStretch(5, 1)
 
     def preview_sweep(self):
-        """
-        Display a popup with the sweep given in the column (as plot and list)
-        """
+        """Display a popup with the sweep given in the column (as plot and list)."""
         col = self.grid.getItemPosition(self.grid.indexOf(self.sender()))[1]
         sweep = self.generate_sweep()
         if sweep is None:
@@ -546,9 +532,7 @@ class MainWindow(QMainWindow):
         popup.show()
 
     def print_sweep_to_preview(self):
-        """
-        Print the complete set of sweeps to self.sweepPreview
-        """
+        """Print the complete set of sweeps to self.sweepPreview."""
         sweep = self.generate_sweep()
         if sweep is None:
             # sweep generation failed
@@ -624,9 +608,7 @@ class MainWindow(QMainWindow):
         return 1
 
     def output_to_file(self):
-        """
-        Write the contents of self.outputList to the file specified for output
-        """
+        """Write the contents of self.outputList to the file specified for output."""
         append = self.appendCheckbox.checkState()
         filename = self.fileEditOutput.text()
         if "" == filename:
@@ -695,8 +677,7 @@ class MainWindow(QMainWindow):
                                   timestamp)
 
     def append_sweep_col(self):
-        """
-        Add defined sweep parameters to self.sweep_params and populate sweepGrid
+        """Add defined sweep parameters to self.sweep_params and populate sweepGrid.
 
         Take care that whenever adressing the list (i.e. sweep_params) that
         those are shifted by 1 (layout starts at col 1, lists at 0)
@@ -727,16 +708,14 @@ class MainWindow(QMainWindow):
             self.populate_sweep_grid(position[1])
 
     def remove_sweep_param(self, col):
-        """
-        removes a set of linspace parameters from sweep_params
-        at the correct position
-        """
+        """Remove a set of linspace parameters from sweep_params at the correct position."""
         row = self.sweepGrid.getItemPosition(
             self.sweepGrid.indexOf(self.sender()))[0]
         del self.sweep_params[col-1][row]
         self.populate_sweep_grid(col)
 
     def populate_sweep_grid(self, col=None):
+        """Display the actual sweep parameters."""
         if col is None:
             try:
                 col = self.grid.getItemPosition(
@@ -776,18 +755,14 @@ class MainWindow(QMainWindow):
             row += 1
 
     def change_sweep_param(self, col):
-        """
-        Changes the sweep param if it is manipulated within the sweepGrid
-        """
+        """Change the sweep param if it is manipulated within the sweepGrid."""
         text = self.sender().text()
         position = self.sweepGrid.getItemPosition(
             self.sweepGrid.indexOf(self.sender()))
         self.sweep_params[col-1][position[0]][position[1]] = text
 
     def clear_layout(self, layout):
-        """
-        Clears all child widgets from layout
-        """
+        """Clear all child widgets from layout."""
         while layout.count():
             item = layout.takeAt(0)
             if item.widget() is not None:
@@ -796,9 +771,7 @@ class MainWindow(QMainWindow):
                 self.clear_layout(item)
 
     def show_file_dialog(self):
-        """
-        Opens a QFileDialog with filter system*.py
-        """
+        """Opes a QFileDialog with filter system*.py."""
         directory = system_directories[-1]
         if not self.shortcut_dir and len(system_names) > 1:
             self.shortcut_dir = create_temp_dir_with_symlinks(
@@ -824,9 +797,9 @@ class MainWindow(QMainWindow):
         self.filename_changed()
 
     def delete_selected_system(self):
-        """
-        Removes selected system from systemList. If no selection is active the
-        last system will be removed.
+        """Remove selected system from systemList.
+
+        If no selection is active the last system will be removed.
         """
         # remove selected system
         selected = self.systemList.selectedItems()
@@ -840,10 +813,9 @@ class MainWindow(QMainWindow):
         self.filename_changed()
 
     def show_file_dialog_output(self):
-        """
-        Opens a QFileDialog with filter "." + self.nParms + "t"
+        """Open a QFileDialog with filter "." + self.nParms + "t".
 
-        could be used to implement forced good practice naming the input files
+        Could be used to implement forced good practice naming the input files
         i.e. adding system and date to filename
         """
         filename = QFileDialog.getSaveFileName(self, 'Select output file',
@@ -854,7 +826,8 @@ class MainWindow(QMainWindow):
 
     def generate_sweep(self):
         """
-        GUI functionality to populate all lists necessary for sweep generation
+        GUI functionality to populate all lists necessary for sweep generation.
+
         After that generates the sweep from the parameters (still needs to be
         stretched)
         """
@@ -896,9 +869,7 @@ class MainWindow(QMainWindow):
         return sweep
 
     def gui_from_sweep(self):
-        """
-        Opens a QFileDialog with filter ".xxxt", where x is a number
-        """
+        """Open a QFileDialog with filter ".xxxt", where x is a number."""
         # get filename from dialog
         filename = QFileDialog.getOpenFileName(
             self, 'Select input file', usersfolder, "t files (*.*t)")[0]
@@ -906,7 +877,7 @@ class MainWindow(QMainWindow):
         self.open_file(filename)
 
     def open_file(self, filename):
-        # load system from file, define read out parameters to parse
+        """Load system from file, define read out parameters to parse."""
         params = {"# params : ": None, "# loop_over : ": None,
                   "# functions : ": None, "# up_down : ": None,
                   "# repeat : ": None}
@@ -949,6 +920,7 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    """Set the basic GUI parameters and run."""
     app = QApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode

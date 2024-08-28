@@ -2,5 +2,8 @@
 # ---
 # (c) 2024 matr1x developers. All rights reserved.
 # ---
+#
+"""set the TCP ports of the GUI applications."""
+
 MATRIX_GUI_PORT = 54329
 MATRIX_SCRIPT_PORT = 54330

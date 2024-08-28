@@ -3,6 +3,8 @@
 # (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
+Performs measurements utilizing several input files.
+
 matrix.py takes an input file, a system file (can be specified in the input
 file) and an output file as arguments to perform a measurement.
 The measurement setup itself is specified in the system, while the parameters
@@ -29,10 +31,7 @@ from . import MATRIX_GUI_PORT
 
 
 def parse_inputfile(inputfile, system):
-    """
-    reads the input file and provides point by point set values needed for the
-    measurement
-    """
+    """Read the input file and provides point by point set values needed for the measurement."""
     # define sorting algorithm
     def sort(arg):
         # get key
@@ -91,10 +90,7 @@ def parse_inputfile(inputfile, system):
 def measurementloop(inputfile, system,
                     setvalcb=lambda s: None, readvalcb=lambda r: None,
                     telemetrycb=lambda s: None, inputcb=lambda n: 0):
-    """
-    measurement loops with callback functions for visualization of the
-    measurement and its progress
-    """
+    """Measurement loops with callback functions for visualization of the measurement and its progress."""
     # count number of setpoints for telemetry information
     points = 0
     with open(inputfile, 'r') as f:
@@ -147,8 +143,10 @@ def measurementloop(inputfile, system,
 
 def measure_plain(inputfile, system, quiet=False):
     """
-    measurement loop with plain print output to the terminal or reduced output
-    when quiet is set to True. This measurement mode is mainly used for
+    Measurement loop with reduced output.
+
+    Measurements can be with plain print output to the terminal or futhrer reduced
+    output when quiet is set to True. This measurement mode is mainly used for
     continuous integration on Github actions and use on MS Windows.
     """
 
@@ -197,9 +195,7 @@ def measure_plain(inputfile, system, quiet=False):
 
 
 def measure_urwid(inputfile, systemfile, system):
-    """
-    measurement loop with urwid based output to the terminal
-    """
+    """Measurement loop with urwid based output to the terminal."""
     msg = ""
     # display some info
     info = urwid.Text(
@@ -306,6 +302,7 @@ def measure_urwid(inputfile, systemfile, system):
 
 
 def main():
+    """Read the command line and perform measurement accordingly."""
     # define the possible command line parameters
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--inputfile",

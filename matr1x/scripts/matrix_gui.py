@@ -2,6 +2,7 @@
 # ---
 # (c) 2024 matr1x developers. All rights reserved.
 # ---
+"""Provide a graphical user interface for matrix measurements."""
 import os
 import re
 import signal
@@ -37,7 +38,7 @@ except ImportError:
 
 
 def signal_handler(signal, frame):
-    # This takes care of any keyboard interrupt in the GUI
+    """Take any keyboard interrupt in the GUI."""
     return
 
 
@@ -54,12 +55,16 @@ if os.name == 'nt':
 
 
 class ExecThread(QThread):
+    """execute the measurement thread."""
+
     filename_received = pyqtSignal(str)
 
     def __init__(self):
+        """Initialize the thread."""
         QThread.__init__(self)
 
     def set_param(self, inputFile, outputFile, user, sample, comment):
+        """Set mearument parameters and meta-data."""
         self.inputFile = inputFile
         self.outputFile = outputFile
         self.user = user
@@ -67,6 +72,12 @@ class ExecThread(QThread):
         self.comment = comment
 
     def receive_filename(self):
+        """Receive filename from command line.
+
+        Matrix checks if the file already exists and subsequently changes its name.
+        This way, no existing measurement can be accidently overwritten. The name
+        is reported back to the GUI
+        """
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', MATRIX_GUI_PORT))
@@ -85,6 +96,7 @@ class ExecThread(QThread):
         self.filename_received.emit(data)
 
     def run(self):
+        """Start the command line process."""
         cmd = [get_matrix_binary(), "-i", self.inputFile]
         if self.outputFile != "":
             cmd += ["-o", self.outputFile]
@@ -103,8 +115,9 @@ class ExecThread(QThread):
         # it was published under CC BY-SA 4.0,
         # https://creativecommons.org/licenses/by-sa/4.0/
         # Modifications were made to use a primitive fallback on MS Windows.
-        """
-        the "correct" way of spawning a new subprocess:
+        """Catch signals correctly.
+
+        The "correct" way of spawning a new subprocess:
         signals like C-c must only go
         to the child process, and not to this python.
 
@@ -197,9 +210,7 @@ class ExecThread(QThread):
 
 
 class MainWindow(QWidget):
-    """
-    Define layout, runs everything
-    """
+    """Define layout, runs everything."""
 
     def __init__(self):
         super().__init__()
@@ -217,15 +228,18 @@ class MainWindow(QWidget):
         self.setAcceptDrops(True)
 
     def is_valid_extension(self, file_path):
+        """Return True if extension is valid."""
         return self.allowed_extension_pattern.search(file_path) is not None
 
     def dragEnterEvent(self, event):
+        """Enable drag and drop (1)."""
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
+        """Enable drag and drop(2)."""
         urls = event.mimeData().urls()
         if len(urls) == 1:
             file_path = urls[0].toLocalFile()
@@ -241,14 +255,13 @@ class MainWindow(QWidget):
                                 "Please drop only a single file.")
 
     def closeEvent(self, event):
+        """Close app properly."""
         if self.sg is not None:
             self.sg.close()
         event.accept()
 
     def initUI(self):
-        """
-        Initializes basic GUI matrix program
-        """
+        """Initialize basic GUI matrix program."""
         icondir = join(dirname(__file__), 'icons')
         self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-gui.png')))
         self.inputEdit = QLineEdit(self)
@@ -348,6 +361,7 @@ class MainWindow(QWidget):
         self.setWindowTitle('Matrix GUI')
 
     def updateAutoGenFilename(self, state):
+        """Disable output filename field while running."""
         if state is True:
             # disable output filename fields
             self.outputEdit.setEnabled(False)
@@ -357,9 +371,7 @@ class MainWindow(QWidget):
             self.outputButton.setEnabled(True)
 
     def showInputDialog(self):
-        """
-        Opens a QFileDialog with filter for input files
-        """
+        """Open a QFileDialog with filter for input files."""
         folder = self.inputEdit.text()
         if "" == folder:
             folder = self.outputEdit.text()
@@ -372,9 +384,7 @@ class MainWindow(QWidget):
             self.inputEdit.setText(filename[0])
 
     def showOutputDialog(self):
-        """
-        Opens a QFileDialog with filter for output files
-        """
+        """Open a QFileDialog with filter for output files."""
         folder = self.outputEdit.text()
         if "" == folder:
             folder = self.inputEdit.text()
@@ -388,9 +398,7 @@ class MainWindow(QWidget):
             self.outputEdit.setText(filename[0])
 
     def startSweepGenerator(self):
-        """
-        Runs sweep Generator already initialized with system
-        """
+        """Run sweep Generator already initialized with system."""
         if self.sg is None:
             self.sg = sweep_generator.MainWindow(inputcb=self.sGsetInputFile)
             self.sg.show()
@@ -402,12 +410,11 @@ class MainWindow(QWidget):
             self.sg.raise_()
 
     def sGsetInputFile(self, filename):
-        """
-        Can be called externally for setting the input file
-        """
+        """Can be called externally for setting the input file."""
         self.inputEdit.setText(filename)
 
     def selectionChanged(self, item):
+        """Display correct information from measurement queue."""
         item_index = int(item.text().split("-")[0])
         elem = self.meas_queue[item_index]
         self.inputEdit.setText(elem[0])
@@ -418,9 +425,7 @@ class MainWindow(QWidget):
         self.commentField.setText(elem[4])
 
     def queueMeasurement(self):
-        """
-        Queues a measurement into the measurement menu
-        """
+        """Queue a measurement into the measurement menu."""
         inputFile = self.inputEdit.text()
         if self.outputAutoGen.isChecked():
             outputFile = ""
@@ -446,23 +451,17 @@ class MainWindow(QWidget):
             self.runMatrix()
 
     def stopQueue(self):
-        """
-        resets the queue button and reconnects to running functionality
-        """
+        """Reset the queue button and reconnects to running functionality."""
         self.running = False
 
     def runMatrix(self):
-        """
-        Starts running the queued measurements
-        """
+        """Start running the queued measurements."""
         self.running = True
         self.queueButton.setText("Queue additional measurement")
         self.runNextMeasurement()
 
     def removeMeasurement(self):
-        """
-        remove selected or last item from meas_list
-        """
+        """Remove selected or last item from meas_list."""
         selected = self.meas_list.selectedItems()
         if len(selected) > 0:
             self.meas_list.takeItem(self.meas_list.row(selected[0]))
@@ -470,18 +469,17 @@ class MainWindow(QWidget):
             self.meas_list.takeItem(self.meas_list.count()-1)
 
     def runNextMeasurement(self):
-        """
-        runs the next queued measurement
-        """
+        """Run the next queued measurement."""
         item = int(self.meas_list.takeItem(0).text().split("-")[0])
         self.thread.set_param(*self.meas_queue[item])
         self.thread.start()
 
     def processFinished(self):
-        """
-        called when the current measurement is finished, checks whether
+        """Properly finish a mesurement.
+
+        Called when the current measurement is finished, checks whether
         there are further measurements in the queue and runs them in case
-        After all measurements have been run, resets the queue
+        After all measurements have been run, resets the queue.
         """
         if self.meas_list.count() > 0 and self.running is True:
             self.runNextMeasurement()
@@ -495,6 +493,7 @@ class MainWindow(QWidget):
             self.meas_queue = {}
 
     def openPreview(self):
+        """Open a window and preview the (running) measurement."""
         output = self.outputEdit.text()
         if "" == output:  # try to obtain last filename from input file
             infile = self.inputEdit.text()
@@ -510,6 +509,7 @@ class MainWindow(QWidget):
 
 
 def main():
+    """Set the basic GUI parameters and run."""
     app = QApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
