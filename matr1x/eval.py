@@ -147,10 +147,12 @@ def loadmatrix(filename, structured=True, print_header=False,
         header["columns"] = list(h5f["data"].keys())
         header["units"] = [it.attrs["unit"] for it in h5f["data"].values()]
         header["comments"] = []
-        for entry in h5f["comments"]:
-            message = entry[0].decode("utf-8")
-            timestamp = entry[1].decode("utf-8")
-            header["comments"].append(f"{timestamp}: {message}")
+        # check whether comments exist in file
+        if "comments" in h5f:
+            for entry in h5f["comments"]:
+                message = entry[0].decode("utf-8")
+                timestamp = entry[1].decode("utf-8")
+                header["comments"].append(f"{timestamp}: {message}")
         for key, val in h5f.attrs.items():
             if val == "__None__":
                 header[key] = None
