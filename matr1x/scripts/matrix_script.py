@@ -853,8 +853,8 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             # externally to avoid linter errors, make sure not to add an
             # additional line here
             script = "_interrupt=lambda x, s:x;_print=lambda x:x;"
-            script += "_input=lambda x:x;_report_line=lambda x:x;_user='';"
-            script += "_sample='';_scriptname='';"
+            script += "_input=lambda x:x;_report_line=lambda x:x;"
+            script += "_meta_data='';_scriptname='';"
             script += generate_script("", self.text())
             # reimplement the pyflakes.api.check function
             scriptname = "sc"
@@ -1219,16 +1219,14 @@ class ExecThread(QThread):
     # signal to report the currently executing line number to the editor.
     lineno_signal = pyqtSignal(int)
 
-    def __init__(self, sample, user, script, fallbackname):
+    def __init__(self, meta_data, script, fallbackname):
         """
         initialize thread that handles script execution with meta data and
         script
 
         Parameters:
-            sample : string
-                sample name from gui that will be used in the meta data
-            user : string
-                user name from gui that will be used in the meta data
+            meta_data : dict
+                dictionary containing meta data such as user and comment
             script : string
                 user script that is supposed to be run by the ExecThread.
             fallbackname : string
@@ -1239,8 +1237,7 @@ class ExecThread(QThread):
         super().__init__()
         self.proc = None
         self.conn = None
-        self.sample = sample
-        self.user = user
+        self.meta_data = meta_data
         self.script = script
         self.datafilefallback = fallbackname
 
@@ -1334,9 +1331,9 @@ class ExecThread(QThread):
             tf.flush()
             # pass the script that we want to execute and generate correct
             # parameters to pass to matr1x/utils.py:matrix_script_process
-            cmd = (f"""import matr1x.util as mu
-mu.matrix_script_process({repr(tf.name)}, {repr(self.user)} ,
-                         {repr(self.sample)}, {repr(self.datafilefallback)})""")
+            cmd = f"""import matr1x.util as mu
+mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
+                         {repr(self.datafilefallback)})"""
             # start socket that is used to communicate with the child process
             # that runs the script
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1887,10 +1884,11 @@ class MainWindow(QMainWindow):
         # define basic part of script, imports relevant commands
         user_script = self.script_edit.text()
         script = generate_script(self.systems, user_script)
-        self.thread = ExecThread(self.sample_edit.text(),
-                                 self.user_edit.text(),
-                                 script,
-                                 self.scriptname)
+        meta_data = {
+            "Creator": self.user_edit.text(),
+            "Identifier": self.sample_edit.text(),
+        }
+        self.thread = ExecThread(meta_data, script, self.scriptname)
         self.thread.lineno_signal.connect(self.highlight)
         self.thread.input_signal.connect(self.get_script_input)
         self.thread.finished.connect(self.process_finished)

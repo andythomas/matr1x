@@ -26,6 +26,20 @@ cfiles = confparser.read([
 datetimefmt = confparser.get("matr1x", "datetime_format",
                              fallback="%Y-%m-%dT%H:%M:%S")
 
+# define allowed dublin core meta keys
+VALID_META_KEYS = {  # valid key and item defines whether it is editable
+    "Creator": True,
+    "Date": False,
+    "Identifier": True,
+    "Relation": True,
+    "Description": True,
+    "Source": True,
+    "Type": True,
+    "Publisher": True,
+    "Format": False,
+    "Language": False,
+}
+
 # set up logging, mostly for debugging purposes.
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
 # is however not recommended in production environments.

@@ -15,26 +15,56 @@ from os.path import dirname, exists, join
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import get_latest_datafile
-from matr1x.scripts import MATRIX_GUI_PORT, matrix_preview, sweep_generator
-from matr1x.util import get_matrix_binary
+from matr1x.scripts import (
+    MATRIX_GUI_PORT,
+    matrix_preview,
+    sweep_generator,
+)
+from matr1x.system import MergedSystem
+from matr1x.util import get_matrix_binary, open_and_error
+from matr1x.gui_util import MetaViewerWidget
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import QThread, pyqtSignal
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal
     from PyQt6.QtGui import QIcon
-    from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QMessageBox, QPushButton,
-                                 QTextEdit, QVBoxLayout, QWidget)
+    from PyQt6.QtWidgets import (
+        QAbstractItemView,
+        QApplication,
+        QCheckBox,
+        QFileDialog,
+        QGridLayout,
+        QLabel,
+        QLineEdit,
+        QListWidget,
+        QMainWindow,
+        QMessageBox,
+        QPushButton,
+        QTextEdit,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
-    from PyQt5.QtCore import QThread, pyqtSignal
+    from PyQt5.QtCore import Qt, QThread, pyqtSignal
     from PyQt5.QtGui import QIcon
-    from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                                 QFileDialog, QGridLayout, QLabel, QLineEdit,
-                                 QListWidget, QMessageBox, QPushButton,
-                                 QTextEdit, QVBoxLayout, QWidget)
+    from PyQt5.QtWidgets import (
+        QAbstractItemView,
+        QApplication,
+        QCheckBox,
+        QFileDialog,
+        QGridLayout,
+        QLabel,
+        QLineEdit,
+        QListWidget,
+        QMainWindow,
+        QMessageBox,
+        QPushButton,
+        QTextEdit,
+        QVBoxLayout,
+        QWidget,
+    )
 
 
 def signal_handler(signal, frame):
@@ -63,13 +93,11 @@ class ExecThread(QThread):
         """Initialize the thread."""
         QThread.__init__(self)
 
-    def set_param(self, inputFile, outputFile, user, sample, comment):
+    def set_param(self, inputFile, outputFile, meta_data):
         """Set mearument parameters and meta-data."""
         self.inputFile = inputFile
         self.outputFile = outputFile
-        self.user = user
-        self.sample = sample
-        self.comment = comment
+        self.meta_data = meta_data
 
     def receive_filename(self):
         """Receive filename from command line.
@@ -100,11 +128,12 @@ class ExecThread(QThread):
         cmd = [get_matrix_binary(), "-i", self.inputFile]
         if self.outputFile != "":
             cmd += ["-o", self.outputFile]
-        for field, arg in ((self.user, "-u"),
-                           (self.sample, "-S"),
-                           (self.comment, "-m")):
-            if field:
-                cmd += [arg, field]
+        for key, val in self.meta_data.items():
+            if key in matr1x.VALID_META_KEYS.keys() and val:
+                if matr1x.VALID_META_KEYS[key]:
+                    # only pass on allowed (editable) meta keys and only if
+                    # data is not None
+                    cmd += [f"--dc_{key.lower()}", val]
         print(subprocess.list2cmdline(cmd))
         ret = self.run_as_fg_process(cmd)
         print(f"matrix ended with returncode: {ret}")
@@ -209,7 +238,7 @@ class ExecThread(QThread):
         return ret
 
 
-class MainWindow(QWidget):
+class MainWindow(QMainWindow):
     """Define layout, runs everything."""
 
     def __init__(self):
@@ -218,6 +247,7 @@ class MainWindow(QWidget):
         self.sg = None
         self.running = False
         self.meas_queue = {}
+        self.sys_meta_data = {}
         self.thread = ExecThread()
         self.thread.filename_received.connect(self.outputEdit.setText)
         self.thread.finished.connect(self.processFinished)
@@ -265,6 +295,7 @@ class MainWindow(QWidget):
         icondir = join(dirname(__file__), 'icons')
         self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-gui.png')))
         self.inputEdit = QLineEdit(self)
+        self.inputEdit.textChanged.connect(self.parseSystemFromInputFile)
 
         inputButton = QPushButton("Select Input File")
         inputButton.clicked.connect(self.showInputDialog)
@@ -303,6 +334,8 @@ class MainWindow(QWidget):
         self.stopButton = QPushButton("Stop after next")
         self.stopButton.setVisible(False)
         self.stopButton.clicked.connect(self.stopQueue)
+
+        self.w_meta_view = MetaViewerWidget({})
 
         self.meas_list = QListWidget()
         self.meas_list.setVisible(False)
@@ -357,8 +390,14 @@ class MainWindow(QWidget):
         vBox.addLayout(fGrid)
         vBox.addLayout(sGrid)
 
-        self.setLayout(vBox)
+        self.widget = QWidget()
+        self.widget.setLayout(vBox)
+
+        self.setCentralWidget(self.widget)
         self.setWindowTitle('Matrix GUI')
+
+        self.w_meta_view.setVisible(True)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_meta_view)
 
     def updateAutoGenFilename(self, state):
         """Disable output filename field while running."""
@@ -424,6 +463,34 @@ class MainWindow(QWidget):
         self.sampleField.setText(elem[3])
         self.commentField.setText(elem[4])
 
+    def parseSystemFromInputFile(self, text):
+        systemfile = None
+        if not os.path.exists(text):
+            # no file, ignore
+            return
+        with open_and_error(text, "r") as (f, err):
+            if err:
+                self.statusBar.append("Input file cannot be parsed", err)
+            else:
+                for line in f:
+                    if "# System" in line:
+                        systemfile = line.replace("# System filename : ", "").split(",")
+                        break
+                    if "#" != line[0]:
+                        # should not occur
+                        self.statusBar.append("no system spec in input file")
+                        return
+        try:
+            system = MergedSystem.from_files(systemfile)
+        except ModuleNotFoundError:
+            self.statusBar.append("system file does not exist")
+            return
+        except PermissionError:
+            self.statusBar.append("system file not readable")
+            return
+        self.w_meta_view.update_data(system.dcdata)
+        self.sys_meta_data = system.dcdata
+
     def queueMeasurement(self):
         """Queue a measurement into the measurement menu."""
         inputFile = self.inputEdit.text()
@@ -437,9 +504,10 @@ class MainWindow(QWidget):
         if not exists(inputFile):
             self.statusBar.append("Input file does not exist")
             return
-        param = (inputFile, outputFile,
-                 self.userField.text(), self.sampleField.text(),
-                 self.commentField.toPlainText())
+        self.sys_meta_data["Creator"] = self.userField.text()
+        self.sys_meta_data["Identifier"] = self.sampleField.text()
+        self.sys_meta_data["Description"] = self.commentField.toPlainText()
+        param = (inputFile, outputFile, self.sys_meta_data)
         index = len(self.meas_queue)
         self.meas_queue[index] = param
         self.meas_list.addItem(f"{index} - {os.path.basename(inputFile)} - "

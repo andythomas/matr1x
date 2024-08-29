@@ -28,6 +28,7 @@ from matr1x.util import (flatten, flush_input, generate_col_index,
                          print_formatted_line, telemetry_string)
 
 from . import MATRIX_GUI_PORT
+from .. import VALID_META_KEYS
 
 
 def parse_inputfile(inputfile, system):
@@ -311,12 +312,6 @@ def main():
                         help="specifies system(s)")
     parser.add_argument("-o", "--outputfile", default=None,
                         help="Output filename")
-    parser.add_argument("-m", "--comment", default=None,
-                        help="arbritary comment string")
-    parser.add_argument("-u", "--user", default=None,
-                        help="Name of the operator/user for the data file header")
-    parser.add_argument("-S", "--sample", default=None,
-                        help="sample identification for the data file header")
     parser.add_argument("-af", "--append", action='store_true',
                         help="instead of appending a continuous number " +
                         "to the output file, append to output file.")
@@ -324,6 +319,15 @@ def main():
                         help="use plain output instead of the urwid library")
     parser.add_argument("-q", "--quiet", action='store_true',
                         help="produce reduced output (no measurement data)")
+
+    # add keys to allow transmitting meta data
+    for key in VALID_META_KEYS.keys():
+        parser.add_argument(
+            f"-d{key[:2].lower()}",
+            f"--dc_{key.lower()}",
+            default=None,
+            help=f"Dublin Core meta data entry {key}",
+        )
 
     # parse the command line
     options = parser.parse_args()
@@ -405,6 +409,14 @@ def main():
         client_socket.send(output_filename.encode())
         client_socket.close()
 
+    # update the meta data with potential user input
+    for key, editable in VALID_META_KEYS.items():
+        if editable:
+            # only parse user editable keys
+            opt_val = getattr(options, f"dc_{key.lower()}")
+            if opt_val is not None:
+                system.dcdata[key] = opt_val
+
     # initialize devices and notify user what is going on
     print("setting devices")
     system.set(input_file=options.inputfile, output_file=output_filename)
@@ -419,12 +431,6 @@ def main():
 
     # initialize header and insert command line options into measurement
     # file (can include device config etc.)
-    if options.comment is not None:
-        system.dcdata["Description"] = options.comment
-    if options.user is not None:
-        system.dcdata["Creator"] = options.user
-    if options.sample is not None:
-        system.dcdata["Identifier"] = options.sample
     try:
         system.write_matrix_header(options.inputfile, query_dict)
     except IOError:

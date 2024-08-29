@@ -216,7 +216,10 @@ class MetaViewerWidget(QDockWidget):
             return len(self._data)
 
         def columnCount(self, index):
-            return len(self._data[0])
+            if self.rowCount(0) > 0:
+                return len(self._data[0])
+            else:
+                return 0
 
     def __init__(self, metadata):
         super().__init__()

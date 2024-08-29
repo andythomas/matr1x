@@ -54,6 +54,9 @@ class MeasSystem(System):
         # configure devices upon initialization
         sys.devs["dev1"].p2 = 10
         sys.devs["dev2"].configure(setting1="VOLT", setting2=5)
+        self.dcdata["Source"] = (
+            "Making a comment when set is finished " f"configuring dev2 to {'VOLT'}"
+        )
 
     def reset(self, *args, **kwargs):
         """
@@ -72,7 +75,6 @@ class MeasSystem(System):
 # ============================
 # initialize system
 sys = MeasSystem()
-sys.dcdata["Source"] = "dummy system for testing matr1x-matrix"
 # ============================
 
 # ========================================================================

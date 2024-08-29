@@ -94,7 +94,7 @@ def test_matrix_script_pyflakes():
     with open(inputfile, "r") as f:
         user_script = f.read()
     script = "_interrupt=lambda x:x; _print=lambda x:x; _input=lambda x:x; "
-    script += "_report_line=lambda x:x; _user=''; _sample=''; "
+    script += "_report_line=lambda x:x; _meta_data={}; "
     script += "_scriptname=''\n"
     script += matr1x.util.generate_script(["system_dummy_feature",
                                            "system_dummy_meas"],
@@ -118,8 +118,10 @@ def test_matrix_script_dummy_merged():
         for line in script:
             tf.write(line.encode())
         tf.flush()
-        script = ("import matr1x.util as mu\n" +
-                  f"mu.matrix_script_process({repr(tf.name)}, '', '')")
+        script = (
+            "import matr1x.util as mu\n"
+            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
+        )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
         files = glob.glob(os.path.join(path, f"epische_messdatei{output_extension}"))

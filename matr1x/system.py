@@ -17,9 +17,16 @@ import h5py
 import numpy as np
 from pymeasure.instruments import Instrument
 
-from . import datetimefmt, output_extension
-from .util import (construct_query_string, default_separator, flatten,
-                   init_ascii_header, init_hdf5_skel, module_from_path)
+from . import datetimefmt, output_extension, VALID_META_KEYS
+from .util import (
+    construct_query_string,
+    default_separator,
+    flatten,
+    init_ascii_header,
+    init_hdf5_skel,
+    module_from_path,
+    DcDict,
+)
 
 
 def device_query(device_handle, config_params):
@@ -326,14 +333,16 @@ class System:
         self._file_mode = 'a'
 
         # Dublin Core metadata default entries
-        self.dcdata = dict(
+        self.dcdata = DcDict(
+            self,
             Creator=None,  # measurement user
             Date=time.strftime(f"{datetimefmt}", time.localtime()),
             Identifier=None,  # sample name
+            Relation=None,  # parent sample
             Description=None,  # comment
-            Source="matrix powered measurement system",  # measurement system
-            Type="Transport data",
-            Publisher="matr1x",
+            Source=None,  # measurement system
+            Type=None,  # type of measurement data (e.g., transport)
+            Publisher=None,  # published of data, e.g., university/institute
             Format="text/plain; charset=UTF-8",
             Language="en",
         )
@@ -1135,7 +1144,11 @@ class System:
                 data_file.attrs["Device query"] = construct_query_string(
                     query_dict)
                 for dckey, dcvalue in self.dcdata.items():
-                    if dcvalue is None:
+                    if dckey not in VALID_META_KEYS.keys():
+                        # values that are not in the dc specifications are
+                        # just added as attribute
+                        data_file.attrs[f"{dckey}"] = dcvalue
+                    elif dcvalue is None:
                         # mark non-existing value
                         data_file.attrs[f"DC.{dckey}"] = "__None__"
                     else:
@@ -1146,7 +1159,13 @@ class System:
             telemetry += [default_separator]
             with open(self.filename, 'w', encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
-                    if dcvalue is None:
+                    if dckey not in VALID_META_KEYS.keys():
+                        # values that are not in the dc specifications are
+                        # just added as attribute
+                        dcentry = dcvalue.replace("\n", "\n## ")
+                        dcentry = dcentry.replace('"', '"')
+                        data_file.write(f'# {dckey} : "{dcentry}"\n')
+                    elif dcvalue is None:
                         data_file.write(f"# DC.{dckey} : None\n")
                     else:
                         dcentry = dcvalue.replace("\n", "\n## ")
@@ -1368,21 +1387,20 @@ class MergedSystem(System):
             sys.filename = value
         self._filename = value
 
-    def _merge_dcdata(self, setdate=True):
+    def _merge_dcdata(self):
         tmpdcdata = collections.defaultdict(set)
         for sys in self.subsys:
             for key, value in sys.dcdata.items():
-                if key == "Date" and not setdate:
+                if key == "Date":
+                    # skip date
                     continue
                 if value:
                     tmpdcdata[key].add(value)
         # merge dcdata
         for key, vlist in tmpdcdata.items():
             self.dcdata[key] = ";".join(vlist)
-        # set correct timestamp
-        if setdate:
-            self.dcdata["Date"] = time.strftime(f"{datetimefmt}",
-                                                time.localtime())
+        # set correct timestamp, overwrites value
+        self.dcdata["Date"] = time.strftime(f"{datetimefmt}", time.localtime())
 
     def _check_hdf5(self):
         """check whether one of the systems requires HDF5."""
@@ -1428,7 +1446,6 @@ class MergedSystem(System):
         for sys in self.subsys:
             self.devs = {**self.devs, **sys.devs}
         # remerge potentially changed dcdata
-        self._merge_dcdata(setdate=False)
         self.opened = True
 
     def reset(self, *args, **kwargs):
