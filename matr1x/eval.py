@@ -225,7 +225,7 @@ def loadmatrix(filename, structured=True, print_header=False,
             lastdpoint = -1
             for i, (linenr, msg) in enumerate(comments):
                 dpoint = linenr - i
-                message = msg.removeprefix("# ").removesuffix("\n")
+                message = msg.lstrip("# ").rstrip("\n")
                 if dpoint == lastdpoint:
                     header["comments"][-1] += f"\n{message}"
                 else:
