@@ -60,7 +60,7 @@ except ImportError:
                                  QPushButton, QSizePolicy, QSpinBox, QTableView,
                                  QVBoxLayout, QWidget)
 
-from .. import confparser, datetimefmt, logfolder, system, usersfolder
+from .. import config, datetimefmt, logfolder, system, usersfolder
 from ..gui_util import validator
 from ..util import normalize_cmds
 from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
@@ -1110,14 +1110,16 @@ def sendNotificationEmail(address, subject, msgtext, attachments=[]):
             msg.attach(att)
 
         # read email config
-        (smtp_srv,
-         smtp_user,
-         frommail,
-         passwd) = [confparser.get("email", field, fallback=None) for field in ("smtp_server",
-                                                                                "smtp_user",
-                                                                                "fromemail",
-                                                                                "password")]
-        port = confparser.get("email", "smtp_port", fallback=465)
+        if "email" in config["matr1x"]:
+            conf = config["matr1x"]["email"]
+            (smtp_srv, smtp_user, frommail, passwd) = [
+                conf.get(field, None)
+                for field in ("smtp_server", "smtp_user", "fromemail", "password")
+            ]
+            port = conf.get("smtp_port", 465)
+        else:
+            (smtp_srv, smtp_user, frommail, passwd) = (None,) * 4
+            port = 465
         context = ssl.create_default_context()
 
         try:

@@ -10,6 +10,7 @@ different types of syntaxes which can be used in the device/column definitions
 # Custom import area
 # ============================
 
+from matr1x import get_config_dict
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
 
@@ -23,6 +24,15 @@ from matr1x.system import System
 class MeasSystem(System):
     def __init__(self):
         super().__init__()
+        # define default parameters for configurable settings
+        self.config = {"setting1": "VOLT", "setting2": 5}
+        # here one updates the config with settings potentially saved in the
+        # user config. The ~/.matr1x.toml or local matr1x.toml file can contain
+        # the following:
+        # [matr1x.systems.system_dummy_feature]
+        # setting1 = "CURR"
+        # setting2 = 2
+        self.config.update(get_config_dict("matr1x.systems.system_dummy_feature"))
         self.dcdata["Source"] = "Dummy feature system"
         self.dcdata["Publisher"] = "matr1x measurement suite"
 
@@ -53,10 +63,11 @@ class MeasSystem(System):
         super().set(*args, **kwargs)
         # configure devices upon initialization
         sys.devs["dev1"].p2 = 10
-        sys.devs["dev2"].configure(setting1="VOLT", setting2=5)
-        self.dcdata["Source"] = (
-            "Making a comment when set is finished " f"configuring dev2 to {'VOLT'}"
+        sys.devs["dev2"].configure(
+            setting1=self.config["setting1"], setting2=self.config["setting2"]
         )
+        # make a comment when set is finished
+        self.dcdata["description"] = f"configuring dev2 to '{self.config['setting1']}'"
 
     def reset(self, *args, **kwargs):
         """
