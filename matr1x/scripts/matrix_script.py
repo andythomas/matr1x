@@ -2,7 +2,7 @@
 # ---
 # (c) 2024 matr1x developers. All rights reserved.
 # ---
-from __future__ import unicode_literals
+"""Allow to write measurement scripts in Python."""
 
 import ast
 import getpass
@@ -15,6 +15,7 @@ import sys
 import tempfile
 import textwrap
 import warnings
+from importlib.metadata import version as package_version
 from os.path import basename, dirname, join
 
 import autopep8
@@ -35,14 +36,16 @@ from matr1x.util import (
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
     from PyQt6.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
-    from PyQt6.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
+    from PyQt6.QtCore import QEvent, QObject, QSize, Qt, QThread, pyqtSignal
     from PyQt6.QtGui import (
+        QAction,
         QColor,
-        QFont,
+        QFontDatabase,
         QIcon,
+        QKeyEvent,
         QKeySequence,
         QPalette,
-        QShortcut,
+        QPixmap,
         QTextCursor,
     )
     from PyQt6.QtWidgets import (
@@ -50,12 +53,11 @@ try:
         QApplication,
         QDialog,
         QFileDialog,
-        QGridLayout,
-        QLineEdit,
         QListWidget,
         QMainWindow,
+        QStyle,
+        QToolBar,
         QMessageBox,
-        QPushButton,
         QSplitter,
         QTextEdit,
         QWidget,
@@ -64,51 +66,38 @@ except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
-    from PyQt5.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
-    from PyQt5.QtGui import QColor, QFont, QIcon, QKeySequence, QPalette, QTextCursor
+    from PyQt5.QtCore import QEvent, QObject, QSize, Qt, QThread, pyqtSignal
+    from PyQt5.QtGui import (
+        QColor,
+        QFontDatabase,
+        QIcon,
+        QKeyEvent,
+        QKeySequence,
+        QPalette,
+        QPixmap,
+        QTextCursor,
+    )
     from PyQt5.QtWidgets import (
         QAbstractItemView,
+        QAction,
         QApplication,
         QDialog,
         QFileDialog,
-        QGridLayout,
-        QLineEdit,
         QListWidget,
         QMainWindow,
         QMessageBox,
-        QPushButton,
-        QShortcut,
         QSplitter,
+        QStyle,
+        QToolBar,
         QTextEdit,
         QWidget,
     )
 
-from ..gui_util import EmittingStream
+from ..gui_util import EmittingStream, QSizePolicy, QVBoxLayout, MetaDataDialog
+
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 logger.info("matrix-script starting")
-
-# define syntax styles, currently only a single style for ~white background
-# is implemented, in the future also support dark mode?
-STYLES = {
-    QsciLexerPython.Default: QColor('black'),
-    QsciLexerPython.Keyword: QColor('blue'),
-    QsciLexerPython.Operator: QColor('red'),
-    QsciLexerPython.FunctionMethodName: QColor('darkGreen'),
-    QsciLexerPython.ClassName: QColor('darkBlue'),
-    QsciLexerPython.HighlightedIdentifier: QColor('darkCyan'),
-    QsciLexerPython.SingleQuotedString: QColor('darkMagenta'),
-    QsciLexerPython.SingleQuotedFString: QColor('darkMagenta'),
-    QsciLexerPython.TripleSingleQuotedString: QColor('darkMagenta'),
-    QsciLexerPython.TripleSingleQuotedFString: QColor('darkMagenta'),
-    QsciLexerPython.DoubleQuotedString: QColor('darkRed'),
-    QsciLexerPython.DoubleQuotedFString: QColor('darkRed'),
-    QsciLexerPython.TripleDoubleQuotedString: QColor('darkRed'),
-    QsciLexerPython.TripleDoubleQuotedString: QColor('darkRed'),
-    QsciLexerPython.Comment: QColor("#666666"),
-    QsciLexerPython.Identifier: QColor('black'),
-    QsciLexerPython.Number: QColor('brown'),
-}
 
 # pyflakes warnings that trigger an error
 LINTER_ERRORS = [
@@ -136,10 +125,13 @@ LINTER_ERRORS = [
 SCRIPT_OFFSET = len(generate_script_prefix_suffix("")[0].split('\n'))
 
 
-class Matr1xApplication (QApplication):
+class Matr1xApplication(QApplication):
+    """Enable double-click open on a Mac."""
+
     openfile = pyqtSignal(str)
 
     def event(self, event):
+        """Evaluate the event and open the file."""
         if event.type() == QEvent.Type.FileOpen:
             filename = event.file()
             self.openfile.emit(filename)
@@ -147,6 +139,8 @@ class Matr1xApplication (QApplication):
 
 
 class DroppableWidget(QWidget):
+    """Allow drag and drop of files."""
+
     fileDropped = pyqtSignal(str)  # Custom signal to emit file path
 
     def __init__(self, parent=None):
@@ -154,15 +148,18 @@ class DroppableWidget(QWidget):
         self.setAcceptDrops(True)  # Enable drag and drop for this widget
 
     def is_valid_extension(self, file_path):
+        """Check is extension is valid."""
         return file_path.endswith(MainWindow.extension)
 
     def dragEnterEvent(self, event):
+        """Enable drag and drop (1)."""
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
+        """Enable drag and drop (2)."""
         urls = event.mimeData().urls()
         if len(urls) == 1:
             file_path = urls[0].toLocalFile()
@@ -179,13 +176,17 @@ class DroppableWidget(QWidget):
 
 
 class CustomReporter(pyflakes.reporter.Reporter):
+    """Create custom reporter class based on pyflakes."""
 
     def __init__(self, stream, hook):
         """
-        only use a single stream from errors and warnings
-        provide a hook to handle the linter errors
+        Init the custom reporter.
 
-        Parameters:
+        Only use a single stream from errors and warnings and
+        provide a hook to handle the linter errors.
+
+        Parameters
+        ----------
             hook : function
                 callback to call on script errors. Should accept the line,
                 column (cursor position), a message, its arguments, and
@@ -196,8 +197,9 @@ class CustomReporter(pyflakes.reporter.Reporter):
 
     def flake(self, message):
         """
-        Reimplementing the flaker function, called if formatting or similar
-        error is found (naming etc.)
+        Reimplement the flaker function.
+
+        Called if formatting or similar error is found (naming etc.).
         """
         style = 0
         if message.__class__.__name__ in LINTER_ERRORS:
@@ -208,8 +210,9 @@ class CustomReporter(pyflakes.reporter.Reporter):
 
     def syntaxError(self, filename, msg, lineno, offset, text):
         """
-        Reimplementing the syntax error function, handles the messages
-        and properly initializes the linter hook
+        Reimplement the syntax error function.
+
+        Handles the messages and properly initializes the linter hook.
         """
         if text is None:
             line = None
@@ -250,15 +253,19 @@ class CustomReporter(pyflakes.reporter.Reporter):
 #
 def rxIndex(rx, txt):
     """
-    Function to get the index (start position) of a regular expression match
-    within some text.
+    Get the index (start position) of a regular expression match within some text.
 
-    @param rx regular expression object as created by re.compile()
-    @type re.Pattern
-    @param txt text to be scanned
-    @type str
-    @return start position of the match or -1 indicating no match was found
-    @rtype int
+    Parameters
+    ----------
+    rx : re.Pattern
+        regular expression object as created by re.compile()
+    txt : str
+        text to be scanned
+
+    Returns
+    -------
+    return : int
+        start position of the match or -1 indicating no match was found
     """
     match = rx.search(txt)
     if match is None:
@@ -269,17 +276,18 @@ def rxIndex(rx, txt):
 
 class CompleterPython(QObject):
     # adapted from https://hg.die-offenbachs.homelinux.org/eric/file/eric7/src/eric7/QScintilla/TypingCompleters/CompleterPython.py
-    """
-    Class implementing a python completer
-    """
+    """Class implementing a python completer."""
 
     def __init__(self, editor, parent=None):
         """
-        Constructor
+        Init the Python completer.
 
-        @param editor reference to the editor object (QScintilla.Editor)
-        @param parent reference to the parent object (QObject)
-            If parent is None, we set the editor as the parent.
+        Parameters
+        ----------
+        editor : QScintilla.Editor
+            Editor reference to the editor object
+        parent : QObject
+            Reference to the parent object. If parent is None, we set the editor as the parent.
         """
         if parent is None:
             parent = editor
@@ -339,7 +347,10 @@ class CompleterPython(QObject):
         """
         Public slot to set the enabled state.
 
-        @param enable flag indicating the new enabled state (boolean)
+        Parameters
+        ----------
+        enable : bool
+            flag indicating the new enabled state
         """
         if enable:
             if not self.enabled:
@@ -353,7 +364,10 @@ class CompleterPython(QObject):
         """
         Public method to get the enabled state.
 
-        @return enabled state (boolean)
+        Returns
+        -------
+        state : bool
+            enabled state
         """
         return self.enabled
 
@@ -361,7 +375,10 @@ class CompleterPython(QObject):
         """
         Public slot called to handle the user entering a character.
 
-        @param charNumber value of the character entered (integer)
+        Parameters
+        ----------
+        charNumber : int
+            value of the character entered
         """
         char = chr(charNumber)
         if char not in ["(", ")", "{", "}", "[", "]", " ", ",", "'",
@@ -527,10 +544,7 @@ class CompleterPython(QObject):
                 self.editor.endUndoAction()
 
     def __dedentToIf(self):
-        """
-        Private method to dedent the last line to the last if statement with
-        less (or equal) indentation.
-        """
+        """Private method to dedent the last line to the last if statement with less (or equal) indentation."""
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
         ifLine = line - 1
@@ -549,10 +563,7 @@ class CompleterPython(QObject):
             ifLine -= 1
 
     def __dedentElseToIfWhileForTry(self):
-        """
-        Private method to dedent the line of the else statement to the last
-        if, while, for or try statement with less (or equal) indentation.
-        """
+        """Private method to dedent the line of the else statement to the last if, while, for or try statement with less (or equal) indentation."""
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
         if line > 0:
@@ -579,10 +590,7 @@ class CompleterPython(QObject):
             ifLine -= 1
 
     def __dedentExceptToTry(self):
-        """
-        Private method to dedent the line of the except statement to the last
-        try statement with less (or equal) indentation.
-        """
+        """Private method to dedent the line of the except statement to the last try statement with less (or equal) indentation."""
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
         tryLine = line - 1
@@ -604,10 +612,7 @@ class CompleterPython(QObject):
             tryLine -= 1
 
     def __dedentFinallyToTry(self):
-        """
-        Private method to dedent the line of the except statement to the last
-        try statement with less (or equal) indentation.
-        """
+        """Private method to dedent the line of the except statement to the last try statement with less (or equal) indentation."""
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
         tryLine = line - 1
@@ -627,10 +632,7 @@ class CompleterPython(QObject):
             tryLine -= 1
 
     def __dedentDefStatement(self):
-        """
-        Private method to dedent the line of the def statement to a previous
-        def statement or class statement.
-        """
+        """Private method to dedent the line of the def statement to a previous def statement or class statement."""
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
         tryLine = line - 1
@@ -659,7 +661,10 @@ class CompleterPython(QObject):
         """
         Private method to check, if the user is defining a class method.
 
-        @return flag indicating the definition of a class method (boolean)
+        Returns
+        -------
+        flag : bool
+            Indicates the definition of a class method
         """
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
@@ -691,10 +696,12 @@ class CompleterPython(QObject):
 
     def __isClassMethodDef(self):
         """
-        Private method to check, if the user is defing a class method
-        (@classmethod).
+        Private method to check, if the user is defing a class method (@classmethod).
 
-        @return flag indicating the definition of a class method (boolean)
+        Returns
+        -------
+        flag : bool
+            flag indicating the definition of a class metho
         """
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
@@ -708,10 +715,12 @@ class CompleterPython(QObject):
 
     def __isStaticMethodDef(self):
         """
-        Private method to check, if the user is defing a static method
-        (@staticmethod) method.
+        Private method to check, if the user is defing a static method (@staticmethod) method.
 
-        @return flag indicating the definition of a static method (boolean)
+        Parameters
+        ----------
+        flag : bool
+            flag indicating the definition of a static method
         """
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
@@ -727,9 +736,17 @@ class CompleterPython(QObject):
         """
         Private method to check, if the cursor is inside a comment.
 
-        @param line current line (integer)
-        @param col current position within line (integer)
-        @return flag indicating, if the cursor is inside a comment (boolean)
+        Parameters
+        ----------
+        line : int
+            current line
+        col : in
+            current position within line
+
+        Returns
+        -------
+        flag : bool
+            indicates if the cursor is inside a comment
         """
         txt = self.editor.text(line)
         if col == len(txt):
@@ -742,54 +759,86 @@ class CompleterPython(QObject):
 
     def __inDoubleQuotedString(self):
         """
-        Private method to check, if the cursor is within a double quoted
-        string.
+        Private method to check, if the cursor is within a double quoted string.
 
-        @return flag indicating, if the cursor is inside a double
-            quoted string (boolean)
+        Returns
+        -------
+        flag : bool
+            indicates if the cursor is inside a double quoted string
         """
         return self.editor.currentStyle() == QsciLexerPython.DoubleQuotedString
 
     def __inTripleDoubleQuotedString(self):
         """
-        Private method to check, if the cursor is within a triple double
-        quoted string.
+        Private method to check, if the cursor is within a triple double quoted string.
 
-        @return flag indicating, if the cursor is inside a triple double
-            quoted string (boolean)
+        Returns
+        -------
+        flag : bool
+            indicates if the cursor is inside a triple double quoted string
         """
         return (self.editor.currentStyle() ==
                 QsciLexerPython.TripleDoubleQuotedString)
 
     def __inSingleQuotedString(self):
         """
-        Private method to check, if the cursor is within a single quoted
-        string.
+        Private method to check, if the cursor is within a single quoted string.
 
-        @return flag indicating, if the cursor is inside a single
-            quoted string (boolean)
+        Returns
+        -------
+        flag : bool
+            indicating, if the cursor is inside a single quoted string (boolean)
         """
         return self.editor.currentStyle() == QsciLexerPython.SingleQuotedString
 
     def __inTripleSingleQuotedString(self):
         """
-        Private method to check, if the cursor is within a triple single
-        quoted string.
+        Private method to check, if the cursor is within a triple single quoted string.
 
-        @return flag indicating, if the cursor is inside a triple single
-            quoted string (boolean)
+        Returns
+        -------
+        flag : bool
+            indicates, if the cursor is inside a triple single quoted string (boolean)
         """
         return (self.editor.currentStyle() ==
                 QsciLexerPython.TripleSingleQuotedString)
 
+def detectShortcut(event, shortcut):
+    """
+    Compare a combination of keys in a string to a keypress event.
+
+    Parameters
+    ----------
+    event : QEvent
+        The event that was detected
+    shortcut : str or QKeySequence
+        The keyboard shortcut as used in QKeySequence(string) or directly
+
+    Returns
+    -------
+    bool
+        Indicates if there is a match
+    """
+    key = event.key()
+    modifiers = event.modifiers()
+    # A QKeySequence could be a sequence of several keys. Only the first combination makes sense as a shortcut
+    if isinstance(shortcut, str):
+        keys = QKeySequence(shortcut)[0]
+    elif isinstance(shortcut, QKeySequence):
+        keys = shortcut[0]
+    else:
+        raise ValueError("Shortcut has to be of type(str) or type(QKeySequence).")
+    if key == keys.key() and modifiers == keys.keyboardModifiers():
+        return True
+    else:
+        return False
 
 class QScintillaCustom(QsciScintilla, DroppableWidget):
     # adapted from https://hg.die-offenbachs.homelinux.org/eric/file/eric7/src/eric7/QScintilla/QsciScintillaCompat.py
     # with commenting functionality from https://github.com/matkuki/qscintilla_docs/blob/master/examples/commenting.py
     # both licensed under GPLv3
-    """
-    Custom QSciScintilla editor with basic commenting functionality.
-    """
+    """Custom QSciScintilla editor with basic commenting functionality."""
+
     comment_string = "# "
     line_ending = "\n"
     fileDropped = pyqtSignal(str)
@@ -801,24 +850,19 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
                                        self.handle_linter)
 
     def keyPressEvent(self, event):
+        """Check for shortcuts such as linting."""
         # Check pressed key information
         key = event.key()
-        key_modifiers = QApplication.keyboardModifiers()
-        if (key == Qt.Key.Key_Slash and
-                key_modifiers == Qt.KeyboardModifier.ControlModifier):
-            # toggle comment on selected lines
+        # key_modifiers = event.modifiers()
+
+        if detectShortcut(event, "Ctrl+/"):
             self.toggle_commenting()
-            return
-        if (key == Qt.Key.Key_8 and
-                key_modifiers == Qt.KeyboardModifier.ControlModifier):
-            # reformat code using autopep8
-            self.setText(autopep8.fix_code(self.text(), options=None))
-            return
-        if (key == Qt.Key.Key_L and
-                key_modifiers == Qt.KeyboardModifier.ControlModifier):
-            # run the linter
+        if detectShortcut(event, "Ctrl+Shift+7"):
+            self.toggle_commenting()
+        if detectShortcut(event, "Ctrl+8"):
+            self.run_autopep8()
+        if detectShortcut(event, "Ctrl+7"):
             self.run_linter()
-            return
         if key == Qt.Key.Key_QuoteDbl:
             # check that something is selected
             if bool(self.SendScintilla(self.SCI_GETSELECTIONEMPTY)) is False:
@@ -832,23 +876,30 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         # Execute the superclasses event
         super().keyPressEvent(event)
 
+    def run_autopep8(self):
+        """Run the formatter autopep8."""
+        self.setText(autopep8.fix_code(self.text(), options=None))
+        return
+
     def run_linter(self):
         """
-        convenience function to call the linter, generates the script
+        Call the linter for the editor view.
+
+        Convenience function to call the linter, generates the script
         according to what matrix_script would do when one presses the run
         button. Custom definitions for parameters that are passed by the
         process are made here.
 
         Returns -1 if a syntax error was found
         """
-        # remove potential annotations from previous linting run
-        self.clearAnnotations()
-        last_line = len(self.text().splitlines()) - 1
-        len_last = len(self.text().splitlines()[-1])
-        # remove potential indicators from previous linting run
-        for i in range(2):
-            self.clearIndicatorRange(0, 0, last_line, len_last, i)
         if self.text().strip() != "":
+            # remove potential annotations from previous linting run
+            self.clearAnnotations()
+            last_line = len(self.text().splitlines()) - 1
+            len_last = len(self.text().splitlines()[-1])
+            # remove potential indicators from previous linting run
+            for i in range(2):
+                self.clearIndicatorRange(0, 0, last_line, len_last, i)
             # add initial definitions that are passed to the script
             # externally to avoid linter errors, make sure not to add an
             # additional line here
@@ -897,9 +948,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         return 0
 
     def handle_linter(self, line, col, message, message_args, style):
-        """
-        call back function that is passed to the reporter of the linter.
-        """
+        """Call back function that is passed to the reporter of the linter."""
         if line < 0 or line >= len(self.text().splitlines()):
             print("error outside script", message)
             return
@@ -919,9 +968,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         self.setCursorPosition(line, col)
 
     def add_block_commenting(self, char):
-        """
-        function to handle the block commenting
-        """
+        """Handle the block commenting."""
         selections = self.get_selections()
         if selections is None:
             return
@@ -951,8 +998,9 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
 
     def toggle_commenting(self):
         """
-        function to handle the comment toggling using # comments
-        if one of the lines is not commented, adds a # to one line,
+        Handle the comment toggling using # comments.
+
+        If one of the lines is not commented, adds a # to one line,
         otherwise removes one from all lines.
         """
         # Check if the selections are valid
@@ -1008,9 +1056,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         self.endUndoAction()
 
     def get_selections(self):
-        """
-        Obtain the selections
-        """
+        """Obtain the selections."""
         # Get the selection and store them in a list
         selections = []
         for i in range(self.SendScintilla(self.SCI_GETSELECTIONS)):
@@ -1027,9 +1073,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         return selections
 
     def merge_test(self, selections):
-        """
-        Test if merging of selections is needed
-        """
+        """Test if merging of selections is needed."""
         for i in range(1, len(selections)):
             # Get the line numbers
             previous_end_line = selections[i-1][1]
@@ -1040,9 +1084,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         return False
 
     def merge_selections(self, selections):
-        """
-        This function merges selections with overlapping lines
-        """
+        """Merge selections with overlapping lines."""
         # Test if merging is required
         if len(selections) < 2:
             return selections
@@ -1076,6 +1118,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
 
     def set_block_commenting(self, from_line, to_line, from_index,
                              to_index, char):
+        """Set block commenting."""
         # Set the selection from the beginning of the cursor line
         # to the end of the last selection line
         self.setSelection(
@@ -1089,6 +1132,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         self.replaceSelectedText(replace_text)
 
     def set_commenting(self, arg_from_line, arg_to_line, func):
+        """Set commenting."""
         # Get the cursor information
         from_line = arg_from_line
         to_line = arg_to_line
@@ -1136,9 +1180,16 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         """
         Public method to get the style at a position in the text.
 
-        @param pos position in the text (integer)
-        @return style at the requested position or 0, if the position
-            is negative or past the end of the document (integer)
+        Parameters
+        ----------
+        pos : int
+            position in the text
+
+        Returns
+        -------
+        style : int
+            style at the requested position or 0, if the position
+            is negative or past the end of the document
         """
         return self.SendScintilla(QsciScintilla.SCI_GETSTYLEAT, pos)
 
@@ -1146,7 +1197,10 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         """
         Public method to get the style at the current position.
 
-        @return style at the current position (integer)
+        Returns
+        -------
+        style : int
+            style at the current position
         """
         return self.styleAt(self.currentPosition())
 
@@ -1154,7 +1208,10 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         """
         Public method to get the current position.
 
-        @return absolute position of the cursor (integer)
+        Returns
+        -------
+        position : int
+            Absolute position of the cursor (integer)
         """
         return self.SendScintilla(QsciScintilla.SCI_GETCURRENTPOS)
 
@@ -1162,16 +1219,19 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         """
         Public method to perform a simple editor command.
 
-        @param cmd the scintilla command to be performed (integer)
+        Parameters
+        ----------
+        cmd : int
+            the scintilla command to be performed (integer)
         """
         self.SendScintilla(cmd)
 
 
 class CustomLexer(QsciLexerPython):
+    """Create a custom lexer for the editor."""
 
     def keywords(self, val):
-        # reimplement a custom lexer to also handle the matrix_script custom
-        # commands for code highlighting
+        """Reimplement a custom lexer to also handle the matrix_script custom commands for code highlighting."""
         if 2 != val:
             return super().keywords(val)
         return (
@@ -1181,7 +1241,9 @@ class CustomLexer(QsciLexerPython):
 
 
 class CustomQsciAPI(QsciAPIs):
-    # definition of custom commands that are supposed to be autocompleted
+    """Provide an implementation of the textual API information used in call tips and for auto-completion."""
+
+    # Definition of custom commands that are supposed to be autocompleted
     autocompletions = [
         "sys", "meta_data", "meta_data['Creator']", "meta_data['Identifier']",
         "devs", "wait(float seconds, str message='', float silent=10)",
@@ -1214,6 +1276,8 @@ if os.name == 'nt':
 
 
 class ExecThread(QThread):
+    """Control and the thread running the measurements."""
+
     # signal initiating user input from the GUI.
     input_signal = pyqtSignal(str, str)
     # signal to report the currently executing line number to the editor.
@@ -1221,15 +1285,15 @@ class ExecThread(QThread):
 
     def __init__(self, meta_data, script, fallbackname):
         """
-        initialize thread that handles script execution with meta data and
-        script
+        Initialize thread that handles script execution with meta data and script.
 
-        Parameters:
+        Parameters
+        ----------
             meta_data : dict
                 dictionary containing meta data such as user and comment
             script : string
                 user script that is supposed to be run by the ExecThread.
-            fallbackname : string
+            fallbackname : str
                 filename used to initialize the data file if not specified
                 in the script. Its directory path will be used as execution
                 directory.
@@ -1242,7 +1306,7 @@ class ExecThread(QThread):
         self.datafilefallback = fallbackname
 
     def pass_input(self, inp):
-        """ communicate user input to the subprocess """
+        """Communicate user input to the subprocess."""
         if self.proc is None or self.conn is None:
             return
         if len(inp) < 1 or inp[-1] != "\n":
@@ -1251,19 +1315,19 @@ class ExecThread(QThread):
         self.conn.send(("i"+inp).encode("utf-8"))
 
     def pause(self):
-        """ communicate pause to the subprocess """
+        """Communicate pause to the subprocess."""
         if self.proc is None or self.conn is None:
             return
         self.conn.send("p".encode())
 
     def abort(self):
-        """ communicate stop to the subprocess' stdin """
+        """Communicate stop to the subprocess' stdin."""
         if self.proc is None or self.conn is None:
             return
         self.conn.send("q".encode())
 
     def kill(self):
-        """ kill the process and make sure it is indeed stopped """
+        """Kill the process and make sure it is indeed stopped."""
         if self.proc is None or self.conn is None:
             return
         pid = self.proc.pid
@@ -1282,7 +1346,7 @@ class ExecThread(QThread):
 
     def recv_line(self, inp):
         """
-        receives a line from the input and handles it accordingly.
+        Receive a line from the input and handles it accordingly.
 
         From inp the current executing line or an input request are attemped
         to find, all other input is printed.
@@ -1315,13 +1379,14 @@ class ExecThread(QThread):
 
     def run(self):
         """
-        runs the subprocess
-            first writes the user script into a temporary file to make sure all
-            formating is conserved, then passes that file to the interpreter to
-            run the script
-            the purpose of using a subprocess is to keep the namespace clear of
-            all system files. That allows changes to the system while
-            matrix-script is running.
+        Run the subprocess.
+
+        first writes the user script into a temporary file to make sure all
+        formating is conserved, then passes that file to the interpreter to
+        run the script
+        the purpose of using a subprocess is to keep the namespace clear of
+        all system files. That allows changes to the system while
+        matrix-script is running.
         """
         with tempfile.NamedTemporaryFile(mode="w+b") as tf:
             for line in self.script:
@@ -1366,15 +1431,12 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
 
 
 class MainWindow(QMainWindow):
-    """
-    Define layout, runs everything
-    """
+    """Define layout, runs everything."""
+
     extension = ".matrix"
 
     def __init__(self, filename=None):
-        """
-        Initialize the GUI for scripted matrix control
-        """
+        """Initialize the GUI for scripted matrix control."""
         super().__init__()
         self.systems = []
         self.scriptname = ""
@@ -1382,9 +1444,11 @@ class MainWindow(QMainWindow):
         self.last_loaded_file = None
         self.is_running = False
         self.shortcut_dir = None
-
+        self.metadata = {}
+        self.last_filename = ""
         self.output_stream = EmittingStream(text_written=self.output_written)
 
+        self.color_palette = QApplication.instance().palette()
         self.init_ui()
         # set outputStream as stdout (i.e. all output is written to status
         # preview
@@ -1432,12 +1496,26 @@ class MainWindow(QMainWindow):
         if filename is not None:
             self.load_from_filename(filename)
 
+    def keyPressEvent(self, event: QKeyEvent):
+        """Allow to modify systems list with keyboard shortcuts."""
+        if self.system_list.hasFocus():
+            if detectShortcut(event, QKeySequence(QKeySequence.StandardKey.Delete)):
+                self.delete_selected_system()
+            if detectShortcut(event, QKeySequence(Qt.Key.Key_Backspace)):
+                self.delete_selected_system()
+        super().keyPressEvent(event)
+
+    def changeEvent(self, event: QEvent):
+        """Detect palette changes such as dark and bright mode desktops."""
+        if event.type() == QEvent.Type.PaletteChange:
+            self.color_palette = QApplication.instance().palette()
+            self.update_ui()
+
     def closeEvent(self, event):
         """
-        Capture the close event to query user whether he still wants to
-        save changes to the script
+        Capture the close event to query user whether he still wants to save changes to the script.
 
-        do we also want to terminate/abort the currently executing script when
+        Do we also want to terminate/abort the currently executing script when
         matrix is terminated?
         """
         if self.systems_dirty and "" != self.scriptname:
@@ -1467,88 +1545,380 @@ class MainWindow(QMainWindow):
                 return
             if ret == QMessageBox.StandardButton.Save:
                 # save the file
-                if -1 == self.save_to_file():
+                if -1 == self.save_file():
                     # if save fails, ignore message
                     event.ignore()
                     return
         event.accept()
 
+    # Icons from a theme such as QIcon.fromTheme("media-playback-start")
+    # would neither work on Windows nor on a Mac. Fallback to the Qt icons.
+    #
+    def get_icon(self, name):
+        """Send 'name' and get corresponding QIcon back."""
+        return self.style().standardIcon(getattr(QStyle.StandardPixmap, name))
+
+    def standard_action(self, name):
+        """Create a standard action such as 'Undo' and connect system agnostic shortcut."""
+        action = QAction(name, self)
+        action.setShortcut(getattr(QKeySequence.StandardKey, name))
+        return action
+
+    # to redefine the following function with getattr failed because then they are evaluated
+    # at startup time and None (focus_widget) has no methods...
+
+    def undo(self):
+        """Perform 'undo' on the widget with the focus."""
+        focus_widget = QApplication.focusWidget()
+        try:
+            focus_widget.undo()
+        except AttributeError:
+            pass
+
+    def redo(self):
+        """Perform 'redo' on the widget with the focus."""
+        focus_widget = QApplication.focusWidget()
+        try:
+            focus_widget.redo()
+        except AttributeError:
+            pass
+
+    def cut(self):
+        """Perform 'cut' on the widget with the focus."""
+        focus_widget = QApplication.focusWidget()
+        try:
+            focus_widget.cut()
+        except AttributeError:
+            pass
+
+    def copy(self):
+        """Perform 'copy' on the widget with the focus."""
+        focus_widget = QApplication.focusWidget()
+        try:
+            focus_widget.copy()
+        except AttributeError:
+            pass
+
+    def paste(self):
+        """Perform 'paste' on the widget with the focus."""
+        focus_widget = QApplication.focusWidget()
+        try:
+            focus_widget.paste()
+        except AttributeError:
+            pass
+
+    def info_box(self):
+        """Display an 'about this app' widget."""
+        box = QMessageBox(parent=self)
+        box.setWindowTitle("Matrix Script")
+        icondir = join(dirname(__file__), "icons")
+        pixmap = QPixmap(join(icondir, "matr1x-matrix-script.png"))
+        box.setIconPixmap(pixmap)
+        version = package_version("matr1x")
+        box.setText(f"Matrix Script {version}")
+        text = """This Application can run custom measurement scripts.
+
+        (c) 2024 Matr1x Developers. All rights reserved."""
+        box.setInformativeText(text)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+        return
+
+    def update_ui(self):
+        """Perform all the required tasks after a theme change."""
+        # visually mark the widget as read only by slighty adjusting the background color
+        # Why is Qt/Scintilla not doing it after ReadOnly = True ?!
+        palette = self.status_preview.palette()
+        palette.setColor(
+            QPalette.ColorRole.Base,
+            QColor(self.color_palette.color(QPalette.ColorRole.AlternateBase)),
+        )
+        self.status_preview.setPalette(palette)
+        self.lexer.setPaper(QColor(self.color_palette.color(QPalette.ColorRole.Base)))
+        self.script_edit.setCaretLineBackgroundColor(
+            QColor(self.color_palette.color(QPalette.ColorRole.AlternateBase))
+        )
+        self.script_edit.setMarginsBackgroundColor(
+            QColor(self.color_palette.color(QPalette.ColorRole.AlternateBase))
+        )
+        # self.script_edit.indicatorDefine(QsciScintilla.IndicatorStyle.DiagonalIndicator, 0)
+        # self.script_edit.setIndicatorOutlineColor(QColor(self.color_palette.color(QPalette.ColorRole.LinkVisited)))
+        # We choose hard coded colors that work with dark and bright schemes and supposedly
+        # everything in between or pick colors that change according to the scheme
+        if palette.color(QPalette.ColorRole.Window).value() < 128:
+            # dark_mode
+            method_color = QColor(195, 195, 156)
+        else:
+            # bright mode
+            method_color = QColor(117, 95, 48)
+        string_color = QColor(179, 105, 94)
+        comment_color = QColor(116, 152, 93)
+        # the sequence relates to the enumerator
+        STYLES = {
+            QsciLexerPython.Default: QColor(
+                self.color_palette.color(QPalette.ColorRole.Text)
+            ),
+            QsciLexerPython.Comment: comment_color,
+            QsciLexerPython.Number: QColor(
+                self.color_palette.color(QPalette.ColorRole.Text)
+            ),
+            QsciLexerPython.DoubleQuotedString: string_color,
+            QsciLexerPython.SingleQuotedString: string_color,
+            QsciLexerPython.Keyword: QColor(
+                self.color_palette.color(QPalette.ColorRole.Link)
+            ),
+            QsciLexerPython.TripleSingleQuotedString: string_color,
+            QsciLexerPython.TripleDoubleQuotedString: string_color,
+            QsciLexerPython.ClassName: QColor(114, 177, 175),
+            QsciLexerPython.FunctionMethodName: method_color,
+            QsciLexerPython.Operator: QColor(
+                self.color_palette.color(QPalette.ColorRole.Text)
+            ),
+            QsciLexerPython.Identifier: QColor(
+                self.color_palette.color(QPalette.ColorRole.Text)
+            ),
+            QsciLexerPython.CommentBlock: comment_color,
+            QsciLexerPython.UnclosedString: QColor("red"),
+            # the next one refers to identifiers defined by us, e.g. measure_system()
+            QsciLexerPython.HighlightedIdentifier: QColor(
+                self.color_palette.color(QPalette.ColorRole.LinkVisited)
+            ),
+            #
+            QsciLexerPython.SingleQuotedFString: string_color,
+            QsciLexerPython.TripleSingleQuotedFString: string_color,
+            QsciLexerPython.DoubleQuotedFString: string_color,
+            QsciLexerPython.TripleDoubleQuotedString: string_color,
+        }
+        for stl, clr in STYLES.items():
+            self.lexer.setColor(clr, stl)
+
+    def toggle_toolbar_view(self, checked):
+        """Toogles the visibility of the toolbar on and off."""
+        if checked:
+            self.toolbar.show()
+        else:
+            self.toolbar.hide()
+
+    def toggle_systems_view(self, checked):
+        """Toogles the visibility of the systems on and off."""
+        if checked:
+            self.dock_with_systems.show()
+        else:
+            self.dock_with_systems.hide()
+
     def init_ui(self):
+        """Generate the main GUI."""
         icondir = join(dirname(__file__), 'icons')
         self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-script.png')))
         self.central_widget = DroppableWidget(self)
         self.central_widget.fileDropped.connect(self.load_from_filename)
         self.setCentralWidget(self.central_widget)
-        layout = QGridLayout(self.central_widget)
+        layout = QVBoxLayout(self.central_widget)
 
-        # Buttons
-        self.start_button = QPushButton("Start recipe")
-        self.start_button.clicked.connect(self.start_process)
-        self.abort_button = QPushButton("Abort")
-        self.abort_button.setEnabled(False)
-        self.abort_button.clicked.connect(self.abort_thread)
-        self.kill_button = QPushButton("Kill")
-        self.kill_button.setEnabled(False)
-        self.kill_button.clicked.connect(self.kill_thread)
-        self.pause_button = QPushButton("Pause")
-        self.pause_button.setCheckable(True)
-        self.pause_button.setEnabled(False)
-        self.pause_button.clicked.connect(self.pause_thread)
-        self.save_button = QPushButton("Save recipe")
-        self.save_button.clicked.connect(self.save_to_file)
-        # enable saving of script by Ctrl+S
-        self.save_scriptsc = QShortcut(QKeySequence('Ctrl+S'), self)
-        self.save_scriptsc.activated.connect(self.save_to_file)
-        self.load_button = QPushButton("Load recipe")
-        self.load_button.clicked.connect(self.load_from_file)
-        self.help_sys_button = QPushButton("Help system")
-        self.help_sys_button.clicked.connect(self.show_commands)
-        self.help_edit_button = QPushButton("Help editor")
-        self.help_edit_button.clicked.connect(self.show_editor_commands)
+        # Create menu
+        menu = self.menuBar()
+        file_menu = menu.addMenu("&File")
+        edit_menu = menu.addMenu("&Edit")
+        control_menu = menu.addMenu("&Control")
+        view_menu = menu.addMenu("&View")
+        help_menu = menu.addMenu("&Help")
+
+        # Create toolbar
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # an intermediate icon size looks more fitting
+        # possibly because all later sizes are hard-coded
+        small_size = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_SmallIconSize
+        )
+        normal_size = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ToolBarIconSize
+        )
+        icon_size = int((small_size + normal_size) / 2)
+        self.toolbar.setIconSize(QSize(icon_size, icon_size))
+
+        # Helper
+        empty = QAction(self.get_icon("SP_CustomBase"), "", self)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # About
+        self.about_action = QAction("About", self)
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.about_action.triggered.connect(self.info_box)
+        help_menu.addAction(self.about_action)
+
+        # File: Load a recipe
+        self.load_action = QAction(self.get_icon("SP_DialogOpenButton"), "Open", self)
+        self.load_action.triggered.connect(self.load_from_file)
+        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
+        file_menu.addAction(self.load_action)
+        self.toolbar.addAction(self.load_action)
+
+        ## ---
+        file_menu.addSeparator()
+
+        # File: Save
+        self.save_action = QAction(self.get_icon("SP_DialogSaveButton"), "Save", self)
+        self.save_action.triggered.connect(self.save_file)
+        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+        file_menu.addAction(self.save_action)
+        self.toolbar.addAction(self.save_action)
+
+        # File: Save As...
+        self.save_as_action = QAction(
+            self.get_icon("SP_DialogSaveButton"), "Save As...", self
+        )
+        self.save_as_action.triggered.connect(self.save_file_as)
+        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+        file_menu.addAction(self.save_as_action)
+        # delete toolbar entry in early 2025 to provide the same functionality as other apps
+        # now people have to get used to it
+        self.toolbar.addAction(self.save_as_action)
+
+        ## ---
+        file_menu.addSeparator()
+
+        # File: Add System
+        self.add_system_action = QAction(
+            self.get_icon("SP_ArrowRight"), "Add System", self
+        )
+        self.add_system_action.triggered.connect(self.add_system)
+        file_menu.addAction(self.add_system_action)
+
+        # File: Remove System
+        self.remove_system_action = QAction(
+            self.get_icon("SP_LineEditClearButton"), "Remove System", self
+        )
+        self.remove_system_action.triggered.connect(self.delete_selected_system)
+        file_menu.addAction(self.remove_system_action)
+
+        ## ---
+        file_menu.addSeparator()
+
+        # File: Open Metadata Editor
+        self.open_metadata_action = QAction(
+            self.get_icon("SP_FileDialogDetailedView"), "Edit Metadata", self
+        )
+        file_menu.addAction(self.open_metadata_action)
+        self.open_metadata_action.triggered.connect(self.open_metadata_editor)
+
+        # Add empty placeholder to toolbar
+        self.toolbar.addAction(empty)
+
+        # The next functions seem overly complicated, maybe an easier implementation is possible?
+        # Edit: Undo
+        self.undo_action = self.standard_action("Undo")
+        self.undo_action.triggered.connect(self.undo)
+        edit_menu.addAction(self.undo_action)
+
+        # Edit: Redo
+        self.redo_action = self.standard_action("Redo")
+        self.redo_action.triggered.connect(self.redo)
+        edit_menu.addAction(self.redo_action)
+
+        # ---
+        edit_menu.addSeparator()
+
+        # Edit: Cut
+        self.cut_action = self.standard_action("Cut")
+        self.cut_action.triggered.connect(self.cut)
+        edit_menu.addAction(self.cut_action)
+
+        # Edit: Copy
+        self.copy_action = self.standard_action("Copy")
+        self.copy_action.triggered.connect(self.copy)
+        edit_menu.addAction(self.copy_action)
+
+        # Edit: Paste
+        self.paste_action = self.standard_action("Paste")
+        self.paste_action.triggered.connect(self.paste)
+        edit_menu.addAction(self.paste_action)
+
+        # Control: Start
+        self.start_action = QAction(self.get_icon("SP_MediaPlay"), "Start", self)
+        self.start_action.triggered.connect(self.start_process)
+        control_menu.addAction(self.start_action)
+        self.toolbar.addAction(self.start_action)
+
+        # Control: Pause
+        self.pause_action = QAction(self.get_icon("SP_MediaPause"), "Pause", self)
+        self.pause_action.triggered.connect(self.pause_thread)
+        self.pause_action.setCheckable(True)
+        self.pause_action.setEnabled(False)
+        control_menu.addAction(self.pause_action)
+        self.toolbar.addAction(self.pause_action)
+
+        # Control: Stop
+        self.stop_action = QAction(self.get_icon("SP_MediaStop"), "Stop", self)
+        self.stop_action.triggered.connect(self.abort_thread)
+        self.stop_action.setEnabled(False)
+        control_menu.addAction(self.stop_action)
+        self.toolbar.addAction(self.stop_action)
+
+        # Control: Abort
+        self.kill_action = QAction(self.get_icon("SP_DialogCancelButton"), "Kill", self)
+        self.kill_action.triggered.connect(self.kill_thread)
+        self.kill_action.setEnabled(False)
+        control_menu.addAction(self.kill_action)
+
+        # View: Toolbar
+        self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setCheckable(True)
+        self.toggle_toolbar_action.setChecked(True)
+        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
+        view_menu.addAction(self.toggle_toolbar_action)
+        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
+
+        # View: Systems
+        self.toggle_systems_action = QAction("Show Systems", self)
+        self.toggle_systems_action.setCheckable(True)
+        self.toggle_systems_action.setChecked(True)
+        self.toggle_systems_action.triggered.connect(self.toggle_systems_view)
+        view_menu.addAction(self.toggle_systems_action)
+
+        # Help: Editor
+        self.help_editor_action = QAction(QIcon(), "Show Editor Help", self)
+        self.help_editor_action.triggered.connect(self.show_editor_commands)
+        help_menu.addAction(self.help_editor_action)
+
+        # Help: System
+        self.help_system_action = QAction(QIcon(), "Show System Help", self)
+        self.help_system_action.triggered.connect(self.show_system_commands)
+        help_menu.addAction(self.help_system_action)
+
+        # Metadata editor goes all the way to the right
+        self.toolbar.addWidget(spacer)
+        self.toolbar.addAction(self.open_metadata_action)
+
         self.system_list = QListWidget()
         self.system_list.setSelectionMode(
             QAbstractItemView.SelectionMode.SingleSelection)
         self.system_list.setDragDropMode(
             QAbstractItemView.DragDropMode.InternalMove)
-        self.add_button = QPushButton('add system')
-        self.add_button.clicked.connect(self.show_file_dialog)
-        self.del_button = QPushButton('remove system')
-        self.del_button.clicked.connect(self.delete_selected_system)
 
-        # LineEdits
-        self.sample_edit = QLineEdit(self)
-        self.sample_edit.setPlaceholderText("sample name")
-        self.user_edit = QLineEdit(self)
-        self.user_edit.setPlaceholderText("user name")
-        # Font
-        mono_font = QFont("Monospace")
-        mono_font.setStyleHint(QFont.StyleHint.TypeWriter)
+
         # TextEdits
         self.status_preview = QTextEdit(self)
         self.status_preview.setReadOnly(True)
+        default_font_size = self.status_preview.font().pointSize()
+        # Font
+        mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        mono_font.setPointSizeF(default_font_size)
         self.status_preview.setCurrentFont(mono_font)
-        # self.status_preview.textChanged.connect(self.status_preview.setMarkdown)
-        palette = self.status_preview.palette()
-        palette.setColor(QPalette.ColorRole.Base, QColor(233, 233, 233))
-        palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
-        self.status_preview.setPalette(palette)
         # CodeEditor
         self.script_edit = QScintillaCustom(self.output_stream, self)
         # Connect text edit signals to the slot that checks for changes
         self.script_edit.modificationChanged.connect(self.update_window_title)
-        lexer = CustomLexer(self)
-        self.script_edit.setLexer(lexer)
-        lexer.setDefaultColor(QColor('#000000'))
-        lexer.setPaper(QColor(233, 233, 233))
-        lexer.setFont(mono_font)
-        for stl, clr in STYLES.items():
-            lexer.setColor(clr, stl)
+        self.lexer = CustomLexer(self)
+        self.script_edit.setLexer(self.lexer)
+        self.lexer.setFont(mono_font)
         autocomp = CompleterPython(self.script_edit)
         autocomp.setEnabled(True)
         # make caret more visible, highlight current line
         self.script_edit.setCaretWidth(2)
         self.script_edit.setCaretLineVisible(True)
-        self.script_edit.setCaretLineBackgroundColor(QColor(225, 225, 225))
         # line numbers in margin
         self.script_edit.setMarginLineNumbers(1, True)
         self.script_edit.setMarginWidth(1, "#000")
@@ -1560,52 +1930,85 @@ class MainWindow(QMainWindow):
         self.script_edit.setWrapMode(QsciScintilla.WrapMode.WrapNone)
         self.script_edit.setScrollWidth(200)
         self.script_edit.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
         self.script_edit.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
         # autocompletion, source is document and custom commands
-        api = CustomQsciAPI(lexer)
+        api = CustomQsciAPI(self.lexer)
         api.prepare()
         self.script_edit.setCallTipsVisible(3)
         self.script_edit.setAutoCompletionSource(
-            QsciScintilla.AutoCompletionSource.AcsAll)
+            QsciScintilla.AutoCompletionSource.AcsAll
+        )
         self.script_edit.setAutoCompletionThreshold(1)
         self.script_edit.setAutoCompletionCaseSensitivity(True)
         self.script_edit.setAutoCompletionFillupsEnabled(True)
-        self.script_edit.setBraceMatching(
-            QsciScintilla.BraceMatch.SloppyBraceMatch)
+        self.script_edit.setBraceMatching(QsciScintilla.BraceMatch.SloppyBraceMatch)
         self.script_edit.setAnnotationDisplay(
-            QsciScintilla.AnnotationDisplay.AnnotationBoxed)
+            QsciScintilla.AnnotationDisplay.AnnotationBoxed
+        )
         self.script_edit.fileDropped.connect(self.load_from_filename)
+
+        # Edit: ---
+        edit_menu.addSeparator()
+        # Edit: Lint
+        self.lint_action = QAction("Lint with Pyflakes", self)
+        self.lint_action.triggered.connect(self.script_edit.run_linter)
+        self.lint_action.setShortcut(QKeySequence("Ctrl+7"))
+        edit_menu.addAction(self.lint_action)
+
+        # Edit: Autopep8
+        self.pep8_action = QAction("Format with autopep8", self)
+        self.pep8_action.triggered.connect(self.script_edit.run_autopep8)
+        self.pep8_action.setShortcut(QKeySequence("Ctrl+8"))
+        edit_menu.addAction(self.pep8_action)
+
+        # Add the toolbar
+        self.addToolBar(self.toolbar)
 
         # initialize widgets in layout
         splitter = QSplitter(self)
         splitter.addWidget(self.script_edit)
         splitter.addWidget(self.status_preview)
-        layout.addWidget(splitter, 4, 0, 4, 8)
-        layout.addWidget(self.sample_edit, 8, 0, 1, 4)
-        layout.addWidget(self.user_edit, 8, 4, 1, 4)
-        layout.addWidget(self.start_button, 9, 6, 1, 2)
-        layout.addWidget(self.abort_button, 11, 6, 1, 2)
-        layout.addWidget(self.kill_button, 12, 6, 1, 2)
-        layout.addWidget(self.pause_button, 10, 6, 1, 2)
-        layout.addWidget(self.save_button, 9, 0, 1, 2)
-        layout.addWidget(self.load_button, 10, 0, 1, 2)
-        layout.addWidget(self.help_sys_button, 11, 0, 1, 2)
-        layout.addWidget(self.help_edit_button, 12, 0, 1, 2)
-        layout.addWidget(self.system_list, 9, 2, 3, 4)
-        layout.addWidget(self.add_button, 12, 2, 1, 2)
-        layout.addWidget(self.del_button, 12, 4, 1, 2)
+        layout.addWidget(splitter)
 
-        # configure stretch to go only into textEdits
-        layout.setRowStretch(4, 1)
+        # add the systems list
+        zeroWidget = QWidget()
+        zeroWidget.setFixedSize(QSize(0, 0))
+        self.dock_with_systems = QToolBar("Systems")
+        self.dock_with_systems.visibilityChanged.connect(
+            self.toggle_systems_action.setChecked
+        )
+
+        # change the size dynamically later and allow vertical streching when floating
+        self.system_list.setMinimumHeight(50)
+        self.system_list.setMaximumHeight(50)
+        self.dock_with_systems.addAction(self.add_system_action)
+        self.dock_with_systems.addWidget(self.system_list)
+        self.dock_with_systems.addAction(self.remove_system_action)
+        self.dock_with_systems.setIconSize(QSize(small_size, small_size))
+        self.dock_with_systems.setAllowedAreas(
+            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
+        )
+        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self.dock_with_systems)
 
         # set focus to text editor
         self.script_edit.setFocus()
-
+        self.update_ui()
         self.update_window_title()
 
+    def open_metadata_editor(self):
+        """Open the meta data dialog and handle the result."""
+        dialog = MetaDataDialog(self.metadata)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.metadata = dialog.get_metadata()
+            print(f"Metadata entered:\n{self.metadata}")
+
     def update_window_title(self):
+        """Indicate if the file was edited with an asterisk."""
         text = "Matrix Script"
         if self.script_edit.isModified() or self.systems_dirty:
             text += ": *"
@@ -1617,10 +2020,8 @@ class MainWindow(QMainWindow):
             text += "<unsaved>"
         self.setWindowTitle(text)
 
-    def show_file_dialog(self):
-        """
-        Opens a QFileDialog with filter system*.py
-        """
+    def add_system(self):
+        """Open a QFileDialog with filter system*.py."""
         directory = matr1x.system_directories[-1]
         if not self.shortcut_dir and len(matr1x.system_names) > 1:
             self.shortcut_dir = create_temp_dir_with_symlinks(
@@ -1648,8 +2049,9 @@ class MainWindow(QMainWindow):
 
     def delete_selected_system(self):
         """
-        Removes selected system from system_list. If no selection is active
-        the last system will be removed.
+        Remove selected system from system_list.
+
+        If no selection is active the last system will be removed.
         """
         selected = self.system_list.selectedItems()
         if len(selected) > 0:
@@ -1689,37 +2091,34 @@ class MainWindow(QMainWindow):
         self.thread.pass_input(ret)
 
     def pause_thread(self):
-        """ pauses thread execution """
+        """Pause thread execution."""
         self.thread.pause()
 
     def abort_thread(self):
-        """ aborts thread execution """
+        """Abort thread execution."""
         if self.pause_button.isChecked():
             self.pause_button.setEnabled(False)
         self.thread.abort()
 
     def kill_thread(self):
-        """ kills the thread """
+        """Kill the thread."""
         self.thread.kill()
         print("Script terminated by user - " +
               "file integrity might be compromised")
 
     def show_editor_commands(self):
-        """ prints shortcuts and editor functions """
-        help_string = textwrap.dedent("""
+        """Print shortcuts and editor functions."""
+        help_string = textwrap.dedent(
+            """
         The editor includes following features:
-          ctrl+l - Linting with pyflakes
-          ctrl+8 - autoformatting with autopep8
           ctrl+/ - toggling of comments in selection
           " or ' with selection - make block comment
-          ctrl+z - undo command (including block comments with ' or ")
-          ctrl+y - undo undo
-          ctrl+s - save script to file
-        """)
+        """
+        )
         print(help_string)
 
-    def show_commands(self):
-        """ prints information about current system to the status display """
+    def show_system_commands(self):
+        """Print information about current system to the status display."""
         self.update_systems()
         if 0 == len(self.systems):
             print("No system selected")
@@ -1749,11 +2148,11 @@ class MainWindow(QMainWindow):
 
     def output_written(self, text):
         """
-        appends the most recent text to the end of the display and makes sure
-        that the cursor remains at the end. This function also tries to mimick
-        the behavior of a carriage return in the output text. At the position
-        of a carriage return the current line is deleted and replaced by the
-        new text.
+        Append the most recent text to the end of the display and makes sure that the cursor remains at the end.
+
+        This function also tries to mimick the behavior of a carriage return
+        in the output text. At the position of a carriage return the current
+        line is deleted and replaced by the new text.
         """
         if len(text) > 20000:
             # if receiving very long print statements, limit display to 20k
@@ -1792,10 +2191,10 @@ class MainWindow(QMainWindow):
 
     def highlight(self, number: int):
         """
-        clears all annotations and highlights the line that is currently being
-        executed
+        Clear all annotations and highlights the line that is currently being executed.
 
-        Parameters:
+        Parameters
+        ----------
             number:integer - line number to be highlighted
         """
         self.clear_annotations()
@@ -1804,9 +2203,7 @@ class MainWindow(QMainWindow):
         self.script_edit.fillIndicatorRange(number, 0, number+1, 0, 1)
 
     def clear_annotations(self):
-        """
-        helper function that clears all annotations in the QScntilla edit
-        """
+        """Clear all annotations in the QScintilla edit."""
         self.script_edit.clearAnnotations()
         last_line = len(self.script_edit.text().splitlines()) - 1
         len_last = len(self.script_edit.text().splitlines()[-1])
@@ -1815,33 +2212,29 @@ class MainWindow(QMainWindow):
 
     def enable_buttons(self, flag):
         """
-        helper function to switch the buttons from thread running to
-        thread stopped mode
+        Switch the buttons from thread running to thread stopped mode.
 
-        Parameters:
+        Parameters
+        ----------
             flag:boolean - True means script is running
         """
         self.is_running = flag
         if not flag:
             self.clear_annotations()
-        self.pause_button.setEnabled(flag)
-        self.pause_button.setChecked(False)
-        self.abort_button.setEnabled(flag)
-        self.kill_button.setEnabled(flag)
+        self.pause_action.setEnabled(flag)
+        self.pause_action.setChecked(False)
+        self.stop_action.setEnabled(flag)
+        self.kill_action.setEnabled(flag)
         self.script_edit.setReadOnly(flag)
-        self.user_edit.setEnabled(not flag)
-        self.sample_edit.setEnabled(not flag)
-        self.start_button.setEnabled(not flag)
-        self.load_button.setEnabled(not flag)
-        self.help_sys_button.setEnabled(not flag)
-        self.add_button.setEnabled(not flag)
-        self.del_button.setEnabled(not flag)
+        self.start_action.setEnabled(not flag)
+        self.load_action.setEnabled(not flag)
+        self.help_system_action.setEnabled(not flag)
+        self.help_editor_action.setEnabled(not flag)
+        self.add_system_action.setEnabled(not flag)
+        self.remove_system_action.setEnabled(not flag)
 
     def process_finished(self):
-        """
-        once the process is finished, return all buttons to original state and
-        clean up thread
-        """
+        """Once the process is finished, return all buttons to original state and clean up thread."""
         self.enable_buttons(False)
         print("\nExecution finished")
         print("==========")
@@ -1849,9 +2242,9 @@ class MainWindow(QMainWindow):
 
     def start_process(self):
         """
-        disables/enables buttons to reflect the run state and extracts selected
-        systems.
-        Then runs the script defined in the edit
+        Disables/enable buttons to reflect the run state and extracts selected systems.
+
+        Then runs the script defined in the edit.
         """
         self.update_systems()
         if 0 == len(self.systems):
@@ -1885,8 +2278,8 @@ class MainWindow(QMainWindow):
         user_script = self.script_edit.text()
         script = generate_script(self.systems, user_script)
         meta_data = {
-            "Creator": self.user_edit.text(),
-            "Identifier": self.sample_edit.text(),
+            "Creator": self.metadata.get("creator", ""),
+            "Identifier": self.metadata.get("identifier", ""),
         }
         self.thread = ExecThread(meta_data, script, self.scriptname)
         self.thread.lineno_signal.connect(self.highlight)
@@ -1897,14 +2290,12 @@ class MainWindow(QMainWindow):
         self.enable_buttons(True)
 
     def update_systems(self):
+        """Update the systems list."""
         self.systems = [os.path.normpath(self.system_list.item(j).text())
                         for j in range(self.system_list.count())]
 
     def get_settable_info(self):
-        """
-        helper function to verify that the currents system and the one
-        used for the loaded script match
-        """
+        """Verify that the currents system and the one used for the loaded script match."""
         try:
             settable_info = subprocess.run(
                 [sys.executable, '-c',
@@ -1918,17 +2309,29 @@ class MainWindow(QMainWindow):
         except Exception:
             return None
 
-    def save_to_file(self):
-        """
-        saves the script to file, putting information about the system into
-        the header
-        """
+    def save_file_as(self):
+        """Ask for the filename and calls write_file()."""
         filename = QFileDialog.getSaveFileName(
             self, 'Specify Script',
             (matr1x.usersfolder if "" == self.scriptname
                 else dirname(self.scriptname)),
             f"matrix files (*{self.extension})")
         filename = filename[0]
+        return self.write_file(filename)
+
+    def save_file(self):
+        """
+        Try to save under the last name and call write_file().
+
+        if no last filename exists calls save_file_as().
+        """
+        if self.last_filename == "":
+            return self.save_file_as()
+        else:
+            return self.write_file(self.last_filename)
+
+    def write_file(self, filename):
+        """Save the script to file, putting information about the system into the header."""
         if "" == filename:
             print("Please specify file")
             print("==========")
@@ -1948,12 +2351,14 @@ class MainWindow(QMainWindow):
         self.script_edit.setText(newscript)
         output_file.write(newscript)
         output_file.close()
+        self.last_filename = filename
         self.script_edit.setModified(False)
         self.systems_dirty = False
         self.update_window_title()
         return 0
 
     def generate_save_content(self):
+        """Add the systems in the header of a script."""
         header = ""
         if 0 < len(self.systems):
             # only attempt generating a header if a system is selected
@@ -1983,9 +2388,10 @@ class MainWindow(QMainWindow):
         return newscript
 
     def load_from_filename(self, filename):
-        """
-        loads the script from file denoted by filename, making sure that
-        header information specified still agree with the corresponding system
+        """Load the script from file denoted by filename.
+
+        Also, make sure that header information specified still
+        agree with the corresponding system.
         """
         if self.is_running:
             return
@@ -2064,9 +2470,7 @@ class MainWindow(QMainWindow):
         self.update_window_title()
 
     def load_from_file(self):
-        """
-        wrapper function for load_from_filename, that opens file dialog first
-        """
+        """Open file dialog and call load_from_filename."""
         filename = QFileDialog.getOpenFileName(
             self, 'Select Script',
             (matr1x.usersfolder if "" == self.scriptname
@@ -2075,9 +2479,10 @@ class MainWindow(QMainWindow):
         filename = filename[0]
         self.load_from_filename(filename)
 
-
 def main():
+    """Set the basic GUI parameters and run."""
     app = Matr1xApplication(sys.argv)
+    # matr1x_configuration = tomllib.loads(CONFIGURATION)["matr1x"]["scripts"]["matrix_script"]
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
         app.setStyle('fusion')

@@ -11,6 +11,7 @@ sweep-generator, matrix-gui, matrix-preview, and matrix-script.
 """
 import datetime
 import warnings
+from typing import Dict, Any, Optional
 
 import numpy as np
 
@@ -22,7 +23,9 @@ try:
         QCheckBox,
         QComboBox,
         QDialog,
+        QDialogButtonBox,
         QDockWidget,
+        QFormLayout,
         QFrame,
         QGridLayout,
         QGroupBox,
@@ -35,6 +38,7 @@ try:
         QSizePolicy,
         QSlider,
         QTableView,
+        QTextEdit,
         QToolButton,
         QVBoxLayout,
     )
@@ -47,7 +51,9 @@ except ImportError:
         QCheckBox,
         QComboBox,
         QDialog,
+        QDialogButtonBox,
         QDockWidget,
+        QFormLayout,
         QFrame,
         QGridLayout,
         QGroupBox,
@@ -60,6 +66,7 @@ except ImportError:
         QSizePolicy,
         QSlider,
         QTableView,
+        QTextEdit,
         QToolButton,
         QVBoxLayout,
     )
@@ -1156,6 +1163,85 @@ class EmittingStream(QObject):
 
     def flush(self):
         pass
+
+
+class MetaDataDialog(QDialog):
+    """
+    Create a dialog able to handle meta data input for file headers."""
+
+    def __init__(self, initial_values: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Initialize the meta data dialog with optional initial values.
+
+        Parameters
+        ----------
+        initial_values : Optional[Dict[str, Any]]
+            Optional dictionary with initial values for the fields.
+        """
+        super().__init__()
+
+        self.setWindowTitle("Dublin Core Metadata Input")
+
+        # Create a QVBoxLayout instance
+        layout = QVBoxLayout()
+        # Create a QFormLayout for organized input fields
+        form_layout = QFormLayout()
+
+        # Dublin Core Elements
+        self.creator = QLineEdit()
+        self.identifier = QLineEdit()
+        self.description = QTextEdit()
+
+        # Load initial values if provided
+        if initial_values:
+            self.load_initial_values(initial_values)
+
+        # Add form elements to layout
+        form_layout.addRow("Creator/User:", self.creator)
+        form_layout.addRow("Identifier/Sample:", self.identifier)
+        form_layout.addRow("Description:", self.description)
+
+        # Add the form layout to the main layout
+        layout.addLayout(form_layout)
+
+        # Add standard dialog buttons (OK and Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        # Set the main layout for the dialog
+        self.setLayout(layout)
+
+    def load_initial_values(self, values: Dict[str, Any]) -> None:
+        """
+        Load initial values into the dialog fields.
+
+        Parameters
+        ----------
+        values : Dict[str, Any]
+            Dictionary with initial values for the fields.
+        """
+        self.creator.setText(values.get("creator", ""))
+        self.identifier.setText(values.get("identifier", ""))
+        self.description.setPlainText(values.get("description", ""))
+
+    def get_metadata(self) -> Dict[str, str]:
+        """
+        Get the metadata entered in the dialog.
+
+        Returns
+        -------
+        Dict[str, str]
+            Dictionary with metadata values.
+        """
+        return {
+            "creator": self.creator.text(),
+            "identifier": self.identifier.text(),
+            "description": self.description.toPlainText(),
+        }
 
 
 class TextInputDialog(QDialog):

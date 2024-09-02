@@ -1,0 +1,5 @@
+output-format = "concise"
+extend = "../../../pyproject.toml"
+
+[lint]
+extend-select = ['D']

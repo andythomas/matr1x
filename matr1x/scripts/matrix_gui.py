@@ -464,6 +464,7 @@ class MainWindow(QMainWindow):
         self.commentField.setText(elem[4])
 
     def parseSystemFromInputFile(self, text):
+        """Parse the system from an input file."""
         systemfile = None
         if not os.path.exists(text):
             # no file, ignore
