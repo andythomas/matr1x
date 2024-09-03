@@ -1864,18 +1864,11 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(empty)
 
         # Control: Start
-        self.start_action = QAction(self.get_icon("SP_MediaPlay"), "Start", self)
-        self.start_action.triggered.connect(self.start_process)
-        control_menu.addAction(self.start_action)
-        self.toolbar.addAction(self.start_action)
-
-        # Control: Pause
-        self.pause_action = QAction(self.get_icon("SP_MediaPause"), "Pause", self)
-        self.pause_action.triggered.connect(self.pause_thread)
-        self.pause_action.setCheckable(True)
-        self.pause_action.setEnabled(False)
-        control_menu.addAction(self.pause_action)
-        self.toolbar.addAction(self.pause_action)
+        self.start_pause_action = QAction(self.get_icon("SP_MediaPlay"), "Start", self)
+        self.start_pause_action.triggered.connect(self.start_process)
+        self.start_pause_action.setCheckable(True)
+        control_menu.addAction(self.start_pause_action)
+        self.toolbar.addAction(self.start_pause_action)
 
         # Control: Stop
         self.stop_action = QAction(self.get_icon("SP_MediaStop"), "Stop", self)
@@ -2145,8 +2138,8 @@ class MainWindow(QMainWindow):
 
     def abort_thread(self):
         """Abort thread execution."""
-        if self.pause_button.isChecked():
-            self.pause_button.setEnabled(False)
+        if self.start_pause_action.isChecked():
+            self.start_pause_action.setChecked(False)
         self.thread.abort()
 
     def kill_thread(self):
@@ -2265,17 +2258,28 @@ class MainWindow(QMainWindow):
 
         Parameters
         ----------
-            flag:boolean - True means script is running
+            flag : bool
+                True means script is running
         """
         self.is_running = flag
-        if not flag:
+
+        if flag:
+            self.start_pause_action.setIcon(self.get_icon("SP_MediaPause"))
+            self.start_pause_action.setText("Pause")
+            self.start_pause_action.triggered.disconnect(self.start_process)
+            self.start_pause_action.triggered.connect(self.pause_thread)
+        else:
             self.clear_annotations()
-        self.pause_action.setEnabled(flag)
-        self.pause_action.setChecked(False)
+            self.start_pause_action.setIcon(self.get_icon("SP_MediaPlay"))
+            self.start_pause_action.setText("Start")
+            self.start_pause_action.triggered.disconnect(self.pause_thread)
+            self.start_pause_action.triggered.connect(self.start_process)
+            self.clear_annotations()
+
+        self.start_pause_action.setChecked(False)
         self.stop_action.setEnabled(flag)
         self.kill_action.setEnabled(flag)
         self.script_edit.setReadOnly(flag)
-        self.start_action.setEnabled(not flag)
         self.load_action.setEnabled(not flag)
         self.help_system_action.setEnabled(not flag)
         self.help_editor_action.setEnabled(not flag)
