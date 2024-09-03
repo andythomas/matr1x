@@ -23,7 +23,6 @@ try:
         QCheckBox,
         QComboBox,
         QDialog,
-        QDialogButtonBox,
         QDockWidget,
         QFormLayout,
         QFrame,
@@ -51,7 +50,6 @@ except ImportError:
         QCheckBox,
         QComboBox,
         QDialog,
-        QDialogButtonBox,
         QDockWidget,
         QFormLayout,
         QFrame,
@@ -74,6 +72,7 @@ except ImportError:
 import pyqtgraph as pg
 
 from .eval import delta
+from . import VALID_META_KEYS
 
 # dictionary of commonly used validators
 validator = {
@@ -198,7 +197,7 @@ class QRangeWidget(QGroupBox):
 
 class MetaViewerWidget(QDockWidget):
     """
-    Viewer for meta data stored in matrix data files
+    Viewer and editor for meta data stored in matrix data files
 
     Extensive meta data are only include in datafiles of version 7 or higher.
     """
@@ -207,17 +206,31 @@ class MetaViewerWidget(QDockWidget):
             super().__init__()
             self._data = data
 
-        def data(self, index, role):
-            if role == Qt.ItemDataRole.DisplayRole:
-                return self._data[index.row()][index.column()]
+        def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+            if index.isValid():
+                if (
+                    role == Qt.ItemDataRole.DisplayRole
+                    or role == Qt.ItemDataRole.EditRole
+                ):
+                    value = self._data[index.row()][index.column()]
+                    return str(value)
 
-        def setData(self, data):
+        def resetData(self, data):
             """
             takes a new data set and updates the table
             """
             self.beginResetModel()
             self._data = data
             self.endResetModel()
+
+        def setData(self, index, value, role):
+            """
+            takes a new data set and updates the table
+            """
+            if role == Qt.ItemDataRole.EditRole:
+                self._data[index.row()][index.column()] = value
+                return True
+            return False
 
         def rowCount(self, index):
             return len(self._data)
@@ -227,6 +240,19 @@ class MetaViewerWidget(QDockWidget):
                 return len(self._data[0])
             else:
                 return 0
+
+        def flags(self, index):
+            col = index.column()
+            if col == 1:
+                row = index.row()
+                if self._data[row][0] in VALID_META_KEYS.keys():
+                    if VALID_META_KEYS[self._data[row][0]]:
+                        return (
+                            Qt.ItemFlag.ItemIsSelectable
+                            | Qt.ItemFlag.ItemIsEnabled
+                            | Qt.ItemFlag.ItemIsEditable
+                        )
+            return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
 
     def __init__(self, metadata):
         super().__init__()
@@ -251,7 +277,7 @@ class MetaViewerWidget(QDockWidget):
         Updates the data stored in the model and resizes
         the table to fit the contents
         """
-        self.model.setData(self.parse_header(meta))
+        self.model.resetData(self.parse_header(meta))
         self.table_view.resizeRowsToContents()
 
     def parse_header(self, hdr):
@@ -1199,18 +1225,11 @@ class MetaDataDialog(QDialog):
         # Add form elements to layout
         form_layout.addRow("Creator/User:", self.creator)
         form_layout.addRow("Identifier/Sample:", self.identifier)
-        form_layout.addRow("Description:", self.description)
 
         # Add the form layout to the main layout
         layout.addLayout(form_layout)
-
-        # Add standard dialog buttons (OK and Cancel)
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        layout.addWidget(QLabel("Description:"))
+        layout.addWidget(self.description)
 
         # Set the main layout for the dialog
         self.setLayout(layout)

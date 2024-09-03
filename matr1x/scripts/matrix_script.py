@@ -26,7 +26,12 @@ import pyflakes.reporter
 import matr1x
 
 from matr1x.control.util import QtGracefulKiller
-from matr1x.gui_util import TextInputDialog, YesNoAbortDialog
+from matr1x.gui_util import (
+    TextInputDialog,
+    YesNoAbortDialog,
+    EmittingStream,
+    MetaDataDialog,
+)
 from matr1x.util import (
     create_temp_dir_with_symlinks,
     generate_script,
@@ -54,15 +59,18 @@ try:
         QAbstractItemView,
         QApplication,
         QDialog,
+        QDockWidget,
         QFileDialog,
         QListWidget,
         QMainWindow,
         QStyle,
         QToolBar,
         QMessageBox,
+        QSizePolicy,
         QSplitter,
         QTextEdit,
         QWidget,
+        QVBoxLayout,
     )
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
@@ -84,19 +92,19 @@ except ImportError:
         QAction,
         QApplication,
         QDialog,
+        QDockWidget,
         QFileDialog,
         QListWidget,
         QMainWindow,
         QMessageBox,
+        QSizePolicy,
         QSplitter,
         QStyle,
         QToolBar,
         QTextEdit,
         QWidget,
+        QVBoxLayout,
     )
-
-from ..gui_util import EmittingStream, QSizePolicy, QVBoxLayout, MetaDataDialog
-
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 logger.info("matrix-script starting")
@@ -1725,6 +1733,13 @@ class MainWindow(QMainWindow):
         else:
             self.dock_with_systems.hide()
 
+    def toggle_metadata_view(self, checked):
+        """Toggles the visibility of the metadata dock onm and off."""
+        if checked:
+            self.dockable_metadata.show()
+        else:
+            self.dockable_metadata.hide()
+
     def init_ui(self):
         """Generate the main GUI."""
         icondir = join(dirname(__file__), 'icons')
@@ -1758,7 +1773,6 @@ class MainWindow(QMainWindow):
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
 
         # Helper
-        empty = QAction(self.get_icon("SP_CustomBase"), "", self)
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -1816,16 +1830,6 @@ class MainWindow(QMainWindow):
         ## ---
         file_menu.addSeparator()
 
-        # File: Open Metadata Editor
-        self.open_metadata_action = QAction(
-            self.get_icon("SP_FileDialogDetailedView"), "Edit Metadata", self
-        )
-        file_menu.addAction(self.open_metadata_action)
-        self.open_metadata_action.triggered.connect(self.open_metadata_editor)
-
-        # Add empty placeholder to toolbar
-        self.toolbar.addAction(empty)
-
         # The next functions seem overly complicated, maybe an easier implementation is possible?
         # Edit: Undo
         self.undo_action = self.standard_action("Undo")
@@ -1855,6 +1859,10 @@ class MainWindow(QMainWindow):
         self.paste_action.triggered.connect(self.paste)
         edit_menu.addAction(self.paste_action)
 
+        # Add an empty spacer to the toolbar
+        empty = QAction(self.get_icon("SP_CustomBase"), "", self)
+        self.toolbar.addAction(empty)
+
         # Control: Start
         self.start_action = QAction(self.get_icon("SP_MediaPlay"), "Start", self)
         self.start_action.triggered.connect(self.start_process)
@@ -1876,11 +1884,38 @@ class MainWindow(QMainWindow):
         control_menu.addAction(self.stop_action)
         self.toolbar.addAction(self.stop_action)
 
+        # Add an empty spacer to the toolbar
+        # Looks better if the systems are moved up.
+        empty2 = QAction(self.get_icon("SP_CustomBase"), "", self)
+        self.toolbar.addAction(empty2)
+
         # Control: Abort
         self.kill_action = QAction(self.get_icon("SP_DialogCancelButton"), "Kill", self)
         self.kill_action.triggered.connect(self.kill_thread)
         self.kill_action.setEnabled(False)
         control_menu.addAction(self.kill_action)
+
+        # View: Metadata
+        self.dockable_metadata = QDockWidget("Metadata", self)
+        metadata = MetaDataDialog(self.metadata)
+        self.dockable_metadata.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.dockable_metadata
+        )
+        self.dockable_metadata.setWidget(metadata)
+        self.toggle_metadata_action = QAction("Show Metadata", self)
+        self.toggle_metadata_action.setCheckable(True)
+        self.toggle_metadata_action.setChecked(True)
+        self.toggle_metadata_action.triggered.connect(self.toggle_metadata_view)
+        view_menu.addAction(self.toggle_metadata_action)
+        self.dockable_metadata.visibilityChanged.connect(
+            self.toggle_metadata_action.setChecked
+        )
+
+        # Mimic the right click view for consistency
+        view_menu.addSeparator()
 
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
@@ -1906,10 +1941,6 @@ class MainWindow(QMainWindow):
         self.help_system_action = QAction(QIcon(), "Show System Help", self)
         self.help_system_action.triggered.connect(self.show_system_commands)
         help_menu.addAction(self.help_system_action)
-
-        # Metadata editor goes all the way to the right
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addAction(self.open_metadata_action)
 
         self.system_list = QListWidget()
         self.system_list.setSelectionMode(
@@ -2019,12 +2050,11 @@ class MainWindow(QMainWindow):
         self.update_ui()
         self.update_window_title()
 
-    def open_metadata_editor(self):
-        """Open the meta data dialog and handle the result."""
-        dialog = MetaDataDialog(self.metadata)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.metadata = dialog.get_metadata()
-            print(f"Metadata entered:\n{self.metadata}")
+        # The editor needs some space to be useful. Start with 2/3 screen size.
+        screen_geometry = self.screen().geometry()
+        screen_width = screen_geometry.width()
+        screen_height = screen_geometry.height()
+        self.resize((screen_width * 2) // 3, (screen_height * 2) // 3)
 
     def update_window_title(self):
         """Indicate if the file was edited with an asterisk."""
