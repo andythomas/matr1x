@@ -5,6 +5,7 @@
 import datetime
 import importlib.util
 import os
+import pygit2
 import subprocess
 import sys
 import sysconfig
@@ -12,6 +13,7 @@ import tempfile
 import textwrap
 import time
 from contextlib import contextmanager
+from importlib.metadata import version as package_version
 from os.path import abspath, isabs, isdir, isfile, join, relpath, sep
 
 import numpy as np
@@ -1219,6 +1221,21 @@ def get_pt100_temp(res):
     b = -5.775e-7
     r0 = 100
     return (-a*r0+np.sqrt((a*r0)**2-4*b*r0*(r0 - res)))/(2*b*r0)
+
+def get_install_info(imported_package):
+    commit_branch = "not available"
+    commit_time = "not available"
+    commit_short_sha = "not available"
+    try:
+        repo = pygit2.Repository(imported_package.__file__)
+        commit_branch = repo.head.shorthand
+        last_commit = repo[repo.head.target]
+        commit_short_sha = str(last_commit.id)[:7]
+        commit_time = last_commit.commit_time
+    except pygit2.GitError:
+        pass
+    installed_version = package_version(imported_package.__name__)
+    return (installed_version, commit_branch, commit_short_sha, commit_time)
 
 
 class Command:

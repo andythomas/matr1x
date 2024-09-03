@@ -21,6 +21,7 @@ dependencies = [
     "pandas",
     "psutil",
     "pyflakes",
+    "pygit2",
     "pymeasure",
     "pyserial",
     "pyvisa",
@@ -39,7 +40,6 @@ dependencies = [
 [project.optional-dependencies]
 spi = ["spidev", "RPi"]
 standa = ["PyUSMC", "pyximc"]
-git = ["pygit2"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
@@ -69,7 +69,7 @@ line-length = 120
 # extend-select = ['D']
 
 [tool.ruff.lint.pydocstyle]
-convention = "numpy"  # Accepts: "google", "numpy", or "pep257".
+convention = "numpy" # Accepts: "google", "numpy", or "pep257".
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"

@@ -5,6 +5,7 @@
 """Allow to write measurement scripts in Python."""
 
 import ast
+import datetime
 import getpass
 import logging
 import os
@@ -15,7 +16,6 @@ import sys
 import tempfile
 import textwrap
 import warnings
-from importlib.metadata import version as package_version
 from os.path import basename, dirname, join
 
 import autopep8
@@ -24,12 +24,14 @@ import pyflakes.messages
 import pyflakes.reporter
 
 import matr1x
+
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import TextInputDialog, YesNoAbortDialog
 from matr1x.util import (
     create_temp_dir_with_symlinks,
     generate_script,
     generate_script_prefix_suffix,
+    get_install_info,
     get_importable_module_name,
 )
 
@@ -1612,13 +1614,30 @@ class MainWindow(QMainWindow):
         box = QMessageBox(parent=self)
         box.setWindowTitle("Matrix Script")
         icondir = join(dirname(__file__), "icons")
-        pixmap = QPixmap(join(icondir, "matr1x-matrix-script.png"))
+        # The rich text (html) messes with the sizes
+        icon_size = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_MessageBoxIconSize
+        )
+        pixmap = QPixmap(join(icondir, "matr1x-matrix-script.png")).scaledToHeight(
+            icon_size
+        )
         box.setIconPixmap(pixmap)
-        version = package_version("matr1x")
-        box.setText(f"Matrix Script {version}")
-        text = """This Application can run custom measurement scripts.
-
-        (c) 2024 Matr1x Developers. All rights reserved."""
+        (version, branch, sha, time) = get_install_info(matr1x)
+        if time != "not available":
+            date = datetime.datetime.fromtimestamp(time).strftime(matr1x.datetimefmt)
+        else:
+            date = time
+        box.setText("Matrix Script")
+        text = f"""
+                <div style="text-align: left;">
+                    <p><b>Version:</b> {version}<br>
+                    <b>Git branch:</b> {branch}<br>
+                    <b>Git commit:</b> {sha}<br>
+                    <b>Git date:</b> {date}<br>
+                    <br>
+                    (c) 2024 Matr1x Developers. All rights reserved.
+                </div>
+                """
         box.setInformativeText(text)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
