@@ -1522,12 +1522,17 @@ class MainWindow(QMainWindow):
             self.update_ui()
 
     def closeEvent(self, event):
-        """
-        Capture the close event to query user whether he still wants to save changes to the script.
+        """Capture the close event to query user whether he still wants to save changes to the script."""
+        if self.is_running:
+            QMessageBox.critical(
+                QWidget(),
+                "Script running!",
+                """Please wait for the script to finish. Alternatively,
+                stop or kill the script before exiting 'Matrix Script'!""",
+            )
+            event.ignore()
+            return
 
-        Do we also want to terminate/abort the currently executing script when
-        matrix is terminated?
-        """
         if self.systems_dirty and "" != self.scriptname:
             # if no file is given, nothing is saved
             self.update_systems()
@@ -1829,6 +1834,15 @@ class MainWindow(QMainWindow):
 
         ## ---
         file_menu.addSeparator()
+
+        self.quit_action = QAction("Quit", self)
+        if os.name == "nt":
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
+        # This gets auto-hidden on a Mac
+        file_menu.addAction(self.quit_action)
 
         # The next functions seem overly complicated, maybe an easier implementation is possible?
         # Edit: Undo
