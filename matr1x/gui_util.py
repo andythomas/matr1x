@@ -1257,9 +1257,9 @@ class MetaDataDialog(QDialog):
             Dictionary with metadata values.
         """
         return {
-            "creator": self.creator.text(),
-            "identifier": self.identifier.text(),
-            "description": self.description.toPlainText(),
+            "Creator": self.creator.text(),
+            "Identifier": self.identifier.text(),
+            "Description": self.description.toPlainText(),
         }
 
 

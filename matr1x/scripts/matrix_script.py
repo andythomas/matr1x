@@ -1454,7 +1454,6 @@ class MainWindow(QMainWindow):
         self.last_loaded_file = None
         self.is_running = False
         self.shortcut_dir = None
-        self.metadata = {}
         self.last_filename = ""
         self.output_stream = EmittingStream(text_written=self.output_written)
 
@@ -1904,14 +1903,14 @@ class MainWindow(QMainWindow):
 
         # View: Metadata
         self.dockable_metadata = QDockWidget("Metadata", self)
-        metadata = MetaDataDialog(self.metadata)
+        self.metadata = MetaDataDialog()
         self.dockable_metadata.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self.dockable_metadata
         )
-        self.dockable_metadata.setWidget(metadata)
+        self.dockable_metadata.setWidget(self.metadata)
         self.toggle_metadata_action = QAction("Show Metadata", self)
         self.toggle_metadata_action.setCheckable(True)
         self.toggle_metadata_action.setChecked(True)
@@ -2344,10 +2343,7 @@ class MainWindow(QMainWindow):
         # define basic part of script, imports relevant commands
         user_script = self.script_edit.text()
         script = generate_script(self.systems, user_script)
-        meta_data = {
-            "Creator": self.metadata.get("creator", ""),
-            "Identifier": self.metadata.get("identifier", ""),
-        }
+        meta_data = self.metadata.get_metadata()
         self.thread = ExecThread(meta_data, script, self.scriptname)
         self.thread.lineno_signal.connect(self.highlight)
         self.thread.input_signal.connect(self.get_script_input)
