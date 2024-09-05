@@ -2534,6 +2534,7 @@ class MainWindow(QMainWindow):
         input_file.close()
         self.script_edit.setModified(False)
         self.systems_dirty = False
+        self.last_filename = filename
         self.update_window_title()
 
     def load_from_file(self):
