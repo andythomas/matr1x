@@ -422,19 +422,15 @@ def main():
     system.set(input_file=options.inputfile, output_file=output_filename)
 
     # acquire configuration from devices and notify user what is going on
-    print("devices set, acquiring configuration")
+    print("devices set, acquiring configuration and writing header")
+    # initialize datefile and insert device query
     try:
-        query_dict = system.query()
-    except Exception:
-        print("matrix: error: could not aquire configuration.")
-        sys.exit(1)
-
-    # initialize header and insert command line options into measurement
-    # file (can include device config etc.)
-    try:
-        system.write_matrix_header(options.inputfile, query_dict)
+        system.init_datafile(options.inputfile)
     except IOError:
         print("matrix: error: cannot create output file")
+        sys.exit(1)
+    except Exception:
+        print("matrix: error: could not acquire configuration.")
         sys.exit(1)
 
     # do the loop

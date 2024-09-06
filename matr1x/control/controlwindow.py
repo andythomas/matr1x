@@ -573,9 +573,7 @@ class ControlWindow(QMainWindow):
             self.S_log.dcdata['Type'] = "miscellaneous"
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
-            query_dict = self.S_log.query()
-            self.S_log.write_matrix_header(
-                "matrix script generated", query_dict)
+            self.S_log.init_datafile("matrix script generated")
             # turn off config and set data
             self.configLog(False)
             self.configlog.setEnabled(False)

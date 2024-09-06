@@ -321,6 +321,7 @@ class System:
         # initialize devices dict
         self.devs = {}
         self._devs_init = {}  # variable holding dev init info for reopeneing
+        self.query_dict = {}  # store device information query
 
         # initialize flag to check whether system has been set
         self.opened = False
@@ -917,7 +918,7 @@ class System:
                 pass
         self.opened = True
 
-    def query(self, *args, **kwargs):
+    def query(self):
         """
         Starts a query to all devices (system needs to be set before this
         function is called) to read their configuration state.
@@ -930,13 +931,6 @@ class System:
             kwargs : dict]
 
         Refer also to matr1x.devices.visadevice for further information.
-
-        Parameters
-        -----
-        args : tuple
-          args that can be used here, currently not used
-        kwargs : dict
-          kwargs than be used here, currently not used
 
         Returns
         -----
@@ -1104,19 +1098,18 @@ class System:
                                             fun_string))
         return "----------\n".join((dev_string, par_string))
 
-    def write_matrix_header(self, inputfile, query_dict, output_filename=None):
+    def init_datafile(self, inputfile, output_filename=None):
         """
         prepares the header of a matrix file for the matrix program, inserts all
         relevant information including the setstr. If the file already exists no
         second header will be added.
 
+        The header will also include information queried from the devices.
+
         Arguments
         ----
         inputfile : str
           filename of the inputfile to be placed in the header
-        query_dict : dict
-            Gives the device settings returned by the device_query
-            function to be appended to the file header
         output_filename : str, optional
           filename of the ouput file
         """
@@ -1128,6 +1121,8 @@ class System:
             return
         if exists(self.filename):
             return
+        # query info from the devices
+        self.query_dict = self.query()
         # prepare file definitions (column header and units)
         telemetry = [list(flatten(self.columns)),
                      list(flatten(self.units))]
@@ -1142,7 +1137,8 @@ class System:
                 data_file.attrs["Input filename"] = inputfile
                 data_file.attrs["System filename"] = self.__name__
                 data_file.attrs["Device query"] = construct_query_string(
-                    query_dict)
+                    self.query_dict
+                )
                 for dckey, dcvalue in self.dcdata.items():
                     if dckey not in VALID_META_KEYS.keys():
                         # values that are not in the dc specifications are
@@ -1175,7 +1171,7 @@ class System:
                 data_file.write("# System filename : ")
                 data_file.write("\"" + self.__name__ + "\"\n")
                 data_file.write("# Device query : \n")
-                data_file.write(construct_query_string(query_dict))
+                data_file.write(construct_query_string(self.query_dict))
 
                 init_ascii_header(data_file, *telemetry)
 

@@ -479,13 +479,9 @@ def generate_script_prefix_suffix(systems):
             append=append)
         if append == False or not _os.path.exists(filename):
             # write header to file
-            print("running config query")
-            query_dict = _system.query()
-            print("configuration acquired, initializing file")
+            print("acquire configuration, and initializing file")
             _system.dcdata["Description"] = comment
-            _system.write_matrix_header(
-                _scriptname or "matrix script generated",
-                query_dict)
+            _system.init_datafile(_scriptname or "matrix script generated")
         if print_header:
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_system.columns))
