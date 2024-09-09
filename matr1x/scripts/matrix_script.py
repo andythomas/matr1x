@@ -2088,8 +2088,8 @@ class MainWindow(QMainWindow):
             directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog
         filename = QFileDialog.getOpenFileName(
-            self, 'Select system file', directory,
-            "system files (system*.py)")[0]
+            self, "Select system file to add", directory, "system files (system*.py)"
+        )[0]
         if "" == filename:
             return
         self.last_loaded_file = filename
@@ -2375,10 +2375,11 @@ class MainWindow(QMainWindow):
     def save_file_as(self):
         """Ask for the filename and calls write_file()."""
         filename = QFileDialog.getSaveFileName(
-            self, 'Specify Script',
-            (matr1x.usersfolder if "" == self.scriptname
-                else dirname(self.scriptname)),
-            f"matrix files (*{self.extension})")
+            self,
+            "Specify filename to save",
+            (matr1x.usersfolder if "" == self.scriptname else dirname(self.scriptname)),
+            f"matrix files (*{self.extension})",
+        )
         filename = filename[0]
         return self.write_file(filename)
 
@@ -2535,11 +2536,35 @@ class MainWindow(QMainWindow):
 
     def load_from_file(self):
         """Open file dialog and call load_from_filename."""
+        # First, check if unsaved changes exist
+        if self.script_edit.isModified() or self.systems_dirty:
+            qApp = QApplication.instance()
+            qApp.processEvents()
+            a = QMessageBox(parent=self)
+            a.setIcon(QMessageBox.Icon.Question)
+            a.setText("The script has been modified")
+            a.setInformativeText(
+                "Do you want to save your changes before opening another file?"
+            )
+            a.setStandardButtons(
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel
+            )
+            a.setDefaultButton(QMessageBox.StandardButton.Save)
+            # Is this the best default button?
+            ret = a.exec()
+            if ret == QMessageBox.StandardButton.Cancel:
+                return
+            if ret == QMessageBox.StandardButton.Save:
+                self.save_file()
+        # Now, proceed opeing the file
         filename = QFileDialog.getOpenFileName(
-            self, 'Select Script',
-            (matr1x.usersfolder if "" == self.scriptname
-                else dirname(self.scriptname)),
-            f"matrix files (*{self.extension})")
+            self,
+            "Select filename to open",
+            (matr1x.usersfolder if "" == self.scriptname else dirname(self.scriptname)),
+            f"matrix files (*{self.extension})",
+        )
         filename = filename[0]
         self.load_from_filename(filename)
 
