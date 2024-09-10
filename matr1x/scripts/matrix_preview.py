@@ -102,6 +102,7 @@ class SweepPreview(QMainWindow):
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
         self.filename = ""
+        self.w_meta_view = None
         # initialize basic GUI
         self.init_basic_ui()
 
@@ -194,9 +195,9 @@ class SweepPreview(QMainWindow):
         self.filename = filename
         # get all files
         self.file_dir = os.path.dirname(abspath(filename))
+        self.setWindowTitle(f"Matrix Preview: {self.file_dir}")
         self.file_list_refresh()
-        self.file_index = self.data_files.index(
-            os.path.join(self.file_dir, os.path.basename(filename)))
+        self.file_index = self.data_files.index(os.path.basename(filename))
         self.udthread = None
         self.lu_time = time.time()
         self.fetch_data()
@@ -209,16 +210,17 @@ class SweepPreview(QMainWindow):
     def file_list_refresh(self):
         """Refresh all files with the correct extension in the selected directory."""
         files = os.listdir(self.file_dir)
-        self.data_files = (
-            [os.path.join(self.file_dir, file)
-             for file in files if self.is_valid_extension(file)])
+        self.data_files = [file for file in files if self.is_valid_extension(file)]
         self.data_files = sorted(
-            self.data_files, key=lambda t: os.stat(t).st_mtime)
+            self.data_files,
+            key=lambda t: os.stat(os.path.join(self.file_dir, t)).st_mtime,
+        )
 
     def update_file_combo(self):
         """Update the combo box that displays the file names."""
         self.file_list_refresh()
         ctext = self.w_file.currentText()
+        self.w_file.setToolTip(self.file_dir)
         self.w_file.currentIndexChanged.disconnect()
         self.w_file.clear()
         self.w_file.addItems(self.data_files)
@@ -274,18 +276,27 @@ class SweepPreview(QMainWindow):
         self.w_file.setCurrentIndex(self.file_index)
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
-        w_meta = QPushButton("show meta data")
-        w_meta.setCheckable(True)
-        w_meta.toggled.connect(self.toggle_meta)
-
         l_file.addWidget(w_prev)
         l_file.addWidget(self.w_file, stretch=1)
         l_file.addWidget(w_next)
-        l_file.addWidget(w_meta)
 
-        self.w_meta_view = gu.MetaViewerWidget(self.header)
-        self.w_meta_view.setFeatures(
-            QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        w_meta = QPushButton("show meta data")
+        w_meta.setCheckable(True)
+
+        if not self.w_meta_view:
+            self.w_meta_view = gu.MetaViewerWidget(self.header)
+            self.w_meta_view.setFeatures(
+                QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
+            )
+            self.w_meta_view.setVisible(False)
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_meta_view)
+        else:
+            # meta view already exists, replace and ensure w_meta button
+            # has right check state
+            w_meta.setChecked(self.w_meta_view.isVisible())
+
+        w_meta.toggled.connect(self.toggle_meta)
+        l_file.addWidget(w_meta)
 
         w_save = QPushButton("export plot")
         w_save.clicked.connect(self.save_plot)
@@ -353,10 +364,6 @@ class SweepPreview(QMainWindow):
         self.setMinimumWidth(800)
         self.setMaximumWidth(self._get_maximum_screen_width())
 
-        self.w_meta_view.setVisible(False)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.w_meta_view)
-
     def clear_ui(self):
         """Clear the UI."""
         for i in reversed(range(2, self.grid.count())):
@@ -403,7 +410,7 @@ class SweepPreview(QMainWindow):
     def file_index_changed(self, index):
         """Update info when index changes."""
         self.file_index = index
-        self.filename = self.data_files[self.file_index]
+        self.filename = os.path.join(self.file_dir, self.data_files[self.file_index])
         check = self.conditional_fetch_data(True, check=True)
         if 0 != check:
             self.column_items = [
