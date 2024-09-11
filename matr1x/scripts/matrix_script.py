@@ -43,7 +43,7 @@ from matr1x.util import (
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
     from PyQt6.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
-    from PyQt6.QtCore import QEvent, QObject, QSize, Qt, QThread, pyqtSignal
+    from PyQt6.QtCore import QEvent, QObject, QSettings, QSize, Qt, QThread, pyqtSignal
     from PyQt6.QtGui import (
         QAction,
         QColor,
@@ -76,7 +76,7 @@ except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
-    from PyQt5.QtCore import QEvent, QObject, QSize, Qt, QThread, pyqtSignal
+    from PyQt5.QtCore import QEvent, QObject, QSettings, QSize, Qt, QThread, pyqtSignal
     from PyQt5.QtGui import (
         QColor,
         QFontDatabase,
@@ -1456,6 +1456,7 @@ class MainWindow(QMainWindow):
         self.is_running = False
         self.shortcut_dir = None
         self.last_filename = ""
+        self.settings = QSettings("matr1x", "script")
         self.output_stream = EmittingStream(text_written=self.output_written)
 
         self.color_palette = QApplication.instance().palette()
@@ -1508,6 +1509,183 @@ class MainWindow(QMainWindow):
         # by loading the file
         if filename is not None:
             self.load_from_filename(filename)
+
+    def saveCurrentState(self):
+        """Save current geometry and dock items."""
+        self.settings.setValue("created", 1)
+        self.settings.beginGroup("MainWindow")
+        self.settings.setValue("position", self.pos())
+        self.settings.setValue("size", self.size())
+        self.settings.setValue("splitter", self.splitter.sizes())
+        self.settings.endGroup()
+
+        self.settings.beginGroup("script_edit")
+        self.settings.setValue("size", self.script_edit.size())
+        self.settings.setValue(
+            "zoom",
+            self.script_edit.SendScintilla(
+                QsciScintilla.SCI_GETZOOM, QsciScintilla.STYLE_DEFAULT
+            ),
+        )
+        self.settings.endGroup()
+
+        self.settings.beginGroup("status_preview")
+        self.settings.setValue("size", self.status_preview.size())
+        self.settings.endGroup()
+
+        self.settings.beginGroup("Toolbars")
+        self.settings.setValue("buttons_visible", self.toolbar.isVisible())
+        self.settings.setValue("buttons_placement", self.toolBarArea(self.toolbar))
+        self.settings.setValue("buttons_geometry", self.toolbar.geometry())
+        self.settings.setValue("systems_visible", self.dock_with_systems.isVisible())
+        self.settings.setValue(
+            "systems_placement", self.toolBarArea(self.dock_with_systems)
+        )
+        self.settings.setValue("systems_geometry", self.dock_with_systems.geometry())
+        self.settings.endGroup()
+
+        self.settings.beginGroup("dockable_metadata")
+        self.settings.setValue("visible", self.dockable_metadata.isVisible())
+        self.settings.setValue("placement", self.dockWidgetArea(self.dockable_metadata))
+        self.settings.setValue("floating", self.dockable_metadata.isFloating())
+        self.settings.setValue("position", self.dockable_metadata.pos())
+        self.settings.setValue("size", self.dockable_metadata.size())
+        self.settings.endGroup()
+
+    def restoreState(self):
+        """Load saved geometry and dock items."""
+        # Create a reasonably large main window in either case
+        # i.e. even if no settings exist via defaults
+        screen_geometry = self.screen().geometry()
+        width = (screen_geometry.width() * 2) // 3
+        height = (screen_geometry.height() * 2) // 3
+        self.settings.beginGroup("MainWindow")
+        self.move(self.settings.value("position", self.pos()))
+        self.resize(self.settings.value("size", QSize(width, height)))
+        self.splitter.setSizes(
+            [
+                int(size)
+                for size in self.settings.value("splitter", self.splitter.sizes())
+            ]
+        )
+        self.settings.endGroup()
+        # Check if there is a settings file. This improves the robustness
+        # against strange side effect, caused by the default values. The default
+        # values are still required to ensure compatibilty in case the saved
+        # settings are changed.
+        if self.settings.contains("created"):
+            self.settings.beginGroup("script_edit")
+            self.script_edit.resize(
+                self.settings.value("size", self.script_edit.size())
+            )
+            self.script_edit.SendScintilla(
+                QsciScintilla.SCI_SETZOOM, self.settings.value("zoom", 1, type=int)
+            )
+            self.settings.endGroup()
+
+            self.settings.beginGroup("status_preview")
+            self.status_preview.resize(
+                self.settings.value("size", self.status_preview.size())
+            )
+            self.settings.endGroup()
+
+            self.settings.beginGroup("Toolbars")
+            self.toolbar.setVisible(
+                self.settings.value("buttons_visible", True, type=bool)
+            )
+            self.toggle_toolbar_action.setChecked(
+                self.settings.value("buttons_visible", True, type=bool)
+            )
+            self.dock_with_systems.setVisible(
+                self.settings.value("systems_visible", True, type=bool)
+            )
+            self.toggle_systems_action.setChecked(
+                self.settings.value("systems_visible", True, type=bool)
+            )
+            buttons = self.settings.value("buttons_geometry", self.toolbar.geometry())
+            systems = self.settings.value(
+                "systems_geometry", self.dock_with_systems.geometry()
+            )
+            place = self.settings.value("buttons_placement")
+            self.addToolBar(
+                self.settings.value(
+                    "systems_placement", Qt.ToolBarArea.BottomToolBarArea
+                ),
+                self.dock_with_systems,
+            )
+            self.addToolBar(
+                self.settings.value("buttons_placement", Qt.ToolBarArea.TopToolBarArea),
+                self.toolbar,
+            )
+            # Please note the explanation of https://doc.qt.io/qt-6/qrect.html#x about the +1
+            if (
+                buttons.bottom() + 1 == systems.top()
+                and place == Qt.ToolBarArea.TopToolBarArea
+            ) or (
+                buttons.top() == systems.bottom() + 1
+                and place == Qt.ToolBarArea.BottomToolBarArea
+            ):
+                self.addToolBar(self.settings.value("buttons_placement"), self.toolbar)
+                self.addToolBarBreak(self.settings.value("buttons_placement"))
+                self.addToolBar(
+                    self.settings.value("systems_placement"), self.dock_with_systems
+                )
+            elif (
+                systems.bottom() + 1 == buttons.top()
+                and place == Qt.ToolBarArea.TopToolBarArea
+            ) or (
+                systems.top() == buttons.bottom() + 1
+                and place == Qt.ToolBarArea.BottomToolBarArea
+            ):
+                self.addToolBar(
+                    self.settings.value("systems_placement"), self.dock_with_systems
+                )
+                self.addToolBarBreak(self.settings.value("systems_placement"))
+                self.addToolBar(self.settings.value("buttons_placement"), self.toolbar)
+            elif buttons.right() + 1 == systems.left():
+                self.addToolBar(self.settings.value("buttons_placement"), self.toolbar)
+                self.addToolBar(
+                    self.settings.value("systems_placement"), self.dock_with_systems
+                )
+            elif buttons.left() == systems.right() + 1:
+                self.addToolBar(
+                    self.settings.value("systems_placement"), self.dock_with_systems
+                )
+                self.addToolBar(self.settings.value("buttons_placement"), self.toolbar)
+            self.settings.endGroup()
+
+            self.settings.beginGroup("dockable_metadata")
+            self.dockable_metadata.setVisible(
+                self.settings.value("visible", True, type=bool)
+            )
+            self.toggle_metadata_action.setChecked(
+                self.settings.value("visible", True, type=bool)
+            )
+            self.addDockWidget(
+                self.settings.value("placement", Qt.DockWidgetArea.RightDockWidgetArea),
+                self.dockable_metadata,
+            )
+            self.dockable_metadata.setFloating(
+                self.settings.value("floating", False, type=bool)
+            )
+            if self.dockable_metadata.isFloating():
+                self.dockable_metadata.move(
+                    self.settings.value("position", self.dockable_metadata.pos())
+                )
+                self.dockable_metadata.resize(
+                    self.settings.value("size", self.dockable_metadata.size())
+                )
+            else:
+                self.resizeDocks(
+                    [self.dockable_metadata],
+                    [
+                        self.settings.value(
+                            "size", self.dockable_metadata.size()
+                        ).width()
+                    ],
+                    Qt.Orientation.Horizontal,
+                )
+            self.settings.endGroup()
 
     def keyPressEvent(self, event: QKeyEvent):
         """Allow to modify systems list with keyboard shortcuts."""
@@ -1567,6 +1745,7 @@ class MainWindow(QMainWindow):
                     # if save fails, ignore message
                     event.ignore()
                     return
+        self.saveCurrentState()
         event.accept()
 
     # Icons from a theme such as QIcon.fromTheme("media-playback-start")
@@ -1768,9 +1947,9 @@ class MainWindow(QMainWindow):
         # Create toolbar
         self.toolbar = QToolBar("Toolbar")
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         # an intermediate icon size looks more fitting
-        # possibly because all later sizes are hard-coded
         small_size = QApplication.style().pixelMetric(
             QStyle.PixelMetric.PM_SmallIconSize
         )
@@ -1958,7 +2137,6 @@ class MainWindow(QMainWindow):
         self.system_list.setDragDropMode(
             QAbstractItemView.DragDropMode.InternalMove)
 
-
         # TextEdits
         self.status_preview = QTextEdit(self)
         self.status_preview.setReadOnly(True)
@@ -2030,15 +2208,16 @@ class MainWindow(QMainWindow):
         self.addToolBar(self.toolbar)
 
         # initialize widgets in layout
-        splitter = QSplitter(self)
-        splitter.addWidget(self.script_edit)
-        splitter.addWidget(self.status_preview)
-        layout.addWidget(splitter)
+        self.splitter = QSplitter(self)
+        self.splitter.addWidget(self.script_edit)
+        self.splitter.addWidget(self.status_preview)
+        layout.addWidget(self.splitter)
 
         # add the systems list
-        zeroWidget = QWidget()
-        zeroWidget.setFixedSize(QSize(0, 0))
         self.dock_with_systems = QToolBar("Systems")
+        self.dock_with_systems.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
         self.dock_with_systems.visibilityChanged.connect(
             self.toggle_systems_action.setChecked
         )
@@ -2049,22 +2228,17 @@ class MainWindow(QMainWindow):
         self.dock_with_systems.addAction(self.add_system_action)
         self.dock_with_systems.addWidget(self.system_list)
         self.dock_with_systems.addAction(self.remove_system_action)
+        self.dock_with_systems.setFloatable(False)
         self.dock_with_systems.setIconSize(QSize(small_size, small_size))
         self.dock_with_systems.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
         )
-        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self.dock_with_systems)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.dock_with_systems)
 
         # set focus to text editor
         self.script_edit.setFocus()
         self.update_ui()
         self.update_window_title()
-
-        # The editor needs some space to be useful. Start with 2/3 screen size.
-        screen_geometry = self.screen().geometry()
-        screen_width = screen_geometry.width()
-        screen_height = screen_geometry.height()
-        self.resize((screen_width * 2) // 3, (screen_height * 2) // 3)
 
     def update_window_title(self):
         """Indicate if the file was edited with an asterisk."""
@@ -2586,6 +2760,7 @@ def main():
         else:
             ex = MainWindow(filename=sys.argv[1])
         ex.show()
+        ex.restoreState()
         ret = app.exec()
         sys.stdout = sys.__stdout__
     sys.exit(ret)
