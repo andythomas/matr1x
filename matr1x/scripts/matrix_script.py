@@ -1246,7 +1246,7 @@ class CustomLexer(QsciLexerPython):
             return super().keywords(val)
         return (
             "init_datafile measure_system wait set_value trigger_value "
-            "read_value meta_data devs sys input input_bool"
+            "read_value meta_data devs sys input input_bool end_script"
         )
 
 
@@ -1257,6 +1257,7 @@ class CustomQsciAPI(QsciAPIs):
     autocompletions = [
         "sys", "meta_data", "meta_data['Creator']", "meta_data['Identifier']",
         "devs", "wait(float seconds, str message='', float silent=10)",
+        "end_script(bool finished=None)",
         "input(str query='')",
         "input_bool(str query='')",
         "init_datafile(str filename, str comment='', bool append=False, "
@@ -1478,6 +1479,9 @@ class MainWindow(QMainWindow):
           wait(seconds, message="", silent=10)
             # waits for seconds and acts as a breakpoint to pause and
             # abort the execution, for seconds>silent, prints message
+          end_script(finished=None)
+            # if finished is True, file is marked as "finished", for False
+            # it is marked as aborted, otherwise user is querried
           input(query="")
             # waits for user text input
           input_bool(question="")

@@ -463,11 +463,13 @@ def main():
     if ret == 1:
         x = input(
             "Shall the termination of the sequence lead to marking the "
-            "datafile unsuccessful? (Y/n)"
+            "datafile as aborted? (Y/n)"
         )
         if x.lower().startswith("y") or x == "":
-            print("marking file unsuccessful")
-            reset_kwargs["status"] = "unsuccessful"
+            print("marking file as aborted")
+            reset_kwargs["status"] = "aborted"
+    if not "status" in reset_kwargs.keys():
+        reset_kwargs["status"] = "finished"
     print("resetting devices")
     # reset system/devices
     system.reset(**reset_kwargs)

@@ -264,6 +264,7 @@ def generate_script_prefix_suffix(systems):
     _ntot = None  # total number of measurement points for telemetry
     _starttime = _time.time()
     _preset = _starttime
+    _finished = None
     _reset_kwargs = {{}}
 
 
@@ -374,6 +375,7 @@ def generate_script_prefix_suffix(systems):
             _setvalues[i] = setv
         return setv
 
+
     @_lineno_decorator
     def trigger_value(*args, **kwargs):
         '''
@@ -381,12 +383,14 @@ def generate_script_prefix_suffix(systems):
         '''
         _system.trigger_value(*args, **kwargs)
 
+
     @_lineno_decorator
     def read_value(*args, **kwargs):
         '''
         execute sys.read_value. all arguments are forwarded.
         '''
         return _system.read_value(*args, **kwargs)
+
 
     @_lineno_decorator
     def wait(*args, **kwargs):
@@ -406,6 +410,7 @@ def generate_script_prefix_suffix(systems):
         '''
         _interrupt(*args, system=_system, **kwargs)
 
+
     @_lineno_decorator
     def input(query: str):
         '''
@@ -417,6 +422,7 @@ def generate_script_prefix_suffix(systems):
          query string presented to the user so they know what to enter
         '''
         return _input(query, system=_system)
+
 
     @_lineno_decorator
     def input_bool(query: str):
@@ -431,6 +437,17 @@ def generate_script_prefix_suffix(systems):
         return False
 
 
+    @_lineno_decorator
+    def end_script(finished: bool= None):
+        '''
+        ends the script execution and defines the file status as finished or
+        unfinished if not None
+        '''
+        global _finished
+        _finished = finished
+        raise KeyboardInterrupt
+
+
     # initialize system and put devs into namespace
     print("setting devices")
     # system.set is called before the filename is set so we have no arguments
@@ -440,6 +457,7 @@ def generate_script_prefix_suffix(systems):
 
     # switch meta data to append state
     _system.dcdata.append = True
+
 
     @_lineno_decorator
     @_breakpoint
@@ -541,6 +559,7 @@ def generate_script_prefix_suffix(systems):
         _preset = _time.time()
         return return_list
 
+
     # merge user input into script
     # ==== begin user area ====
     try:
@@ -550,11 +569,20 @@ def generate_script_prefix_suffix(systems):
         """
     except KeyboardInterrupt:
         print("\\nscript has been aborted by user.")
-        x = input_bool("Shall the termination of the sequence lead to marking the "
-                   "datafile unsuccessful?")
-        if x:
-            _reset_kwargs["status"] = "unsuccessful"
+        # mark script as aborted per default once abort is called
+        _reset_kwargs["status"] = "aborted"
+        if _finished:
+            _reset_kwargs["status"] = "finished"
+        else:
+            x = input_bool("Shall the sequence be marked as finished despite "
+                           "being aborted?")
+            if x:
+                _reset_kwargs["status"] = "finished"
+
     # ===== end user area =====
+    # mark last open file as finished, if not labeled elsewhere
+    if not "status" in _reset_kwargs.keys():
+        _reset_kwargs["status"] = "finished"
     # the reset function is called at the script end only, but we nevertheless
     # specify the last datafile name to be as close as possible to the behavior
     # of matrix
