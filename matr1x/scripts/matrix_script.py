@@ -65,10 +65,12 @@ try:
         QMainWindow,
         QStyle,
         QToolBar,
+        QMenu,
         QMessageBox,
         QSizePolicy,
         QSplitter,
         QTextEdit,
+        QToolButton,
         QWidget,
         QVBoxLayout,
     )
@@ -96,11 +98,13 @@ except ImportError:
         QFileDialog,
         QListWidget,
         QMainWindow,
+        QMenu,
         QMessageBox,
         QSizePolicy,
         QSplitter,
         QStyle,
         QToolBar,
+        QToolButton,
         QTextEdit,
         QWidget,
         QVBoxLayout,
@@ -1984,8 +1988,6 @@ class MainWindow(QMainWindow):
         self.save_action.triggered.connect(self.save_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         file_menu.addAction(self.save_action)
-        self.toolbar.addAction(self.save_action)
-
         # File: Save As...
         self.save_as_action = QAction(
             self.get_icon("SP_DialogSaveButton"), "Save As...", self
@@ -1993,9 +1995,19 @@ class MainWindow(QMainWindow):
         self.save_as_action.triggered.connect(self.save_file_as)
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         file_menu.addAction(self.save_as_action)
-        # delete toolbar entry in early 2025 to provide the same functionality as other apps
-        # now people have to get used to it
-        self.toolbar.addAction(self.save_as_action)
+        # Save in toolbar with pulldown
+        save_button = QToolButton()
+        save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        save_button.setIcon(self.get_icon("SP_DialogSaveButton"))
+        save_button.setText("Save")
+        save_button.setDefaultAction(self.save_action)
+        save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        save_pulldown = QMenu(self)
+        save_pulldown.addAction(self.save_as_action)
+        save_button.setMenu(save_pulldown)
+
+        # Add the tool button to the toolbar
+        self.toolbar.addWidget(save_button)
 
         ## ---
         file_menu.addSeparator()
