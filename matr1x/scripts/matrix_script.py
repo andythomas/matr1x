@@ -136,7 +136,8 @@ LINTER_ERRORS = [
     "PercentFormatMissingArgument",
 ]
 
-SCRIPT_OFFSET = len(generate_script_prefix_suffix("")[0].split('\n'))
+# +1 here is needed since otherwise the last newline is not counted.
+SCRIPT_OFFSET = len(generate_script_prefix_suffix("")[0].splitlines()) + 1
 
 
 class Matr1xApplication(QApplication):
@@ -919,7 +920,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             # additional line here
             script = "_interrupt=lambda x, s:x;_print=lambda x:x;"
             script += "_input=lambda x:x;_report_line=lambda x:x;"
-            script += "_meta_data='';_scriptname='';"
+            script += "_meta_data='';_scriptname='';_script='';"
             script += generate_script("", self.text())
             # reimplement the pyflakes.api.check function
             scriptname = "sc"

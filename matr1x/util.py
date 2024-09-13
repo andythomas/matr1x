@@ -235,6 +235,7 @@ def generate_script_prefix_suffix(systems):
     import inspect as _inspect
     import math as _math
     import os as _os
+    import textwrap as _textwrap
     import time as _time
     import types as _types
 
@@ -245,12 +246,8 @@ def generate_script_prefix_suffix(systems):
 
     from matr1x.system import MergedSystem as _MergedSystem
 
-    # change execution directory if requested
-    if _matr1x.matrix_script_execution_path == "<script-location>":
-        if _os.path.dirname(_scriptname):
-            _os.chdir(_os.path.dirname(_scriptname))
-    elif _matr1x.matrix_script_execution_path:
-        _os.chdir(_matr1x.matrix_script_execution_path)
+    # load config section from toml file
+    _config = _matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
     _system = _MergedSystem.from_files([{", ".join(repr(s) for s in systems)}])
 
@@ -266,6 +263,28 @@ def generate_script_prefix_suffix(systems):
     _preset = _starttime
     _finished = None
     _reset_kwargs = {{}}
+
+
+    def _configure_execution_path(scriptname):
+        "change execution path if requested in config"
+        if _config["script_path"] == "<script-location>":
+            if _os.path.dirname(scriptname):
+                _os.chdir(_os.path.dirname(scriptname))
+        elif _os.path.exists(_config["script_path"]):
+            _os.chdir(_config["script_path"])
+
+
+    def _configure_script_storing(system, script):
+        "store user script if requested in config"
+        if _config["store_script_in_datafile"]:
+            prefix, suffix = _matrix_util.generate_script_prefix_suffix("")
+            npref, nsuff = len(prefix.splitlines()), len(suffix.splitlines())
+            # strip prefix and suffix lines from script for storing
+            user_script = _textwrap.dedent("\\n".join(script.splitlines()[npref:-nsuff]))
+            if "User script" not in system.system_config_params:
+                system.system_config_params["User script"] = user_script
+            else:
+                print("'User script' key already present in system, not overwriting!")
 
 
     @wrapt.decorator
@@ -448,6 +467,10 @@ def generate_script_prefix_suffix(systems):
         raise KeyboardInterrupt
 
 
+    # load execution path of scripts and change to this directory
+    _configure_execution_path(_scriptname)
+    # optionally set user script to be stored in data file
+    _configure_script_storing(_system, _script)
     # initialize system and put devs into namespace
     print("setting devices")
     # system.set is called before the filename is set so we have no arguments
@@ -614,8 +637,8 @@ def generate_script(systems, user_script):
     # define basic part of script, imports relevant commands
     prefix, suffix = generate_script_prefix_suffix(systems)
     if user_script.strip() == "":
-        # if empty script is passed, avoid indendation error but otherwise
-        # make script execution possible
+        # if empty script is passed, avoid indendation error and make script
+        # execution possible
         user_script = "pass"
     return prefix + textwrap.indent(user_script, "    ") + suffix
 
@@ -836,6 +859,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                         "_input": self.input,
                         "_meta_data": self.meta_data,
                         "_scriptname": self.scriptname,
+                        "_script": self.script,
                     }
                     exec(self.script, _vars)
                 except Exception:
@@ -1160,9 +1184,9 @@ def construct_query_string(query_dict, depth=2):
             if isinstance(v, str):
                 # ignore carriage returns (would break the datafile!)
                 v = v.replace("\r", "\n")
-                v = v.replace("\n", "\n" + "#"*(depth+1))
-                v = v.replace('"', '\"')
-            ret += "#"*depth + f" {k} : \"{v}\"\n"
+                v = v.replace("\n", "\n" + "#" * (depth + 1) + " ")
+                v = v.replace('"', r"\"")
+            ret += "#" * depth + f' {k} : "{v}"\n'
     return ret
 
 

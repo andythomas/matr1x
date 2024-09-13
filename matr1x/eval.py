@@ -250,7 +250,10 @@ def loadmatrix(filename, structured=True, print_header=False,
                 lastdpoint = dpoint
         for key, val in header.items():
             if isinstance(val, str):
-                header[key] = val.strip('"')  # strip " from header strings
+                val = val.strip('"')  # strip " from header strings
+                # remove escaping of other " in datafile
+                val = val.replace(r"\"", '"')
+                header[key] = val
 
         # we now have (i+1) as the number of lines to skip
         kwargs = {

@@ -941,6 +941,7 @@ class System:
         if self.opened is False:
             raise ValueError("System must be set before query can be called")
         retquery = {}
+        # iterate over devices to get their config
         for key, dev in self.devs.items():
             # get device
             try:
@@ -964,6 +965,13 @@ class System:
                 print(
                     f"system: error: could not access '{key}': {dev} {error}")
                 raise
+        # iterate over remaining keys in system_config_params
+        for key in self.system_config_params.keys() - self.devs.keys():
+            obj = self.system_config_params[key]
+            if callable(obj):
+                retquery[key] = obj()
+            else:
+                retquery[key] = obj
         return retquery
 
     def reset(self, *args, **kwargs):
@@ -1136,8 +1144,9 @@ class System:
                 assert data_file.swmr_mode
                 data_file.attrs["Input filename"] = inputfile
                 data_file.attrs["System filename"] = self.__name__
-                data_file.attrs["Device query"] = construct_query_string(
-                    self.query_dict
+                data_file.attrs["System query"] = construct_query_string(
+                    self.query_dict,
+                    depth=0,
                 )
                 for dckey, dcvalue in self.dcdata.items():
                     if dckey not in VALID_META_KEYS.keys():
@@ -1170,7 +1179,7 @@ class System:
                 data_file.write(f"# Input filename : \"{inputfile}\"\n")
                 data_file.write("# System filename : ")
                 data_file.write("\"" + self.__name__ + "\"\n")
-                data_file.write("# Device query : \n")
+                data_file.write("# System query : \n")
                 data_file.write(construct_query_string(self.query_dict))
 
                 init_ascii_header(data_file, *telemetry)

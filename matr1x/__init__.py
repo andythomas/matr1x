@@ -186,16 +186,6 @@ handlers.append(
 kwargs["handlers"] = handlers
 logging.basicConfig(**kwargs)
 
-# load setting for the execution path of matrix-script scripts. With the default
-# value of None this will be the directory in which matrix-script was started.
-# Using the start menu integration this typically is the home folder of the
-# current user. Alternatively it can be the directory in which '*.matrix' file
-# is stored ("<script-location>") or any valid folder.
-matrix_script_execution_path = config["matr1x"]["script_path"]
-if matrix_script_execution_path != "<script-location>":
-    if not exists(matrix_script_execution_path):
-        matrix_script_execution_path = None
-
 usersfolder = expanduser(config["matr1x"]["users_directory"])
 if not exists(usersfolder):
     usersfolder = expanduser("~")
