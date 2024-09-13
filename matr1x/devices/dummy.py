@@ -14,16 +14,17 @@ from .scpi_dev import makeSCPIdevice
 
 logger = logging.getLogger(__name__)
 
-cmd_list = {"*idn": Get(str, lambda: "dummy_device"),
-            ":p1": Command(str, "_p1", "_p1"),
-            ":p2": Command(float, "_p2", "_p2"),
-            ":p3": Command([float, float], "_p3", "_p3"),
-            ":p4": Command([float, float, float, float], "_p4", "_p4"),
-            ":p5": Command(float, "_p5", "_p5"),
-            ":p6": Command(bool, "_p6", "_p6"),
-            ":p7": Command(bool, "_p7", "_p7"),
-            "*trg": Set(None, "trigger"),
-            }
+cmd_list = {
+    "*idn": Get(str, lambda: "dummy_device name\nwith newline"),
+    ":p1": Command(str, "_p1", "_p1"),
+    ":p2": Command(float, "_p2", "_p2"),
+    ":p3": Command([float, float], "_p3", "_p3"),
+    ":p4": Command([float, float, float, float], "_p4", "_p4"),
+    ":p5": Command(float, "_p5", "_p5"),
+    ":p6": Command(bool, "_p6", "_p6"),
+    ":p7": Command(bool, "_p7", "_p7"),
+    "*trg": Set(None, "trigger"),
+}
 
 dummy_dev = makeSCPIdevice(cmd_list)
 
@@ -52,7 +53,11 @@ class dummy(dummy_dev):
        * p6: Parameter of type bool
        * p7: Parameter of type bool
     """
-    config_params = {"conf": "_p1"}
+
+    config_params = {
+        "name": "*idn?",
+        "conf": "_p1",
+    }
 
     def __init__(self, adapter, **kwargs):
         self.localServer = None

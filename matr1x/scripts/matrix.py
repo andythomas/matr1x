@@ -468,7 +468,7 @@ def main():
         if x.lower().startswith("y") or x == "":
             print("marking file as aborted")
             reset_kwargs["status"] = "aborted"
-    if not "status" in reset_kwargs.keys():
+    if "status" not in reset_kwargs.keys():
         reset_kwargs["status"] = "finished"
     print("resetting devices")
     # reset system/devices

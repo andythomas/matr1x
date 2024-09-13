@@ -177,6 +177,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 else:
                     response = responses[0]
             if response is not None:
+                response = response.replace("\n", "\\n")
                 if not isinstance(response, bytes):
                     response = response.encode()
                 self.request.sendall(response + b'\n')
