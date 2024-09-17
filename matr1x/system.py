@@ -1097,7 +1097,7 @@ class System:
         if self.__class__ != MergedSystem:
             fun_list = []
             for key in dir(self):
-                if key not in dir(System()):
+                if key not in dir(System()) and not key.startswith("_"):
                     fun_list.append(key)
             if len(fun_list) > 0:
                 fun_string = ("system methods and parameters\n----------\n" +
@@ -1419,7 +1419,7 @@ class MergedSystem(System):
             fun_list = []
             for sys in self.subsys:
                 for key in dir(sys):
-                    if key not in dir(System()):
+                    if key not in dir(System()) and not key.startswith("_"):
                         fun_list.append(key)
             if len(fun_list) > 0:
                 # if system functions are present, also add them to return
