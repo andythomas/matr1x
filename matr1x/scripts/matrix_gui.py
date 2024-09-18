@@ -22,7 +22,7 @@ from matr1x.scripts import (
 )
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error
-from matr1x.gui_util import MetaViewerWidget
+from matr1x.gui_util import MetaDataDialog
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
@@ -32,6 +32,7 @@ try:
         QAbstractItemView,
         QApplication,
         QCheckBox,
+        QDockWidget,
         QFileDialog,
         QGridLayout,
         QLabel,
@@ -313,17 +314,6 @@ class MainWindow(QMainWindow):
         self.outputAutoGen.toggled.connect(self.updateAutoGenFilename)
         self.updateAutoGenFilename(autogen)
 
-        self.userField = QLineEdit(self)
-        self.userField.setToolTip("Measurement Operator for data-file header")
-        self.sampleField = QLineEdit(self)
-        self.sampleField.setToolTip("Sample identifier for data-file header")
-
-        self.commentField = QTextEdit(self)
-        self.commentField.setTabChangesFocus(True)
-        self.commentField.setToolTip("Any measurement or sample information, \n"
-                                     "which should be added to the data-file "
-                                     "header")
-
         self.queueButton = QPushButton("Enter Matrix")
         self.queueButton.clicked.connect(self.queueMeasurement)
 
@@ -335,7 +325,16 @@ class MainWindow(QMainWindow):
         self.stopButton.setVisible(False)
         self.stopButton.clicked.connect(self.stopQueue)
 
-        self.w_meta_view = MetaViewerWidget({})
+        self.w_dockable_metadata = QDockWidget("Metadata", self)
+        self.w_meta_view = MetaDataDialog()
+        self.w_dockable_metadata.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.w_dockable_metadata.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.w_dockable_metadata.setWidget(self.w_meta_view)
 
         self.meas_list = QListWidget()
         self.meas_list.setVisible(False)
@@ -362,15 +361,6 @@ class MainWindow(QMainWindow):
         fGrid.addWidget(self.outputEdit, 3, 1, 1, 9)
         fGrid.addWidget(self.outputButton, 3, 10)
 
-        fGrid.addWidget(QLabel("User"))
-        fGrid.addWidget(self.userField, 4, 1, 1, 10)
-
-        fGrid.addWidget(QLabel("Sample"))
-        fGrid.addWidget(self.sampleField, 5, 1, 1, 10)
-
-        fGrid.addWidget(QLabel("Comments"))
-        fGrid.addWidget(self.commentField, 6, 1, 2, 10)
-
         fGrid.addWidget(self.queueButton, 8, 0, 1, 11)
         fGrid.addWidget(self.removeButton, 9, 0, 1, 11)
         fGrid.addWidget(self.meas_list, 10, 0, 1, 11)
@@ -379,7 +369,7 @@ class MainWindow(QMainWindow):
         self.statusBar = QTextEdit(self)
         self.statusBar.setReadOnly(True)
         self.statusBar.setMinimumHeight(30)
-        self.statusBar.setMaximumHeight(80)
+        # self.statusBar.setMaximumHeight(80)
 
         sGrid = QGridLayout()
 
@@ -396,8 +386,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.widget)
         self.setWindowTitle('Matrix GUI')
 
-        self.w_meta_view.setVisible(True)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_meta_view)
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.w_dockable_metadata
+        )
 
     def updateAutoGenFilename(self, state):
         """Disable output filename field while running."""
@@ -459,9 +450,7 @@ class MainWindow(QMainWindow):
         self.inputEdit.setText(elem[0])
         if elem[1] != "":
             self.outputEdit.setText(elem[1])
-        self.userField.setText(elem[2])
-        self.sampleField.setText(elem[3])
-        self.commentField.setText(elem[4])
+        self.w_meta_view.load_initial_values(elem[2])
 
     def parseSystemFromInputFile(self, text):
         """Parse the system from an input file."""
@@ -489,7 +478,7 @@ class MainWindow(QMainWindow):
         except PermissionError:
             self.statusBar.append("system file not readable")
             return
-        self.w_meta_view.update_data(system.dcdata)
+        # self.w_meta_view.update_data(system.dcdata)
         self.sys_meta_data = system.dcdata
 
     def queueMeasurement(self):
@@ -505,10 +494,11 @@ class MainWindow(QMainWindow):
         if not exists(inputFile):
             self.statusBar.append("Input file does not exist")
             return
-        self.sys_meta_data["Creator"] = self.userField.text()
-        self.sys_meta_data["Identifier"] = self.sampleField.text()
-        self.sys_meta_data["Description"] = self.commentField.toPlainText()
-        param = (inputFile, outputFile, self.sys_meta_data)
+        metadata = self.w_meta_view.get_metadata()
+        for key in metadata.keys():
+            self.sys_meta_data[key] = metadata[key]
+        # create parameter set for measurement, make sure to copy the meta data
+        param = (inputFile, outputFile, self.sys_meta_data.copy())
         index = len(self.meas_queue)
         self.meas_queue[index] = param
         self.meas_list.addItem(f"{index} - {os.path.basename(inputFile)} - "

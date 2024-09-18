@@ -1243,9 +1243,9 @@ class MetaDataDialog(QDialog):
         values : Dict[str, Any]
             Dictionary with initial values for the fields.
         """
-        self.creator.setText(values.get("creator", ""))
-        self.identifier.setText(values.get("identifier", ""))
-        self.description.setPlainText(values.get("description", ""))
+        self.creator.setText(values.get("Creator", ""))
+        self.identifier.setText(values.get("Identifier", ""))
+        self.description.setPlainText(values.get("Description", ""))
 
     def get_metadata(self) -> Dict[str, str]:
         """
