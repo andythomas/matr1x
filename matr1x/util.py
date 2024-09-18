@@ -528,6 +528,8 @@ def generate_script_prefix_suffix(systems):
                 _matrix_util.flatten(_system.columns))
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_system.units))
+        # report file to matrix_script
+        _report_path(filename)
 
 
     # wrap system.trigger and system.take_measurement_point into measure_system
@@ -846,6 +848,18 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
             if lineno > -1:
                 print(f"__lineno{lineno:d}__", end="")
 
+        def report_path(self, path):
+            """
+            reports datafile that is currently written by
+            matrix-script
+            format is __//{path to measurement file}//__
+            """
+            if self.socket is None:
+                # only report filename if connected to a socket
+                return
+            if path != "":
+                print(f"__//{path}//__", end="")
+
         def run(self):
             """ run the script and provide meaningful error information
                 if the script exits with an error """
@@ -856,6 +870,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                     _vars = {
                         "_interrupt": self.interrupt,
                         "_report_line": self.report_line,
+                        "_report_path": self.report_path,
                         "_input": self.input,
                         "_meta_data": self.meta_data,
                         "_scriptname": self.scriptname,
