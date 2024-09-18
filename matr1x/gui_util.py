@@ -17,7 +17,14 @@ import numpy as np
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import QAbstractTableModel, QLocale, QObject, Qt, pyqtSignal
+    from PyQt6.QtCore import (
+        QAbstractItemModel,
+        QModelIndex,
+        QLocale,
+        QObject,
+        Qt,
+        pyqtSignal,
+    )
     from PyQt6.QtGui import QDoubleValidator, QIntValidator
     from PyQt6.QtWidgets import (
         QCheckBox,
@@ -36,7 +43,8 @@ try:
         QPushButton,
         QSizePolicy,
         QSlider,
-        QTableView,
+        QStyledItemDelegate,
+        QTreeView,
         QTextEdit,
         QToolButton,
         QVBoxLayout,
@@ -44,7 +52,7 @@ try:
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
-    from PyQt5.QtCore import QAbstractTableModel, QLocale, QObject, Qt, pyqtSignal
+    from PyQt5.QtCore import QLocale, QObject, Qt, pyqtSignal
     from PyQt5.QtGui import QDoubleValidator, QIntValidator
     from PyQt5.QtWidgets import (
         QCheckBox,
@@ -63,7 +71,8 @@ except ImportError:
         QPushButton,
         QSizePolicy,
         QSlider,
-        QTableView,
+        QStyledItemDelegate,
+        QTreeView,
         QTextEdit,
         QToolButton,
         QVBoxLayout,
@@ -72,7 +81,6 @@ except ImportError:
 import pyqtgraph as pg
 
 from .eval import delta
-from . import VALID_META_KEYS
 
 # dictionary of commonly used validators
 validator = {
@@ -197,31 +205,110 @@ class QRangeWidget(QGroupBox):
 
 class MetaViewerWidget(QDockWidget):
     """
-    Viewer and editor for meta data stored in matrix data files
+    Viewer and editor for meta data stored in matrix data files.
 
     Extensive meta data are only include in datafiles of version 7 or higher.
     """
-    class TableModel(QAbstractTableModel):
-        def __init__(self, data):
-            super().__init__()
-            self._data = data
+
+    class EditableDelegate(QStyledItemDelegate):
+        def createEditor(self, parent, option, index):
+            # Create a QTextEdit for more advanced text selection
+            editor = QTextEdit(parent)
+            # Make it read-only, but still allow text selection
+            editor.setReadOnly(True)
+            # disable frame of textedit, remove margins and scroll bar
+            editor.setFrameStyle(0)
+            editor.setStyleSheet("QTextEdit { border: none; padding: 0px; }")
+            editor.setContentsMargins(0, 0, 0, 0)
+            editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            return editor
+
+        def setEditorData(self, editor, index):
+            value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
+            editor.setText(value)
+
+        def setModelData(self, editor, model, index):
+            pass
+
+    class TreeItem:
+        def __init__(self, key, value, parent=None):
+            self.parent_item = parent
+            self.child_items = []
+
+            self.key = key
+            self.value = value
+
+            # If value is a dict, convert its items to TreeItem children
+            if isinstance(self.value, dict):
+                for child_key, child_value in value.items():
+                    self.child_items.append(
+                        MetaViewerWidget.TreeItem(child_key, child_value, self)
+                    )
+            elif isinstance(self.value, (tuple, list)):
+                # for lists with finite length also use nest view
+                # key is list index
+                if len(self.value) > 1:
+                    for i, child_value in enumerate(self.value):
+                        self.child_items.append(
+                            MetaViewerWidget.TreeItem(f"{i}", child_value, self)
+                        )
+                elif len(self.value) == 1:
+                    # only list with length one, use that element only
+                    self.value = self.value[0]
+                else:
+                    # length 0 list, replace with string representation
+                    self.value = str(self.value)
+
+        def child(self, row):
+            return self.child_items[row]
+
+        def child_count(self):
+            return len(self.child_items)
+
+        def column_count(self):
+            return 2  # Key and Value columns
+
+        def data(self, column):
+            if column == 0:
+                return self.key
+            elif column == 1:
+                if isinstance(self.value, (tuple, list, dict)):
+                    # Display an empty value if it's a nested iterable
+                    return ""
+                return str(self.value)  # Convert non-dict values to string
+            return None
+
+        def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+            return True
+            return False
+
+        def parent(self):
+            return self.parent_item
+
+        def row(self):
+            if self.parent_item:
+                return self.parent_item.child_items.index(self)
+            return 0
+
+    class TreeModel(QAbstractItemModel):
+        def __init__(self, data, parent=None):
+            super().__init__(parent)
+            self.root_item = MetaViewerWidget.TreeItem("Root", data)
 
         def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-            if index.isValid():
-                if (
-                    role == Qt.ItemDataRole.DisplayRole
-                    or role == Qt.ItemDataRole.EditRole
-                ):
-                    value = self._data[index.row()][index.column()]
-                    return str(value)
+            """Return data at given index if displayed."""
+            if not index.isValid():
+                return None
 
-        def resetData(self, data):
-            """
-            takes a new data set and updates the table
-            """
-            self.beginResetModel()
-            self._data = data
-            self.endResetModel()
+            item = index.internalPointer()
+
+            if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
+                return item.data(index.column())
+
+            if role == Qt.ItemDataRole.TextAlignmentRole:
+                return Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+
+            return None
 
         def setData(self, index, value, role):
             """
@@ -232,63 +319,124 @@ class MetaViewerWidget(QDockWidget):
                 return True
             return False
 
-        def rowCount(self, index):
-            return len(self._data)
+        def flags(self, index):
+            if index.isValid():
+                if index.column() == 1:
+                    return (
+                        Qt.ItemFlag.ItemIsSelectable
+                        | Qt.ItemFlag.ItemIsEnabled
+                        | Qt.ItemFlag.ItemIsEditable
+                    )
+                return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+
+        def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+            """Return data written in header."""
+            if role == Qt.ItemDataRole.DisplayRole:
+                if section == 0:
+                    return "Key"
+                elif section == 1:
+                    return "Value"
+            return None
+
+        def index(self, row, column, parent=QModelIndex()):
+            if not self.hasIndex(row, column, parent):
+                return QModelIndex()
+
+            if parent.isValid():
+                parent_item = parent.internalPointer()
+            else:
+                parent_item = self.root_item
+
+            child_item = parent_item.child(row)
+            if child_item:
+                return self.createIndex(row, column, child_item)
+            return QModelIndex()
+
+        def parent(self, index):
+            if not index.isValid():
+                return QModelIndex()
+
+            child_item = index.internalPointer()
+            parent_item = child_item.parent()
+
+            if parent_item == self.root_item:
+                return QModelIndex()
+
+            return self.createIndex(parent_item.row(), 0, parent_item)
+
+        def resetData(self, data):
+            """Take a new data set and updates the table."""
+            self.beginResetModel()
+            del self.root_item
+            self.root_item = MetaViewerWidget.TreeItem("Root", data)
+            self.endResetModel()
+
+        def rowCount(self, parent=QModelIndex()):
+            if not parent.isValid():
+                return self.root_item.child_count()
+            parent_item = parent.internalPointer()
+            return parent_item.child_count()
 
         def columnCount(self, index):
-            if self.rowCount(0) > 0:
-                return len(self._data[0])
-            else:
-                return 0
+            """Return the column count (always 2 = key+value)."""
+            return 2
 
-        def flags(self, index):
-            col = index.column()
-            if col == 1:
-                row = index.row()
-                if self._data[row][0] in VALID_META_KEYS.keys():
-                    if VALID_META_KEYS[self._data[row][0]]:
-                        return (
-                            Qt.ItemFlag.ItemIsSelectable
-                            | Qt.ItemFlag.ItemIsEnabled
-                            | Qt.ItemFlag.ItemIsEditable
-                        )
-            return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+    def __init__(self, metadata, parent=None):
+        super().__init__(parent)
 
-    def __init__(self, metadata):
-        super().__init__()
+        self.tree_view = QTreeView()
 
-        self.table_view = QTableView()
+        self.model = self.TreeModel(self.parse_header(metadata))
+        self.tree_view.setModel(self.model)
+        for i in range(2):
+            self.tree_view.resizeColumnToContents(i)
+        self.tree_view.expandAll()
 
-        self.model = self.TableModel(self.parse_header(metadata))
-        self.table_view.setModel(self.model)
-        self.table_view.resizeRowsToContents()
+        # make widget expanding
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.tree_view.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        self.setWidget(self.tree_view)
 
-        # make last column stretch whenresized
-        self.table_view.horizontalHeader().setStretchLastSection(True)
+        # Set the custom editable delegate
+        delegate = self.EditableDelegate(self.tree_view)
+        self.tree_view.setItemDelegate(delegate)
 
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                           QSizePolicy.Policy.Expanding)
-        self.table_view.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                      QSizePolicy.Policy.Expanding)
-        self.setWidget(self.table_view)
+        # Allow editing/selecting text in both columns
+        self.tree_view.setEditTriggers(QTreeView.EditTrigger.AllEditTriggers)
+        # stop auto scrolling of tree view
+        self.tree_view.setAutoScroll(False)
+        # add visual separation between key items
+        # self.tree_view.setStyleSheet("""
+        #     QTreeView::item {
+        #         border-bottom: 1px solid #d3d3d3;  /* Light gray bottom border */
+        #         padding: 2px;  /* Add some padding for better spacing */
+        #     }
+        # """)
 
     def update_data(self, meta):
-        """
-        Updates the data stored in the model and resizes
-        the table to fit the contents
-        """
+        """Update data stored in the model and resize table to fit contents."""
         self.model.resetData(self.parse_header(meta))
-        self.table_view.resizeRowsToContents()
+        # resize and expand all entries
+        # (the latter might be disabled in the future, or configurable?)
+        for i in range(2):
+            self.tree_view.resizeColumnToContents(i)
+        self.tree_view.expandAll()
 
     def parse_header(self, hdr):
         """
-        Parse a matrix header and prepare for display in the table view
+        Parse a matrix header and prepare for display in the table view.
+
+        TODO: Implement sorting?
         """
-        data = []
+        data = {}
         for key, val in hdr.items():
             if key in ["columns", "units"]:
+                # omit columns and units since these belong directly to the
+                # data
                 continue
-            data.append([key, val])
+            data[key] = val
         return data
 
 

@@ -67,7 +67,7 @@ class MeasSystem(System):
             setting1=self.config["setting1"], setting2=self.config["setting2"]
         )
         # make a comment when set is finished
-        self.dcdata["description"] = f"configuring dev2 to '{self.config['setting1']}'"
+        self.dcdata["Description"] = f"configuring dev2 to '{self.config['setting1']}'"
 
     def reset(self, *args, **kwargs):
         """
@@ -108,10 +108,16 @@ sys = MeasSystem()
 # The fifth parameter (config_params) can be a dictionary specifying possible
 # query options which allow to readout the configuration of a device which will
 # be stored in the data file header.
-sys.add_dev("dev1", dummy, args=("TCPIP::localhost::10008::SOCKET", ),
-            kwargs={"p1": 5, "p4": [5, 3, 2, 1]}, config_params={"p4":
-                                                                 "p4"})
-sys.add_dev("dev2", dummy, args=("TCPIP::localhost::10009::SOCKET", ))
+sys.add_dev(
+    "dev1",
+    dummy,
+    args=("TCPIP::localhost::10008::SOCKET",),
+    kwargs={"p1": 5, "p4": [5, 3, 2, 1]},
+    config_params={"p4": "p4"},
+)
+sys.add_dev(
+    "dev2", dummy, args=("TCPIP::localhost::10009::SOCKET",), config_params={"p2": "p2"}
+)
 
 # ============================
 # define columns for measurement

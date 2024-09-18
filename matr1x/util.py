@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from importlib.metadata import version as package_version
 from os.path import abspath, isabs, isdir, isfile, join, relpath, sep
 
+import h5py
 import numpy as np
 
 # conditional import for non-blocking io
@@ -1201,8 +1202,57 @@ def construct_query_string(query_dict, depth=2):
                 v = v.replace("\r", "\n")
                 v = v.replace("\n", "\n" + "#" * (depth + 1) + " ")
                 v = v.replace('"', r"\"")
-            ret += "#" * depth + f' {k} : "{v}"\n'
+                ret += "#" * depth + f' {k} : "{v}"\n'
+            else:
+                ret += "#" * depth + f" {k} : {v}\n"
     return ret
+
+
+def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) -> None:
+    """
+    Save a dictionary to an HDF5 file in a hierachical data group.
+
+    Parameters
+    ----------
+    data_dict : dict
+        The dictionary to be saved.
+    hdf5_file : h5py.File
+        File handle of the HDF5 file to save the data to.
+    root_group : str
+        The name of the root group in the HDF5 file.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function recursively writes nested dictionaries to HDF5 groups and
+    datasets. Lists are converted to datasets, and scalar values are saved as
+    attributes.
+    """
+
+    def write_dict(group: h5py.Group, d: dict) -> None:
+        """Recursively write a dictionary to an HDF5 group."""
+        for key, value in d.items():
+            if isinstance(value, dict):
+                # Create a subgroup for nested dictionaries
+                subgroup = group.create_group(key)
+                write_dict(subgroup, value)
+            elif isinstance(value, list):
+                # Convert lists to datasets
+                group.create_dataset(key, data=value)
+            else:
+                # Save scalar values
+                group.attrs[key] = value
+
+    # Create or get the specified root group
+    if root_group in hdf5_file:
+        group = hdf5_file[root_group]
+    else:
+        group = hdf5_file.create_group(root_group)
+
+    write_dict(group, data_dict)
 
 
 def init_ascii_header(file_handle, columns, units, separator):

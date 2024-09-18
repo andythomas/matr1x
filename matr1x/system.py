@@ -17,15 +17,16 @@ import h5py
 import numpy as np
 from pymeasure.instruments import Instrument
 
-from . import datetimefmt, output_extension, VALID_META_KEYS
+from . import VALID_META_KEYS, datetimefmt, output_extension
 from .util import (
+    DcDict,
     construct_query_string,
     default_separator,
     flatten,
     init_ascii_header,
     init_hdf5_skel,
     module_from_path,
-    DcDict,
+    save_dict_to_hdf5,
 )
 
 
@@ -638,7 +639,7 @@ class System:
         if setter is None or values is None:
             return values
 
-        if isinstance(values, list):
+        if isinstance(values, collections.abc.Iterable):
             # parameter list, verify values
             values = list(map(float, values))
         else:
@@ -1144,10 +1145,9 @@ class System:
                 assert data_file.swmr_mode
                 data_file.attrs["Input filename"] = inputfile
                 data_file.attrs["System filename"] = self.__name__
-                data_file.attrs["System query"] = construct_query_string(
-                    self.query_dict,
-                    depth=0,
-                )
+                # store query dict in hierachical data structure
+                save_dict_to_hdf5(self.query_dict, data_file, "System query")
+
                 for dckey, dcvalue in self.dcdata.items():
                     if dckey not in VALID_META_KEYS.keys():
                         # values that are not in the dc specifications are
