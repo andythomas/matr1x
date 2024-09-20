@@ -2602,6 +2602,7 @@ class MainWindow(QMainWindow):
         """
         self.update_systems()
         if 0 == len(self.systems):
+            self.start_pause_action.setChecked(False)
             print("No system selected")
             print("==========")
             return
@@ -2626,6 +2627,7 @@ class MainWindow(QMainWindow):
             a.setDefaultButton(QMessageBox.StandardButton.Ok)
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
+                self.start_pause_action.setChecked(False)
                 return
         print("### Running script now")
         # define basic part of script, imports relevant commands
