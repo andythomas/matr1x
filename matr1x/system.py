@@ -1248,15 +1248,17 @@ class System:
         # return device readout as list
         return return_list
 
-    def add_comment(self, message, datafilename=None):
+    def add_comment(self, message: str, datafilename=None) -> None:
         """
         Adds comment to the datafile.
 
         Parameters
         ----------
+        message: str
+          comment string to be added to the datafile
         datafilename: None, str, optional
-         filename where to save the measurement. If not specified the
-         internally stored filename is used.
+          filename where to save the measurement. If not specified the
+          internally stored filename is used.
         """
         dfilename = datafilename if datafilename else self.filename
 
@@ -1264,9 +1266,8 @@ class System:
             # if not valid datafile was initialized do nothing.
             return
 
+        timestamp = time.strftime(f"{datetimefmt}", time.localtime())
         if self.hdf5 is True:
-            # lazy import of h5py to only load it when it is required
-            import h5py
 
             with h5py.File(dfilename, "a", libver="latest") as datafile:
                 datafile.swmr_mode = True
@@ -1279,7 +1280,7 @@ class System:
                     [
                         (
                             message,
-                            time.strftime(f"{datetimefmt}", time.localtime()),
+                            timestamp,
                         )
                     ],
                     dtype=comments.dtype,
@@ -1288,8 +1289,41 @@ class System:
         else:
             with open(dfilename, "a", encoding="utf-8") as datafile:
                 # write comment to file
-                for line in message.split("\n"):
-                    datafile.write(f"# {line}\n")
+                datafile.write(f"# comment ({timestamp}): ")
+                # add continuation line markers
+                comment = "\n## ".join(message.splitlines())
+                datafile.write(f"{comment}\n")
+
+    def _write_status(self, status: str, datafilename=None) -> None:
+        """
+        Write measurement status to the data file.
+
+        Parameters
+        ----------
+        status : str
+            The status message to be written.
+        datafilename : str, optional
+            The name of the data file to write to. If None, uses the internally stored filename.
+
+        Returns
+        -------
+        None
+        """
+        dfilename = datafilename if datafilename else self.filename
+
+        if dfilename is None:
+            # if not valid datafile was initialized do nothing.
+            return
+
+        if self.hdf5 is True:
+            with h5py.File(dfilename, "a", libver="latest") as datafile:
+                datafile.swmr_mode = True
+                assert datafile.swmr_mode
+                datafile.attrs["status"] = status
+        else:
+            with open(dfilename, "a", encoding="utf-8") as datafile:
+                # write comment to file
+                datafile.write(f"# status: {status}")
 
 
 class MergedSystem(System):
@@ -1479,7 +1513,7 @@ class MergedSystem(System):
         """
         # close all individual systems again
         if "status" in kwargs:
-            self.add_comment(f"sequence run was labeled '{kwargs['status']}'")
+            self._write_status(f"{kwargs['status']}")
         self.opened = False
         for sys in self.subsys:
             sys.reset(*args, **kwargs)

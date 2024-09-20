@@ -31,14 +31,17 @@ def test_loadmatrix_hdf5_ma8():
     assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][2] == "dev1 p3a"  # check specific column name
     assert h["units"][2] == "cnta"  # check specific unit entry
+    assert h["status"] == "finished"
     assert isinstance(h["System query"], dict)
     assert len(h["System query"]) == 3
     assert list(h["System query"]["dev1"]["p4"] == [5.0, 3.0, 2.0, 1.0])
-    assert len(h["System query"]["User script"]) == 415
+    assert len(h["System query"]["User script"]) == 364
     assert d["timeUTC"].shape == (100,)  # check shape of dataset
-    assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.271862  # check specific data value
     assert (
-        pytest.approx(d["timeUTC"][1], 1e-9) == 1726486049.5
+        pytest.approx(d["dev1 p2"][3], 1e-5) == 0.0632146
+    )  # check specific data value
+    assert (
+        pytest.approx(d["timeUTC"][1], 1e-9) == 1726656482.9
     )  # check specific data value
 
 
@@ -52,15 +55,18 @@ def test_loadmatrix_ma8():
     assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "dev1 p1"  # check specific column name
     assert h["units"][3] == "cnt"  # check specific unit entry
+    assert h["status"] == "finished"
     assert isinstance(h["System query"], dict)
     assert len(h["System query"]) == 3
     assert h["System query"]["dev1"]["p4"] == [5.0, 3.0, 2.0, 1.0]
-    assert len(h["System query"]["User script"]) == 397
+    assert len(h["System query"]["User script"]) == 347
     assert d["dev1 p3a"].shape == (100,)  # check shape of dataset
     assert d["timeUTC"].shape == (100,)  # check shape of dataset
-    assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.83018  # check specific data value
     assert (
-        pytest.approx(d["timeUTC"][1], 1e-9) == 1726245414.1
+        pytest.approx(d["dev1 p2"][3], 1e-5) == 0.0290406
+    )  # check specific data value
+    assert (
+        pytest.approx(d["timeUTC"][1], 1e-9) == 1726656467.2
     )  # check specific data value
 
 

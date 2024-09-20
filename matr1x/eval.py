@@ -328,6 +328,7 @@ def loadmatrix(filename, structured=True, print_header=False,
         header["columns"] = list(h5f["data"].keys())
         header["units"] = [it.attrs["unit"] for it in h5f["data"].values()]
         header["comments"] = []
+        header["status"] = None
         # check whether comments exist in file
         if "comments" in h5f:
             for entry in h5f["comments"]:
@@ -411,26 +412,42 @@ def loadmatrix(filename, structured=True, print_header=False,
                     # ma8 files have only two header lines without hash
                     if extension.endswith("8") and headerlines == 2:
                         break
-            # Read further comment lines in the file
-            comments = [
+            # Read further special lines in the file
+            special_lines = [
                 (i, line) for i, line in enumerate(matrix_file) if line.startswith("#")
             ]
             # combine multiline comments and note after which datapoint the
             # comment was in the file
             header["comments"] = []
+            header["status"] = None
             lastdpoint = -1
-            for i, (linenr, msg) in enumerate(comments):
+            for i, (linenr, msg) in enumerate(special_lines):
                 dpoint = linenr - i
-                if sys.version_info.minor > 8:
-                    # removeprefix/suffix was introduced with python 3.9
-                    message = msg.removeprefix("# ").removesuffix("\n")
-                else:
-                    # to be removed when python 3.8 is deprecated
-                    message = msg.lstrip("# ").rstrip("\n")
+                if msg.startswith("# status:"):
+                    header["status"] = msg.split(":", maxsplit=1)[1].strip()
+                    continue
                 if dpoint == lastdpoint:
+                    if sys.version_info.minor > 8:
+                        # removeprefix/suffix was introduced with python 3.9
+                        message = msg.removeprefix("## ").removesuffix("\n")
+                    else:
+                        # to be removed when python 3.8 is deprecated
+                        message = msg.lstrip("# ").rstrip("\n")
                     header["comments"][-1] += f"\n{message}"
                 else:
-                    header["comments"].append(f"after {dpoint} points: {message}")
+                    if sys.version_info.minor > 8:
+                        # removeprefix/suffix was introduced with python 3.9
+                        message = msg.removeprefix("# ").removesuffix("\n")
+                    else:
+                        # to be removed when python 3.8 is deprecated
+                        message = msg.lstrip("# ").rstrip("\n")
+                    if message.startswith("comment ("):
+                        m = re.search(r"\(([^)]+)\):\s(.*)", message)
+                        header["comments"].append(
+                            f"after {dpoint} points at {m.group(1)}: {m.group(2)}"
+                        )
+                    else:
+                        raise ValueError("Unknown special line in matrix datafile")
                 lastdpoint = dpoint
         # separate System query entry into hierachical dictionary
         if "System query" in header:
