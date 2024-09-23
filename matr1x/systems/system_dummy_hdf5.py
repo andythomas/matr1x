@@ -17,6 +17,13 @@
 """
 This module defines a system for testing and demonstration purposes including
 the HDF5 data file format option.
+
+Note: The hdf5 data format is needed for multidimensional datasets but includes
+a rather large overhead which is only compensated for if at each single data point
+a large number of values is stored. For simple floating point values it is recommended
+to stick to the ascii format.
+In case you are interested in the overhead for chunked data storage in hdf5 see
+https://davis.lbl.gov/Manuals/HDF5-1.8.7/Advanced/Chunking/index.html
 """
 # ============================
 # Custom import area
