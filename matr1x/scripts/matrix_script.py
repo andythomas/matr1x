@@ -17,7 +17,6 @@
 """Allow to write measurement scripts in Python."""
 
 import ast
-import datetime
 import getpass
 import logging
 import os
@@ -29,7 +28,7 @@ import tempfile
 import textwrap
 import time
 import warnings
-from os.path import basename, dirname, join
+from os.path import basename, dirname
 
 import autopep8
 import pyflakes.checker
@@ -44,13 +43,14 @@ from matr1x.gui_util import (
     YesNoAbortDialog,
     EmittingStream,
     MetaDataDialog,
+    AboutBox,
+    MIcon,
 )
 from matr1x.scripts import matrix_preview
 from matr1x.util import (
     create_temp_dir_with_symlinks,
     generate_script,
     generate_script_prefix_suffix,
-    get_install_info,
     get_importable_module_name,
 )
 
@@ -62,11 +62,9 @@ try:
         QAction,
         QColor,
         QFontDatabase,
-        QIcon,
         QKeyEvent,
         QKeySequence,
         QPalette,
-        QPixmap,
         QTextCursor,
     )
     from PyQt6.QtWidgets import (
@@ -96,11 +94,9 @@ except ImportError:
     from PyQt5.QtGui import (
         QColor,
         QFontDatabase,
-        QIcon,
         QKeyEvent,
         QKeySequence,
         QPalette,
-        QPixmap,
         QTextCursor,
     )
     from PyQt5.QtWidgets import (
@@ -165,7 +161,6 @@ class Matr1xApplication(QApplication):
             filename = event.file()
             self.openfile.emit(filename)
         return QApplication.event(self, event)
-
 
 class DroppableWidget(QWidget):
     """Allow drag and drop of files."""
@@ -1809,13 +1804,6 @@ class MainWindow(QMainWindow):
         self.saveCurrentState()
         event.accept()
 
-    # Icons from a theme such as QIcon.fromTheme("media-playback-start")
-    # would neither work on Windows nor on a Mac. Fallback to the Qt icons.
-    #
-    def get_icon(self, name):
-        """Send 'name' and get corresponding QIcon back."""
-        return self.style().standardIcon(getattr(QStyle.StandardPixmap, name))
-
     def standard_action(self, name):
         """
         Create a standard action such as 'Undo'.
@@ -1872,35 +1860,7 @@ class MainWindow(QMainWindow):
 
     def info_box(self):
         """Display an 'about this app' widget."""
-        box = QMessageBox(parent=self)
-        box.setWindowTitle("Matrix Script")
-        icondir = join(dirname(__file__), "icons")
-        # The rich text (html) messes with the sizes
-        icon_size = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_MessageBoxIconSize
-        )
-        pixmap = QPixmap(join(icondir, "matr1x-matrix-script.png")).scaledToHeight(
-            icon_size
-        )
-        box.setIconPixmap(pixmap)
-        (version, branch, sha, time) = get_install_info(matr1x)
-        if time != "not available":
-            date = datetime.datetime.fromtimestamp(time).strftime(matr1x.datetimefmt)
-        else:
-            date = time
-        box.setText("Matrix Script")
-        text = f"""
-                <div style="text-align: left;">
-                    <p><b>Version:</b> {version}<br>
-                    <b>Git branch:</b> {branch}<br>
-                    <b>Git commit:</b> {sha}<br>
-                    <b>Git date:</b> {date}<br>
-                    <br>
-                    (c) 2024 Matr1x Developers. All rights reserved.
-                </div>
-                """
-        box.setInformativeText(text)
-        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box = AboutBox("Matrix Script", matr1x, matr1x.datetimefmt)
         box.exec()
         return
 
@@ -2001,8 +1961,7 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         """Generate the main GUI."""
-        icondir = join(dirname(__file__), 'icons')
-        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-script.png')))
+        self.setWindowIcon(MIcon("MATR1X_matr1x-matrix-script.png"))
         self.central_widget = DroppableWidget(self)
         self.central_widget.fileDropped.connect(self.load_from_filename)
         self.setCentralWidget(self.central_widget)
@@ -2021,15 +1980,13 @@ class MainWindow(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        # an intermediate icon size looks more fitting
-        small_size = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_SmallIconSize
-        )
-        normal_size = QApplication.style().pixelMetric(
+
+        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = QApplication.style().pixelMetric(
             QStyle.PixelMetric.PM_ToolBarIconSize
         )
-        icon_size = int((small_size + normal_size) / 2)
-        self.toolbar.setIconSize(QSize(icon_size, icon_size))
+        intermediate = int((small + standard) / 2)
+        self.toolbar.setIconSize(QSize(intermediate, intermediate))
 
         # Helper
         spacer = QWidget()
@@ -2042,7 +1999,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction(self.about_action)
 
         # File: Load a recipe
-        self.load_action = QAction(self.get_icon("SP_DialogOpenButton"), "Open", self)
+        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.load_from_file)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
         file_menu.addAction(self.load_action)
@@ -2052,21 +2009,19 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
 
         # File: Save
-        self.save_action = QAction(self.get_icon("SP_DialogSaveButton"), "Save", self)
+        self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
         self.save_action.triggered.connect(self.save_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         file_menu.addAction(self.save_action)
         # File: Save As...
-        self.save_as_action = QAction(
-            self.get_icon("SP_DialogSaveButton"), "Save As...", self
-        )
+        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
         self.save_as_action.triggered.connect(self.save_file_as)
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         file_menu.addAction(self.save_as_action)
         # Save in toolbar with pulldown
         save_button = QToolButton()
         save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        save_button.setIcon(self.get_icon("SP_DialogSaveButton"))
+        save_button.setIcon(MIcon("SP_DialogSaveButton"))
         save_button.setText("Save")
         save_button.setDefaultAction(self.save_action)
         save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
@@ -2082,14 +2037,14 @@ class MainWindow(QMainWindow):
 
         # File: Add System
         self.add_system_action = QAction(
-            self.get_icon("SP_ArrowRight"), "Add System", self
+            MIcon("CHAR_+", QColor("darkGray")), "Add System", self
         )
         self.add_system_action.triggered.connect(self.add_system)
         file_menu.addAction(self.add_system_action)
 
         # File: Remove System
         self.remove_system_action = QAction(
-            self.get_icon("SP_LineEditClearButton"), "Remove System", self
+            MIcon("CHAR_-", QColor("darkGray")), "Remove System", self
         )
         self.remove_system_action.triggered.connect(self.delete_selected_system)
         file_menu.addAction(self.remove_system_action)
@@ -2137,18 +2092,18 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.paste_action)
 
         # Add an empty spacer to the toolbar
-        empty = QAction(self.get_icon("SP_CustomBase"), "", self)
+        empty = QAction(MIcon("SP_CustomBase"), "", self)
         self.toolbar.addAction(empty)
 
         # Control: Start
-        self.start_pause_action = QAction(self.get_icon("SP_MediaPlay"), "Start", self)
+        self.start_pause_action = QAction(MIcon("SP_MediaPlay"), "Start", self)
         self.start_pause_action.triggered.connect(self.start_process)
         self.start_pause_action.setCheckable(True)
         control_menu.addAction(self.start_pause_action)
         self.toolbar.addAction(self.start_pause_action)
 
         # Control: Stop
-        self.stop_action = QAction(self.get_icon("SP_MediaStop"), "Stop", self)
+        self.stop_action = QAction(MIcon("SP_MediaStop"), "Stop", self)
         self.stop_action.triggered.connect(self.abort_thread)
         self.stop_action.setEnabled(False)
         control_menu.addAction(self.stop_action)
@@ -2156,11 +2111,11 @@ class MainWindow(QMainWindow):
 
         # Add an empty spacer to separate the preview from the
         # start/stop buttons
-        empty2 = QAction(self.get_icon("SP_CustomBase"), "", self)
+        empty2 = QAction(MIcon("SP_CustomBase"), "", self)
         self.toolbar.addAction(empty2)
 
         self.preview_action = QAction(
-            self.get_icon("SP_FileDialogContentsView"), "Preview", self
+            MIcon("MATR1X_matr1x-matrix-preview.png", QColor("black")), "Preview", self
         )
         self.preview_action.triggered.connect(self.preview_data)
         self.preview_action.setEnabled(False)
@@ -2169,11 +2124,11 @@ class MainWindow(QMainWindow):
 
         # Add an empty spacer to the toolbar
         # Looks better if the systems are moved up.
-        empty2 = QAction(self.get_icon("SP_CustomBase"), "", self)
+        empty2 = QAction(MIcon("SP_CustomBase"), "", self)
         self.toolbar.addAction(empty2)
 
         # Control: Abort
-        self.kill_action = QAction(self.get_icon("SP_DialogCancelButton"), "Kill", self)
+        self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
         self.kill_action.triggered.connect(self.kill_thread)
         self.kill_action.setEnabled(False)
         control_menu.addAction(self.kill_action)
@@ -2216,12 +2171,12 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.toggle_systems_action)
 
         # Help: Editor
-        self.help_editor_action = QAction(QIcon(), "Show Editor Help", self)
+        self.help_editor_action = QAction("Show Editor Help", self)
         self.help_editor_action.triggered.connect(self.show_editor_commands)
         help_menu.addAction(self.help_editor_action)
 
         # Help: System
-        self.help_system_action = QAction(QIcon(), "Show System Help", self)
+        self.help_system_action = QAction("Show System Help", self)
         self.help_system_action.triggered.connect(self.show_system_commands)
         help_menu.addAction(self.help_system_action)
 
@@ -2324,7 +2279,8 @@ class MainWindow(QMainWindow):
         self.dock_with_systems.addWidget(self.system_list)
         self.dock_with_systems.addAction(self.remove_system_action)
         self.dock_with_systems.setFloatable(False)
-        self.dock_with_systems.setIconSize(QSize(small_size, small_size))
+        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        self.dock_with_systems.setIconSize(QSize(small, small))
         self.dock_with_systems.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
         )
@@ -2561,13 +2517,13 @@ class MainWindow(QMainWindow):
         self.is_running = flag
 
         if flag:
-            self.start_pause_action.setIcon(self.get_icon("SP_MediaPause"))
+            self.start_pause_action.setIcon(MIcon("SP_MediaPause"))
             self.start_pause_action.setText("Pause")
             self.start_pause_action.triggered.disconnect(self.start_process)
             self.start_pause_action.triggered.connect(self.pause_thread)
         else:
             self.clear_annotations()
-            self.start_pause_action.setIcon(self.get_icon("SP_MediaPlay"))
+            self.start_pause_action.setIcon(MIcon("SP_MediaPlay"))
             self.start_pause_action.setText("Start")
             self.start_pause_action.triggered.disconnect(self.pause_thread)
             self.start_pause_action.triggered.connect(self.start_process)

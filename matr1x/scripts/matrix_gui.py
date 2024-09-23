@@ -22,7 +22,7 @@ import socket
 import subprocess
 import sys
 import warnings
-from os.path import dirname, exists, join
+from os.path import exists
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
@@ -34,47 +34,50 @@ from matr1x.scripts import (
 )
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error
-from matr1x.gui_util import MetaDataDialog
+from matr1x.gui_util import MetaDataDialog, AboutBox, MIcon, MLineEdit
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal
-    from PyQt6.QtGui import QIcon
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSettings, QSize
+    from PyQt6.QtGui import QAction, QColor, QKeySequence
     from PyQt6.QtWidgets import (
         QAbstractItemView,
         QApplication,
-        QCheckBox,
         QDockWidget,
         QFileDialog,
-        QGridLayout,
         QLabel,
-        QLineEdit,
         QListWidget,
         QMainWindow,
         QMessageBox,
-        QPushButton,
-        QTextEdit,
+        QSizePolicy,
+        QSpacerItem,
+        QStyle,
+        QToolBar,
+        QToolButton,
+        QHBoxLayout,
         QVBoxLayout,
         QWidget,
     )
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
-    from PyQt5.QtCore import Qt, QThread, pyqtSignal
-    from PyQt5.QtGui import QIcon
+    from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings, QSize
+    from PyQt5.QtGui import QAction, QColor, QKeySequence
     from PyQt5.QtWidgets import (
         QAbstractItemView,
         QApplication,
-        QCheckBox,
+        QDockWidget,
         QFileDialog,
-        QGridLayout,
         QLabel,
-        QLineEdit,
         QListWidget,
         QMainWindow,
         QMessageBox,
-        QPushButton,
-        QTextEdit,
+        QSizePolicy,
+        QSpacerItem,
+        QStyle,
+        QToolBar,
+        QToolButton,
+        QHBoxLayout,
         QVBoxLayout,
         QWidget,
     )
@@ -256,6 +259,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.color_palette = QApplication.instance().palette()
         self.initUI()
         self.sg = None
         self.running = False
@@ -264,6 +268,9 @@ class MainWindow(QMainWindow):
         self.thread = ExecThread()
         self.thread.filename_received.connect(self.outputEdit.setText)
         self.thread.finished.connect(self.processFinished)
+
+        # allow to store the settings
+        self.settings = QSettings("matr1x", "gui")
 
         # Define the allowed extension pattern
         self.allowed_extension_pattern = re.compile(r'\.\d+t$')
@@ -299,43 +306,141 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Close app properly."""
+        # only close if no measurement is running.
+        if self.running:
+            QMessageBox.critical(
+                QWidget(),
+                "Measurement running!",
+                """Please wait for the measurement to finish. Alternatively,
+                stop the measurement in the terminal before exiting 'Matrix GUI'!""",
+            )
+            event.ignore()
+            return
+        # close sweep generator as well
         if self.sg is not None:
             self.sg.close()
+        self.saveCurrentState()
         event.accept()
 
+    def info_box(self):
+        """Display an 'about this app' widget."""
+        box = AboutBox("Matrix GUI", matr1x, matr1x.datetimefmt)
+        box.exec()
+        return
+
+    def saveCurrentState(self):
+        """Save window and toolbar placement."""
+        self.settings.setValue("position", self.pos())
+        self.settings.setValue("size", self.size())
+        self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
+        self.settings.setValue("metadata_size", self.w_dockable_metadata.size())
+
+    def restoreState(self):
+        """Restore window and toolbar placement."""
+        screen_geometry = self.screen().geometry()
+        width = screen_geometry.width() // 4
+        height = screen_geometry.height() // 4
+        self.move(self.settings.value("position", self.pos()))
+        self.resize(self.settings.value("size", QSize(width, height)))
+        self.addToolBar(
+            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
+            self.toolbar,
+        )
+        self.resizeDocks(
+            [self.w_dockable_metadata],
+            [
+                self.settings.value(
+                    "metadata_size", self.w_dockable_metadata.size()
+                ).width()
+            ],
+            Qt.Orientation.Horizontal,
+        )
+
     def initUI(self):
-        """Initialize basic GUI matrix program."""
-        icondir = join(dirname(__file__), 'icons')
-        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-gui.png')))
-        self.inputEdit = QLineEdit(self)
+        """Initialize the basic GUI for the graphical version of matrix."""
+        self.setWindowIcon(MIcon("MATR1X_matr1x-matrix-gui.png"))
+        self.inputEdit = MLineEdit()
+        self.inputEdit.setReadOnly(True)
         self.inputEdit.textChanged.connect(self.parseSystemFromInputFile)
 
-        inputButton = QPushButton("Select Input File")
-        inputButton.clicked.connect(self.showInputDialog)
+        # Create menu
+        menu = self.menuBar()
+        file_menu = menu.addMenu("&File")
+        control_menu = menu.addMenu("&Control")
+        help_menu = menu.addMenu("&Help")
 
-        sweepGenButton = QPushButton("Generate Sweep")
-        sweepGenButton.clicked.connect(self.startSweepGenerator)
+        # Create toolbar
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.toolbar.setFloatable(False)
+        self.toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
 
-        self.outputEdit = QLineEdit(self)
-        self.outputAutoGen = QCheckBox(self)
+        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ToolBarIconSize
+        )
+        intermediate = int((small + standard) / 2)
+        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+
+        # About
+        self.about_action = QAction("About", self)
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.about_action.triggered.connect(self.info_box)
+        help_menu.addAction(self.about_action)
+
+        # File: Load a recipe
+        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action.triggered.connect(self.showInputDialog)
+        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
+        file_menu.addAction(self.load_action)
+        self.toolbar.addAction(self.load_action)
+
+        # File: Open sweep generator
+        self.sweep_action = QAction(
+            MIcon("MATR1X_matr1x-sweep-generator.png", QColor("black")),
+            "Generate",
+            self,
+        )
+        self.sweep_action.triggered.connect(self.startSweepGenerator)
+        file_menu.addAction(self.sweep_action)
+        self.toolbar.addAction(self.sweep_action)
+
+        # ---
+        self.toolbar.addSeparator()
+        file_menu.addSeparator()
+
+        # File: Autosave
+        self.outputEdit = MLineEdit()
+        self.outputEdit.setReadOnly(True)
+
+        self.outputAutoGen = QAction(MIcon("SP_DriveHDIcon"), "Autosave", self)
+        self.outputAutoGen.setCheckable(True)
         autogen = True
         self.outputAutoGen.setChecked(autogen)
+        self.outputAutoGen.setText("Auto-filename")
+        self.toolbar.addAction(self.outputAutoGen)
+        file_menu.addAction(self.outputAutoGen)
 
-        self.outputButton = QPushButton("Select Output File")
-        self.outputButton.clicked.connect(self.showOutputDialog)
+        # File: Save as...
+        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save as", self)
+        self.save_as_action.triggered.connect(self.showOutputDialog)
+        self.toolbar.addAction(self.save_as_action)
+        file_menu.addAction(self.save_as_action)
+
         self.outputAutoGen.toggled.connect(self.updateAutoGenFilename)
         self.updateAutoGenFilename(autogen)
 
-        self.queueButton = QPushButton("Enter Matrix")
-        self.queueButton.clicked.connect(self.queueMeasurement)
+        # Add an empty spacer to the toolbar
+        empty = QAction(MIcon("SP_CustomBase"), "", self)
+        self.toolbar.addAction(empty)
 
-        self.removeButton = QPushButton("Remove Measurement")
-        self.removeButton.setVisible(False)
-        self.removeButton.clicked.connect(self.removeMeasurement)
+        # Control: Start
+        self.start_action = QAction(MIcon("SP_MediaPlay"), "Start", self)
+        self.start_action.triggered.connect(self.queueMeasurement)
+        control_menu.addAction(self.start_action)
+        self.toolbar.addAction(self.start_action)
 
-        self.stopButton = QPushButton("Stop after next")
-        self.stopButton.setVisible(False)
-        self.stopButton.clicked.connect(self.stopQueue)
 
         self.w_dockable_metadata = QDockWidget("Metadata", self)
         self.w_meta_view = MetaDataDialog()
@@ -343,58 +448,82 @@ class MainWindow(QMainWindow):
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
         self.w_dockable_metadata.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+            QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
         )
         self.w_dockable_metadata.setWidget(self.w_meta_view)
 
+        self.measurements_container = QWidget()
+        inner_measurement_layout = QHBoxLayout()
+        inner_measurement_layout.setContentsMargins(0, 0, 0, 0)
+
         self.meas_list = QListWidget()
-        self.meas_list.setVisible(False)
         self.meas_list.setSelectionMode(
             QListWidget.SelectionMode.SingleSelection)
         self.meas_list.setDragDropMode(
             QAbstractItemView.DragDropMode.InternalMove)
         self.meas_list.itemClicked.connect(self.selectionChanged)
 
-        self.previewButton = QPushButton("Preview Data")
-        self.previewButton.clicked.connect(self.openPreview)
+        self.remove_button = QToolButton()
+        self.remove_button.setStyleSheet(
+            """
+                    QToolButton {
+                        border: none;
+                        background: none;
+                    }
+                """
+        )
+        self.remove_button.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.remove_action = QAction(
+            MIcon("CHAR_-", QColor("darkGray")), "Remove", self
+        )
+        self.remove_action.triggered.connect(self.removeMeasurement)
+        self.remove_button.setDefaultAction(self.remove_action)
 
-        fGrid = QGridLayout()
-        fGrid.addWidget(sweepGenButton, 0, 0, 1, 11)
+        inner_measurement_layout.addWidget(self.meas_list)
+        inner_measurement_layout.addWidget(self.remove_button)
 
-        fGrid.addWidget(QLabel("Input"), 1, 0)
-        fGrid.addWidget(self.inputEdit, 1, 1, 1, 9)
-        fGrid.addWidget(inputButton, 1, 10)
+        self.measurements_container.setLayout(inner_measurement_layout)
 
-        fGrid.addWidget(QLabel("Output"), 2, 0)
-        fGrid.addWidget(QLabel("auto-generate filename"), 2, 1)
-        fGrid.addWidget(self.outputAutoGen, 2, 2)
+        ## ---
+        file_menu.addSeparator()
 
-        fGrid.addWidget(self.outputEdit, 3, 1, 1, 9)
-        fGrid.addWidget(self.outputButton, 3, 10)
+        file_menu.addAction(self.remove_action)
 
-        fGrid.addWidget(self.queueButton, 8, 0, 1, 11)
-        fGrid.addWidget(self.removeButton, 9, 0, 1, 11)
-        fGrid.addWidget(self.meas_list, 10, 0, 1, 11)
-        fGrid.addWidget(self.previewButton, 12, 0, 1, 11)
+        # Add an empty spacer to separate the preview from the
+        # start/stop buttons
+        empty2 = QAction(MIcon("SP_CustomBase"), "", self)
+        self.toolbar.addAction(empty2)
 
-        self.statusBar = QTextEdit(self)
-        self.statusBar.setReadOnly(True)
-        self.statusBar.setMinimumHeight(30)
-        # self.statusBar.setMaximumHeight(80)
+        self.preview_action = QAction(
+            MIcon("MATR1X_matr1x-matrix-preview.png", QColor("black")), "Preview", self
+        )
+        self.preview_action.triggered.connect(self.openPreview)
+        control_menu.addAction(self.preview_action)
+        self.toolbar.addAction(self.preview_action)
 
-        sGrid = QGridLayout()
+        # Add the toolbar
+        self.addToolBar(self.toolbar)
 
-        sGrid.addWidget(QLabel("Status"), 0, 0)
-        sGrid.addWidget(self.statusBar, 0, 1, 1, 10)
+        # Build the main elements
+        fGrid = QVBoxLayout()
+        fGrid.addWidget(QLabel("Input"))
+        fGrid.addWidget(self.inputEdit)
+        fGrid.addWidget(QLabel("Queue"))
+        fGrid.addWidget(self.measurements_container)
+        fGrid.addWidget(QLabel("Output"))
+        fGrid.addWidget(self.outputEdit)
+
 
         vBox = QVBoxLayout()
         vBox.addLayout(fGrid)
-        vBox.addLayout(sGrid)
-
+        vertical_stretch = QSpacerItem(
+            1, 1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding
+        )
+        vBox.addItem(vertical_stretch)
         self.widget = QWidget()
         self.widget.setLayout(vBox)
-
         self.setCentralWidget(self.widget)
         self.setWindowTitle('Matrix GUI')
 
@@ -407,10 +536,14 @@ class MainWindow(QMainWindow):
         if state is True:
             # disable output filename fields
             self.outputEdit.setEnabled(False)
-            self.outputButton.setEnabled(False)
+            self.save_as_action.setEnabled(False)
         if state is False:
             self.outputEdit.setEnabled(True)
-            self.outputButton.setEnabled(True)
+            self.save_as_action.setEnabled(True)
+        if self.outputAutoGen.isChecked():
+            self.outputEdit.setReadOnly(True)
+        else:
+            self.outputEdit.setReadOnly(False)
 
     def showInputDialog(self):
         """Open a QFileDialog with filter for input files."""
@@ -472,7 +605,9 @@ class MainWindow(QMainWindow):
             return
         with open_and_error(text, "r") as (f, err):
             if err:
-                self.statusBar.append("Input file cannot be parsed", err)
+                QMessageBox.warning(
+                    self, "Input file error!", f"Input file cannot be parsed: {err}."
+                )
             else:
                 for line in f:
                     system_pattern = r"^# [Ss]ystem filename : (.+)"
@@ -481,17 +616,25 @@ class MainWindow(QMainWindow):
                         break
                     if "#" != line[0]:
                         # should not occur
-                        self.statusBar.append("no system spec in input file")
+                        QMessageBox.warning(
+                            self,
+                            "System file error!",
+                            "No system specified in input file.",
+                        )
                         return
         try:
             system = MergedSystem.from_files(systemfile)
         except ModuleNotFoundError:
-            self.statusBar.append("system file does not exist")
+            QMessageBox.warning(
+                self, "System file error!", "System file does not exist."
+            )
             return
         except PermissionError:
-            self.statusBar.append("system file not readable")
+            QMessageBox.warning(
+                self, "System file error!", "Insufficient permissions for system file."
+            )
             return
-        # self.w_meta_view.update_data(system.dcdata)
+
         self.sys_meta_data = system.dcdata
 
     def queueMeasurement(self):
@@ -502,10 +645,10 @@ class MainWindow(QMainWindow):
         else:
             outputFile = self.outputEdit.text()
         if "" == inputFile:
-            self.statusBar.append("No input file specified")
+            QMessageBox.warning(self, "Input file error!", "No input file specified.")
             return
         if not exists(inputFile):
-            self.statusBar.append("Input file does not exist")
+            QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
             return
         metadata = self.w_meta_view.get_metadata()
         for key in metadata.keys():
@@ -517,8 +660,7 @@ class MainWindow(QMainWindow):
         self.meas_list.addItem(f"{index} - {os.path.basename(inputFile)} - "
                                f"{os.path.basename(outputFile)} -")
         if self.running is True:
-            self.meas_list.setVisible(True)
-            self.removeButton.setVisible(True)
+            pass
         else:
             self.runMatrix()
 
@@ -529,7 +671,8 @@ class MainWindow(QMainWindow):
     def runMatrix(self):
         """Start running the queued measurements."""
         self.running = True
-        self.queueButton.setText("Queue additional measurement")
+        self.start_action.setIcon(MIcon("CHAR_+", QColor("black")))
+        self.start_action.setText("Queue")
         self.runNextMeasurement()
 
     def removeMeasurement(self):
@@ -556,9 +699,8 @@ class MainWindow(QMainWindow):
         if self.meas_list.count() > 0 and self.running is True:
             self.runNextMeasurement()
         else:
-            self.removeButton.setVisible(False)
-            self.meas_list.setVisible(False)
-            self.queueButton.setText("Enter Matrix")
+            self.start_action.setIcon(MIcon("SP_MediaPlay"))
+            self.start_action.setText("Start")
             self.running = False
         # if all measurements were run, reset the measurement counter
         if self.meas_list.count() == 0:
@@ -570,12 +712,19 @@ class MainWindow(QMainWindow):
         if "" == output:  # try to obtain last filename from input file
             infile = self.inputEdit.text()
             if "" == infile:
-                self.statusBar.append("Please specify a filename")
+                QMessageBox.warning(
+                    self, "Preview error!", "Please specify a filename."
+                )
                 return
             output = get_latest_datafile(basename=infile)
-        if exists(output) is False:
-            self.statusBar.append(f"File does not exist ({output})")
-            return
+        if output is None:
+            QMessageBox.warning(
+                self, "Preview error!", f"File does not exist ({output})"
+            )
+        elif not exists(output):
+            QMessageBox.warning(
+                self, "Preview error!", f"File does not exist ({output})"
+            )
         a = matrix_preview.SweepPreview(self, output)
         a.show()
 
@@ -594,5 +743,6 @@ def main():
     with QtGracefulKiller():
         ex = MainWindow()
         ex.show()
+        ex.restoreState()
         ret = app.exec()
     sys.exit(ret)

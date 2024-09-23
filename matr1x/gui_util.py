@@ -23,23 +23,38 @@ This module contains gui related functions that are required by the
 sweep-generator, matrix-gui, matrix-preview, and matrix-script.
 """
 import datetime
+import pygit2
 import warnings
+from importlib.metadata import version as package_version
+from os.path import dirname, join
 from typing import Dict, Any, Optional
 
 import numpy as np
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
+    from PyQt6.QtGui import (
+        QColor,
+        QDoubleValidator,
+        QFontDatabase,
+        QIcon,
+        QImage,
+        QIntValidator,
+        QPainter,
+        QPalette,
+        QPixmap,
+    )
     from PyQt6.QtCore import (
         QAbstractItemModel,
+        QEvent,
         QModelIndex,
         QLocale,
         QObject,
         Qt,
         pyqtSignal,
     )
-    from PyQt6.QtGui import QDoubleValidator, QIntValidator
     from PyQt6.QtWidgets import (
+        QApplication,
         QCheckBox,
         QComboBox,
         QDialog,
@@ -56,6 +71,7 @@ try:
         QPushButton,
         QSizePolicy,
         QSlider,
+        QStyle,
         QStyledItemDelegate,
         QTreeView,
         QTextEdit,
@@ -65,9 +81,21 @@ try:
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
-    from PyQt5.QtCore import QLocale, QObject, Qt, pyqtSignal
-    from PyQt5.QtGui import QDoubleValidator, QIntValidator
+    from PyQt5.QtCore import QEvent, QLocale, QObject, Qt, pyqtSignal
+    from PyQt5.QtGui import (
+        QColor,
+        QDoubleValidator,
+        QFontDatabase,
+        QIcon,
+        QImage,
+        QIntValidator,
+        QPainter,
+        QPalette,
+        QPixmap,
+    )
+
     from PyQt5.QtWidgets import (
+        QApplication,
         QCheckBox,
         QComboBox,
         QDialog,
@@ -84,6 +112,7 @@ except ImportError:
         QPushButton,
         QSizePolicy,
         QSlider,
+        QStyle,
         QStyledItemDelegate,
         QTreeView,
         QTextEdit,
@@ -257,7 +286,7 @@ class MetaViewerWidget(QDockWidget):
                     self.child_items.append(
                         MetaViewerWidget.TreeItem(child_key, child_value, self)
                     )
-            elif isinstance(self.value, (tuple, list, np.array)):
+            elif isinstance(self.value, (tuple, list, np.ndarray)):
                 # for lists with finite length also use nest view
                 # key is list index
                 if len(self.value) > 1:
@@ -285,7 +314,7 @@ class MetaViewerWidget(QDockWidget):
             if column == 0:
                 return self.key
             elif column == 1:
-                if isinstance(self.value, (tuple, list, dict, np.array)):
+                if isinstance(self.value, (tuple, list, dict, np.ndarray)):
                     # Display an empty value if it's a nested iterable
                     return ""
                 return str(self.value)  # Convert non-dict values to string
@@ -1506,3 +1535,167 @@ class YesNoAbortDialog(QMessageBox):
         elif self.clickedButton() == self.abort_button:
             return "abort"
         return "Unknown"
+
+
+class AboutBox(QMessageBox):
+    """Provide an about box with install debug info."""
+
+    def __init__(self, title, package, format, parent=None):
+        super().__init__(parent)
+        icondir = join(dirname(__file__), "scripts", "icons")
+        # The rich text (html) messes with the sizes
+        icon_size = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_MessageBoxIconSize
+        )
+        pixmap = QPixmap(join(icondir, "matr1x-matrix-script.png")).scaledToHeight(
+            icon_size
+        )
+        self.setIconPixmap(pixmap)
+        self.setWindowTitle(title)
+        self.setText(title)
+        (version, branch, sha, time) = self.get_install_info(package)
+        if time != "not available":
+            date = datetime.datetime.fromtimestamp(time).strftime(format)
+        else:
+            date = time
+        text = f"""
+                <div style="text-align: left;">
+                    <p><b>Version:</b> {version}<br>
+                    <b>Git branch:</b> {branch}<br>
+                    <b>Git commit:</b> {sha}<br>
+                    <b>Git date:</b> {date}<br>
+                    <br>
+                    (c) 2024 Matr1x Developers. All rights reserved.
+                </div>
+                """
+        self.setInformativeText(text)
+        self.setStandardButtons(QMessageBox.StandardButton.Ok)
+
+    def get_install_info(self, imported_package):
+        """Receive git infos about the installed version."""
+        commit_branch = "not available"
+        commit_time = "not available"
+        commit_short_sha = "not available"
+        try:
+            repo = pygit2.Repository(imported_package.__file__)
+            commit_branch = repo.head.shorthand
+            last_commit = repo[repo.head.target]
+            commit_short_sha = str(last_commit.id)[:7]
+            commit_time = last_commit.commit_time
+        except pygit2.GitError:
+            pass
+        installed_version = package_version(imported_package.__name__)
+        return (installed_version, commit_branch, commit_short_sha, commit_time)
+
+
+class MIcon(QIcon):
+    """Generate either Qt built-in icons, letters or Matrix specific QIcons."""
+
+    def __new__(cls, name, color="default"):
+        """Look up 'name' and get corresponding QIcon back.
+
+        Icons from a theme such as QIcon.fromTheme("media-playback-start") are not available on all
+        platforms. Consequently, we fallback to the Qt icons, which are also repecting platform and
+        theme, at least to some extent. Additionally, icons can be generated from characters or the
+        Matrix applications icons can be used.
+
+        Parameters
+        ----------
+            name : str
+                The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
+                'CHAR_' will generate a circle with the letter in it and 'MATR1X_' will use the
+                mtrix application icons.
+            color : QColor
+                The color of the icon if applicable
+
+        Returns
+        -------
+            icon : QIcon
+        """
+        # Get the included QT icon
+        if name.startswith("SP_"):
+            return QApplication.style().standardIcon(
+                getattr(QStyle.StandardPixmap, name)
+            )
+        # Draw an icon from a letter
+        elif name.startswith("CHAR_"):
+            if color == "default":
+                color = QColor("darkGray")
+            size = 256
+            letter = name[5]
+            # Generate a tranparent pixmap with size large enough for icons sizes
+            pixmap = QPixmap(size, size)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            # Paint a circle in the center of that pixmap
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setBrush(color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(0, 0, size, size)
+            # Draw the letter in the center of the circle
+            font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+            font.setPointSizeF(size * 0.8)
+            painter.setFont(font)
+            painter.setPen(QColor("white"))
+            painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
+            # Finalize and return the icon
+            painter.end()
+            return QIcon(pixmap)
+        # Use the original matrix icons
+        elif name.startswith("MATR1X_"):
+            filename = name[7:]
+            icondir = join(dirname(__file__), "scripts", "icons")
+            pixmap = QPixmap(join(icondir, filename))
+            # Change the color of the white icon if requested
+            # and remove the rest for better visibility in a GUI
+            if color != "default":
+                image = pixmap.toImage()
+                image = image.convertToFormat(QImage.Format.Format_ARGB32)
+                for x in range(image.width()):
+                    for y in range(image.height()):
+                        pixel_color = QColor(image.pixel(x, y))
+                        if pixel_color != QColor("white"):
+                            image.setPixelColor(x, y, QColor(0, 0, 0, 0))
+                        else:
+                            image.setPixelColor(x, y, QColor(color))
+                pixmap = QPixmap.fromImage(image)
+            pixmap = pixmap.copy(15, 15, 226, 226)
+            return QIcon(pixmap)
+        else:
+            raise ValueError("MIcon: Unknown icon type.")
+
+
+# The code would otherwise duplicate several times for several classes.
+def _set_palette(instance, state):
+    """Set the base and text color according to the enabled state."""
+    palette = instance.palette()
+    # use QTextEdit as an example to determine the palette
+    text_edit = QTextEdit()
+    text_edit.setEnabled(not state)
+    text_palette = text_edit.palette()
+    palette.setColor(
+        QPalette.ColorRole.Base, QColor(text_palette.color(QPalette.ColorRole.Base))
+    )
+    palette.setColor(
+        QPalette.ColorRole.Text, QColor(text_palette.color(QPalette.ColorRole.Text))
+    )
+    instance.setPalette(palette)
+
+
+class MLineEdit(QLineEdit):
+    """Provide QLineEdit with visual cues for non-editable."""
+
+    def __init__(self):
+        """Call init of QLineEdit()."""
+        super().__init__()
+
+    def changeEvent(self, event: QEvent):
+        """Detect palette and read-only changes.
+
+        Implement visual cues that work also when the palette changes, for example if the desktop changes
+        from dark to bright mode."""
+        if (
+            event.type() == QEvent.Type.PaletteChange
+            or event.type() == QEvent.Type.ReadOnlyChange
+        ):
+            _set_palette(self, self.isReadOnly())
