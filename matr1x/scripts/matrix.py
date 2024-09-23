@@ -27,6 +27,7 @@ file of ascii or hdf5 format, depending on the system specifications
 import argparse
 import math
 import os
+import re
 import shlex
 import socket
 import sys
@@ -364,15 +365,15 @@ def main():
             sys.exit(1)
         else:
             for line in f:
-                if "# System" in line:
-                    systemfile = line.replace(
-                        "# System filename : ", "").split(",")
-                if "# Settable columns" in line:
-                    settable_names_file = line.strip().replace(
-                        "# Settable columns : ", "").split(",")
-                if "# Settable units" in line:
-                    settable_units_file = line.strip().replace(
-                        "# Settable units : ", "").split(",")
+                system_pattern = r"^# [Ss]ystem filename : (.+)"
+                settable_names_pattern = r"^# [Ss]ettable columns : (.+)"
+                settable_units_pattern = r"^# [Ss]ettable units : (.+)"
+                if match := re.match(system_pattern, line.strip()):
+                    systemfile = match.group(1).split(",")
+                elif match := re.match(settable_names_pattern, line.strip()):
+                    settable_names_file = match.group(1).split(",")
+                elif match := re.match(settable_units_pattern, line.strip()):
+                    settable_units_file = match.group(1).split(",")
                 if "#" != line[0]:
                     break
 

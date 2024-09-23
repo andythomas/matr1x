@@ -294,10 +294,10 @@ def generate_script_prefix_suffix(systems):
             npref, nsuff = len(prefix.splitlines()), len(suffix.splitlines())
             # strip prefix and suffix lines from script for storing
             user_script = _textwrap.dedent("\\n".join(script.splitlines()[npref:-nsuff]))
-            if "User script" not in system.system_config_params:
-                system.system_config_params["User script"] = user_script
+            if "user script" not in system.system_config_params:
+                system.system_config_params["user script"] = user_script
             else:
-                print("'User script' key already present in system, not overwriting!")
+                print("'user script' key already present in system, not overwriting!")
 
 
     @wrapt.decorator
@@ -534,7 +534,7 @@ def generate_script_prefix_suffix(systems):
         if append == False or not _os.path.exists(filename):
             # write header to file
             print("acquire configuration, and initializing file")
-            _system.dcdata["Description"] = comment
+            _system.dcdata["description"] = comment
             _system.init_datafile(_scriptname or "matrix script generated")
         if print_header:
             _matrix_util.print_formatted_line(

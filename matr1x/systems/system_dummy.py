@@ -25,7 +25,7 @@ from matr1x.system import System
 # initialize system instance
 sys = System()
 # define Dublin core source parameter
-sys.dcdata["Source"] = "dummy system for testing matr1x-matrix"
+sys.dcdata["source"] = "dummy system for testing matr1x-matrix"
 # ============================
 
 

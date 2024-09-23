@@ -158,16 +158,16 @@ datetimefmt = config["matr1x"]["datetime_format"]
 
 # define allowed dublin core meta keys
 VALID_META_KEYS = {  # valid key and item defines whether it is editable
-    "Creator": True,
-    "Date": False,
-    "Identifier": True,
-    "Relation": True,
-    "Description": True,
-    "Source": True,
-    "Type": True,
-    "Publisher": True,
-    "Format": False,
-    "Language": False,
+    "creator": True,
+    "date": False,
+    "identifier": True,
+    "relation": True,
+    "description": True,
+    "source": True,
+    "type": True,
+    "publisher": True,
+    "format": False,
+    "language": False,
 }
 
 # set up logging, mostly for debugging purposes.

@@ -26,7 +26,7 @@ from matr1x.util import get_package_path
 # initialize system instance
 sys = System()
 # define Dublin core source parameter
-sys.dcdata["Source"] = "git information of matr1x"
+sys.dcdata["source"] = "git information of matr1x"
 # ============================
 
 sys.add_dev("git",

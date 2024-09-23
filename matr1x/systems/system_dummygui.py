@@ -32,7 +32,7 @@ from matr1x.system import System
 # ============================
 # initialize system
 sys = System()
-sys.dcdata["Source"] = "dummy system with GUI for testing matr1x-matrix"
+sys.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
 # ============================
 
 # ========================================================================

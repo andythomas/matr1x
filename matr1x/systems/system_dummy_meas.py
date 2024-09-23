@@ -39,7 +39,7 @@ from matr1x.system import System
 # ============================
 # initialize system
 sys = System()
-sys.dcdata["Source"] = "dummy system for testing system merging"
+sys.dcdata["source"] = "dummy system for testing system merging"
 # ============================
 
 # ========================================================================

@@ -475,8 +475,9 @@ class MainWindow(QMainWindow):
                 self.statusBar.append("Input file cannot be parsed", err)
             else:
                 for line in f:
-                    if "# System" in line:
-                        systemfile = line.replace("# System filename : ", "").split(",")
+                    system_pattern = r"^# [Ss]ystem filename : (.+)"
+                    if match := re.match(system_pattern, line.strip()):
+                        systemfile = match.group(1).split(",")
                         break
                     if "#" != line[0]:
                         # should not occur

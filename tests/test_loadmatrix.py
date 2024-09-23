@@ -21,52 +21,49 @@ import pytest
 
 path = os.path.dirname(os.path.realpath(__file__))
 
-
 def test_loadmatrix_hdf5_ma8():
     datafile = os.path.join(path, "data", "random_test.h5.ma8")
     h, d = matr1x.eval.loadmatrix(datafile)
-    assert h["DC.Publisher"] == "matr1x measurement suite"
+    assert h["dcterms:publisher"] == "matr1x measurement suite"
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][2] == "dev1 p3a"  # check specific column name
     assert h["units"][2] == "cnta"  # check specific unit entry
-    assert h["status"] == "finished"
-    assert isinstance(h["System query"], dict)
-    assert len(h["System query"]) == 3
-    assert list(h["System query"]["dev1"]["p4"] == [5.0, 3.0, 2.0, 1.0])
-    assert len(h["System query"]["User script"]) == 364
-    assert d["timeUTC"].shape == (100,)  # check shape of dataset
+    assert h["status"] == "aborted"
+    assert isinstance(h["system query"], dict)
+    assert len(h["system query"]) == 3
+    assert list(h["system query"]["dev1"]["p4"] == [5.0, 3.0, 2.0, 1.0])
+    assert len(h["system query"]["user script"]) == 411
+    assert len(h["comments"]) == 6  # check number of comments
+    assert d["timeUTC"].shape == (74,)  # check shape of dataset
+    assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.392225  # check specific data value
     assert (
-        pytest.approx(d["dev1 p2"][3], 1e-5) == 0.0632146
-    )  # check specific data value
-    assert (
-        pytest.approx(d["timeUTC"][1], 1e-9) == 1726656482.9
+        pytest.approx(d["timeUTC"][1], 1e-9) == 1726870220.4
     )  # check specific data value
 
 
 def test_loadmatrix_ma8():
     datafile = os.path.join(path, "data", "random_test.ma8")
     h, d = matr1x.eval.loadmatrix(datafile)
-    assert h["DC.Type"] is None
-    assert h["DC.Identifier"] == "numpy random"
+    assert h["dcterms:type"] is None
+    assert h["dcterms:identifier"] == "random numpy"
+    assert d["timeUTC"].shape == (100,)  # check shape of dataset
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "dev1 p1"  # check specific column name
     assert h["units"][3] == "cnt"  # check specific unit entry
     assert h["status"] == "finished"
-    assert isinstance(h["System query"], dict)
-    assert len(h["System query"]) == 3
-    assert h["System query"]["dev1"]["p4"] == [5.0, 3.0, 2.0, 1.0]
-    assert len(h["System query"]["User script"]) == 347
+    assert isinstance(h["system query"], dict)
+    assert len(h["system query"]) == 3
+    assert h["system query"]["dev1"]["p4"] == [5.0, 3.0, 2.0, 1.0]
+    assert len(h["system query"]["user script"]) == 397
     assert d["dev1 p3a"].shape == (100,)  # check shape of dataset
     assert d["timeUTC"].shape == (100,)  # check shape of dataset
+    assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.393633  # check specific data value
     assert (
-        pytest.approx(d["dev1 p2"][3], 1e-5) == 0.0290406
-    )  # check specific data value
-    assert (
-        pytest.approx(d["timeUTC"][1], 1e-9) == 1726656467.2
+        pytest.approx(d["timeUTC"][1], 1e-9) == 1726870139.20
     )  # check specific data value
 
 

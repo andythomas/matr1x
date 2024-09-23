@@ -342,8 +342,7 @@ def loadmatrix(filename, structured=True, print_header=False,
                 header[key] = val
         # parse System query entry into hierachical dictionary
         if extension.endswith("8"):
-            header["System query"] = _load_dict_from_hdf5(h5f, "System query")
-
+            header["system query"] = _load_dict_from_hdf5(h5f, "system query")
         h5g = h5f["data"]
         try:
             # generate data object as structured array
@@ -392,7 +391,9 @@ def loadmatrix(filename, structured=True, print_header=False,
                         if strippedline == "Matrix outputfile":
                             # catches first line in legacy file format
                             continue
-                        key, val = strippedline.split(':', maxsplit=1)
+                        # split at " :" instead of ":" to avoid splitting the
+                        # dcterms meta data
+                        key, val = strippedline.split(" :", maxsplit=1)
                         key = key.strip()
                         if val.strip() == "None":
                             val = None
@@ -450,9 +451,9 @@ def loadmatrix(filename, structured=True, print_header=False,
                         raise ValueError("Unknown special line in matrix datafile")
                 lastdpoint = dpoint
         # separate System query entry into hierachical dictionary
-        if "System query" in header:
-            header["System query"] = _parse_query_string(
-                header["System query"].replace(r"\"", '"')
+        if extension.endswith("8"):
+            header["system query"] = _parse_query_string(
+                header["system query"].replace(r"\"", '"')
             )
         for key, val in header.items():
             if isinstance(val, str):

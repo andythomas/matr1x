@@ -33,7 +33,7 @@ from matr1x.system import System
 class MeasSystem(System):
     def __init__(self):
         super().__init__()
-        self.dcdata["Source"] = "dummy system with HDF5 for testing matr1x-matrix"
+        self.dcdata["source"] = "dummy system with HDF5 for testing matr1x-matrix"
 
     def get_p4(self, shape=-1):
         return numpy.asarray(self.devs["devhdf"].p4).reshape(shape)

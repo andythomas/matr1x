@@ -257,7 +257,7 @@ class MetaViewerWidget(QDockWidget):
                     self.child_items.append(
                         MetaViewerWidget.TreeItem(child_key, child_value, self)
                     )
-            elif isinstance(self.value, (tuple, list)):
+            elif isinstance(self.value, (tuple, list, np.array)):
                 # for lists with finite length also use nest view
                 # key is list index
                 if len(self.value) > 1:
@@ -285,7 +285,7 @@ class MetaViewerWidget(QDockWidget):
             if column == 0:
                 return self.key
             elif column == 1:
-                if isinstance(self.value, (tuple, list, dict)):
+                if isinstance(self.value, (tuple, list, dict, np.array)):
                     # Display an empty value if it's a nested iterable
                     return ""
                 return str(self.value)  # Convert non-dict values to string
@@ -1404,9 +1404,9 @@ class MetaDataDialog(QDialog):
         values : Dict[str, Any]
             Dictionary with initial values for the fields.
         """
-        self.creator.setText(values.get("Creator", ""))
-        self.identifier.setText(values.get("Identifier", ""))
-        self.description.setPlainText(values.get("Description", ""))
+        self.creator.setText(values.get("creator", ""))
+        self.identifier.setText(values.get("identifier", ""))
+        self.description.setPlainText(values.get("description", ""))
 
     def get_metadata(self) -> Dict[str, str]:
         """
@@ -1418,9 +1418,9 @@ class MetaDataDialog(QDialog):
             Dictionary with metadata values.
         """
         return {
-            "Creator": self.creator.text(),
-            "Identifier": self.identifier.text(),
-            "Description": self.description.toPlainText(),
+            "creator": self.creator.text(),
+            "identifier": self.identifier.text(),
+            "description": self.description.toPlainText(),
         }
 
 

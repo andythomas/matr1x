@@ -45,8 +45,8 @@ class MeasSystem(System):
         # setting1 = "CURR"
         # setting2 = 2
         self.config.update(get_config_dict("matr1x.systems.system_dummy_feature"))
-        self.dcdata["Source"] = "Dummy feature system"
-        self.dcdata["Publisher"] = "matr1x measurement suite"
+        self.dcdata["source"] = "Dummy feature system"
+        self.dcdata["publisher"] = "matr1x measurement suite"
 
     def get_dev2_p1(self):
         """Test function for using in parameter getter.
@@ -79,7 +79,7 @@ class MeasSystem(System):
             setting1=self.config["setting1"], setting2=self.config["setting2"]
         )
         # make a comment when set is finished
-        self.dcdata["Description"] = f"configuring dev2 to '{self.config['setting1']}'"
+        self.dcdata["description"] = f"configuring dev2 to '{self.config['setting1']}'"
 
     def reset(self, *args, **kwargs):
         """

@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import warnings
 from os.path import basename, dirname, join
 
@@ -1303,9 +1304,9 @@ class CustomQsciAPI(QsciAPIs):
     autocompletions = [
         "sys",
         "meta_data",
-        "meta_data['Creator']",
-        "meta_data['Identifier']",
-        "meta_data['Description']",
+        "meta_data['creator']",
+        "meta_data['identifier']",
+        "meta_data['description']",
         "devs",
         "wait(seconds: float, message: str = '', silent: float = 10)",
         "end_script(finished: bool = None)",
@@ -1556,8 +1557,8 @@ class MainWindow(QMainWindow):
           devs  # dictionary that contains all devices
           sys  # merged system object from the selected systems
           meta_data  # dictionary that contains all meta information
-                     # Keywords "Creator" and "Identifier" contain
-                     # user and sample information from the line edits
+                     # Keywords "creator", "identifier" and "description"
+                     # contain meta data information from the editor widget
 
         Use the help button to get a list of available parameters and devices.
 
@@ -2723,12 +2724,16 @@ class MainWindow(QMainWindow):
                 settable_info = self.get_settable_info()
 
                 # write matrix file header
-                header += "# system def : " + \
-                    ",".join(repr(s).strip("'") for s in self.systems) + "\n"
-                header += "# system names : " + \
-                    ",".join(settable_info[1]) + "\n"
-                header += "# system units : " + \
-                    ",".join(settable_info[2]) + "\n"
+                header += (
+                    "# system def : "
+                    + ",".join(repr(s).strip("'") for s in self.systems)
+                    + "\n"
+                )
+                header += "# system names : " + ",".join(settable_info[1]) + "\n"
+                header += "# system units : " + ",".join(settable_info[2]) + "\n"
+                header += "# file v8, time stamp : " + time.strftime(
+                    f"{matr1x.datetimefmt}\n", time.localtime()
+                )
             except Exception:
                 print("error in generating settable_info from file, telemetry "
                       "header could not be generated")
@@ -2736,7 +2741,7 @@ class MainWindow(QMainWindow):
         script = self.script_edit.text().rstrip()
         newscript = header
         for i, line in enumerate(script.splitlines()):
-            if i < 3 and "# system " in line:
+            if i < 4 and (line.startswith("# system ") or line.startswith("# file v")):
                 # if there are already definitions of the system, skip them
                 continue
             newscript += line + "\n"

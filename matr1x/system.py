@@ -349,16 +349,16 @@ class System:
         # Dublin Core metadata default entries
         self.dcdata = DcDict(
             self,
-            Creator=None,  # measurement user
-            Date=time.strftime(f"{datetimefmt}", time.localtime()),
-            Identifier=None,  # sample name
-            Relation=None,  # parent sample
-            Description=None,  # comment
-            Source=None,  # measurement system
-            Type=None,  # type of measurement data (e.g., transport)
-            Publisher=None,  # published of data, e.g., university/institute
-            Format="text/plain; charset=UTF-8",
-            Language="en",
+            creator=None,  # measurement user
+            date=time.strftime(f"{datetimefmt}", time.localtime()),
+            identifier=None,  # sample name
+            relation=None,  # parent sample
+            description=None,  # comment
+            source=None,  # measurement system
+            type=None,  # type of measurement data (e.g., transport)
+            publisher=None,  # published of data, e.g., university/institute
+            format="text/plain; charset=UTF-8",
+            language="en",
         )
 
     @classmethod
@@ -405,9 +405,9 @@ class System:
     def hdf5(self, value):
         self._hdf5 = value
         if value is True:
-            self.dcdata["Format"] = "application/x-hdf5"
+            self.dcdata["format"] = "application/x-hdf5"
         else:
-            self.dcdata["Format"] = "text/plain; charset=UTF-8"
+            self.dcdata["format"] = "text/plain; charset=UTF-8"
 
     def add_param(self, name, unit, setter=None, getter=None,
                   default=None, dtype=None, chunks=None, trigger=None,
@@ -1155,10 +1155,10 @@ class System:
             with h5py.File(self.filename, 'w', libver='latest') as data_file:
                 data_file.swmr_mode = True
                 assert data_file.swmr_mode
-                data_file.attrs["Input filename"] = inputfile
-                data_file.attrs["System filename"] = self.__name__
+                data_file.attrs["input filename"] = inputfile
+                data_file.attrs["system filename"] = self.__name__
                 # store query dict in hierachical data structure
-                save_dict_to_hdf5(self.query_dict, data_file, "System query")
+                save_dict_to_hdf5(self.query_dict, data_file, "system query")
 
                 for dckey, dcvalue in self.dcdata.items():
                     if dckey not in VALID_META_KEYS.keys():
@@ -1167,9 +1167,9 @@ class System:
                         data_file.attrs[f"{dckey}"] = dcvalue
                     elif dcvalue is None:
                         # mark non-existing value
-                        data_file.attrs[f"DC.{dckey}"] = "__None__"
+                        data_file.attrs[f"dcterms:{dckey}"] = "__None__"
                     else:
-                        data_file.attrs[f"DC.{dckey}"] = dcvalue
+                        data_file.attrs[f"dcterms:{dckey}"] = dcvalue
 
                 init_hdf5_skel(data_file, *telemetry)
         else:
@@ -1183,15 +1183,15 @@ class System:
                         dcentry = dcentry.replace('"', '"')
                         data_file.write(f'# {dckey} : "{dcentry}"\n')
                     elif dcvalue is None:
-                        data_file.write(f"# DC.{dckey} : None\n")
+                        data_file.write(f"# dcterms:{dckey} : None\n")
                     else:
                         dcentry = dcvalue.replace("\n", "\n## ")
-                        dcentry = dcentry.replace('"', '\"')
-                        data_file.write(f"# DC.{dckey} : \"{dcentry}\"\n")
-                data_file.write(f"# Input filename : \"{inputfile}\"\n")
-                data_file.write("# System filename : ")
+                        dcentry = dcentry.replace('"', '"')
+                        data_file.write(f'# dcterms:{dckey} : "{dcentry}"\n')
+                data_file.write(f'# input filename : "{inputfile}"\n')
+                data_file.write("# system filename : ")
                 data_file.write("\"" + self.__name__ + "\"\n")
-                data_file.write("# System query : \n")
+                data_file.write("# system query : \n")
                 data_file.write(construct_query_string(self.query_dict))
 
                 init_ascii_header(data_file, *telemetry)
@@ -1442,7 +1442,7 @@ class MergedSystem(System):
         tmpdcdata = collections.defaultdict(set)
         for sys in self.subsys:
             for key, value in sys.dcdata.items():
-                if key == "Date":
+                if key == "date":
                     # skip date
                     continue
                 if value:
@@ -1451,7 +1451,7 @@ class MergedSystem(System):
         for key, vlist in tmpdcdata.items():
             self.dcdata[key] = ";".join(vlist)
         # set correct timestamp, overwrites value
-        self.dcdata["Date"] = time.strftime(f"{datetimefmt}", time.localtime())
+        self.dcdata["date"] = time.strftime(f"{datetimefmt}", time.localtime())
 
     def _check_hdf5(self):
         """check whether one of the systems requires HDF5."""
