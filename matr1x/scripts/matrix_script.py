@@ -39,6 +39,7 @@ import matr1x
 
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import (
+    TerminationDialog,
     TextInputDialog,
     YesNoAbortDialog,
     EmittingStream,
@@ -1381,11 +1382,21 @@ class ExecThread(QThread):
             return
         self.conn.send("p".encode())
 
-    def abort(self):
-        """Communicate stop to the subprocess' stdin."""
+    def abort(self, char="q"):
+        """
+        Communicate stop to the subprocess' stdin.
+
+        Parameters
+        ----------
+            char : str
+                Single length string that is passed to the process.
+                - "q" stops and queries user for state
+                - "a" stops and sets state to `aborted`
+                - "f" stops and sets state to `finished`
+        """
         if self.proc is None or self.conn is None:
             return
-        self.conn.send("q".encode())
+        self.conn.send(char.encode())
 
     def kill(self):
         """Kill the process and make sure it is indeed stopped."""
@@ -2028,8 +2039,6 @@ class MainWindow(QMainWindow):
         save_pulldown = QMenu(self)
         save_pulldown.addAction(self.save_as_action)
         save_button.setMenu(save_pulldown)
-
-        # Add the tool button to the toolbar
         self.toolbar.addWidget(save_button)
 
         # ---
@@ -2104,10 +2113,41 @@ class MainWindow(QMainWindow):
 
         # Control: Stop
         self.stop_action = QAction(MIcon("SP_MediaStop"), "Stop", self)
-        self.stop_action.triggered.connect(self.abort_thread)
+        self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
         self.stop_action.setEnabled(False)
         control_menu.addAction(self.stop_action)
-        self.toolbar.addAction(self.stop_action)
+
+        # Control: Abort
+        self.abort_action = QAction(MIcon("SP_MediaStop"), "Abort", self)
+        self.abort_action.triggered.connect(lambda: self.abort_thread("a"))
+        self.abort_action.setEnabled(False)
+        control_menu.addAction(self.abort_action)
+
+        # Control: Finish
+        self.finish_action = QAction(MIcon("SP_MediaStop"), "Finish", self)
+        self.finish_action.triggered.connect(lambda: self.abort_thread("f"))
+        self.finish_action.setEnabled(False)
+        control_menu.addAction(self.finish_action)
+
+        # Save in toolbar with pulldown
+        stop_button = QToolButton()
+        stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        stop_button.setIcon(MIcon("SP_MediaStop"))
+        stop_button.setText("Abort")
+        stop_button.setDefaultAction(self.stop_action)
+        stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        stop_pulldown = QMenu(self)
+        stop_pulldown.addAction(self.abort_action)
+        stop_pulldown.addAction(self.finish_action)
+        stop_button.setMenu(stop_pulldown)
+        self.toolbar.addWidget(stop_button)
+
+        # Control: Kill
+        self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
+        self.kill_action.triggered.connect(self.kill_thread)
+        self.kill_action.setEnabled(False)
+        control_menu.addAction(self.kill_action)
+        control_menu.addSeparator()
 
         # Add an empty spacer to separate the preview from the
         # start/stop buttons
@@ -2127,7 +2167,7 @@ class MainWindow(QMainWindow):
         empty2 = QAction(MIcon("SP_CustomBase"), "", self)
         self.toolbar.addAction(empty2)
 
-        # Control: Abort
+        # Control: Kill
         self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
         self.kill_action.triggered.connect(self.kill_thread)
         self.kill_action.setEnabled(False)
@@ -2193,7 +2233,7 @@ class MainWindow(QMainWindow):
         # Font
         mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         mono_font.setPointSizeF(default_font_size)
-        self.status_preview.setCurrentFont(mono_font)
+        self.status_preview.setFont(mono_font)
         # CodeEditor
         self.script_edit = QScintillaCustom(self.output_stream, self)
         # Connect text edit signals to the slot that checks for changes
@@ -2370,6 +2410,9 @@ class MainWindow(QMainWindow):
             if ret == "abort":
                 self.abort_thread()
                 return
+        elif type == "__end_script__":
+            dialog = TerminationDialog()
+            ret = dialog.get_selection()
         else:
             ret = ""
         self.thread.pass_input(ret)
@@ -2378,11 +2421,21 @@ class MainWindow(QMainWindow):
         """Pause thread execution."""
         self.thread.pause()
 
-    def abort_thread(self):
-        """Abort thread execution."""
+    def abort_thread(self, char="q"):
+        """
+        Abort thread execution and define measurement state as per `char`.
+
+        Parameters
+        ----------
+            char : str
+                Single length string that is passed to the process.
+                - "q" stops and queries user for state
+                - "a" stops and sets state to `aborted`
+                - "f" stops and sets state to `finished`
+        """
         if self.start_pause_action.isChecked():
             self.start_pause_action.setChecked(False)
-        self.thread.abort()
+        self.thread.abort(char)
 
     def kill_thread(self):
         """Kill the thread."""
@@ -2531,6 +2584,8 @@ class MainWindow(QMainWindow):
 
         self.start_pause_action.setChecked(False)
         self.stop_action.setEnabled(flag)
+        self.abort_action.setEnabled(flag)
+        self.finish_action.setEnabled(flag)
         self.kill_action.setEnabled(flag)
         self.script_edit.setReadOnly(flag)
         self.load_action.setEnabled(not flag)

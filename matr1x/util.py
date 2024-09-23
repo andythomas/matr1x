@@ -272,7 +272,6 @@ def generate_script_prefix_suffix(systems):
     _ntot = None  # total number of measurement points for telemetry
     _starttime = _time.time()
     _preset = _starttime
-    _finished = None
     _reset_kwargs = {{}}
 
 
@@ -468,13 +467,13 @@ def generate_script_prefix_suffix(systems):
 
 
     @_lineno_decorator
-    def end_script(finished: bool= None):
+    def end_script(finished: bool = None):
         '''
         ends the script execution and defines the file status as finished or
         unfinished if not None
         '''
-        global _finished
-        _finished = finished
+        global _status
+        _status.finished = finished
         raise KeyboardInterrupt
 
 
@@ -606,14 +605,14 @@ def generate_script_prefix_suffix(systems):
     except KeyboardInterrupt:
         print("\\nscript has been aborted by user.")
         # mark script as aborted per default once abort is called
-        _reset_kwargs["status"] = "aborted"
-        if _finished:
+        if _status.finished:
             _reset_kwargs["status"] = "finished"
+        elif _status.finished is False:
+            # supposed to be marked as aborted
+            _reset_kwargs["status"] = "aborted"
         else:
-            x = input_bool("Shall the sequence be marked as finished despite "
-                           "being aborted?")
-            if x:
-                _reset_kwargs["status"] = "finished"
+            # finished is None, so ask what is supposed to happen
+            _reset_kwargs["status"] = _input("", system=_system, type="__end_script__")
 
     # ===== end user area =====
     # mark last open file as finished, if not labeled elsewhere
@@ -722,12 +721,29 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
             def __getattr__(self, attr):
                 return getattr(self.stream, attr)
 
+        class Status:
+            """status class that stores the finished status for aborting"""
+
+            def __init__(self, value=None):
+                self.finished = value
+
+            @property
+            def finished(self):
+                return self._finished
+
+            @finished.setter
+            def finished(self, value):
+                """set finished value to either None, True or False"""
+                if value in (None, True, False):
+                    self._finished = value
+
         def __init__(self, script, meta_data, scriptname, socket):
             """ initialize all variable """
             super().__init__()
             self.script = script
             self.meta_data = meta_data
             self.scriptname = scriptname
+            self.stop_status = self.Status()
             self.pause_flag = False
             self.interrupt_flag = False
             self.recv_flag = False
@@ -745,10 +761,11 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
             if state is True:
                 print("\npaused")
 
-        def stop(self):
+        def stop(self, state=None):
             """ set the interrupt flag, so that the execution is stopped at
                 the breakpoint the execution at the breakpoint """
             self.pause_flag = False
+            self.stop_status.finished = state
             self.interrupt_flag = True
 
         def interrupt(self, sleep, message="", silent=10, system=None):
@@ -837,6 +854,10 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                     self.pause(not self.pause_flag)
                 elif inp == "q":
                     self.stop()
+                elif inp == "f":
+                    self.stop(True)
+                elif inp == "a":
+                    self.stop(False)
                 elif inp == "i":
                     # reset input if already available
                     self.recv = ""
@@ -880,6 +901,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                 try:
                     _vars = {
                         "_interrupt": self.interrupt,
+                        "_status": self.stop_status,
                         "_report_line": self.report_line,
                         "_report_path": self.report_path,
                         "_input": self.input,

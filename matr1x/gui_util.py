@@ -1537,6 +1537,52 @@ class YesNoAbortDialog(QMessageBox):
         return "Unknown"
 
 
+class TerminationDialog(QMessageBox):
+    """
+    Dialog to determine how a terminated datafile should be marked.
+
+    This dialog presents two options to the user:
+    1. Mark the datafile as "Aborted"
+    2. Mark the datafile as "Finished"
+
+    The user's selection determines how the termination status of the datafile
+    will be recorded.
+
+    Returns
+    -------
+    str
+        The selected termination status: either "aborted" or "finished".
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Termination Status")
+        self.setText("How should the terminated datafile be marked?")
+        self.setIcon(QMessageBox.Icon.Question)
+
+        # Add buttons
+        self.abort_button = self.addButton("Aborted", QMessageBox.ButtonRole.RejectRole)
+        self.finish_button = self.addButton(
+            "Finished", QMessageBox.ButtonRole.AcceptRole
+        )
+
+    def get_selection(self):
+        """
+        Display the dialog and return the user's selection.
+
+        Returns
+        -------
+        str
+            The selected termination status: either "finished" or "aborted".
+        """
+        self.exec()
+
+        if self.clickedButton() == self.finish_button:
+            return "finished"
+        else:
+            return "aborted"
+
+
 class AboutBox(QMessageBox):
     """Provide an about box with install debug info."""
 

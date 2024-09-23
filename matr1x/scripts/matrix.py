@@ -43,6 +43,9 @@ from matr1x.util import (flatten, flush_input, generate_col_index,
 from . import MATRIX_GUI_PORT
 from .. import VALID_META_KEYS
 
+abortmap = {"q": 1, "a": 2, "f": 3}
+# define abort conditions for different keys
+
 
 def parse_inputfile(inputfile, system):
     """Read the input file and provides point by point set values needed for the measurement."""
@@ -150,8 +153,9 @@ def measurementloop(inputfile, system,
                 (elapsed/(point_idx+1)*points-elapsed)/60, preread-preset,
                 time.time()-preread))
         # handle input on the end of one measurement point
-        if inputcb(point_idx+1) != 0:
-            return 1
+        ret_input = inputcb(point_idx + 1)
+        if ret_input != 0:
+            return ret_input
     return 0
 
 
@@ -166,12 +170,12 @@ def measure_plain(inputfile, system, quiet=False):
 
     def inputcb(n):
         key = nonblocking_getch()
-        if key in ('q', 'Q'):
-            sys.stdout.write(f"Note: aborted with q after {n} points\n\n\n")
+        if key and key.lower() in ("q", "a", "f"):
+            sys.stdout.write(f"Note: aborted with {key} after {n} points\n\n\n")
             system.add_comment(
                 f"measurement aborted by keyboard input after {n} points"
             )
-            return 1
+            return abortmap[key.lower()]
         if key in ('p', 'P'):
             sys.stdout.write("paused - continue with 'p'\n")
             system.add_comment("measurement paused by keyboard input")
@@ -179,12 +183,12 @@ def measure_plain(inputfile, system, quiet=False):
             while True:
                 time.sleep(0.1)
                 key = nonblocking_getch()
-                if key in ("q", "Q"):
-                    sys.stdout.write(f"Note: aborted with q after {n} points\n\n\n")
+                if key and key.lower() in ("q", "a", "f"):
+                    sys.stdout.write(f"Note: aborted with {key} after {n} points\n\n\n")
                     system.add_comment(
                         "measurement aborted by keyboard input " f"after {n} points"
                     )
-                    return 1
+                    return abortmap[key.lower()]
                 if key in ('p', 'P'):
                     break
         return 0
@@ -276,12 +280,12 @@ def measure_urwid(inputfile, systemfile, system):
         def inputcb(n):
             nonlocal msg
             for key in loop.screen.get_input():
-                if key in ('q', 'Q'):
-                    msg += f"Note: aborted with q after {n} points"
+                if key.lower() in ("q", "f", "a"):
+                    msg += f"Note: aborted with {key} after {n} points"
                     system.add_comment(
                         "measurement aborted by keyboard input " f"after {n} points"
                     )
-                    return 1
+                    return abortmap[key.lower()]
                 if key in ('p', 'P'):
                     msg += f"paused at {time.time()} after {n} points\n"
                     status.set_text("paused - continue with 'p'")
@@ -292,14 +296,14 @@ def measure_urwid(inputfile, systemfile, system):
                     while flag:
                         time.sleep(0.1)
                         for key in loop.screen.get_input():
-                            if key in ('q', 'Q'):
-                                msg += f"Note: aborted with q after {n} points"
+                            if key.lower() in ("q", "f", "a"):
+                                msg += f"Note: aborted with {key} after {n} points"
                                 system.add_comment(
                                     "measurement aborted by "
                                     f"keyboard input after {n} "
                                     "points"
                                 )
-                                return 1
+                                return abortmap[key.lower()]
                             if key in ('p', 'P'):
                                 flag = False
                     status.set_text("")
@@ -481,6 +485,8 @@ def main():
         if x.lower().startswith("y") or x == "":
             print("marking file as aborted")
             reset_kwargs["status"] = "aborted"
+    if ret == 2:
+        reset_kwargs["status"] = "aborted"
     if "status" not in reset_kwargs.keys():
         reset_kwargs["status"] = "finished"
     print("resetting devices")
