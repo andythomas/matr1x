@@ -133,7 +133,7 @@ class exampleDict(GuiDict):
         Return the values buffered in the GUI to make this request fast.
         Alternatively device access here is of course possible.
         """
-        return [self["V2"].getGUIvalue(), self["V3"].getGUIvalue()]
+        return [self["V2"].value, self["V3"].value]
 
     def panic(self):
         """
