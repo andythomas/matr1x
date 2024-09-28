@@ -26,7 +26,7 @@ import datetime
 import pygit2
 import warnings
 from importlib.metadata import version as package_version
-from os.path import dirname, join
+from os.path import dirname, expanduser, join, normpath
 from typing import Dict, Any, Optional
 
 import numpy as np
@@ -77,6 +77,7 @@ try:
         QTextEdit,
         QToolButton,
         QVBoxLayout,
+        QWidget,
     )
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
@@ -118,11 +119,13 @@ except ImportError:
         QTextEdit,
         QToolButton,
         QVBoxLayout,
+        QWidget,
     )
 
 import pyqtgraph as pg
 
 from .eval import delta
+from . import load_config, write_config, merge_dicts, get_config_dict
 
 # dictionary of commonly used validators
 validator = {
@@ -253,11 +256,15 @@ class MetaViewerWidget(QDockWidget):
     """
 
     class EditableDelegate(QStyledItemDelegate):
+        def __init__(self, editable=False, parent=None):
+            super().__init__(parent=parent)
+            self.editable = editable
+
         def createEditor(self, parent, option, index):
             # Create a QTextEdit for more advanced text selection
             editor = QTextEdit(parent)
             # Make it read-only, but still allow text selection
-            editor.setReadOnly(True)
+            editor.setReadOnly(not self.editable)
             # disable frame of textedit, remove margins and scroll bar
             editor.setFrameStyle(0)
             editor.setStyleSheet("QTextEdit { border: none; padding: 0px; }")
@@ -270,7 +277,8 @@ class MetaViewerWidget(QDockWidget):
             editor.setText(value)
 
         def setModelData(self, editor, model, index):
-            pass
+            value = editor.toPlainText()
+            index.model().setData(index, value, Qt.ItemDataRole.EditRole)
 
     class TreeItem:
         def __init__(self, key, value, parent=None):
@@ -321,8 +329,13 @@ class MetaViewerWidget(QDockWidget):
             return None
 
         def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
-            return True
-            return False
+            if not index.isValid():
+                return None
+            if index.column() == 1:
+                if self.child_count() > 0:
+                    # prevent writing into the header lines
+                    return None
+                self.value = value
 
         def parent(self):
             return self.parent_item
@@ -357,7 +370,8 @@ class MetaViewerWidget(QDockWidget):
             takes a new data set and updates the table
             """
             if role == Qt.ItemDataRole.EditRole:
-                self._data[index.row()][index.column()] = value
+                item = index.internalPointer()
+                item.setData(index, value, role)
                 return True
             return False
 
@@ -423,8 +437,12 @@ class MetaViewerWidget(QDockWidget):
             """Return the column count (always 2 = key+value)."""
             return 2
 
-    def __init__(self, metadata, parent=None):
-        super().__init__(parent)
+    def __init__(
+        self, metadata, heading="Metadata Viewer", editable=False, parent=None
+    ):
+        super().__init__(heading, parent)
+
+        self.editable = editable
 
         self.tree_view = QTreeView()
 
@@ -442,7 +460,7 @@ class MetaViewerWidget(QDockWidget):
         self.setWidget(self.tree_view)
 
         # Set the custom editable delegate
-        delegate = self.EditableDelegate(self.tree_view)
+        delegate = self.EditableDelegate(editable=self.editable, parent=self.tree_view)
         self.tree_view.setItemDelegate(delegate)
 
         # Allow editing/selecting text in both columns
@@ -480,6 +498,113 @@ class MetaViewerWidget(QDockWidget):
                 continue
             data[key] = val
         return data
+
+
+class ConfigEditWidget(MetaViewerWidget):
+    """
+    Edtior for config files based on the MetaViewerWidget.
+
+    Allows editing and saving the config file.
+    """
+
+    def __init__(self):
+        super().__init__({}, heading="matr1x Config Editor", editable=True)
+
+        widget = QWidget()
+        # Create a QVBoxLayout instance
+        layout = QVBoxLayout()
+
+        # Dublin Core Elements
+        self.w_write_config = QPushButton("Write config")
+        self.w_write_config.setEnabled(False)
+        self.w_write_config.clicked.connect(self.write_config)
+
+        # Add the form layout to the main layout
+        layout.addWidget(self.w_write_config)
+        layout.addWidget(self.tree_view)
+
+        # Set the main layout for the dialog
+        widget.setLayout(layout)
+        self.setWidget(widget)
+
+    def update_data(self, systemfile):
+        syst_dict = {}
+        for syst in systemfile:
+            syst_dict[syst.strip()] = get_config_dict(syst.strip())
+        super().update_data(syst_dict)
+        self.w_write_config.setEnabled(True)
+
+    def parse_item(self, item):
+        config = {}
+        if item.child_count() > 0:
+            for child_item in item.child_items:
+                config[child_item.data(0)] = self.parse_item(child_item)
+        else:
+            return item.data(1)
+        return config
+
+    def write_config(self):
+        def create_nested_dict(keys, item):
+            if len(keys) == 1:
+                return {keys[0]: self.parse_item(item)}
+            return {keys[0]: create_nested_dict(keys[1:], item)}
+
+        def normalize_value(value):
+            """
+            Attempts to convert the input value to the appropriate type.
+
+            - If it's a string representing an integer, converts to int.
+            - If it's a string representing a float, converts to float.
+            - If it's a string 'true'/'false', converts to boolean.
+            - Otherwise, returns the value as-is.
+            """
+            if isinstance(value, str):
+                # Try to convert to an integer
+                if value.isdigit():
+                    return int(value)
+                # Try to convert to a float
+                try:
+                    return float(value)
+                except ValueError:
+                    pass
+                # Convert 'true'/'false' to booleans
+                if value.lower() == "true":
+                    return True
+                if value.lower() == "false":
+                    return False
+
+                if "~" in value:
+                    value = normpath(expanduser(value))
+
+                # Return the value as-is if no conversion was possible
+                return value
+            # otherwise just return the value
+            return value
+
+        def normalize_dict(input_dict):
+            """
+            Apply value normalization to input_dict.
+            """
+            for key, value in input_dict.items():
+                # If the value is a dictionary, recursively normalize dict
+                if isinstance(value, dict):
+                    input_dict[key] = normalize_dict(value)
+                else:
+                    input_dict[key] = normalize_value(value)
+            return input_dict
+
+        config = {}
+        for item in self.tree_view.model().root_item.child_items:
+            if item.child_count() == 0:
+                # system has no configurable options
+                continue
+            sys_key = item.data(0)
+            key_parts = sys_key.split(".")
+            merge_dicts(config, create_nested_dict(key_parts, item))
+        # load full config and replace modified entries
+        full_config = normalize_dict(load_config())
+        full_config = merge_dicts(full_config, normalize_dict(config))
+        write_config(full_config)
 
 
 class SimplePlotWidget(QGroupBox):
@@ -1677,7 +1802,7 @@ class MIcon(QIcon):
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             painter.setBrush(color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(0, 0, size, size)
+            painter.drawEllipse(5, 5, size - 10, size - 10)
             # Draw the letter in the center of the circle
             font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
             font.setPointSizeF(size * 0.8)

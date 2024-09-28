@@ -39,13 +39,14 @@ import matr1x
 
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import (
+    AboutBox,
+    ConfigEditWidget,
+    EmittingStream,
+    MetaDataDialog,
+    MIcon,
     TerminationDialog,
     TextInputDialog,
     YesNoAbortDialog,
-    EmittingStream,
-    MetaDataDialog,
-    AboutBox,
-    MIcon,
 )
 from matr1x.scripts import matrix_preview
 from matr1x.util import (
@@ -1604,11 +1605,6 @@ class MainWindow(QMainWindow):
         self.settings.setValue("buttons_visible", self.toolbar.isVisible())
         self.settings.setValue("buttons_placement", self.toolBarArea(self.toolbar))
         self.settings.setValue("buttons_geometry", self.toolbar.geometry())
-        self.settings.setValue("systems_visible", self.dock_with_systems.isVisible())
-        self.settings.setValue(
-            "systems_placement", self.toolBarArea(self.dock_with_systems)
-        )
-        self.settings.setValue("systems_geometry", self.dock_with_systems.geometry())
         self.settings.endGroup()
 
         self.settings.beginGroup("dockable_metadata")
@@ -1663,62 +1659,10 @@ class MainWindow(QMainWindow):
             self.toggle_toolbar_action.setChecked(
                 self.settings.value("buttons_visible", True, type=bool)
             )
-            self.dock_with_systems.setVisible(
-                self.settings.value("systems_visible", True, type=bool)
-            )
-            self.toggle_systems_action.setChecked(
-                self.settings.value("systems_visible", True, type=bool)
-            )
-            buttons = self.settings.value("buttons_geometry", self.toolbar.geometry())
-            systems = self.settings.value(
-                "systems_geometry", self.dock_with_systems.geometry()
-            )
-            place = self.settings.value("buttons_placement")
-            self.addToolBar(
-                self.settings.value(
-                    "systems_placement", Qt.ToolBarArea.BottomToolBarArea
-                ),
-                self.dock_with_systems,
-            )
             self.addToolBar(
                 self.settings.value("buttons_placement", Qt.ToolBarArea.TopToolBarArea),
                 self.toolbar,
             )
-            # Please note the explanation of https://doc.qt.io/qt-6/qrect.html#x about the +1
-            if (
-                buttons.bottom() + 1 == systems.top()
-                and place == Qt.ToolBarArea.TopToolBarArea
-            ) or (
-                buttons.top() == systems.bottom() + 1
-                and place == Qt.ToolBarArea.BottomToolBarArea
-            ):
-                self.addToolBar(self.settings.value("buttons_placement"), self.toolbar)
-                self.addToolBarBreak(self.settings.value("buttons_placement"))
-                self.addToolBar(
-                    self.settings.value("systems_placement"), self.dock_with_systems
-                )
-            elif (
-                systems.bottom() + 1 == buttons.top()
-                and place == Qt.ToolBarArea.TopToolBarArea
-            ) or (
-                systems.top() == buttons.bottom() + 1
-                and place == Qt.ToolBarArea.BottomToolBarArea
-            ):
-                self.addToolBar(
-                    self.settings.value("systems_placement"), self.dock_with_systems
-                )
-                self.addToolBarBreak(self.settings.value("systems_placement"))
-                self.addToolBar(self.settings.value("buttons_placement"), self.toolbar)
-            elif buttons.right() + 1 == systems.left():
-                self.addToolBar(self.settings.value("buttons_placement"), self.toolbar)
-                self.addToolBar(
-                    self.settings.value("systems_placement"), self.dock_with_systems
-                )
-            elif buttons.left() == systems.right() + 1:
-                self.addToolBar(
-                    self.settings.value("systems_placement"), self.dock_with_systems
-                )
-                self.addToolBar(self.settings.value("buttons_placement"), self.toolbar)
             self.settings.endGroup()
 
             self.settings.beginGroup("dockable_metadata")
@@ -1952,13 +1896,6 @@ class MainWindow(QMainWindow):
         else:
             self.toolbar.hide()
 
-    def toggle_systems_view(self, checked):
-        """Toogles the visibility of the systems on and off."""
-        if checked:
-            self.dock_with_systems.show()
-        else:
-            self.dock_with_systems.hide()
-
     def toggle_metadata_view(self, checked):
         """Toggles the visibility of the metadata dock onm and off."""
         if checked:
@@ -1969,6 +1906,15 @@ class MainWindow(QMainWindow):
     def preview_data(self):
         """Launch matrix-preview with current measurement file."""
         matrix_preview.SweepPreview(self, self.measurement_file).show()
+
+    def toggle_preferences(self, checked):
+        """Open the preferences pane."""
+        if checked:
+            self.config_editor.show()
+            self.config_editor.raise_()
+            self.config_editor.activateWindow()
+        else:
+            self.config_editor.hide()
 
     def init_ui(self):
         """Generate the main GUI."""
@@ -1991,6 +1937,9 @@ class MainWindow(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.toolbar.setAllowedAreas(
+            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
+        )
 
         small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
         standard = QApplication.style().pixelMetric(
@@ -2008,6 +1957,22 @@ class MainWindow(QMainWindow):
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
         help_menu.addAction(self.about_action)
+
+        # Preferences
+        self.config_editor = ConfigEditWidget()
+        self.config_editor.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
+        self.config_editor.setFloating(True)
+        self.config_editor.close()
+        self.config_action = QAction(MIcon("CHAR_≡"), "Preferences", self)
+        self.config_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.config_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.config_action.setCheckable(True)
+        self.config_action.toggled.connect(self.toggle_preferences)
+        self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
 
         # File: Load a recipe
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
@@ -2164,8 +2129,8 @@ class MainWindow(QMainWindow):
 
         # Add an empty spacer to the toolbar
         # Looks better if the systems are moved up.
-        empty2 = QAction(MIcon("SP_CustomBase"), "", self)
-        self.toolbar.addAction(empty2)
+        empty3 = QAction(MIcon("SP_CustomBase"), "", self)
+        self.toolbar.addAction(empty3)
 
         # Control: Kill
         self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
@@ -2192,9 +2157,6 @@ class MainWindow(QMainWindow):
             self.toggle_metadata_action.setChecked
         )
 
-        # Mimic the right click view for consistency
-        view_menu.addSeparator()
-
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
         self.toggle_toolbar_action.setCheckable(True)
@@ -2202,13 +2164,6 @@ class MainWindow(QMainWindow):
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
         view_menu.addAction(self.toggle_toolbar_action)
         self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
-
-        # View: Systems
-        self.toggle_systems_action = QAction("Show Systems", self)
-        self.toggle_systems_action.setCheckable(True)
-        self.toggle_systems_action.setChecked(True)
-        self.toggle_systems_action.triggered.connect(self.toggle_systems_view)
-        view_menu.addAction(self.toggle_systems_action)
 
         # Help: Editor
         self.help_editor_action = QAction("Show Editor Help", self)
@@ -2302,29 +2257,19 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self.status_preview)
         layout.addWidget(self.splitter)
 
-        # add the systems list
-        self.dock_with_systems = QToolBar("Systems")
-        self.dock_with_systems.setToolButtonStyle(
-            Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        )
-        self.dock_with_systems.visibilityChanged.connect(
-            self.toggle_systems_action.setChecked
-        )
-
         # change the size dynamically later and allow vertical streching
         # when floating
         self.system_list.setMinimumHeight(50)
         self.system_list.setMaximumHeight(50)
-        self.dock_with_systems.addAction(self.add_system_action)
-        self.dock_with_systems.addWidget(self.system_list)
-        self.dock_with_systems.addAction(self.remove_system_action)
-        self.dock_with_systems.setFloatable(False)
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        self.dock_with_systems.setIconSize(QSize(small, small))
-        self.dock_with_systems.setAllowedAreas(
-            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
-        )
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.dock_with_systems)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.add_system_action)
+        self.toolbar.addWidget(self.system_list)
+        self.toolbar.addAction(self.remove_system_action)
+        self.toolbar.addSeparator()
+
+        # add the preferences
+        view_menu.addAction(self.config_action)
+        self.toolbar.addAction(self.config_action)
 
         # set focus to text editor
         self.script_edit.setFocus()
@@ -2370,6 +2315,11 @@ class MainWindow(QMainWindow):
             self.system_list.addItem(filename)
         self.systems_dirty = True
         self.update_window_title()
+        # update systems to use list for config editor
+        self.update_systems()
+        # only systems that are part of matrix or ifwlib can be configured
+        configurable = [sys for sys in self.systems if not os.path.exists(sys)]
+        self.config_editor.update_data(configurable)
 
     def delete_selected_system(self):
         """

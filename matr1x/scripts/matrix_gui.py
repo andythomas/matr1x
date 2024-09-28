@@ -34,7 +34,7 @@ from matr1x.scripts import (
 )
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error
-from matr1x.gui_util import MetaDataDialog, AboutBox, MIcon, MLineEdit
+from matr1x.gui_util import ConfigEditWidget, AboutBox, MetaDataDialog, MIcon, MLineEdit
 
 # Try to import Qt6 and fallback to Qt5 if not available
 try:
@@ -356,6 +356,15 @@ class MainWindow(QMainWindow):
             Qt.Orientation.Horizontal,
         )
 
+    def toggle_preferences(self, checked):
+        """Open the preferences pane."""
+        if checked:
+            self.config_editor.show()
+            self.config_editor.raise_()
+            self.config_editor.activateWindow()
+        else:
+            self.config_editor.hide()
+
     def initUI(self):
         """Initialize the basic GUI for the graphical version of matrix."""
         self.setWindowIcon(MIcon("MATR1X_matr1x-matrix-gui.png"))
@@ -367,6 +376,7 @@ class MainWindow(QMainWindow):
         menu = self.menuBar()
         file_menu = menu.addMenu("&File")
         control_menu = menu.addMenu("&Control")
+        view_menu = menu.addMenu("&View")
         help_menu = menu.addMenu("&Help")
 
         # Create toolbar
@@ -388,6 +398,22 @@ class MainWindow(QMainWindow):
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
         help_menu.addAction(self.about_action)
+
+        # Preferences
+        self.config_editor = ConfigEditWidget()
+        self.config_editor.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
+        self.config_editor.setFloating(True)
+        self.config_editor.close()
+        self.config_action = QAction(MIcon("CHAR_≡"), "Preferences", self)
+        self.config_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.config_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.config_action.setCheckable(True)
+        self.config_action.toggled.connect(self.toggle_preferences)
+        self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
 
         # File: Load a recipe
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
@@ -440,7 +466,6 @@ class MainWindow(QMainWindow):
         self.start_action.triggered.connect(self.queueMeasurement)
         control_menu.addAction(self.start_action)
         self.toolbar.addAction(self.start_action)
-
 
         self.w_dockable_metadata = QDockWidget("Metadata", self)
         self.w_meta_view = MetaDataDialog()
@@ -502,6 +527,12 @@ class MainWindow(QMainWindow):
         self.preview_action.triggered.connect(self.openPreview)
         control_menu.addAction(self.preview_action)
         self.toolbar.addAction(self.preview_action)
+        # add the preferences
+        view_menu.addAction(self.config_action)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.toolbar.addWidget(spacer)
+        self.toolbar.addAction(self.config_action)
 
         # Add the toolbar
         self.addToolBar(self.toolbar)
@@ -636,6 +667,8 @@ class MainWindow(QMainWindow):
             return
 
         self.sys_meta_data = system.dcdata
+        configurable = [sys for sys in systemfile if not os.path.exists(sys.strip())]
+        self.config_editor.update_data(configurable)
 
     def queueMeasurement(self):
         """Queue a measurement into the measurement menu."""

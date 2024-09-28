@@ -119,8 +119,9 @@ def write_config(config_dict):
         """
         differences = {}
         for key, default_value in default_dict.items():
-            if "~" in default_value:
-                default_value = normpath(expanduser(default_value))
+            if isinstance(default_value, str):
+                if "~" in default_value:
+                    default_value = normpath(expanduser(default_value))
             if key not in current_dict:
                 continue  # Key is missing in the current settings
             current_value = current_dict[key]
