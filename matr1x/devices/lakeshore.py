@@ -106,8 +106,20 @@ class Lakeshore3xx(VisaDevice):
         except ValueError:
             return
 
+    def setManualOutput(self, setpoint, loop=1):
+        try:
+            setpoint = float(setpoint)
+            if 0 > setpoint or 100 < setpoint:
+                return
+            self.write("MOUT " + str(loop) + ",{:.5f}".format(setpoint))
+        except ValueError:
+            return
+
     def getSetpoint(self, loop=1):
         return self.query_float("SETP? " + str(loop))
+
+    def getManualOutput(self, loop=1):
+        return self.query_float("MOUT? " + str(loop))
 
     def getHeater(self, channel=1):
         return self.query_float("HTR? " + str(channel))
