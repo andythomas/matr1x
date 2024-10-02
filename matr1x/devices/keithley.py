@@ -1035,6 +1035,9 @@ class Keithley2000(VisaDevice):
         for cmd in cmdList:
             self.write(cmd)
 
+    def getFunction(self):
+        return self.query(":SENS:FUNC?").replace('\"', '')
+
     def triggerReading(self):
         self.write("*TRG")
         self.triggered = True
