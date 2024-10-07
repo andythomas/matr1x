@@ -225,9 +225,13 @@ for section in config:
             sysdir = config[section]["systems_directory"]
             # replace pkgroot placeholder
             if "<pkgroot>/" in sysdir:
-                sysdir = join(
-                    get_package_path(section), sysdir.replace("<pkgroot>/", "")
-                )
+                package_path = get_package_path(section)
+                if package_path is not None:
+                    sysdir = join(package_path, sysdir.replace("<pkgroot>/", ""))
+                else:
+                    raise ModuleNotFoundError(
+                        f"Optional matr1x module '{section}' not found"
+                    )
             # expand eventual home
             sysdir = expanduser(sysdir)
             if isdir(sysdir):

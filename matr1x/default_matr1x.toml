@@ -15,9 +15,7 @@ pts = false
 visadebug = false
 
 [matr1x.install]
-userinstallation = false
-editableinstallation = true
-system_site_packages = false
-createlogfolder = false
+root_path = "core_library/"
+create_directories = false
 desktopintegration = true
-extracontrolguis = ["matr1x:control-dummy"]
+pip_options = "-q --log install.log"
