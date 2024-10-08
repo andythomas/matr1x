@@ -36,6 +36,11 @@ else:
     import termios
     from select import select
 
+# conditional import for Mac: Required to correctly set the app name and left-most menu
+if sys.platform == "darwin":
+    from AppKit import NSApplication
+    from Foundation import NSBundle
+
 # allow error handling while using with
 
 
@@ -1506,6 +1511,30 @@ def normalize_cmds(cmds):
     for cmd, val in cmds.items():
         if not isinstance(val, Command):
             cmds[cmd] = Command.from_deprecated_list(val)
+
+
+def set_correct_mac_appname(name: str) -> None:
+    """
+    Set the correct app name on a Mac.
+
+    Parameters
+    ----------
+    name : str
+        The desired name of the application
+    """
+
+    bundle = NSBundle.mainBundle()
+    if bundle:
+        info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+        info_dict["CFBundleName"] = name
+    # Correct the menu
+    app = NSApplication.sharedApplication()
+    mainMenu = app.mainMenu()
+    # Get left-most menu with app-specific items
+    app_menu = mainMenu.itemAtIndex_(0).submenu()
+    for i in range(app_menu.numberOfItems()):
+        item = app_menu.itemAtIndex_(i)
+        item.setTitle_(item.title().replace("Python", name))
 
 
 class DcDict(dict):

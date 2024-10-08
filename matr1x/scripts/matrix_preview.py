@@ -49,6 +49,8 @@ import pyqtgraph.exporters
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
+from matr1x.util import set_correct_mac_appname
+
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -921,6 +923,8 @@ def main():
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
         app.setStyle('fusion')
+    elif sys.platform == "darwin":
+        set_correct_mac_appname("Matrix Preview")
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process

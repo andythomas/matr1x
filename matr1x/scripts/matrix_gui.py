@@ -33,7 +33,7 @@ from matr1x.scripts import (
     sweep_generator,
 )
 from matr1x.system import MergedSystem
-from matr1x.util import get_matrix_binary, open_and_error
+from matr1x.util import get_matrix_binary, open_and_error, set_correct_mac_appname
 from matr1x.gui_util import ConfigEditWidget, AboutBox, MetaDataDialog, MIcon, MLineEdit
 
 # Try to import Qt6 and fallback to Qt5 if not available
@@ -768,6 +768,8 @@ def main():
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
         app.setStyle('fusion')
+    elif sys.platform == "darwin":
+        set_correct_mac_appname("Matrix GUI")
     app.setDesktopFileName("matrix-gui")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process

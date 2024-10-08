@@ -54,6 +54,7 @@ from matr1x.util import (
     generate_script,
     generate_script_prefix_suffix,
     get_importable_module_name,
+    set_correct_mac_appname,
 )
 
 # Try to import Qt6 and fallback to Qt5 if not available
@@ -2833,6 +2834,8 @@ def main():
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
         app.setStyle('fusion')
+    elif sys.platform == "darwin":
+        set_correct_mac_appname("Matrix Script")
     app.setDesktopFileName("matrix-script")
     with QtGracefulKiller():
         if len(sys.argv) < 2:

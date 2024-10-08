@@ -54,8 +54,13 @@ from matr1x import datetimefmt, system_directories, system_names, usersfolder
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import CustomViewBox, validator
 from matr1x.system import MergedSystem
-from matr1x.util import (calculate_sweep, create_temp_dir_with_symlinks,
-                         generate_col_index, get_importable_module_name)
+from matr1x.util import (
+    calculate_sweep,
+    create_temp_dir_with_symlinks,
+    generate_col_index,
+    get_importable_module_name,
+    set_correct_mac_appname,
+)
 from numpy import linspace, uint
 
 if os.name == 'nt':
@@ -938,6 +943,8 @@ def main():
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
         app.setStyle('fusion')
+    elif sys.platform == "darwin":
+        set_correct_mac_appname("Sweep Generator")
     with QtGracefulKiller():
         mw = MainWindow()
         mw.show()

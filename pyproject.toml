@@ -32,6 +32,7 @@ dependencies = [
     "PyQt6",
     "PyQt6 >= 6.5.0 ; platform_system == 'Windows'",
     "PyQt6-QScintilla",
+    "pyobjc ; platform_system == 'Darwin'",
     "autopep8",
     "h5py",
     "tomli ; python_version < '3.11'",
