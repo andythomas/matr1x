@@ -129,7 +129,7 @@ class CollapsibleBox(QWidget):
 class ControlWindow(QMainWindow):
     """
     Base class for control GUIs which prepares a lot of things behind the
-    scences for use in typical control GUIs
+    scences for use in typical control GUIs.
 
     Parameters
     ----------
@@ -148,6 +148,7 @@ class ControlWindow(QMainWindow):
       value is given than the integer part of it will be used as interval (in
       seconds) for the logging function.
     """
+
     sig_error = pyqtSignal(type, Exception, str)
     activity = pyqtSignal(str)
     deactivate = pyqtSignal(bool)
@@ -284,9 +285,7 @@ class ControlWindow(QMainWindow):
 
     # GUI functions
     def initUI(self):
-        """
-        Initializes GUI -> needs to be extended by subclasses
-        """
+        """Initializes GUI -> needs to be extended by subclasses."""
         layout = self.basicUI()
         self.guidictUI(layout)
         self.extra_layout(layout)
@@ -323,7 +322,7 @@ class ControlWindow(QMainWindow):
     def check_dock_status(self):
         """
         In case of undocking/redocking check that at least one dockwidget
-        remains docked and eventually disable the undocking feature!
+        remains docked and eventually disable the undocking feature!.
         """
         # count docked widgets
         count_docked = sum(int(not g.dock.isFloating())
@@ -376,7 +375,6 @@ class ControlWindow(QMainWindow):
 
     def statusloggingUI(self, layout):
         """Setup status and logging user interface."""
-
         self.status_box = CollapsibleBox("Logging and Status", parent=self)
         self.status_box.redraw_activity.connect(self.readjustSize)
         layout.addWidget(self.status_box, stretch=1)
@@ -469,7 +467,7 @@ class ControlWindow(QMainWindow):
         first to the second column.
 
         Parameters
-        ------
+        ----------
         copyDict : dict
           guiDict for which the values shall be copied
 
@@ -503,7 +501,7 @@ class ControlWindow(QMainWindow):
     def output_written(self, text):
         """
         appends the most recent text to the end of the display and makes sure
-        that the cursor remains at the end
+        that the cursor remains at the end.
         """
         if text.strip("\n") != "":
             self.status.appendPlainText(text.strip("\n"))
@@ -514,9 +512,7 @@ class ControlWindow(QMainWindow):
 
     @pyqtSlot(bool)
     def readjustSize(self, expanding=False):
-        """
-        resize window when the status and logging tab is minimized
-        """
+        """Resize window when the status and logging tab is minimized."""
         self.widget.adjustSize()
         if not expanding:
             # if we are shrinking the window and disabling the control, hide
@@ -534,7 +530,7 @@ class ControlWindow(QMainWindow):
     @catchEmitError
     def connectDev(self):
         """
-        init device connections
+        init device connections.
 
         If this is overloaded its important that the self.devInit property is
         set to True upon successful initialization of the devices.
@@ -682,7 +678,7 @@ class ControlWindow(QMainWindow):
     def __enter__(self):
         """
         starts refreshing the values in a separate thread
-        check also that the devices are initialized
+        check also that the devices are initialized.
         """
         # initialize devices
         print(f"{time.strftime(datetimefmt)}: initializing devices")
@@ -716,9 +712,7 @@ class ControlWindow(QMainWindow):
             self.startServer()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        """
-        stops the refreshDict function and closes devices
-        """
+        """Stops the refreshDict function and closes devices."""
         if exc_type is not None:
             print(exc_type, exc_value, exc_traceback)
 
@@ -739,15 +733,13 @@ class ControlWindow(QMainWindow):
     def startServer(self):
         """
         starts the local TCP server with the driver functions specified
-        in cmds
+        in cmds.
         """
         self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list)
         self._local_server.start()
 
     def stopServer(self):
-        """
-        stops the local TCP server
-        """
+        """Stops the local TCP server."""
         if self._local_server is not None:
             self._local_server.stop()
         self._local_server = None
@@ -762,7 +754,7 @@ class ControlWindow(QMainWindow):
 
     @pyqtSlot(bool)
     def deactivate_gui(self, flag):
-        """disable all GUI elements.
+        """Disable all GUI elements.
 
         This is typically emitted after an error.
         """
@@ -799,9 +791,7 @@ class ControlWindow(QMainWindow):
 
     @pyqtSlot(type, Exception, str)
     def handleError(self, exc_type, exc_value, pointer):
-        """
-        Signal slot to handle showing the error message and disabling the GUI
-        """
+        """Signal slot to handle showing the error message and disabling the GUI."""
         # end the refreshDict thread
         self.terminate = True
         self.terminate_log = True

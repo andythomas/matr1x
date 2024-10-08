@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Import helpers."""
 
 from .controlwindow import ControlWindow  # noqa: F401
 from .util import (GuiDict, OutputRedirection, QtGracefulKiller,  # noqa: F401

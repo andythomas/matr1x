@@ -16,7 +16,7 @@
 
 """
 This module contains utility function for generating control guis or devices
-based on the scpi_tcp_server
+based on the scpi_tcp_server.
 """
 import copy
 import itertools
@@ -81,7 +81,7 @@ from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
 def catchEmitError(method):
     """
     Define error handling decorator (works only with ControlWindow which defines
-    a sig_error signal)
+    a sig_error signal).
     """
     @wraps(method)
     def decorated_method(self, *args, **kwargs):
@@ -130,8 +130,9 @@ def catchEmitError(method):
 class guiObject(IntEnum):
     """
     Enum object to make it easier to write readable code and identify GUI
-    elements by their name instead of only by a number
+    elements by their name instead of only by a number.
     """
+
     button = 0
     lineedit = 1
     checkbox = 2
@@ -145,7 +146,7 @@ class guiObject(IntEnum):
     @classmethod
     def getWidget(cls, label, wType, init=None):
         """
-        Retruns the widget of the correct type
+        Returns the widget of the correct type.
 
         Parameters
         ----------
@@ -183,7 +184,7 @@ class guiObject(IntEnum):
           getWidget("Property", "Example")
 
         Returns
-        -----
+        -------
         widget : QWidget
           widget of requested type or None
         """
@@ -229,10 +230,10 @@ class var(QObject):
     """
     Variable storage for implementing with qt GUI,
     emits valueChanged signal if the value has changed so it can
-    be connected to a display
+    be connected to a display.
 
     Parameters
-    -----
+    ----------
     dType : type, or (type, type)
       type of variable that is to be stored and its emitted type upon a value
       change
@@ -254,6 +255,7 @@ class var(QObject):
       columns. If it is of non-list type its assumed to apply to all entries of
       columns equally.
     """
+
     valueChanged = pyqtSignal([str], [float], [int], [bool])
     unitChanged = pyqtSignal([str])
 
@@ -294,7 +296,7 @@ class var(QObject):
     def value(self, newValue):
         """
         if the value is set, emit a signal so that a possible change can be
-        tracked
+        tracked.
         """
         if newValue is None:
             self._value = None
@@ -427,7 +429,7 @@ class var(QObject):
     def connect_signal(self):
         """
         connects the valueChanged signal of self.value to the corresponding
-        widget
+        widget.
         """
         if len(self.widgets) >= 2 and self.variableType is not None:
             if isinstance(self.widgets[1], (QLineEdit, QLabel)):
@@ -461,9 +463,7 @@ class var(QObject):
                         self.widgets[2].setChecked)
 
     def copy_value(self):
-        """
-        copies the read values into the set field
-        """
+        """Copies the read values into the set field."""
         # check that a set-field exists, otherwise pass
         if len(self.columns) >= 2 and self.variableType is not None:
             try:
@@ -517,7 +517,6 @@ class var(QObject):
         function for backward compatible access to the GUI dictionary items.
         This function shall be declared deprecated in future.
         """
-
         if self.unit:
             return 3
         return 2
@@ -561,6 +560,7 @@ class GuiDict(UserDict, ABC):
       underlying devices should all provide a `close` method or be a pymeasure
       Instrument. Otherwise likely reenabling will fail.
     """
+
     cmds = {}
     data = {}
     refresh_period = 1
@@ -571,6 +571,7 @@ class GuiDict(UserDict, ABC):
         Worker object for the refresh thread. This is needed for the QTimer to
         work inside the QThread.
         """
+
         # activity signal to indicate an iteration of the refresh timer
         activity = pyqtSignal(str)
         panic = pyqtSignal(bool, str)
@@ -605,9 +606,7 @@ class GuiDict(UserDict, ABC):
 
         @catchEmitError
         def _target(self, count):
-            """
-            encapsulate target function to emit the activity signal
-            """
+            """Encapsulate target function to emit the activity signal."""
             if count % 2:
                 self.activity.emit("green")
             else:
@@ -646,9 +645,8 @@ class GuiDict(UserDict, ABC):
         Also link all buttons to repective methods.
         """
         class MyQDockWidget(QDockWidget):
-            """
-            Modify QDockWidget to be able to track its closing
-            """
+            """Modify QDockWidget to be able to track its closing."""
+
             dockClosed = pyqtSignal()
 
             def __init__(self, title, appname):
@@ -661,9 +659,7 @@ class GuiDict(UserDict, ABC):
 
             @pyqtSlot()
             def saveCurrentState(self):
-                """
-                Save current dock geometry and enable state.
-                """
+                """Save current dock geometry and enable state."""
                 self.settings.beginGroup(self.windowTitle())
                 self.settings.setValue("size", self.size())
                 self.settings.setValue("pos", self.pos())
@@ -672,9 +668,7 @@ class GuiDict(UserDict, ABC):
                 self.settings.endGroup()
 
             def restoreState(self):
-                """
-                Load stored dock geometry and disable state.
-                """
+                """Load stored dock geometry and disable state."""
                 self.settings.beginGroup(self.windowTitle())
                 if self.settings.value("size") is not None:
                     self.resize(self.settings.value("size"))
@@ -730,13 +724,12 @@ class GuiDict(UserDict, ABC):
         return self.dock
 
     def create_content(self):
-        """create the real content of the GuiDict
+        """Create the real content of the GuiDict.
 
         This function takes the variables from the GuiDict and generates the
         respective GUI widgets. If a user overwrites this function it will need
         to attach its output to self.container!
         """
-
         grid = QGridLayout(self.container)
         # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
@@ -785,9 +778,7 @@ class GuiDict(UserDict, ABC):
         self.dock.disabled = not self.enable_switch.isChecked()
 
     def restoreFeatures(self):
-        """
-        restore features based on enable switch setting.
-        """
+        """Restore features based on enable switch setting."""
         if self.enable_switch.isChecked():
             self.container.setEnabled(True)
             if self.allow_disabling:
@@ -804,9 +795,10 @@ class GuiDict(UserDict, ABC):
                 )
 
     def stop(self, wait=True):
-        """Disable GUI fields and the update loop
+        """Disable GUI fields and the update loop.
 
         Parameters
+        ----------
         wait: bool, optional
           flag to make this function block up to twice the refresh period or
           until the refresh thread ended
@@ -823,7 +815,7 @@ class GuiDict(UserDict, ABC):
             self.running = False
 
     def _reset(self):
-        """reset all values and cmd functions to None.
+        """Reset all values and cmd functions to None.
 
         This is done to avoid logging or reporting something not updated.
         """
@@ -972,9 +964,7 @@ class GuiDict(UserDict, ABC):
         self.enable_switch.setEnabled(False)
 
     def unpanic(self):
-        """
-        Make device operational again
-        """
+        """Make device operational again."""
         self.enable_switch.setEnabled(True)
         self._panic = False
 
@@ -998,25 +988,19 @@ class GuiDict(UserDict, ABC):
 
 
 class QtGracefulKiller():
-    """
-    Graceful killer, that handles the proper termination of Qt application
-    """
+    """Graceful killer, that handles the proper termination of Qt application."""
 
     def __init__(self):
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
     def exit_gracefully(self, signam, frame):
-        """
-        terminates the application
-        """
+        """Terminates the application."""
         print(f"Kill signal received ({signam})")
         QApplication.quit()
 
     def __enter__(self):
-        """
-        start a timer for Ctrl+C to work
-        """
+        """Start a timer for Ctrl+C to work."""
         self.timer = QTimer()
         self.timer.timeout.connect(lambda: None)
         self.timer.start(100)
@@ -1062,10 +1046,10 @@ def linear_trend(timestamps, data, interval=60):
 
 
 def sendNotificationEmail(address, subject, msgtext, attachments=[]):
-    """
-    utility function to send messages to a list of email addresses. The function
-    uses the sendmail command line function which has to be configured to work
-    as intended!
+    """Send messages to a list of email addresses.
+
+    Utility function that uses the sendmail command line function which has to
+    be configured to work as intended.
 
     Parameters
     ----------
@@ -1191,7 +1175,7 @@ class OutputRedirection:
 class SelectLakeshoreInput(QDialog):
     """
     open dialog which allows the user to select a sensor calibration curve
-    for the Lakeshore temperature controller
+    for the Lakeshore temperature controller.
     """
 
     def __init__(self, parent, lakeshore_dev=None):
@@ -1206,9 +1190,7 @@ class SelectLakeshoreInput(QDialog):
         self.show()
 
     def initUI(self):
-        """
-        Initialize GUI for popup
-        """
+        """Initialize GUI for popup."""
         self.setWindowTitle("Select Lakeshore input curve")
         grid = QGridLayout()
 
@@ -1284,9 +1266,7 @@ class WriteLakeshoreZonePID(QDialog):
         self.show()
 
     def initUI(self):
-        """
-        Initialize GUI for popup
-        """
+        """Initialize GUI for popup."""
         self.setWindowTitle("Select Lakeshore input curve")
         grid = QGridLayout()
 
@@ -1337,7 +1317,7 @@ class WriteLakeshoreZonePID(QDialog):
 def control_main(name, window_class, guidicts=None, extra_cmds=None,
                  lockfile=True, package='matr1x', **kwargs):
     """
-    Utility main function to avoid duplication in all control GUIs
+    Utility main function to avoid duplication in all control GUIs.
 
     Parameters
     ----------
@@ -1359,7 +1339,6 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
     kwargs : dict, optional
       keyword arguments which are forwarded to the window_class constructor
     """
-
     if os.name == 'nt':
         try:
             from ctypes import windll  # Only exists on Windows.

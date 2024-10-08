@@ -61,6 +61,7 @@ class AnimatedToggle(QCheckBox):
     Code was adapted from
     https://www.pythonguis.com/tutorials/pyqt6-animated-widgets
     """
+
     _transparent_pen = QPen(Qt.GlobalColor.transparent)
     _light_grey_pen = QPen(Qt.GlobalColor.lightGray)
 
@@ -149,7 +150,7 @@ class AnimatedToggle(QCheckBox):
 
     @handle_position.setter
     def handle_position(self, pos):
-        """change the property
+        """Change the property
         we need to trigger QWidget.update() method, either by:
             1- calling it here [ what we doing ].
             2- connecting the QPropertyAnimation.valueChanged() signal to it.
@@ -162,7 +163,7 @@ class matr1xProgressBar(QProgressBar):
     """
     overload Progressbar to make it better suite the needs to show values in
     the range between -5 and 105. Values outside that range are indicated by a
-    red color
+    red color.
     """
 
     def __init__(self):
@@ -189,7 +190,7 @@ class matr1xProgressBar(QProgressBar):
 class ToggleButton(QPushButton):
     """
     custom QPushButton to emulate a proper toggle button (including the change
-    of the button's label upon pushing)
+    of the button's label upon pushing).
     """
 
     def __init__(self, *args, **kwargs):
@@ -202,9 +203,7 @@ class ToggleButton(QPushButton):
         self.setCheckable(True)
 
     def setChecked(self, state):
-        """
-        change label of toggle button
-        """
+        """Change label of toggle button."""
         super().setChecked(state)
         # if it is checked
         if isinstance(self._labels, (list, tuple)):

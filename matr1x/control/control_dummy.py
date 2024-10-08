@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Provides an example and test implementation of a control GUI."""
 
 import collections
 import time
@@ -45,14 +46,17 @@ common_commands = {"*idn": Get(str, "dummy_control"), }
 
 
 class exampleDict(GuiDict):
-    # Initialize dicts for GUI display as well as variable storage
-    # Variables are stored in dict[key].value, GUI elements in dict[key].widgets
-    # The GUI is initialized with the elements specified in dict[key].columns, where
-    # key is label and entries should be of type guiObject.
-    # A list means multiple widgets on one row
-    # The unit of a variable can be set using the "unit" parameter and is then
-    # shown in the label and included in the logging file. The logging
-    # preference for the parameter is set by the boolean "log" parameter.
+    """Initialize dicts for GUI display as well as variable storage.
+
+    Variables are stored in dict[key].value, GUI elements in dict[key].widgets
+    The GUI is initialized with the elements specified in dict[key].columns, where
+    key is label and entries should be of type guiObject.
+    A list means multiple widgets on one row
+    The unit of a variable can be set using the "unit" parameter and is then
+    shown in the label and included in the logging file. The logging
+    preference for the parameter is set by the boolean "log" parameter.
+    """
+
     cmds = {
         ":v1": Command(str, "setV1", "V1"),
         ":v2": Command(float, ("dummy", "p2"), "V2"),
@@ -81,6 +85,7 @@ class exampleDict(GuiDict):
               kwargs={'p1': 'i1', 'p2': 0, 'p5': 5.5, 'p6': True})
 
     def create_GUI(self):
+        """Build the actual GUI."""
         content = super().create_GUI()
         # connect set/copy buttons
         self["Set"].widgets[1].clicked.connect(self.write)
@@ -92,8 +97,10 @@ class exampleDict(GuiDict):
         return content
 
     def refresh(self, count):
-        # read updated values from hardware (here fake)
-        # always set the value (never change GUI directly!!!)
+        """Read updated values from hardware (here fake).
+
+        Always set the value (never change GUI directly!!!).
+        """
         self["V1"].value = self.S.devs["dummy"].p1
         self["V2"].value = self.S.devs["dummy"].p2
         self["V4"].value = self.S.devs["dummy"].p6
@@ -108,9 +115,7 @@ class exampleDict(GuiDict):
             self.refresh_worker.panic.emit(True, "value V4 is False")
 
     def write(self):
-        """
-        Set values in the hardware
-        """
+        """Set values in the hardware."""
         self.setV1(self["V1"].getGUIvalue())
         self.S.devs["dummy"].p2 = self["V2"].getGUIvalue()
         self.S.devs["dummy"].p5 = self["V3"].getGUIvalue()
@@ -118,9 +123,7 @@ class exampleDict(GuiDict):
 
     @catchEmitError
     def set_toggle(self, state):
-        """
-        set toggle button functionality in hardware
-        """
+        """Set toggle button functionality in hardware."""
         # if it is checked
         if state:
             # here should go code to set the feature in the hardware
@@ -133,28 +136,35 @@ class exampleDict(GuiDict):
 
     # example functions
     def setV1(self, val):
+        """Provide example function 1."""
         self.S.devs["dummy"].p1 = val
 
     def setV2V3(self, val):
+        """Provide example function 2."""
         self.S.devs["dummy"].p2 = val[0]
         self.S.devs["dummy"].p5 = val[1]
 
     def getV2V3(self):
-        """
-        Return the values buffered in the GUI to make this request fast.
-        Alternatively device access here is of course possible.
-        """
+        """Get V2 and V3 values."""
         return [self["V2"].value, self["V3"].value]
 
     def panic(self):
         """
-        raises an error for testing purposes. A real controlGUI should bring all
-        parameters to a safe state here. e.g. remove field from a magnet
+        Raise an error for testing purposes.
+
+        A real controlGUI should bring all parameters to a safe state here.
+        e.g. remove field from a magnet.
         """
         raise ValueError("This is an error for testing purpose.")
 
 
 class exampleDict2(GuiDict):
+    """Initialize dicts for GUI display as well as variable storage.
+
+    Provide a second example to demonstrate, e.g. the dockable widgets
+    and a fake pressure gauge.
+    """
+
     cmds = {
         ":v5": Command(float, "v5", "V5"),
     }
@@ -175,11 +185,12 @@ class exampleDict2(GuiDict):
     v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
 
     class MyQObject(QtCore.QObject):
+        """Define pyqtSignals via QObjects.
+
+        We need an object derived from QObject here. In this example
+        it is used to set a tooltip string in a thread safe manner.
         """
-        In order to be able to define pyqtSignals we need an object derived from
-        QObject here. In this example it is used to be able to set a tooltip
-        string in a thread safe manner.
-        """
+
         tooltip = QtCore.pyqtSignal(str, str)
 
     def __init__(self):
@@ -193,6 +204,7 @@ class exampleDict2(GuiDict):
         self.qobject.tooltip.connect(self.set_tooltip)
 
     def refresh(self, count):
+        """Refresh the (fake) read-out values."""
         self["V5"].value = self.v5
         self.timestamps.appendleft(time.time())
         self.dataseries.appendleft(self.v5)
@@ -222,6 +234,7 @@ clientdevice = makeSCPIdevice(exampleDict.cmds, exampleDict2.cmds,
 
 
 def main():
+    """Run the actual control window."""
     control_main("dummy",
                  ControlWindow,
                  guidicts=(exampleDict(), exampleDict2()),

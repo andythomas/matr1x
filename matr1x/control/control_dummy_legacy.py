@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Provides a legacy example and test implementation of a control GUI."""
 
 import logging
 import os
@@ -79,9 +80,8 @@ if os.name == 'nt':
 
 
 class MainWindow(ControlWindow):
-    """
-    Define layout, runs everything
-    """
+    """Define layout, runs everything."""
+
     # Initialize dicts for GUI display as well as variable storage
     # Variables are stored in dict[key].value, GUI elements in dict[key].widgets
     # The GUI is initialized with the elements specified in dict[key].columns, where
@@ -127,11 +127,10 @@ class MainWindow(ControlWindow):
 
     # GUI functions
     def initUI(self):
-        """
-        Initializes GUI for chaosControl operation, i.e. display variable,
-        allow chaning setpoints etc.
+        """Initialize GUI for example Control operation.
 
-        Should be overloaded for real GUI
+        Initialize display variable, allow chaning setpoints etc.
+        Should be overloaded for real GUI.
         """
         super().initUI()
 
@@ -146,6 +145,7 @@ class MainWindow(ControlWindow):
         self.exampleDict["V3"].widgets[2].setDecimals(1)
 
     def extra_layout(self, layout):
+        """Provide a button to raise an error for testing."""
         elayout = QHBoxLayout()
         raisebutton = QPushButton("Raise Error")
         raisebutton.clicked.connect(self.raiseError)
@@ -153,6 +153,7 @@ class MainWindow(ControlWindow):
         layout.insertLayout(0, elayout)
 
     def write(self):
+        """Set values in the hardware."""
         try:
             self.setV1(self.exampleDict["V1"].getGUIvalue())
             self.v2 = self.exampleDict["V2"].getGUIvalue()
@@ -165,15 +166,11 @@ class MainWindow(ControlWindow):
 
     @catchEmitError
     def raiseError(self, nm):
-        """
-        raises an error for testing purposes
-        """
+        """Raise an error for testing purposes."""
         raise ValueError("This is an error for testing purpose.")
 
     def setToggleFunction(self):
-        """
-        set toggle button functionality in hardware
-        """
+        """Set toggle button functionality in hardware."""
         # if it is checked
         if self.exampleDict["toggle"].widgets[2].isChecked():
             # here should go code to set the feature in the hardware
@@ -185,10 +182,10 @@ class MainWindow(ControlWindow):
 
     @catchEmitError
     def refreshDict(self):
-        """
-        This is the main loop!
+        """Provide the main loop.
+
         Here, the read out is conducted (thread safe) and the newest
-        values are stored/updated in the value storage of the respective dicts
+        values are stored/updated in the value storage of the respective dicts.
         """
         # on first run also initialize the second GUI element using the
         # copy values function
@@ -243,17 +240,21 @@ class MainWindow(ControlWindow):
     # driver functions begin here
     # example functions
     def setV1(self, val):
+        """Provide example setter 1."""
         self.v1 = val
 
     def setV2V3(self, val):
+        """Provide example setter 2/3."""
         self.v2 = val[0]
         self.v3 = val[1]
 
     def getV2V3(self):
+        """Provide example getter 2/3."""
         return [self.v2, self.v3]
 
 
 def main():
+    """Set the basic GUI parameters and run."""
     if "_" in os.path.basename(sys.argv[0]):
         warnings.warn(
             "The executable name 'control_dummy' is deprecated. Use 'control-dummy' instead.",
