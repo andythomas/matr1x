@@ -131,7 +131,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                                 values = value.split(",")
                                 castval = []
                                 for i, tp in enumerate(c.dtype):
-                                    if tp == bool:
+                                    if tp is bool:
                                         # cast bool via int to avoid wrong
                                         # results
                                         castval.append(bool(int(values[i])))
@@ -142,7 +142,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                                 pass
                             else:
                                 # typecast single value
-                                if c.dtype == bool:
+                                if c.dtype is bool:
                                     castval = bool(int(value))
                                 else:
                                     castval = c.dtype(value)

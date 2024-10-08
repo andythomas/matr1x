@@ -64,7 +64,7 @@ def makeSCPIdevice(*cmds, sys=True):
     def list2str(value, dtype):
         ret = []
         for v, dt in zip(value, dtype):
-            if dt == bool:
+            if dt is bool:
                 ret.append(typeplaceholder[int] % v)
             else:
                 ret.append(typeplaceholder[dt] % v)
@@ -73,7 +73,7 @@ def makeSCPIdevice(*cmds, sys=True):
     def castlist(values, dtype):
         ret = []
         for v, t in zip(values, dtype):
-            if t == bool:
+            if t is bool:
                 if v == 'False':
                     castval = False
                 elif v == 'True':
