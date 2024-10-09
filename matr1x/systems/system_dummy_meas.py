@@ -15,8 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-This module defines a system for testing and demonstration purposes of the
-merging feature of different systems.
+Defines a system for testing and demonstration purposes.
+
+This module provides a sample implementation to showcase how
+various systems can be merged together.
 """
 # ============================
 # Custom import area

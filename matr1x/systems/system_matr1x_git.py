@@ -15,8 +15,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-This module defines a system which adds information about the matr1x code used
-to run the measurement to the data file header.
+Define a system which adds information about the matr1x code.
+
+This adds code changes and git reference to the data file header.
 """
 from matr1x.devices.git import gitDevice
 from matr1x.system import System

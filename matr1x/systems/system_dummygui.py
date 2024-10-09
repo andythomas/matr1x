@@ -14,9 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
-dummy system demonstrating how to interface to a control gui (control_dummy)
-"""
+"""dummy system demonstrating integration of a control gui (control_dummy)."""
 # ============================
 # Custom import area
 # ============================

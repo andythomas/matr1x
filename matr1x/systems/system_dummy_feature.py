@@ -15,8 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-This module defines a system for testing and demonstration purposes of various
-different types of syntaxes which can be used in the device/column definitions
+Defines a system for testing and demonstration purposes.
+
+Here different types of syntaxes which can be used in the device/column
+definitions are demonstrated.
 """
 # ============================
 # Custom import area
@@ -34,7 +36,15 @@ from matr1x.system import System
 # the optional reimplementation of the set and reset function
 # ============================
 class MeasSystem(System):
+    """Measurement system for dummy feature demonstration."""
+
     def __init__(self):
+        """Initialize the MeasSystem.
+
+        This method initializes the measurement system by setting up default
+        configurations, updating them from user settings, and initializing
+        data collection attributes.
+        """
         super().__init__()
         # define default parameters for configurable settings
         self.config = {"setting1": "VOLT", "setting2": 5}
@@ -65,10 +75,10 @@ class MeasSystem(System):
         self.devs['dev2'].p1 = value
 
     def set(self, *args, **kwargs):
-        """
+        """Initialize and configure the measurement.
+
         This function is called by matrix upon initialization of the
-        measurement.
-        The devices in the devs dictionary are opened/initialized
+        measurement. The devices in the devs dictionary are opened/initialized
         and can be configured if necessary.
         """
         # wrap base system function for safe handling of opening
@@ -82,7 +92,8 @@ class MeasSystem(System):
         self.dcdata["description"] = f"configuring dev2 to '{self.config['setting1']}'"
 
     def reset(self, *args, **kwargs):
-        """
+        """Deinitialize the measurement.
+
         This function is called by matrix upon deinitialization of the
         measurement.
         """

@@ -15,8 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-This module defines a system for testing and demonstration purposes including
-the HDF5 data file format option.
+Defines a system for demonstration of the HDF5 data file format option.
 
 Note: The hdf5 data format is needed for multidimensional datasets but includes
 a rather large overhead which is only compensated for if at each single data point
@@ -38,11 +37,36 @@ from matr1x.system import System
 # the optional reimplementation of the set and reset function
 # ============================
 class MeasSystem(System):
+    """
+    Measurement system with HDF5 support for testing matr1x-matrix.
+
+    This class extends the base System class to provide a dummy system
+    with HDF5 capabilities for testing purposes.
+    """
+
     def __init__(self):
+        """
+        Initialize the MeasSystem.
+
+        Sets up the system with a dummy source for HDF5 testing.
+        """
         super().__init__()
         self.dcdata["source"] = "dummy system with HDF5 for testing matr1x-matrix"
 
     def get_p4(self, shape=-1):
+        """
+        Get and reshape the p4 parameter from the devhdf device.
+
+        Parameters
+        ----------
+        shape : int or tuple, optional
+            The shape to reshape the p4 array to. Default is -1 (flattened array).
+
+        Returns
+        -------
+        numpy.ndarray
+            The reshaped p4 parameter array.
+        """
         return numpy.asarray(self.devs["devhdf"].p4).reshape(shape)
 # ============================
 

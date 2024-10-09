@@ -14,9 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
-This module defines a minimal system for testing and demonstration purposes
-"""
+"""Module defines a minimal system for testing and demonstration purposes."""
+
 # a dummy device is used to make it runable
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
@@ -34,11 +33,12 @@ sys.dcdata["source"] = "dummy system for testing matr1x-matrix"
 # Device definition and configuration takes place here, but devices are
 # not yet opened
 # ========================================================================
-sys.add_dev("dev",  # name of device, must be unique
-            dummy,  # device class, not instanced
-            args=("TCPIP::localhost::10007::SOCKET", ),  # arguments for init
-            # {"timeout": 100, }  # kwargs can be given if needed
-            )
+sys.add_dev(
+    "dev",  # name of device, must be unique
+    dummy,  # device class, not instanced
+    args=("TCPIP::localhost::10007::SOCKET",),  # arguments for init
+    # {"timeout": 100, }  # kwargs can be given if needed
+)
 # The device classes will be instanced and initalized as dummy(*args)
 # when sys.set() is called upon start of the measurement.
 
@@ -49,5 +49,6 @@ sys.add_param(
     "dev p2",  # parameter name, must be unique
     "cnt",  # parameter unit for the data file header
     ["dev", "p2"],  # setter attribute/function is sys.devs["dev"].p2
-    ["dev", "p2"])  # getter attribute/function is sys.devs["dev"].p2
+    ["dev", "p2"],  # getter attribute/function is sys.devs["dev"].p2
+)
 # ==============================
