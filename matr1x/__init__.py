@@ -35,9 +35,7 @@ output_extension = ".ma8"
 
 
 def load_config():
-    """
-    Load configuration file from default config, user config and local config.
-    """
+    """Load configuration file from default config, user config and local config."""
     # Load default configuration
     with open(join(dirname(__file__), "default_matr1x.toml"), "rb") as f:
         config = tomllib.load(f)
@@ -52,7 +50,7 @@ def load_config():
     # Override with local configuration if available
     local_config_path = "./matrix.toml"
     if exists(local_config_path):
-        with open(local_config_path, "r") as f:
+        with open(local_config_path, "rb") as f:
             local_config = tomllib.load(f)
             config = merge_dicts(config, local_config)
 
@@ -90,9 +88,7 @@ def get_config_dict(section: str):
 
 
 def write_config(config_dict):
-    """
-    Write non-default config options to the user config
-    """
+    """Write non-default config options to the user config."""
 
     def find_differences(default_dict, current_dict):
         """

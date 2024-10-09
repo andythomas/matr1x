@@ -27,16 +27,44 @@ import sys
 import tempfile
 import textwrap
 import time
-import warnings
 from os.path import basename, dirname
 
 import autopep8
 import pyflakes.checker
 import pyflakes.messages
 import pyflakes.reporter
+from PyQt6.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
+from PyQt6.QtCore import QEvent, QObject, QSettings, QSize, Qt, QThread, pyqtSignal
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QFontDatabase,
+    QKeyEvent,
+    QKeySequence,
+    QPalette,
+    QTextCursor,
+)
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QDialog,
+    QDockWidget,
+    QFileDialog,
+    QListWidget,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QSizePolicy,
+    QSplitter,
+    QStyle,
+    QTextEdit,
+    QToolBar,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 import matr1x
-
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import (
     AboutBox,
@@ -56,72 +84,6 @@ from matr1x.util import (
     get_importable_module_name,
     set_correct_mac_appname,
 )
-
-# Try to import Qt6 and fallback to Qt5 if not available
-try:
-    from PyQt6.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
-    from PyQt6.QtCore import QEvent, QObject, QSettings, QSize, Qt, QThread, pyqtSignal
-    from PyQt6.QtGui import (
-        QAction,
-        QColor,
-        QFontDatabase,
-        QKeyEvent,
-        QKeySequence,
-        QPalette,
-        QTextCursor,
-    )
-    from PyQt6.QtWidgets import (
-        QAbstractItemView,
-        QApplication,
-        QDialog,
-        QDockWidget,
-        QFileDialog,
-        QListWidget,
-        QMainWindow,
-        QStyle,
-        QToolBar,
-        QMenu,
-        QMessageBox,
-        QSizePolicy,
-        QSplitter,
-        QTextEdit,
-        QToolButton,
-        QWidget,
-        QVBoxLayout,
-    )
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
-    from PyQt5.QtCore import QEvent, QObject, QSettings, QSize, Qt, QThread, pyqtSignal
-    from PyQt5.QtGui import (
-        QColor,
-        QFontDatabase,
-        QKeyEvent,
-        QKeySequence,
-        QPalette,
-        QTextCursor,
-    )
-    from PyQt5.QtWidgets import (
-        QAbstractItemView,
-        QAction,
-        QApplication,
-        QDialog,
-        QDockWidget,
-        QFileDialog,
-        QListWidget,
-        QMainWindow,
-        QMenu,
-        QMessageBox,
-        QSizePolicy,
-        QSplitter,
-        QStyle,
-        QToolBar,
-        QToolButton,
-        QTextEdit,
-        QWidget,
-        QVBoxLayout,
-    )
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 logger.info("matrix-script starting")

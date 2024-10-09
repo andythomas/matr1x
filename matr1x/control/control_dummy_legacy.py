@@ -23,21 +23,13 @@ import traceback
 import warnings
 
 import numpy
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QMessageBox, QPushButton, QWidget
+
 from matr1x import logfolder
 from matr1x.control import ControlWindow, catchEmitError
-from matr1x.control.util import OutputRedirection, QtGracefulKiller
+from matr1x.control.util import OutputRedirection, QtGracefulKiller, var
 from matr1x.control.util import guiObject as go
-from matr1x.control.util import var
 from matr1x.devices.scpi_dev import makeSCPIdevice
-
-try:
-    from PyQt6.QtWidgets import (QApplication, QHBoxLayout, QMessageBox,
-                                 QPushButton, QWidget)
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QMessageBox,
-                                 QPushButton, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 

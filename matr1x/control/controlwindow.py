@@ -24,30 +24,31 @@ import threading
 import time
 import warnings
 
-from matr1x import (datetimefmt, logfolder, output_extension, scpi_tcpserver,
-                    system)
+from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QIcon, QKeySequence, QShortcut, QTextCursor
+from PyQt6.QtWidgets import (
+    QApplication,
+    QDockWidget,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSpinBox,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import EmittingStream
 from matr1x.util import Get
-
-try:
-    from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt6.QtGui import QIcon, QKeySequence, QShortcut, QTextCursor
-    from PyQt6.QtWidgets import (QApplication, QDockWidget, QFileDialog, QFrame,
-                                 QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-                                 QPlainTextEdit, QPushButton, QScrollArea,
-                                 QSizePolicy, QSpinBox, QToolButton,
-                                 QVBoxLayout, QWidget)
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt5.QtGui import QIcon, QKeySequence, QTextCursor
-    from PyQt5.QtWidgets import (QApplication, QDockWidget, QFileDialog, QFrame,
-                                 QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-                                 QPlainTextEdit, QPushButton, QScrollArea,
-                                 QShortcut, QSizePolicy, QSpinBox, QToolButton,
-                                 QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -219,7 +220,7 @@ class ControlWindow(QMainWindow):
                 class _FakeGuiDict(GuiDict):
                     data = guidict
 
-                    def refresh(self, *args):
+                    def refresh(self, *args, **kwargs):
                         pass
 
                 self.guidicts[i] = _FakeGuiDict()
@@ -374,7 +375,7 @@ class ControlWindow(QMainWindow):
         layout.addLayout(elayout)
 
     def statusloggingUI(self, layout):
-        """Setup status and logging user interface."""
+        """Set up status and logging user interface."""
         self.status_box = CollapsibleBox("Logging and Status", parent=self)
         self.status_box.redraw_activity.connect(self.readjustSize)
         layout.addWidget(self.status_box, stretch=1)
@@ -692,7 +693,7 @@ class ControlWindow(QMainWindow):
             class extraGuiDict(GuiDict):
                 cmds = self.cmd_list
 
-                def refresh(self, *args):
+                def refresh(self, *args, **kwargs):
                     pass
 
             extra_gui_dict = extraGuiDict()

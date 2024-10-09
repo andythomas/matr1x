@@ -21,12 +21,33 @@ import signal
 import socket
 import subprocess
 import sys
-import warnings
 from os.path import exists
+
+from PyQt6.QtCore import QSettings, QSize, Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QAction, QColor, QKeySequence
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QDockWidget,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QMainWindow,
+    QMessageBox,
+    QSizePolicy,
+    QSpacerItem,
+    QStyle,
+    QToolBar,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import get_latest_datafile
+from matr1x.gui_util import AboutBox, ConfigEditWidget, MetaDataDialog, MIcon, MLineEdit
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
     matrix_preview,
@@ -34,53 +55,6 @@ from matr1x.scripts import (
 )
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error, set_correct_mac_appname
-from matr1x.gui_util import ConfigEditWidget, AboutBox, MetaDataDialog, MIcon, MLineEdit
-
-# Try to import Qt6 and fallback to Qt5 if not available
-try:
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSettings, QSize
-    from PyQt6.QtGui import QAction, QColor, QKeySequence
-    from PyQt6.QtWidgets import (
-        QAbstractItemView,
-        QApplication,
-        QDockWidget,
-        QFileDialog,
-        QLabel,
-        QListWidget,
-        QMainWindow,
-        QMessageBox,
-        QSizePolicy,
-        QSpacerItem,
-        QStyle,
-        QToolBar,
-        QToolButton,
-        QHBoxLayout,
-        QVBoxLayout,
-        QWidget,
-    )
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings, QSize
-    from PyQt5.QtGui import QAction, QColor, QKeySequence
-    from PyQt5.QtWidgets import (
-        QAbstractItemView,
-        QApplication,
-        QDockWidget,
-        QFileDialog,
-        QLabel,
-        QListWidget,
-        QMainWindow,
-        QMessageBox,
-        QSizePolicy,
-        QSpacerItem,
-        QStyle,
-        QToolBar,
-        QToolButton,
-        QHBoxLayout,
-        QVBoxLayout,
-        QWidget,
-    )
 
 
 def signal_handler(signal, frame):

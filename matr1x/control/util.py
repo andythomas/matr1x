@@ -31,7 +31,6 @@ import ssl
 import sys
 import time
 import traceback
-import warnings
 from abc import ABC, abstractmethod
 from collections import UserDict
 from collections.abc import Iterable
@@ -48,29 +47,39 @@ from subprocess import PIPE, Popen
 
 import numpy
 import psutil
-
-try:
-    from PyQt6 import QtCore
-    from PyQt6.QtCore import (QObject, QSettings, Qt, QThread, QTimer, QVariant,
-                              pyqtSignal, pyqtSlot)
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDockWidget, QDoubleSpinBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                                 QListWidget, QMessageBox, QProgressBar,
-                                 QPushButton, QSizePolicy, QSpinBox, QTableView,
-                                 QVBoxLayout, QWidget)
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5 import QtCore
-    from PyQt5.QtCore import (QObject, QSettings, Qt, QThread, QTimer,
-                              QVariant, pyqtSignal, pyqtSlot)
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDockWidget, QDoubleSpinBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                                 QListWidget, QMessageBox, QProgressBar,
-                                 QPushButton, QSizePolicy, QSpinBox, QTableView,
-                                 QVBoxLayout, QWidget)
+from PyQt6 import QtCore
+from PyQt6.QtCore import (
+    QObject,
+    QSettings,
+    Qt,
+    QThread,
+    QTimer,
+    QVariant,
+    pyqtSignal,
+    pyqtSlot,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDockWidget,
+    QDoubleSpinBox,
+    QFileDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QSpinBox,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import config, datetimefmt, logfolder, system, usersfolder
 from ..gui_util import validator

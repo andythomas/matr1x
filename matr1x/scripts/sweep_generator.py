@@ -24,32 +24,35 @@ import re
 import sys
 import time
 import traceback
-import warnings
 from ast import literal_eval
 from math import floor
 from os.path import basename, dirname, join, splitext
 
-# Try to import Qt6 and fallback to Qt5 if not available
-try:
-    from PyQt6.QtCore import Qt, pyqtSignal
-    from PyQt6.QtGui import QIcon
-    from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                                 QComboBox, QDialog, QFileDialog, QGridLayout,
-                                 QLabel, QLineEdit, QListWidget, QMainWindow,
-                                 QMessageBox, QPushButton, QScrollArea,
-                                 QSizePolicy, QTextEdit, QVBoxLayout, QWidget)
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtCore import pyqtSignal, Qt
-    from PyQt5.QtGui import QIcon
-    from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
-                                 QComboBox, QDialog, QFileDialog, QGridLayout,
-                                 QLabel, QLineEdit, QListWidget, QMainWindow,
-                                 QMessageBox, QPushButton, QScrollArea,
-                                 QSizePolicy, QTextEdit, QVBoxLayout, QWidget)
-
 import pyqtgraph as pg
+from numpy import linspace, uint
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QGridLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from matr1x import datetimefmt, system_directories, system_names, usersfolder
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import CustomViewBox, validator
@@ -61,7 +64,6 @@ from matr1x.util import (
     get_importable_module_name,
     set_correct_mac_appname,
 )
-from numpy import linspace, uint
 
 if os.name == 'nt':
     try:

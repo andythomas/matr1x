@@ -23,109 +23,62 @@ This module contains gui related functions that are required by the
 sweep-generator, matrix-gui, matrix-preview, and matrix-script.
 """
 import datetime
-import pygit2
-import warnings
 from importlib.metadata import version as package_version
 from os.path import dirname, expanduser, join, normpath
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
-
-# Try to import Qt6 and fallback to Qt5 if not available
-try:
-    from PyQt6.QtGui import (
-        QColor,
-        QDoubleValidator,
-        QFontDatabase,
-        QIcon,
-        QImage,
-        QIntValidator,
-        QPainter,
-        QPalette,
-        QPixmap,
-    )
-    from PyQt6.QtCore import (
-        QAbstractItemModel,
-        QEvent,
-        QModelIndex,
-        QLocale,
-        QObject,
-        Qt,
-        pyqtSignal,
-    )
-    from PyQt6.QtWidgets import (
-        QApplication,
-        QCheckBox,
-        QComboBox,
-        QDialog,
-        QDockWidget,
-        QFormLayout,
-        QFrame,
-        QGridLayout,
-        QGroupBox,
-        QHBoxLayout,
-        QLabel,
-        QLayout,
-        QLineEdit,
-        QMessageBox,
-        QPushButton,
-        QSizePolicy,
-        QSlider,
-        QStyle,
-        QStyledItemDelegate,
-        QTreeView,
-        QTextEdit,
-        QToolButton,
-        QVBoxLayout,
-        QWidget,
-    )
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtCore import QEvent, QLocale, QObject, Qt, pyqtSignal
-    from PyQt5.QtGui import (
-        QColor,
-        QDoubleValidator,
-        QFontDatabase,
-        QIcon,
-        QImage,
-        QIntValidator,
-        QPainter,
-        QPalette,
-        QPixmap,
-    )
-
-    from PyQt5.QtWidgets import (
-        QApplication,
-        QCheckBox,
-        QComboBox,
-        QDialog,
-        QDockWidget,
-        QFormLayout,
-        QFrame,
-        QGridLayout,
-        QGroupBox,
-        QHBoxLayout,
-        QLabel,
-        QLayout,
-        QLineEdit,
-        QMessageBox,
-        QPushButton,
-        QSizePolicy,
-        QSlider,
-        QStyle,
-        QStyledItemDelegate,
-        QTreeView,
-        QTextEdit,
-        QToolButton,
-        QVBoxLayout,
-        QWidget,
-    )
-
+import pygit2
 import pyqtgraph as pg
+from PyQt6.QtCore import (
+    QAbstractItemModel,
+    QEvent,
+    QLocale,
+    QModelIndex,
+    QObject,
+    Qt,
+    pyqtSignal,
+)
+from PyQt6.QtGui import (
+    QColor,
+    QDoubleValidator,
+    QFontDatabase,
+    QIcon,
+    QImage,
+    QIntValidator,
+    QPainter,
+    QPalette,
+    QPixmap,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDockWidget,
+    QFormLayout,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QStyle,
+    QStyledItemDelegate,
+    QTextEdit,
+    QToolButton,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
+)
 
+from . import get_config_dict, load_config, merge_dicts, write_config
 from .eval import delta
-from . import load_config, write_config, merge_dicts, get_config_dict
 
 # dictionary of commonly used validators
 validator = {

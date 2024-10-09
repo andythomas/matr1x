@@ -17,24 +17,23 @@
 
 import collections
 import time
-import warnings
 
 import numpy
+from PyQt6 import QtCore
+
 from matr1x import system
-from matr1x.control import ControlWindow, GuiDict, catchEmitError, control_main
+from matr1x.control import (
+    ControlWindow,
+    GuiDict,
+    catchEmitError,
+    control_main,
+    linear_trend,
+    var,
+)
 from matr1x.control import guiObject as go
-from matr1x.control import linear_trend, var
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
 from matr1x.util import Command, Get
-
-try:
-    from PyQt6 import QtCore
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5 import QtCore
-
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
 # type can be one of int, float, bool, tuple or list.

@@ -21,36 +21,34 @@ import signal
 import sys
 import threading
 import time
-import warnings
 from os.path import abspath, dirname, getmtime, getsize, join
 
 import numpy as np
-
-# Try to import Qt6 and fallback to Qt5 if not available
-try:
-    from PyQt6.QtCore import QEvent, Qt, QThread, pyqtSignal
-    from PyQt6.QtGui import QIcon
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox,
-                                 QDockWidget, QFileDialog, QGridLayout,
-                                 QHBoxLayout, QLabel, QLayout, QMainWindow,
-                                 QMessageBox, QPushButton, QToolButton, QWidget)
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
-    from PyQt5.QtGui import QIcon
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox,
-                                 QDockWidget, QFileDialog, QGridLayout,
-                                 QHBoxLayout, QLabel, QLayout, QMainWindow,
-                                 QMessageBox, QPushButton, QToolButton, QWidget)
-
 import pyqtgraph as pg
 import pyqtgraph.exporters
+from PyQt6.QtCore import QEvent, Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDockWidget,
+    QFileDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QToolButton,
+    QWidget,
+)
+
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
 from matr1x.util import set_correct_mac_appname
-
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
