@@ -41,7 +41,9 @@ from matr1x.util import Command, Get
 # If a pure getter command is needed use Get(type getfunc)
 # All functions can take optional setargs, getargs arguments containing lists of
 # additional arguments for the setfunc and getfunc
-common_commands = {"*idn": Get(str, "dummy_control"), }
+common_commands = {
+    "*idn": Get(str, "dummy_control"),
+}
 
 
 class exampleDict(GuiDict):
@@ -65,26 +67,53 @@ class exampleDict(GuiDict):
     }
     data = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
-        "V1": var(dtype=str, columns=[go.labeltext, go.combobox],
-                  log=True, init=[None, ("i1", "i2")]),
+        "V1": var(
+            dtype=str,
+            columns=[go.labeltext, go.combobox],
+            log=True,
+            init=[None, ("i1", "i2")],
+        ),
         "V2": var(float, columns=[go.labeltext, go.lineedit], unit="mT"),
-        "V3": var(dtype=float, outType=int, columns=[go.progressbar,
-                                                     go.doublespinbox],
-                  log=False, unit="%", init=[None, (0, 100)], hide=True),
-        "V4": var(dtype=bool, outType=bool,
-                  columns=[go.checkbox, go.checkbox], log=True,),
-        "toggle": var(dtype=bool, outType=bool, columns=[go.checkbox,
-                                                         go.togglebutton],
-                      init=[None, ("Slow", "Error")], log=None),
-        "Set": var(None, columns=[go.button, go.button],
-                   init=["Set", "Copy"]),
+        "V3": var(
+            dtype=float,
+            outType=int,
+            columns=[go.progressbar, go.doublespinbox],
+            log=False,
+            unit="%",
+            init=[None, (0, 100)],
+            hide=True,
+        ),
+        "V4": var(
+            dtype=bool,
+            outType=bool,
+            columns=[go.checkbox, go.checkbox],
+            log=True,
+        ),
+        "toggle": var(
+            dtype=bool,
+            outType=bool,
+            columns=[go.checkbox, go.togglebutton],
+            init=[None, ("Slow", "Error")],
+            log=None,
+        ),
+        "Set": var(None, columns=[go.button, go.button], init=["Set", "Copy"]),
     }
     S = system.System(name="dummy")
-    S.add_dev("dummy", dummy, args=("TCPIP::localhost::10007::SOCKET", ),
-              kwargs={'p1': 'i1', 'p2': 0, 'p5': 5.5, 'p6': True})
+    S.add_dev(
+        "dummy",
+        dummy,
+        args=("TCPIP::localhost::10007::SOCKET",),
+        kwargs={"p1": "i1", "p2": 0, "p5": 5.5, "p6": True},
+    )
 
     def create_GUI(self):
-        """Build the actual GUI."""
+        """Build the actual GUI.
+
+        Returns
+        -------
+        content : object
+            The GUI content.
+        """
         content = super().create_GUI()
         # connect set/copy buttons
         self["Set"].widgets[1].clicked.connect(self.write)
@@ -99,6 +128,11 @@ class exampleDict(GuiDict):
         """Read updated values from hardware (here fake).
 
         Always set the value (never change GUI directly!!!).
+
+        Parameters
+        ----------
+        count : int
+            The current iteration count.
         """
         self["V1"].value = self.S.devs["dummy"].p1
         self["V2"].value = self.S.devs["dummy"].p2
@@ -122,7 +156,13 @@ class exampleDict(GuiDict):
 
     @catchEmitError
     def set_toggle(self, state):
-        """Set toggle button functionality in hardware."""
+        """Set toggle button functionality in hardware.
+
+        Parameters
+        ----------
+        state : bool
+            The state of the toggle button.
+        """
         # if it is checked
         if state:
             # here should go code to set the feature in the hardware
@@ -135,16 +175,34 @@ class exampleDict(GuiDict):
 
     # example functions
     def setV1(self, val):
-        """Provide example function 1."""
+        """Provide example function 1.
+
+        Parameters
+        ----------
+        val : str
+            The value to set.
+        """
         self.S.devs["dummy"].p1 = val
 
     def setV2V3(self, val):
-        """Provide example function 2."""
+        """Provide example function 2.
+
+        Parameters
+        ----------
+        val : tuple
+            A tuple containing two float values.
+        """
         self.S.devs["dummy"].p2 = val[0]
         self.S.devs["dummy"].p5 = val[1]
 
     def getV2V3(self):
-        """Get V2 and V3 values."""
+        """Get V2 and V3 values.
+
+        Returns
+        -------
+        list
+            A list containing the values of V2 and V3.
+        """
         return [self["V2"].value, self["V3"].value]
 
     def panic(self):
@@ -153,6 +211,11 @@ class exampleDict(GuiDict):
 
         A real controlGUI should bring all parameters to a safe state here.
         e.g. remove field from a magnet.
+
+        Raises
+        ------
+        ValueError
+            This is an error for testing purpose.
         """
         raise ValueError("This is an error for testing purpose.")
 
@@ -170,11 +233,14 @@ class exampleDict2(GuiDict):
     data = {
         "Example2": var(None, columns="Readout"),
         "V5": var(float, columns=go.labeltext, unit="mbar"),
-        "Info": var(str, columns="For testing purposes errors are raised \n"
-                    "when V4 is set to False, the toggle \n"
-                    "switch is pressed twice, or via the \n"
-                    "Panic Button.",
-                    hide=True),
+        "Info": var(
+            str,
+            columns="For testing purposes errors are raised \n"
+            "when V4 is set to False, the toggle \n"
+            "switch is pressed twice, or via the \n"
+            "Panic Button.",
+            hide=True,
+        ),
     }
     # set a custom interval for the refresh function which updates the values
     # from the hardware
@@ -203,7 +269,13 @@ class exampleDict2(GuiDict):
         self.qobject.tooltip.connect(self.set_tooltip)
 
     def refresh(self, count):
-        """Refresh the (fake) read-out values."""
+        """Refresh the (fake) read-out values.
+
+        Parameters
+        ----------
+        count : int
+            The current iteration count.
+        """
         self["V5"].value = self.v5
         self.timestamps.appendleft(time.time())
         self.dataseries.appendleft(self.v5)
@@ -216,11 +288,20 @@ class exampleDict2(GuiDict):
                     "V5",
                     "last minute \n"
                     f"slope: {slope/60:.3f}mbar/min\n"
-                    f"std: {std:.3f} mbar")
-            self.v5 = round(30*numpy.random.random(), 3)
+                    f"std: {std:.3f} mbar",
+                )
+            self.v5 = round(30 * numpy.random.random(), 3)
 
     def set_tooltip(self, label, tooltip):
-        """Set tooltip thread safe on any widget in the first column."""
+        """Set tooltip thread safe on any widget in the first column.
+
+        Parameters
+        ----------
+        label : str
+            The label of the widget.
+        tooltip : str
+            The tooltip text to set.
+        """
         if label in self:
             self[label].widgets[1].setToolTip(tooltip)
 
@@ -228,13 +309,16 @@ class exampleDict2(GuiDict):
 # define clientdevice to be used by measurement systems interfacing with this
 # controlGUI. If no interfacing of a measurement system is intended this can be
 # removed.
-clientdevice = makeSCPIdevice(exampleDict.cmds, exampleDict2.cmds,
-                              common_commands, sys=True)
+clientdevice = makeSCPIdevice(
+    exampleDict.cmds, exampleDict2.cmds, common_commands, sys=True
+)
 
 
 def main():
     """Run the actual control window."""
-    control_main("dummy",
-                 ControlWindow,
-                 guidicts=(exampleDict(), exampleDict2()),
-                 extra_cmds=common_commands)
+    control_main(
+        "dummy",
+        ControlWindow,
+        guidicts=(exampleDict(), exampleDict2()),
+        extra_cmds=common_commands,
+    )
