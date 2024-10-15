@@ -8,7 +8,7 @@ defined. It is itself based on the pyvisa library which handles all the low
 level communication.
 """
 
-
+import copy
 import logging
 import threading
 import time
@@ -31,16 +31,19 @@ def output_name_on_error(func):
             ret = func(self, *args, **kwargs)
         except Exception:
             if hasattr(self, "name"):
-                print('I am here.')
                 print(f"Exception occured inside {self.name}")
             raise
         return ret
     return wrapper
 
 
-class VisaDevice(object):
+class VisaDevice:
     """
     The VISA device class.
+
+    Device connection is established upon initialization of this class.
+    The connection is closed by the `close` method after which the device can be
+    reinitialized even within the same Python process.
 
     Parameters
     ----------
@@ -58,8 +61,8 @@ class VisaDevice(object):
        * visadebug : bool
          If True, enables the output of debugging information
          from the pyVISA library.
-       * All other kwargs are passed to VISAdev and can serve to configure
-         the interface. Most common are:
+       * All other kwargs are passed to the VISA resource connection and can
+         serve to configure the interface. Most common are:
 
          * write_termination : str
          * read_termination : str
@@ -75,15 +78,10 @@ class VisaDevice(object):
     ----------
     interface : str
         The used interface.
-    VISAdev : pyVISA resource
+    connection : pyVISA resource
         The pyVISA resource used for communication with the device.
         Usually only important if new features are to be implemented.
         Please refer to the pyVISA documentation for more information.
-
-    Returns
-    -------
-    dev : VISAdevice
-        The created device.
     """
     config_params = {}
     """
@@ -172,20 +170,20 @@ class VisaDevice(object):
     @output_name_on_error
     def read_very_eager(self):
         """read from device without blocking IO (timeout=0)"""
-        t = self.VISAdev.timeout
-        if isinstance(self.VISAdev, pyvisa.resources.GPIBInstrument):
+        t = self.connection.timeout
+        if isinstance(self.connection, pyvisa.resources.GPIBInstrument):
             # GPIB instruments need a finite timeout here since messages are
             # sent on demand? Please extensively test if you change this!
-            self.VISAdev.timeout = 10  # ms
+            self.connection.timeout = 10  # ms
         else:
-            self.VISAdev.timeout = 0  # ms
+            self.connection.timeout = 0  # ms
         ret = ""
         try:
             while True:
-                ret += self.VISAdev.read()
+                ret += self.connection.read()
         except pyvisa.errors.VisaIOError:
             pass
-        self.VISAdev.timeout = t
+        self.connection.timeout = t
         return ret
 
     @synchronized
@@ -208,15 +206,27 @@ class VisaDevice(object):
             The recived information.
         """
         if nbytes is None:
-            readout = self.VISAdev.read()
+            readout = self.connection.read()
         else:
-            readout = self.VISAdev.read_bytes(nbytes)
+            readout = self.connection.read_bytes(nbytes)
 
         logger.debug(f"{self.name} read {str(readout)}")
         if self.pts:
             print('R: %s' % ('(%i) %s' % (nbytes,
                                           readout) if nbytes else readout))
         return readout
+
+    def _write_delay(self):
+        """
+        Wait to not exceed the communication speed the device can handle.
+        """
+        if self.timedelay is not None:
+            # make sure that enough time has passed so that a new command
+            # can be sent
+            while self.timedelay > time.time() - self.timer:
+                delta_t = self.timedelay - (time.time() - self.timer)
+                time.sleep(delta_t)
+            self.timer = time.time()
 
     @synchronized
     @output_name_on_error
@@ -226,22 +236,21 @@ class VisaDevice(object):
 
         Parameters
         ----------
-        command : str
-            The string to be sent.
+        command : str or bytes
+            If a string is passed, terminator is appended and the message is
+            encoded before being sent to the devices.
+            If bytes are passed, this function falls back to visa's write_raw
+            function, which does not modify the commend but just transmits the
+            the bytes to the device (no terminator is appended!).
         """
-        logger.debug(f"{self.name}: Write: {command}")
+        logger.debug("%s: Write: %s", self.name, command)
         if self.pts:
-            print('W: %s' % command)
-        if self.timedelay is not None:
-            # make sure that enough time has passed so that a new command
-            # can be send
-            while (self.timedelay > time.time() - self.timer):
-                # do we really want to do a busy wait here? I think since the
-                # typical timings are on the order of ms, there is not much
-                # else to do right?
-                pass
-            self.timer = time.time()
-        self.VISAdev.write(command)
+            print(f'W: {command}')
+        self._write_delay()
+        if isinstance(command, bytes):
+            self.connection.write_raw(command)
+        else:
+            self.connection.write(command)
 
     @synchronized
     @output_name_on_error
@@ -259,21 +268,16 @@ class VisaDevice(object):
         readout : str
             The recieved information.
         """
-        logger.debug(f"{self.name}: Query: {command}")
+        logger.debug("%s: Query: %s", self.name, command)
 
-        if self.timedelay is not None:
-            # make sure that enough time has passed so that a new command
-            # can be send
-            while (self.timedelay > time.time() - self.timer):
-                pass
-            self.timer = time.time()
+        self._write_delay()
         if self.pts:
-            print('W: %s' % command)
-        resp = self.VISAdev.query(command)
-        logger.debug('Answer: %s' % str(resp))
+            print(f'W: {command}')
+        resp = self.connection.query(command)
+        logger.debug('Answer: %s', str(resp))
         if self.pts:
-            print('R: %s' % resp)
-        return (resp)
+            print(f'R: {resp}')
+        return resp
 
     def id(self):
         r"""

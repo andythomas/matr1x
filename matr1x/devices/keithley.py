@@ -551,7 +551,7 @@ class Keithley2182A(VisaDevice):
         self.interface = interface
 
     def query(self, *args, **kwargs):
-        self.VISAdev.clear()
+        self.connection.clear()
         return super().query(*args, **kwargs)
 
     # high level functions

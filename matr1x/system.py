@@ -890,7 +890,7 @@ class System:
                         # need to get connection from other device
                         devargs = list(devargs)
                         otherdev = devargs[0].split("::")[1]
-                        devargs[0] = self.devs[otherdev].VISAdev
+                        devargs[0] = self.devs[otherdev].connection
                         # also reuse mutex lock from other device
                         if "sharedlock" not in devkwargs:
                             devkwargs["sharedlock"] = self.devs[otherdev].sharedlock
