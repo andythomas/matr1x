@@ -15,8 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-This module contains the System class definition and corresponding utility
-functions
+Module containing the System class definition and corresponding utility functions.
+
+This module provides the core System class and related utility functions for
+data acquisition and instrument control.
 """
 import collections
 import importlib
@@ -1439,7 +1441,20 @@ class MergedSystem(System):
         self._filename = value
 
     def _merge_dcdata(self):
-        tmpdcdata = collections.defaultdict(set)
+        class OrderedSetList:
+            def __init__(self):
+                self.items = []
+                self.seen = set()
+
+            def add(self, value):
+                if value not in self.seen:
+                    self.items.append(value)
+                    self.seen.add(value)
+
+            def __iter__(self):
+                return iter(self.items)
+
+        tmpdcdata = collections.defaultdict(OrderedSetList)
         for sys in self.subsys:
             for key, value in sys.dcdata.items():
                 if key == "date":
