@@ -1,9 +1,10 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 import ast
 import logging
+import numbers
 import os
 import pickle
 import sys
@@ -11,30 +12,29 @@ import threading
 import time
 import warnings
 
-from matr1x import datetimefmt, logfolder, scpi_tcpserver, system
+from matr1x import (datetimefmt, logfolder, output_extension, scpi_tcpserver,
+                    system)
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import EmittingStream
-from matr1x.util import Get, generate_datafilename, write_matrix_header
+from matr1x.util import Get
 
 try:
     from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt6.QtGui import (QColor, QIcon, QKeySequence, QPalette, QShortcut,
-                             QTextCursor)
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QHBoxLayout, QLabel,
-                                 QMainWindow, QMessageBox, QPlainTextEdit,
-                                 QPushButton, QScrollArea, QSizePolicy,
-                                 QSpinBox, QToolButton, QVBoxLayout, QWidget)
+    from PyQt6.QtGui import QIcon, QKeySequence, QShortcut, QTextCursor
+    from PyQt6.QtWidgets import (QApplication, QDockWidget, QFileDialog, QFrame,
+                                 QHBoxLayout, QLabel, QMainWindow, QMessageBox,
+                                 QPlainTextEdit, QPushButton, QScrollArea,
+                                 QSizePolicy, QSpinBox, QToolButton,
+                                 QVBoxLayout, QWidget)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-    from PyQt5.QtGui import QColor, QIcon, QKeySequence, QPalette, QTextCursor
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QDockWidget,
-                                 QFileDialog, QFrame, QHBoxLayout, QLabel,
-                                 QMainWindow, QMessageBox, QPlainTextEdit,
-                                 QPushButton, QScrollArea, QShortcut,
-                                 QSizePolicy, QSpinBox, QToolButton,
+    from PyQt5.QtGui import QIcon, QKeySequence, QTextCursor
+    from PyQt5.QtWidgets import (QApplication, QDockWidget, QFileDialog, QFrame,
+                                 QHBoxLayout, QLabel, QMainWindow, QMessageBox,
+                                 QPlainTextEdit, QPushButton, QScrollArea,
+                                 QShortcut, QSizePolicy, QSpinBox, QToolButton,
                                  QVBoxLayout, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -128,23 +128,35 @@ class ControlWindow(QMainWindow):
     extra_cmds: dict, optional
       Dictionary of commands offered for the measurement system. Commands from
       the GuiDict object are merged together with this list.
+    parent: Qt parent class
+    package: str
+      package name used in the generated log files
+    logging: bool, or number
+      flag to enable logging on startup of the control GUI. If a numerical
+      value is given than the integer part of it will be used as interval (in
+      seconds) for the logging function.
     """
     sig_error = pyqtSignal(type, Exception, str)
     activity = pyqtSignal(str)
     deactivate = pyqtSignal(bool)
 
-    def __init__(self, name, guidicts=None, extra_cmds=None, parent=None):
+    def __init__(self, name, guidicts=None, extra_cmds=None, parent=None,
+                 package="matr1x", logging=False):
         # work around a bug in PyQt which can cause a segfault after a Python
         # exception. see issue #357
         os.environ["QT_NO_FT_CACHE"] = "1"
 
         super().__init__(parent=parent)
         self.setWindowTitle(name)
-        self.settings = QSettings("matr1x", name)
+        self.settings = QSettings(package, name)
         # initialize paramaters
         self.running = False
         self.logging = False
-        self.logfile = os.path.join(logfolder, name + ".ma7")
+        filename = f"{package}.{name}_{time.strftime(datetimefmt)}{output_extension}"
+        if os.name == 'nt':
+            # Windows does not like : in filenames
+            filename = filename.replace(":", "")
+        self.logfile = os.path.join(logfolder, filename)
         self.terminate_log = False
         self.terminated_log = False
         self.terminate = False
@@ -157,7 +169,7 @@ class ControlWindow(QMainWindow):
         self._local_server = None
         # initialize data logging system
         self.S_log = system.System()
-        self.S_log.__name__ = f"{name}_control_logging_system"
+        self.S_log.__name__ = f"{package}.{name}_control_logging_system"
         # initialize data logging dictionaries
         if guidicts:
             self.guidicts = list(guidicts)
@@ -208,6 +220,7 @@ class ControlWindow(QMainWindow):
         # restore settings of GuiDicts
         for g in self.guidicts:
             g.dock.restoreState()
+            g.extend_switch.setChecked(g.dock.extended)
             g.enable_switch.setChecked(not g.dock.disabled)
             g.restoreFeatures()
         # restore geometry settings of main window
@@ -250,6 +263,13 @@ class ControlWindow(QMainWindow):
             g.dock.dockClosed.connect(self.check_dock_status)
             g.dock.topLevelChanged.connect(self.needToAdjustSize)
 
+        # enable logging if requested by arguments
+        self._run_log_on_start = False
+        if logging:
+            self._run_log_on_start = True
+            if not isinstance(logging, bool) and isinstance(logging, numbers.Number):
+                self.interval.setValue(logging)
+
     # GUI functions
     def initUI(self):
         """
@@ -270,10 +290,6 @@ class ControlWindow(QMainWindow):
                                   QSizePolicy.Policy.Minimum)
         self.main_layout = QVBoxLayout()
 
-        qApp = QApplication.instance()
-        mainWindowBgColor = QPalette().color(QPalette.ColorRole.Window)
-        qApp.setStyleSheet(
-            f"[readOnly=\"true\"] {{background-color: {mainWindowBgColor.name(QColor.NameFormat.HexRgb)} }}")
         self.widget.setLayout(self.main_layout)
         self.main_layout.addStretch()
         self.setCentralWidget(self.widget)
@@ -379,7 +395,7 @@ class ControlWindow(QMainWindow):
         self.deactivate.connect(self.deactivate_gui)
         self.togglelog = QPushButton("start log")
         self.togglelog.setCheckable(True)
-        self.togglelog.setMaximumWidth(70)
+        self.togglelog.setMaximumWidth(120)
         selectlog = QPushButton("select log file")
         selectlog.setMaximumWidth(140)
         self.configlog = QPushButton("show log config")
@@ -520,12 +536,16 @@ class ControlWindow(QMainWindow):
 
     def configLog(self, checked):
         for guidict in self.guidicts:
+            guidict.showlog = checked
             for v in guidict.values():
-                if len(v.widgets) > 2 and not isinstance(v.widgets[1], (QLabel, QPushButton)):
-                    if isinstance(v.widgets[-1], QCheckBox):
-                        v.widgets[-1].setVisible(checked)
+                # check that widget is not only a label, is not hidden
+                # and is actually a value that should be logged
+                if len(v.widgets) > 2 and (v.widgets[0].isHidden() is False
+                                           and v.log is not None):
+                    v.widgets[-1].setVisible(checked)
 
     def toggleLog(self, checkstate):
+        self.togglelog.setChecked(checkstate)
         # clear system of all parameters
         self.S_log.clear_parameters()
         # add timestamp to system
@@ -533,22 +553,22 @@ class ControlWindow(QMainWindow):
         # set up system with selected values
         for i, guidict in enumerate(self.guidicts):
             for key in guidict:
-                var = guidict[key]
+                variable = guidict[key]
                 # make sure it is a loggable widget
-                if len(var.widgets) > 2 and not isinstance(var.widgets[1], (QLabel, QPushButton)):
-                    if bool(var.widgets[-1].checkState()):
+                if len(variable.widgets) > 2 and variable.log is not None:
+                    if variable.widgets[-1].checkState() == Qt.CheckState.Checked:
                         # make sure check state is True and if so add to
                         # logged parameters
                         self.S_log.add_param(
                             f"dict{i}/{key}", "",
-                            getter=lambda v=var: v.value)
+                            getter=lambda v=variable: v.value)
         if len(self.S_log.parameters) == 1:
             print("No logging parameters were selected")
             return
         if self.logging is False:
             # generate new log filename
-            self.logfile, mode = generate_datafilename(self.S_log,
-                                                       outputfile=self.logfile)
+            self.logfile = self.S_log.generate_datafilename(
+                outputfile=self.logfile)
             self.loglabel.setText(os.path.basename(self.logfile))
             # initialize system
             self.S_log.dcdata['Description'] = "Graphical interface logging data"
@@ -556,9 +576,8 @@ class ControlWindow(QMainWindow):
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             query_dict = self.S_log.query()
-            write_matrix_header(
-                self.logfile, mode, "matrix script generated",
-                self.S_log, query_dict)
+            self.S_log.write_matrix_header(
+                "matrix script generated", query_dict)
             # turn off config and set data
             self.configLog(False)
             self.configlog.setEnabled(False)
@@ -586,10 +605,10 @@ class ControlWindow(QMainWindow):
         # allow selecting a logfile
         filename = QFileDialog.getSaveFileName(
             self, "Select log file", logfolder,
-            "data log files (*.ma7)")[0]
+            f"data log files (*{output_extension})")[0]
         self.logfile = filename or self.logfile
-        if "ma7" not in self.logfile:
-            self.logfile += ".ma7"
+        if not self.logfile.endswith(output_extension):
+            self.logfile += output_extension
         self.loglabel.setText(os.path.basename(self.logfile))
 
     @catchEmitError
@@ -613,7 +632,6 @@ class ControlWindow(QMainWindow):
         """
         This is the main loop updating the GUI fields!
         Here, the read out needs to be conducted thread safe.
-        Needs to be implemented by every subclass.
 
         The main loop should terminate once self.terminate is set to True and
         set self.terminated once its successfully finished.
@@ -621,8 +639,11 @@ class ControlWindow(QMainWindow):
         Typically this class shall be decorated with the error handler to catch
         and terminate upon an uncaught Python exception.
         """
-        # start guidicts and get minimum period
-        refresh_period = 1
+        # start guidicts and get minimum/maximum period
+        # minimal period used as check interval for the shutdown
+        min_period = 1
+        # maximal period serves as delay for the potential start of the log
+        max_period = 1
         for guidict in self.guidicts:
             dockw = guidict.dock
             if not dockw.isVisible():
@@ -630,9 +651,16 @@ class ControlWindow(QMainWindow):
                 guidict.restoreFeatures()
             else:
                 guidict.start()
-            refresh_period = min(refresh_period, guidict.refresh_period)
+            min_period = min(min_period, guidict.refresh_period)
+            max_period = max(max_period, guidict.refresh_period)
+        if self._run_log_on_start:
+            # delay log start by one refresh_period with the hope that then all
+            # values are initialized
+            timer = threading.Timer(max_period,
+                                    lambda: self.toggleLog(True))
+            timer.start()
         while True:
-            time.sleep(refresh_period)
+            time.sleep(min_period)
             if self.terminate:
                 for guidict in self.guidicts:
                     if guidict.running:
@@ -667,7 +695,7 @@ class ControlWindow(QMainWindow):
             extra_gui_dict.set_cmd_funcs(window_obj=self, sys=self.S)
             self.cmd_list = extra_gui_dict.cmds
             for guidict in self.guidicts:
-                for name, cmd in guidict.cmds.items():
+                for name in guidict.cmds.keys():
                     if name in self.cmd_list:
                         raise ValueError(
                             f"command {name} from {guidict} is already present."
@@ -787,7 +815,7 @@ class ControlWindow(QMainWindow):
         # returning the same reading over and over
         self.stopServer()
         # open a popup window to inform about the error
-        a = QMessageBox.critical(
+        _ = QMessageBox.critical(
             self, f"Error in {pointer}",
             f"""The following error was raised in {pointer}:
 {repr(exc_value)}

@@ -343,9 +343,15 @@ class BSC103(VisaDevice):
         def getBytes(self):
             """Return the raw bytes of a BSC103.message."""
             if self.longPacket:
-                return self.msgID.to_bytes(2, 'little') + self.datalen.to_bytes(2, 'little') + (self.dst | 0x80).to_bytes(1, 'little') + self.src.to_bytes(1, 'little') + self.data
+                return (self.msgID.to_bytes(2, 'little') + self.datalen.to_bytes(2, 'little') +
+                        (self.dst | 0x80).to_bytes(1, 'little') +
+                        self.src.to_bytes(1, 'little') + self.data
+                        )
             else:
-                return self.msgID.to_bytes(2, 'little') + self.param1.to_bytes(1, 'little') + self.param2.to_bytes(1, 'little') + self.dst.to_bytes(1, 'little') + self.src.to_bytes(1, 'little')
+                return (self.msgID.to_bytes(2, 'little') + self.param1.to_bytes(1, 'little') +
+                        self.param2.to_bytes(1, 'little') + self.dst.to_bytes(1, 'little') +
+                        self.src.to_bytes(1, 'little')
+                        )
 
         def fromBytes(bytearr, respLen=0):
             """

@@ -1,17 +1,18 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 import datetime
 import importlib.util
 import os
-import re
 import subprocess
 import sys
 import sysconfig
+import tempfile
 import textwrap
 import time
-from os.path import abspath, exists, expanduser, isabs, splitext
+from contextlib import contextmanager
+from os.path import abspath, isabs, isdir, isfile, join, relpath, sep
 
 import numpy as np
 
@@ -22,6 +23,22 @@ else:
     import termios
     from select import select
 
+# allow error handling while using with
+
+
+@contextmanager
+def open_and_error(filename, mode="r"):
+    try:
+        f = open(filename, mode)
+    except Exception as error:
+        yield None, error
+    else:
+        try:
+            yield f, None
+        finally:
+            f.close()
+
+
 # sweep functions for sweep generator
 sweepFunctions = {"x^2": lambda x: np.power(x, 2), "sqrt": np.sqrt,
                   "ln": np.log, "log10": np.log10, "exp": np.exp,
@@ -30,11 +47,100 @@ sweepFunctions = {"x^2": lambda x: np.power(x, 2), "sqrt": np.sqrt,
 # default separator
 default_separator = "\t"
 
-# default output extension
-output_extension = ".ma7"
 # telemetry string template
 telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
                     "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
+
+
+def get_package_path(package_name):
+    """determine path of a python package
+    """
+    spec = importlib.util.find_spec(package_name)
+    if spec and spec.origin:
+        return os.path.dirname(spec.origin)
+    return None
+
+
+def get_importable_module_name(filename):
+    """
+    Obtain import module name if the filename corresponds to an installed
+    Python (sub)module, otherwise returns False.
+    """
+    # Normalize the path
+    filename = abspath(filename)
+
+    # Check if the file exists and is a Python file or
+    # a directory with __init__.py
+    if filename.endswith('.py') and isfile(filename):
+        module_path = filename[:-3]  # Remove the .py extension
+    elif isdir(filename) and isfile(join(filename, '__init__.py')):
+        module_path = filename
+    else:
+        return False
+
+    # Find the most specific base path in sys.path that matches
+    # the start of the module_path
+    best_match = None
+    best_len = 0
+
+    for base_path in sys.path:
+        base_path = abspath(base_path)
+        if module_path.startswith(base_path) and len(base_path) > best_len:
+            best_match = base_path
+            best_len = len(base_path)
+
+    if best_match:
+        # Remove the base_path from the module_path and convert to module name
+        relative_path = relpath(module_path, best_match)
+        module_name = relative_path.replace(sep, '.')
+
+        # Check if the module is installed
+        try:
+            spec = importlib.util.find_spec(module_name)
+            if spec is not None:
+                return module_name
+            return False
+        except ImportError:
+            return False
+    else:
+        return False
+
+
+def create_temp_dir_with_symlinks(names, targets):
+    """create temporary directory with symlinks
+
+    this function works similar on all major platforms,
+    but uses different ways to achieve this.
+
+    Parameters
+    ----------
+    names: list
+     names of the symlinks
+    targets: list
+     target folders for the links
+
+    Returns
+    -------
+    TemporaryDirectory instance
+    """
+    # Create a temporary directory
+    temp_dir = tempfile.TemporaryDirectory(prefix="systemdir-links-")
+
+    # Create symbolic links in the temporary directory
+    for name, target in zip(names, targets):
+        if not os.path.isdir(target):
+            raise ValueError(f"The target {target} is not a directory.")
+        link_name = os.path.join(temp_dir.name, name)
+        if os.name == 'nt':
+            subprocess.check_call(
+                ['cmd', '/c', 'mklink', '/J', link_name, target],
+                stdout=subprocess.DEVNULL,
+            )
+        else:
+            os.symlink(target, link_name)
+
+    # Return the temporary directory object
+    return temp_dir
 
 
 def get_matrix_binary():
@@ -79,79 +185,12 @@ def module_from_path(filename):
     return mod
 
 
-def generate_datafilename(system, outputfile="", inputfile="", append=False):
-    """
-    generate output datafile name. No file should be overwritten. If
-    append=True an existing datafile can be amended. In all other cases a new
-    file will name is generated.
-
-    The datafilename will be generated either from the outputfile (preferred)
-    or the inputfile-name. An appropriate extension is generated.
-
-    Parameters
-    ----------
-    system: System instance
-    outputfile: str, optional
-      output filename which should be used. Potentially a running number will
-      be added to avoid overwriting an existing file
-    inputfile: str, optional
-      if outputfile is empty this string will be used to generate a datafile
-      name
-    append: bool, optional
-      flag to decide if one should append to an potentially existing datafile
-
-    Returns
-    -------
-    datafilename, filemode
-    """
-    # check whether hdf5 is required and change output extensions
-    if system.hdf5 is True:
-        # append h5 to filename to discern filetypes
-        file_extension = ".h5" + output_extension
-    else:
-        file_extension = output_extension
-    refileext = file_extension.replace('.', r'\.')
-
-    if outputfile:
-        datafile = expanduser(outputfile)
-    else:  # no output file given -> input filename as template
-        datafile = expanduser(splitext(inputfile)[0])
-    # check if file extension was provided
-    if not re.search(f"{refileext}$", datafile):
-        datafile = re.sub(r"(\.h5)?\.ma\d$", "", datafile) + file_extension
-    if not exists(datafile):
-        # use the unmodified file name
-        return datafile, "w"
-    elif append is True:
-        return datafile, "w"  # here we return "w" because file does not exist
-    else:
-        # in case extension and running number are already attached to
-        # the filename, replace in outputfile
-        outfile = re.sub(r"(_\d+)?(\.h5)?\.ma\d$", "", datafile)
-
-        # check filename and increase "extension number" to protect existing
-        # data
-        for extension in range(1, 10000):
-            if exists(f"{outfile}_{extension}{file_extension}"):
-                continue
-            else:
-                break
-
-        if bool(append) is True and 0 != extension:
-            # if there is a file with that name already, change to the append mode
-            return f"{outfile}_{extension-1}{file_extension}", "a"
-        else:
-            # in this case start a new file
-            # append the next possible number as file extension
-            return f"{outfile}_{extension}{file_extension}", "w"
-
-
 def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
     """
-    print a formated line with data values
+    return a formated line with data values
     """
     entry_string = "{:>%d}  " % column_width
-    sys.stdout.write(f"{prefix:>6}")
+    outstr = f"{prefix:>6}"
     for v in vlist:
         if isinstance(v, str) and len(v) > column_width:
             vstr = v[-column_width:]
@@ -163,9 +202,12 @@ def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
             vstr = f"{v:8.6g}"
         elif isinstance(v, int):
             vstr = f"{v:d}"
-        sys.stdout.write(entry_string.format(vstr))
-    sys.stdout.write(f"{appendix}\n")
-    sys.stdout.flush()  # flush here is important for matrix_script
+        else:
+            # unknown datatype, continue without error
+            vstr = "???"
+        outstr += entry_string.format(vstr)
+    outstr += f"{appendix}"
+    print(outstr)
 
 
 def generate_script_prefix_suffix(systems):
@@ -186,27 +228,68 @@ def generate_script_prefix_suffix(systems):
     suffix : str
       corresponding suffix of the scriot, finishes the try statement
     """
-    prefix = textwrap.dedent(f"""
+    prefix = textwrap.dedent(
+        f"""
+    import inspect as _inspect
     import math as _math
     import os as _os
     import time as _time
+    import types as _types
+
+    import wrapt
 
     import matr1x as _matr1x
     import matr1x.util as _matrix_util
 
     from matr1x.system import MergedSystem as _MergedSystem
 
+
+    # change execution directory if requested
+    if _matr1x.matrix_script_execution_path == "<script-location>":
+        if _os.path.dirname(_scriptname):
+            _os.chdir(_os.path.dirname(_scriptname))
+    elif _matr1x.matrix_script_execution_path:
+        _os.chdir(_matr1x.matrix_script_execution_path)
+
     _system = _MergedSystem.from_files([{", ".join(repr(s) for s in systems)}])
 
     # pass meta information
     _system.dcdata['Identifier'] = _sample
     _system.dcdata['Creator'] = _user
-    _filename = ""  # datafile name
     _setvalues = []  # buffer for set values for printing
     _npoints = 0  # internal measurement point counter
     _ntot = None  # total number of measurement points for telemetry
     _starttime = _time.time()
     _preset = _starttime
+
+
+    @wrapt.decorator
+    def _lineno_decorator(wrapped, instance, args, kwargs):
+        "decorator to report the executing line number back to the GUI"
+        frame = _inspect.currentframe().f_back
+        caller_name = frame.f_code.co_name
+        caller_filename = frame.f_code.co_filename
+        line_number = frame.f_lineno
+        if caller_name == "<module>" and caller_filename == "<string>":
+            # report line only if called directly from script
+            _report_line(line_number)
+        return wrapped(*args, **kwargs)
+
+
+    @wrapt.decorator
+    def _breakpoint(wrapped, instance, args, kwargs):
+        "decorator to add a breakpoint check"
+        _wait(0)
+        return wrapped(*args, **kwargs)
+
+
+    def _inject_decorator(instance, decorator):
+        for attr_name in dir(instance):
+            attr = getattr(instance, attr_name)
+            if isinstance(attr, _types.MethodType):
+                decorated_attr = decorator(attr)
+                setattr(instance, attr_name, decorated_attr)
+
 
     def _reset_setvalues():
         global _setvalues
@@ -217,11 +300,20 @@ def generate_script_prefix_suffix(systems):
             else:
                 _setvalues.append(None)
 
+    # inject line number decorator to time.sleep
+    _time.sleep = _lineno_decorator(_time.sleep)
+    # inject breakpoint and line number decorators to system methods
+    _inject_decorator(_system, _breakpoint)
+    for subsys in _system.subsys:
+        _inject_decorator(subsys, _breakpoint)
+        _inject_decorator(subsys, _lineno_decorator)
     _reset_setvalues()  # initialize the setvalues variable
-    # bring meta_data into namespace
+    # bring meta_data and system into namespace
     meta_data = _system.dcdata
+    sys = _system
 
     # redefine set_value to limit user typing requirements
+    @_lineno_decorator
     def set_value(col, value):
         '''
         wrapper for _system.set_values to allow storing all set parameters
@@ -241,14 +333,73 @@ def generate_script_prefix_suffix(systems):
             _setvalues[i] = setv
         return setv
 
-    trigger_value = _system.trigger_value
-    read_value = _system.read_value
+    @_lineno_decorator
+    def trigger_value(*args, **kwargs):
+        '''
+        execute sys.trigger_value. all arguments are forwarded.
+        '''
+        _system.trigger_value(*args, **kwargs)
+
+    @_lineno_decorator
+    def read_value(*args, **kwargs):
+        '''
+        execute sys.read_value. all arguments are forwarded.
+        '''
+        return _system.read_value(*args, **kwargs)
+
+    @_lineno_decorator
+    def wait(*args, **kwargs):
+        '''
+        wait for a given period.
+
+        During a wait the script can always be paused/stopped.
+
+        Parameters
+        ----------
+        sleep: float
+         wait time in seconds
+        message : str, optional
+         a string which is printed if the sleep exceeds the silent argument
+        silent : float, optional
+         if the wait time exceeds this value a message string will be printed
+        '''
+        _wait(*args, **kwargs)
+
+    @_lineno_decorator
+    def input(*args, **kwargs):
+        '''
+        ask user to provide some free text input.
+
+        Parameters
+        ----------
+        query: str
+         query string presented to the user so they know what to enter
+        '''
+        return _input(*args, **kwargs)
+
+    @_lineno_decorator
+    def input_bool(query: str):
+        '''
+        ask user to answer a yes/no question.
+
+        If the user answers yes the return value will be True and False otherwise.
+        '''
+        ret = _input(query, type='bool')
+        if ret == "yes":
+            return True
+        return False
+
 
     # initialize system and put devs into namespace
     print("setting devices")
-    _system.set()  # here is a difference to matrix (no arguments), see PR #203
+    # system.set is called before the filename is set so we have no arguments
+    # here -> this is a difference to matrix
+    _system.set()
     devs = _system.devs
 
+
+    @_lineno_decorator
+    @_breakpoint
     def init_datafile(filename, comment="", append=False, print_header=True,
                       ntot=None):
         '''
@@ -273,37 +424,35 @@ def generate_script_prefix_suffix(systems):
           total number of expected datapoints for estimation of remaining
           measurement time.
         '''
-        global _filename, _ntot, _npoints, _starttime
+        global _ntot, _npoints, _starttime
 
         _ntot = ntot
         _npoints = 0  # reset the number of measurement points
         _starttime = _time.time()
 
-        # generate fallback option for the datafile name
-        systemstring = "__".join(['{"', '".join(map(os.path.basename, systems))}'])
-        timestamp = _time.strftime(_matr1x.datetimefmt, _time.localtime())
-        fallbackname = "%s_%s" % (timestamp, systemstring)
-
-        _filename, mode = _matrix_util.generate_datafilename(
-            _system,
+        filename = _system.generate_datafilename(
             outputfile=filename,
-            inputfile=_os.path.basename(_scriptname) or fallbackname,
+            inputfile=_scriptname,
             append=append)
-        if append == False or not _os.path.exists(_filename):
+        if append == False or not _os.path.exists(filename):
             # write header to file
             print("running config query")
             query_dict = _system.query()
             print("configuration acquired, initializing file")
             _system.dcdata["Description"] = comment
-            _matrix_util.write_matrix_header(
-                _filename, mode, _scriptname or "matrix script generated",
-                _system, query_dict)
+            _system.write_matrix_header(
+                _scriptname or "matrix script generated",
+                query_dict)
         if print_header:
-            _matrix_util.print_formatted_line(_matrix_util.flatten(_system.columns))
-            _matrix_util.print_formatted_line(_matrix_util.flatten(_system.units))
+            _matrix_util.print_formatted_line(
+                _matrix_util.flatten(_system.columns))
+            _matrix_util.print_formatted_line(
+                _matrix_util.flatten(_system.units))
 
 
     # wrap system.trigger and system.take_measurement_point into measure_system
+    @_lineno_decorator
+    @_breakpoint
     def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
         '''
         Perform the measurment of a single data point. This means a sequence of
@@ -323,20 +472,21 @@ def generate_script_prefix_suffix(systems):
          be printed
         '''
         global _preset, _npoints
+        _npoints += 1
+        preread = _time.time()
+        if not _system.filename:
+            init_datafile("")
+
         if print_setpoint:
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_setvalues), prefix="Set : ")
         _reset_setvalues()
-        # wait(0) to have breakpoint even when user does not use it in script
-        wait(0)
-        _npoints += 1
-        preread = _time.time()
-        if _filename == "":
-            init_datafile("")
+
         _system.trigger()
-        return_list = _system.take_measurement_point(_filename)
+        return_list = _system.take_measurement_point()
         if print_data:
-            _matrix_util.print_formatted_line(return_list, prefix="Meas: ")
+            _matrix_util.print_formatted_line(
+                return_list, prefix="Meas: ")
         if print_telemetry:
             elapsed = (_time.time() - _starttime)
             if _ntot:
@@ -346,6 +496,9 @@ def generate_script_prefix_suffix(systems):
             print(_matrix_util.telemetry_string.format(
                 _npoints, _ntot or -1, elapsed/60, remaining, preread-_preset,
                 _time.time()-preread))
+        if print_data or print_telemetry or print_setpoint:
+            # isolate different iterations of measure system by a space
+            print("")
         _preset = _time.time()
         return return_list
 
@@ -353,16 +506,19 @@ def generate_script_prefix_suffix(systems):
     # merge user input into script
     # ==== begin user area ====
     try:
-    """)
-    suffix = textwrap.dedent("""
+    """
+    )
+    suffix = textwrap.dedent(
+        """
     except KeyboardInterrupt:
         print("\\nscript has been aborted by user, calling reset")
     # ===== end user area =====
     # the reset function is called at the script end only, but we nevertheless
     # specify the last datafile name to be as close as possible to the behavior
     # of matrix
-    _system.reset(output_file=_filename)
-    """)
+    _system.reset()
+    """
+    )
     return prefix, suffix
 
 
@@ -415,7 +571,9 @@ def matrix_script_process(filename, user="", sample="",
       sample name that is written into the meta data of the output file
     scriptname: str
       script name used as fallback template for the datafile name if its not
-      set in the script.
+      set in the script and the directory of this file is used as a base
+      directory for executing the script. This means Python files inside this
+      directory can be imported by the user-script
     """
     # import required dependencies
     import re
@@ -441,8 +599,29 @@ def matrix_script_process(filename, user="", sample="",
         user : str
           user name
         """
+        class Unbuffered:
+            """
+            implements a wrapper on stdout to make sure data is passed
+            on immediately and messages are terminated with \0 to allow
+            using \n and \r in print conventionally without breaking
+            the formatting
+            """
 
-        def __init__(self, script, sample, user, scriptname):
+            def __init__(self, stream):
+                self.stream = stream
+
+            def write(self, data):
+                self.stream.write(data + "\0")
+                self.stream.flush()
+
+            def writelines(self, datas):
+                self.stream.writelines(datas)
+                self.stream.flush()
+
+            def __getattr__(self, attr):
+                return getattr(self.stream, attr)
+
+        def __init__(self, script, sample, user, scriptname, socket):
             """ initialize all variable """
             super().__init__()
             self.script = script
@@ -453,12 +632,18 @@ def matrix_script_process(filename, user="", sample="",
             self.interrupt_flag = False
             self.recv_flag = False
             self.recv = ""
+            self.n_pref = 0
+            self.socket = socket
+            if self.socket is not None:
+                # pass on all stdout to socket
+                file = socket.makefile("w", buffering=None)
+                sys.stdout = self.Unbuffered(file)
 
         def pause(self, state):
             """ pause the execution at the breakpoint """
             self.pause_flag = bool(state)
             if state is True:
-                self.print("\npaused")
+                print("\npaused")
 
         def stop(self):
             """ set the interrupt flag, so that the execution is stopped at
@@ -477,7 +662,7 @@ def matrix_script_process(filename, user="", sample="",
             if sleep > silent:
                 msg = "" if not message else f" ({message})"
                 until = f" until {end.strftime('%H:%M:%S')}"
-                self.print(f"Waiting {sleep:.0f} seconds{msg}{until}")
+                print(f"Waiting {sleep:.0f} seconds{msg}{until}")
 
             while (time.time() - t0) < sleep:
                 now = time.time()
@@ -485,14 +670,13 @@ def matrix_script_process(filename, user="", sample="",
                 if remaining > 1.1:
                     # if multiple seconds remaining, wait in chunks of 1s
                     if sleep > silent:
-                        self.print(
-                            f"\r{remaining:.0f} seconds remaining", end="")
+                        print(f"\r{remaining:.0f} seconds remaining", end="")
                     time.sleep(1)
                 else:
                     # wait remaining time
                     time.sleep(remaining)
                     if sleep > silent:
-                        self.print("\rWaiting done")
+                        print("\rWaiting done")
                     break
                 # interrupt during long waits to stop clock from ticking
                 # is ignored for short waits
@@ -508,24 +692,24 @@ def matrix_script_process(filename, user="", sample="",
                 # execution paused, wait for 100ms and recheck
                 time.sleep(0.1)
 
-        def input(self, message=""):
+        def input(self, message="", type="string"):
             t0 = time.time()
             if self.recv != "" and not self.recv_flag:
                 self.recv = ""
             if "" == message:
-                self.print("waiting for user input")
+                print(f"__input_{type}:User input requested, see executing line for context.__")
             else:
-                self.print(message)
+                print(f"__input_{type}:{message}__")
             while (self.recv == "" or self.recv_flag is True):
                 time.sleep(0.1)
                 if (time.time() - t0) > 60:
-                    self.print("still waiting for user input")
+                    print("still waiting for user input")
                     t0 = time.time()
                 self.check_for_interrupt_and_pause()
             # remove trailling line feed
             ret = self.recv.strip()
             # print output
-            self.print(f"User input received: {ret}")
+            print(f"User input received: {ret}")
             self.recv = ""
             return ret
 
@@ -546,25 +730,35 @@ def matrix_script_process(filename, user="", sample="",
                 self.recv_flag = False
             self.recv += inp
 
-        def print(self, *args, **kwargs):
-            """ reimplemented print that directly flushes the stdout """
-            kwargs["flush"] = True
-            print(*args, **kwargs)
+        def report_line(self, lineno):
+            """
+            reports currently executing line number to the
+            matrix-script
+            format is __lineno{+-number of line}__
+            """
+            if self.socket is None:
+                # only print line number if connected to a socket
+                return
+            lineno -= self.n_pref + 1
+            if lineno > -1:
+                print(f"__lineno{lineno:d}__", end="")
 
         def run(self):
             """ run the script and provide meaningful error information
                 if the script exits with an error """
             try:
+                self.n_pref = len(
+                    generate_script_prefix_suffix("")[0].splitlines())
                 try:
-                    _vars = {"wait": self.breakpoint,
-                             "print": self.print,
-                             "input": self.input,
+                    _vars = {"_wait": self.breakpoint,
+                             "_report_line": self.report_line,
+                             "_input": self.input,
                              "_user": self.user,
                              "_sample": self.sample,
                              "_scriptname": self.scriptname}
                     exec(self.script, _vars)
                 except Exception:
-                    self.print("script exited with error:")
+                    print("script exited with error:")
                     # get traceback information and format accordingly
                     tbinfo = traceback.format_exception(*sys.exc_info())
                     tbstr = "".join(tbinfo[2:])
@@ -573,16 +767,14 @@ def matrix_script_process(filename, user="", sample="",
                     line = int(ms.group(1))
                     # replace line number to match the user defined script
                     # to that end, determine number of lines in prefix
-                    n_pref = len(
-                        generate_script_prefix_suffix("")[0].split('\n'))
                     tbstr = re.sub(r"line (\d+)",
-                                   "line " + str(int(ms.group(1))-n_pref+1),
+                                   "line " + str(int(ms.group(1))-self.n_pref),
                                    tbstr)
                     tbstr = tbstr.replace("<module>", "script")
-                    tbstr = tbstr.replace("file \"<string>\"",
+                    tbstr = tbstr.replace("File \"<string>\"",
                                           "\"{}\"".format(
-                                              self.script.split("\n")[line-1]))
-                    self.print(tbstr)
+                                              self.script.splitlines()[line-1]))
+                    print(tbstr)
                     if line < 1:
                         print(" error during device initialization\n")
             except KeyboardInterrupt:
@@ -601,18 +793,30 @@ def matrix_script_process(filename, user="", sample="",
         for line in file:
             script += line.decode()
 
-    # initialize the thread
-    thread = ExecThread(script, sample, user, scriptname)
-
+    # initialize communication to matrix script
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         client_socket.connect(("127.0.0.1", MATRIX_SCRIPT_PORT))
         # make socket non-blocking
-        client_socket.settimeout(0.1)
+        client_socket.settimeout(0.05)
+        # timeout should be chosen so that the server socket can receive the
+        # full message within the timeout
+        # Since currently the server socket delays the receiving by 5 ms every
+        # 250 1024 byte segments, once more then 10 of such segments are
+        # expected, the timeout will occur (not accounting for the internal
+        # delays of the socket operations). Consequently, we impose a maximum
+        # message length of < 2.5 MByte here, which I assume is a large print
+        # statement and should be completely irrelevant.
         connected = True
     except ConnectionRefusedError:
         # GUI not running - script was not run from graphical user interface.
         connected = False
+
+    # initialize the thread
+    if connected is True:
+        thread = ExecThread(script, sample, user, scriptname, client_socket)
+    else:
+        thread = ExecThread(script, sample, user, scriptname, None)
 
     # start the thread that runs the script
     thread.start()
@@ -645,6 +849,10 @@ def matrix_script_process(filename, user="", sample="",
         # can this be made shorter? -> changed to 0.001
 
     if connected is True:
+        # wait for all data from socket to be received by the other side
+        # necessary to make sure all output is actually sent to other side
+        # before socket is closed.
+        client_socket.shutdown(socket.SHUT_WR)
         # close socket
         client_socket.close()
 
@@ -827,17 +1035,15 @@ def check_dep(index, array, depth=0):
             # multiple occurences of index in array
             d = []
             occ = -1
-            for j in range(cnt):
+            for _ in range(cnt):
                 # follow all branches of the occurences to get the actual
                 # maximum hirarchy of the occurence
                 occ = array.index(index, occ+1)
                 d.append(check_dep(occ, array, depth+1))
             return max(d)
-        else:
-            return check_dep(array.index(index), array, depth+1)
-    else:
-        # if no more occurence is in the array, then return the current depth
-        return depth
+        return check_dep(array.index(index), array, depth+1)
+    # if no more occurence is in the array, then return the current depth
+    return depth
 
 
 def generate_col_index(index):
@@ -879,72 +1085,6 @@ def construct_query_string(query_dict, depth=2):
     return ret
 
 
-def write_matrix_header(output_filename, output_filemode, inputfile, system,
-                        query_dict):
-    """
-    prepares the header of a matrix file for the matrix program, inserts all
-    relevant information including the setstr
-
-    Arguments
-    ----
-    output_filename : str
-      filename of the ouput file
-    output_filemode : str
-      controls whether append is true, can be "w" or "a", if mode is "a" do not
-      add the header a second time
-    inputfile : str
-      filename of the inputfile to be placed in the header
-    system : System
-      The System object that is used for the measurement.
-    query_dict : dict
-        Gives the device settings returned by the device_query
-        function to be appended to the file header
-    """
-    if "a" == output_filemode:
-        # in case append is true, do not create a new header
-        return
-    # prepare file definitions (column header and units)
-    telemetry = [list(flatten(system.columns)),
-                 list(flatten(system.units))]
-    # prepare datafile
-    print(f"Creating new datafile: {output_filename}")
-    if system.hdf5 is True:
-        telemetry.append(list(flatten(system.chunks, types=(list, ))))
-        import h5py
-        with h5py.File(output_filename, 'w', libver='latest') as data_file:
-            data_file.swmr_mode = True
-            assert data_file.swmr_mode
-            data_file.attrs["Input filename"] = inputfile
-            data_file.attrs["System filename"] = system.__name__
-            data_file.attrs["Device query"] = construct_query_string(
-                query_dict)
-            for dckey, dcvalue in system.dcdata.items():
-                if dcvalue is None:
-                    # mark non-existing value
-                    data_file.attrs[f"DC.{dckey}"] = "__None__"
-                else:
-                    data_file.attrs[f"DC.{dckey}"] = dcvalue
-
-            init_hdf5_skel(data_file, *telemetry)
-    else:
-        telemetry += [default_separator]
-        with open(output_filename, 'w', encoding="utf-8") as data_file:
-            for dckey, dcvalue in system.dcdata.items():
-                if dcvalue is None:
-                    data_file.write(f"# DC.{dckey} : None\n")
-                else:
-                    dcentry = dcvalue.replace("\n", "\n## ")
-                    dcentry = dcentry.replace('"', '\"')
-                    data_file.write(f"# DC.{dckey} : \"{dcentry}\"\n")
-            data_file.write(f"# Input filename : \"{inputfile}\"\n")
-            data_file.write("# System filename : ")
-            data_file.write("\"" + system.__name__ + "\"\n")
-            data_file.write("# Device query : \n")
-            data_file.write(construct_query_string(query_dict))
-
-            init_ascii_header(data_file, *telemetry)
-
-
 def init_ascii_header(file_handle, columns, units, separator):
     """
     Initialize the header of the measurement file using the given telemetry
@@ -963,7 +1103,7 @@ def init_ascii_header(file_handle, columns, units, separator):
     file_handle.write(separator.join(columns) + "\n")
 
 
-def init_hdf5_skel(file_handle, columns, units, chunks):
+def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):
     """
     Initialize a HDF5 file skeleton for a measurement file.
 
@@ -977,15 +1117,19 @@ def init_hdf5_skel(file_handle, columns, units, chunks):
       column units to be written into the header
     chunks : list
       list of ints that define the chunk length of the individual datasets
+    dtypes : list
+      list of strings specifying the dtype of the individual datasets
     """
     data_grp = file_handle.create_group("data")
-    for col, uni, chu in zip(columns, units, chunks):
+    for col, uni, chu, dtype in zip(columns, units, chunks, dtypes):
         if isinstance(chu, tuple):
             data_grp.create_dataset(col, (0, *chu), maxshape=(None, *chu),
-                                    chunks=(1, *chu), dtype="f8")
+                                    chunks=(1, *chu), dtype=dtype,
+                                    compression=True)
         else:
             data_grp.create_dataset(col, (0,), maxshape=(None,),
-                                    chunks=(chu,), dtype="f8")
+                                    chunks=(chu,), dtype=dtype,
+                                    compression=True)
         data_grp[col].attrs["unit"] = uni
 
 

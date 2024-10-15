@@ -1,11 +1,11 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 import time
 import traceback
 
-from numpy import asfarray, ceil
+from numpy import asarray, ceil
 from wrapt import synchronized
 
 from datetime import datetime
@@ -14,8 +14,7 @@ from .visadevice import VisaDevice
 
 
 class Keithley2400(VisaDevice):
-    config_params = {"sourceMode": "sourceMode",
-                     "senseMode": "senseMode"}
+    config_params = {"sourceMode": "sourceMode", "senseMode": "senseMode"}
 
     def __init__(self, interface, **kwargs):
         if "write_termination" not in kwargs:
@@ -38,11 +37,21 @@ class Keithley2400(VisaDevice):
         return super().read().replace("\x13", "")
 
     # high level functions
-    def configure(self, sourceMode=None, senseMode=None, fourWire=None,
-                  senseAutoRange=None, senseRange=None,
-                  sourceAutoRange=None, sourceRange=None,
-                  senseLimit=None, output=None, delayAuto=None,
-                  delay=None, reset=False):
+    def configure(
+        self,
+        sourceMode=None,
+        senseMode=None,
+        fourWire=None,
+        senseAutoRange=None,
+        senseRange=None,
+        sourceAutoRange=None,
+        sourceRange=None,
+        senseLimit=None,
+        output=None,
+        delayAuto=None,
+        delay=None,
+        reset=False,
+    ):
         """
         Configure the Keithley 2400
 
@@ -95,10 +104,10 @@ class Keithley2400(VisaDevice):
         if sourceMode is None or senseMode is None:
             return
         # assert source and sense mode are correct
-        assert ((sourceMode == "VOLT" and senseMode == "CURR") or
-                (sourceMode == "CURR" and senseMode == "VOLT")), \
-               ("source (\"" + sourceMode + "\") and/or sense (\"" +
-                senseMode + "\") mode are incorrect")
+        assert (sourceMode == "VOLT" and senseMode == "CURR") or (sourceMode == "CURR" and senseMode == "VOLT"), (
+            'source ("' + sourceMode + '") and/or sense ("' +
+            senseMode + '") mode are incorrect'
+        )
         # add get output here to reset the device to the previous state
         # if none is given
         # if self.outputState != bool(output):
@@ -113,14 +122,14 @@ class Keithley2400(VisaDevice):
             cmdlist = []
         # we want sourceIsenseV
         cmdlist.append(f":SOUR:FUNC {sourceMode}")
-        cmdlist.append(f":SENS:FUNC \"{senseMode}\"")
+        cmdlist.append(f':SENS:FUNC "{senseMode}"')
 
         # check vs manual
         if delayAuto is True:
-            cmdlist.append(":SOUR:"+sourceMode+":DEL:AUTO ON")
+            cmdlist.append(":SOUR:" + sourceMode + ":DEL:AUTO ON")
         elif delay is not None:
-            cmdlist.append(":SOUR:"+sourceMode+":DEL:AUTO OFF")
-            cmdlist.append(":SOUR:"+sourceMode+":DEL " + str(float(delay)))
+            cmdlist.append(":SOUR:" + sourceMode + ":DEL:AUTO OFF")
+            cmdlist.append(":SOUR:" + sourceMode + ":DEL " + str(float(delay)))
 
         if fourWire is True:
             cmdlist.append(":SYST:RSEN ON")  # Model 2400: SYST:RSEN ON/OFF
@@ -128,22 +137,22 @@ class Keithley2400(VisaDevice):
             cmdlist.append(":SYST:RSEN OFF")
 
         if senseAutoRange is True:
-            cmdlist.append(":SENS:"+senseMode+":RANG:AUTO ON")
+            cmdlist.append(":SENS:" + senseMode + ":RANG:AUTO ON")
         elif senseRange is not None:
-            cmdlist.append(":SENS:"+senseMode+":RANG:AUTO OFF")
-            cmdlist.append(":SENS:"+senseMode+":RANG " +
-                           str(float(senseRange)))
+            cmdlist.append(":SENS:" + senseMode + ":RANG:AUTO OFF")
+            cmdlist.append(":SENS:" + senseMode +
+                           ":RANG " + str(float(senseRange)))
 
         if sourceAutoRange is True:
-            cmdlist.append(":SOUR:"+sourceMode+":RANG:AUTO ON")
+            cmdlist.append(":SOUR:" + sourceMode + ":RANG:AUTO ON")
         elif sourceRange is not None:
-            cmdlist.append(":SOUR:"+sourceMode+":RANG:AUTO OFF")
-            cmdlist.append(":SOUR:"+sourceMode+":RANG " +
-                           str(float(sourceRange)))
+            cmdlist.append(":SOUR:" + sourceMode + ":RANG:AUTO OFF")
+            cmdlist.append(":SOUR:" + sourceMode +
+                           ":RANG " + str(float(sourceRange)))
 
         if senseLimit is not None:
-            cmdlist.append(":SENS:"+senseMode+":PROT:LEV " +
-                           str(float(senseLimit)))
+            cmdlist.append(":SENS:" + senseMode +
+                           ":PROT:LEV " + str(float(senseLimit)))
 
         for cmd in cmdlist:
             self.write(cmd)
@@ -173,8 +182,7 @@ class Keithley2400(VisaDevice):
 
 
 class Keithley2450(VisaDevice):
-    config_params = {"sourceMode": "sourceMode",
-                     "senseMode": "senseMode"}
+    config_params = {"sourceMode": "sourceMode", "senseMode": "senseMode"}
 
     def __init__(self, interface, **kwargs):
         if "write_termination" not in kwargs:
@@ -200,11 +208,22 @@ class Keithley2450(VisaDevice):
 
     # high level functions
     @synchronized
-    def configure(self, sourceMode=None, senseMode=None, fourWire=None,
-                  senseAutoRange=None, senseRange=None,
-                  sourceAutoRange=None, sourceRange=None,
-                  senseLimit=None, output=None, delayAuto=None,
-                  delay=None, resetUnits=True, reset=False):
+    def configure(
+        self,
+        sourceMode=None,
+        senseMode=None,
+        fourWire=None,
+        senseAutoRange=None,
+        senseRange=None,
+        sourceAutoRange=None,
+        sourceRange=None,
+        senseLimit=None,
+        output=None,
+        delayAuto=None,
+        delay=None,
+        resetUnits=True,
+        reset=False,
+    ):
         """
         Configure the Keithley 2450 to source current and sense voltage
 
@@ -259,10 +278,10 @@ class Keithley2450(VisaDevice):
         if sourceMode is None or senseMode is None:
             return
         # assert source and sense mode are correct
-        assert ((sourceMode == "VOLT" and senseMode == "CURR") or
-                (sourceMode == "CURR" and senseMode == "VOLT")), \
-               ("source (\"" + sourceMode + "\") and/or sense (\"" +
-                senseMode + "\") mode are incorrect")
+        assert (sourceMode == "VOLT" and senseMode == "CURR") or (sourceMode == "CURR" and senseMode == "VOLT"), (
+            'source ("' + sourceMode + '") and/or sense ("' +
+            senseMode + '") mode are incorrect'
+        )
         limDef = {"CURR": "I", "VOLT": "V"}
         # add get output here to reset the device to the previous state
         # if none is given
@@ -276,7 +295,7 @@ class Keithley2450(VisaDevice):
             cmdlist = []
         # we want sourceIsenseV
         cmdlist.append(":SOUR:FUNC {}".format(self.sourceMode))
-        cmdlist.append(":SENS:FUNC \"{}\"".format(self.senseMode))
+        cmdlist.append(':SENS:FUNC "{}"'.format(self.senseMode))
         # reset units to amp/volt to avoid unintentional reading of\
         # resistance
         if resetUnits:
@@ -286,15 +305,14 @@ class Keithley2450(VisaDevice):
         cmdlist.append(":SOUR:{}:READ:BACK ON".format(self.sourceMode))
 
         if senseLimit is not None:
-            cmdlist.append(":SOUR:{}:{}LIM {}".format(self.sourceMode,
-                                                      limDef[self.senseMode],
-                                                      float(senseLimit)))
+            cmdlist.append(":SOUR:{}:{}LIM {}".format(
+                self.sourceMode, limDef[self.senseMode], float(senseLimit)))
         if delayAuto is True:
             cmdlist.append(":SOUR:{}:DEL:AUTO ON".format(self.sourceMode))
         elif delay is not None:
             cmdlist.append(":SOUR:{}:DEL:AUTO OFF".format(self.sourceMode))
-            cmdlist.append(":SOUR:{}:DEL {}".format(self.sourceMode,
-                                                    float(delay)))
+            cmdlist.append(":SOUR:{}:DEL {}".format(
+                self.sourceMode, float(delay)))
 
         if fourWire is True:
             cmdlist.append(":SENS:{}:RSEN ON".format(self.senseMode))
@@ -305,15 +323,15 @@ class Keithley2450(VisaDevice):
             cmdlist.append(":SENS:{}:RANG:AUTO ON".format(self.senseMode))
         elif senseRange is not None:
             cmdlist.append(":SENS:{}:RANG:AUTO OFF".format(self.senseMode))
-            cmdlist.append(":SENS:{}:RANG {}".format(self.senseMode,
-                                                     float(senseRange)))
+            cmdlist.append(":SENS:{}:RANG {}".format(
+                self.senseMode, float(senseRange)))
 
         if sourceAutoRange is True:
             cmdlist.append(":SOUR:{}:RANG:AUTO ON".format(self.sourceMode))
         elif sourceRange is not None:
             cmdlist.append(":SOUR:{}:RANG:AUTO OFF".format(self.sourceMode))
-            cmdlist.append(":SOUR:{}:RANG {}".format(self.sourceMode,
-                                                     float(sourceRange)))
+            cmdlist.append(":SOUR:{}:RANG {}".format(
+                self.sourceMode, float(sourceRange)))
 
         for cmd in cmdlist:
             self.write(cmd)
@@ -332,18 +350,20 @@ class Keithley2450(VisaDevice):
         self.write(cmd)
 
     def getSource(self):
-        return float(self.query("READ? \"defbuffer1\", SOUR"))
+        return float(self.query('READ? "defbuffer1", SOUR'))
 
     def getSense(self):
         return float(self.query("READ?"))
 
 
 class Keithley2611A(VisaDevice):
-    config_params = {"sourceMode": "print(smua.source.func)",
-                     "senseMode": "print(smua.sense)",
-                     "voltageLimit": "print(smua.source.limitv)",
-                     "currentLimit": "print(smua.source.limiti)",
-                     "Model-identifing": "*IDN?"}
+    config_params = {
+        "sourceMode": "print(smua.source.func)",
+        "senseMode": "print(smua.sense)",
+        "voltageLimit": "print(smua.source.limitv)",
+        "currentLimit": "print(smua.source.limiti)",
+        "Model-identifing": "*IDN?",
+    }
     mode_int = {"VOLT": 1, "CURR": 0}
     mode_char = {"VOLT": "v", "CURR": "i"}
 
@@ -377,10 +397,21 @@ class Keithley2611A(VisaDevice):
 
     # high level functions
     @synchronized
-    def configure(self, sourceMode=None, senseMode=None, fourWire=None,
-                  senseAutoRange=None, senseRange=None, sourceAutoRange=None,
-                  sourceRange=None, senseLimit=None, output=None,
-                  delayAuto=None, delay=None, reset=False):
+    def configure(
+        self,
+        sourceMode=None,
+        senseMode=None,
+        fourWire=None,
+        senseAutoRange=None,
+        senseRange=None,
+        sourceAutoRange=None,
+        sourceRange=None,
+        senseLimit=None,
+        output=None,
+        delayAuto=None,
+        delay=None,
+        reset=False,
+    ):
         """
         Configure the Keithley 2611A to source current and sense voltage
 
@@ -423,10 +454,10 @@ class Keithley2611A(VisaDevice):
         if sourceMode is None or senseMode is None:
             return
         # assert source and sense mode are correct
-        assert ((sourceMode == "VOLT" and senseMode == "CURR") or
-                (sourceMode == "CURR" and senseMode == "VOLT")), \
-               ("source (\"" + sourceMode + "\") and/or sense (\"" +
-                senseMode + "\") mode are incorrect")
+        assert (sourceMode == "VOLT" and senseMode == "CURR") or (sourceMode == "CURR" and senseMode == "VOLT"), (
+            'source ("' + sourceMode + '") and/or sense ("' +
+            senseMode + '") mode are incorrect'
+        )
         # add get output here to reset the device to the previous state
         # if none is given
         self.output(False)
@@ -501,10 +532,12 @@ class Keithley2611A(VisaDevice):
 
 
 class Keithley2182A(VisaDevice):
-    config_params = {"Mode": ":SENS:FUNC?",
-                     "VOLT:RANGE": ":SENS:VOLT:RANG?",
-                     "VOLT:NPLC": ":SENS:VOLT:NPLC?",
-                     "VOLT:DFIL:COUNT": ":SENS:VOLT:DFIL:COUN?"}
+    config_params = {
+        "Mode": ":SENS:FUNC?",
+        "VOLT:RANGE": ":SENS:VOLT:RANG?",
+        "VOLT:NPLC": ":SENS:VOLT:NPLC?",
+        "VOLT:DFIL:COUNT": ":SENS:VOLT:DFIL:COUN?",
+    }
 
     def __init__(self, interface, **kwargs):
         if "write_termination" not in kwargs:
@@ -523,9 +556,11 @@ class Keithley2182A(VisaDevice):
 
     # high level functions
     @synchronized
-    def configure(self, digits=None, count=None, window=None, NPLC=None,
-                  dFil=None, range=None, rangeAuto=None, trigBus=None,
-                  repeatingFilter=None, reset=False):
+    def configure(
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
+    ):
         """
         Configure the Keitley K2182 to detect voltages
 
@@ -555,45 +590,42 @@ class Keithley2182A(VisaDevice):
             self.query("*OPC?")        
         
         # we want to measure volts
-        cmdList.append(f":SENS:FUNC \"VOLT\"")
+        cmdList.append(':SENS:FUNC "VOLT"')
         if NPLC is not None:
             cmdList.append(f":SENS:VOLT:NPLC {float(NPLC):f}")
         if digits is not None:
             cmdList.append(f":SENS:VOLT:DIG {int(digits):d}")
         if rangeAuto is True:
-            cmdList.append(f":SENS:VOLT:RANG:AUTO ON")
+            cmdList.append(":SENS:VOLT:RANG:AUTO ON")
         elif range is not None:
-            cmdList.append(f":SENS:VOLT:RANG:AUTO OFF")
-            cmdList.append(
-                f":SENS:VOLT:RANG {float(range):f}")
+            cmdList.append(":SENS:VOLT:RANG:AUTO OFF")
+            cmdList.append(f":SENS:VOLT:RANG {float(range):f}")
         if dFil is True:
-            cmdList.append(f":SENS:VOLT:DFIL:STATE ON")
+            cmdList.append(":SENS:VOLT:DFIL:STATE ON")
             if window is not None:
-                cmdList.append(
-                    f":SENS:VOLT:DFIL:WIND {float(window):f}")
+                cmdList.append(f":SENS:VOLT:DFIL:WIND {float(window):f}")
             if count is not None:
-                cmdList.append(
-                    f":SENS:VOLT:DFIL:COUN {int(count):d}")
+                cmdList.append(f":SENS:VOLT:DFIL:COUN {int(count):d}")
             if repeatingFilter is True:
-                cmdList.append(f":SENS:VOLT:DFIL:TCON REP")
+                cmdList.append(":SENS:VOLT:DFIL:TCON REP")
             elif repeatingFilter is False:
-                cmdList.append(f":SENS:VOLT:DFIL:TCON MOV")
+                cmdList.append(":SENS:VOLT:DFIL:TCON MOV")
         elif dFil is False:
-            cmdList.append(f":SENS:VOLT:DFIL:STATE OFF")
+            cmdList.append(":SENS:VOLT:DFIL:STATE OFF")
         if trigBus is True:
-            cmdList.append(f":ABOR")
+            cmdList.append(":ABOR")
             # Only triggered reading
-            cmdList.append(f":INIT:CONT OFF")
-            cmdList.append(f":TRIG:SOUR BUS")
-            cmdList.append(f":TRIG:COUN INF")
-            cmdList.append(f":INIT") # Do not send "*OPC?" after ":INIT"
+            cmdList.append(":INIT:CONT OFF")
+            cmdList.append(":TRIG:SOUR BUS")
+            cmdList.append(":TRIG:COUN INF")
+            cmdList.append(":INIT")
         for cmd in cmdList:
             self.query("*OPC?")
             self.write(cmd)
         
     def triggerReading(self):
         if self.triggered is False:
-            self.write(f"*TRG")
+            self.write("*TRG")
             self.triggered = True
 
     def getReading(self):
@@ -604,10 +636,8 @@ class Keithley2182A(VisaDevice):
 
 
 class Keithley2701(VisaDevice):
-    config_params = {"Mode": ":SENS:FUNC?",
-                     "VOLT:RANGE": ":SENS:VOLT:RANG?",
-                     "VOLT:NPLC": ":SENS:VOLT:NPLC?",
-                     "Model-identifing": "*IDN?"}
+    config_params = {"Mode": ":SENS:FUNC?", "VOLT:RANGE": ":SENS:VOLT:RANG?",
+                     "VOLT:NPLC": ":SENS:VOLT:NPLC?", "Model-identifing": "*IDN?"}
 
     def __init__(self, interface, **kwargs):
         if "write_termination" not in kwargs:
@@ -622,9 +652,11 @@ class Keithley2701(VisaDevice):
 
     # high level functions
     @synchronized
-    def configure4WireOhm(self, digits=None, count=None, window=None,
-                          NPLC=None, dFil=None, range=None, rangeAuto=None,
-                          trigBus=None, repeatingFilter=None, reset=False):
+    def configure4WireOhm(
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
+    ):
         """
         Configure the Keitley 2701 to detect 4wire resistance
 
@@ -654,7 +686,7 @@ class Keithley2701(VisaDevice):
         else:
             cmdList = []
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"FRES\"")
+        cmdList.append(':SENS:FUNC "FRES"')
         if NPLC is not None:
             cmdList.append(":SENS:FRES:NPLC " + str(int(NPLC)))
         if digits is not None:
@@ -685,9 +717,11 @@ class Keithley2701(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def configure2WireOhm(self, digits=None, count=None, window=None,
-                          NPLC=None, dFil=None, range=None, rangeAuto=None,
-                          trigBus=None, repeatingFilter=None, reset=False):
+    def configure2WireOhm(
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
+    ):
         """
         Configure the Keitley 2701 to detect 2wire resistance
 
@@ -718,7 +752,7 @@ class Keithley2701(VisaDevice):
         else:
             cmdList = []
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"RES\"")
+        cmdList.append(':SENS:FUNC "RES"')
         if NPLC is not None:
             cmdList.append(":SENS:RES:NPLC " + str(int(NPLC)))
         if digits is not None:
@@ -749,9 +783,11 @@ class Keithley2701(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def configureVolt(self, digits=None, count=None, window=None, NPLC=None,
-                      dFil=None, range=None, rangeAuto=None, trigBus=None,
-                      repeatingFilter=None, reset=False):
+    def configureVolt(
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
+    ):
         """
         Configure the Keitley 2701 to detect voltages
 
@@ -781,7 +817,7 @@ class Keithley2701(VisaDevice):
             cmdList.append(":FORM:ELEM READ")
             time.sleep(0.05)
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"VOLT:DC\"")
+        cmdList.append(':SENS:FUNC "VOLT:DC"')
         if NPLC is not None:
             cmdList.append(":SENS:VOLT:NPLC " + str(float(NPLC)))
         if digits is not None:
@@ -817,16 +853,14 @@ class Keithley2701(VisaDevice):
     def getReading(self):
         if self.triggered is True:
             self.write(":SENS:DATA:FRES?")
-            result = self.read().replace('\x13', '')
+            result = self.read().replace("\x13", "")
             self.triggered = False
             return float(result)
 
 
 class Keithley2000(VisaDevice):
-    config_params = {"Mode": ":SENS:FUNC?",
-                     "VOLT:RANGE": ":SENS:VOLT:RANG?",
-                     "VOLT:NPLC": ":SENS:VOLT:NPLC?",
-                     "Model-identifing": "*IDN?"}
+    config_params = {"Mode": ":SENS:FUNC?", "VOLT:RANGE": ":SENS:VOLT:RANG?",
+                     "VOLT:NPLC": ":SENS:VOLT:NPLC?", "Model-identifing": "*IDN?"}
 
     def __init__(self, interface, **kwargs):
         if "write_termination" not in kwargs:
@@ -850,9 +884,11 @@ class Keithley2000(VisaDevice):
                 pass
 
     @synchronized
-    def configure4WireOhm(self, digits=None, count=None, window=None,
-                          NPLC=None, dFil=None, range=None, rangeAuto=None,
-                          trigBus=None, repeatingFilter=None, reset=False):
+    def configure4WireOhm(
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
+    ):
         """
         Configure the Keitley 2000 to detect 4wire resistance
 
@@ -881,7 +917,7 @@ class Keithley2000(VisaDevice):
         else:
             cmdList = []
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"FRES\"")
+        cmdList.append(':SENS:FUNC "FRES"')
         if NPLC is not None:
             cmdList.append(":SENS:FRES:NPLC " + str(int(NPLC)))
         if digits is not None:
@@ -912,9 +948,11 @@ class Keithley2000(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def configure2WireOhm(self, digits=None, count=None, window=None,
-                          NPLC=None, dFil=None, range=None, rangeAuto=None,
-                          trigBus=None, repeatingFilter=None, reset=False):
+    def configure2WireOhm(
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
+    ):
         """
         Configure the Keitley 2000 to detect 2wire resistance
 
@@ -944,7 +982,7 @@ class Keithley2000(VisaDevice):
         else:
             cmdList = []
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"RES\"")
+        cmdList.append(':SENS:FUNC "RES"')
         if NPLC is not None:
             cmdList.append(":SENS:RES:NPLC " + str(int(NPLC)))
         if digits is not None:
@@ -975,9 +1013,11 @@ class Keithley2000(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def configureVolt(self, digits=None, count=None, window=None, NPLC=None,
-                      dFil=None, range=None, rangeAuto=None, trigBus=None,
-                      repeatingFilter=None, reset=False):
+    def configureVolt(
+        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
+        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
+        reset=False
+    ):
         """
         Configure the Keitley 2000 to detect voltages
 
@@ -1006,7 +1046,7 @@ class Keithley2000(VisaDevice):
             self.write("*RST")
             time.sleep(0.05)
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"VOLT:DC\"")
+        cmdList.append(':SENS:FUNC "VOLT:DC"')
         if NPLC is not None:
             cmdList.append(":SENS:VOLT:NPLC " + str(float(NPLC)))
         if digits is not None:
@@ -1045,7 +1085,7 @@ class Keithley2000(VisaDevice):
     def getReading(self):
         if self.triggered is True:
             result = self.query(":SENS:DATA:FRES?")
-            result = result.replace('\x13', '')
+            result = result.replace("\x13", "")
             self.triggered = False
             return float(result)
 
@@ -1063,10 +1103,19 @@ class Keithley6221(VisaDevice):
         super().__init__(interface, **kwargs)
 
     @synchronized
-    def generateWave(self, function='sinusoid', dutyCycle=None, amplitude=None,
-                     offset=None, frequency=None, rangingMode=None,
-                     durationTime=None, durationCycles=None,
-                     compliance=None, reset=True):
+    def generateWave(
+        self,
+        function="sinusoid",
+        dutyCycle=None,
+        amplitude=None,
+        offset=None,
+        frequency=None,
+        rangingMode=None,
+        durationTime=None,
+        durationCycles=None,
+        compliance=None,
+        reset=True,
+    ):
         """
         Generates a waveform signal and launches it
 
@@ -1109,11 +1158,11 @@ class Keithley6221(VisaDevice):
         if compliance is not None:
             cmdlist.append("SOUR:CURR:COMP " + str(compliance))
         # waveform
-        if function == 'sinusoid':
+        if function == "sinusoid":
             cmdlist.append("SOUR:WAVE:FUNC SIN")
-        elif function == 'square':
+        elif function == "square":
             cmdlist.append("SOUR:WAVE:FUNC SQU")
-        elif function == 'ramp':
+        elif function == "ramp":
             cmdlist.append("SOUR:WAVE:FUNC RAMP")
         # duty cycle
         if dutyCycle is not None:
@@ -1128,9 +1177,9 @@ class Keithley6221(VisaDevice):
         if frequency is not None:
             cmdlist.append("SOUR:WAVE:FREQ " + str(frequency))
         # ranging mode
-        if rangingMode == 'best':
+        if rangingMode == "best":
             cmdlist.append("SOUR:WAVE:RANG BEST")
-        elif rangingMode == 'fixed':
+        elif rangingMode == "fixed":
             cmdlist.append("SOUR:WAVE:RANG FIX")
         # duration
         if durationTime is not None:
@@ -1150,10 +1199,19 @@ class Keithley6221(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def generateArbWave(self, points=None, amplitude=None, frequency=None,
-                        offset=None, dutyCycle=None, rangingMode=None,
-                        durationTime=None, durationCycles=None,
-                        compliance=None, reset=True):
+    def generateArbWave(
+        self,
+        points=None,
+        amplitude=None,
+        frequency=None,
+        offset=None,
+        dutyCycle=None,
+        rangingMode=None,
+        durationTime=None,
+        durationCycles=None,
+        compliance=None,
+        reset=True,
+    ):
         """
         !!function not tested!!
 
@@ -1204,7 +1262,7 @@ class Keithley6221(VisaDevice):
             # convert floats to string
             points = [str(point) for point in points]
             cmdlist.append(f"SOUR:WAVE:ARB:DATA {', '.join(points[:100])}")
-            nappend = ceil(len(points)/100)
+            nappend = ceil(len(points) / 100)
             if nappend > 1:
                 for i in range(1, nappend):
                     cmdlist.append(
@@ -1222,9 +1280,9 @@ class Keithley6221(VisaDevice):
         if frequency is not None:
             cmdlist.append("SOUR:WAVE:FREQ " + str(frequency))
         # ranging mode
-        if rangingMode == 'best':
+        if rangingMode == "best":
             cmdlist.append("SOUR:WAVE:RANG BEST")
-        elif rangingMode == 'fixed':
+        elif rangingMode == "fixed":
             cmdlist.append("SOUR:WAVE:RANG FIX")
         # duration
         if durationTime is not None:
@@ -1241,8 +1299,7 @@ class Keithley6221(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def generateConstant(self, amplitude=None, autoRanging=None,
-                         sourceRange=None, compliance=None, reset=True):
+    def generateConstant(self, amplitude=None, autoRanging=None, sourceRange=None, compliance=None, reset=True):
         """
         Sets a constant current
 
@@ -1285,9 +1342,7 @@ class Keithley6221(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def generatePulseDelta(self, ihigh, ilow, width, sdel, count, rang,
-                           interval, compliance=10, sweep="OFF", lme=1,
-                           reset=False):
+    def generatePulseDelta(self, ihigh, ilow, width, sdel, count, rang, interval, compliance=10, sweep="OFF", lme=1, reset=False):
         """
         Initializes K6221 into pulse delta mode
 
@@ -1335,6 +1390,48 @@ class Keithley6221(VisaDevice):
             self.write(cmd)
 
     @synchronized
+    def generateDelta(self, i, nplc, sdel, count, rang,
+                      compliance=10, comp_abort=True,
+                      reset=False):
+        """
+        Initializes K6221 into pulse delta mode
+
+        Arguments:
+        -----
+        i:float[-0.105:0.105]
+          peak pulse current in A
+        nplc:int
+          resolution on 2182 (integer PLC)
+        sdel:float
+          source delay in s
+        count:int
+          count of delta measurements
+        rang:str
+          range of nanovoltmeter in V
+        compliance:float
+          voltage compliance
+        comp_abort:bool
+          abort on compliance triggered
+        reset:bool
+          resets the device before configuring the sequence
+        """
+        if reset is True:
+            cmdList = ["*RST"]
+        else:
+            cmdList = []
+        cmdList.append("SYST:COMM:SER:SEND \"VOLT:RANG {}\"".format(rang))
+        cmdList.append("SYST:COMM:SER:SEND \"VOLT:NPLC {}\"".format(nplc))
+        cmdList.append("SOUR:DELT:HIGH {}".format(i))
+        cmdList.append("SOUR:DELT:DEL {}".format(sdel))
+        cmdList.append("SOUR:DELT:COUN {}".format(count))
+        cmdList.append(
+            "SOUR:DELT:CAB {}".format("ON" if comp_abort else "OFF"))
+        cmdList.append("SOUR:CURR:COMP {}".format(compliance))
+        cmdList.append("TRAC:POIN {}".format(count))
+        for cmd in cmdList:
+            self.write(cmd)
+
+    @synchronized
     def pulseGo(self):
         """
         arm pulse mode and run measurement, waiting for the result
@@ -1344,44 +1441,59 @@ class Keithley6221(VisaDevice):
         self.write("INIT:IMM")
         self.query("*OPC?")
 
+    @synchronized
+    def deltaGo(self):
+        """
+        arm pulse mode and run measurement, waiting for the result
+        """
+        if 0 == int(self.query("SOUR:DELT:ARM?")):
+            self.write("SOUR:DELT:ARM")
+            time.sleep(5)
+        self.write("INIT:IMM")
+        print(self.query("*OPC?"))
+
     def pulseStop(self):
-        """ abort pulse mode """
+        """abort pulse mode"""
         self.write("SOUR:SWE:ABOR")
 
+    def deltaStop(self):
+        """ abort delta mode """
+        self.pulseStop()
+
     def fetchData(self, wait=True):
-        """ get data trace and return as array """
+        """get data trace and return as array"""
         # if wait is True:
         # while(not self.queryDone()):
         # time.sleep(0.1)
         ret = self.query("TRAC:DATA?")
-        return asfarray(ret.split(",")).reshape(-1, 2).T
+        return asarray(ret.split(","), dtype='float64').reshape(-1, 2).T
 
     @synchronized
     def waveGo(self):
-        """ initialize wave mode and turn on output """
+        """initialize wave mode and turn on output"""
         self.write("SOUR:WAVE:ARM")
         self.write("SOUR:WAVE:INIT")
 
     def queryDone(self):
-        """ check measurement finished """
+        """check measurement finished"""
         register = int(self.query("STAT:OPER?"))
         return bool(register & (1 << 7))
 
     def queryCompliance(self):
-        """ check compliance reached """
+        """check compliance reached"""
         register = int(self.query("STAT:MEAS?"))
         return bool(register & (1 << 3))
 
     def constGo(self):
-        """ turn on output for constant current """
+        """turn on output for constant current"""
         self.write("OUTP ON")
 
     def setConstCurrent(self, current):
-        """ set constant current """
+        """set constant current"""
         self.write("CURR " + str(current))
 
     def getConstCurrent(self):
-        """ read current setting (no readback!) """
+        """read current setting (no readback!)"""
         return float(self.query("CURR?"))
 
     @synchronized

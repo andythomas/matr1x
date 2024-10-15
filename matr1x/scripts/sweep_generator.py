@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
 This module contains a gui application for the creation of sweeps for matrix
@@ -8,6 +8,7 @@ in a reasonably straight forward fashion. Heavily relies on numpy.linspace
 for the creation of the sweep segments.
 """
 import os
+import re
 import sys
 import time
 import traceback
@@ -23,8 +24,8 @@ try:
     from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
                                  QLabel, QLineEdit, QListWidget, QMainWindow,
-                                 QPushButton, QScrollArea, QSizePolicy,
-                                 QTextEdit, QVBoxLayout, QWidget)
+                                 QMessageBox, QPushButton, QScrollArea,
+                                 QSizePolicy, QTextEdit, QVBoxLayout, QWidget)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
@@ -33,22 +34,17 @@ except ImportError:
     from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                                  QComboBox, QDialog, QFileDialog, QGridLayout,
                                  QLabel, QLineEdit, QListWidget, QMainWindow,
-                                 QPushButton, QScrollArea, QSizePolicy,
-                                 QTextEdit, QVBoxLayout, QWidget)
+                                 QMessageBox, QPushButton, QScrollArea,
+                                 QSizePolicy, QTextEdit, QVBoxLayout, QWidget)
 
 import pyqtgraph as pg
-from matr1x import datetimefmt
-from matr1x import systems as core_systems
-from matr1x import systems_directory, usersfolder
+from matr1x import datetimefmt, system_directories, system_names, usersfolder
 from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import CustomViewBox, validator
 from matr1x.system import MergedSystem
-from matr1x.util import calculate_sweep, generate_col_index
+from matr1x.util import (calculate_sweep, create_temp_dir_with_symlinks,
+                         generate_col_index, get_importable_module_name)
 from numpy import linspace, uint
-
-# overwrite core_systems with list of systems
-core_systems = [splitext(system)[0] for system in
-                os.listdir(core_systems.__path__[0]) if "system" in system]
 
 if os.name == 'nt':
     try:
@@ -212,6 +208,7 @@ class MainWindow(QMainWindow):
 
         self.system = system
         self.inputcb = inputcb
+        self.shortcut_dir = None
 
         # column variables
         self.flat_col = []
@@ -225,6 +222,7 @@ class MainWindow(QMainWindow):
         self.functions = []
         self.sweepParams = []
         self.systemFilename = ""
+        self.last_loaded_file = None
 
         # gui variables
         self.nRowPreview = 3
@@ -295,6 +293,34 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Sweep Generator')
 
         self.populated = False
+        # Define the allowed extension pattern
+        self.allowed_extension_pattern = re.compile(r'\.\d+t$')
+        # Enable dragging and dropping onto the widget
+        self.setAcceptDrops(True)
+
+    def is_valid_extension(self, file_path):
+        return self.allowed_extension_pattern.search(file_path) is not None
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if len(urls) == 1:
+            file_path = urls[0].toLocalFile()
+            if self.is_valid_extension(file_path):
+                self.open_file(file_path)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Invalid File",
+                    "Only files with extensions matching .<number>t are supported.")
+        else:
+            QMessageBox.warning(self, "Multiple Files",
+                                "Please drop only a single file.")
 
     def reset_layout(self):
         # reset layout to clean state
@@ -317,9 +343,9 @@ class MainWindow(QMainWindow):
             self.reset_layout()
             return
         modulestr = ""
-        filenames = [splitext(basename(filename))[0] if
-                     splitext(basename(filename))[0] in core_systems
-                     else filename for filename in filenames]
+        # update entries in GUI list
+        for j, systemfile in enumerate(filenames):
+            self.systemList.item(j).setText(systemfile)
         self.systemFilename = ",".join(filenames)
         try:
             self.system = MergedSystem.from_files(filenames)
@@ -773,19 +799,28 @@ class MainWindow(QMainWindow):
         """
         Opens a QFileDialog with filter system*.py
         """
-        # start from path of last element in systems list if one is present
-        cnt = self.systemList.count()
-        if 0 < cnt:
-            filename = os.path.dirname(self.systemList.item(cnt-1).text())
-        else:
-            filename = systems_directory
+        directory = system_directories[-1]
+        if not self.shortcut_dir and len(system_names) > 1:
+            self.shortcut_dir = create_temp_dir_with_symlinks(
+                system_names, system_directories)
+        if self.shortcut_dir:
+            directory = os.path.join(self.shortcut_dir.name,
+                                     system_names[-1])
+        if self.last_loaded_file:
+            directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog
         filename = QFileDialog.getOpenFileName(
-            self, 'Select system file', filename,
+            self, 'Select system file', directory,
             "system files (system*.py)")[0]
         if "" == filename:
             return
-        self.systemList.addItem(filename)
+        self.last_loaded_file = filename
+        filename = os.path.realpath(filename)
+        module_name = get_importable_module_name(filename)
+        if module_name:
+            self.systemList.addItem(module_name)
+        else:
+            self.systemList.addItem(filename)
         self.filename_changed()
 
     def delete_selected_system(self):
@@ -867,6 +902,10 @@ class MainWindow(QMainWindow):
         # get filename from dialog
         filename = QFileDialog.getOpenFileName(
             self, 'Select input file', usersfolder, "t files (*.*t)")[0]
+
+        self.open_file(filename)
+
+    def open_file(self, filename):
         # load system from file, define read out parameters to parse
         params = {"# params : ": None, "# loop_over : ": None,
                   "# functions : ": None, "# up_down : ": None,
@@ -900,7 +939,8 @@ class MainWindow(QMainWindow):
                 elif "comboF" == label[1] and "Function" in label[0]:
                     currentWidget.setCurrentText(self.functions[col])
                 elif "boolean" == label[1] and "Up" in label[0]:
-                    currentWidget.setCheckState(self.up_down[col])
+                    currentWidget.setCheckState(
+                        Qt.CheckState(self.up_down[col]))
                 elif "int" == label[1] and "Repeat" in label[0]:
                     if 1 == self.repeat[col]:
                         currentWidget.setText("")
@@ -914,6 +954,9 @@ def main():
             "The executable name 'sweep_generator' is deprecated. Use 'sweep-generator' instead.",
             FutureWarning)
     app = QApplication(sys.argv)
+    if os.name == 'nt':
+        # enable modern mode on windows which allows for darkmode
+        app.setStyle('fusion')
     with QtGracefulKiller():
         mw = MainWindow()
         mw.show()

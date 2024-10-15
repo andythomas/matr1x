@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 import logging
 import os
@@ -18,18 +18,18 @@ try:
     from PyQt6.QtCore import QEvent, Qt, QThread, pyqtSignal
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox,
-                                 QFileDialog, QGridLayout, QHBoxLayout, QLabel,
-                                 QLayout, QMainWindow, QMessageBox, QPushButton,
-                                 QToolButton, QWidget)
+                                 QDockWidget, QFileDialog, QGridLayout,
+                                 QHBoxLayout, QLabel, QLayout, QMainWindow,
+                                 QMessageBox, QPushButton, QToolButton, QWidget)
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
     from PyQt5.QtGui import QIcon
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLayout,
-                                 QMainWindow, QMessageBox, QPushButton, QToolButton,
-                                 QWidget)
+    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox,
+                                 QDockWidget, QFileDialog, QGridLayout,
+                                 QHBoxLayout, QLabel, QLayout, QMainWindow,
+                                 QMessageBox, QPushButton, QToolButton, QWidget)
 
 import pyqtgraph as pg
 import pyqtgraph.exporters
@@ -87,6 +87,7 @@ class SweepPreview(QMainWindow):
       parent widget
     """
     openfile_dialog = pyqtSignal()
+    allowed_extensions = ('.ma6', '.ma7')
 
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
@@ -98,16 +99,40 @@ class SweepPreview(QMainWindow):
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
         if hasattr(QApplication.instance(), 'openfile'):
-            QApplication.instance().openfile.connect(self.set_filename)
+            QApplication.instance().openfile.connect(self.open_file)
 
         # initialize filename if available
         if filename:
-            self.set_filename(filename)
+            self.open_file(filename)
         else:
             self.file_open_thread = threading.Thread(
                 target=self._delayed_file_load_attempt)
             logger.info("start delayed")
             self.file_open_thread.start()
+
+    def is_valid_extension(self, file_path):
+        return file_path.endswith(self.allowed_extensions)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if len(urls) == 1:
+            file_path = urls[0].toLocalFile()
+            if self.is_valid_extension(file_path):
+                self.open_file(file_path)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Invalid File",
+                    f"Only files with extensions {', '.join(self.allowed_extensions)} are supported.")
+        else:
+            QMessageBox.warning(self, "Multiple Files",
+                                "Please drop only a single file.")
 
     def _get_maximum_screen_width(self):
         """
@@ -126,7 +151,8 @@ class SweepPreview(QMainWindow):
         """
         if sys.platform == "darwin":
             # the mac uses an openfile event to signal the filename
-            # a 2020 intel machine required 100ms, 300ms seems like a save margin
+            # a 2020 intel machine required 100ms, 300ms seems like a save
+            # margin
             time.sleep(0.3)
         if not self.filename:
             self.openfile_dialog.emit()
@@ -143,13 +169,12 @@ class SweepPreview(QMainWindow):
             self, "Select ma file", "",
             "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
         if filename:
-            self.clear_ui()
-            self.set_filename(filename)
+            self.open_file(filename)
         else:
             if not self.filename:
                 self.w_status.setText("Please open a file")
 
-    def set_filename(self, filename):
+    def open_file(self, filename):
         logger.info(f"opening {filename}")
         self.filename = filename
         # get all files
@@ -162,6 +187,7 @@ class SweepPreview(QMainWindow):
         self.fetch_data()
         self.multidim = False
         self.error = False
+        self.clear_ui()
         self.init_ui()
         self.w_file.installEventFilter(self)
 
@@ -169,7 +195,7 @@ class SweepPreview(QMainWindow):
         files = os.listdir(self.file_dir)
         self.data_files = (
             [os.path.join(self.file_dir, file)
-             for file in files if "ma7" in file or "ma6" in file])
+             for file in files if self.is_valid_extension(file)])
         self.data_files = sorted(
             self.data_files, key=lambda t: os.stat(t).st_mtime)
 
@@ -211,6 +237,9 @@ class SweepPreview(QMainWindow):
 
         self.widget.setLayout(self.grid)
         self.setCentralWidget(self.widget)
+
+        # Enable dragging and dropping onto the widget
+        self.setAcceptDrops(True)
         self.show()
 
     def init_ui(self):
@@ -232,9 +261,18 @@ class SweepPreview(QMainWindow):
         self.w_file.setCurrentIndex(self.file_index)
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
+        w_meta = QPushButton("show meta data")
+        w_meta.setCheckable(True)
+        w_meta.toggled.connect(self.toggle_meta)
+
         l_file.addWidget(w_prev)
         l_file.addWidget(self.w_file, stretch=1)
         l_file.addWidget(w_next)
+        l_file.addWidget(w_meta)
+
+        self.w_meta_view = gu.MetaViewerWidget(self.header)
+        self.w_meta_view.setFeatures(
+            QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
 
         w_save = QPushButton("export plot")
         w_save.clicked.connect(self.save_plot)
@@ -302,6 +340,10 @@ class SweepPreview(QMainWindow):
         self.setMinimumWidth(800)
         self.setMaximumWidth(self._get_maximum_screen_width())
 
+        self.w_meta_view.setVisible(False)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
+                           self.w_meta_view)
+
     def clear_ui(self):
         for i in reversed(range(2, self.grid.count())):
             item = self.grid.takeAt(i)
@@ -311,6 +353,12 @@ class SweepPreview(QMainWindow):
             else:
                 for j in range(item.layout().count()):
                     item.layout().takeAt(0).widget().deleteLater()
+
+    def toggle_meta(self, state):
+        if state is True:
+            self.w_meta_view.setVisible(True)
+        else:
+            self.w_meta_view.setVisible(False)
 
     def save_plot(self):
         filename = QFileDialog.getSaveFileName(
@@ -365,6 +413,7 @@ class SweepPreview(QMainWindow):
                 self.spw.w_plots.setCurrentIndex(i)
             # reset active plot
             self.spw.w_plots.setCurrentIndex(ci)
+        self.w_meta_view.update_data(self.header)
 
     def index_changed(self, newIndex):
         """
@@ -483,6 +532,7 @@ class SweepPreview(QMainWindow):
             ret = self.fetch_data(check=check)
             self.reload_data()
             self.refresh_all_plots()
+            self.refresh_columns_size()
         elif getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
@@ -491,8 +541,19 @@ class SweepPreview(QMainWindow):
             # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
+            self.reload_data()
             self.refresh_all_plots()
+            self.refresh_columns_size()
         return ret
+
+    def refresh_columns_size(self):
+        self.column_items = [
+            f"{name} ({unit}), shape: {shape}" for name, unit, shape
+            in zip(self.names, self.units, self.shapes)]
+        # change names to reflect the dimensions
+        for i in range(3):
+            for j, item in enumerate(self.column_items):
+                self.w_index[i].setItemText(j+1, item)
 
     def refresh_all_plots(self):
         """
@@ -521,7 +582,8 @@ class SweepPreview(QMainWindow):
         """
         try:
             ret = 0
-            self.header, self.data = loadmatrix(self.filename)
+            self.header, self.data = loadmatrix(self.filename,
+                                                replace_None=True)
             names = self.header["columns"]
             units = self.header["units"]
             shapes = [self.data[col].shape for col in names]
@@ -540,7 +602,7 @@ class SweepPreview(QMainWindow):
         except Exception:
             # file could not be opened
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            a = QMessageBox.critical(
+            _ = QMessageBox.critical(
                 self, "Error when opening file",
                 f"""
 The following error was raised when opening the file:
@@ -842,6 +904,9 @@ def main():
             "The executable name 'matrix_preview' is deprecated. Use 'matrix-preview' instead.",
             FutureWarning)
     app = Matr1xApplication(sys.argv)
+    if os.name == 'nt':
+        # enable modern mode on windows which allows for darkmode
+        app.setStyle('fusion')
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process

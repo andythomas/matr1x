@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
 This module defines a system for testing and demonstration purposes of the
@@ -30,14 +30,6 @@ sys = System()
 sys.dcdata["Source"] = "dummy system for testing system merging"
 # ============================
 
-
-# ========================================================================
-# define custom functions here
-# ========================================================================
-
-# ========================================================================
-
-
 # ========================================================================
 # This is the main system area
 # Device definition and configuration takes place here, but devices do
@@ -59,7 +51,7 @@ sys.dcdata["Source"] = "dummy system for testing system merging"
 # query options which allow to readout the configuration of a device which will
 # be stored in the data file header.
 sys.add_dev("devmeas", dummy, args=("TCPIP::localhost::10005::SOCKET", ),
-            kwargs={"p1": 5, "p4": [5, 3, 2, 1]}, config_params={"p4":
+            kwargs={"p5": 5, "p4": [5, 3, 2, 1]}, config_params={"p4":
                                                                  "p4"})
 
 # ============================
@@ -86,5 +78,5 @@ sys.add_param(
 sys.add_param(
     "devmeas p1", "cnt",
     None,
-    ["devmeas", "p1"])
+    ["devmeas", "p5"])
 # ============================

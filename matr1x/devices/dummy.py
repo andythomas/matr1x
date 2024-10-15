@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
 module implementing a dummy device used for automatic testing of the code base.
@@ -15,7 +15,7 @@ from .scpi_dev import makeSCPIdevice
 logger = logging.getLogger(__name__)
 
 cmd_list = {"*idn": Get(str, lambda: "dummy_device"),
-            ":p1": Command(int, "_p1", "_p1"),
+            ":p1": Command(str, "_p1", "_p1"),
             ":p2": Command(float, "_p2", "_p2"),
             ":p3": Command([float, float], "_p3", "_p3"),
             ":p4": Command([float, float, float, float], "_p4", "_p4"),
@@ -57,7 +57,7 @@ class dummy(dummy_dev):
     def __init__(self, adapter, **kwargs):
         self.localServer = None
 
-        self._p1 = kwargs.pop("p1", 0)
+        self._p1 = kwargs.pop("p1", "0")
         self._p2 = kwargs.pop("p2", 0.)
         self._p3 = kwargs.pop("p3", [0]*2)
         self._p4 = kwargs.pop("p4", [0]*4)

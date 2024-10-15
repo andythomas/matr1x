@@ -1,13 +1,19 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 import configparser
 import logging
+import os
 import os.path
 import sys
 import tempfile
 from datetime import date
+
+from .util import get_package_path
+
+# default datafile extension
+output_extension = ".ma7"
 
 # parse global default config
 confparser = configparser.ConfigParser()
@@ -19,22 +25,6 @@ cfiles = confparser.read([
 
 datetimefmt = confparser.get("matr1x", "datetime_format",
                              fallback="%Y-%m-%dT%H:%M:%S")
-
-usersfolder = os.path.expanduser(confparser.get("matr1x", "usersDirectory",
-                                 fallback=os.path.join('~', 'users')))
-if not os.path.exists(usersfolder):
-    usersfolder = os.path.expanduser("~")
-
-systems_directory = os.path.expanduser(
-    confparser.get("matr1x", "systemsDirectory", fallback="<pkgroot>/systems"))
-
-# replace pkgroot placeholder if present
-if "<pkgroot>/" in systems_directory:
-    systems_directory = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        systems_directory.replace("<pkgroot>/", ""))
-# expand eventual home
-systems_directory = os.path.expanduser(systems_directory)
 
 # set up logging, mostly for debugging purposes.
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
@@ -63,3 +53,56 @@ handlers.append(logging.FileHandler(
 
 kwargs["handlers"] = handlers
 logging.basicConfig(**kwargs)
+
+# load setting for the execution path of matrix-script scripts. With the default
+# value of None this will be the directory in which matrix-script was started.
+# Using the start menu integration this typically is the home folder of the
+# current user. Alternatively it can be the directory in which '*.matrix' file
+# is stored ("<script-location>") or any valid folder.
+matrix_script_execution_path = confparser.get("matr1x", "script-path",
+                                              fallback=None)
+if matrix_script_execution_path not in (None, "<script-location>"):
+    if not os.path.exists(matrix_script_execution_path):
+        matrix_script_execution_path = None
+
+usersfolder = os.path.expanduser(confparser.get("matr1x", "usersDirectory",
+                                 fallback=os.path.join('~', 'users')))
+if not os.path.exists(usersfolder):
+    usersfolder = os.path.expanduser("~")
+
+_systems_directory = os.path.expanduser(
+    confparser.get("matr1x", "systemsDirectory", fallback="<pkgroot>/systems"))
+
+# replace pkgroot placeholder if present
+if "<pkgroot>/" in _systems_directory:
+    _systems_directory = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        _systems_directory.replace("<pkgroot>/", ""))
+# expand eventual home
+_systems_directory = os.path.expanduser(_systems_directory)
+if not os.path.isdir(_systems_directory):
+    print("matrix.conf: option matr1x/systemsDirectory is invalid, using "
+          "fallback")
+    # use fallback option
+    _systems_directory = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "systems")
+
+system_names = ['matr1x-systems', ]
+system_directories = [_systems_directory, ]
+for section in confparser.sections():
+    if section != "matr1x":
+        if confparser.has_option(section, "systemsDirectory"):
+            sysdir = confparser.get(section, "systemsDirectory")
+            # replace pkgroot placeholder
+            if "<pkgroot>/" in sysdir:
+                sysdir = os.path.join(
+                    get_package_path(section),
+                    sysdir.replace("<pkgroot>/", ""))
+            # expand eventual home
+            sysdir = os.path.expanduser(sysdir)
+            if os.path.isdir(sysdir):
+                system_names.append(f"{section}-systems")
+                system_directories.append(sysdir)
+            else:
+                print(f"matrix.conf: option {section}/systemsDirectory has "
+                      f"invalid value '{sysdir}'")

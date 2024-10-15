@@ -1,28 +1,43 @@
 [project]
 name = "matr1x"
-version = "7.2.0"
+version = "7.4.0"
 description = "Python package for data acquisition and measurement control"
-requires-python = ">=3.6"
+requires-python = ">=3.8"
+license = {text = "GPL-3.0-or-later"}
+classifiers = [
+  "Private :: Do Not Upload",
+  "Development Status :: 5 - Production/Stable",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering",
+  "Intended Audience :: Science/Research",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+]
 dependencies = [
   "natsort",
   "numpy",
+  "pandas",
+  "psutil",
+  "pyflakes",
   "pymeasure",
   "pyserial",
   "pyvisa",
   "pyvisa-py",
-  'pyvisa-py < 0.6.0; python_version < "3.8"',
   "urwid>2.0",
   "wrapt",
+  "pyqtgraph >= 0.11.0",
+  "PyQt6",
+  "PyQt6 >= 6.5.0 ; platform_system == 'Windows'",
+  "PyQt6-QScintilla",
+  "autopep8",
+  "h5py",
 ]
 [project.optional-dependencies]
 spi = ["spidev", "RPi"]
-# comment out PyQt5 dependency on Debian/Raspian 10 (or older)
-qt5 = ["pyqtgraph >= 0.11.0", "PyQt5 >= 5.14.0", "QScintilla", "pyflakes", 
-       "autopep8"]
-qt6 = ["pyqtgraph >= 0.11.0", "PyQt6", "PyQt6-QScintilla", "pyflakes",
-       "autopep8"]
 standa = ["PyUSMC", "pyximc"]
-h5py = ["h5py"]
+git = ["pygit2"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
@@ -36,7 +51,7 @@ matrix_script = "matr1x.scripts.matrix_script:main"
 matrix-script = "matr1x.scripts.matrix_script:main"
 matrix_preview = "matr1x.scripts.matrix_preview:main"
 matrix-preview = "matr1x.scripts.matrix_preview:main"
-control_dummy = "matr1x.control.control_dummy_legacy:main"
+control-dummy-legacy = "matr1x.control.control_dummy_legacy:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
 
@@ -47,6 +62,9 @@ homepage = "https://github.com/andythomas/IFW_software"
 # use flit since setuptools does currently not support PEP660
 requires = ["flit_core >=3.6,<4"]
 build-backend = "flit_core.buildapi"
+
+[tool.ruff]
+line-length = 120
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"

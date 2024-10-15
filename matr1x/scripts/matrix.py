@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
 matrix.py takes an input file, a system file (can be specified in the input
@@ -22,21 +22,10 @@ import traceback
 import urwid
 from matr1x.system import MergedSystem
 from matr1x.util import (flatten, flush_input, generate_col_index,
-                         generate_datafilename, nonblocking_getch,
-                         print_formatted_line, telemetry_string,
-                         write_matrix_header)
+                         nonblocking_getch, open_and_error,
+                         print_formatted_line, telemetry_string)
 
 from . import MATRIX_GUI_PORT
-
-
-def report_filename_to_gui(filename):
-    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        clientSocket.connect(("127.0.0.1", MATRIX_GUI_PORT))
-    except ConnectionRefusedError:
-        # GUI not running, just ignore this error
-        return
-    clientSocket.send(filename.encode())
 
 
 def parse_inputfile(inputfile, system):
@@ -49,7 +38,7 @@ def parse_inputfile(inputfile, system):
         # get key
         key = arg[0]
         # properly handles "aa", "ab", "ba" and also logpoint (last)
-        return sum([(ord(c)-96)*26**i for i, c in enumerate(key[::-1])])
+        return sum((ord(c) - 96) * 26**i for (i, c) in enumerate(key[::-1]))
     # define the line parser for the matrix inputfile
     # parses parameters as 0 = -a val(s), 1 = -b val(s), etc.
     pointparser = argparse.ArgumentParser(add_help=False)
@@ -66,8 +55,9 @@ def parse_inputfile(inputfile, system):
     with open(inputfile, 'r') as parameterfile:
         for nr, line in enumerate(parameterfile):
             # jump over comments
-            if (line[0] != "#"):
-                # divide the string into a list and read the values into datapoint
+            if line[0] != "#":
+                # divide the string into a list and
+                # read the values into datapoint
                 parameterlist = shlex.split(line)
                 for i, arg in enumerate(parameterlist):
                     if (arg[0] == '-') and arg[1].isdigit():
@@ -98,7 +88,7 @@ def parse_inputfile(inputfile, system):
                 yield datapoint
 
 
-def measurementloop(inputfile, output_filename, system,
+def measurementloop(inputfile, system,
                     setvalcb=lambda s: None, readvalcb=lambda r: None,
                     telemetrycb=lambda s: None, inputcb=lambda n: 0):
     """
@@ -138,7 +128,7 @@ def measurementloop(inputfile, output_filename, system,
             # now trigger all parameters in system
             system.trigger()
             # devices have been triggered, now read measurement
-            return_list = system.take_measurement_point(output_filename)
+            return_list = system.take_measurement_point()
             # measurements have been saved to file, print to screen now
             readvalcb(return_list)
 
@@ -155,10 +145,11 @@ def measurementloop(inputfile, output_filename, system,
     return 0
 
 
-def measure_plain(inputfile, output_filename, system):
+def measure_plain(inputfile, system, quiet=False):
     """
-    measurement loop with plain print output to the terminal
-    (mainly for continuous integration on Github actions)
+    measurement loop with plain print output to the terminal or reduced output
+    when quiet is set to True. This measurement mode is mainly used for
+    continuous integration on Github actions and use on MS Windows.
     """
 
     def inputcb(n):
@@ -166,7 +157,7 @@ def measure_plain(inputfile, output_filename, system):
         if key in ('q', 'Q'):
             sys.stdout.write(f"Note: aborted with q after {n} points\n\n\n")
             return 1
-        elif key in ('p', 'P'):
+        if key in ('p', 'P'):
             sys.stdout.write("paused - continue with 'p'\n")
             # wait for unpause with p
             while True:
@@ -176,23 +167,30 @@ def measure_plain(inputfile, output_filename, system):
                     sys.stdout.write(
                         f"Note: aborted with q after {n} points\n\n\n")
                     return 1
-                elif key in ('p', 'P'):
+                if key in ('p', 'P'):
                     break
         return 0
 
-    # print header
-    print_formatted_line(list(flatten(system.columns)))
-    print_formatted_line(list(flatten(system.units)))
-    ret = measurementloop(inputfile, output_filename, system,
-                          lambda s: print_formatted_line(s, "Set : "),
-                          lambda r: print_formatted_line(r, "Meas: "),
-                          lambda t: print(t),
-                          inputcb)
+    if not quiet:
+        # print header
+        print_formatted_line(list(flatten(system.columns)))
+        print_formatted_line(list(flatten(system.units)))
+
+        ret = measurementloop(inputfile, system,
+                              lambda s: print_formatted_line(s, "Set : "),
+                              lambda s: print_formatted_line(s, "Meas: "),
+                              print, inputcb)
+    else:
+        ret = measurementloop(inputfile, system,
+                              readvalcb=lambda s: print(
+                                  ".", end="", flush=True),
+                              inputcb=inputcb)
+        print("")  # produce newline at end of measurement
 
     return ret
 
 
-def measure_urwid(inputfile, output_filename, systemfile, system):
+def measure_urwid(inputfile, systemfile, system):
     """
     measurement loop with urwid based output to the terminal
     """
@@ -201,7 +199,7 @@ def measure_urwid(inputfile, output_filename, systemfile, system):
     info = urwid.Text(
         "Pause/Quit graciously with p/q after current cycle", align='center')
     outf = urwid.Text(" output filename : " +
-                      output_filename + "\n", wrap='clip')
+                      system.filename + "\n", wrap='clip')
     inpf = urwid.Text(" Input filename  : " +
                       inputfile + "\n", wrap='clip')
     systemf = urwid.Text(" systemfile      : " +
@@ -265,7 +263,7 @@ def measure_urwid(inputfile, output_filename, systemfile, system):
                 if key in ('q', 'Q'):
                     msg += f"Note: aborted with q after {n} points"
                     return 1
-                elif key in ('p', 'P'):
+                if key in ('p', 'P'):
                     msg += f"paused at {time.time()} after {n} points\n"
                     status.set_text("paused - continue with 'p'")
                     loop.draw_screen()
@@ -277,7 +275,7 @@ def measure_urwid(inputfile, output_filename, systemfile, system):
                             if key in ('q', 'Q'):
                                 msg += f"Note: aborted with q after {n} points"
                                 return 1
-                            elif key in ('p', 'P'):
+                            if key in ('p', 'P'):
                                 flag = False
                     status.set_text("")
                     loop.draw_screen()
@@ -286,7 +284,7 @@ def measure_urwid(inputfile, output_filename, systemfile, system):
             loop.draw_screen()
             return 0
 
-        ret = measurementloop(inputfile, output_filename, system, setvalcb,
+        ret = measurementloop(inputfile, system, setvalcb,
                               readvalcb, telemetrycb, inputcb)
 
     return ret, msg
@@ -307,11 +305,13 @@ def main():
                         help="Name of the operator/user for the data file header")
     parser.add_argument("-S", "--sample", default=None,
                         help="sample identification for the data file header")
-    parser.add_argument("-af", "--append", default=0, type=int,
-                        help="instead of appending a continuous number" +
-                        "to the output file, append to last file")
+    parser.add_argument("-af", "--append", action='store_true',
+                        help="instead of appending a continuous number " +
+                        "to the output file, append to output file.")
     parser.add_argument("-p", "--plain", action='store_true',
                         help="use plain output instead of the urwid library")
+    parser.add_argument("-q", "--quiet", action='store_true',
+                        help="produce reduced output (no measurement data)")
 
     # parse the command line
     options = parser.parse_args()
@@ -319,37 +319,58 @@ def main():
     # flush input buffer to avoid old inputs to mess with a new measurement
     flush_input()
 
+    # initialize socket to GUI, done in the beginning to ensure that the GUI
+    # is not stuck waiting for the connection
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        client_socket.connect(("127.0.0.1", MATRIX_GUI_PORT))
+    except ConnectionRefusedError:
+        # GUI not running, just ignore this error
+        client_socket = None
+
     # check input file header for system file information
     systemfile = None
-    with open(options.inputfile, 'r') as f:
-        for line in f:
-            if "# System" in line:
-                systemfile = line.replace(
-                    "# System filename : ", "").split(",")
-            if "# Settable columns" in line:
-                settable_names_file = line.strip().replace(
-                    "# Settable columns : ", "").split(",")
-            if "# Settable units" in line:
-                settable_units_file = line.strip().replace(
-                    "# Settable units : ", "").split(",")
-            if "#" != line[0]:
-                break
+    with open_and_error(options.inputfile, 'r') as (f, err):
+        if err:
+            print("matrix: error:", err)
+            sys.exit(1)
+        else:
+            for line in f:
+                if "# System" in line:
+                    systemfile = line.replace(
+                        "# System filename : ", "").split(",")
+                if "# Settable columns" in line:
+                    settable_names_file = line.strip().replace(
+                        "# Settable columns : ", "").split(",")
+                if "# Settable units" in line:
+                    settable_units_file = line.strip().replace(
+                        "# Settable units : ", "").split(",")
+                if "#" != line[0]:
+                    break
 
     # import self made libraries
     if options.systemfile is None:
         if systemfile is None:
-            exit("no system file specified")
+            print("matrix: error: no system file specified")
+            sys.exit(1)
         else:
             # find system from input file
             options.systemfile = systemfile
             # replace option with correct systems
 
     # merge all systems into new system (works also for single systems)
-    system = MergedSystem.from_files(options.systemfile)
+    try:
+        system = MergedSystem.from_files(options.systemfile)
+    except ModuleNotFoundError:
+        print("matrix: error: system file does not exist")
+        sys.exit(1)
+    except PermissionError:
+        print("matrix: error: system file not readable")
+        sys.exit(1)
 
     # get columns from input file to verify input file was generated with the
     # same system version (i.e. has the same parameter names and units)
-    settable, settable_names, settable_units = system.settable_columns()
+    _, settable_names, settable_units = system.settable_columns()
 
     # verify that input file has correct columns and units
     if ((settable_names != settable_names_file or
@@ -361,12 +382,16 @@ def main():
               "Are you sure you want to continue?\n")
         resp = input("Please enter (y/n): ").strip()
         if "y" != resp:
-            exit()
+            sys.exit(0)
 
     # obtain output file name and mode used to open the file
-    output_filename, output_filemode = generate_datafilename(
-        system, options.outputfile, options.inputfile, options.append)
-    report_filename_to_gui(output_filename)
+    output_filename = system.generate_datafilename(
+        options.outputfile, options.inputfile, options.append)
+
+    # report filename to GUI if GUI is active and close socket
+    if client_socket is not None:
+        client_socket.send(output_filename.encode())
+        client_socket.close()
 
     # initialize devices and notify user what is going on
     print("setting devices")
@@ -374,7 +399,11 @@ def main():
 
     # acquire configuration from devices and notify user what is going on
     print("devices set, acquiring configuration")
-    query_dict = system.query()
+    try:
+        query_dict = system.query()
+    except Exception:
+        print("matrix: error: could not aquire configuration.")
+        sys.exit(1)
 
     # initialize header and insert command line options into measurement
     # file (can include device config etc.)
@@ -384,24 +413,27 @@ def main():
         system.dcdata["Creator"] = options.user
     if options.sample is not None:
         system.dcdata["Identifier"] = options.sample
-    write_matrix_header(output_filename, output_filemode,
-                        options.inputfile, system, query_dict)
+    try:
+        system.write_matrix_header(options.inputfile, query_dict)
+    except IOError:
+        print("matrix: error: cannot create output file")
+        sys.exit(1)
 
     # do the loop
     print("entering loop now")
     # read the parameter input file
     try:
         # enforce plain interface on Windows because urwid would fail
-        if options.plain or os.name == 'nt':
+        if options.plain or options.quiet or os.name == 'nt':
             control_string = "To pause or quit after next point, press p/q"
             if os.name != 'nt':
                 control_string += " and enter"
-                # print help string for pause in plain version on windows
+            # print help string for pause in plain version
             print(control_string)
-            ret = measure_plain(options.inputfile, output_filename, system)
+            ret = measure_plain(options.inputfile, system, quiet=options.quiet)
         else:
-            ret, msg = measure_urwid(options.inputfile, output_filename,
-                                     options.systemfile, system)
+            ret, msg = measure_urwid(
+                options.inputfile, options.systemfile, system)
             if msg:
                 print(msg)
     except KeyboardInterrupt as e:

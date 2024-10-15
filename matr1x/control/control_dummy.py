@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 
 import collections
@@ -37,18 +37,13 @@ class exampleDict(GuiDict):
     # Initialize dicts for GUI display as well as variable storage
     # Variables are stored in dict[key].value, GUI elements in dict[key].widgets
     # The GUI is initialized with the elements specified in dict[key].columns, where
-    # key is label and
-    # 0 : button
-    # 1 : lineedit
-    # 2 : checkbox
-    # 3 : progress
-    # 4 : combobox
+    # key is label and entries should be of type guiObject.
     # A list means multiple widgets on one row
     # The unit of a variable can be set using the "unit" parameter and is then
     # shown in the label and included in the logging file. The logging
     # preference for the parameter is set by the boolean "log" parameter.
     cmds = {
-        ":v1": Command(int, "setV1", "V1"),
+        ":v1": Command(str, "setV1", "V1"),
         ":v2": Command(float, ("dummy", "p2"), "V2"),
         ":v3": Command(float, ("dummy", "p5"), "V3"),
         ":v2v3": Command((float, float), "setV2V3", "getV2V3"),
@@ -56,22 +51,23 @@ class exampleDict(GuiDict):
     }
     data = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
-        "V1": var((int, int), columns=[go.combobox, go.combobox],
-                  log=True, init=("i1", "i2")),
-        "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
+        "V1": var(dtype=str, columns=[go.labeltext, go.combobox],
+                  log=True, init=[None, ("i1", "i2")]),
+        "V2": var(float, columns=[go.labeltext, go.lineedit], unit="mT"),
         "V3": var(dtype=float, outType=int, columns=[go.progressbar,
                                                      go.doublespinbox],
-                  log=True, unit="%", init=[None, (0, 100)]),
-        "V4": var(dtype=bool, outType=bool, columns=[go.checkbox, go.checkbox]),
+                  log=False, unit="%", init=[None, (0, 100)], hide=True),
+        "V4": var(dtype=bool, outType=bool,
+                  columns=[go.checkbox, go.checkbox], log=True,),
         "toggle": var(dtype=bool, outType=bool, columns=[go.checkbox,
                                                          go.togglebutton],
-                      init=[None, ("Slow", "Error")]),
+                      init=[None, ("Slow", "Error")], log=None),
         "Set": var(None, columns=[go.button, go.button],
                    init=["Set", "Copy"]),
     }
     S = system.System(name="dummy")
     S.add_dev("dummy", dummy, args=("TCPIP::localhost::10007::SOCKET", ),
-              kwargs={'p1': 1, 'p2': 0, 'p5': 5.5, 'p6': True})
+              kwargs={'p1': 'i1', 'p2': 0, 'p5': 5.5, 'p6': True})
 
     def create_GUI(self):
         content = super().create_GUI()
@@ -89,9 +85,12 @@ class exampleDict(GuiDict):
         # always set the value (never change GUI directly!!!)
         self["V1"].value = self.S.devs["dummy"].p1
         self["V2"].value = self.S.devs["dummy"].p2
-        self["V3"].value = self.S.devs["dummy"].p5
         self["V4"].value = self.S.devs["dummy"].p6
         self["toggle"].value = self.S.devs["dummy"].p7
+
+        if self.extend_switch.isChecked():
+            # update hidable items only when shown
+            self["V3"].value = self.S.devs["dummy"].p5
 
         if self["V4"].value is False:
             # emit panic signel
@@ -123,8 +122,7 @@ class exampleDict(GuiDict):
 
     # example functions
     def setV1(self, val):
-        if val in (0, 1):
-            self.S.devs["dummy"].p1 = val
+        self.S.devs["dummy"].p1 = val
 
     def setV2V3(self, val):
         self.S.devs["dummy"].p2 = val[0]
@@ -135,7 +133,7 @@ class exampleDict(GuiDict):
         Return the values buffered in the GUI to make this request fast.
         Alternatively device access here is of course possible.
         """
-        return [self["V2"].getGUIvalue(), self["V3"].getGUIvalue()]
+        return [self["V2"].value, self["V3"].value]
 
     def panic(self):
         """
@@ -151,11 +149,12 @@ class exampleDict2(GuiDict):
     }
     data = {
         "Example2": var(None, columns="Readout"),
-        "V5": var(float, columns=1, unit="mbar"),
-        "Info": var(None, columns="For testing purposes errors are raised \n"
-                                  "when V4 is set to False, the toggle \n"
-                                  "switch is pressed twice, or via the \n"
-                                  "Panic Button."),
+        "V5": var(float, columns=go.labeltext, unit="mbar"),
+        "Info": var(str, columns="For testing purposes errors are raised \n"
+                    "when V4 is set to False, the toggle \n"
+                    "switch is pressed twice, or via the \n"
+                    "Panic Button.",
+                    hide=True),
     }
     # set a custom interval for the refresh function which updates the values
     # from the hardware
@@ -180,8 +179,7 @@ class exampleDict2(GuiDict):
         self.timestamps = collections.deque(maxlen=N)
         # enable setting the tooltip
         self.qobject = self.MyQObject()
-        # lambda function is needed here!
-        self.qobject.tooltip.connect(lambda *args: self.set_tooltip(*args))
+        self.qobject.tooltip.connect(self.set_tooltip)
 
     def refresh(self, count):
         self["V5"].value = self.v5
@@ -199,7 +197,6 @@ class exampleDict2(GuiDict):
                     f"std: {std:.3f} mbar")
             self.v5 = round(30*numpy.random.random(), 3)
 
-    @QtCore.pyqtSlot(str, str)
     def set_tooltip(self, label, tooltip):
         """Set tooltip thread safe on any widget in the first column."""
         if label in self:
@@ -217,5 +214,4 @@ def main():
     control_main("dummy",
                  ControlWindow,
                  guidicts=(exampleDict(), exampleDict2()),
-                 extra_cmds=common_commands,
-                 lockfile=True)
+                 extra_cmds=common_commands)

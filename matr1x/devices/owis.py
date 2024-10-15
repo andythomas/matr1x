@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 import logging
 import time
@@ -193,7 +193,7 @@ class SMS(VisaDevice):
             self.write(f"A{self._axes[ax]}{int(pos):d}")
         # wait to make reasonably sure command reaches the driver
         time.sleep(0.25)
-        self.write(f"S")
+        self.write("S")
 
     def move_rel_nonblocking(self, pos, ax=0):
         """
@@ -224,7 +224,7 @@ class SMS(VisaDevice):
             self.write(f"P{self._axes[ax]}{int(pos):d}")
         # wait to make reasonably sure command reaches the driver
         time.sleep(0.25)
-        self.write(f"S")
+        self.write("S")
 
     def get_moving(self, ax=0):
         """

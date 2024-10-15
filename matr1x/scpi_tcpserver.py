@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
 This module contains a class for creating a (mostly) SCPI compatible
@@ -142,11 +142,19 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                                     c.setfunc(*c.setargs)
                                 else:
                                     c.setfunc(castval, *c.setargs)
+                                # send back ASCII acknowledge character
+                                # this is crucial on Linux where the
+                                # request/reply pattern has to be strictly
+                                # obeyed, otherwise some ~40ms delay is caused.
+                                response.append('\x06')
                         except (IndexError, TypeError, ValueError):
                             # in case of incorrectly sent command do nothing
                             pass
                     else:
-                        logger.debug("no valid setter for command: %s", cmd)
+                        logger.debug("'None' setter for command: %s", cmd)
+                        # return "acknowledgement" anyways to allow to continue
+                        # also see comment few lines above why this is in addition needed.
+                        response.append('\x06')
         return response
 
     def handle(self):

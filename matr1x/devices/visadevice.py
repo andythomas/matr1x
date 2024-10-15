@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2022 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
 In this module the base class for all device drivers in this package is
@@ -122,22 +122,51 @@ class VisaDevice(object):
         else:
             self.timedelay = None
 
-        # Open the connection to the device
-        VISArm = pyvisa.ResourceManager(kwargs.pop("backend", ""))
-        if isinstance(self.interface, pyvisa.resources.Resource):
-            self.VISAdev = self.interface
-            return
-        self.VISAdev = VISArm.open_resource(self.interface)
-        if self.pts:
-            print(f"C: {self.name}")
-        logger.info(f"Connection to {self.name} opened")
-        # apply kwargs to visadevice (say baudrate)
-        # should only modify available properties, so should be immune
-        # against "wrong" device parameters
-        # needs to be tested!
-        for key, val in kwargs.items():
-            if hasattr(self.VISAdev, key):
-                setattr(self.VISAdev, key, val)
+        self._kwargs = kwargs
+        self._opened = False
+        self.open()
+
+    def open(self):
+        """
+        open device communication port from parameters given to the constructor
+        method.
+        """
+        if not self._opened:
+            # copy kwargs dictionary to modify in this function
+            kwargs = copy.copy(self._kwargs)
+            # Open the connection to the device
+            self.manager = pyvisa.ResourceManager(kwargs.pop("backend", ""))
+            if isinstance(self.interface, pyvisa.resources.Resource):
+                self.connection = self.interface
+                return
+            try:
+                self.connection = self.manager.open_resource(self.interface)
+                if self.pts:
+                    print(f"C: {self.name}")
+                logger.info("Connection to %s opened", self.name)
+                # apply kwargs to visadevice (say baudrate)
+                # should only modify available properties, so should be immune
+                # against "wrong" device parameters
+                for key, val in kwargs.items():
+                    if hasattr(self.connection, key):
+                        setattr(self.connection, key, val)
+            except Exception as e:
+                logger.info("Exception during opening of %s", self.name)
+                try:
+                    self.connection.close()
+                except AttributeError:
+                    pass
+                raise e
+            self._opened = True
+
+    def close(self):
+        """
+        Close device connection in a way which allows to reopen it later in the
+        same Python process
+        """
+        if self._opened:
+            self.connection.close()
+            self._opened = False
 
     @synchronized
     @output_name_on_error

@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 """
 This module contains utility function for generating control guis or devices
@@ -35,6 +35,7 @@ from operator import attrgetter
 from subprocess import PIPE, Popen
 
 import numpy
+import psutil
 
 try:
     from PyQt6 import QtCore
@@ -99,7 +100,7 @@ def catchEmitError(method):
                 print(outstr)
                 if guidict.allow_disabling:
                     guidict.enable_switch.setChecked(False)
-                    outstr = f"Ignoring last Exception since device can be deactivated."
+                    outstr = "Ignoring last Exception since device can be deactivated."
                     logger.info(outstr)
                     print(outstr)
                     return
@@ -127,6 +128,7 @@ class guiObject(IntEnum):
     togglebutton = 5
     spinbox = 6
     doublespinbox = 7
+    labeltext = 8
 
     @classmethod
     def getWidget(cls, label, wType, init=None):
@@ -150,6 +152,7 @@ class guiObject(IntEnum):
           * 5 : QPushButton(checkable=True)
           * 6 : QSpinBox
           * 7 : QDoubleSpinBox
+          * 8 : QLabel: used as Value indicator
         init : tuple, str, optional
           provides the initialization values (button label, valid ranges,
           combobox entries)
@@ -177,6 +180,11 @@ class guiObject(IntEnum):
             qlab.setSizePolicy(QSizePolicy.Policy.Preferred,
                                QSizePolicy.Policy.Fixed)
             return qlab
+        if cls.labeltext == wType:
+            label = QLabel(init if init else None)
+            label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse)
+            return label
         if cls.button == wType:
             return QPushButton(init if init else label)
         if cls.lineedit == wType:
@@ -186,10 +194,10 @@ class guiObject(IntEnum):
         if cls.progressbar == wType:
             return matr1xProgressBar()
         if cls.combobox == wType:
-            dummy = QComboBox()
+            qcombo = QComboBox()
             if init is not None:
-                dummy.insertItems(0, init)
-            return dummy
+                qcombo.insertItems(0, init)
+            return qcombo
         if cls.togglebutton == wType:
             return ToggleButton(init if init else label)
         if cls.spinbox == wType:
@@ -225,8 +233,10 @@ class var(QObject):
       alter it in the second. The values should be enumerations from guiObject.
     unit: str
       unit string used in the label and data logging.
-    log: bool
-      boolean flag to set the default behavior in the logging config
+    log: bool or None
+      boolean flag to set the default behavior in the logging config, if None
+      no checkbox is shown
+      If dType is None, this value is ignored
     init: list
       initialization values. This should be a list of the same length as
       columns. If it is of non-list type its assumed to apply to all entries of
@@ -236,7 +246,7 @@ class var(QObject):
     unitChanged = pyqtSignal([str])
 
     def __init__(self, dtype=(float, str), outType=str, columns=None, unit="",
-                 log=False, init=None):
+                 log=False, init=None, hide=False):
         super().__init__()
         if isinstance(dtype, Iterable):
             self.variableType = dtype[0]
@@ -247,8 +257,12 @@ class var(QObject):
 
         self._value = None
         self._unit = unit
-        self.log = log
+        if self.variableType is None:
+            self.log = None
+        else:
+            self.log = log
         self.init = init
+        self.hide = hide
         if columns is None:
             self.columns = []
         elif not isinstance(columns, list):
@@ -349,8 +363,7 @@ class var(QObject):
                     self.widgets[2].setValidator(val)
 
         # add config checkbox
-        if len(self.widgets) > 1 and not isinstance(self.widgets[1],
-                                                    (QLabel, QPushButton)):
+        if len(self.widgets) > 1 and self.log is not None:
             # prepare checkbox for controlling the data logging
             # only add if there is a value attached to the display
             checkbox = QCheckBox()
@@ -360,6 +373,9 @@ class var(QObject):
             self.widgets.append(checkbox)
         # connect variable value with the widgets
         self.connect_signal()
+        if self.hide:
+            for w in self.widgets:
+                w.hide()
 
     def updateLabel(self, newunit):
         label = self.widgets[0].text()
@@ -401,8 +417,8 @@ class var(QObject):
         connects the valueChanged signal of self.value to the corresponding
         widget
         """
-        if len(self.widgets) >= 2:
-            if isinstance(self.widgets[1], QLineEdit):
+        if len(self.widgets) >= 2 and self.variableType is not None:
+            if isinstance(self.widgets[1], (QLineEdit, QLabel)):
                 self.valueChanged[str].connect(
                     self.widgets[1].setText)
             elif isinstance(self.widgets[1],
@@ -437,20 +453,25 @@ class var(QObject):
         copies the read values into the set field
         """
         # check that a set-field exists, otherwise pass
-        if len(self.columns) >= 2:
-            if isinstance(self.widgets[2], QLineEdit):
-                self.widgets[2].setText(str(self.value))
-            elif isinstance(self.widgets[2], QComboBox):
-                if self.variableType is int:
-                    self.widgets[2].setCurrentIndex(self.value)
-                if self.variableType is str:
-                    self.widgets[2].setCurrentText(self.value)
-            elif isinstance(self.widgets[2], QCheckBox):
-                self.widgets[2].setChecked(bool(self.value))
-            elif isinstance(self.widgets[2], QSpinBox):
-                self.widgets[2].setValue(int(self.value))
-            elif isinstance(self.widgets[2], QDoubleSpinBox):
-                self.widgets[2].setValue(float(self.value))
+        if len(self.columns) >= 2 and self.variableType is not None:
+            try:
+                if isinstance(self.widgets[2], (QLineEdit, QLabel)):
+                    self.widgets[2].setText(str(self.value))
+                elif isinstance(self.widgets[2], QComboBox):
+                    if self.variableType is int:
+                        self.widgets[2].setCurrentIndex(self.value)
+                    if self.variableType is str:
+                        self.widgets[2].setCurrentText(self.value)
+                elif isinstance(self.widgets[2], QCheckBox):
+                    self.widgets[2].setChecked(bool(self.value))
+                elif isinstance(self.widgets[2], QSpinBox):
+                    self.widgets[2].setValue(int(self.value))
+                elif isinstance(self.widgets[2], QDoubleSpinBox):
+                    self.widgets[2].setValue(float(self.value))
+            except TypeError:
+                # allow a type mismatch in case a variable is not set
+                if self.value is not None:
+                    raise
 
     def __getitem__(self, idx):
         """
@@ -599,6 +620,7 @@ class GuiDict(UserDict, ABC):
         # this reference is used to raise an error on the parent if needed
         self.parent = None
         self.running = False
+        self.showlog = False
         # buffer original commands
         normalize_cmds(self.cmds)
         self._orig_cmds = copy.deepcopy(self.cmds)
@@ -623,6 +645,7 @@ class GuiDict(UserDict, ABC):
                 self.setObjectName(f"{appname}-{title}")
                 self.settings = QSettings("matr1x", appname)
                 self.disabled = False
+                self.extended = False
 
             @pyqtSlot()
             def saveCurrentState(self):
@@ -633,6 +656,7 @@ class GuiDict(UserDict, ABC):
                 self.settings.setValue("size", self.size())
                 self.settings.setValue("pos", self.pos())
                 self.settings.setValue("disabled", self.disabled)
+                self.settings.setValue("extended", self.extended)
                 self.settings.endGroup()
 
             def restoreState(self):
@@ -646,6 +670,8 @@ class GuiDict(UserDict, ABC):
                     self.move(self.settings.value("pos"))
                 self.disabled = self.settings.value(
                     "disabled", False, type=bool)
+                self.extended = self.settings.value(
+                    "extended", False, type=bool)
                 self.settings.endGroup()
 
             def closeEvent(self, event):
@@ -664,15 +690,25 @@ class GuiDict(UserDict, ABC):
         self.dock.setWidget(dockcontainer)
         self.container = QWidget()
 
-        # add enable widget to the content widget
-        enable_layout = QHBoxLayout()
-        enable_layout.addWidget(QLabel("Enable"))
+        # add top controls (hiding/enable) to the content widget
+        control_layout = QHBoxLayout()
+        self.extend_switch = AnimatedToggle()
+        self.extend_switch.setFixedSize(self.extend_switch.sizeHint())
         self.enable_switch = AnimatedToggle()
         self.enable_switch.setFixedSize(self.enable_switch.sizeHint())
+        has_hiding = any(variable.hide for variable in self.values())
+        if has_hiding:
+            control_layout.addWidget(QLabel("Full info"))
+            self.extend_switch.stateChanged.connect(self.toggle_hidden)
+            self.extend_switch.setChecked(False)
+            control_layout.addWidget(self.extend_switch)
+        control_layout.addStretch()
         if self.allow_disabling:
-            enable_layout.addWidget(self.enable_switch)
+            control_layout.addWidget(QLabel("Enable"))
+            control_layout.addWidget(self.enable_switch)
             self.enable_switch.stateChanged.connect(self.makeEnabled)
-            column.addLayout(enable_layout)
+        if has_hiding or self.allow_disabling:
+            column.addLayout(control_layout)
         column.addWidget(self.container)
         column.addStretch()
 
@@ -688,17 +724,33 @@ class GuiDict(UserDict, ABC):
         respective GUI widgets. If a user overwrites this function it will need
         to attach its output to self.container!
         """
+
         grid = QGridLayout(self.container)
         # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
             variable.generate_widgets(key)
-
             for col, widget in enumerate(variable.widgets):
                 # add widgets to the grid layout at the correct position
                 # but skip hidden checkbox
                 if col == 0 and row == 0:
                     continue
                 grid.addWidget(widget, row, col, 1, 1)
+
+    def toggle_hidden(self, state):
+        if state:
+            self.dock.extended = True
+            for variable in self.values():
+                if isinstance(variable, var) and variable.hide:
+                    for i, w in enumerate(variable.widgets):
+                        if (i == len(variable.widgets)-1 and not self.showlog):
+                            continue
+                        w.show()
+        else:
+            self.dock.extended = False
+            for variable in self.values():
+                if isinstance(variable, var) and variable.hide:
+                    for w in variable.widgets:
+                        w.hide()
 
     def copy_values(self):
         """
@@ -1307,6 +1359,9 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
             "The executable name 'control_dummy' is deprecated. Use 'control-dummy' instead.",
             FutureWarning)
     app = QApplication(sys.argv)
+    if os.name == 'nt':
+        # enable modern mode on windows which allows for darkmode
+        app.setStyle('fusion')
     app.setDesktopFileName(
         f"python.{package}.{os.path.basename(sys.argv[0])}")
 
@@ -1314,16 +1369,25 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
         lockfilename = os.path.join(
             logfolder, f"{package}_gui_{name}.lock")
         if os.path.exists(lockfilename):
-            QMessageBox.about(
-                QWidget(), "Lockfile exists",
-                f"""Lockfile ({lockfilename}) exists. The control GUI will not
-                start. Please make sure everything is save! Only then remove
-                the lockfile and restart the control GUI""")
-            sys.exit()
-        # generate lockfile
+            # check if process still running
+            with open(lockfilename, "r", encoding="utf-8") as lockf:
+                otherpid = int(lockf.read())
+            try:
+                psutil.Process(otherpid)
+                QMessageBox.critical(
+                    QWidget(), "Other instance running",
+                    f"""Another instance of '{name}' was found running.
+The control GUI can not start.
+Kill the other process ({otherpid}) before restarting.""")
+                sys.exit()
+            except psutil.NoSuchProcess:
+                # this is the normal behavior in this case -> move on.
+                pass
+        # generate lockfile and write in the process ID
         with open(lockfilename, "w", encoding="utf-8") as lockf:
             lockf.write(f"{os.getpid()}\n")
 
+    kwargs['package'] = package
     logger = logging.getLogger(__name__)
     logger.info("Starting GUI")
     with QtGracefulKiller():
@@ -1331,8 +1395,10 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
                           guidicts=guidicts,
                           extra_cmds=extra_cmds,
                           **kwargs):
-            sys.stdout = OutputRedirection(sys.stdout, prefix=f"matr1x.{name}")
-            sys.stderr = OutputRedirection(sys.stderr, prefix=f"matr1x.{name}",
+            sys.stdout = OutputRedirection(sys.stdout,
+                                           prefix=f"{package}.{name}")
+            sys.stderr = OutputRedirection(sys.stderr,
+                                           prefix=f"{package}.{name}",
                                            fallbackname="stderr")
             ret = app.exec()
     logger.info("Exiting GUI")

@@ -1,6 +1,6 @@
 # This file is part of a software collection for data aquisition (matr1x).
 # ---
-# (c) 2023 matr1x developers. All rights reserved.
+# (c) 2024 matr1x developers. All rights reserved.
 # ---
 import logging
 import time
@@ -47,7 +47,7 @@ class BOSS(VisaDevice):
         except UnicodeDecodeError:
             logger.info(f"repeating read_very_eager (attempts: {attempts})")
             if attempts > 4:
-                raise VisaIOError(f"too many attempts to read eagerly")
+                raise VisaIOError("too many attempts to read eagerly")
             return self.read_very_eager(attempts=attempts+1)
 
     def query(self, msg, attempts=0):
