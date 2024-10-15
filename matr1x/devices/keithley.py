@@ -3,12 +3,9 @@
 # (c) 2024 matr1x developers. All rights reserved.
 # ---
 import time
-import traceback
 
 from numpy import asarray, ceil
 from wrapt import synchronized
-
-from datetime import datetime
 
 from .visadevice import VisaDevice
 
