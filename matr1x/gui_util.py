@@ -461,7 +461,7 @@ class ConfigEditWidget(MetaViewerWidget):
     """
 
     def __init__(self):
-        super().__init__({}, heading="matr1x Config Editor", editable=True)
+        super().__init__({}, heading="Preferences", editable=True)
 
         widget = QWidget()
         # Create a QVBoxLayout instance

@@ -339,6 +339,13 @@ class MainWindow(QMainWindow):
         else:
             self.config_editor.hide()
 
+    def toggle_toolbar_view(self, checked):
+        """Toogles the visibility of the toolbar on and off."""
+        if checked:
+            self.toolbar.show()
+        else:
+            self.toolbar.hide()
+
     def initUI(self):
         """Initialize the basic GUI for the graphical version of matrix."""
         self.setWindowIcon(MIcon("MATR1X_matr1x-matrix-gui.png"))
@@ -358,7 +365,6 @@ class MainWindow(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.toolbar.setFloatable(False)
-        self.toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
 
         small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
         standard = QApplication.style().pixelMetric(
@@ -451,6 +457,14 @@ class MainWindow(QMainWindow):
         )
         self.w_dockable_metadata.setWidget(self.w_meta_view)
 
+        # View: Toolbar
+        self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setCheckable(True)
+        self.toggle_toolbar_action.setChecked(True)
+        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
+        view_menu.addAction(self.toggle_toolbar_action)
+        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
+
         self.measurements_container = QWidget()
         inner_measurement_layout = QHBoxLayout()
         inner_measurement_layout.setContentsMargins(0, 0, 0, 0)
@@ -499,6 +513,7 @@ class MainWindow(QMainWindow):
             MIcon("MATR1X_matr1x-matrix-preview.png", QColor("black")), "Preview", self
         )
         self.preview_action.triggered.connect(self.openPreview)
+        control_menu.addSeparator()
         control_menu.addAction(self.preview_action)
         self.toolbar.addAction(self.preview_action)
         # add the preferences

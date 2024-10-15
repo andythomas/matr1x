@@ -2095,12 +2095,6 @@ class MainWindow(QMainWindow):
         empty3 = QAction(MIcon("SP_CustomBase"), "", self)
         self.toolbar.addAction(empty3)
 
-        # Control: Kill
-        self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
-        self.kill_action.triggered.connect(self.kill_thread)
-        self.kill_action.setEnabled(False)
-        control_menu.addAction(self.kill_action)
-
         # View: Metadata
         self.dockable_metadata = QDockWidget("Metadata", self)
         self.metadata = MetaDataDialog()
