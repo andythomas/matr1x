@@ -43,6 +43,7 @@ from .rohdeschwarz import FSW8  # noqa: F401
 from .standa import Standa8SMC1  # noqa: F401
 from .stanford_research_systems import SR830  # noqa: F401
 from .thorlabs import BSC103  # noqa: F401
+from .twickenham import HDI  # noqa: F401
 from .visadevice import VisaDevice  # noqa: F401
 
 logger = logging.getLogger(__name__)
