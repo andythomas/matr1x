@@ -57,7 +57,8 @@ class IsobusDevice(VisaDevice):
                 ret = super().query(cmd)
 
             try:
-                ret = super().query(cmd)
+                # call unwrapped instance here since we do our own error handling
+                ret = super().query.__wrapped__(cmd)
             except UnicodeDecodeError:
                 logger.info(f"{self.name}.query: UnicodeDecodeError, {msg}, {depth}")
                 return self.query(msg, depth + 1, max_depth=max_depth)
