@@ -44,7 +44,7 @@ class IsobusDevice(VisaDevice):
     def query(self, msg, depth=0, max_depth=2):
         with self.sharedlock:
             if depth > 0:
-                time.sleep(3+depth)  # add progressive delay on repeated failure
+                time.sleep(3 + depth)  # add progressive delay on repeated failure
             self.read_very_eager()
 
             if self.isobus_addr is not None:
@@ -53,31 +53,27 @@ class IsobusDevice(VisaDevice):
                 cmd = msg
 
             if depth > max_depth:
-                logger.info(
-                    f"{self.name}.query: maximum depth exeeded ('{msg}')")
+                logger.info(f"{self.name}.query: maximum depth exeeded ('{msg}')")
                 ret = super().query(cmd)
 
             try:
                 ret = super().query(cmd)
             except UnicodeDecodeError:
-                logger.info(
-                    f"{self.name}.query: UnicodeDecodeError, {msg}, {depth}")
-                return self.query(msg, depth+1, max_depth=max_depth)
+                logger.info(f"{self.name}.query: UnicodeDecodeError, {msg}, {depth}")
+                return self.query(msg, depth + 1, max_depth=max_depth)
             except errors.VisaIOError:
-                logger.info(
-                    f"{self.name}.query: VisaIOError, {msg}, {depth}")
-                return self.query(msg, depth+1, max_depth=max_depth)
+                logger.info(f"{self.name}.query: VisaIOError, {msg}, {depth}")
+                return self.query(msg, depth + 1, max_depth=max_depth)
 
             if ret is None:
                 logger.info(f"{self.name}.query: None, {msg}, {depth}")
-                ret = self.query(msg, depth+1, max_depth=max_depth)
+                ret = self.query(msg, depth + 1, max_depth=max_depth)
             if "?" in ret:
                 logger.info(f"{self.name}.query: reply '?', {msg}, {depth}")
-                ret = self.query(msg, depth+1, max_depth=max_depth)
+                ret = self.query(msg, depth + 1, max_depth=max_depth)
             elif "" == ret:
-                logger.info(
-                    f"{self.name}.query: empty reply, {msg}, {depth}")
-                ret = self.query(msg, depth+1, max_depth=max_depth)
+                logger.info(f"{self.name}.query: empty reply, {msg}, {depth}")
+                ret = self.query(msg, depth + 1, max_depth=max_depth)
             elif msg[0] not in ret:
                 logger.info(
                     f"{self.name}.query: wrong reply character, {msg}, {depth}, {ret}")
@@ -85,7 +81,7 @@ class IsobusDevice(VisaDevice):
                     self.read_very_eager()
                 except UnicodeDecodeError:
                     pass
-                ret = self.query(msg, depth+1, max_depth=max_depth)
+                ret = self.query(msg, depth + 1, max_depth=max_depth)
             return ret
 
     @synchronized
@@ -230,14 +226,14 @@ class ITC503(IsobusDevice):
     def setPID(self, pid):
         for cmd, val, digits in zip(('P', 'I', 'D'), pid, (3, 1, 1)):
             self.query("{}{}".format(cmd, str(round(val, digits))))
-            
+
     def setAutoPID(self, aPID):
         aPID = int(bool(aPID))
-        self.write(f'$L{aPID:d}')
-        
+        self.write(f"$L{aPID:d}")
+
     def getAutoPID(self):
         for depth in range(6):
-            ret = self.query('X', depth)
+            ret = self.query("X", depth)
             try:
                 astat = int(ret[12])
                 break
@@ -248,10 +244,10 @@ class ITC503(IsobusDevice):
             return True
         else:
             return False
-    
+
     def getSweepMode(self):
         for depth in range(6):
-            ret = self.query('X', depth)
+            ret = self.query("X", depth)
             try:
                 sweepstat = int(ret[7:9])
                 break
@@ -287,7 +283,7 @@ class ITC503(IsobusDevice):
         """
         self.query("x002")
         self.query("y002")
-        ret = self.query_float(f"r", max_depth=3)
+        ret = self.query_float("r", max_depth=3)
         self.query("x000")
         self.query("y000")
         return ret
@@ -302,7 +298,7 @@ class ITC503(IsobusDevice):
         self.query(f"s{time:.1f}")
         self.query("x000")
         self.query("y000")
-    
+
     @synchronized
     def setSweepTarget(self, temp):
         """
@@ -314,9 +310,9 @@ class ITC503(IsobusDevice):
         self.query("x016")  # repeat at last step so that heater stays on at the end
         self.query(f"s{temp:.1f}")
         self.query("x000")
-        self.query("y000") 
-         
-        
+        self.query("y000")
+
+
 class IPS120(IsobusDevice):
     """
     Driver for IPS120 or Mercury-IPS in IPS120 mode
@@ -707,7 +703,7 @@ class IPS120_switchheater(IsobusDevice):
                 2 - RTOZ (Ramp to zero)
                 3 - CLMP (Clamped, when current is 0) - disallowed
         """
-        statedict = {0: "Hold", 1: "Ramp to Setpoint", 2: "Ramp to Zero"}  
+        statedict = {0: "Hold", 1: "Ramp to Setpoint", 2: "Ramp to Zero"}
         try:
             state = int(state)
             if 2 < state:

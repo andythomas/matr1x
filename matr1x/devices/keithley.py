@@ -583,9 +583,9 @@ class Keithley2182A(VisaDevice):
         """
         cmdList = []
         if reset is True:
-            self.write(f"*RST")
-            self.query("*OPC?")        
-        
+            self.write("*RST")
+            self.query("*OPC?")
+
         # we want to measure volts
         cmdList.append(':SENS:FUNC "VOLT"')
         if NPLC is not None:
@@ -619,7 +619,7 @@ class Keithley2182A(VisaDevice):
         for cmd in cmdList:
             self.query("*OPC?")
             self.write(cmd)
-        
+
     def triggerReading(self):
         if self.triggered is False:
             self.write("*TRG")
@@ -1073,7 +1073,7 @@ class Keithley2000(VisaDevice):
             self.write(cmd)
 
     def getFunction(self):
-        return self.query(":SENS:FUNC?").replace('\"', '')
+        return self.query(":SENS:FUNC?").replace('"', "")
 
     def triggerReading(self):
         self.write("*TRG")
@@ -1504,10 +1504,12 @@ class Keithley6221(VisaDevice):
 
 
 class KeithleyDMM6500(VisaDevice):
-    config_params = {"Mode": ":SENS:FUNC?",
-                     "VOLT:RANGE": "VOLT:RANG?",
-                     "VOLT:NPLC": ":SENS:VOLT:NPLC?",
-                     "Model-identifing": "*IDN?"}
+    config_params = {
+        "Mode": ":SENS:FUNC?",
+        "VOLT:RANGE": "VOLT:RANG?",
+        "VOLT:NPLC": ":SENS:VOLT:NPLC?",
+        "Model-identifing": "*IDN?",
+    }
 
     def __init__(self, interface, **kwargs):
         if "write_termination" not in kwargs:
@@ -1518,11 +1520,21 @@ class KeithleyDMM6500(VisaDevice):
             kwargs["timeout"] = 10000
         super().__init__(interface, **kwargs)
         self.triggered = False
-        
+
     @synchronized
-    def configure4WireOhm(self, digits=None, count=None, window=None,
-                          NPLC=None, dFil=None, range=None, rangeAuto=None,
-                          trigBus=None, repeatingFilter=None, reset=False):
+    def configure4WireOhm(
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
+    ):
         """
         Configure the Keitley DMM6500 to detect 4wire resistance
 
@@ -1551,7 +1563,7 @@ class KeithleyDMM6500(VisaDevice):
         else:
             cmdList = []
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"FRES\"")
+        cmdList.append(':SENS:FUNC "FRES"')
         if NPLC is not None:
             cmdList.append(":SENS:FRES:NPLC " + str(int(NPLC)))
         if digits is not None:
@@ -1576,9 +1588,19 @@ class KeithleyDMM6500(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def configure2WireOhm(self, digits=None, count=None, window=None,
-                          NPLC=None, dFil=None, range=None, rangeAuto=None,
-                          trigBus=None, repeatingFilter=None, reset=False):
+    def configure2WireOhm(
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
+    ):
         """
         Configure the Keitley DMM6500 to detect 2wire resistance
 
@@ -1608,7 +1630,7 @@ class KeithleyDMM6500(VisaDevice):
         else:
             cmdList = []
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"RES\"")
+        cmdList.append(':SENS:FUNC "RES"')
         if NPLC is not None:
             cmdList.append(":SENS:RES:NPLC " + str(int(NPLC)))
         if digits is not None:
@@ -1633,9 +1655,19 @@ class KeithleyDMM6500(VisaDevice):
             self.write(cmd)
 
     @synchronized
-    def configureVolt(self, digits=None, count=None, window=None, NPLC=None,
-                      dFil=None, range=None, rangeAuto=None, trigBus=None,
-                      repeatingFilter=None, reset=False):
+    def configureVolt(
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
+    ):
         """
         Configure the Keitley 2000 to detect voltages
 
@@ -1664,7 +1696,7 @@ class KeithleyDMM6500(VisaDevice):
             self.write("*RST")
             time.sleep(0.05)
         # we want to measure volts
-        cmdList.append(":SENS:FUNC \"VOLT:DC\"")
+        cmdList.append(':SENS:FUNC "VOLT:DC"')
         if NPLC is not None:
             cmdList.append(":SENS:VOLT:NPLC " + str(float(NPLC)))
         if digits is not None:
@@ -1684,8 +1716,8 @@ class KeithleyDMM6500(VisaDevice):
                 cmdList.append(":SENS:VOLT:AVER:TCON MOV")
         elif dFil is False:
             cmdList.append(":SENS:VOLT:AVER:STATE OFF")
-        for cmd in cmdList:            
-            self.write(cmd) 
+        for cmd in cmdList:
+            self.write(cmd)
 
     def triggerReading(self):
         self.write("*TRG")

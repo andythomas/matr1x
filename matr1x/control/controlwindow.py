@@ -479,8 +479,10 @@ class ControlWindow(QMainWindow):
         checked.
         """
         if checked:
-            logger.info(f"{time.strftime(datetimefmt)}: "
-                  f"Panic mode activated due to '{reason}'")
+            logger.info(
+                f"{time.strftime(datetimefmt)}: "
+                f"Panic mode activated due to '{reason}'"
+            )
             self.panicButton.setText(f"Panic mode activated due to '{reason}'")
             self.panicButton.setChecked(True)
             for g in self.guidicts:
