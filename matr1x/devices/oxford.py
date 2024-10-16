@@ -46,19 +46,17 @@ class IsobusDevice(VisaDevice):
             if depth > 0:
                 time.sleep(3+depth)  # add progressive delay on repeated failure
             self.read_very_eager()
-            if depth > max_depth:
-                logger.info(
-                    f"{self.name}.query: maximum depth exeeded ('{msg}')")
-                ret = super().query(cmd)
-                #self.read_very_eager()
-                #if msg == 'X':
-                #    return 'X00000000000000'
-                #else:
-                #    return f"{msg[0]}0.00"
+
             if self.isobus_addr is not None:
                 cmd = f"@{self.isobus_addr}{msg}"
             else:
                 cmd = msg
+
+            if depth > max_depth:
+                logger.info(
+                    f"{self.name}.query: maximum depth exeeded ('{msg}')")
+                ret = super().query(cmd)
+
             try:
                 ret = super().query(cmd)
             except UnicodeDecodeError:

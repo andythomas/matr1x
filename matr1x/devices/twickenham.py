@@ -20,5 +20,5 @@ class HDI(VisaDevice):
         res = self.query('G')
         try:
             return int(res[-6:-2])
-        except:
+        except (IndexError, ValueError):
             return -1
