@@ -39,26 +39,76 @@ import psutil
 
 try:
     from PyQt6 import QtCore
-    from PyQt6.QtCore import (QObject, QSettings, Qt, QThread, QTimer, QVariant,
-                              pyqtSignal, pyqtSlot)
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDockWidget, QDoubleSpinBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                                 QListWidget, QMessageBox, QProgressBar,
-                                 QPushButton, QSizePolicy, QSpinBox, QTableView,
-                                 QVBoxLayout, QWidget)
+    from PyQt6.QtCore import (
+        QObject,
+        QSettings,
+        Qt,
+        QThread,
+        QTimer,
+        QVariant,
+        pyqtSignal,
+        pyqtSlot,
+    )
+    from PyQt6.QtWidgets import (
+        QApplication,
+        QCheckBox,
+        QComboBox,
+        QDialog,
+        QDockWidget,
+        QDoubleSpinBox,
+        QFileDialog,
+        QFrame,
+        QGridLayout,
+        QHBoxLayout,
+        QLabel,
+        QLineEdit,
+        QListWidget,
+        QMessageBox,
+        QProgressBar,
+        QPushButton,
+        QSizePolicy,
+        QSpinBox,
+        QTableView,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:
     warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
                   DeprecationWarning)
     from PyQt5 import QtCore
-    from PyQt5.QtCore import (QObject, QSettings, Qt, QThread, QTimer,
-                              QVariant, pyqtSignal, pyqtSlot)
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDockWidget, QDoubleSpinBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                                 QListWidget, QMessageBox, QProgressBar,
-                                 QPushButton, QSizePolicy, QSpinBox, QTableView,
-                                 QVBoxLayout, QWidget)
+    from PyQt5.QtCore import (
+        QObject,
+        QSettings,
+        Qt,
+        QThread,
+        QTimer,
+        QVariant,
+        pyqtSignal,
+        pyqtSlot,
+    )
+    from PyQt5.QtWidgets import (
+        QApplication,
+        QCheckBox,
+        QComboBox,
+        QDialog,
+        QDockWidget,
+        QDoubleSpinBox,
+        QFileDialog,
+        QFrame,
+        QGridLayout,
+        QHBoxLayout,
+        QLabel,
+        QLineEdit,
+        QListWidget,
+        QMessageBox,
+        QProgressBar,
+        QPushButton,
+        QSizePolicy,
+        QSpinBox,
+        QTableView,
+        QVBoxLayout,
+        QWidget,
+    )
 
 from .. import confparser, datetimefmt, logfolder, system, usersfolder
 from ..gui_util import validator
@@ -129,6 +179,7 @@ class guiObject(IntEnum):
     spinbox = 6
     doublespinbox = 7
     labeltext = 8
+    hline = 9
 
     @classmethod
     def getWidget(cls, label, wType, init=None):
@@ -153,6 +204,7 @@ class guiObject(IntEnum):
           * 6 : QSpinBox
           * 7 : QDoubleSpinBox
           * 8 : QLabel: used as Value indicator
+          * 9 : QFrame: used to generate a horizontal separator line
         init : tuple, str, optional
           provides the initialization values (button label, valid ranges,
           combobox entries)
@@ -210,6 +262,15 @@ class guiObject(IntEnum):
             if init is not None:
                 sb.setRange(*init)
             return sb
+        if cls.hline == wType:
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Sunken)
+            line.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if init is not None:
+                line.setFixedWidth(init)
+            line.setMinimumHeight(2)
+            return line
         return None
 
 
@@ -742,7 +803,11 @@ class GuiDict(UserDict, ABC):
             for variable in self.values():
                 if isinstance(variable, var) and variable.hide:
                     for i, w in enumerate(variable.widgets):
-                        if (i == len(variable.widgets)-1 and not self.showlog):
+                        if (
+                            variable.log is not None
+                            and i == len(variable.widgets) - 1
+                            and not self.showlog
+                        ):
                             continue
                         w.show()
         else:
@@ -1049,7 +1114,9 @@ def linear_trend(timestamps, data, interval=60):
     return ret
 
 
-def sendNotificationEmail(address, subject, msgtext, attachments=[]):
+def sendNotificationEmail(
+    address: str, subject: str, msgtext: str, attachments: list = []
+):
     """
     utility function to send messages to a list of email addresses. The function
     uses the sendmail command line function which has to be configured to work

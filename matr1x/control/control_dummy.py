@@ -150,6 +150,7 @@ class exampleDict2(GuiDict):
     data = {
         "Example2": var(None, columns="Readout"),
         "V5": var(float, columns=go.labeltext, unit="mbar"),
+        " ": var(None, columns=go.hline, hide=True),
         "Info": var(str, columns="For testing purposes errors are raised \n"
                     "when V4 is set to False, the toggle \n"
                     "switch is pressed twice, or via the \n"
