@@ -383,7 +383,7 @@ class ControlWindow(QMainWindow):
             ql = QLabel(" ")
             ql.setFixedWidth(indicator_width)
             ql.setFixedHeight(30)
-            ql.setStyleSheet("background-color: lightgray")
+            ql.setStyleSheet("QLabel { background-color: lightgray; }")
             ql.setToolTip(guidict.dock.windowTitle())
             self.activityIndicator.append(ql)
             guidict.refresh_worker.activity.connect(
@@ -743,12 +743,14 @@ class ControlWindow(QMainWindow):
         self._local_server = None
 
     def change_single_color(self, color, idx):
-        self.activityIndicator[idx].setStyleSheet(f"background-color: {color}")
+        self.activityIndicator[idx].setStyleSheet(
+            f"QLabel {{ background-color: {color}; }}"
+        )
 
     @pyqtSlot(str)
     def change_color(self, color):
         for ql in self.activityIndicator:
-            ql.setStyleSheet(f"background-color: {color}")
+            ql.setStyleSheet(f"QLabel {{ background-color: {color}; }}")
 
     @pyqtSlot(bool)
     def deactivate_gui(self, flag):

@@ -12,14 +12,21 @@ import os
 import re
 import time
 from os.path import exists, expanduser, isfile, splitext
+from typing import List, Union
 
 import h5py
 import numpy as np
 from pymeasure.instruments import Instrument
 
 from . import datetimefmt, output_extension
-from .util import (construct_query_string, default_separator, flatten,
-                   init_ascii_header, init_hdf5_skel, module_from_path)
+from .util import (
+    construct_query_string,
+    default_separator,
+    flatten,
+    init_ascii_header,
+    init_hdf5_skel,
+    module_from_path,
+)
 
 
 def device_query(device_handle, config_params):
@@ -79,7 +86,7 @@ def device_query(device_handle, config_params):
                 devid = device_handle.name
             else:
                 devid = device_handle.__class__.__name__
-            if hasattr(device_handle, "adapter"):  # its a pymeasure Instrument
+            if hasattr(device_handle, "adapter"):  # it's a pymeasure Instrument
                 devid += device_handle.connection.resource_name
             print(f"exception during config query of {devid}")
             raise
@@ -591,9 +598,10 @@ class System:
                 info += f" with list-like property: {str(func)}."
         print(info)
 
-    def set_value(self, i, values):
-        """
-        Sets a parameter i to values.
+    def set_value(
+        self, i: Union[int, str], values: Union[float, List[float], None]
+    ) -> Union[float, List[float], None]:
+        """Set a parameter i to values.
 
         Takes the column name or index and sets the corresponding parameter as
         defined by the setter of the parameter, take care to send a correct
