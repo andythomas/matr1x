@@ -18,8 +18,6 @@ class Keithley2400(VisaDevice):
             kwargs["write_termination"] = "\n"
         if "read_termination" not in kwargs:
             kwargs["read_termination"] = "\n"
-        if "timeout" not in kwargs:
-            kwargs["timeout"] = 10000
         super().__init__(interface, **kwargs)
         # after initialization get the source function to determine
         # whether voltage or current is the sourced
@@ -186,8 +184,6 @@ class Keithley2450(VisaDevice):
             kwargs["write_termination"] = "\n"
         if "read_termination" not in kwargs:
             kwargs["read_termination"] = "\n"
-        if "timeout" not in kwargs:
-            kwargs["timeout"] = 10000
         super().__init__(interface, **kwargs)
         # ignore telnet commands sent by the instrument
         # try:
@@ -1516,8 +1512,6 @@ class KeithleyDMM6500(VisaDevice):
             kwargs["write_termination"] = "\n"
         if "read_termination" not in kwargs:
             kwargs["read_termination"] = "\n"
-        if "timeout" not in kwargs:
-            kwargs["timeout"] = 10000
         super().__init__(interface, **kwargs)
         self.triggered = False
 
