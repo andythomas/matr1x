@@ -15,9 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-This module contains a class for creating a (mostly) SCPI compatible
-measurement device listening on an ethernet interface, that can be fully
-defined from one dictionary.
+Contains a class for creating a (mostly) SCPI compatible measurement device.
+
+The device listens on an ethernet interface and can be fully defined from
+a dictionary with Command entries.
 """
 import logging
 import socketserver
@@ -34,20 +35,35 @@ logger = logging.getLogger(__name__)
 
 class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     """
-    Handles the TCP connection and parses the commands specified
-    in the servers cmd_list
+    Handles the TCP connection and parses the commands specified in the server's cmd_list.
+
+    This class extends StreamRequestHandler to handle TCP connections and
+    parse commands specified in the server's command list.
     """
+
     @staticmethod
     def _normalize_cmd(cmd):
         """
-        reduce all values to only have the first four digits
+        Reduce all values to only have the first four digits.
+
+        Parameters
+        ----------
+        cmd : str
+            The command to normalize.
+
+        Returns
+        -------
+        str
+            The normalized command.
         """
         return ":".join([s[:4] for s in cmd.strip("?").split(":")])
 
     def setup(self):
         """
-        setup the server on initial startup, parses the cmd_list to generate
-        the (normalized) keys and the command instructions
+        Set up the server on initial startup.
+
+        This method parses the cmd_list to generate the (normalized) keys
+        and the command instructions.
         """
         super().setup()
         self.terminate = False
@@ -57,7 +73,17 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
 
     def parse(self, data):
         """
-        determine reply for received data
+        Determine reply for received data.
+
+        Parameters
+        ----------
+        data : str
+            The received command data.
+
+        Returns
+        -------
+        list
+            List of responses for the received commands.
         """
         response = []
         # multiple cmds support, separate commands with ;
@@ -171,8 +197,10 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
 
     def handle(self):
         """
-        handle that runs continuously and parses takes care of managing the
-        interface
+        Handle incoming connections and manage the interface.
+
+        This method runs continuously and parses incoming data to manage
+        the interface.
         """
         while not self.terminate:
             response = None
@@ -197,7 +225,10 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     """
-    reimplement TCP server to provide proper default behavior
+    Reimplemented TCP server to provide proper default behavior.
+
+    This class combines ThreadingMixIn and TCPServer to create a threaded
+    TCP server with specific default behaviors.
     """
 
     daemon_threads = True
@@ -206,54 +237,72 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 class SCPI_TCP_Server:
     """
-    Define Polling Server
+    Define Polling Server.
 
+    This class creates a TCP server that implements SCPI-like command handling.
+
+    Parameters
+    ----------
+    cmd_list : dict
+        A dictionary defining the SCPI commands and their associated functions.
+        The values of the dictionary should be derived from Command.
+    host : str, optional
+        The host address to bind the server to. Default is 'localhost'.
+    port : int, optional
+        The port number to listen on. Default is PORT (8898).
+
+    Attributes
+    ----------
+    running : bool
+        Indicates whether the server is currently running.
+    server : ThreadedTCPServer
+        The actual TCP server instance.
+
+    Notes
+    -----
     Syntax for the command list:
         {scpi string:[type of value(s), set function to call, list/tuple of
         additional parameters for set function, get function to call,
         list/tuple of additional parameters for get function], ...}
 
-      * scpi string is string type, e.g. ":field:set", use only lower case
-        literals and make sure the commands are unique if only the first
-        four characters within each pair of :: is used.
-      * type of value can be:
+    - scpi string is string type, e.g. ":field:set", use only lower case
+      literals and make sure the commands are unique if only the first
+      four characters within each pair of :: is used.
+    - type of value can be:
+      * [type val1, type val2, ...], can also be tuple of types
+      * float
+      * int
+      * str
+      * bool
+      * None - if no set function is to be defined
+    - set function e.g. ex.setField (do not add brackets!)
+    - additional parameters, e.g. (2) if set function is ex.setField(value,
+      axis) will call the function with value and axis=2
+    - get function, again do not add brackets
+    - additional parameters for get function, see above
 
-        * [type val1, type val2, ...], can also be tuple of types
-        * float
-        * int
-        * str
-        * bool
-        * None - if no set function is to be defined
+    get function is called when ? is appended to scpi string upon calling
+    the function, otherwise set function is called and value is split
+    format is either:
 
-      * set function e.g. ex.setField (do not add brackets!)
-      * additional parameters, e.g. (2) if set function is ex.setField(value,
-        axis) will call the function with value and axis=2
-      * get function, again do not add brackets
-      * additional parameters for get function, see above
-
-      get function is called when ? is appended to scpi string upon calling
-      the function, otherwise set function is called and value is split
-      format is either:
-
-      * set:
-          scpiStr value
-      * get:
-          scpiStr?
-      * value can be:
-
-        * list
-            e.g. value="1, 2, 3", also mixed lists,
-            e.g. "1, 2.3432, abc", will be passed as list to set
-            function.
-            Take care to check correct type for list enties
-        * int
-            e.g. value="1"
-        * bool
-            e.g. value="0"
-        * float
-            e.g. value="-1.343e-23"
-        * str
-            e.g. value="curvename"
+    - set:
+        scpiStr value
+    - get:
+        scpiStr?
+    - value can be:
+      * list
+          e.g. value="1, 2, 3", also mixed lists,
+          e.g. "1, 2.3432, abc", will be passed as list to set
+          function.
+          Take care to check correct type for list entries
+      * int
+          e.g. value="1"
+      * bool
+          e.g. value="0"
+      * float
+          e.g. value="-1.343e-23"
+      * str
+          e.g. value="curvename"
     """
 
     def __init__(self, cmd_list, host='localhost', port=PORT):
@@ -266,6 +315,11 @@ class SCPI_TCP_Server:
         self.server.cmd_list = cmd_list
 
     def start(self):
+        """
+        Start the server.
+
+        This method starts the server if it's not already running.
+        """
         if self.running is False:
             server_thread = threading.Thread(target=self.server.serve_forever)
             server_thread.daemon = True
@@ -274,6 +328,11 @@ class SCPI_TCP_Server:
             self.running = True
 
     def stop(self):
+        """
+        Stop the server.
+
+        This method stops the server if it's currently running.
+        """
         if self.running is True:
             self.server.shutdown()
             self.server.socket.close()

@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Module containing the System class definition and corresponding utility functions.
 
@@ -46,31 +45,30 @@ from .util import (
 
 def device_query(device_handle, config_params):
     """
-    Takes device_handle and config_params to perform a query of the current
-    configuration of the device
+    Query the current configuration of the device.
 
     Parameters
-    -------
+    ----------
     device_handle : VisaDevice or pymeasure device
-      must be an open device that implements the query function
+        Must be an open device that implements the query function.
     config_params : dict
-      dictionary must adhere to the following format. Key is descriptor which
-      is used to identify the parameter the corresponding values must be one
-      of:
+        Dictionary must adhere to the following format. Key is descriptor which
+        is used to identify the parameter. The corresponding values must be one
+        of:
 
-        * an attribute or method name (if callable without arguments of
+        * An attribute or method name (if callable without arguments of
           the device object)
-        * a callable function (without arguments)
-        * a query string for the device
-        * a list of the following scheme [method_name : str, args : tuple,
+        * A callable function (without arguments)
+        * A query string for the device
+        * A list of the following scheme [method_name : str, args : tuple,
           kwargs : dict]
 
     Returns
     -------
-    retdict : dict
-      A dictionary of dictionaries containing the configuration of each device.
-      keys of outer dictionary are device names, keys of the inner dictionary
-      are parameters that were queried
+    dict
+        A dictionary of dictionaries containing the configuration of each device.
+        Keys of outer dictionary are device names, keys of the inner dictionary
+        are parameters that were queried.
     """
     retquery = {}
     for k, q in config_params.items():
@@ -111,71 +109,74 @@ def device_query(device_handle, config_params):
 
 class Parameter():
     """
-    Defines a measurement _`parameter`
+    Define a measurement parameter.
 
     This class describes one parameter in matrix. It can define a single or
-    multiple columns of the measurement depending.
+    multiple columns of the measurement.
 
     Parameters
     ----------
-    name: str or list of str
-      name of the column(s) as string or list of strings.
-      If this is a list, make sure unit, default and chunks have same length).
-    unit: str or list of str
-      unit of the column(s) as string or list of strings.
-    default: float or list of floats
-      default value for parameter, if not None this value is always unless
-      another value is specified in the measurement.
-      If None (default), no default value is set/used.
-    dtypes: string or list of strings
-      dtype specified for saving into hdf5 files, not used for ascii files
-      default value is "f8" (8 byte float)
-    chunks: int or list of ints
-      length of the readback value, if a list is returned for a single
-      parameter, set to the length of that list.
-      If None (default), a chunk of 1 is assumed (readback of parameter is
-      single float).
-    setter:
-      function which should be called to set the values.
-      Must be one of:
+    name : str or list of str
+        Name of the column(s) as string or list of strings.
+        If this is a list, make sure unit, default and chunks have same length.
+    unit : str or list of str
+        Unit of the column(s) as string or list of strings.
+    default : float or list of floats, optional
+        Default value for parameter. If not None this value is always used unless
+        another value is specified in the measurement.
+        If None (default), no default value is set/used.
+    dtypes : str or list of str, optional
+        Dtype specified for saving into hdf5 files, not used for ascii files.
+        Default value is "f8" (8 byte float).
+    chunks : int or list of int, optional
+        Length of the readback value. If a list is returned for a single
+        parameter, set to the length of that list.
+        If None (default), a chunk of 1 is assumed (readback of parameter is
+        single float).
+    setter : callable, str, or list, optional
+        Function which should be called to set the values.
+        Must be one of:
 
-        * a callable function with the call signature
+        * A callable function with the call signature
           `func(value, *args, **kwargs)`. For optional arguments and kwargs see
           setter_args/setter_kwargs.
-        * a string with a system method/property name. If it corresponds to a
+        * A string with a system method/property name. If it corresponds to a
           method its call signature and arguments must be equal to the callable
           function above.
-        * a list of the following scheme [device_name : str,
+        * A list of the following scheme [device_name : str,
           method_name : str,
           args : tuple,
           kwargs : dict]. The args and kwargs entries are deprecated and should
           be replaced by the setter_args, setter_kwargs parameters.
-    getter:
-      function which should be called to fetch the values.
-      Must be one of:
+    getter : callable, str, or list, optional
+        Function which should be called to fetch the values.
+        Must be one of:
 
-        * a callable function with the call signature
+        * A callable function with the call signature
           `func(*args, **kwargs)`. The arguments and kwargs are optional and can
           be supplied via getter_args/getter_kwargs.
-        * a string with a system method/property name. If it corresponds to a
+        * A string with a system method/property name. If it corresponds to a
           method its call signature and arguments must be equal to the callable
           function above.
-        * a list of the following scheme [device_name : str,
+        * A list of the following scheme [device_name : str,
           method_name : str,
           args : tuple,
           kwargs : dict]. The args and kwargs entries are deprecated and should
           be replaced by the getter_args, getter_kwargs parameters.
-    trigger:
-      takes a trigger function. The options are equal to the getter options. For
-      the optional arguments and kwargs use trigger_args/trigger_kwargs.
+    trigger : callable, str, or list, optional
+        Takes a trigger function. The options are equal to the getter options. For
+        the optional arguments and kwargs use trigger_args/trigger_kwargs.
 
     Attributes
-    ------
+    ----------
     All parameters are set as attributes of same name.
 
     Raises
     ------
-    ValueError, TypeError
+    ValueError
+        If parameter types or lengths are inconsistent.
+    TypeError
+        If parameter types are incorrect.
     """
 
     def __init__(self, name, unit, setter=None, getter=None,
@@ -254,19 +255,38 @@ class Parameter():
                 self.chunks = self.verify(chunks, int)
 
     def __lt__(self, other):
-        """define comparison function for sorting"""
+        """Define comparison function for sorting."""
         if "timeUTC" in other.name:
             return True
         return False
 
     def __eq__(self, other):
-        """define equivalence of parameters"""
+        """Define equivalence of parameters."""
         if self.name == other.name and self.unit == other.unit:
             return True
         return False
 
     def verify(self, param, cast):
-        """verifies param is of correct type or raises error"""
+        """
+        Verify param is of correct type or raise error.
+
+        Parameters
+        ----------
+        param : Any
+            Parameter to verify.
+        cast : type or tuple of types
+            Type(s) to check against.
+
+        Returns
+        -------
+        Any
+            The verified parameter.
+
+        Raises
+        ------
+        ValueError
+            If param is not of the correct type.
+        """
         if isinstance(param, (list, tuple)):
             if all(isinstance(val, (list, tuple)) for val in param):
                 return param
@@ -281,7 +301,7 @@ class Parameter():
 
 class System:
     """
-    Defines a measurement setup/system
+    Define a measurement setup/system.
 
     It is mostly defined by the individual parameters (stored in .parameters)
     that are used in the system as well as the list of devices stored in .devs.
@@ -292,35 +312,37 @@ class System:
     return the system to a defined state, respectively.
 
     Attributes
-    -------
+    ----------
     parameters : list
-      contains the individual parameters that make up the system.
+        Contains the individual parameters that make up the system.
     columns : list
-      contains the column names extracted from the individual parameters.
+        Contains the column names extracted from the individual parameters.
     units : list
-      contains the units extracted from the individual parameters.
+        Contains the units extracted from the individual parameters.
     dtypes : list
-      contains the dtypes extracted from the individual parameters.
+        Contains the dtypes extracted from the individual parameters.
     default_values : list
-      contains the default_values extracted from the individual parameters.
+        Contains the default_values extracted from the individual parameters.
     chunks : list
-      contains the chunks extracted from the individual parameters.
+        Contains the chunks extracted from the individual parameters.
     devs : dict
-      contains the individual devices that belong to the system
+        Contains the individual devices that belong to the system.
     dcdata : dict
-      contains telemetry according to the Dublin Core specification that can be
-      used to generate specific header information.
+        Contains telemetry according to the Dublin Core specification that can be
+        used to generate specific header information.
     system_config_params : dict
-      contains the definition for custom device queries to read the
-      configuration. Keys match the device names in .devs.
+        Contains the definition for custom device queries to read the
+        configuration. Keys match the device names in .devs.
     """
 
     def __init__(self, name=None):
         """
+        Initialize the System.
+
         Parameters
         ----------
         name : str, optional
-          name of the measurement system
+            Name of the measurement system.
         """
         self.__name__ = str(name)
         # define merged system reference
@@ -366,18 +388,19 @@ class System:
     @classmethod
     def from_file(cls, filename):
         """
-        Utility function to load a system from a file. If a file with the given name
-        cannot be found the system installed files are searched.
+        Load a system from a file.
+
+        If a file with the given name cannot be found the system installed files are searched.
 
         Parameters
-        ------
-        filename : string
-          path to file (can include '.py' extension)
+        ----------
+        filename : str
+            Path to file (can include '.py' extension).
 
         Returns
-        -----
-        system : System
-          System as defined in the file
+        -------
+        System
+            System as defined in the file.
         """
         normfilename = filename.strip()
         if isfile(normfilename):
@@ -398,8 +421,12 @@ class System:
     @property
     def hdf5(self):
         """
-        defines whether the system requires the hdf5 format (i.e. has
-        readout parameters that provide a full list of values)
+        Define whether the system requires the hdf5 format.
+
+        Returns
+        -------
+        bool
+            True if the system has readout parameters that provide a full list of values.
         """
         return self._hdf5
 
@@ -417,9 +444,9 @@ class System:
                   getter_args=None, getter_kwargs=None,
                   trigger_args=None, trigger_kwargs=None):
         """
-        Adds a parameter to the list of parameters, for definition
-        of the passed parameters :ref:`check parameter
-        class<parameter>`
+        Add a parameter to the list of parameters.
+
+        For definition of the passed parameters, see :ref:`Parameter class<parameter>`.
         """
         self.parameters.append(Parameter(name, unit,
                                          setter=setter,
@@ -439,20 +466,20 @@ class System:
     def add_dev(self, name, descriptor, args=None, kwargs=None,
                 config_params=None):
         """
-        Adds a device to the device dictionary.
+        Add a device to the device dictionary.
 
         Parameters
-        ----
+        ----------
         name : str
-          unique device name, will be dictionary key
-        descriptor : object/instance
-          device instance (must not be initialized nor opened)
-        args : tuple
-          tuple containing args passed upon device initialization.
-        kwargs : dict
-          dictionary with kwargs passed upon device initialization
-        config_params : dict
-          dictionary with query configuration, see query function for details
+            Unique device name, will be dictionary key.
+        descriptor : object
+            Device instance (must not be initialized nor opened).
+        args : tuple, optional
+            Tuple containing args passed upon device initialization.
+        kwargs : dict, optional
+            Dictionary with kwargs passed upon device initialization.
+        config_params : dict, optional
+            Dictionary with query configuration, see query function for details.
         """
         if args is not None and kwargs is not None:
             entry = [descriptor, args, kwargs]
@@ -470,7 +497,8 @@ class System:
 
     def add_parameter_to_lists(self, parm):
         """
-        Takes an individual parameter and appends it to the lists
+        Take an individual parameter and append it to the lists.
+
         These lists are used to interact with the matrix as well as the
         sweep_generator.
         """
@@ -492,27 +520,29 @@ class System:
 
     def generate_datafilename(self, outputfile="", inputfile="", append=False):
         """
-        generate output datafile name. No file should be overwritten. If
-        append=True an existing datafile can be amended. In all other cases a
-        new file will name is generated.
+        Generate output datafile name.
+
+        No file should be overwritten. If append=True an existing datafile can be amended.
+        In all other cases a new file name is generated.
 
         The datafilename will be generated preferentially from the outputfile
         or the inputfile-name. An appropriate extension is automatically added.
 
         Parameters
         ----------
-        outputfile: str, optional
-          output filename which should be used. Potentially a running number
-          will be added to avoid overwriting an existing file
-        inputfile: str, optional
-          if outputfile is empty this string will be used to generate a
-          datafile name
-        append: bool, optional
-          flag to decide if one should append to an potentially existing datafile
+        outputfile : str, optional
+            Output filename which should be used. Potentially a running number
+            will be added to avoid overwriting an existing file.
+        inputfile : str, optional
+            If outputfile is empty this string will be used to generate a
+            datafile name.
+        append : bool, optional
+            Flag to decide if one should append to a potentially existing datafile.
 
         Returns
         -------
-        datafilename
+        str
+            Generated datafilename.
         """
         # check whether hdf5 is required and change output extensions
         if self.hdf5 is True:
@@ -567,9 +597,7 @@ class System:
         return self.filename
 
     def clear_parameters(self):
-        """
-        Clears all system parameters and the lists that have been generated
-        """
+        """Clear all system parameters and the lists that have been generated."""
         del (self.parameters, self.columns, self.default_values,
              self.units, self.dtypes, self.chunks)
         self.parameters = []
@@ -581,11 +609,12 @@ class System:
 
     def generate_lists(self):
         """
-        Generate the necessary lists from the parameters defined above
+        Generate the necessary lists from the parameters defined above.
+
         These lists are used to interact with the matrix as well as the
         sweep_generator.
         This command is only used when a new system is dynamically created from
-        a list of parameters
+        a list of parameters.
         """
         for parm in self.parameters:
             self.add_parameter_to_lists(parm)
@@ -593,13 +622,17 @@ class System:
     def _inform_exception(self, i, func, action):
         """
         Print information about an exception.
+
         In best case identify a device related to the exception.
 
         Parameters
         ----------
-        i : index or name of the parameter where the exception occurred
-        func : function, parameter name or list used when the parameter occurred
-        action : string with action (verb) during which the exception occurred
+        i : int or str
+            Index or name of the parameter where the exception occurred.
+        func : callable, str, or list
+            Function, parameter name or list used when the parameter occurred.
+        action : str
+            String with action (verb) during which the exception occurred.
         """
         # print column identifier upon any exception
         if i in self.columns:
@@ -621,24 +654,29 @@ class System:
 
     def set_value(self, i, values):
         """
-        Sets a parameter i to values.
+        Set a parameter i to values.
 
         Takes the column name or index and sets the corresponding parameter as
         defined by the setter of the parameter, take care to send a correct
         list.
-        If the setter is None, returns the send values (most likely nan or None)
+        If the setter is None, returns the send values (most likely nan or None).
 
         Parameters
-        ------
+        ----------
         i : int or str
-          index or name of the parameter that should be set
+            Index or name of the parameter that should be set.
         values : float or list of floats
-          values that should be written to the parameter/device
+            Values that should be written to the parameter/device.
 
         Returns
+        -------
+        float or list of floats
+            Returns the values that have been set to the device.
+
+        Raises
         ------
-        values : float or list of floats
-          returns the values that have been set to the device
+        TypeError
+            If column cannot be identified.
         """
         if i in self.columns:
             idx = self.columns.index(i)
@@ -673,10 +711,22 @@ class System:
         return values
 
     def _set_by_func(self, func, value, args, kwargs):
-        """set values by a function call.
+        """
+        Set values by a function call.
 
         The function call includes optional arguments and kwarguments only when
         they are not None.
+
+        Parameters
+        ----------
+        func : callable
+            Function to call.
+        value : Any
+            Value to set.
+        args : tuple or None
+            Optional positional arguments.
+        kwargs : dict or None
+            Optional keyword arguments.
         """
         if not args and not kwargs:
             func(value)
@@ -688,18 +738,19 @@ class System:
             func(value, *args, **kwargs)
 
     def _set_by_attr(self, attr_name, value, args, kwargs):
-        """set attribute or call the method with the value as argument
+        """
+        Set attribute or call the method with the value as argument.
 
         Parameters
         ----------
         attr_name : str
-         attribute or method name as string
-        value : any
-         value to which the attribute should be set
+            Attribute or method name as string.
+        value : Any
+            Value to which the attribute should be set.
         args : list or None
-         optional arguments to the setter function
+            Optional arguments to the setter function.
         kwargs : dict or None
-         optional keyword arguments to the setter function
+            Optional keyword arguments to the setter function.
         """
         attr = getattr(self, attr_name)
         if callable(attr):  # attr is method
@@ -708,24 +759,25 @@ class System:
             setattr(self, attr_name, value)
 
     def _set_by_list(self, setter, value, args, kwargs):
-        """set some device property.
+        """
+        Set some device property.
 
         The device property can be a callable method or an attribute. The
         callable method can receive optional additional arguments and keyword
-        arguments which will be preferentially taken form the `args`/`kwargs`
-        arguments. If those are not given the third and forth entry of the
+        arguments which will be preferentially taken from the `args`/`kwargs`
+        arguments. If those are not given the third and fourth entry of the
         setter list are used instead.
 
         Parameters
         ----------
         setter : list
-         list of device name, property name/method, optional arguments, kwargs
-        value : any
-         value to which the device property should be set
+            List of device name, property name/method, optional arguments, kwargs.
+        value : Any
+            Value to which the device property should be set.
         args : list or None
-         optional arguments to the setter function
+            Optional arguments to the setter function.
         kwargs : dict or None
-         optional keyword arguments to the setter function
+            Optional keyword arguments to the setter function.
         """
         dev = self.devs[setter[0]]
         attr = getattr(dev, setter[1])
@@ -742,12 +794,12 @@ class System:
 
     def trigger_value(self, i):
         """
-        Triggers devices specified in column i if trigger function is provided
+        Trigger devices specified in column i if trigger function is provided.
 
         Parameters
-        -----
+        ----------
         i : int or str
-          index or name of parameter that is supposed to be triggered
+            Index or name of parameter that is supposed to be triggered.
         """
         if i in self.columns:
             idx = self.columns.index(i)
@@ -771,10 +823,25 @@ class System:
                 raise
 
     def _call_func(self, func, args, kwargs):
-        """call a function with optional arguments/kwargs.
+        """
+        Call a function with optional arguments/kwargs.
 
         The function call includes arguments and kwarguments only when they are
         not None.
+
+        Parameters
+        ----------
+        func : callable
+            Function to call.
+        args : tuple or None
+            Optional positional arguments.
+        kwargs : dict or None
+            Optional keyword arguments.
+
+        Returns
+        -------
+        Any
+            The return value of the called function.
         """
         if not args and not kwargs:
             return func()
@@ -786,7 +853,8 @@ class System:
             return func(*args, **kwargs)
 
     def _call_attr(self, attr_name, args, kwargs, needs_callable=False):
-        """call some method which is specified by its attribute name.
+        """
+        Call some method which is specified by its attribute name.
 
         The attribute name correspond to a callable method, otherwise no action
         will be taken. An exception will be raised if no callable method can be
@@ -795,13 +863,23 @@ class System:
         Parameters
         ----------
         attr_name : str
-         attribute name of a method.
+            Attribute name of a method.
         args : list or None
-         optional arguments to the callable method
+            Optional arguments to the callable method.
         kwargs : dict or None
-         optional keyword arguments to the callable method
-        needs_callable: bool
-         if True an exception will be raised if no callable method is found.
+            Optional keyword arguments to the callable method.
+        needs_callable : bool, optional
+            If True an exception will be raised if no callable method is found.
+
+        Returns
+        -------
+        Any
+            The return value of the called method or the attribute value.
+
+        Raises
+        ------
+        AttributeError
+            If needs_callable is True and the attribute is not callable.
         """
         attr = getattr(self, attr_name)
         if callable(attr):
@@ -813,7 +891,8 @@ class System:
         return ret
 
     def _call_by_list(self, listdef, args, kwargs, needs_callable=False):
-        """call some device property.
+        """
+        Call some device property.
 
         The device property must be a callable method, otherwise no action will
         be taken. An exception will be raised if no callable method can be found
@@ -822,13 +901,23 @@ class System:
         Parameters
         ----------
         listdef : list
-         list of device name, property name/method, optional arguments, kwargs
+            List of device name, property name/method, optional arguments, kwargs.
         args : list or None
-         optional arguments to the device method
+            Optional arguments to the device method.
         kwargs : dict or None
-         optional keyword arguments to the device method
-        needs_callable: bool
-         if True an exception will be raised if no callable method is found.
+            Optional keyword arguments to the device method.
+        needs_callable : bool, optional
+            If True an exception will be raised if no callable method is found.
+
+        Returns
+        -------
+        Any
+            The return value of the called method or the attribute value.
+
+        Raises
+        ------
+        AttributeError
+            If needs_callable is True and the attribute is not callable.
         """
         dev = self.devs[listdef[0]]
         attr = getattr(dev, listdef[1])
@@ -847,29 +936,28 @@ class System:
         return ret
 
     def trigger(self):
-        """
-        triggers a measurements of all parameters in the system.
-        """
+        """Trigger measurements of all parameters in the system."""
         for i in range(len(self.columns)):
             self.trigger_value(i)
 
     def read_value(self, i):
         """
-        Fetches readout value of parameter using the getter.
+        Fetch readout value of parameter using the getter.
 
         Takes the column name or index and reads the corresponding parameter
         as defined by the getter of the parameter.
-        If the getter is None, returns nan
+        If the getter is None, returns nan.
 
         Parameters
-        -----
+        ----------
         i : int or str
-          index or name of parameter that is supposed to be triggered
+            Index or name of parameter that is supposed to be triggered.
 
         Returns
-        -----
-        readout : type returned by getter or "nan"
-          returns the readout from the device/parameter getter
+        -------
+        readout : Any
+            The readout from the device/parameter getter. If getter is None,
+            returns "nan" or a list of "nan" values.
         """
         if i in self.columns:
             idx = self.columns.index(i)
@@ -896,16 +984,16 @@ class System:
 
     def set(self, *args, **kwargs):
         """
-        Basic set function which handles device opening/initialization.
+        Handle device opening/initialization.
 
         For format of devs refer to .add_dev
 
         Parameters
-        -----
-        args : tuple
-          args that can be used here, currently not used
-        kwargs : dict
-          kwargs than be used here, currently not used
+        ----------
+        *args : tuple
+            Arguments that can be used here, currently not used.
+        **kwargs : dict
+            Keyword arguments that can be used here, currently not used.
         """
         for key, dev in self.devs.items():
             if isinstance(dev, list) is True:
@@ -935,23 +1023,24 @@ class System:
 
     def query(self):
         """
-        Starts a query to all devices (system needs to be set before this
-        function is called) to read their configuration state.
+        Query all devices to read their configuration state.
+
+        The system needs to be set before this function is called.
 
         Parameters provided in system or device need to be one of:
-          * an attribute or method name (if callable without arguments of
-            the device object
-          * a query string for the device
-          * a list of the following scheme [method_name : str, args : tuple,
-            kwargs : dict]
+        * An attribute or method name (if callable without arguments) of
+          the device object
+        * A query string for the device
+        * A list of the following scheme [method_name : str, args : tuple,
+          kwargs : dict]
 
         Refer also to matr1x.devices.visadevice for further information.
 
         Returns
-        -----
+        -------
         retquery : dict
-          dictionary with dictionaries containing the configuration of each
-          device.
+            Dictionary with dictionaries containing the configuration of each
+            device.
         """
         if self.opened is False:
             raise ValueError("System must be set before query can be called")
@@ -991,17 +1080,17 @@ class System:
 
     def reset(self, *args, **kwargs):
         """
-        General reset function for deinitialization of system, clears the read buffer of the instrument.
+        General reset function for deinitialization of system.
 
-        The device will be left open/initialized unless the system is closed or
-        deleted.
+        Clears the read buffer of the instrument. The device will be left open
+        and initialized unless the system is closed or deleted.
 
         Parameters
-        -----
-        args : tuple
-          args that can be used here, currently not used
-        kwargs : dict
-          kwargs than be used here, currently not used
+        ----------
+        *args : tuple
+            Arguments that can be used here, currently not used.
+        **kwargs : dict
+            Keyword arguments that can be used here, currently not used.
         """
         for dev in self.devs.values():
             if hasattr(dev, "adapter"):  # pymeasure device
@@ -1016,9 +1105,9 @@ class System:
 
     def close(self):
         """
-        close device connections and restore the virgin system.
+        Close device connections and restore the virgin system.
 
-        After this function is called the System can be reinitialized by
+        After this function is called, the System can be reinitialized by
         calling System.set().
         """
         for dev in self.devs.values():
@@ -1032,18 +1121,19 @@ class System:
 
     def settable_columns(self):
         """
-        Function to obtain the settable columns. Used by matrix and
-        matrix_script to verify that the input file/input script was generated
-        with the same system as the one that is currently used.
+        Obtain the settable columns of the system.
+
+        Used by matrix and matrix_script to verify that the input file/input script
+        was generated with the same system as the one that is currently used.
 
         Returns
         -------
         settables : list
-          list of bools describing whether a parameter is settable or not
+            List of booleans describing whether a parameter is settable or not.
         flattened_settable_names : list
-          list of strings containing the names of the settable columns
+            List of strings containing the names of the settable columns.
         flattened_settable_units : list
-          list of strings containing the units of the settable columns
+            List of strings containing the units of the settable columns.
         """
         settables = [(False if par.setter is None else True)
                      for par in self.parameters]
@@ -1064,29 +1154,30 @@ class System:
 
     def grab_information(self, settables=False):
         """
-        Utility function to obtain meta information from a system
+        Obtain meta information from the system.
 
-        Depending on settables, a human readable description of the system (devices
-        and parameters) is returned, or the number of settable columns.
+        Depending on settables, returns either a human-readable description of
+        the system (devices and parameters) or the number of settable columns.
 
-        The function is used by matrix_script to verify the system still
+        This function is used by matrix_script to verify the system still
         corresponds to the definition with which the script was created.
         Additionally, it is used to generate the help string.
 
         Parameters
         ----------
         settables : bool, optional
-          controls whether to return the settable columns of the system (if
-          True) or whether a human readable string with the system
-          definition is returned.
+            Controls whether to return the settable columns of the system (if
+            True) or a human-readable string with the system definition (if
+            False). Default is False.
 
         Returns
         -------
-        system_descriptor : string
-          Returns a string with the list of devices and a string with
-          parameters that are available in the system (name + index) as well
-          as customly defined system methods and variables (if any)
-          Alternatively, returns the settable columns of the system
+        system_descriptor : str or tuple
+            If settables is False, returns a string with the list of devices
+            and parameters available in the system (name + index) as well as
+            custom-defined system methods and variables (if any).
+            If settables is True, returns a tuple containing information about
+            the settable columns of the system.
         """
         if settables is True:
             # return only settables
@@ -1123,18 +1214,19 @@ class System:
 
     def init_datafile(self, inputfile, output_filename=None):
         """
-        prepares the header of a matrix file for the matrix program, inserts all
-        relevant information including the setstr. If the file already exists no
-        second header will be added.
+        Prepare the header of a matrix file for the matrix program.
 
-        The header will also include information queried from the devices.
+        This function inserts all relevant information including the setstr into
+        the header of a matrix file. If the file already exists, no second header
+        will be added. The header will also include information queried from the
+        devices.
 
-        Arguments
-        ----
+        Parameters
+        ----------
         inputfile : str
-          filename of the inputfile to be placed in the header
+            Filename of the inputfile to be placed in the header.
         output_filename : str, optional
-          filename of the ouput file
+            Filename of the output file.
         """
         if output_filename:
             self.filename = output_filename
@@ -1200,13 +1292,18 @@ class System:
 
     def take_measurement_point(self, datafilename=None):
         """
-        takes one reading from all devices and saves it to the datafile
+        Take one reading from all devices and save it to the datafile.
 
         Parameters
         ----------
-        datafilename: None, str, optional
-         filename where to save the measurement. If not specified the
-         internally stored filename is used.
+        datafilename : str or None, optional
+            Filename where to save the measurement. If not specified, the
+            internally stored filename is used.
+
+        Returns
+        -------
+        list
+            List of values read from the devices.
         """
         dfilename = datafilename if datafilename else self.filename
         if self.hdf5:
@@ -1252,15 +1349,19 @@ class System:
 
     def add_comment(self, message: str, datafilename=None) -> None:
         """
-        Adds comment to the datafile.
+        Add comment to the datafile.
 
         Parameters
         ----------
-        message: str
-          comment string to be added to the datafile
-        datafilename: None, str, optional
-          filename where to save the measurement. If not specified the
-          internally stored filename is used.
+        message : str
+            Comment string to be added to the datafile.
+        datafilename : str or None, optional
+            Filename where to save the measurement. If not specified, the
+            internally stored filename is used.
+
+        Returns
+        -------
+        None
         """
         dfilename = datafilename if datafilename else self.filename
 
@@ -1306,10 +1407,6 @@ class System:
             The status message to be written.
         datafilename : str, optional
             The name of the data file to write to. If None, uses the internally stored filename.
-
-        Returns
-        -------
-        None
         """
         dfilename = datafilename if datafilename else self.filename
 
@@ -1330,7 +1427,7 @@ class System:
 
 class MergedSystem(System):
     """
-    Defines a measurement setup/system containing of multiple individual systems
+    Defines a measurement setup/system containing multiple individual systems.
 
     Gracefully combines the systems into one system instance, so that "mobile"
     parts of a system can be used together with multiple "stationary" systems.
@@ -1344,14 +1441,14 @@ class MergedSystem(System):
     Refer to parent System for further attributes.
 
     Parameters
-    -----
+    ----------
     systems : list
-      list of system instances that should be combined into the merged system.
+        List of system instances that should be combined into the merged system.
 
     Attributes
-    -----
+    ----------
     subsys : list
-      contains the individual System instances that go into the merged system.
+        Contains the individual System instances that go into the merged system.
     """
 
     def __init__(self, systems):
@@ -1394,19 +1491,20 @@ class MergedSystem(System):
     @classmethod
     def from_files(cls, system_filenames):
         """
-        Merges multiple systems and return a MergedSystem-instance.
+        Merge multiple systems and return a MergedSystem instance.
+
         Note that the order of the systems matters when setting/reading parameters during a measurement.
         Typically the core system (e.g. Magnet-cryostat) comes first and measurement systems afterwards.
 
         Parameters
-        -----
+        ----------
         system_filenames : list
-          list of system paths that should be merged
+            List of system paths that should be merged.
 
         Returns
-        ----
-        system : MergedSystem
-          MergedSystem instance that contains the descirption of all subsystems
+        -------
+        MergedSystem
+            MergedSystem instance that contains the description of all subsystems.
         """
         systems = []
         for filename in system_filenames:
@@ -1417,8 +1515,25 @@ class MergedSystem(System):
 
     def __getattr__(self, attr):
         """
-        Return methods/variables from subsystems if they do not exist in the
-        MergedSystem.
+        Return methods/variables from subsystems if they do not exist in the MergedSystem.
+
+        This method is called when an attribute is not found in the MergedSystem instance.
+        It searches for the attribute in all subsystems and returns it if found.
+
+        Parameters
+        ----------
+        attr : str
+            The name of the attribute being accessed.
+
+        Returns
+        -------
+        Any
+            The attribute from a subsystem, if found.
+
+        Raises
+        ------
+        AttributeError
+            If the attribute is not found in any subsystem.
         """
         for sys in self.subsys:
             if hasattr(sys, attr):
@@ -1433,9 +1548,15 @@ class MergedSystem(System):
 
     @filename.setter
     def filename(self, value):
-        """The filename property setter.
+        """Set the filename property.
 
-        This is needed to keep the filename on the subsystems in sync."""
+        This method is needed to keep the filename on the subsystems in sync.
+
+        Parameters
+        ----------
+        value : str
+            The new filename value to be set.
+        """
         for sys in self.subsys:
             sys.filename = value
         self._filename = value
@@ -1469,12 +1590,12 @@ class MergedSystem(System):
         self.dcdata["date"] = time.strftime(f"{datetimefmt}", time.localtime())
 
     def _check_hdf5(self):
-        """check whether one of the systems requires HDF5."""
+        """Check whether one of the systems requires HDF5."""
         for sys in self.subsys:
             self.hdf5 = self.hdf5 or sys.hdf5
 
     def grab_information(self, settables=False):
-        """reimplement System method to return subsystem information."""
+        """Reimplement System method to return subsystem information."""
         ret_string = super().grab_information(settables)
         if settables is False:
             fun_list = []
@@ -1492,15 +1613,14 @@ class MergedSystem(System):
 
     def set(self, *args, **kwargs):
         """
-        set function that properly initializess the subsystems and updates
-        the list of devices
+        Set function that properly initializes the subsystems and updates the list of devices.
 
         Parameters
-        -----
-        args : tuple
-          args that can be used here, currently not used
-        kwargs : dict
-          kwargs than be used here, currently not used
+        ----------
+        *args : tuple
+            Arguments that can be used here, currently not used.
+        **kwargs : dict
+            Keyword arguments that can be used here, currently not used.
         """
         # use individual system for opening devices
         for sys in self.subsys:
@@ -1516,15 +1636,14 @@ class MergedSystem(System):
 
     def reset(self, *args, **kwargs):
         """
-        reset function that properly deinitializess the subsystems and updates
-        the list of devices
+        Reset function that properly deinitializes the subsystems and updates the list of devices.
 
         Parameters
-        -----
-        args : tuple
-          args that can be used here, currently not used
-        kwargs : dict
-          kwargs than be used here, currently not used
+        ----------
+        *args : tuple
+            Arguments that can be used here, currently not used.
+        **kwargs : dict
+            Keyword arguments that can be used here, currently not used.
         """
         # close all individual systems again
         if "status" in kwargs:

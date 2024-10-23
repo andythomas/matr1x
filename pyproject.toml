@@ -62,15 +62,5 @@ homepage = "https://github.com/andythomas/IFW_software"
 requires = ["flit_core >=3.6,<4"]
 build-backend = "flit_core.buildapi"
 
-[tool.ruff]
-line-length = 120
-
-[tool.ruff.lint]
-# uncomment later if docsstrings are in order
-# extend-select = ['D']
-
-[tool.ruff.lint.pydocstyle]
-convention = "numpy" # Accepts: "google", "numpy", or "pep257".
-
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"

@@ -13,7 +13,25 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+Configuration and utility module for the matr1x data acquisition software.
 
+This module provides functionality to load and manage configuration settings,
+handle logging, and define global constants for the matr1x software. It includes
+functions for merging configuration dictionaries, writing user-specific configs,
+and setting up logging based on the loaded configuration.
+
+Key features:
+- Configuration loading from default, user, and local sources
+- Recursive dictionary merging for configuration overrides
+- Logging setup with configurable output locations
+- Definition of valid metadata keys
+- Management of system directories for various matr1x modules
+
+The module also sets up important global variables and constants used throughout
+the matr1x software, such as output file extensions, datetime formats, and
+system directories.
+"""
 import logging
 import sys
 import tempfile

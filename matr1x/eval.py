@@ -76,6 +76,8 @@ def get_latest_datafile(path=None, basename=None):
     basename: str or None, optional
       an example filename or input filename used to filter files in path.
     """
+    basepath = None
+    basewoext = None
     if basename:
         basepath, basefilename = split(basename)
         basewoext = splitext(basefilename)[0]
@@ -84,7 +86,7 @@ def get_latest_datafile(path=None, basename=None):
     # determine used file path
     if path:
         usedpath = path
-    elif basename and basepath:
+    elif basepath:
         usedpath = basepath
     else:
         usedpath = os.curdir
@@ -92,7 +94,7 @@ def get_latest_datafile(path=None, basename=None):
     # obtain file list and filter it
     allfiles = os.listdir(usedpath)
     filelist = filter(lambda f: isfile(join(usedpath, f)), allfiles)
-    if basename and basewoext:  # filter file list by file extension/basename
+    if basewoext:  # filter file list by file extension/basename
         files = natsorted(
             [f for f in filelist if
              re.search(fr'^({basewoext})(_\d+)?(\.h5)?\.ma\d$', f)]

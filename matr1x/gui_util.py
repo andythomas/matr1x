@@ -17,11 +17,7 @@
 # CustomDateAxis class in this file adapted from
 # https://pyqtgraph.readthedocs.io/en/latest/_modules/pyqtgraph/graphicsItems/AxisItem.html#AxisItem.tickValues
 # licensed under MIT-license
-
-"""
-This module contains gui related functions that are required by the
-sweep-generator, matrix-gui, matrix-preview, and matrix-script.
-"""
+"""GUI-related functions for sweep-generator, matrix-gui, matrix-preview, and matrix-script."""
 import datetime
 from importlib.metadata import version as package_version
 from os.path import dirname, expanduser, join, normpath
@@ -95,18 +91,26 @@ validator[np.uint].setBottom(0)
 
 class QRangeWidget(QGroupBox):
     """
-    Widget that displays a range slider with a decrement/increment slider
-    on either side and a label on the left.
+    Widget that displays a range slider with decrement/increment sliders.
 
-    Parameters
-    ---------
-    title: base name that is displayed on the left together with current
-      value of slider and the number of increments
-    parent: parent widget or None
+    This widget consists of a range slider with a decrement/increment slider
+    on either side and a label on the left.
     """
+
     value_changed = pyqtSignal(int)
 
     def __init__(self, title, parent=None):
+        """
+        Initialize the QRangeWidget.
+
+        Parameters
+        ----------
+        title : str
+            Base name displayed on the left together with current
+            value of slider and the number of increments.
+        parent : QWidget, optional
+            Parent widget.
+        """
         super().__init__("", parent)
         self.setMinimumHeight(30)
         self.setFixedHeight(30)
@@ -151,52 +155,71 @@ class QRangeWidget(QGroupBox):
 
     def set_base_title(self, title):
         """
-        Resets the base title to a new value
+        Reset the base title to a new value.
 
         Parameters
         ----------
-        title: str
-          New base title
+        title : str
+            New base title.
         """
         self.base_title = title
 
     def set_value(self, val):
         """
-        Set current value of slider
+        Set current value of slider.
 
         Parameters
         ----------
-        val: int
-          new value of slider, out of range values are ignored
+        val : int
+            New value of slider, out of range values are ignored.
         """
         self.slider.setValue(val)
         self._update_text()
 
     def value(self):
+        """
+        Get current value of slider.
 
+        Returns
+        -------
+        int
+            Current value of slider.
+        """
         return self.slider.value()
 
     def set_range(self, minimum, maximum):
         """
+        Set range of slider.
+
         Parameters
         ----------
-        minimum: int
-          Minimum value of slider
-        maximum: int
-          Maximum value of slider
+        minimum : int
+            Minimum value of slider.
+        maximum : int
+            Maximum value of slider.
         """
         self.slider.setRange(minimum, maximum)
         self._update_text()
 
     def minimum(self):
         """
-        Returns minimum value of slider
+        Get minimum value of slider.
+
+        Returns
+        -------
+        int
+            Minimum value of slider.
         """
         return self.slider.minimum()
 
     def maximum(self):
         """
-        Returns maximum value of slider
+        Get maximum value of slider.
+
+        Returns
+        -------
+        int
+            Maximum value of slider.
         """
         return self.slider.maximum()
 
@@ -209,11 +232,43 @@ class MetaViewerWidget(QDockWidget):
     """
 
     class EditableDelegate(QStyledItemDelegate):
+        """
+        Custom delegate for editable items in a view.
+
+        This delegate provides custom editing and display functionality
+        for items in a view, allowing for more advanced text selection
+        and read-only behavior.
+
+        Parameters
+        ----------
+        editable : bool, optional
+            Whether the item should be editable. Default is False.
+        parent : QWidget, optional
+            The parent widget. Default is None.
+        """
+
         def __init__(self, editable=False, parent=None):
             super().__init__(parent=parent)
             self.editable = editable
 
         def createEditor(self, parent, option, index):
+            """
+            Create and return a custom editor widget for editing item data.
+
+            Parameters
+            ----------
+            parent : QWidget
+                The parent widget for the editor.
+            option : QStyleOptionViewItem
+                The style options for the editor.
+            index : QModelIndex
+                The index of the item being edited.
+
+            Returns
+            -------
+            QTextEdit
+                A custom QTextEdit widget configured for editing.
+            """
             # Create a QTextEdit for more advanced text selection
             editor = QTextEdit(parent)
             # Make it read-only, but still allow text selection
@@ -226,14 +281,60 @@ class MetaViewerWidget(QDockWidget):
             return editor
 
         def setEditorData(self, editor, index):
+            """
+            Set the editor data based on the current index.
+
+            Parameters
+            ----------
+            editor : QWidget
+                The editor widget to be updated.
+            index : QModelIndex
+                The index of the item being edited.
+            """
             value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
             editor.setText(value)
 
         def setModelData(self, editor, model, index):
+            """
+            Set the model data based on the editor's content.
+
+            Parameters
+            ----------
+            editor : QWidget
+                The editor widget containing the data.
+            model : QAbstractItemModel
+                The model to be updated.
+            index : QModelIndex
+                The index of the item being edited.
+            """
             value = editor.toPlainText()
             index.model().setData(index, value, Qt.ItemDataRole.EditRole)
 
     class TreeItem:
+        """
+        A class representing a tree item in a hierarchical structure.
+
+        Parameters
+        ----------
+        key : str
+            The key or identifier for this item.
+        value : Any
+            The value associated with this item.
+        parent : TreeItem, optional
+            The parent item of this item, if any.
+
+        Attributes
+        ----------
+        parent_item : TreeItem
+            The parent item of this item.
+        child_items : list
+            List of child TreeItem objects.
+        key : str
+            The key or identifier for this item.
+        value : Any
+            The value associated with this item.
+        """
+
         def __init__(self, key, value, parent=None):
             self.parent_item = parent
             self.child_items = []
@@ -263,15 +364,57 @@ class MetaViewerWidget(QDockWidget):
                     self.value = str(self.value)
 
         def child(self, row):
+            """
+            Get the child item at the specified row.
+
+            Parameters
+            ----------
+            row : int
+                The index of the child item to retrieve.
+
+            Returns
+            -------
+            TreeItem
+                The child item at the specified row.
+            """
             return self.child_items[row]
 
         def child_count(self):
+            """
+            Get the number of child items.
+
+            Returns
+            -------
+            int
+                The number of child items.
+            """
             return len(self.child_items)
 
         def column_count(self):
+            """
+            Get the number of columns in the item.
+
+            Returns
+            -------
+            int
+                The number of columns (always 2 for Key and Value).
+            """
             return 2  # Key and Value columns
 
         def data(self, column):
+            """
+            Get the data for the specified column.
+
+            Parameters
+            ----------
+            column : int
+                The column index (0 for Key, 1 for Value).
+
+            Returns
+            -------
+            str
+                The data for the specified column.
+            """
             if column == 0:
                 return self.key
             elif column == 1:
@@ -282,6 +425,18 @@ class MetaViewerWidget(QDockWidget):
             return None
 
         def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+            """
+            Set the data for the item.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item to set.
+            value : Any
+                The value to set.
+            role : Qt.ItemDataRole, optional
+                The role of the data being set (default is EditRole).
+            """
             if not index.isValid():
                 return None
             if index.column() == 1:
@@ -291,20 +446,61 @@ class MetaViewerWidget(QDockWidget):
                 self.value = value
 
         def parent(self):
+            """
+            Get the parent item.
+
+            Returns
+            -------
+            TreeItem
+                The parent item.
+            """
             return self.parent_item
 
         def row(self):
+            """
+            Get the row number of this item in its parent's list of children.
+
+            Returns
+            -------
+            int
+                The row number of this item.
+            """
             if self.parent_item:
                 return self.parent_item.child_items.index(self)
             return 0
 
     class TreeModel(QAbstractItemModel):
+        """
+        Custom tree model for displaying hierarchical data.
+
+        Parameters
+        ----------
+        data : dict
+            The hierarchical data to be displayed in the tree.
+        parent : QObject, optional
+            The parent object for this model.
+        """
+
         def __init__(self, data, parent=None):
             super().__init__(parent)
             self.root_item = MetaViewerWidget.TreeItem("Root", data)
 
         def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-            """Return data at given index if displayed."""
+            """
+            Return data for the given index and role.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item.
+            role : Qt.ItemDataRole, optional
+                The role of the data being requested.
+
+            Returns
+            -------
+            Any
+                The data for the given index and role.
+            """
             if not index.isValid():
                 return None
 
@@ -320,7 +516,21 @@ class MetaViewerWidget(QDockWidget):
 
         def setData(self, index, value, role):
             """
-            takes a new data set and updates the table
+            Update the data for the given index and role.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item to update.
+            value : Any
+                The new value to set.
+            role : Qt.ItemDataRole
+                The role of the data being set.
+
+            Returns
+            -------
+            bool
+                True if the data was successfully set, False otherwise.
             """
             if role == Qt.ItemDataRole.EditRole:
                 item = index.internalPointer()
@@ -329,6 +539,19 @@ class MetaViewerWidget(QDockWidget):
             return False
 
         def flags(self, index):
+            """
+            Return the item flags for the given index.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item.
+
+            Returns
+            -------
+            Qt.ItemFlags
+                The item flags for the given index.
+            """
             if index.isValid():
                 if index.column() == 1:
                     return (
@@ -339,7 +562,23 @@ class MetaViewerWidget(QDockWidget):
                 return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
 
         def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-            """Return data written in header."""
+            """
+            Return the header data for the given section, orientation, and role.
+
+            Parameters
+            ----------
+            section : int
+                The section number.
+            orientation : Qt.Orientation
+                The orientation of the header.
+            role : Qt.ItemDataRole, optional
+                The role of the data being requested.
+
+            Returns
+            -------
+            str or None
+                The header data for the given section, orientation, and role.
+            """
             if role == Qt.ItemDataRole.DisplayRole:
                 if section == 0:
                     return "Key"
@@ -348,6 +587,23 @@ class MetaViewerWidget(QDockWidget):
             return None
 
         def index(self, row, column, parent=QModelIndex()):
+            """
+            Create and return a model index for the given row, column, and parent.
+
+            Parameters
+            ----------
+            row : int
+                The row number.
+            column : int
+                The column number.
+            parent : QModelIndex, optional
+                The parent index.
+
+            Returns
+            -------
+            QModelIndex
+                The model index for the given row, column, and parent.
+            """
             if not self.hasIndex(row, column, parent):
                 return QModelIndex()
 
@@ -362,6 +618,19 @@ class MetaViewerWidget(QDockWidget):
             return QModelIndex()
 
         def parent(self, index):
+            """
+            Return the parent index for the given index.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item.
+
+            Returns
+            -------
+            QModelIndex
+                The parent index of the given index.
+            """
             if not index.isValid():
                 return QModelIndex()
 
@@ -374,20 +643,52 @@ class MetaViewerWidget(QDockWidget):
             return self.createIndex(parent_item.row(), 0, parent_item)
 
         def resetData(self, data):
-            """Take a new data set and updates the table."""
+            """
+            Reset the model with new data.
+
+            Parameters
+            ----------
+            data : dict
+                The new hierarchical data to be displayed in the tree.
+            """
             self.beginResetModel()
             del self.root_item
             self.root_item = MetaViewerWidget.TreeItem("Root", data)
             self.endResetModel()
 
         def rowCount(self, parent=QModelIndex()):
+            """
+            Return the number of rows under the given parent.
+
+            Parameters
+            ----------
+            parent : QModelIndex, optional
+                The parent index.
+
+            Returns
+            -------
+            int
+                The number of rows under the given parent.
+            """
             if not parent.isValid():
                 return self.root_item.child_count()
             parent_item = parent.internalPointer()
             return parent_item.child_count()
 
         def columnCount(self, index):
-            """Return the column count (always 2 = key+value)."""
+            """
+            Return the number of columns for the children of the given parent.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The parent index.
+
+            Returns
+            -------
+            int
+                The number of columns for the children of the given parent.
+            """
             return 2
 
     def __init__(
@@ -429,7 +730,14 @@ class MetaViewerWidget(QDockWidget):
         # """)
 
     def update_data(self, meta):
-        """Update data stored in the model and resize table to fit contents."""
+        """
+        Update data stored in the model and resize table to fit contents.
+
+        Parameters
+        ----------
+        meta : dict
+            New metadata to be displayed.
+        """
         self.model.resetData(self.parse_header(meta))
         # resize and expand all entries
         # (the latter might be disabled in the future, or configurable?)
@@ -440,6 +748,16 @@ class MetaViewerWidget(QDockWidget):
     def parse_header(self, hdr):
         """
         Parse a matrix header and prepare for display in the table view.
+
+        Parameters
+        ----------
+        hdr : dict
+            Header dictionary to be parsed.
+
+        Returns
+        -------
+        dict
+            Parsed header data.
 
         TODO: Implement sorting?
         """
@@ -455,7 +773,7 @@ class MetaViewerWidget(QDockWidget):
 
 class ConfigEditWidget(MetaViewerWidget):
     """
-    Edtior for config files based on the MetaViewerWidget.
+    Editor for config files based on the MetaViewerWidget.
 
     Allows editing and saving the config file.
     """
@@ -481,6 +799,14 @@ class ConfigEditWidget(MetaViewerWidget):
         self.setWidget(widget)
 
     def update_data(self, systemfile):
+        """
+        Update data stored in the model with system configuration.
+
+        Parameters
+        ----------
+        systemfile : list
+            List of system names to update.
+        """
         syst_dict = {}
         for syst in systemfile:
             syst_dict[syst.strip()] = get_config_dict(syst.strip())
@@ -488,6 +814,20 @@ class ConfigEditWidget(MetaViewerWidget):
         self.w_write_config.setEnabled(True)
 
     def parse_item(self, item):
+        """
+        Parse a TreeItem and its children into a configuration dictionary.
+
+        Parameters
+        ----------
+        item : TreeItem
+            The TreeItem to parse.
+
+        Returns
+        -------
+        dict or str
+            A dictionary representing the parsed configuration, or a string
+            if the item has no children.
+        """
         config = {}
         if item.child_count() > 0:
             for child_item in item.child_items:
@@ -497,6 +837,7 @@ class ConfigEditWidget(MetaViewerWidget):
         return config
 
     def write_config(self):
+        """Write the current configuration to file."""
         def create_nested_dict(keys, item):
             if len(keys) == 1:
                 return {keys[0]: self.parse_item(item)}
@@ -504,12 +845,17 @@ class ConfigEditWidget(MetaViewerWidget):
 
         def normalize_value(value):
             """
-            Attempts to convert the input value to the appropriate type.
+            Attempt to convert the input value to the appropriate type.
 
-            - If it's a string representing an integer, converts to int.
-            - If it's a string representing a float, converts to float.
-            - If it's a string 'true'/'false', converts to boolean.
-            - Otherwise, returns the value as-is.
+            Parameters
+            ----------
+            value : str
+                The value to normalize.
+
+            Returns
+            -------
+            int, float, bool, or str
+                The normalized value.
             """
             if isinstance(value, str):
                 # Try to convert to an integer
@@ -537,6 +883,16 @@ class ConfigEditWidget(MetaViewerWidget):
         def normalize_dict(input_dict):
             """
             Apply value normalization to input_dict.
+
+            Parameters
+            ----------
+            input_dict : dict
+                The dictionary to normalize.
+
+            Returns
+            -------
+            dict
+                The normalized dictionary.
             """
             for key, value in input_dict.items():
                 # If the value is a dictionary, recursively normalize dict
@@ -562,44 +918,46 @@ class ConfigEditWidget(MetaViewerWidget):
 
 class SimplePlotWidget(QGroupBox):
     """
-    Plot widget that allows multiple curve or 2d plots to be vertically
-    stacked and simultaneously displayed.
+    Plot widget for multiple vertically stacked curve or 2d plots.
 
     Parameters
     ----------
-    cb_error: function
-      callback function that takes a single string as paramter, the
-      string will describe the present error
-      If called with an empty string, it should elear the error.
-    cb_index: function
-      callback function that takes a PlotObject as parameters.
-      The function is called with the currently selected PlotObject if the
-      latter changes.
+    cb_error : callable
+        Callback function that takes a single string as parameter.
+        The string will describe the present error.
+        If called with an empty string, it should clear the error.
+    cb_index : callable
+        Callback function that takes a PlotObject as parameter.
+        The function is called with the currently selected PlotObject if the
+        latter changes.
     """
+
     class PlotObject():
         """
-        Object that contains the plot, data corresponding identifiers and
-        widgets. Relies on external layouts to insert the widgets/plots.
+        Object that contains the plot, data corresponding identifiers and widgets.
+
+        Relies on external layouts to insert the widgets/plots.
 
         Parameters
         ----------
-        l_plot: pyqtgraph.GraphicsLayoutWidget
-          layout into which the plot is to be inserted
-        error: function
-          callback function that takes a single string as paramter, the
-          string will describe the present error
-        l_slider: QVBoxLayout
-          layout into which the sliders are added using l_slider.addWidget
-        plot2d: bool
-          flag that defines whether plot is curve or 2d plot
-        index: int
-          index of the plot in the pyqtgraph.GraphicsLayoutWidget
-        desig: [int, int, int]
-          designator that stores an integer that connects the plotted values
-          to some external gui elements. Essentially a simple storage.
-        pen: bool or None
-          If True, lines will be displayed
+        l_plot : pyqtgraph.GraphicsLayoutWidget
+            Layout into which the plot is to be inserted.
+        error : callable
+            Callback function that takes a single string as parameter.
+            The string will describe the present error.
+        l_slider : QVBoxLayout
+            Layout into which the sliders are added using l_slider.addWidget.
+        plot2d : bool
+            Flag that defines whether plot is curve or 2d plot.
+        index : int
+            Index of the plot in the pyqtgraph.GraphicsLayoutWidget.
+        desig : list of int
+            Designator that stores integers that connect the plotted values
+            to some external gui elements. Essentially a simple storage.
+        pen : bool or None, optional
+            If True, lines will be displayed.
         """
+
         # exposed functions that can be used by the custom math eval
         # expression stored in math_texts.
         exposed_functions = {"np": np, "sqrt": np.sqrt, "e": np.e,
@@ -693,20 +1051,23 @@ class SimplePlotWidget(QGroupBox):
 
         def _raise_error(self, error):
             """
-            Function to handle errors
+            Handle errors.
 
             Parameters
             ----------
             error : str
-              describing the error
+                Description of the error.
             """
             self.error(error)
 
         def _get_math(self, y, x):
             """
-            Applies the math operation to the two data arrays, depending on
-            value stored in self.math_mode. See default_math for the
-            default functions that are implemented.
+            Apply the math operation to the two data arrays.
+
+            Applies the math operation depending on the value stored in
+            self.math_mode. See default_math for the default functions that
+            are implemented.
+
             Currently can be one of the following:
                 any key of self.default_math - applies the
                   functions defined there.
@@ -719,16 +1080,16 @@ class SimplePlotWidget(QGroupBox):
             Parameters
             ----------
             y: numpy array
-              data to be processed
+                Data to be processed.
             x: numpy array
-              data to be processed
+                Data to be processed.
 
             Returns
             -------
             y: numpy array
-              processed data
+                Processed data.
             x: numpy array
-              processed data
+                Processed data.
             """
             if self.math_mode in self.default_math.keys():
                 # some of our default math is supposed to be used
@@ -777,9 +1138,7 @@ class SimplePlotWidget(QGroupBox):
             return y, x
 
         def _handle_multidim_and_sliders(self):
-            """
-            Handles slider visibility according to data dimensions
-            """
+            """Handle slider visibility according to data dimensions."""
             self.md = False
             for slider, dshape in zip([self.w_zslider, self.w_xslider],
                                       [self.zdata.shape, self.xdata.shape]):
@@ -815,8 +1174,11 @@ class SimplePlotWidget(QGroupBox):
 
         def _handle_multidim_data(self):
             """
-            Handles data redimensioning and selection according to slider
-            position
+            Handle data redimensioning and selection according to slider position.
+
+            This method adjusts the data dimensions and selects appropriate data
+            based on the current slider positions for multi-dimensional data sets.
+            It updates the x, y, and z data attributes of the object accordingly.
             """
             if self.md is True and self.plot2d is False:
                 self.x = self.xdata[:, self.w_xslider.value()]
@@ -831,12 +1193,12 @@ class SimplePlotWidget(QGroupBox):
 
         def _slider_event(self, val):
             """
-            Handles slider events and updates the displayed data accordingly
+            Handle slider events and update the displayed data accordingly.
 
             Parameters
             ----------
             val: int
-              current value of the slider that is to be applied
+                Current value of the slider that is to be applied.
             """
             if self.plot2d is True:
                 # for 2d plot, select index of current data element
@@ -851,8 +1213,11 @@ class SimplePlotWidget(QGroupBox):
 
         def remove_plot(self):
             """
-            Removes the plot and the widgets that belong to the PlotObject
-            from the provided layouts
+            Remove the plot and the widgets that belong to the PlotObject.
+
+            This method removes the plot from the provided layouts, including
+            the horizontal line, x-slider, and z-slider widgets associated
+            with this PlotObject.
             """
             self.l_plot.removeItem(self.l_plot.getItem(row=self.index, col=0))
             self.l_slider.removeWidget(self.w_hline)
@@ -861,10 +1226,17 @@ class SimplePlotWidget(QGroupBox):
 
         def parse_data(self, z, x, y):
             """
-            Parses the data dictionaries into the corresponding
-            class variables
+            Parse the data dictionaries into the corresponding class variables.
 
-            Used keys are "data", "label", "desig" and "unit"
+            Parameters
+            ----------
+            z : dict
+                Dictionary containing z data with keys "data", "label", "desig", and "unit".
+            x : dict
+                Dictionary containing x data with keys "data", "label", "desig", and "unit".
+            y : dict or None
+                Dictionary containing y data with keys "data", "label", "desig", and "unit",
+                or None if not applicable.
             """
             self.zdata = z["data"]
             self.xdata = x["data"]
@@ -882,47 +1254,48 @@ class SimplePlotWidget(QGroupBox):
 
         def set_math_mode(self, index, math_texts):
             """
-            Sets the math mode and texts
+            Set the math mode and texts.
 
             Parameters
             ----------
             index: int
-              selects the math operation to be applied, see self.default_math.
+                Selects the math operation to be applied, see self.default_math.
             math_texts: [str, str]
-              contains two strings that are evaluated by eval(string). Are
-              only allowed to contain functions/variables that are defined
-              in self.exposed_functions.
+                Contains two strings that are evaluated by eval(string). Are
+                only allowed to contain functions/variables that are defined
+                in self.exposed_functions.
             """
             self.math_mode = index
             self.math_texts = math_texts
 
         def set_data(self, z, x, y=None):
             """
-            Updates the data that is stored in the present plot.
+            Update the data that is stored in the present plot.
 
-            Used keys are "data", "label", "desig" and "unit"
+            Used keys are "data", "label", "desig" and "unit".
 
             Parameters
             ----------
             z: dict
-              z data dictionary.
+                z data dictionary.
             x: dict
-              x data dictionary.
+                x data dictionary.
             y: dict or None
-              y data dictionary.
+                y data dictionary.
             """
             self.parse_data(z, x, y)
             self._handle_multidim_and_sliders()
 
         def plot(self, *args, **kwargs):
             """
-            function that handles the actual plotting of the data and takes
-            care of updating the labels
+            Handle the actual plotting of the data and update the labels.
 
             Parameters
             ----------
-            *args, **kwargs: args or kwargs
-              are passed to the plot function if curve plotting is enabled
+            *args
+                Variable length argument list passed to the plot function if curve plotting is enabled.
+            **kwargs
+                Arbitrary keyword arguments passed to the plot function if curve plotting is enabled.
             """
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
@@ -1068,8 +1441,9 @@ class SimplePlotWidget(QGroupBox):
 
     def _add_plot(self):
         """
-        Adds a plot (via PlotObject) to the current display. Ensures that
-        the new plot is always appended to the end.
+        Add a plot (via PlotObject) to the current display.
+
+        Ensures that the new plot is always appended to the end.
         """
         index = max([plot.index for plot in self.plots]) + 1
         self.plots.append(self.PlotObject(self.gl, self.cb_error, self.l_slider,
@@ -1079,9 +1453,7 @@ class SimplePlotWidget(QGroupBox):
         self.w_plots.addItem("add plot")
 
     def _remove_plot(self):
-        """
-        remove plot that is currently selected in self.w_plots
-        """
+        """Remove plot that is currently selected in self.w_plots."""
         if len(self.plots) == 1:
             # only single plot present
             return
@@ -1101,7 +1473,12 @@ class SimplePlotWidget(QGroupBox):
 
     def _update_wplots(self, index):
         """
-        Updates the currently selected plot upon a change of self.w_plots
+        Update the currently selected plot upon a change of self.w_plots.
+
+        Parameters
+        ----------
+        index : int
+            Index of the newly selected plot in self.w_plots.
         """
         cnt = self.w_plots.count()
         if index == cnt-1 and cnt > 1:
@@ -1130,12 +1507,12 @@ class SimplePlotWidget(QGroupBox):
 
     def _toggle_plot2d(self, flag):
         """
-        toggles the plot2d flag and handles visibility of math widgets
+        Toggle the plot2d flag and handle visibility of math widgets.
 
         Parameters
         ----------
         flag: bool
-          flag that controls whether plot2d is False or True
+            Flag that controls whether plot2d is False or True.
         """
         self.plot2d = flag
         for widget in self.w_math + self.w_lmath:
@@ -1143,9 +1520,7 @@ class SimplePlotWidget(QGroupBox):
         self.w_calc.setVisible(not flag)
 
     def _calc_or_data_changed(self):
-        """
-        Applies new data, math and labels and updates the plot
-        """
+        """Apply new data, math and labels and update the plot."""
         math_mode = self.w_calc.currentText()
         current_plot = self.w_plots.currentIndex()
         if math_mode == "custom" and self.w_math[0].isVisible() is False:
@@ -1172,13 +1547,15 @@ class SimplePlotWidget(QGroupBox):
 
     def _mouse_moved(self, ev):
         """
-        handles mouse interaction - if the mouse in one of the viewboxes,
-        then display the x and y value at the mouse position
+        Handle mouse interaction and display x and y values at mouse position.
+
+        If the mouse is in one of the viewboxes, display the x and y value
+        at the mouse position.
 
         Parameters
         ----------
-        ev: mouse moved event
-          contains the coordinates of the mouse in coordinates of self.gl
+        ev : tuple
+            Contains the coordinates of the mouse in coordinates of self.gl.
         """
         boxes = [plot.vb for plot in self.plots]
         vb_mouse = None
@@ -1198,8 +1575,12 @@ class SimplePlotWidget(QGroupBox):
 
     def _update_linesetting(self, state):
         """
-        Updates the line visibility in all plot objects that are not
-        2d plots
+        Update the line visibility in all plot objects that are not 2d plots.
+
+        Parameters
+        ----------
+        state : bool
+            If True, show lines. If False, hide lines.
         """
         if state is True:
             for plot in self.plots:
@@ -1212,7 +1593,7 @@ class SimplePlotWidget(QGroupBox):
 
     def _plot2d_changed(self, index, new_state):
         """
-        handles a change of the plot type by replacing the PlotObject in place
+        Handle a change of the plot type by replacing the PlotObject in place.
 
         Parameters
         ----------
@@ -1239,16 +1620,21 @@ class SimplePlotWidget(QGroupBox):
 
     def save_plot(self, filename):
         """
-        Export the currently displayed plots (everything in self.gl)
-        into a png file
+        Export the currently displayed plots into a PNG file.
+
+        This method exports all plots currently visible in the graphics layout
+        (self.gl) to a single PNG image file.
+
+        Parameters
+        ----------
+        filename : str
+            The path and name of the file where the PNG image will be saved.
         """
         exporter = pg.exporters.ImageExporter(self.gl.scene())
         exporter.export(filename)
 
     def reset(self):
-        """
-        Resets the full SimplePlotWidget to its default state
-        """
+        """Reset the full SimplePlotWidget to its default state."""
         self.w_plots.blockSignals(True)
         for plot in self.plots:
             plot.remove_plot()
@@ -1268,20 +1654,23 @@ class SimplePlotWidget(QGroupBox):
 
     def plot(self, z, x, y=None, plot2d=False):
         """
-        Function that allows plotting a new set of data.
+        Plot a new set of data.
 
         TODO: Document possible combinations once fully settled
 
         Parameters
         ----------
-        z: dict
-          key "data" contains np.array of dimension 1...3
-        x: dict
-          key "data" contains np.array of dimension 1 or 2
-        y: dict or None
-          key "data" contains np.array of dimension 1 or 2
-        plot2d: bool
-          determines whether plot is 2d or curve
+        z : dict
+            Dictionary containing the z-axis data. Key "data" contains
+            np.array of dimension 1, 2, or 3.
+        x : dict
+            Dictionary containing the x-axis data. Key "data" contains
+            np.array of dimension 1 or 2.
+        y : dict or None, optional
+            Dictionary containing the y-axis data. Key "data" contains
+            np.array of dimension 1 or 2. Default is None.
+        plot2d : bool, optional
+            Determines whether the plot is 2D or a curve. Default is False.
         """
         index = self.w_plots.currentIndex()
         if self.plots[index].plot2d != plot2d:
@@ -1292,29 +1681,44 @@ class SimplePlotWidget(QGroupBox):
 
 class CustomViewBox(pg.ViewBox):
     """
-    Reimplements the pyqthgraph ViewBox and improves its usability with the
-    mouse.
+    Reimplements the pyqthgraph ViewBox and improves its usability with the mouse.
+
     Behavior is as follows:
 
-      right click autoscales graph
-      ---
-      mouse inside plot:
-      left drag zooms to rectangle
-      right drag allows panning plot
-      mouse wheel zooms in/out with cursor position defining center
-      ---
-      mouse on x or y axis:
-      left button drags corresponding axis
-      right button allows panning individual axis
-      mouse wheel zooms in/out with cursor position defining center
+    - Right click autoscales graph
+    - Mouse inside plot:
+        - Left drag zooms to rectangle
+        - Right drag allows panning plot
+        - Mouse wheel zooms in/out with cursor position defining center
+    - Mouse on x or y axis:
+        - Left button drags corresponding axis
+        - Right button allows panning individual axis
+        - Mouse wheel zooms in/out with cursor position defining center
     """
 
     def __init__(self, *args, **kwds):
+        """
+        Initialize the CustomViewBox.
+
+        Parameters
+        ----------
+        *args
+            Variable length argument list.
+        **kwds
+            Arbitrary keyword arguments.
+        """
         pg.ViewBox.__init__(self, *args, **kwds)
         self.setMouseMode(self.RectMode)
 
-    # reimplement right-click to autoscale plot
     def mouseClickEvent(self, ev):
+        """
+        Handle mouse click events.
+
+        Parameters
+        ----------
+        ev : QMouseEvent
+            The mouse event.
+        """
         if ev.button() == Qt.MouseButton.RightButton:
             self.autoRange()
             # set autorange upon change of data
@@ -1322,8 +1726,17 @@ class CustomViewBox(pg.ViewBox):
         # elif ev.button() == Qt.MidButton:
         #     self.raiseContextMenu(ev)
 
-    # reimplement drag event
     def mouseDragEvent(self, ev, axis=None):
+        """
+        Handle mouse drag events.
+
+        Parameters
+        ----------
+        ev : QMouseEvent
+            The mouse event.
+        axis : str, optional
+            The axis being dragged, if any.
+        """
         if ev.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
             # enable pan mode
             self.setMouseMode(self.PanMode)
@@ -1359,19 +1772,50 @@ class CustomDateAxisItem(pg.DateAxisItem):
     # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
     # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     # DEALINGS IN THE SOFTWARE.
+    """
+    Custom date axis item for displaying dates with customizable formatting.
 
-    def tickValues(self, minVal, maxVal, size,):
+    This class extends the pyqtgraph DateAxisItem to provide more flexible
+    date formatting options based on the scale of the axis.
+
+    Parameters
+    ----------
+    *args
+        Variable length argument list passed to the parent class.
+    **kwargs
+        Arbitrary keyword arguments passed to the parent class.
+    """
+
+    def tickValues(self, minVal, maxVal, size):
         """
-        Return the values and spacing of ticks to draw::
+        Return the values and spacing of ticks to draw.
 
-            [
-                (spacing, [major ticks]),
-                (spacing, [minor ticks]),
-                ...
-            ]
+        Parameters
+        ----------
+        minVal : float
+            Minimum value of the axis range.
+        maxVal : float
+            Maximum value of the axis range.
+        size : int
+            Size of the axis in pixels.
 
-        By default, this method calls tickSpacing to determine the correct
-        tick locations.
+        Returns
+        -------
+        list of tuples
+            Each tuple contains (spacing, [ticks]), where:
+            - spacing is the distance between ticks
+            - [ticks] is a list of tick values
+
+        Notes
+        -----
+        The returned list has the format:
+        [
+            (spacing, [major ticks]),
+            (spacing, [minor ticks]),
+            ...
+        ]
+
+        This method calls tickSpacing to determine the correct tick locations.
         """
         minVal, maxVal = sorted((minVal, maxVal))
 
@@ -1412,13 +1856,22 @@ class CustomDateAxisItem(pg.DateAxisItem):
 
     def tickStrings(self, values, scale, spacing):
         """
-        Return the labels corresponding to the tick values depending on the
-        spacing
+        Return the labels corresponding to the tick values depending on the spacing.
 
-            [ tick labels corresponding to values ]
+        Parameters
+        ----------
+        values : array-like
+            The tick values.
+        scale : float
+            The scale factor for the values.
+        spacing : float
+            The spacing between tick values.
 
+        Returns
+        -------
+        list of str
+            The tick labels corresponding to the values.
         """
-
         # Choose the date format based on the scale
         if spacing < 0.5:  # less than 0.5 seconds
             fmt = '%S.%f'
@@ -1447,21 +1900,41 @@ class CustomDateAxisItem(pg.DateAxisItem):
 
 class EmittingStream(QObject):
     """
-    Stream to communicate between the threads
+    Stream to communicate between threads.
+
+    Attributes
+    ----------
+    name : str
+        Name of the stream.
+    text_written : pyqtSignal
+        Signal emitted when text is written to the stream.
     """
+
     name = "GUIStream"
     text_written = pyqtSignal(str)
 
     def write(self, text):
+        """
+        Write text to the stream and emit a signal.
+
+        Parameters
+        ----------
+        text : str
+            The text to be written to the stream.
+        """
         self.text_written.emit(str(text))
 
     def flush(self):
+        """
+        Flush the stream.
+
+        This method is required for file-like objects but does nothing in this implementation.
+        """
         pass
 
 
 class MetaDataDialog(QDialog):
-    """
-    Create a dialog able to handle meta data input for file headers."""
+    """Create a dialog able to handle meta data input for file headers."""
 
     def __init__(self, initial_values: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -1533,6 +2006,7 @@ class MetaDataDialog(QDialog):
 
 class TextInputDialog(QDialog):
     """Modal dialog for text input for matrix-script."""
+
     def __init__(self, query: str, parent=None):
         """
         Initialize the text input dialog with a its GUI elements.
@@ -1574,6 +2048,7 @@ class TextInputDialog(QDialog):
 
 class YesNoAbortDialog(QMessageBox):
     """Modal dialog for boolean input for matrix-script."""
+
     def __init__(self, question: str, parent=None):
         """
         Initialize the yes/no dialog with a question and buttons.
@@ -1814,10 +2289,17 @@ class MLineEdit(QLineEdit):
         super().__init__()
 
     def changeEvent(self, event: QEvent):
-        """Detect palette and read-only changes.
+        """
+        Detect palette and read-only changes.
 
-        Implement visual cues that work also when the palette changes, for example if the desktop changes
-        from dark to bright mode."""
+        This method implements visual cues that work when the palette changes,
+        for example if the desktop changes from dark to bright mode.
+
+        Parameters
+        ----------
+        event : QEvent
+            The event that triggered the change.
+        """
         if (
             event.type() == QEvent.Type.PaletteChange
             or event.type() == QEvent.Type.ReadOnlyChange
