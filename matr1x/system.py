@@ -10,6 +10,7 @@ import collections
 import importlib
 import os
 import re
+import sys
 import time
 from os.path import exists, expanduser, isfile, splitext
 from typing import List, Union
@@ -369,11 +370,20 @@ class System:
                 normfilename = splitext(normfilename)[0]
 
             try:
-                mod = importlib.import_module(normfilename)
+                # load module, or reload if exists
+                if normfilename in sys.modules:
+                    # force reimport of system
+                    mod = sys.modules[normfilename]
+                    importlib.reload(mod)
+                else:
+                    mod = importlib.import_module(normfilename)
             except ModuleNotFoundError:
-                # try matr1x system as fallback
-                mod = importlib.import_module(
-                    "." + normfilename, "matr1x.systems")
+                modname = "matr1x.systems." + normfilename
+                if modname in sys.modules:
+                    mod = sys.modules[modname]
+                    importlib.reload(mod)
+                else:
+                    mod = importlib.import_module("." + normfilename, "matr1x.systems")
             mod.sys.__name__ = normfilename
         return mod.sys
 
@@ -1254,12 +1264,14 @@ class MergedSystem(System):
         self.__name__ = ",".join([subsys.__name__ for subsys in
                                   self.subsys])
         # merge devices, config_dicts and parameters
-        for sys in self.subsys:
-            self.devs = {**self.devs, **sys.devs}
-            self.system_config_params = {**self.system_config_params,
-                                         **sys.system_config_params}
-            self.parameters += sys.parameters
-            sys.merged_system = self
+        for subsys in self.subsys:
+            self.devs = {**self.devs, **subsys.devs}
+            self.system_config_params = {
+                **self.system_config_params,
+                **subsys.system_config_params,
+            }
+            self.parameters += subsys.parameters
+            subsys.merged_system = self
         self._merge_dcdata()
         self._check_hdf5()
         # sort parameters to have timeUTC as last column
@@ -1310,9 +1322,9 @@ class MergedSystem(System):
         Return methods/variables from subsystems if they do not exist in the
         MergedSystem.
         """
-        for sys in self.subsys:
-            if hasattr(sys, attr):
-                return getattr(sys, attr)
+        for subsys in self.subsys:
+            if hasattr(subsys, attr):
+                return getattr(subsys, attr)
         raise AttributeError(
             f"'{self.__class__.__name__}' object has no attribute '{attr}'")
 
@@ -1326,14 +1338,14 @@ class MergedSystem(System):
         """The filename property setter.
 
         This is needed to keep the filename on the subsystems in sync."""
-        for sys in self.subsys:
-            sys.filename = value
+        for subsys in self.subsys:
+            subsys.filename = value
         self._filename = value
 
     def _merge_dcdata(self, setdate=True):
         tmpdcdata = collections.defaultdict(set)
-        for sys in self.subsys:
-            for key, value in sys.dcdata.items():
+        for subsys in self.subsys:
+            for key, value in subsys.dcdata.items():
                 if key == "Date" and not setdate:
                     continue
                 if value:
@@ -1348,16 +1360,16 @@ class MergedSystem(System):
 
     def _check_hdf5(self):
         """check whether one of the systems requires HDF5."""
-        for sys in self.subsys:
-            self.hdf5 = self.hdf5 or sys.hdf5
+        for subsys in self.subsys:
+            self.hdf5 = self.hdf5 or subsys.hdf5
 
     def grab_information(self, settables=False):
         """reimplement System method to return subsystem information."""
         ret_string = super().grab_information(settables)
         if settables is False:
             fun_list = []
-            for sys in self.subsys:
-                for key in dir(sys):
+            for subsys in self.subsys:
+                for key in dir(subsys):
                     if key not in dir(System()):
                         fun_list.append(key)
             if len(fun_list) > 0:
@@ -1381,14 +1393,14 @@ class MergedSystem(System):
           kwargs than be used here, currently not used
         """
         # use individual system for opening devices
-        for sys in self.subsys:
-            sys.set(*args, **kwargs)
+        for subsys in self.subsys:
+            subsys.set(*args, **kwargs)
         # merge list of devices
         # needs to be redone after the devices are opened, since
         # the content of the dictionary is replaced here
         self.devs = {}
-        for sys in self.subsys:
-            self.devs = {**self.devs, **sys.devs}
+        for subsys in self.subsys:
+            self.devs = {**self.devs, **subsys.devs}
         # remerge potentially changed dcdata
         self._merge_dcdata(setdate=False)
         self.opened = True
@@ -1407,5 +1419,5 @@ class MergedSystem(System):
         """
         # close all individual systems again
         self.opened = False
-        for sys in self.subsys:
-            sys.reset(*args, **kwargs)
+        for subsys in self.subsys:
+            subsys.reset(*args, **kwargs)
