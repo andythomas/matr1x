@@ -17,7 +17,12 @@
 # CustomDateAxis class in this file adapted from
 # https://pyqtgraph.readthedocs.io/en/latest/_modules/pyqtgraph/graphicsItems/AxisItem.html#AxisItem.tickValues
 # licensed under MIT-license
-"""GUI-related functions for sweep-generator, matrix-gui, matrix-preview, and matrix-script."""
+"""
+Contains GUI related functions and class definitions.
+
+These are used by sweep-generator, matrix-gui, matrix-preview, and matrix-script.
+"""
+
 import datetime
 from importlib.metadata import version as package_version
 from os.path import dirname, expanduser, join, normpath
@@ -38,6 +43,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QColor,
     QDoubleValidator,
+    QDropEvent,
     QFontDatabase,
     QIcon,
     QImage,
@@ -60,6 +66,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLayout,
     QLineEdit,
+    QListWidget,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -222,6 +229,47 @@ class QRangeWidget(QGroupBox):
             Maximum value of slider.
         """
         return self.slider.maximum()
+
+
+class SystemListWidget(QListWidget):
+    """
+    A custom QListWidget that allows drag-and-drop reordering of items.
+
+    This widget emits a signal when the order of items changes due to drag-and-drop operations.
+
+    Attributes
+    ----------
+        orderChanged (pyqtSignal): Signal emitted when the order of items changes.
+    """
+
+    orderChanged = pyqtSignal()  # Custom signal for order changes
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Initialize the SystemListWidget.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
+        super().__init__(*args, **kwargs)
+        self.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        # Enable drag-and-drop sorting
+        self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        """
+        Handle the drop event for drag-and-drop operations.
+
+        This method is called when an item is dropped after being dragged. It updates
+        the order of items and emits the orderChanged signal.
+
+        Args:
+            event (QDropEvent): The drop event object.
+        """
+        # Call the base class drop event to handle the reordering
+        super().dropEvent(event)
+        self.orderChanged.emit()  # Emit the custom signal when the order changes
 
 
 class MetaViewerWidget(QDockWidget):
@@ -2139,16 +2187,13 @@ class TerminationDialog(QMessageBox):
 class AboutBox(QMessageBox):
     """Provide an about box with install debug info."""
 
-    def __init__(self, title, package, format, parent=None):
+    def __init__(self, title, icon, package, format, parent=None):
         super().__init__(parent)
-        icondir = join(dirname(__file__), "scripts", "icons")
         # The rich text (html) messes with the sizes
         icon_size = QApplication.style().pixelMetric(
             QStyle.PixelMetric.PM_MessageBoxIconSize
         )
-        pixmap = QPixmap(join(icondir, "matr1x-matrix-script.png")).scaledToHeight(
-            icon_size
-        )
+        pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
         self.setWindowTitle(title)
         self.setText(title)
@@ -2190,8 +2235,9 @@ class AboutBox(QMessageBox):
 class MIcon(QIcon):
     """Generate either Qt built-in icons, letters or Matrix specific QIcons."""
 
-    def __new__(cls, name, color="default"):
-        """Look up 'name' and get corresponding QIcon back.
+    def __new__(cls, name, color="default") -> QIcon:
+        """
+        Look up 'name' and get corresponding QIcon back.
 
         Icons from a theme such as QIcon.fromTheme("media-playback-start") are not available on all
         platforms. Consequently, we fallback to the Qt icons, which are also repecting platform and
@@ -2200,16 +2246,16 @@ class MIcon(QIcon):
 
         Parameters
         ----------
-            name : str
-                The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
-                'CHAR_' will generate a circle with the letter in it and 'MATR1X_' will use the
-                mtrix application icons.
-            color : QColor
-                The color of the icon if applicable
+        name : str
+            The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
+            'CHAR_' will generate a circle with the letter in it and 'matr1x-' will use the
+            matrix application icons.
+        color : QColor
+            The color of the icon if applicable
 
         Returns
         -------
-            icon : QIcon
+        QIcon
         """
         # Get the included Qt icon
         if name.startswith("SP_"):
@@ -2258,10 +2304,9 @@ class MIcon(QIcon):
             painter.end()
             return QIcon(pixmap)
         # Use the original matrix icons
-        elif name.startswith("MATR1X_"):
-            filename = name[7:]
+        elif name.startswith("matr1x-"):
             icondir = join(dirname(__file__), "scripts", "icons")
-            pixmap = QPixmap(join(icondir, filename))
+            pixmap = QPixmap(join(icondir, name))
             # Change the color of the white icon if requested
             # and remove the rest for better visibility in a GUI
             if color != "default":
@@ -2281,20 +2326,35 @@ class MIcon(QIcon):
             raise ValueError("MIcon: Unknown icon type.")
 
 
-# The code would otherwise duplicate several times for several classes.
-def _set_palette(instance, state):
+def _set_palette(instance):
     """Set the base and text color according to the enabled state."""
     palette = instance.palette()
     # use QTextEdit as an example to determine the palette
     text_edit = QTextEdit()
-    text_edit.setEnabled(not state)
-    text_palette = text_edit.palette()
-    palette.setColor(
-        QPalette.ColorRole.Base, QColor(text_palette.color(QPalette.ColorRole.Base))
-    )
-    palette.setColor(
-        QPalette.ColorRole.Text, QColor(text_palette.color(QPalette.ColorRole.Text))
-    )
+    unchanged_palette = text_edit.palette()
+    text_edit.setEnabled(False)
+    changed_palette = text_edit.palette()
+    if instance.isEnabled():
+        palette.setColor(
+            QPalette.ColorRole.Text,
+            QColor(unchanged_palette.color(QPalette.ColorRole.Text)),
+        )
+    else:
+        palette.setColor(
+            QPalette.ColorRole.Text,
+            QColor(changed_palette.color(QPalette.ColorRole.Text)),
+        )
+    if not instance.isEnabled() or instance.isReadOnly():
+        palette.setColor(
+            QPalette.ColorRole.Base,
+            QColor(changed_palette.color(QPalette.ColorRole.Base)),
+        )
+    else:
+        palette.setColor(
+            QPalette.ColorRole.Base,
+            QColor(unchanged_palette.color(QPalette.ColorRole.Base)),
+        )
+
     instance.setPalette(palette)
 
 
@@ -2321,4 +2381,26 @@ class MLineEdit(QLineEdit):
             event.type() == QEvent.Type.PaletteChange
             or event.type() == QEvent.Type.ReadOnlyChange
         ):
-            _set_palette(self, self.isReadOnly())
+            _set_palette(self)
+            super().changeEvent(event)
+
+
+class MTextEdit(QTextEdit):
+    """Provide QRTextEdit with visual cues for non-editable."""
+
+    def __init__(self):
+        """Call init of QTextEdit()."""
+        super().__init__()
+
+    def changeEvent(self, event: QEvent):
+        """Detect palette and read-only changes.
+
+        Implement visual cues that work also when the palette changes, for example if the desktop changes
+        from dark to bright mode.
+        """
+        if (
+            event.type() == QEvent.Type.PaletteChange
+            or event.type() == QEvent.Type.ReadOnlyChange
+        ):
+            _set_palette(self)
+            super().changeEvent(event)

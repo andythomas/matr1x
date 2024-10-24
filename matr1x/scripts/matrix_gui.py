@@ -253,7 +253,14 @@ class MainWindow(QMainWindow):
 
     def is_valid_extension(self, file_path):
         """Return True if extension is valid."""
-        return self.allowed_extension_pattern.search(file_path) is not None
+        pattern = re.compile(r"\.\d+t$")
+        # remove old pattern with next major update
+        if pattern.search(file_path) is not None:
+            return True
+        elif ".sw8" in file_path:
+            return True
+        else:
+            return False
 
     def dragEnterEvent(self, event):
         """Enable drag and drop (1)."""
@@ -298,7 +305,9 @@ class MainWindow(QMainWindow):
 
     def info_box(self):
         """Display an 'about this app' widget."""
-        box = AboutBox("Matrix GUI", matr1x, matr1x.datetimefmt)
+        box = AboutBox(
+            "Matrix GUI", MIcon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
+        )
         box.exec()
         return
 
@@ -348,7 +357,7 @@ class MainWindow(QMainWindow):
 
     def initUI(self):
         """Initialize the basic GUI for the graphical version of matrix."""
-        self.setWindowIcon(MIcon("MATR1X_matr1x-matrix-gui.png"))
+        self.setWindowIcon(MIcon("matr1x-matrix-gui.png"))
         self.inputEdit = MLineEdit()
         self.inputEdit.setReadOnly(True)
         self.inputEdit.textChanged.connect(self.parseSystemFromInputFile)
@@ -404,7 +413,7 @@ class MainWindow(QMainWindow):
 
         # File: Open sweep generator
         self.sweep_action = QAction(
-            MIcon("MATR1X_matr1x-sweep-generator.png", QColor("RoyalBlue")),
+            MIcon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
             "Generate",
             self,
         )
@@ -512,9 +521,7 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(empty2)
 
         self.preview_action = QAction(
-            MIcon("MATR1X_matr1x-matrix-preview.png", QColor("RoyalBlue")),
-            "Preview",
-            self,
+            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.openPreview)
         control_menu.addSeparator()
@@ -576,9 +583,10 @@ class MainWindow(QMainWindow):
             folder = self.outputEdit.text()
             if "" == folder:
                 folder = matr1x.usersfolder
-        filename = QFileDialog.getOpenFileName(self, 'Select input file',
-                                               folder,
-                                               "input files (*.*t)")
+        # remove old pattern with next major update
+        filename = QFileDialog.getOpenFileName(
+            self, "Select input file", folder, "Sweep 8 files (*.sw8);;t files (*.*t)"
+        )
         if "" != filename[0]:
             self.inputEdit.setText(filename[0])
 
@@ -599,7 +607,9 @@ class MainWindow(QMainWindow):
     def startSweepGenerator(self):
         """Run sweep Generator already initialized with system."""
         if self.sg is None:
-            self.sg = sweep_generator.MainWindow(inputcb=self.sGsetInputFile)
+            self.sg = sweep_generator.MainWindow(
+                filename=self.inputEdit.text(), inputcb=self.sGsetInputFile
+            )
             self.sg.show()
         elif self.sg.isVisible() is False:
             self.sg.show()

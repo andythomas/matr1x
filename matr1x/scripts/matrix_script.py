@@ -45,12 +45,10 @@ from PyQt6.QtGui import (
     QTextCursor,
 )
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
     QApplication,
     QDialog,
     QDockWidget,
     QFileDialog,
-    QListWidget,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -72,6 +70,7 @@ from matr1x.gui_util import (
     EmittingStream,
     MetaDataDialog,
     MIcon,
+    SystemListWidget,
     TerminationDialog,
     TextInputDialog,
     YesNoAbortDialog,
@@ -1778,7 +1777,12 @@ class MainWindow(QMainWindow):
 
     def info_box(self):
         """Display an 'about this app' widget."""
-        box = AboutBox("Matrix Script", matr1x, matr1x.datetimefmt)
+        box = AboutBox(
+            "Matrix Script",
+            MIcon("matr1x-matrix-script.png"),
+            matr1x,
+            matr1x.datetimefmt,
+        )
         box.exec()
         return
 
@@ -1881,7 +1885,7 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         """Generate the main GUI."""
-        self.setWindowIcon(MIcon("MATR1X_matr1x-matrix-script.png"))
+        self.setWindowIcon(MIcon("matr1x-matrix-script.png"))
         self.central_widget = DroppableWidget(self)
         self.central_widget.fileDropped.connect(self.load_from_filename)
         self.setCentralWidget(self.central_widget)
@@ -2091,9 +2095,7 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(empty2)
 
         self.preview_action = QAction(
-            MIcon("MATR1X_matr1x-matrix-preview.png", QColor("RoyalBlue")),
-            "Preview",
-            self,
+            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.preview_data)
         self.preview_action.setEnabled(False)
@@ -2142,11 +2144,8 @@ class MainWindow(QMainWindow):
         self.help_system_action.triggered.connect(self.show_system_commands)
         help_menu.addAction(self.help_system_action)
 
-        self.system_list = QListWidget()
-        self.system_list.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection)
-        self.system_list.setDragDropMode(
-            QAbstractItemView.DragDropMode.InternalMove)
+        self.system_list = SystemListWidget()
+        self.system_list.orderChanged.connect(self.update_systems)
 
         # TextEdits
         self.status_preview = QTextEdit(self)
@@ -2284,9 +2283,6 @@ class MainWindow(QMainWindow):
         self.update_window_title()
         # update systems to use list for config editor
         self.update_systems()
-        # only systems that are part of matrix or ifwlib can be configured
-        configurable = [sys for sys in self.systems if not os.path.exists(sys)]
-        self.config_editor.update_data(configurable)
 
     def delete_selected_system(self):
         """
@@ -2301,6 +2297,7 @@ class MainWindow(QMainWindow):
             self.system_list.takeItem(self.system_list.count()-1)
         self.systems_dirty = True
         self.update_window_title()
+        self.update_systems()
 
     def get_script_input(self, query: str, type: str):
         """
@@ -2573,9 +2570,13 @@ class MainWindow(QMainWindow):
         self.enable_buttons(True)
 
     def update_systems(self):
-        """Update the systems list."""
+        """Update the systems list and config editor."""
+        print("update_systems is running")
         self.systems = [os.path.normpath(self.system_list.item(j).text())
                         for j in range(self.system_list.count())]
+        # only systems that are part of matrix or ifwlib can be configured
+        configurable = [sys for sys in self.systems if not os.path.exists(sys)]
+        self.config_editor.update_data(configurable)
 
     def get_settable_info(self):
         """Verify that the systems match the ones from the loaded script."""
