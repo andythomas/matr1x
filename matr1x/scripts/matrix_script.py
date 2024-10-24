@@ -1974,14 +1974,14 @@ class MainWindow(QMainWindow):
 
         # File: Add System
         self.add_system_action = QAction(
-            MIcon("CHAR_+", QColor("darkGray")), "Add System", self
+            MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self
         )
         self.add_system_action.triggered.connect(self.add_system)
         file_menu.addAction(self.add_system_action)
 
         # File: Remove System
         self.remove_system_action = QAction(
-            MIcon("CHAR_-", QColor("darkGray")), "Remove System", self
+            MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
         )
         self.remove_system_action.triggered.connect(self.delete_selected_system)
         file_menu.addAction(self.remove_system_action)
@@ -2033,26 +2033,34 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(empty)
 
         # Control: Start
-        self.start_pause_action = QAction(MIcon("SP_MediaPlay"), "Start", self)
+        self.start_pause_action = QAction(
+            MIcon("SP_MediaPlay", QColor("RoyalBlue")), "Start", self
+        )
         self.start_pause_action.triggered.connect(self.start_process)
         self.start_pause_action.setCheckable(True)
         control_menu.addAction(self.start_pause_action)
         self.toolbar.addAction(self.start_pause_action)
 
         # Control: Stop
-        self.stop_action = QAction(MIcon("SP_MediaStop"), "Stop", self)
+        self.stop_action = QAction(
+            MIcon("SP_MediaStop", QColor("RoyalBlue")), "Stop", self
+        )
         self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
         self.stop_action.setEnabled(False)
         control_menu.addAction(self.stop_action)
 
         # Control: Abort
-        self.abort_action = QAction(MIcon("SP_MediaStop"), "Abort", self)
+        self.abort_action = QAction(
+            MIcon("SP_MediaStop", QColor("RoyalBlue")), "Abort", self
+        )
         self.abort_action.triggered.connect(lambda: self.abort_thread("a"))
         self.abort_action.setEnabled(False)
         control_menu.addAction(self.abort_action)
 
         # Control: Finish
-        self.finish_action = QAction(MIcon("SP_MediaStop"), "Finish", self)
+        self.finish_action = QAction(
+            MIcon("SP_MediaStop", QColor("RoyalBlue")), "Finish", self
+        )
         self.finish_action.triggered.connect(lambda: self.abort_thread("f"))
         self.finish_action.setEnabled(False)
         control_menu.addAction(self.finish_action)
@@ -2060,7 +2068,7 @@ class MainWindow(QMainWindow):
         # Save in toolbar with pulldown
         stop_button = QToolButton()
         stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        stop_button.setIcon(MIcon("SP_MediaStop"))
+        stop_button.setIcon(MIcon("SP_MediaStop", QColor("RoyalBlue")))
         stop_button.setText("Abort")
         stop_button.setDefaultAction(self.stop_action)
         stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
@@ -2083,7 +2091,9 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(empty2)
 
         self.preview_action = QAction(
-            MIcon("MATR1X_matr1x-matrix-preview.png", QColor("black")), "Preview", self
+            MIcon("MATR1X_matr1x-matrix-preview.png", QColor("RoyalBlue")),
+            "Preview",
+            self,
         )
         self.preview_action.triggered.connect(self.preview_data)
         self.preview_action.setEnabled(False)
@@ -2477,13 +2487,13 @@ class MainWindow(QMainWindow):
         self.is_running = flag
 
         if flag:
-            self.start_pause_action.setIcon(MIcon("SP_MediaPause"))
+            self.start_pause_action.setIcon(MIcon("SP_MediaPause", QColor("RoyalBlue")))
             self.start_pause_action.setText("Pause")
             self.start_pause_action.triggered.disconnect(self.start_process)
             self.start_pause_action.triggered.connect(self.pause_thread)
         else:
             self.clear_annotations()
-            self.start_pause_action.setIcon(MIcon("SP_MediaPlay"))
+            self.start_pause_action.setIcon(MIcon("SP_MediaPlay", QColor("RoyalBlue")))
             self.start_pause_action.setText("Start")
             self.start_pause_action.triggered.disconnect(self.pause_thread)
             self.start_pause_action.triggered.connect(self.start_process)

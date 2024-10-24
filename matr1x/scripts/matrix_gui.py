@@ -404,7 +404,7 @@ class MainWindow(QMainWindow):
 
         # File: Open sweep generator
         self.sweep_action = QAction(
-            MIcon("MATR1X_matr1x-sweep-generator.png", QColor("black")),
+            MIcon("MATR1X_matr1x-sweep-generator.png", QColor("RoyalBlue")),
             "Generate",
             self,
         )
@@ -442,7 +442,9 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(empty)
 
         # Control: Start
-        self.start_action = QAction(MIcon("SP_MediaPlay"), "Start", self)
+        self.start_action = QAction(
+            MIcon("SP_MediaPlay", QColor("RoyalBlue")), "Start", self
+        )
         self.start_action.triggered.connect(self.queueMeasurement)
         control_menu.addAction(self.start_action)
         self.toolbar.addAction(self.start_action)
@@ -510,7 +512,9 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(empty2)
 
         self.preview_action = QAction(
-            MIcon("MATR1X_matr1x-matrix-preview.png", QColor("black")), "Preview", self
+            MIcon("MATR1X_matr1x-matrix-preview.png", QColor("RoyalBlue")),
+            "Preview",
+            self,
         )
         self.preview_action.triggered.connect(self.openPreview)
         control_menu.addSeparator()
@@ -721,7 +725,7 @@ class MainWindow(QMainWindow):
         if self.meas_list.count() > 0 and self.running is True:
             self.runNextMeasurement()
         else:
-            self.start_action.setIcon(MIcon("SP_MediaPlay"))
+            self.start_action.setIcon(MIcon("SP_MediaPlay", QColor("RoyalBlue")))
             self.start_action.setText("Start")
             self.running = False
         # if all measurements were run, reset the measurement counter

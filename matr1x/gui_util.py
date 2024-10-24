@@ -2211,15 +2211,32 @@ class MIcon(QIcon):
         -------
             icon : QIcon
         """
-        # Get the included QT icon
+        # Get the included Qt icon
         if name.startswith("SP_"):
-            return QApplication.style().standardIcon(
+            icon = QApplication.style().standardIcon(
                 getattr(QStyle.StandardPixmap, name)
             )
+            if color == "default":
+                return icon
+            else:
+                size = 256
+                pixmap = icon.pixmap(size, size)
+                # Change the color of the black parts
+                # for better visibility in a GUI
+                image = pixmap.toImage()
+                image = image.convertToFormat(QImage.Format.Format_ARGB32)
+                for x in range(image.width()):
+                    for y in range(image.height()):
+                        pixel_color = QColor(image.pixel(x, y))
+                        if pixel_color != QColor(0, 0, 0):
+                            image.setPixelColor(x, y, color)
+                pixmap = QPixmap.fromImage(image)
+                return QIcon(pixmap)
+
         # Draw an icon from a letter
         elif name.startswith("CHAR_"):
             if color == "default":
-                color = QColor("darkGray")
+                color = QColor("RoyalBlue")
             size = 256
             letter = name[5]
             # Generate a tranparent pixmap with size large enough for icons sizes
@@ -2256,7 +2273,7 @@ class MIcon(QIcon):
                         if pixel_color != QColor("white"):
                             image.setPixelColor(x, y, QColor(0, 0, 0, 0))
                         else:
-                            image.setPixelColor(x, y, QColor(color))
+                            image.setPixelColor(x, y, color)
                 pixmap = QPixmap.fromImage(image)
             pixmap = pixmap.copy(15, 15, 226, 226)
             return QIcon(pixmap)
