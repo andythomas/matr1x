@@ -1450,10 +1450,14 @@ class SimplePlotWidget(QGroupBox):
 
         # have proxy that connects the position of the mouse on the
         # GraphicsLayout to display the x/y position on the current
-        # plot
-        self.proxy = pg.SignalProxy(self.gl.scene().sigMouseMoved,
-                                    rateLimit=30,
-                                    slot=self._mouse_moved)
+        # plot, additionally introduce proxy to select active plot by
+        # just clicking into the plot
+        self.proxy = pg.SignalProxy(
+            self.gl.scene().sigMouseMoved, rateLimit=30, slot=self._mouse_moved
+        )
+        self.proxy2 = pg.SignalProxy(
+            self.gl.scene().sigMouseClicked, rateLimit=2, slot=self._mouse_clicked
+        )
 
         # add the first empty plot with
         self.plots = [self.PlotObject(self.gl, self.cb_error, self.l_slider,
@@ -1620,6 +1624,32 @@ class SimplePlotWidget(QGroupBox):
             self.w_pos.setText(
                 "x: {:.5e}\ny: {:.5e}".format(mousePoint.x(),
                                               mousePoint.y()))
+
+    def _mouse_clicked(self, ev):
+        """
+        Handle mouse interaction and set active plot in w_plots ComboBox.
+
+        If the mouse is in one of the viewboxes, change the currently active
+        plot on click, currently works for all types of click (left/right/middle)
+
+        Parameters
+        ----------
+        ev : MouseClickEvent
+            Contains the click event of the mouse in coordinates of self.gl.
+        """
+        boxes = [plot.vb for plot in self.plots]
+        vb_mouse = None
+        for vb in boxes:
+            # get coordinate transform for top left of viewbox to identify
+            # in which of the viewboxes the mouse currently resides
+            pos = vb.mapRectFromView(vb.borderRect.rect()).topLeft()
+            if vb.boundingRect().contains(ev[0].scenePos() + pos):
+                vb_mouse = vb
+                # stop once we have found the correct viewbox
+                continue
+        if vb_mouse is not None:
+            index = boxes.index(vb_mouse)
+            self.w_plots.setCurrentIndex(index)
 
     def _update_linesetting(self, state):
         """
