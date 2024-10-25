@@ -333,10 +333,9 @@ class MainWindow(QMainWindow):
 
     def restoreState(self):
         """Restore window and toolbar placement."""
-        self.adjustSize()
-        current_size = self.centralWidget().size()
+        recommended_size = self.sizeHint()
         self.move(self.settings.value("position", self.pos()))
-        self.resize(self.settings.value("size", current_size))
+        self.resize(self.settings.value("size", recommended_size))
         self.addToolBar(
             self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
             self.toolbar,

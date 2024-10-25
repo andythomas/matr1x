@@ -1579,14 +1579,10 @@ class MainWindow(QMainWindow):
 
     def restoreState(self):
         """Load saved geometry and dock items."""
-        # Create a reasonably large main window in either case
-        # i.e. even if no settings exist via defaults
-        screen_geometry = self.screen().geometry()
-        width = (screen_geometry.width() * 2) // 3
-        height = (screen_geometry.height() * 2) // 3
+        recommended_size = self.sizeHint()
         self.settings.beginGroup("MainWindow")
         self.move(self.settings.value("position", self.pos()))
-        self.resize(self.settings.value("size", QSize(width, height)))
+        self.resize(self.settings.value("size", recommended_size))
         self.splitter.setSizes(
             [
                 int(size)
