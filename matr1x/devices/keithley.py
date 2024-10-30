@@ -611,6 +611,7 @@ class Keithley2182A(VisaDevice):
         for cmd in cmdList:
             self.query("*OPC?")
             self.write(cmd)
+        self.query("*OPC?")
 
     def triggerReading(self):
         if self.triggered is False:
