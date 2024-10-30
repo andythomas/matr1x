@@ -186,10 +186,6 @@ class Keithley2450(VisaDevice):
             kwargs["read_termination"] = "\n"
         super().__init__(interface, **kwargs)
         # ignore telnet commands sent by the instrument
-        # try:
-        #     self.read(9)
-        # except Exception:
-        #     pass
         # after initialization get the source function to determine
         # whether voltage or current is the sourced
         self.write(":SOUR:FUNC?")
