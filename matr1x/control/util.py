@@ -1207,7 +1207,7 @@ class QtGracefulKiller:
         self.timer.timeout.connect(lambda: None)
         self.timer.start(100)
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, value, traceback):
         """
         Stop the timer when exiting the context manager.
 
@@ -1216,7 +1216,7 @@ class QtGracefulKiller:
 
         Parameters
         ----------
-        type : type
+        exc_type : type
             The type of the exception that caused the context to be exited.
             None if the context was exited without an exception.
         value : Exception

@@ -121,8 +121,8 @@ def makeSCPIdevice(*cmds, sys=True):
             check_set_errors(self)
         return parameterless
 
-    def id(self):
-        """ return idn """
+    def id(self):  # noqa: A001  # use pymeasure Instrument.id
+        """Get the identification of the Instrument."""
         return self.idn
 
     attributes = dict()

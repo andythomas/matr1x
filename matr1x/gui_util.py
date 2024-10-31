@@ -2217,7 +2217,22 @@ class TerminationDialog(QMessageBox):
 class AboutBox(QMessageBox):
     """Provide an about box with install debug info."""
 
-    def __init__(self, title, icon, package, format, parent=None):
+    def __init__(self, title, icon, package, date_format, parent=None):
+        """Initialize an about box dialog with installation information.
+
+        Parameters
+        ----------
+        title : str
+            Title string to show in the window title and header.
+        icon : QIcon
+            Icon to display in the about box.
+        package : module
+            Python package/module to get version and git info from.
+        date_format : str
+            Format string for displaying git commit date.
+        parent : QWidget, optional
+            Parent widget for this dialog, by default None.
+        """
         super().__init__(parent)
         # The rich text (html) messes with the sizes
         icon_size = QApplication.style().pixelMetric(
@@ -2229,7 +2244,7 @@ class AboutBox(QMessageBox):
         self.setText(title)
         (version, branch, sha, time) = self.get_install_info(package)
         if time != "not available":
-            date = datetime.datetime.fromtimestamp(time).strftime(format)
+            date = datetime.datetime.fromtimestamp(time).strftime(date_format)
         else:
             date = time
         text = f"""

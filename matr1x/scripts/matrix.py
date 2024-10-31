@@ -257,7 +257,7 @@ def measure_urwid(inputfile, systemfile, system):
             self.loop.start()
             return self.loop
 
-        def __exit__(self, type, value, traceback):
+        def __exit__(self, exc_type, value, traceback):
             self.loop.stop()
 
     with UrwidContext(filler) as loop:

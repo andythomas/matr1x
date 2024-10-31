@@ -386,12 +386,11 @@ class Lakeshore475(VisaDevice):
         if on is True:
             self.write("CMODE 1")
 
-    def configure(self, reset=False, autoRange=True, range=None, dcRes=None,
-                  fUnit=None):
+    def configure(
+        self, reset=False, autoRange=True, range_val=None, dcRes=None, fUnit=None
+    ):
         """
-        function not tested
-
-        Configure LS475 measurement parameters
+        Configure LS475 measurement parameters.
 
         Arguments
         -----
@@ -399,7 +398,7 @@ class Lakeshore475(VisaDevice):
           If True reset the instrument
         autoRange:bool
           switches auto range on
-        range:int
+        range_val:int
           has to be between 1 and 5, where 1 is the smallest
           range and 5 the largest, probe dependent
         dcRes:int
@@ -413,9 +412,9 @@ class Lakeshore475(VisaDevice):
             self.write("*RST")
         if autoRange is True:
             self.write("AUTO 1")
-        elif range is not None and 0 < range and 6 > range:
+        elif range_val is not None and 0 < range_val and 6 > range_val:
             self.write("AUTO 0")
-            self.write("RANGE " + str(range))
+            self.write("RANGE " + str(range_val))
         if dcRes is not None and 0 < dcRes and 4 > dcRes:
             self.write("RDGMODE 1," + str(dcRes) + ",1,1,1")
         if fUnit is not None and 0 < fUnit and 5 > fUnit:

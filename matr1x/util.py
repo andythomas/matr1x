@@ -592,7 +592,7 @@ def generate_script_prefix_suffix(systems):
         bool
             True if the user answers yes, False otherwise.
         '''
-        ret = _input(query, system=_system, type='bool')
+        ret = _input(query, system=_system, input_type='bool')
         if ret == "yes":
             return True
         return False
@@ -757,7 +757,7 @@ def generate_script_prefix_suffix(systems):
             _reset_kwargs["status"] = "aborted"
         else:
             # finished is None, so ask what is supposed to happen
-            _reset_kwargs["status"] = _input("", system=_system, type="__end_script__")
+            _reset_kwargs["status"] = _input("", system=_system, input_type="__end_script__")
 
     # ===== end user area =====
     # mark last open file as finished, if not labeled elsewhere
@@ -1096,14 +1096,35 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                 # execution paused, wait for 100ms and recheck
                 time.sleep(0.1)
 
-        def input(self, message="", system=None, type="string"):
+        def input(self, message="", system=None, input_type="string"):
+            """Handle user input requests from the script.
+
+            This method manages the input request workflow, including displaying prompts,
+            waiting for user response, and handling timeouts and interrupts.
+
+            Parameters
+            ----------
+            message : str, optional
+                Message to display to user requesting input. Default is empty string.
+            system : object, optional
+                System object that can be interrupted/paused. Default is None.
+            input_type : str, optional
+                Type of input expected. Default is "string".
+
+            Returns
+            -------
+            str
+                The user's input response with whitespace stripped.
+            """
             t0 = time.time()
             if self.recv != "" and not self.recv_flag:
                 self.recv = ""
             if "" == message:
-                print(f"__input_{type}:User input requested, see executing line for context.__")
+                print(
+                    f"__input_{input_type}:User input requested, see executing line for context.__"
+                )
             else:
-                print(f"__input_{type}:{message}__")
+                print(f"__input_{input_type}:{message}__")
             while (self.recv == "" or self.recv_flag is True):
                 time.sleep(0.1)
                 if (time.time() - t0) > 60:

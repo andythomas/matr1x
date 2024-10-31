@@ -566,32 +566,43 @@ class Keithley2182A(VisaDevice):
     # high level functions
     @synchronized
     def configure(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
-        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
-        reset=False
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        voltage_range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
     ):
         """
-        Configure the Keitley K2182 to detect voltages
+        Configure the Keitley K2182 to detect voltages.
 
-        Arguments:
-            digits:int -- number of digits to display (4-8). default: None
-            count:int -- filter count for the digital filter. default: None
-            window:float -- filter window for the digital filter, default: None
-            NPLC:int -- Number of power line cycles to integrate over.
-                        default: None
-            dFil:bool -- If true, turn on the digital filter. If False
-                            window and filter count are ignored- default: None
-            repeatingFilter:bool -- If true set the filter to repeating,
-                                       If false to moving - default: None
-            range:float -- Range of the voltage detection. Selected by the
-                           instrument to include the value of range.
-                           default: None
-            rangeAuto:bool -- Automatic detection of the measurement range
-                                 Take care, takes additional time during
-                                 measurements! default: None
-            trigBus:bool -- sets trigger source to BUS if true
-            reset:bool -- if true, the device is reset prior to
-                             configuration, default: False
+        Parameters
+        ----------
+        digits : int, optional
+            Number of digits to display (4-8)
+        count : int, optional
+            Filter count for the digital filter
+        window : float, optional
+            Filter window for the digital filter
+        NPLC : int, optional
+            Number of power line cycles to integrate over
+        dFil : bool, optional
+            If true, turn on the digital filter. If False, window and filter count are ignored
+        voltage_range : float, optional
+            Range of the voltage detection. Selected by the instrument to include the value
+        rangeAuto : bool, optional
+            Automatic detection of the measurement range. Takes additional time during measurements
+        trigBus : bool, optional
+            Sets trigger source to BUS if true
+        repeatingFilter : bool, optional
+            If true set the filter to repeating, if false to moving
+        reset : bool, optional
+            If true, the device is reset prior to configuration (default False)
         """
         cmdList = []
         if reset is True:
@@ -605,9 +616,9 @@ class Keithley2182A(VisaDevice):
             cmdList.append(f":SENS:VOLT:DIG {int(digits):d}")
         if rangeAuto is True:
             cmdList.append(":SENS:VOLT:RANG:AUTO ON")
-        elif range is not None:
+        elif voltage_range is not None:
             cmdList.append(":SENS:VOLT:RANG:AUTO OFF")
-            cmdList.append(f":SENS:VOLT:RANG {float(range):f}")
+            cmdList.append(f":SENS:VOLT:RANG {float(voltage_range):f}")
         if dFil is True:
             cmdList.append(":SENS:VOLT:DFIL:STATE ON")
             if window is not None:
@@ -661,32 +672,46 @@ class Keithley2701(VisaDevice):
     # high level functions
     @synchronized
     def configure4WireOhm(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
-        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
-        reset=False
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        resistance_range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
     ):
-        """
-        Configure the Keitley 2701 to detect 4wire resistance
+        """Configure the Keithley 2701 to detect 4-wire resistance.
 
-        Arguments:
-            digits:int -- number of digits to display (4-8). default: None
-            count:int -- filter count for the digital filter. default: None
-            window:float -- filter window for the digital filter, default: None
-            NPLC:int -- Number of power line cycles to integrate over.
-                        default: None
-            dFil:bool -- If true, turn on the digital filter. If False
-                            window and filter count are ignored- default: None
-            repeatingFilter:bool -- If true set the filter to repeating,
-                                       If false to moving - default: None
-            range:float -- Range of the voltage detection. Selected by the
-                           instrument to include the value of range.
-                           default: None
-            rangeAuto:bool -- Automatic detection of the measurement range
-                                 Take care, takes additional time during
-                                 measurements! default: None
-            trigBus:bool -- sets trigger source to BUS if true
-            reset:bool -- if true, the device is reset prior to
-                             configuration, default: False
+        Parameters
+        ----------
+        digits : int, optional
+            Number of digits to display (4-8)
+        count : int, optional
+            Filter count for the digital filter
+        window : float, optional
+            Filter window for the digital filter
+        NPLC : int, optional
+            Number of power line cycles to integrate over
+        dFil : bool, optional
+            If True, turn on the digital filter. If False window and filter count are ignored
+        resistance_range : float, optional
+            Range of the resistance detection. Selected by the instrument to include the value
+        rangeAuto : bool, optional
+            Automatic detection of the measurement range. Takes additional time during measurements
+        trigBus : bool, optional
+            Sets trigger source to BUS if True
+        repeatingFilter : bool, optional
+            If True set the filter to repeating, if False to moving
+        reset : bool, optional
+            If True, the device is reset prior to configuration (default False)
+
+        Returns
+        -------
+        None
         """
         if reset is True:
             cmdList = ["*RST"]
@@ -701,9 +726,9 @@ class Keithley2701(VisaDevice):
             cmdList.append(":SENS:FRES:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:FRES:RANG:AUTO ON")
-        elif range is not None:
+        elif resistance_range is not None:
             cmdList.append(":SENS:FRES:RANG:AUTO OFF")
-            cmdList.append(":SENS:FRES:RANG " + str(float(range)))
+            cmdList.append(":SENS:FRES:RANG " + str(float(resistance_range)))
         if dFil is True:
             cmdList.append(":SENS:FRES:AVER:STATE ON")
             if count is not None:
@@ -726,33 +751,42 @@ class Keithley2701(VisaDevice):
 
     @synchronized
     def configure2WireOhm(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
-        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
-        reset=False
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        resistance_range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
     ):
-        """
-        Configure the Keitley 2701 to detect 2wire resistance
+        """Configure the Keitley 2701 to detect 2-wire resistance.
 
-        Arguments:
-            digits:int -- number of digits to display (4-8). default: None
-            count:int -- filter count for the digital filter. default: None
-            window:float -- filter window for the digital filter, default: None
-            NPLC:int -- Number of power line cycles to integrate over.
-                        default: None
-            dFil:bool -- If true, turn on the digital filter. If False
-                            window and filter count are ignored- default: None
-            repeatingFilter:bool -- If true set the filter to repeating,
-                                       If false to moving - default: None
-            range:float -- Range of the voltage detection. Selected by the
-                           instrument to include the value of range.
-                           default: None
-            rangeAuto:bool -- Automatic detection of the measurement range
-                                 Take care, takes additional time during
-                                 measurements! default: None
-            trigBus:bool -- sets trigger source to BUS if true
-            reset:bool -- if true, the device is reset prior to
-                             configuration
-                             default: False
+        Parameters
+        ----------
+        digits : int, optional
+            Number of digits to display (4-8)
+        count : int, optional
+            Filter count for the digital filter
+        window : float, optional
+            Filter window for the digital filter
+        NPLC : int, optional
+            Number of power line cycles to integrate over
+        dFil : bool, optional
+            If true, turn on the digital filter. If False window and filter count are ignored
+        resistance_range : float, optional
+            Range of the voltage detection. Selected by the instrument to include the value
+        rangeAuto : bool, optional
+            Automatic detection of the measurement range. Takes additional time during measurements
+        trigBus : bool, optional
+            Sets trigger source to BUS if true
+        repeatingFilter : bool, optional
+            If true set the filter to repeating, if false to moving
+        reset : bool, optional
+            If true, the device is reset prior to configuration (default False)
         """
         if reset is True:
             cmdList = ["*RST"]
@@ -767,9 +801,9 @@ class Keithley2701(VisaDevice):
             cmdList.append(":SENS:RES:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:RES:RANG:AUTO ON")
-        elif range is not None:
+        elif resistance_range is not None:
             cmdList.append(":SENS:RES:RANG:AUTO OFF")
-            cmdList.append(":SENS:RES:RANG " + str(float(range)))
+            cmdList.append(":SENS:RES:RANG " + str(float(resistance_range)))
         if dFil is True:
             cmdList.append(":SENS:RES:AVER:STATE ON")
             if count is not None:
@@ -792,32 +826,43 @@ class Keithley2701(VisaDevice):
 
     @synchronized
     def configureVolt(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
-        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
-        reset=False
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        voltage_range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
     ):
         """
-        Configure the Keitley 2701 to detect voltages
+        Configure the Keitley 2701 to detect voltages.
 
-        Arguments:
-            digits:int -- number of digits to display (4-8). default: None
-            count:int -- filter count for the digital filter. default: None
-            window:float -- filter window for the digital filter, default: None
-            NPLC:int -- Number of power line cycles to integrate over.
-                        default: None
-            dFil:bool -- If true, turn on the digital filter. If False
-                            window and filter count are ignored- default: None
-            repeatingFilter:bool -- If true set the filter to repeating,
-                                       If false to moving - default: None
-            range:float -- Range of the voltage detection. Selected by the
-                           instrument to include the value of range.
-                           default: None
-            rangeAuto:bool -- Automatic detection of the measurement range
-                                 Take care, takes additional time during
-                                 measurements! default: None
-            trigBus:bool -- sets trigger source to BUS if true
-            reset:bool -- if true, the device is reset prior to
-                             configuration, default: False
+        Parameters
+        ----------
+        digits : int, optional
+            Number of digits to display (4-8)
+        count : int, optional
+            Filter count for the digital filter
+        window : float, optional
+            Filter window for the digital filter
+        NPLC : int, optional
+            Number of power line cycles to integrate over
+        dFil : bool, optional
+            If true, turn on the digital filter. If False window and filter count are ignored
+        voltage_range : float, optional
+            Range of the voltage detection. Selected by the instrument to include the value
+        rangeAuto : bool, optional
+            Automatic detection of the measurement range. Takes additional time during measurements
+        trigBus : bool, optional
+            Sets trigger source to BUS if true
+        repeatingFilter : bool, optional
+            If true set the filter to repeating, if false to moving
+        reset : bool, optional
+            If true, the device is reset prior to configuration (default False)
         """
         cmdList = []
         if reset is True:
@@ -832,9 +877,9 @@ class Keithley2701(VisaDevice):
             cmdList.append(":SENS:VOLT:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:VOLT:RANG:AUTO ON")
-        elif range is not None:
+        elif voltage_range is not None:
             cmdList.append(":SENS:VOLT:RANG:AUTO OFF")
-            cmdList.append(":SENS:VOLT:RANG " + str(float(range)))
+            cmdList.append(":SENS:VOLT:RANG " + str(float(voltage_range)))
         if dFil is True:
             cmdList.append(":SENS:VOLT:AVER:STATE ON")
             if count is not None:
@@ -893,32 +938,45 @@ class Keithley2000(VisaDevice):
 
     @synchronized
     def configure4WireOhm(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
-        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
-        reset=False
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        resistance_range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
     ):
-        """
-        Configure the Keitley 2000 to detect 4wire resistance
+        """Configure the Keithley 2000 to detect 4-wire resistance.
 
-        Arguments:
-            digits:int -- number of digits to display (4-8). default: None
-            count:int -- filter count for the digital filter. default: None
-            window:float -- filter window for the digital filter, default: None
-            NPLC:int -- Number of power line cycles to integrate over.
-                        default: None
-            dFil:bool -- If true, turn on the digital filter. If False
-                            window and filter count are ignored- default: None
-            repeatingFilter:bool -- If true set the filter to repeating,
-                                       If false to moving - default: None
-            range:float -- Range of the voltage detection. Selected by the
-                           instrument to include the value of range.
-                           default: None
-            rangeAuto:bool -- Automatic detection of the measurement range
-                                 Take care, takes additional time during
-                                 measurements! default: None
-            trigBus:bool -- sets trigger source to BUS if true
-            reset:bool -- if true, the device is reset prior to
-                             configuration, default: False
+        Parameters
+        ----------
+        digits : int, optional
+            Number of digits to display (4-8)
+        count : int, optional
+            Filter count for the digital filter
+        window : float, optional
+            Filter window for the digital filter
+        NPLC : int, optional
+            Number of power line cycles to integrate over
+        dFil : bool, optional
+            If True, turn on the digital filter. If False, window and
+            filter count are ignored
+        resistance_range : float, optional
+            Range of the voltage detection. Selected by the instrument
+            to include the value of range
+        rangeAuto : bool, optional
+            Automatic detection of the measurement range. Takes additional
+            time during measurements
+        trigBus : bool, optional
+            Sets trigger source to BUS if True
+        repeatingFilter : bool, optional
+            If True set the filter to repeating, if False to moving
+        reset : bool, optional
+            If True, the device is reset prior to configuration (default False)
         """
         if reset is True:
             cmdList = ["*RST"]
@@ -932,9 +990,9 @@ class Keithley2000(VisaDevice):
             cmdList.append(":SENS:FRES:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:FRES:RANG:AUTO ON")
-        elif range is not None:
+        elif resistance_range is not None:
             cmdList.append(":SENS:FRES:RANG:AUTO OFF")
-            cmdList.append(":SENS:FRES:RANG " + str(float(range)))
+            cmdList.append(":SENS:FRES:RANG " + str(float(resistance_range)))
         if dFil is True:
             cmdList.append(":SENS:FRES:AVER:STATE ON")
             if count is not None:
@@ -957,33 +1015,42 @@ class Keithley2000(VisaDevice):
 
     @synchronized
     def configure2WireOhm(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
-        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
-        reset=False
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        resistance_range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
     ):
-        """
-        Configure the Keitley 2000 to detect 2wire resistance
+        """Configure the Keitley 2000 to detect 2-wire resistance.
 
-        Arguments:
-            digits:int -- number of digits to display (4-8). default: None
-            count:int -- filter count for the digital filter. default: None
-            window:float -- filter window for the digital filter, default: None
-            NPLC:int -- Number of power line cycles to integrate over.
-                        default: None
-            dFil:bool -- If true, turn on the digital filter. If False
-                            window and filter count are ignored- default: None
-            repeatingFilter:bool -- If true set the filter to repeating,
-                                       If false to moving - default: None
-            range:float -- Range of the voltage detection. Selected by the
-                           instrument to include the value of range.
-                           default: None
-            rangeAuto:bool -- Automatic detection of the measurement range
-                                 Take care, takes additional time during
-                                 measurements! default: None
-            trigBus:bool -- sets trigger source to BUS if true
-            reset:bool -- if true, the device is reset prior to
-                             configuration
-                             default: False
+        Parameters
+        ----------
+        digits : int, optional
+            Number of digits to display (4-8)
+        count : int, optional
+            Filter count for the digital filter
+        window : float, optional
+            Filter window for the digital filter
+        NPLC : int, optional
+            Number of power line cycles to integrate over
+        dFil : bool, optional
+            If true, turn on the digital filter. If False window and filter count are ignored
+        resistance_range : float, optional
+            Range of the voltage detection. Selected by the instrument to include the value
+        rangeAuto : bool, optional
+            Automatic detection of the measurement range. Takes additional time during measurements
+        trigBus : bool, optional
+            Sets trigger source to BUS if true
+        repeatingFilter : bool, optional
+            If true set the filter to repeating, if false to moving
+        reset : bool, optional
+            If true, the device is reset prior to configuration (default False)
         """
         if reset is True:
             cmdList = ["*RST"]
@@ -997,9 +1064,9 @@ class Keithley2000(VisaDevice):
             cmdList.append(":SENS:RES:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:RES:RANG:AUTO ON")
-        elif range is not None:
+        elif resistance_range is not None:
             cmdList.append(":SENS:RES:RANG:AUTO OFF")
-            cmdList.append(":SENS:RES:RANG " + str(float(range)))
+            cmdList.append(":SENS:RES:RANG " + str(float(resistance_range)))
         if dFil is True:
             cmdList.append(":SENS:RES:AVER:STATE ON")
             if count is not None:
@@ -1022,32 +1089,42 @@ class Keithley2000(VisaDevice):
 
     @synchronized
     def configureVolt(
-        self, digits=None, count=None, window=None, NPLC=None, dFil=None,
-        range=None, rangeAuto=None, trigBus=None, repeatingFilter=None,
-        reset=False
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        voltage_range=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
     ):
-        """
-        Configure the Keitley 2000 to detect voltages
+        """Configure the Keithley 2000 to detect voltages.
 
-        Arguments:
-            digits:int -- number of digits to display (4-8). default: None
-            count:int -- filter count for the digital filter. default: None
-            window:float -- filter window for the digital filter, default: None
-            NPLC:int -- Number of power line cycles to integrate over.
-                        default: None
-            dFil:bool -- If true, turn on the digital filter. If False
-                            window and filter count are ignored- default: None
-            repeatingFilter:bool -- If true set the filter to repeating,
-                                       If false to moving - default: None
-            range:float -- Range of the voltage detection. Selected by the
-                           instrument to include the value of range.
-                           default: None
-            rangeAuto:bool -- Automatic detection of the measurement range
-                                 Take care, takes additional time during
-                                 measurements! default: None
-            trigBus:bool -- sets trigger source to BUS if true
-            reset:bool -- if true, the device is reset prior to
-                             configuration, default: False
+        Parameters
+        ----------
+        digits : int, optional
+            Number of digits to display (4-8).
+        count : int, optional
+            Filter count for the digital filter.
+        window : float, optional
+            Filter window for the digital filter.
+        NPLC : int, optional
+            Number of power line cycles to integrate over.
+        dFil : bool, optional
+            If True, turn on the digital filter. If False, window and filter count are ignored.
+        voltage_range : float, optional
+            Range of the voltage detection. Selected by the instrument to include the value.
+        rangeAuto : bool, optional
+            Automatic detection of the measurement range. Takes additional time during measurements.
+        trigBus : bool, optional
+            Sets trigger source to BUS if True.
+        repeatingFilter : bool, optional
+            If True set the filter to repeating, if False to moving.
+        reset : bool, optional
+            If True, the device is reset prior to configuration. Defaults to False.
         """
         cmdList = []
         if reset is True:
@@ -1061,9 +1138,9 @@ class Keithley2000(VisaDevice):
             cmdList.append(":SENS:VOLT:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:VOLT:RANG:AUTO ON")
-        elif range is not None:
+        elif voltage_range is not None:
             cmdList.append(":SENS:VOLT:RANG:AUTO OFF")
-            cmdList.append(":SENS:VOLT:RANG " + str(float(range)))
+            cmdList.append(":SENS:VOLT:RANG " + str(float(voltage_range)))
         if dFil is True:
             cmdList.append(":SENS:VOLT:AVER:STATE ON")
             if count is not None:

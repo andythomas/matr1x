@@ -1405,10 +1405,10 @@ class ExecThread(QThread):
                     self.lineno_signal.emit(digits)
                 line = re.sub(pattern_lineno, "", line)
             if match := re.search(pattern_input, line):
-                type = match.group('type')
-                strlabel = match.group('strlabel')
-                print(f"Requesting input type: {type}, Query: {strlabel}")
-                self.input_signal.emit(strlabel, type)
+                input_type = match.group("type")
+                strlabel = match.group("strlabel")
+                print(f"Requesting input type: {input_type}, Query: {strlabel}")
+                self.input_signal.emit(strlabel, input_type)
                 line = re.sub(pattern_input, "", line)
             if match := re.search(pattern_filename, line):
                 path = match.group(1)
@@ -2295,7 +2295,7 @@ class MainWindow(QMainWindow):
         self.update_window_title()
         self.update_systems()
 
-    def get_script_input(self, query: str, type: str):
+    def get_script_input(self, query: str, input_type: str):
         """
         Open a text dialog and forward input to the script.
 
@@ -2303,10 +2303,10 @@ class MainWindow(QMainWindow):
         ----------
         query: str
          label to explain the user what they input
-        type: str
+        input_type: str
          Type of expected input. can be 'string' or 'bool'
         """
-        if type == "string":
+        if input_type == "string":
             dialog = TextInputDialog(query, parent=self)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 ret = dialog.input.text()
@@ -2314,13 +2314,13 @@ class MainWindow(QMainWindow):
                 # abort executing script
                 self.abort_thread()
                 return
-        elif type == "bool":
+        elif input_type == "bool":
             dialog = YesNoAbortDialog(query)
             ret = dialog.exec_and_get_response()
             if ret == "abort":
                 self.abort_thread()
                 return
-        elif type == "__end_script__":
+        elif input_type == "__end_script__":
             dialog = TerminationDialog()
             ret = dialog.get_selection()
         else:
