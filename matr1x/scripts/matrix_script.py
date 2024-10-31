@@ -1252,7 +1252,7 @@ class CustomLexer(QsciLexerPython):
             return super().keywords(val)
         return (
             "init_datafile measure_system wait set_value trigger_value "
-            "read_value meta_data devs sys input input_bool end_script"
+            "read_value meta_data devs system input input_bool end_script"
         )
 
 
@@ -1261,7 +1261,7 @@ class CustomQsciAPI(QsciAPIs):
 
     # Definition of custom commands that are supposed to be autocompleted
     autocompletions = [
-        "sys",
+        "system",
         "meta_data",
         "meta_data['creator']",
         "meta_data['identifier']",
@@ -1524,7 +1524,7 @@ class MainWindow(QMainWindow):
           trigger_value(value_index/name)
           read_value(value_index/name)
           devs  # dictionary that contains all devices
-          sys  # merged system object from the selected systems
+          system  # merged system object from the selected systems
           meta_data  # dictionary that contains all meta information
                      # Keywords "creator", "identifier" and "description"
                      # contain meta data information from the editor widget
@@ -2567,11 +2567,10 @@ class MainWindow(QMainWindow):
 
     def update_systems(self):
         """Update the systems list and config editor."""
-        print("update_systems is running")
         self.systems = [os.path.normpath(self.system_list.item(j).text())
                         for j in range(self.system_list.count())]
         # only systems that are part of matrix or ifwlib can be configured
-        configurable = [sys for sys in self.systems if not os.path.exists(sys)]
+        configurable = [system for system in self.systems if not os.path.exists(system)]
         self.config_editor.update_data(configurable)
 
     def get_settable_info(self):

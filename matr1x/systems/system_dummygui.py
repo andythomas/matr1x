@@ -29,8 +29,8 @@ from matr1x.system import System
 
 # ============================
 # initialize system
-sys = System()
-sys.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
+system = System()
+system.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
 # ============================
 
 # ========================================================================
@@ -43,26 +43,17 @@ sys.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
 #   Otherwise the import would block any other use of the devices
 #   Make sure to adhere to this or errors will occur!
 # ========================================================================
-sys.add_dev("gui", control_dummy.clientdevice,
-            (f"TCPIP::localhost::{PORT}::SOCKET",))
+system.add_dev(
+    "gui", control_dummy.clientdevice, (f"TCPIP::localhost::{PORT}::SOCKET",)
+)
 # ============================
 # define columns for measurement
 # ============================
-sys.add_param(
-    "guiv1", "int",
-    ["gui", "v1"],
-    ["gui", "v1"])
-sys.add_param(
-    ["guiv2", "guiv3"], ["float", "float"],
-    ["gui", "v2v3"],
-    ["gui", "v2v3"])
-sys.add_param(
-    "guiv4", "bool",
-    ["gui", "v4"],
-    ["gui", "v4"])
-sys.add_param(
-    "guiv5", "float",
-    None,
-    ["gui", "v5"])
+system.add_param("guiv1", "int", ["gui", "v1"], ["gui", "v1"])
+system.add_param(
+    ["guiv2", "guiv3"], ["float", "float"], ["gui", "v2v3"], ["gui", "v2v3"]
+)
+system.add_param("guiv4", "bool", ["gui", "v4"], ["gui", "v4"])
+system.add_param("guiv5", "float", None, ["gui", "v5"])
 
 # ============================

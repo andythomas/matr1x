@@ -20,10 +20,9 @@ currents = np.linspace(-1e-4, 1e-4, 2)
 init_datafile("epische_messdatei", comment="testcomment")
 for field in fields:
  set_value(1, field)
- sys.add_comment(f"Change field to {field}")
+ system.add_comment(f"Change field to {field}")
  for current in currents:
   set_value(5, current)
   wait(0.01)
   print(f"current field {field}")
   measure_system()
-

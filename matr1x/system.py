@@ -25,6 +25,7 @@ import os
 import re
 import sys
 import time
+import warnings
 from os.path import exists, expanduser, isfile, splitext
 
 import h5py
@@ -427,8 +428,19 @@ class System:
                     importlib.reload(mod)
                 else:
                     mod = importlib.import_module("." + normfilename, "matr1x.systems")
-            mod.sys.__name__ = normfilename
-        return mod.sys
+        # get new (v8 System instance)
+        try:
+            system = getattr(mod, "system")
+        except AttributeError:
+            # try old variable name (v7 and older)
+            system = getattr(mod, "sys")
+            warnings.warn(
+                "Using deprecated variable name 'sys' - please update to use 'system' instead",
+                DeprecationWarning,
+            )
+        # set the name of the system to reflect the filename
+        system.__name__ = normfilename
+        return system
 
     @property
     def hdf5(self):

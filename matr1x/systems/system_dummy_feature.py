@@ -84,8 +84,8 @@ class MeasSystem(System):
         # wrap base system function for safe handling of opening
         super().set(*args, **kwargs)
         # configure devices upon initialization
-        sys.devs["dev1"].p2 = 10
-        sys.devs["dev2"].configure(
+        self.devs["dev1"].p2 = 10
+        self.devs["dev2"].configure(
             setting1=self.config["setting1"], setting2=self.config["setting2"]
         )
         # make a comment when set is finished
@@ -98,7 +98,7 @@ class MeasSystem(System):
         measurement.
         """
         # set some parameter upon deinitializtion
-        sys.devs["dev1"].p2 = 0
+        self.devs["dev1"].p2 = 0
         # wrap base system function for safe handling of opening
         super().reset(*args, **kwargs)
 
@@ -108,7 +108,7 @@ class MeasSystem(System):
 
 # ============================
 # initialize system
-sys = MeasSystem()
+system = MeasSystem()
 # ============================
 
 # ========================================================================
@@ -125,20 +125,20 @@ sys = MeasSystem()
 # together with the constructor arguments needed to initialize the class later
 # Here dev1F, dev2F will be initalized when system is `set`.
 # The third parameter (args) accepts a list/tuple (even for single parameter!)
-# of arguments that is passed upon device initializeation when sys.set() is
+# of arguments that is passed upon device initializeation when system.set() is
 # called.
 # The fourth parameter (kwargs) accepts a dictionary with keyword arguments.
 # The fifth parameter (config_params) can be a dictionary specifying possible
 # query options which allow to readout the configuration of a device which will
 # be stored in the data file header.
-sys.add_dev(
+system.add_dev(
     "dev1",
     dummy,
     args=("TCPIP::localhost::10008::SOCKET",),
     kwargs={"p1": 5, "p4": [5, 3, 2, 1]},
     config_params={"p4": "p4"},
 )
-sys.add_dev(
+system.add_dev(
     "dev2", dummy, args=("TCPIP::localhost::10009::SOCKET",), config_params={"p2": "p2"}
 )
 
@@ -155,22 +155,17 @@ sys.add_dev(
 # (=length of readout array, used only for HDF5 systems), and a default value
 # to be used when setting the device (used if no value is specified
 # in the sweep file)
-sys.add_param(
+system.add_param(
     ["dev1 p3a", "dev1 p3b"], ["cnta", "cntb"],
     ["dev1", "p3"],
     ["dev1", "p3"])
-sys.add_param(
+system.add_param(
     "dev1 p2", "cnt",
     setter=["dev1", "p2"],
     getter=["dev1", "p2"],
     trigger=["dev1", "trg"],
-    default=5.)
-sys.add_param(
-    "dev1 p1", "cnt",
-    None,
-    ["dev1", "p1"])
-sys.add_param(
-    "dev2 p1", "cnt",
-    "set_dev2_p1",
-    "get_dev2_p1")
+    default=5.0,
+)
+system.add_param("dev1 p1", "cnt", None, ["dev1", "p1"])
+system.add_param("dev2 p1", "cnt", "set_dev2_p1", "get_dev2_p1")
 # ============================

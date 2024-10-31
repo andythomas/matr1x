@@ -261,8 +261,6 @@ def module_from_path(filename):
                                                   filename)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    # set the name of the system to reflect the filename
-    mod.sys.__name__ = filename
     return mod
 
 
@@ -464,7 +462,7 @@ def generate_script_prefix_suffix(systems):
     _reset_setvalues()  # initialize the setvalues variable
     # bring meta_data and system into namespace
     meta_data = _system.dcdata
-    sys = _system
+    system = _system
 
     # redefine set_value to limit user typing requirements
     @_lineno_decorator
@@ -503,7 +501,7 @@ def generate_script_prefix_suffix(systems):
     @_lineno_decorator
     def trigger_value(*args, **kwargs):
         '''
-        Execute sys.trigger_value. All arguments are forwarded.
+        Execute system.trigger_value. All arguments are forwarded.
 
         Parameters
         ----------
@@ -515,7 +513,7 @@ def generate_script_prefix_suffix(systems):
         Returns
         -------
         Any
-            Result of sys.trigger_value.
+            Result of system.trigger_value.
         '''
         _system.trigger_value(*args, **kwargs)
 
@@ -523,7 +521,7 @@ def generate_script_prefix_suffix(systems):
     @_lineno_decorator
     def read_value(*args, **kwargs):
         '''
-        Execute sys.read_value. All arguments are forwarded.
+        Execute system.read_value. All arguments are forwarded.
 
         Parameters
         ----------
@@ -535,7 +533,7 @@ def generate_script_prefix_suffix(systems):
         Returns
         -------
         Any
-            Result of sys.read_value.
+            Result of system.read_value.
         '''
         return _system.read_value(*args, **kwargs)
 

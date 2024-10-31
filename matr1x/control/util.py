@@ -1022,12 +1022,12 @@ class GuiDict(UserDict, ABC):
             # initialize the system
             self.S.set()
             # convert command function names to executables
-            self.set_cmd_funcs(window_obj=self.parent, sys=self.S)
+            self.set_cmd_funcs(window_obj=self.parent, system=self.S)
             self.restoreFeatures()
             self._refresh_thread.start()
             self.running = True
 
-    def set_cmd_funcs(self, window_obj=None, sys=None):
+    def set_cmd_funcs(self, window_obj=None, system=None):
         """
         Replace setter and getter functions by an instance of Command.
 
@@ -1036,8 +1036,8 @@ class GuiDict(UserDict, ABC):
         """
         # replace entries with executable functions
         for name, cmd in self._orig_cmds.items():
-            setfunc, setargs = self._create_setfunc(name, cmd, window_obj, sys)
-            getfunc, getargs = self._create_getfunc(name, cmd, window_obj, sys)
+            setfunc, setargs = self._create_setfunc(name, cmd, window_obj, system)
+            getfunc, getargs = self._create_getfunc(name, cmd, window_obj, system)
 
             # set new Command properties in existing list
             self.cmds[name].setfunc = setfunc
@@ -1046,7 +1046,7 @@ class GuiDict(UserDict, ABC):
             self.cmds[name].getargs = getargs
         return self.cmds
 
-    def _create_setfunc(self, name, cmd, window_obj=None, sys=None):
+    def _create_setfunc(self, name, cmd, window_obj=None, system=None):
         """
         Create the setter function from the command definition.
 
@@ -1084,21 +1084,23 @@ class GuiDict(UserDict, ABC):
                         setattr(c, a, value)
         elif isinstance(cmd.setfunc, (tuple, list)):
             # system device name and method
-            if sys is None:
-                raise ValueError("System must be specified as 'sys' keyword argument")
+            if system is None:
+                raise ValueError(
+                    "System must be specified as 'system' keyword argument"
+                )
             devname, funcname = cmd.setfunc
-            attr = attrgetter(funcname)(sys.devs[devname])
+            attr = attrgetter(funcname)(system.devs[devname])
             if callable(attr):
                 setfunc = attr
             else:
 
-                def setfunc(value, c=sys.devs[devname], a=funcname):
+                def setfunc(value, c=system.devs[devname], a=funcname):
                     setattr(c, a, value)
         else:
             raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
         return setfunc, setargs
 
-    def _create_getfunc(self, name, cmd, window_obj=None, sys=None):
+    def _create_getfunc(self, name, cmd, window_obj=None, system=None):
         """
         Create the getter function from the command definition.
 
@@ -1141,15 +1143,17 @@ class GuiDict(UserDict, ABC):
                     return cmd.dtype(v)
         elif isinstance(cmd.getfunc, (tuple, list)):
             # system device name and method
-            if sys is None:
-                raise ValueError("System must be specified as 'sys' keyword argument")
+            if system is None:
+                raise ValueError(
+                    "System must be specified as 'system' keyword argument"
+                )
             devname, funcname = cmd.getfunc
-            attr = attrgetter(funcname)(sys.devs[devname])
+            attr = attrgetter(funcname)(system.devs[devname])
             if callable(attr):
                 getfunc = attr
             else:
 
-                def getfunc(c=sys.devs[devname], a=funcname):
+                def getfunc(c=system.devs[devname], a=funcname):
                     return getattr(c, a)
         else:
             raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")

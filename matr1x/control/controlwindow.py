@@ -848,7 +848,7 @@ class ControlWindow(QMainWindow):
                     pass
 
             extra_gui_dict = extraGuiDict()
-            extra_gui_dict.set_cmd_funcs(window_obj=self, sys=self.S)
+            extra_gui_dict.set_cmd_funcs(window_obj=self, system=self.S)
             self.cmd_list = extra_gui_dict.cmds
             for guidict in self.guidicts:
                 for name in guidict.cmds.keys():

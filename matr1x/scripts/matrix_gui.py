@@ -668,7 +668,9 @@ class MainWindow(QMainWindow):
             return
 
         self.sys_meta_data = system.dcdata
-        configurable = [sys for sys in systemfile if not os.path.exists(sys.strip())]
+        configurable = [
+            system for system in systemfile if not os.path.exists(system.strip())
+        ]
         self.config_editor.update_data(configurable)
 
     def queueMeasurement(self):

@@ -72,7 +72,7 @@ class MeasSystem(System):
 
 
 # initialize system
-sys = MeasSystem()
+system = MeasSystem()
 # ========================================================================
 # This is the main system area
 # Device definition and configuration takes place here, but devices do
@@ -83,30 +83,26 @@ sys = MeasSystem()
 #   Otherwise the import would block any other use of the devices
 #   Make sure to adhere to this or errors will occur!
 # ========================================================================
-sys.add_dev("devhdf", dummy,
-            args=("TCPIP::localhost::10009::SOCKET", ))
+system.add_dev("devhdf", dummy, args=("TCPIP::localhost::10009::SOCKET",))
 
 # enforce HDF5 flag, will be set automatically if needed by any Parameter
-# sys.hdf5 = True
+# system.hdf5 = True
 
 # define columns for measurement
-sys.add_param(
-    "devhdfp4_flat", "cnt",
-    getter=["devhdf", "p4"], dtype="f8", chunks=4)
-sys.add_param(
-    "devhdfp4_1d", "cnt",
-    getter=["devhdf", "p4"], chunks=(4,))
-sys.add_param(
-    ["devhdf p3a", "devhdf p3b"], ["cnta", "cntb"],
+system.add_param("devhdfp4_flat", "cnt", getter=["devhdf", "p4"], dtype="f8", chunks=4)
+system.add_param("devhdfp4_1d", "cnt", getter=["devhdf", "p4"], chunks=(4,))
+system.add_param(
+    ["devhdf p3a", "devhdf p3b"],
+    ["cnta", "cntb"],
     ["devhdf", "p3"],
     ["devhdf", "p3"],
     chunks=[1, 1], dtype=["i8", "i8"])
-sys.add_param(
+system.add_param(
     "devhdfp4_2d", "cnt",
     getter='get_p4',
     getter_kwargs={"shape": (2, 2)},
     chunks=(2, 2))
-sys.add_param(
+system.add_param(
     ["rand2d_1", "rand2d_2"], ["cnt", "cnt"],
     getter=numpy.random.random,
     getter_args=[(2, 4, 4), ],

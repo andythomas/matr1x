@@ -310,7 +310,7 @@ class exampleDict2(GuiDict):
 # controlGUI. If no interfacing of a measurement system is intended this can be
 # removed.
 clientdevice = makeSCPIdevice(
-    exampleDict.cmds, exampleDict2.cmds, common_commands, sys=True
+    exampleDict.cmds, exampleDict2.cmds, common_commands, system=True
 )
 
 

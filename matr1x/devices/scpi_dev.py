@@ -24,7 +24,7 @@ from pymeasure.instruments import Instrument
 from pymeasure.instruments.validators import strict_discrete_set
 
 
-def makeSCPIdevice(*cmds, sys=True):
+def makeSCPIdevice(*cmds, system=True):
     """
     dynamically generate a pymeasure device which can be used in systems to
     connect to the SCPI commands
@@ -34,7 +34,7 @@ def makeSCPIdevice(*cmds, sys=True):
     cmds: dict
       multiple dictionaries with commands. Those will be merged internally and
       therefore must only contain unique keys.
-    sys: bool
+    system: bool
       flag to decide if config_params shall be defined on the device
     """
     typeplaceholder = {int: "%d", float: "%g", bool: "%d",
@@ -136,7 +136,7 @@ def makeSCPIdevice(*cmds, sys=True):
     attributes["config_params"] = {"id": "idn"}
 
     # add system query to config_params
-    if sys and ":conf" not in cmd_list:
+    if system and ":conf" not in cmd_list:
         attributes["config_params"]["SCPIdevconf"] = "conf"
         cmd_list[":conf"] = Get(
             lambda b: pickle.loads(ast.literal_eval(b)),
