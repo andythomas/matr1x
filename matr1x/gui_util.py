@@ -1026,8 +1026,244 @@ class SimplePlotWidget(QGroupBox):
             "delta+": [lambda xf: delta(xf)[0],
                        lambda yf: delta(yf)[0]]}
 
-        def __init__(self, l_plot, error, l_slider, plot2d,
-                     index, desig, pen=None):
+        class CustomDateAxisItem(pg.DateAxisItem):
+            # This text is included pursuant to the obligations of this upstream licence
+            # and must be retained in any derivatives of this class.
+            # This specific class may be used under the terms of the MIT-license:
+            # Permission is hereby granted, free of charge, to any person obtaining a
+            # copy of this software and associated documentation files (the "Software"),
+            # to deal in the Software without restriction, including without limitation
+            # the rights to use, copy, modify, merge, publish, distribute, sublicense,
+            # and/or sell copies of the Software, and to permit persons to whom the
+            # Software is furnished to do so, subject to the following conditions:
+            #
+            # The above copyright notice and this permission notice shall be included in
+            # all copies or substantial portions of the Software.
+            #
+            # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+            # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+            # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+            # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+            # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+            # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+            # DEALINGS IN THE SOFTWARE.
+            """
+            Custom date axis item for displaying dates with customizable formatting.
+
+            This class extends the pyqtgraph DateAxisItem to provide more flexible
+            date formatting options based on the scale of the axis.
+
+            Parameters
+            ----------
+            *args
+                Variable length argument list passed to the parent class.
+            **kwargs
+                Arbitrary keyword arguments passed to the parent class.
+            """
+
+            def tickValues(self, minVal, maxVal, size):
+                """
+                Return the values and spacing of ticks to draw.
+
+                Parameters
+                ----------
+                minVal : float
+                    Minimum value of the axis range.
+                maxVal : float
+                    Maximum value of the axis range.
+                size : int
+                    Size of the axis in pixels.
+
+                Returns
+                -------
+                list of tuples
+                    Each tuple contains (spacing, [ticks]), where:
+                    - spacing is the distance between ticks
+                    - [ticks] is a list of tick values
+
+                Notes
+                -----
+                The returned list has the format:
+                [
+                    (spacing, [major ticks]),
+                    (spacing, [minor ticks]),
+                    ...
+                ]
+
+                This method calls tickSpacing to determine the correct tick locations.
+                """
+                minVal, maxVal = sorted((minVal, maxVal))
+
+                minVal *= self.scale
+                maxVal *= self.scale
+
+                ticks = []
+                tickLevels = self.tickSpacing(minVal, maxVal, size)
+                allValues = np.array([])
+                for i in range(len(tickLevels)):
+                    spacing, offset = tickLevels[i]
+
+                    # determine starting tick
+                    start = (np.ceil((minVal - offset) / spacing) * spacing) + offset
+
+                    # determine number of ticks
+                    num = int((maxVal - start) / spacing) + 1
+                    values = (np.arange(num) * spacing + start) / self.scale
+                    # remove any ticks that were present in higher levels
+                    # we assume here that if the difference between a tick value and
+                    # a previously seen tick value
+                    # is less than spacing/100, then they are 'equal' and we can
+                    # ignore the new tick.
+                    close = np.any(
+                        np.isclose(
+                            allValues,
+                            values[:, np.newaxis],
+                            rtol=0,
+                            atol=spacing / self.scale * 0.01,
+                        ),
+                        axis=-1,
+                    )
+                    values = values[~close]
+                    allValues = np.concatenate([allValues, values])
+                    ticks.append((spacing / self.scale, values.tolist()))
+
+                if self.logMode:
+                    # not tested
+                    return self.logTickValues(minVal, maxVal, size, ticks)
+
+                return ticks
+
+            def tickStrings(self, values, scale, spacing):
+                """
+                Return the labels corresponding to the tick values depending on the spacing.
+
+                Parameters
+                ----------
+                values : array-like
+                    The tick values.
+                scale : float
+                    The scale factor for the values.
+                spacing : float
+                    The spacing between tick values.
+
+                Returns
+                -------
+                list of str
+                    The tick labels corresponding to the values.
+                """
+                # Choose the date format based on the scale
+                if spacing < 0.5:  # less than 0.5 seconds
+                    fmt = "%S.%f"
+                elif spacing < 5:  # less than 5 seconds
+                    fmt = "%M:%S.%f"
+                elif spacing < 100:  # less than a minute
+                    fmt = "%H:%M:%S"
+                elif spacing < 4000:  # less than an hour
+                    fmt = "%H:%M"
+                elif spacing < 80000:  # less than a day
+                    fmt = "%m-%d %H:%M"
+                elif spacing < 6e5:  # less than a week
+                    fmt = "%m-%d %Hh"
+                elif spacing < 2.5e6:  # less than a month
+                    fmt = "%y-%m-%d"
+                else:
+                    fmt = "%Y-%m-%d"
+
+                # Convert timestamps to formatted date strings
+                if spacing >= 5:
+                    return [
+                        datetime.datetime.fromtimestamp(value).strftime(fmt)
+                        for value in values
+                    ]
+                return [
+                    datetime.datetime.fromtimestamp(value).strftime(fmt).rstrip("0")
+                    for value in values
+                ]
+
+        class CategoricalAxis(pg.AxisItem):
+            """Custom axis item for displaying categorical data.
+
+            This class extends pyqtgraph's AxisItem to properly display categorical
+            data by mapping numeric indices to category labels.
+
+            Parameters
+            ----------
+            orientation : str
+                The orientation of the axis ('left', 'right', 'top', or 'bottom').
+            mapping : dict, optional
+                Dictionary mapping numeric indices to category labels.
+            *args
+                Variable length argument list passed to parent class.
+            **kwargs
+                Arbitrary keyword arguments passed to parent class.
+
+            Attributes
+            ----------
+            mapping : dict
+                Dictionary storing the mapping between numeric indices and category labels.
+            unique_ticks : set
+                Set storing unique tick values.
+            """
+
+            def __init__(self, orientation, mapping=None, *args, **kwargs):
+                super().__init__(orientation=orientation, *args, **kwargs)
+                self.mapping = mapping or {}
+                self.unique_ticks = set()
+
+            def tickStrings(self, values, scale, spacing):
+                """Return the strings that should be placed next to ticks.
+
+                For categorical data, shows all tick labels regardless of plot size.
+
+                Parameters
+                ----------
+                values : list
+                    List of values to create tick strings for.
+                scale : float
+                    Scale factor for values.
+                spacing : float
+                    Space between ticks.
+
+                Returns
+                -------
+                list of str
+                    List of strings to display at tick marks.
+                """
+                # For categorical data, show all ticks regardless of plot size
+                strings = []
+                for v in range(len(self.mapping)):
+                    if v in self.mapping:
+                        strings.append(str(self.mapping[v]))
+                    else:
+                        strings.append("")
+                return strings
+
+            def tickValues(self, minVal, maxVal, size):
+                """Return the values and spacing of ticks to draw.
+
+                Parameters
+                ----------
+                minVal : float
+                    Minimum value visible on axis.
+                maxVal : float
+                    Maximum value visible on axis.
+                size : int
+                    Width or height of axis in pixels.
+
+                Returns
+                -------
+                list of tuple
+                    List containing (spacing, [tick positions]) pairs.
+                """
+                # Override to return fixed ticks for categorical data
+                ticks = []
+                if not self.mapping:
+                    return [(1, [])]
+                values = list(range(len(self.mapping)))
+                ticks.append((1, values))
+                return ticks
+
+        def __init__(self, l_plot, error, l_slider, plot2d, index, desig, pen=None):
             self.index = index
             self.desig = desig
             self.l_plot = l_plot
@@ -1035,18 +1271,23 @@ class SimplePlotWidget(QGroupBox):
             self.plot2d = plot2d
             self.error = error
 
+            # Store mappings for categorical data
+            self.x_mapping = {}
+            self.z_mapping = {}
+            self.x_is_categorical = False
+            self.z_is_categorical = False
+
+            # Cache for unique values
+            self.x_unique_values = None
+            self.z_unique_values = None
+
             # initialize the pyqtgraph display widgets
             self.vb = CustomViewBox()
             if self.plot2d is True:
                 self.plt = pg.ImageView(view=self.vb)
-                # self.plt = pg.PColorMeshItem()  # could be used instead
-                # self.vb.addItem(self.plt)
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
                                               title=f"p{index}")
-                # possibly add colorbar to the right of the ImageItem
-                # self.bar = pg.ColorBarItem()  # enables a color bar
-                # self.l_plot.addItem(self.bar, row=self.index, col=1)
             else:
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
@@ -1058,10 +1299,17 @@ class SimplePlotWidget(QGroupBox):
                     self.plt.setPen(None)
 
             self.date_axis = {
-                "bottom": CustomDateAxisItem(orientation='bottom'),
-                "top": CustomDateAxisItem(orientation='top'),
-                "left": CustomDateAxisItem(orientation='left'),
-                "right": CustomDateAxisItem(orientation='right')}
+                "bottom": self.CustomDateAxisItem(orientation="bottom"),
+                "top": self.CustomDateAxisItem(orientation="top"),
+                "left": self.CustomDateAxisItem(orientation="left"),
+                "right": self.CustomDateAxisItem(orientation="right"),
+            }
+
+            self.categorical_axis = {
+                "bottom": self.CategoricalAxis(orientation="bottom"),
+                "left": self.CategoricalAxis(orientation="left"),
+            }
+
             self.ordinary_axis = {"bottom": self.pw.getAxis("bottom"),
                                   "left": self.pw.getAxis("left")}
 
@@ -1096,6 +1344,41 @@ class SimplePlotWidget(QGroupBox):
             self.l_slider.addWidget(self.w_hline)
             self.l_slider.addWidget(self.w_zslider)
             self.l_slider.addWidget(self.w_xslider)
+
+        def _convert_categorical(self, data, is_x=True):
+            """Convert categorical data to numeric values with mapping."""
+            if data.dtype == np.dtype("O"):
+                # For categorical data, convert to numeric indices
+                unique_values = np.unique([str(x) for x in data])
+                if is_x:
+                    self.x_unique_values = unique_values
+                    self.x_is_categorical = True
+                else:
+                    self.z_unique_values = unique_values
+                    self.z_is_categorical = True
+
+                # Create mapping
+                mapping = {idx: val for idx, val in enumerate(unique_values)}
+                numeric_data = np.array(
+                    [
+                        list(mapping.keys())[list(mapping.values()).index(str(x))]
+                        for x in data
+                    ]
+                )
+
+                # Store mapping for axis
+                if is_x:
+                    self.categorical_axis["bottom"].mapping = mapping
+                else:
+                    self.categorical_axis["left"].mapping = mapping
+
+                return numeric_data
+
+            if is_x:
+                self.x_is_categorical = False
+            else:
+                self.z_is_categorical = False
+            return data
 
         def _raise_error(self, error):
             """
@@ -1139,6 +1422,10 @@ class SimplePlotWidget(QGroupBox):
             x: numpy array
                 Processed data.
             """
+            # Don't apply math to categorical data
+            if self.x_is_categorical or self.z_is_categorical:
+                return y, x
+
             if self.math_mode in self.default_math.keys():
                 # some of our default math is supposed to be used
                 x = self.default_math[self.math_mode][0](x)
@@ -1286,8 +1573,27 @@ class SimplePlotWidget(QGroupBox):
                 Dictionary containing y data with keys "data", "label", "desig", and "unit",
                 or None if not applicable.
             """
-            self.zdata = z["data"]
-            self.xdata = x["data"]
+            # Handle categorical data conversions
+            self.zdata = self._convert_categorical(z["data"], is_x=False)
+            self.xdata = self._convert_categorical(x["data"], is_x=True)
+
+            # Update axis types based on data
+            self.z_is_categorical = z["data"].dtype == np.dtype("O")
+            self.x_is_categorical = x["data"].dtype == np.dtype("O")
+
+            # Update axis items based on data type
+            if self.z_is_categorical:
+                self.pw.setAxisItems({"left": self.categorical_axis["left"]})
+            else:
+                # Reset to ordinary axis for numerical data
+                self.pw.setAxisItems({"left": self.ordinary_axis["left"]})
+
+            if self.x_is_categorical:
+                self.pw.setAxisItems({"bottom": self.categorical_axis["bottom"]})
+            else:
+                # Reset to ordinary axis for numerical data
+                self.pw.setAxisItems({"bottom": self.ordinary_axis["bottom"]})
+
             if y is not None:
                 self.ydata = y["data"]
                 data_sets = [z, x, y]
@@ -1367,9 +1673,6 @@ class SimplePlotWidget(QGroupBox):
                     pos = [x0, y0]
                     scale = [xscale, yscale]
                     self.plt.setImage(self.z, pos=pos, scale=scale)
-                    # pcolormesh would support x/y/z data
-                    # self.plt.setData(self.z)  # for pcolormesh
-                    # self.bar.setImageItem(self.plt)  # support colorbar
                     for i, ax in zip(range(1, 3), ["top", "right"]):
                         if self.labels[i] == "timeUTC":
                             self.pw.setAxisItems({ax: self.date_axis[ax]})
@@ -1385,14 +1688,24 @@ class SimplePlotWidget(QGroupBox):
                 # for curves apply math, set labels and data
                 z, x = self._get_math(self.z, self.x)
                 self.pw.getAxis("left").textWidth = 0
+
                 for i, ax in zip(range(2), ["right", "top"]):
                     if self.labels[i] == "timeUTC":
                         self.pw.setAxisItems({ax: self.date_axis[ax]})
                     elif self.pw.getAxis(ax).isVisible():
                         self.pw.hideAxis(ax)
+
+                # Already set up in parse_data() for categorical axes
+                # Set labels for axes
                 for i, ax in zip(range(2), ["left", "bottom"]):
                     self.pw.setLabel(ax, self.labels[i], self.units[i])
-                self.plt.setData(x=x, y=z, *args, **kwargs)
+
+                try:
+                    self.plt.setData(x=x, y=z, *args, **kwargs)
+                except ValueError as e:
+                    # Handle shape mismatch errors
+                    self._raise_error(f"Plot error: {str(e)}")
+
 
     def __init__(self, cb_error, cb_index, parent=None):
         super().__init__("", parent)
@@ -1541,21 +1854,32 @@ class SimplePlotWidget(QGroupBox):
             # something can be deleted, make button visible
             self.w_delete.setVisible(True)
 
-        # if currently selected plot is not 2d plot, show math
-        self.w_calc.setVisible(not self.plots[index].plot2d)
+        current_plot = self.plots[index]
+
+        # Check if any axes are categorical
+        has_categorical = current_plot.x_is_categorical or current_plot.z_is_categorical
+
+        # Keep math box visible but enable/disable based on plot type and data
+        self.w_calc.setVisible(not current_plot.plot2d)
+        self.w_calc.setEnabled(not current_plot.plot2d and not has_categorical)
+
+        # If categorical, reset to "no math" but keep box visible
+        if has_categorical:
+            self.w_calc.setCurrentIndex(0)  # "no math" index
+            current_plot.math_mode = "no math"
 
         # update widgets according to specifications in currently selected plot
         for i in range(2):
-            self.w_math[i].setText(self.plots[index].math_texts[i])
+            self.w_math[i].setText(current_plot.math_texts[i])
 
         # load math_mode from PlotObject and set index
-        index_math = self.w_calc.findText(self.plots[index].math_mode)
+        index_math = self.w_calc.findText(current_plot.math_mode)
         if index_math != -1:
             # for -1, item not found in combo box texts
             self.w_calc.setCurrentIndex(index_math)
 
         # pass current PlotObject to callback function to be handled externally
-        self.cb_index(self.plots[index])
+        self.cb_index(current_plot)
 
     def _toggle_plot2d(self, flag):
         """
@@ -1575,6 +1899,16 @@ class SimplePlotWidget(QGroupBox):
         """Apply new data, math and labels and update the plot."""
         math_mode = self.w_calc.currentText()
         current_plot = self.w_plots.currentIndex()
+
+        # Check if current plot has categorical data
+        has_categorical = (
+            self.plots[current_plot].x_is_categorical
+            or self.plots[current_plot].z_is_categorical
+        )
+
+        # Enable/disable math combo box based on categorical data
+        self.w_calc.setEnabled(not has_categorical)
+
         if math_mode == "custom" and self.w_math[0].isVisible() is False:
             for widget in self.w_math + self.w_lmath:
                 widget.setVisible(True)
@@ -1827,153 +2161,6 @@ class CustomViewBox(pg.ViewBox):
             self.setMouseMode(self.RectMode)
         else:
             pg.ViewBox.mouseDragEvent(self, ev, axis)
-
-
-class CustomDateAxisItem(pg.DateAxisItem):
-    # This text is included pursuant to the obligations of this upstream licence
-    # and must be retained in any derivatives of this class.
-    # This specific class may be used under the terms of the MIT-license:
-    # Permission is hereby granted, free of charge, to any person obtaining a
-    # copy of this software and associated documentation files (the “Software”),
-    # to deal in the Software without restriction, including without limitation
-    # the rights to use, copy, modify, merge, publish, distribute, sublicense,
-    # and/or sell copies of the Software, and to permit persons to whom the
-    # Software is furnished to do so, subject to the following conditions:
-    #
-    # The above copyright notice and this permission notice shall be included in
-    # all copies or substantial portions of the Software.
-    #
-    # THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-    # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-    # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    # DEALINGS IN THE SOFTWARE.
-    """
-    Custom date axis item for displaying dates with customizable formatting.
-
-    This class extends the pyqtgraph DateAxisItem to provide more flexible
-    date formatting options based on the scale of the axis.
-
-    Parameters
-    ----------
-    *args
-        Variable length argument list passed to the parent class.
-    **kwargs
-        Arbitrary keyword arguments passed to the parent class.
-    """
-
-    def tickValues(self, minVal, maxVal, size):
-        """
-        Return the values and spacing of ticks to draw.
-
-        Parameters
-        ----------
-        minVal : float
-            Minimum value of the axis range.
-        maxVal : float
-            Maximum value of the axis range.
-        size : int
-            Size of the axis in pixels.
-
-        Returns
-        -------
-        list of tuples
-            Each tuple contains (spacing, [ticks]), where:
-            - spacing is the distance between ticks
-            - [ticks] is a list of tick values
-
-        Notes
-        -----
-        The returned list has the format:
-        [
-            (spacing, [major ticks]),
-            (spacing, [minor ticks]),
-            ...
-        ]
-
-        This method calls tickSpacing to determine the correct tick locations.
-        """
-        minVal, maxVal = sorted((minVal, maxVal))
-
-        minVal *= self.scale
-        maxVal *= self.scale
-
-        ticks = []
-        tickLevels = self.tickSpacing(minVal, maxVal, size)
-        allValues = np.array([])
-        for i in range(len(tickLevels)):
-            spacing, offset = tickLevels[i]
-
-            # determine starting tick
-            start = (np.ceil((minVal-offset) / spacing) * spacing) + offset
-
-            # determine number of ticks
-            num = int((maxVal-start) / spacing) + 1
-            values = (np.arange(num) * spacing + start) / self.scale
-            # remove any ticks that were present in higher levels
-            # we assume here that if the difference between a tick value and
-            # a previously seen tick value
-            # is less than spacing/100, then they are 'equal' and we can
-            # ignore the new tick.
-            close = np.any(
-                np.isclose(allValues, values[:, np.newaxis],
-                           rtol=0, atol=spacing/self.scale*0.01),
-                axis=-1
-            )
-            values = values[~close]
-            allValues = np.concatenate([allValues, values])
-            ticks.append((spacing/self.scale, values.tolist()))
-
-        if self.logMode:
-            # not tested
-            return self.logTickValues(minVal, maxVal, size, ticks)
-
-        return ticks
-
-    def tickStrings(self, values, scale, spacing):
-        """
-        Return the labels corresponding to the tick values depending on the spacing.
-
-        Parameters
-        ----------
-        values : array-like
-            The tick values.
-        scale : float
-            The scale factor for the values.
-        spacing : float
-            The spacing between tick values.
-
-        Returns
-        -------
-        list of str
-            The tick labels corresponding to the values.
-        """
-        # Choose the date format based on the scale
-        if spacing < 0.5:  # less than 0.5 seconds
-            fmt = '%S.%f'
-        elif spacing < 5:  # less than 5 seconds
-            fmt = '%M:%S.%f'
-        elif spacing < 100:  # less than a minute
-            fmt = '%H:%M:%S'
-        elif spacing < 4000:  # less than an hour
-            fmt = '%H:%M'
-        elif spacing < 80000:  # less than a day
-            fmt = '%m-%d %H:%M'
-        elif spacing < 6e5:  # less than a week
-            fmt = '%m-%d %Hh'
-        elif spacing < 2.5e6:  # less than a month
-            fmt = '%y-%m-%d'
-        else:
-            fmt = '%Y-%m-%d'
-
-        # Convert timestamps to formatted date strings
-        if spacing >= 5:
-            return [datetime.datetime.fromtimestamp(
-                value).strftime(fmt) for value in values]
-        return [datetime.datetime.fromtimestamp(
-            value).strftime(fmt).rstrip("0") for value in values]
 
 
 class EmittingStream(QObject):
