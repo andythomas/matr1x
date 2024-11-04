@@ -27,6 +27,7 @@ import sys
 import time
 import warnings
 from os.path import exists, expanduser, isfile, splitext
+from typing import List, Union
 
 import h5py
 import numpy as np
@@ -101,7 +102,7 @@ def device_query(device_handle, config_params):
                 devid = device_handle.name
             else:
                 devid = device_handle.__class__.__name__
-            if hasattr(device_handle, "adapter"):  # its a pymeasure Instrument
+            if hasattr(device_handle, "adapter"):  # it's a pymeasure Instrument
                 devid += device_handle.connection.resource_name
             print(f"exception during config query of {devid}")
             raise
@@ -676,9 +677,10 @@ class System:
                 info += f" with list-like property: {str(func)}."
         print(info)
 
-    def set_value(self, i, values):
-        """
-        Set a parameter i to values.
+    def set_value(
+        self, i: Union[int, str], values: Union[float, List[float], None]
+    ) -> Union[float, List[float], None]:
+        """Set a parameter i to values.
 
         Takes the column name or index and sets the corresponding parameter as
         defined by the setter of the parameter, take care to send a correct
@@ -1492,7 +1494,7 @@ class MergedSystem(System):
                 **subsys.system_config_params,
             }
             self.parameters += subsys.parameters
-            sys.merged_system = self
+            subsys.merged_system = self
         self._merge_dcdata()
         self._check_hdf5()
         # sort parameters to have timeUTC as last column

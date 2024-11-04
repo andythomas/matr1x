@@ -16,5 +16,14 @@
 """Import helpers."""
 
 from .controlwindow import ControlWindow  # noqa: F401
-from .util import (GuiDict, OutputRedirection, QtGracefulKiller,  # noqa: F401
-                   catchEmitError, control_main, guiObject, linear_trend, var)
+from .util import (  # noqa: F401
+    GuiDict,
+    OutputRedirection,
+    QtGracefulKiller,
+    catchEmitError,
+    control_main,
+    guiObject,
+    linear_trend,
+    sendNotificationEmail,
+    var,
+)

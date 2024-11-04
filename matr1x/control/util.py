@@ -70,6 +70,7 @@ from PyQt6.QtWidgets import (
     QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -169,6 +170,7 @@ class guiObject(IntEnum):
     spinbox = 6
     doublespinbox = 7
     labeltext = 8
+    hline = 9
 
     @classmethod
     def getWidget(cls, label, wType, init=None):
@@ -182,7 +184,6 @@ class guiObject(IntEnum):
             value is given).
         wType : int or guiObject
             Can be one of:
-
             * str : QLabel: string used as label text.
             * 0 : QPushButton
             * 1 : QLineEdit
@@ -193,6 +194,7 @@ class guiObject(IntEnum):
             * 6 : QSpinBox
             * 7 : QDoubleSpinBox
             * 8 : QLabel: used as Value indicator
+            * 9 : QFrame: used to generate a horizontal separator line
         init : tuple, str, optional
             Provides the initialization values (button label, valid ranges,
             combobox entries).
@@ -252,6 +254,15 @@ class guiObject(IntEnum):
             if init is not None:
                 sb.setRange(*init)
             return sb
+        if cls.hline == wType:
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Sunken)
+            line.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if init is not None:
+                line.setFixedWidth(init)
+            line.setMinimumHeight(2)
+            return line
         return None
 
 
@@ -264,16 +275,17 @@ class var(QObject):
 
     Parameters
     ----------
-    dType : type or tuple of (type, type)
+    dType : type or tuple of (type, type) or None
         Type of variable that is to be stored and its emitted type upon a value
         change.
     outType : type
         Type the emitted value should be cast into (only present for backward
         compatibility. should be set nowadays in the dtype argument).
-    columns : list, optional
-        List of GUI elements needed for this variable. Typically here are two
+    columns : Union[list, str, int, guiObject], optional
+        GUI elements needed for this variable. Typically here are two
         entries to view the current value in the first element and be able to
         alter it in the second. The values should be enumerations from guiObject.
+        Will be converted to a list internally.
     unit : str, optional
         Unit string used in the label and data logging.
     log : bool or None, optional
@@ -292,13 +304,13 @@ class var(QObject):
 
     def __init__(
         self,
-        dtype=(float, str),
-        outType=str,
-        columns=None,
-        unit="",
-        log=False,
-        init=None,
-        hide=False,
+        dtype: Union[type, tuple[type, type], None] = (float, str),
+        outType: type = str,
+        columns: Optional[Union[list, str, int, guiObject]] = None,
+        unit: str = "",
+        log: Optional[bool | None] = False,
+        init: Optional[list] = None,
+        hide: bool = False,
     ):
         super().__init__()
         if isinstance(dtype, Iterable):
@@ -921,7 +933,11 @@ class GuiDict(UserDict, ABC):
             for variable in self.values():
                 if isinstance(variable, var) and variable.hide:
                     for i, w in enumerate(variable.widgets):
-                        if i == len(variable.widgets) - 1 and not self.showlog:
+                        if (
+                            variable.log is not None
+                            and i == len(variable.widgets) - 1
+                            and not self.showlog
+                        ):
                             continue
                         w.show()
         else:
@@ -1287,6 +1303,7 @@ def sendNotificationEmail(
      (-> attach the image file)
     attachments: list
      list of file names of things to attach to the email.
+
     """
     # a check for valid email adresses should be added here!
     if address != "":
