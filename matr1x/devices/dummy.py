@@ -1,7 +1,19 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2024 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 module implementing a dummy device used for automatic testing of the code base.
 """
@@ -14,16 +26,17 @@ from .scpi_dev import makeSCPIdevice
 
 logger = logging.getLogger(__name__)
 
-cmd_list = {"*idn": Get(str, lambda: "dummy_device"),
-            ":p1": Command(str, "_p1", "_p1"),
-            ":p2": Command(float, "_p2", "_p2"),
-            ":p3": Command([float, float], "_p3", "_p3"),
-            ":p4": Command([float, float, float, float], "_p4", "_p4"),
-            ":p5": Command(float, "_p5", "_p5"),
-            ":p6": Command(bool, "_p6", "_p6"),
-            ":p7": Command(bool, "_p7", "_p7"),
-            "*trg": Set(None, "trigger"),
-            }
+cmd_list = {
+    "*idn": Get(str, lambda: "dummy_device name\nwith newline"),
+    ":p1": Command(str, "_p1", "_p1"),
+    ":p2": Command(float, "_p2", "_p2"),
+    ":p3": Command([float, float], "_p3", "_p3"),
+    ":p4": Command([float, float, float, float], "_p4", "_p4"),
+    ":p5": Command(float, "_p5", "_p5"),
+    ":p6": Command(bool, "_p6", "_p6"),
+    ":p7": Command(bool, "_p7", "_p7"),
+    "*trg": Set(None, "trigger"),
+}
 
 dummy_dev = makeSCPIdevice(cmd_list)
 
@@ -52,7 +65,11 @@ class dummy(dummy_dev):
        * p6: Parameter of type bool
        * p7: Parameter of type bool
     """
-    config_params = {"conf": "_p1"}
+
+    config_params = {
+        "name": "*idn?",
+        "conf": "_p1",
+    }
 
     def __init__(self, adapter, **kwargs):
         self.localServer = None

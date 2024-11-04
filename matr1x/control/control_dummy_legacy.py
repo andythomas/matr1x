@@ -1,7 +1,20 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2024 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Provides a legacy example and test implementation of a control GUI."""
+
 import logging
 import os
 import sys
@@ -10,21 +23,13 @@ import traceback
 import warnings
 
 import numpy
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QMessageBox, QPushButton, QWidget
+
 from matr1x import logfolder
 from matr1x.control import ControlWindow, catchEmitError
-from matr1x.control.util import OutputRedirection, QtGracefulKiller
+from matr1x.control.util import OutputRedirection, QtGracefulKiller, var
 from matr1x.control.util import guiObject as go
-from matr1x.control.util import var
 from matr1x.devices.scpi_dev import makeSCPIdevice
-
-try:
-    from PyQt6.QtWidgets import (QApplication, QHBoxLayout, QMessageBox,
-                                 QPushButton, QWidget)
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QMessageBox,
-                                 QPushButton, QWidget)
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -67,9 +72,8 @@ if os.name == 'nt':
 
 
 class MainWindow(ControlWindow):
-    """
-    Define layout, runs everything
-    """
+    """Define layout, runs everything."""
+
     # Initialize dicts for GUI display as well as variable storage
     # Variables are stored in dict[key].value, GUI elements in dict[key].widgets
     # The GUI is initialized with the elements specified in dict[key].columns, where
@@ -115,11 +119,10 @@ class MainWindow(ControlWindow):
 
     # GUI functions
     def initUI(self):
-        """
-        Initializes GUI for chaosControl operation, i.e. display variable,
-        allow chaning setpoints etc.
+        """Initialize GUI for example Control operation.
 
-        Should be overloaded for real GUI
+        Initialize display variable, allow chaning setpoints etc.
+        Should be overloaded for real GUI.
         """
         super().initUI()
 
@@ -134,6 +137,7 @@ class MainWindow(ControlWindow):
         self.exampleDict["V3"].widgets[2].setDecimals(1)
 
     def extra_layout(self, layout):
+        """Provide a button to raise an error for testing."""
         elayout = QHBoxLayout()
         raisebutton = QPushButton("Raise Error")
         raisebutton.clicked.connect(self.raiseError)
@@ -141,6 +145,7 @@ class MainWindow(ControlWindow):
         layout.insertLayout(0, elayout)
 
     def write(self):
+        """Set values in the hardware."""
         try:
             self.setV1(self.exampleDict["V1"].getGUIvalue())
             self.v2 = self.exampleDict["V2"].getGUIvalue()
@@ -153,15 +158,11 @@ class MainWindow(ControlWindow):
 
     @catchEmitError
     def raiseError(self, nm):
-        """
-        raises an error for testing purposes
-        """
+        """Raise an error for testing purposes."""
         raise ValueError("This is an error for testing purpose.")
 
     def setToggleFunction(self):
-        """
-        set toggle button functionality in hardware
-        """
+        """Set toggle button functionality in hardware."""
         # if it is checked
         if self.exampleDict["toggle"].widgets[2].isChecked():
             # here should go code to set the feature in the hardware
@@ -173,10 +174,10 @@ class MainWindow(ControlWindow):
 
     @catchEmitError
     def refreshDict(self):
-        """
-        This is the main loop!
+        """Provide the main loop.
+
         Here, the read out is conducted (thread safe) and the newest
-        values are stored/updated in the value storage of the respective dicts
+        values are stored/updated in the value storage of the respective dicts.
         """
         # on first run also initialize the second GUI element using the
         # copy values function
@@ -231,17 +232,21 @@ class MainWindow(ControlWindow):
     # driver functions begin here
     # example functions
     def setV1(self, val):
+        """Provide example setter 1."""
         self.v1 = val
 
     def setV2V3(self, val):
+        """Provide example setter 2/3."""
         self.v2 = val[0]
         self.v3 = val[1]
 
     def getV2V3(self):
+        """Provide example getter 2/3."""
         return [self.v2, self.v3]
 
 
 def main():
+    """Set the basic GUI parameters and run."""
     if "_" in os.path.basename(sys.argv[0]):
         warnings.warn(
             "The executable name 'control_dummy' is deprecated. Use 'control-dummy' instead.",

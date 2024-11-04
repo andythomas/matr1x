@@ -1,7 +1,19 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2024 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import logging
 import math
 import time
@@ -94,8 +106,20 @@ class Lakeshore3xx(VisaDevice):
         except ValueError:
             return
 
+    def setManualOutput(self, setpoint, loop=1):
+        try:
+            setpoint = float(setpoint)
+            if 0 > setpoint or 100 < setpoint:
+                return
+            self.write("MOUT " + str(loop) + ",{:.5f}".format(setpoint))
+        except ValueError:
+            return
+
     def getSetpoint(self, loop=1):
         return self.query_float("SETP? " + str(loop))
+
+    def getManualOutput(self, loop=1):
+        return self.query_float("MOUT? " + str(loop))
 
     def getHeater(self, channel=1):
         return self.query_float("HTR? " + str(channel))
@@ -362,12 +386,11 @@ class Lakeshore475(VisaDevice):
         if on is True:
             self.write("CMODE 1")
 
-    def configure(self, reset=False, autoRange=True, range=None, dcRes=None,
-                  fUnit=None):
+    def configure(
+        self, reset=False, autoRange=True, range_val=None, dcRes=None, fUnit=None
+    ):
         """
-        function not tested
-
-        Configure LS475 measurement parameters
+        Configure LS475 measurement parameters.
 
         Arguments
         -----
@@ -375,7 +398,7 @@ class Lakeshore475(VisaDevice):
           If True reset the instrument
         autoRange:bool
           switches auto range on
-        range:int
+        range_val:int
           has to be between 1 and 5, where 1 is the smallest
           range and 5 the largest, probe dependent
         dcRes:int
@@ -389,9 +412,9 @@ class Lakeshore475(VisaDevice):
             self.write("*RST")
         if autoRange is True:
             self.write("AUTO 1")
-        elif range is not None and 0 < range and 6 > range:
+        elif range_val is not None and 0 < range_val and 6 > range_val:
             self.write("AUTO 0")
-            self.write("RANGE " + str(range))
+            self.write("RANGE " + str(range_val))
         if dcRes is not None and 0 < dcRes and 4 > dcRes:
             self.write("RDGMODE 1," + str(dcRes) + ",1,1,1")
         if fUnit is not None and 0 < fUnit and 5 > fUnit:

@@ -1,71 +1,86 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# CustomDateAxis adapted from
+# Copyright (C) 2024 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# CustomDateAxis class in this file adapted from
 # https://pyqtgraph.readthedocs.io/en/latest/_modules/pyqtgraph/graphicsItems/AxisItem.html#AxisItem.tickValues
 # licensed under MIT-license
-# ---
 """
-This module contains gui related functions that are required by the
-sweep-generator, matrix-gui, matrix-preview, and matrix-script.
+Contains GUI related functions and class definitions.
+
+These are used by sweep-generator, matrix-gui, matrix-preview, and matrix-script.
 """
+
 import datetime
-import warnings
+from importlib.metadata import version as package_version
+from os.path import dirname, expanduser, join, normpath
+from typing import Any, Dict, Optional
 
 import numpy as np
-
-# Try to import Qt6 and fallback to Qt5 if not available
-try:
-    from PyQt6.QtCore import QAbstractTableModel, QLocale, QObject, Qt, pyqtSignal
-    from PyQt6.QtGui import QDoubleValidator, QIntValidator
-    from PyQt6.QtWidgets import (
-        QCheckBox,
-        QComboBox,
-        QDialog,
-        QDockWidget,
-        QFrame,
-        QGridLayout,
-        QGroupBox,
-        QHBoxLayout,
-        QLabel,
-        QLayout,
-        QLineEdit,
-        QMessageBox,
-        QPushButton,
-        QSizePolicy,
-        QSlider,
-        QTableView,
-        QToolButton,
-        QVBoxLayout,
-    )
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtCore import QAbstractTableModel, QLocale, QObject, Qt, pyqtSignal
-    from PyQt5.QtGui import QDoubleValidator, QIntValidator
-    from PyQt5.QtWidgets import (
-        QCheckBox,
-        QComboBox,
-        QDialog,
-        QDockWidget,
-        QFrame,
-        QGridLayout,
-        QGroupBox,
-        QHBoxLayout,
-        QLabel,
-        QLayout,
-        QLineEdit,
-        QMessageBox,
-        QPushButton,
-        QSizePolicy,
-        QSlider,
-        QTableView,
-        QToolButton,
-        QVBoxLayout,
-    )
-
+import pygit2
 import pyqtgraph as pg
+from PyQt6.QtCore import (
+    QAbstractItemModel,
+    QEvent,
+    QLocale,
+    QModelIndex,
+    QObject,
+    Qt,
+    pyqtSignal,
+)
+from PyQt6.QtGui import (
+    QColor,
+    QDoubleValidator,
+    QDropEvent,
+    QFontDatabase,
+    QIcon,
+    QImage,
+    QIntValidator,
+    QPainter,
+    QPalette,
+    QPixmap,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDockWidget,
+    QFormLayout,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QStyle,
+    QStyledItemDelegate,
+    QTextEdit,
+    QToolButton,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
+)
 
+from . import get_config_dict, load_config, merge_dicts, write_config
 from .eval import delta
 
 # dictionary of commonly used validators
@@ -83,18 +98,26 @@ validator[np.uint].setBottom(0)
 
 class QRangeWidget(QGroupBox):
     """
-    Widget that displays a range slider with a decrement/increment slider
-    on either side and a label on the left.
+    Widget that displays a range slider with decrement/increment sliders.
 
-    Parameters
-    ---------
-    title: base name that is displayed on the left together with current
-      value of slider and the number of increments
-    parent: parent widget or None
+    This widget consists of a range slider with a decrement/increment slider
+    on either side and a label on the left.
     """
+
     value_changed = pyqtSignal(int)
 
     def __init__(self, title, parent=None):
+        """
+        Initialize the QRangeWidget.
+
+        Parameters
+        ----------
+        title : str
+            Base name displayed on the left together with current
+            value of slider and the number of increments.
+        parent : QWidget, optional
+            Parent widget.
+        """
         super().__init__("", parent)
         self.setMinimumHeight(30)
         self.setFixedHeight(30)
@@ -139,161 +162,851 @@ class QRangeWidget(QGroupBox):
 
     def set_base_title(self, title):
         """
-        Resets the base title to a new value
+        Reset the base title to a new value.
 
         Parameters
         ----------
-        title: str
-          New base title
+        title : str
+            New base title.
         """
         self.base_title = title
 
     def set_value(self, val):
         """
-        Set current value of slider
+        Set current value of slider.
 
         Parameters
         ----------
-        val: int
-          new value of slider, out of range values are ignored
+        val : int
+            New value of slider, out of range values are ignored.
         """
         self.slider.setValue(val)
         self._update_text()
 
     def value(self):
+        """
+        Get current value of slider.
 
+        Returns
+        -------
+        int
+            Current value of slider.
+        """
         return self.slider.value()
 
     def set_range(self, minimum, maximum):
         """
+        Set range of slider.
+
         Parameters
         ----------
-        minimum: int
-          Minimum value of slider
-        maximum: int
-          Maximum value of slider
+        minimum : int
+            Minimum value of slider.
+        maximum : int
+            Maximum value of slider.
         """
         self.slider.setRange(minimum, maximum)
         self._update_text()
 
     def minimum(self):
         """
-        Returns minimum value of slider
+        Get minimum value of slider.
+
+        Returns
+        -------
+        int
+            Minimum value of slider.
         """
         return self.slider.minimum()
 
     def maximum(self):
         """
-        Returns maximum value of slider
+        Get maximum value of slider.
+
+        Returns
+        -------
+        int
+            Maximum value of slider.
         """
         return self.slider.maximum()
 
 
+class SystemListWidget(QListWidget):
+    """
+    A custom QListWidget that allows drag-and-drop reordering of items.
+
+    This widget emits a signal when the order of items changes due to drag-and-drop operations.
+
+    Attributes
+    ----------
+        orderChanged (pyqtSignal): Signal emitted when the order of items changes.
+    """
+
+    orderChanged = pyqtSignal()  # Custom signal for order changes
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Initialize the SystemListWidget.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
+        super().__init__(*args, **kwargs)
+        self.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        # Enable drag-and-drop sorting
+        self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        """
+        Handle the drop event for drag-and-drop operations.
+
+        This method is called when an item is dropped after being dragged. It updates
+        the order of items and emits the orderChanged signal.
+
+        Args:
+            event (QDropEvent): The drop event object.
+        """
+        # Call the base class drop event to handle the reordering
+        super().dropEvent(event)
+        self.orderChanged.emit()  # Emit the custom signal when the order changes
+
+
 class MetaViewerWidget(QDockWidget):
     """
-    Viewer for meta data stored in ma7 file
+    Viewer and editor for meta data stored in matrix data files.
+
+    Extensive meta data are only include in datafiles of version 7 or higher.
     """
-    class TableModel(QAbstractTableModel):
-        def __init__(self, data):
-            super().__init__()
-            self._data = data
 
-        def data(self, index, role):
-            if role == Qt.ItemDataRole.DisplayRole:
-                return self._data[index.row()][index.column()]
+    class EditableDelegate(QStyledItemDelegate):
+        """
+        Custom delegate for editable items in a view.
 
-        def setData(self, data):
+        This delegate provides custom editing and display functionality
+        for items in a view, allowing for more advanced text selection
+        and read-only behavior.
+
+        Parameters
+        ----------
+        editable : bool, optional
+            Whether the item should be editable. Default is False.
+        parent : QWidget, optional
+            The parent widget. Default is None.
+        """
+
+        def __init__(self, editable=False, parent=None):
+            super().__init__(parent=parent)
+            self.editable = editable
+
+        def createEditor(self, parent, option, index):
             """
-            takes a new data set and updates the table
+            Create and return a custom editor widget for editing item data.
+
+            Parameters
+            ----------
+            parent : QWidget
+                The parent widget for the editor.
+            option : QStyleOptionViewItem
+                The style options for the editor.
+            index : QModelIndex
+                The index of the item being edited.
+
+            Returns
+            -------
+            QTextEdit
+                A custom QTextEdit widget configured for editing.
+            """
+            # Create a QTextEdit for more advanced text selection
+            editor = QTextEdit(parent)
+            # Make it read-only, but still allow text selection
+            editor.setReadOnly(not self.editable)
+            # disable frame of textedit, remove margins and scroll bar
+            editor.setFrameStyle(0)
+            editor.setStyleSheet("QTextEdit { border: none; padding: 0px; }")
+            editor.setContentsMargins(0, 0, 0, 0)
+            editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            return editor
+
+        def setEditorData(self, editor, index):
+            """
+            Set the editor data based on the current index.
+
+            Parameters
+            ----------
+            editor : QWidget
+                The editor widget to be updated.
+            index : QModelIndex
+                The index of the item being edited.
+            """
+            value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
+            editor.setText(value)
+
+        def setModelData(self, editor, model, index):
+            """
+            Set the model data based on the editor's content.
+
+            Parameters
+            ----------
+            editor : QWidget
+                The editor widget containing the data.
+            model : QAbstractItemModel
+                The model to be updated.
+            index : QModelIndex
+                The index of the item being edited.
+            """
+            value = editor.toPlainText()
+            index.model().setData(index, value, Qt.ItemDataRole.EditRole)
+
+    class TreeItem:
+        """
+        A class representing a tree item in a hierarchical structure.
+
+        Parameters
+        ----------
+        key : str
+            The key or identifier for this item.
+        value : Any
+            The value associated with this item.
+        parent : TreeItem, optional
+            The parent item of this item, if any.
+
+        Attributes
+        ----------
+        parent_item : TreeItem
+            The parent item of this item.
+        child_items : list
+            List of child TreeItem objects.
+        key : str
+            The key or identifier for this item.
+        value : Any
+            The value associated with this item.
+        """
+
+        def __init__(self, key, value, parent=None):
+            self.parent_item = parent
+            self.child_items = []
+
+            self.key = key
+            self.value = value
+
+            # If value is a dict, convert its items to TreeItem children
+            if isinstance(self.value, dict):
+                for child_key, child_value in value.items():
+                    self.child_items.append(
+                        MetaViewerWidget.TreeItem(child_key, child_value, self)
+                    )
+            elif isinstance(self.value, (tuple, list, np.ndarray)):
+                # for lists with finite length also use nest view
+                # key is list index
+                if len(self.value) > 1:
+                    for i, child_value in enumerate(self.value):
+                        self.child_items.append(
+                            MetaViewerWidget.TreeItem(f"{i}", child_value, self)
+                        )
+                elif len(self.value) == 1:
+                    # only list with length one, use that element only
+                    self.value = self.value[0]
+                else:
+                    # length 0 list, replace with string representation
+                    self.value = str(self.value)
+
+        def child(self, row):
+            """
+            Get the child item at the specified row.
+
+            Parameters
+            ----------
+            row : int
+                The index of the child item to retrieve.
+
+            Returns
+            -------
+            TreeItem
+                The child item at the specified row.
+            """
+            return self.child_items[row]
+
+        def child_count(self):
+            """
+            Get the number of child items.
+
+            Returns
+            -------
+            int
+                The number of child items.
+            """
+            return len(self.child_items)
+
+        def column_count(self):
+            """
+            Get the number of columns in the item.
+
+            Returns
+            -------
+            int
+                The number of columns (always 2 for Key and Value).
+            """
+            return 2  # Key and Value columns
+
+        def data(self, column):
+            """
+            Get the data for the specified column.
+
+            Parameters
+            ----------
+            column : int
+                The column index (0 for Key, 1 for Value).
+
+            Returns
+            -------
+            str
+                The data for the specified column.
+            """
+            if column == 0:
+                return self.key
+            elif column == 1:
+                if isinstance(self.value, (tuple, list, dict, np.ndarray)):
+                    # Display an empty value if it's a nested iterable
+                    return ""
+                return str(self.value)  # Convert non-dict values to string
+            return None
+
+        def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+            """
+            Set the data for the item.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item to set.
+            value : Any
+                The value to set.
+            role : Qt.ItemDataRole, optional
+                The role of the data being set (default is EditRole).
+            """
+            if not index.isValid():
+                return None
+            if index.column() == 1:
+                if self.child_count() > 0:
+                    # prevent writing into the header lines
+                    return None
+                self.value = value
+
+        def parent(self):
+            """
+            Get the parent item.
+
+            Returns
+            -------
+            TreeItem
+                The parent item.
+            """
+            return self.parent_item
+
+        def row(self):
+            """
+            Get the row number of this item in its parent's list of children.
+
+            Returns
+            -------
+            int
+                The row number of this item.
+            """
+            if self.parent_item:
+                return self.parent_item.child_items.index(self)
+            return 0
+
+    class TreeModel(QAbstractItemModel):
+        """
+        Custom tree model for displaying hierarchical data.
+
+        Parameters
+        ----------
+        data : dict
+            The hierarchical data to be displayed in the tree.
+        parent : QObject, optional
+            The parent object for this model.
+        """
+
+        def __init__(self, data, parent=None):
+            super().__init__(parent)
+            self.root_item = MetaViewerWidget.TreeItem("Root", data)
+
+        def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+            """
+            Return data for the given index and role.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item.
+            role : Qt.ItemDataRole, optional
+                The role of the data being requested.
+
+            Returns
+            -------
+            Any
+                The data for the given index and role.
+            """
+            if not index.isValid():
+                return None
+
+            item = index.internalPointer()
+
+            if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
+                return item.data(index.column())
+
+            if role == Qt.ItemDataRole.TextAlignmentRole:
+                return Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+
+            return None
+
+        def setData(self, index, value, role):
+            """
+            Update the data for the given index and role.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item to update.
+            value : Any
+                The new value to set.
+            role : Qt.ItemDataRole
+                The role of the data being set.
+
+            Returns
+            -------
+            bool
+                True if the data was successfully set, False otherwise.
+            """
+            if role == Qt.ItemDataRole.EditRole:
+                item = index.internalPointer()
+                item.setData(index, value, role)
+                return True
+            return False
+
+        def flags(self, index):
+            """
+            Return the item flags for the given index.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item.
+
+            Returns
+            -------
+            Qt.ItemFlags
+                The item flags for the given index.
+            """
+            if index.isValid():
+                if index.column() == 1:
+                    return (
+                        Qt.ItemFlag.ItemIsSelectable
+                        | Qt.ItemFlag.ItemIsEnabled
+                        | Qt.ItemFlag.ItemIsEditable
+                    )
+                return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+
+        def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+            """
+            Return the header data for the given section, orientation, and role.
+
+            Parameters
+            ----------
+            section : int
+                The section number.
+            orientation : Qt.Orientation
+                The orientation of the header.
+            role : Qt.ItemDataRole, optional
+                The role of the data being requested.
+
+            Returns
+            -------
+            str or None
+                The header data for the given section, orientation, and role.
+            """
+            if role == Qt.ItemDataRole.DisplayRole:
+                if section == 0:
+                    return "Key"
+                elif section == 1:
+                    return "Value"
+            return None
+
+        def index(self, row, column, parent=QModelIndex()):
+            """
+            Create and return a model index for the given row, column, and parent.
+
+            Parameters
+            ----------
+            row : int
+                The row number.
+            column : int
+                The column number.
+            parent : QModelIndex, optional
+                The parent index.
+
+            Returns
+            -------
+            QModelIndex
+                The model index for the given row, column, and parent.
+            """
+            if not self.hasIndex(row, column, parent):
+                return QModelIndex()
+
+            if parent.isValid():
+                parent_item = parent.internalPointer()
+            else:
+                parent_item = self.root_item
+
+            child_item = parent_item.child(row)
+            if child_item:
+                return self.createIndex(row, column, child_item)
+            return QModelIndex()
+
+        def parent(self, index):
+            """
+            Return the parent index for the given index.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item.
+
+            Returns
+            -------
+            QModelIndex
+                The parent index of the given index.
+            """
+            if not index.isValid():
+                return QModelIndex()
+
+            child_item = index.internalPointer()
+            parent_item = child_item.parent()
+
+            if parent_item == self.root_item:
+                return QModelIndex()
+
+            return self.createIndex(parent_item.row(), 0, parent_item)
+
+        def resetData(self, data):
+            """
+            Reset the model with new data.
+
+            Parameters
+            ----------
+            data : dict
+                The new hierarchical data to be displayed in the tree.
             """
             self.beginResetModel()
-            self._data = data
+            del self.root_item
+            self.root_item = MetaViewerWidget.TreeItem("Root", data)
             self.endResetModel()
 
-        def rowCount(self, index):
-            return len(self._data)
+        def rowCount(self, parent=QModelIndex()):
+            """
+            Return the number of rows under the given parent.
+
+            Parameters
+            ----------
+            parent : QModelIndex, optional
+                The parent index.
+
+            Returns
+            -------
+            int
+                The number of rows under the given parent.
+            """
+            if not parent.isValid():
+                return self.root_item.child_count()
+            parent_item = parent.internalPointer()
+            return parent_item.child_count()
 
         def columnCount(self, index):
-            return len(self._data[0])
+            """
+            Return the number of columns for the children of the given parent.
 
-    def __init__(self, metadata):
-        super().__init__()
+            Parameters
+            ----------
+            index : QModelIndex
+                The parent index.
 
-        self.table_view = QTableView()
+            Returns
+            -------
+            int
+                The number of columns for the children of the given parent.
+            """
+            return 2
 
-        self.model = self.TableModel(self.parse_header(metadata))
-        self.table_view.setModel(self.model)
-        self.table_view.resizeRowsToContents()
+    def __init__(
+        self, metadata, heading="Metadata Viewer", editable=False, parent=None
+    ):
+        super().__init__(heading, parent)
 
-        # make last column stretch whenresized
-        self.table_view.horizontalHeader().setStretchLastSection(True)
+        self.editable = editable
 
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                           QSizePolicy.Policy.Expanding)
-        self.table_view.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                      QSizePolicy.Policy.Expanding)
-        self.setWidget(self.table_view)
+        self.tree_view = QTreeView()
+
+        self.model = self.TreeModel(self.parse_header(metadata))
+        self.tree_view.setModel(self.model)
+        for i in range(2):
+            self.tree_view.resizeColumnToContents(i)
+        self.tree_view.expandAll()
+
+        # make widget expanding
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.tree_view.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        self.setWidget(self.tree_view)
+
+        # Set the custom editable delegate
+        delegate = self.EditableDelegate(editable=self.editable, parent=self.tree_view)
+        self.tree_view.setItemDelegate(delegate)
+
+        # Allow editing/selecting text in both columns
+        self.tree_view.setEditTriggers(QTreeView.EditTrigger.AllEditTriggers)
+        # stop auto scrolling of tree view
+        self.tree_view.setAutoScroll(False)
+        # add visual separation between key items
+        # self.tree_view.setStyleSheet("""
+        #     QTreeView::item {
+        #         border-bottom: 1px solid #d3d3d3;  /* Light gray bottom border */
+        #         padding: 2px;  /* Add some padding for better spacing */
+        #     }
+        # """)
 
     def update_data(self, meta):
         """
-        Updates the data stored in the model and resizes
-        the table to fit the contents
+        Update data stored in the model and resize table to fit contents.
+
+        Parameters
+        ----------
+        meta : dict
+            New metadata to be displayed.
         """
-        self.model.setData(self.parse_header(meta))
-        self.table_view.resizeRowsToContents()
+        self.model.resetData(self.parse_header(meta))
+        # resize and expand all entries
+        # (the latter might be disabled in the future, or configurable?)
+        for i in range(2):
+            self.tree_view.resizeColumnToContents(i)
+        self.tree_view.expandAll()
 
     def parse_header(self, hdr):
         """
-        Parse a matrix header and prepare for display in the table view
+        Parse a matrix header and prepare for display in the table view.
+
+        Parameters
+        ----------
+        hdr : dict
+            Header dictionary to be parsed.
+
+        Returns
+        -------
+        dict
+            Parsed header data.
+
+        TODO: Implement sorting?
         """
-        data = []
+        data = {}
         for key, val in hdr.items():
             if key in ["columns", "units"]:
+                # omit columns and units since these belong directly to the
+                # data
                 continue
-            data.append([key, val])
+            data[key] = val
         return data
+
+
+class ConfigEditWidget(MetaViewerWidget):
+    """
+    Editor for config files based on the MetaViewerWidget.
+
+    Allows editing and saving the config file.
+    """
+
+    def __init__(self):
+        super().__init__({}, heading="Preferences", editable=True)
+
+        widget = QWidget()
+        # Create a QVBoxLayout instance
+        layout = QVBoxLayout()
+
+        # Dublin Core Elements
+        self.w_write_config = QPushButton("Write config")
+        self.w_write_config.setEnabled(False)
+        self.w_write_config.clicked.connect(self.write_config)
+
+        # Add the form layout to the main layout
+        layout.addWidget(self.w_write_config)
+        layout.addWidget(self.tree_view)
+
+        # Set the main layout for the dialog
+        widget.setLayout(layout)
+        self.setWidget(widget)
+
+    def update_data(self, systemfile):
+        """
+        Update data stored in the model with system configuration.
+
+        Parameters
+        ----------
+        systemfile : list
+            List of system names to update.
+        """
+        syst_dict = {}
+        for syst in systemfile:
+            syst_dict[syst.strip()] = get_config_dict(syst.strip())
+        super().update_data(syst_dict)
+        self.w_write_config.setEnabled(True)
+
+    def parse_item(self, item):
+        """
+        Parse a TreeItem and its children into a configuration dictionary.
+
+        Parameters
+        ----------
+        item : TreeItem
+            The TreeItem to parse.
+
+        Returns
+        -------
+        dict or str
+            A dictionary representing the parsed configuration, or a string
+            if the item has no children.
+        """
+        config = {}
+        if item.child_count() > 0:
+            for child_item in item.child_items:
+                config[child_item.data(0)] = self.parse_item(child_item)
+        else:
+            return item.data(1)
+        return config
+
+    def write_config(self):
+        """Write the current configuration to file."""
+
+        def create_nested_dict(keys, item):
+            if len(keys) == 1:
+                return {keys[0]: self.parse_item(item)}
+            return {keys[0]: create_nested_dict(keys[1:], item)}
+
+        def normalize_value(value):
+            """
+            Attempt to convert the input value to the appropriate type.
+
+            Parameters
+            ----------
+            value : str
+                The value to normalize.
+
+            Returns
+            -------
+            int, float, bool, or str
+                The normalized value.
+            """
+            if isinstance(value, str):
+                # Try to convert to an integer
+                if value.isdigit():
+                    return int(value)
+                # Try to convert to a float
+                try:
+                    return float(value)
+                except ValueError:
+                    pass
+                # Convert 'true'/'false' to booleans
+                if value.lower() == "true":
+                    return True
+                if value.lower() == "false":
+                    return False
+
+                if "~" in value:
+                    value = normpath(expanduser(value))
+
+                # Return the value as-is if no conversion was possible
+                return value
+            # otherwise just return the value
+            return value
+
+        def normalize_dict(input_dict):
+            """
+            Apply value normalization to input_dict.
+
+            Parameters
+            ----------
+            input_dict : dict
+                The dictionary to normalize.
+
+            Returns
+            -------
+            dict
+                The normalized dictionary.
+            """
+            for key, value in input_dict.items():
+                # If the value is a dictionary, recursively normalize dict
+                if isinstance(value, dict):
+                    input_dict[key] = normalize_dict(value)
+                else:
+                    input_dict[key] = normalize_value(value)
+            return input_dict
+
+        config = {}
+        for item in self.tree_view.model().root_item.child_items:
+            if item.child_count() == 0:
+                # system has no configurable options
+                continue
+            sys_key = item.data(0)
+            key_parts = sys_key.split(".")
+            merge_dicts(config, create_nested_dict(key_parts, item))
+        # load full config and replace modified entries
+        full_config = normalize_dict(load_config())
+        full_config = merge_dicts(full_config, normalize_dict(config))
+        write_config(full_config)
 
 
 class SimplePlotWidget(QGroupBox):
     """
-    Plot widget that allows multiple curve or 2d plots to be vertically
-    stacked and simultaneously displayed.
+    Plot widget for multiple vertically stacked curve or 2d plots.
 
     Parameters
     ----------
-    cb_error: function
-      callback function that takes a single string as paramter, the
-      string will describe the present error
-      If called with an empty string, it should elear the error.
-    cb_index: function
-      callback function that takes a PlotObject as parameters.
-      The function is called with the currently selected PlotObject if the
-      latter changes.
+    cb_error : callable
+        Callback function that takes a single string as parameter.
+        The string will describe the present error.
+        If called with an empty string, it should clear the error.
+    cb_index : callable
+        Callback function that takes a PlotObject as parameter.
+        The function is called with the currently selected PlotObject if the
+        latter changes.
     """
+
     class PlotObject():
         """
-        Object that contains the plot, data corresponding identifiers and
-        widgets. Relies on external layouts to insert the widgets/plots.
+        Object that contains the plot, data corresponding identifiers and widgets.
+
+        Relies on external layouts to insert the widgets/plots.
 
         Parameters
         ----------
-        l_plot: pyqtgraph.GraphicsLayoutWidget
-          layout into which the plot is to be inserted
-        error: function
-          callback function that takes a single string as paramter, the
-          string will describe the present error
-        l_slider: QVBoxLayout
-          layout into which the sliders are added using l_slider.addWidget
-        plot2d: bool
-          flag that defines whether plot is curve or 2d plot
-        index: int
-          index of the plot in the pyqtgraph.GraphicsLayoutWidget
-        desig: [int, int, int]
-          designator that stores an integer that connects the plotted values
-          to some external gui elements. Essentially a simple storage.
-        pen: bool or None
-          If True, lines will be displayed
+        l_plot : pyqtgraph.GraphicsLayoutWidget
+            Layout into which the plot is to be inserted.
+        error : callable
+            Callback function that takes a single string as parameter.
+            The string will describe the present error.
+        l_slider : QVBoxLayout
+            Layout into which the sliders are added using l_slider.addWidget.
+        plot2d : bool
+            Flag that defines whether plot is curve or 2d plot.
+        index : int
+            Index of the plot in the pyqtgraph.GraphicsLayoutWidget.
+        desig : list of int
+            Designator that stores integers that connect the plotted values
+            to some external gui elements. Essentially a simple storage.
+        pen : bool or None, optional
+            If True, lines will be displayed.
         """
+
         # exposed functions that can be used by the custom math eval
         # expression stored in math_texts.
         exposed_functions = {"np": np, "sqrt": np.sqrt, "e": np.e,
@@ -314,8 +1027,244 @@ class SimplePlotWidget(QGroupBox):
             "delta+": [lambda xf: delta(xf)[0],
                        lambda yf: delta(yf)[0]]}
 
-        def __init__(self, l_plot, error, l_slider, plot2d,
-                     index, desig, pen=None):
+        class CustomDateAxisItem(pg.DateAxisItem):
+            # This text is included pursuant to the obligations of this upstream licence
+            # and must be retained in any derivatives of this class.
+            # This specific class may be used under the terms of the MIT-license:
+            # Permission is hereby granted, free of charge, to any person obtaining a
+            # copy of this software and associated documentation files (the "Software"),
+            # to deal in the Software without restriction, including without limitation
+            # the rights to use, copy, modify, merge, publish, distribute, sublicense,
+            # and/or sell copies of the Software, and to permit persons to whom the
+            # Software is furnished to do so, subject to the following conditions:
+            #
+            # The above copyright notice and this permission notice shall be included in
+            # all copies or substantial portions of the Software.
+            #
+            # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+            # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+            # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+            # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+            # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+            # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+            # DEALINGS IN THE SOFTWARE.
+            """
+            Custom date axis item for displaying dates with customizable formatting.
+
+            This class extends the pyqtgraph DateAxisItem to provide more flexible
+            date formatting options based on the scale of the axis.
+
+            Parameters
+            ----------
+            *args
+                Variable length argument list passed to the parent class.
+            **kwargs
+                Arbitrary keyword arguments passed to the parent class.
+            """
+
+            def tickValues(self, minVal, maxVal, size):
+                """
+                Return the values and spacing of ticks to draw.
+
+                Parameters
+                ----------
+                minVal : float
+                    Minimum value of the axis range.
+                maxVal : float
+                    Maximum value of the axis range.
+                size : int
+                    Size of the axis in pixels.
+
+                Returns
+                -------
+                list of tuples
+                    Each tuple contains (spacing, [ticks]), where:
+                    - spacing is the distance between ticks
+                    - [ticks] is a list of tick values
+
+                Notes
+                -----
+                The returned list has the format:
+                [
+                    (spacing, [major ticks]),
+                    (spacing, [minor ticks]),
+                    ...
+                ]
+
+                This method calls tickSpacing to determine the correct tick locations.
+                """
+                minVal, maxVal = sorted((minVal, maxVal))
+
+                minVal *= self.scale
+                maxVal *= self.scale
+
+                ticks = []
+                tickLevels = self.tickSpacing(minVal, maxVal, size)
+                allValues = np.array([])
+                for i in range(len(tickLevels)):
+                    spacing, offset = tickLevels[i]
+
+                    # determine starting tick
+                    start = (np.ceil((minVal - offset) / spacing) * spacing) + offset
+
+                    # determine number of ticks
+                    num = int((maxVal - start) / spacing) + 1
+                    values = (np.arange(num) * spacing + start) / self.scale
+                    # remove any ticks that were present in higher levels
+                    # we assume here that if the difference between a tick value and
+                    # a previously seen tick value
+                    # is less than spacing/100, then they are 'equal' and we can
+                    # ignore the new tick.
+                    close = np.any(
+                        np.isclose(
+                            allValues,
+                            values[:, np.newaxis],
+                            rtol=0,
+                            atol=spacing / self.scale * 0.01,
+                        ),
+                        axis=-1,
+                    )
+                    values = values[~close]
+                    allValues = np.concatenate([allValues, values])
+                    ticks.append((spacing / self.scale, values.tolist()))
+
+                if self.logMode:
+                    # not tested
+                    return self.logTickValues(minVal, maxVal, size, ticks)
+
+                return ticks
+
+            def tickStrings(self, values, scale, spacing):
+                """
+                Return the labels corresponding to the tick values depending on the spacing.
+
+                Parameters
+                ----------
+                values : array-like
+                    The tick values.
+                scale : float
+                    The scale factor for the values.
+                spacing : float
+                    The spacing between tick values.
+
+                Returns
+                -------
+                list of str
+                    The tick labels corresponding to the values.
+                """
+                # Choose the date format based on the scale
+                if spacing < 0.5:  # less than 0.5 seconds
+                    fmt = "%S.%f"
+                elif spacing < 5:  # less than 5 seconds
+                    fmt = "%M:%S.%f"
+                elif spacing < 100:  # less than a minute
+                    fmt = "%H:%M:%S"
+                elif spacing < 4000:  # less than an hour
+                    fmt = "%H:%M"
+                elif spacing < 80000:  # less than a day
+                    fmt = "%m-%d %H:%M"
+                elif spacing < 6e5:  # less than a week
+                    fmt = "%m-%d %Hh"
+                elif spacing < 2.5e6:  # less than a month
+                    fmt = "%y-%m-%d"
+                else:
+                    fmt = "%Y-%m-%d"
+
+                # Convert timestamps to formatted date strings
+                if spacing >= 5:
+                    return [
+                        datetime.datetime.fromtimestamp(value).strftime(fmt)
+                        for value in values
+                    ]
+                return [
+                    datetime.datetime.fromtimestamp(value).strftime(fmt).rstrip("0")
+                    for value in values
+                ]
+
+        class CategoricalAxis(pg.AxisItem):
+            """Custom axis item for displaying categorical data.
+
+            This class extends pyqtgraph's AxisItem to properly display categorical
+            data by mapping numeric indices to category labels.
+
+            Parameters
+            ----------
+            orientation : str
+                The orientation of the axis ('left', 'right', 'top', or 'bottom').
+            mapping : dict, optional
+                Dictionary mapping numeric indices to category labels.
+            *args
+                Variable length argument list passed to parent class.
+            **kwargs
+                Arbitrary keyword arguments passed to parent class.
+
+            Attributes
+            ----------
+            mapping : dict
+                Dictionary storing the mapping between numeric indices and category labels.
+            unique_ticks : set
+                Set storing unique tick values.
+            """
+
+            def __init__(self, orientation, mapping=None, *args, **kwargs):
+                super().__init__(orientation=orientation, *args, **kwargs)
+                self.mapping = mapping or {}
+                self.unique_ticks = set()
+
+            def tickStrings(self, values, scale, spacing):
+                """Return the strings that should be placed next to ticks.
+
+                For categorical data, shows all tick labels regardless of plot size.
+
+                Parameters
+                ----------
+                values : list
+                    List of values to create tick strings for.
+                scale : float
+                    Scale factor for values.
+                spacing : float
+                    Space between ticks.
+
+                Returns
+                -------
+                list of str
+                    List of strings to display at tick marks.
+                """
+                # For categorical data, show all ticks regardless of plot size
+                strings = []
+                for v in range(len(self.mapping)):
+                    if v in self.mapping:
+                        strings.append(str(self.mapping[v]))
+                    else:
+                        strings.append("")
+                return strings
+
+            def tickValues(self, minVal, maxVal, size):
+                """Return the values and spacing of ticks to draw.
+
+                Parameters
+                ----------
+                minVal : float
+                    Minimum value visible on axis.
+                maxVal : float
+                    Maximum value visible on axis.
+                size : int
+                    Width or height of axis in pixels.
+
+                Returns
+                -------
+                list of tuple
+                    List containing (spacing, [tick positions]) pairs.
+                """
+                # Override to return fixed ticks for categorical data
+                ticks = []
+                if not self.mapping:
+                    return [(1, [])]
+                values = list(range(len(self.mapping)))
+                ticks.append((1, values))
+                return ticks
+
+        def __init__(self, l_plot, error, l_slider, plot2d, index, desig, pen=None):
             self.index = index
             self.desig = desig
             self.l_plot = l_plot
@@ -323,18 +1272,23 @@ class SimplePlotWidget(QGroupBox):
             self.plot2d = plot2d
             self.error = error
 
+            # Store mappings for categorical data
+            self.x_mapping = {}
+            self.z_mapping = {}
+            self.x_is_categorical = False
+            self.z_is_categorical = False
+
+            # Cache for unique values
+            self.x_unique_values = None
+            self.z_unique_values = None
+
             # initialize the pyqtgraph display widgets
             self.vb = CustomViewBox()
             if self.plot2d is True:
                 self.plt = pg.ImageView(view=self.vb)
-                # self.plt = pg.PColorMeshItem()  # could be used instead
-                # self.vb.addItem(self.plt)
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
                                               title=f"p{index}")
-                # possibly add colorbar to the right of the ImageItem
-                # self.bar = pg.ColorBarItem()  # enables a color bar
-                # self.l_plot.addItem(self.bar, row=self.index, col=1)
             else:
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
@@ -346,10 +1300,17 @@ class SimplePlotWidget(QGroupBox):
                     self.plt.setPen(None)
 
             self.date_axis = {
-                "bottom": CustomDateAxisItem(orientation='bottom'),
-                "top": CustomDateAxisItem(orientation='top'),
-                "left": CustomDateAxisItem(orientation='left'),
-                "right": CustomDateAxisItem(orientation='right')}
+                "bottom": self.CustomDateAxisItem(orientation="bottom"),
+                "top": self.CustomDateAxisItem(orientation="top"),
+                "left": self.CustomDateAxisItem(orientation="left"),
+                "right": self.CustomDateAxisItem(orientation="right"),
+            }
+
+            self.categorical_axis = {
+                "bottom": self.CategoricalAxis(orientation="bottom"),
+                "left": self.CategoricalAxis(orientation="left"),
+            }
+
             self.ordinary_axis = {"bottom": self.pw.getAxis("bottom"),
                                   "left": self.pw.getAxis("left")}
 
@@ -385,22 +1346,60 @@ class SimplePlotWidget(QGroupBox):
             self.l_slider.addWidget(self.w_zslider)
             self.l_slider.addWidget(self.w_xslider)
 
+        def _convert_categorical(self, data, is_x=True):
+            """Convert categorical data to numeric values with mapping."""
+            if data.dtype == np.dtype("O"):
+                # For categorical data, convert to numeric indices
+                unique_values = np.unique([str(x) for x in data])
+                if is_x:
+                    self.x_unique_values = unique_values
+                    self.x_is_categorical = True
+                else:
+                    self.z_unique_values = unique_values
+                    self.z_is_categorical = True
+
+                # Create mapping
+                mapping = {idx: val for idx, val in enumerate(unique_values)}
+                numeric_data = np.array(
+                    [
+                        list(mapping.keys())[list(mapping.values()).index(str(x))]
+                        for x in data
+                    ]
+                )
+
+                # Store mapping for axis
+                if is_x:
+                    self.categorical_axis["bottom"].mapping = mapping
+                else:
+                    self.categorical_axis["left"].mapping = mapping
+
+                return numeric_data
+
+            if is_x:
+                self.x_is_categorical = False
+            else:
+                self.z_is_categorical = False
+            return data
+
         def _raise_error(self, error):
             """
-            Function to handle errors
+            Handle errors.
 
             Parameters
             ----------
             error : str
-              describing the error
+                Description of the error.
             """
             self.error(error)
 
         def _get_math(self, y, x):
             """
-            Applies the math operation to the two data arrays, depending on
-            value stored in self.math_mode. See default_math for the
-            default functions that are implemented.
+            Apply the math operation to the two data arrays.
+
+            Applies the math operation depending on the value stored in
+            self.math_mode. See default_math for the default functions that
+            are implemented.
+
             Currently can be one of the following:
                 any key of self.default_math - applies the
                   functions defined there.
@@ -413,17 +1412,21 @@ class SimplePlotWidget(QGroupBox):
             Parameters
             ----------
             y: numpy array
-              data to be processed
+                Data to be processed.
             x: numpy array
-              data to be processed
+                Data to be processed.
 
             Returns
             -------
             y: numpy array
-              processed data
+                Processed data.
             x: numpy array
-              processed data
+                Processed data.
             """
+            # Don't apply math to categorical data
+            if self.x_is_categorical or self.z_is_categorical:
+                return y, x
+
             if self.math_mode in self.default_math.keys():
                 # some of our default math is supposed to be used
                 x = self.default_math[self.math_mode][0](x)
@@ -471,9 +1474,7 @@ class SimplePlotWidget(QGroupBox):
             return y, x
 
         def _handle_multidim_and_sliders(self):
-            """
-            Handles slider visibility according to data dimensions
-            """
+            """Handle slider visibility according to data dimensions."""
             self.md = False
             for slider, dshape in zip([self.w_zslider, self.w_xslider],
                                       [self.zdata.shape, self.xdata.shape]):
@@ -509,8 +1510,11 @@ class SimplePlotWidget(QGroupBox):
 
         def _handle_multidim_data(self):
             """
-            Handles data redimensioning and selection according to slider
-            position
+            Handle data redimensioning and selection according to slider position.
+
+            This method adjusts the data dimensions and selects appropriate data
+            based on the current slider positions for multi-dimensional data sets.
+            It updates the x, y, and z data attributes of the object accordingly.
             """
             if self.md is True and self.plot2d is False:
                 self.x = self.xdata[:, self.w_xslider.value()]
@@ -525,12 +1529,12 @@ class SimplePlotWidget(QGroupBox):
 
         def _slider_event(self, val):
             """
-            Handles slider events and updates the displayed data accordingly
+            Handle slider events and update the displayed data accordingly.
 
             Parameters
             ----------
             val: int
-              current value of the slider that is to be applied
+                Current value of the slider that is to be applied.
             """
             if self.plot2d is True:
                 # for 2d plot, select index of current data element
@@ -545,8 +1549,11 @@ class SimplePlotWidget(QGroupBox):
 
         def remove_plot(self):
             """
-            Removes the plot and the widgets that belong to the PlotObject
-            from the provided layouts
+            Remove the plot and the widgets that belong to the PlotObject.
+
+            This method removes the plot from the provided layouts, including
+            the horizontal line, x-slider, and z-slider widgets associated
+            with this PlotObject.
             """
             self.l_plot.removeItem(self.l_plot.getItem(row=self.index, col=0))
             self.l_slider.removeWidget(self.w_hline)
@@ -555,13 +1562,39 @@ class SimplePlotWidget(QGroupBox):
 
         def parse_data(self, z, x, y):
             """
-            Parses the data dictionaries into the corresponding
-            class variables
+            Parse the data dictionaries into the corresponding class variables.
 
-            Used keys are "data", "label", "desig" and "unit"
+            Parameters
+            ----------
+            z : dict
+                Dictionary containing z data with keys "data", "label", "desig", and "unit".
+            x : dict
+                Dictionary containing x data with keys "data", "label", "desig", and "unit".
+            y : dict or None
+                Dictionary containing y data with keys "data", "label", "desig", and "unit",
+                or None if not applicable.
             """
-            self.zdata = z["data"]
-            self.xdata = x["data"]
+            # Handle categorical data conversions
+            self.zdata = self._convert_categorical(z["data"], is_x=False)
+            self.xdata = self._convert_categorical(x["data"], is_x=True)
+
+            # Update axis types based on data
+            self.z_is_categorical = z["data"].dtype == np.dtype("O")
+            self.x_is_categorical = x["data"].dtype == np.dtype("O")
+
+            # Update axis items based on data type
+            if self.z_is_categorical:
+                self.pw.setAxisItems({"left": self.categorical_axis["left"]})
+            else:
+                # Reset to ordinary axis for numerical data
+                self.pw.setAxisItems({"left": self.ordinary_axis["left"]})
+
+            if self.x_is_categorical:
+                self.pw.setAxisItems({"bottom": self.categorical_axis["bottom"]})
+            else:
+                # Reset to ordinary axis for numerical data
+                self.pw.setAxisItems({"bottom": self.ordinary_axis["bottom"]})
+
             if y is not None:
                 self.ydata = y["data"]
                 data_sets = [z, x, y]
@@ -576,47 +1609,48 @@ class SimplePlotWidget(QGroupBox):
 
         def set_math_mode(self, index, math_texts):
             """
-            Sets the math mode and texts
+            Set the math mode and texts.
 
             Parameters
             ----------
             index: int
-              selects the math operation to be applied, see self.default_math.
+                Selects the math operation to be applied, see self.default_math.
             math_texts: [str, str]
-              contains two strings that are evaluated by eval(string). Are
-              only allowed to contain functions/variables that are defined
-              in self.exposed_functions.
+                Contains two strings that are evaluated by eval(string). Are
+                only allowed to contain functions/variables that are defined
+                in self.exposed_functions.
             """
             self.math_mode = index
             self.math_texts = math_texts
 
         def set_data(self, z, x, y=None):
             """
-            Updates the data that is stored in the present plot.
+            Update the data that is stored in the present plot.
 
-            Used keys are "data", "label", "desig" and "unit"
+            Used keys are "data", "label", "desig" and "unit".
 
             Parameters
             ----------
             z: dict
-              z data dictionary.
+                z data dictionary.
             x: dict
-              x data dictionary.
+                x data dictionary.
             y: dict or None
-              y data dictionary.
+                y data dictionary.
             """
             self.parse_data(z, x, y)
             self._handle_multidim_and_sliders()
 
         def plot(self, *args, **kwargs):
             """
-            function that handles the actual plotting of the data and takes
-            care of updating the labels
+            Handle the actual plotting of the data and update the labels.
 
             Parameters
             ----------
-            *args, **kwargs: args or kwargs
-              are passed to the plot function if curve plotting is enabled
+            *args
+                Variable length argument list passed to the plot function if curve plotting is enabled.
+            **kwargs
+                Arbitrary keyword arguments passed to the plot function if curve plotting is enabled.
             """
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
@@ -640,9 +1674,6 @@ class SimplePlotWidget(QGroupBox):
                     pos = [x0, y0]
                     scale = [xscale, yscale]
                     self.plt.setImage(self.z, pos=pos, scale=scale)
-                    # pcolormesh would support x/y/z data
-                    # self.plt.setData(self.z)  # for pcolormesh
-                    # self.bar.setImageItem(self.plt)  # support colorbar
                     for i, ax in zip(range(1, 3), ["top", "right"]):
                         if self.labels[i] == "timeUTC":
                             self.pw.setAxisItems({ax: self.date_axis[ax]})
@@ -658,14 +1689,24 @@ class SimplePlotWidget(QGroupBox):
                 # for curves apply math, set labels and data
                 z, x = self._get_math(self.z, self.x)
                 self.pw.getAxis("left").textWidth = 0
+
                 for i, ax in zip(range(2), ["right", "top"]):
                     if self.labels[i] == "timeUTC":
                         self.pw.setAxisItems({ax: self.date_axis[ax]})
                     elif self.pw.getAxis(ax).isVisible():
                         self.pw.hideAxis(ax)
+
+                # Already set up in parse_data() for categorical axes
+                # Set labels for axes
                 for i, ax in zip(range(2), ["left", "bottom"]):
                     self.pw.setLabel(ax, self.labels[i], self.units[i])
-                self.plt.setData(x=x, y=z, *args, **kwargs)
+
+                try:
+                    self.plt.setData(x=x, y=z, *args, **kwargs)
+                except ValueError as e:
+                    # Handle shape mismatch errors
+                    self._raise_error(f"Plot error: {str(e)}")
+
 
     def __init__(self, cb_error, cb_index, parent=None):
         super().__init__("", parent)
@@ -723,10 +1764,14 @@ class SimplePlotWidget(QGroupBox):
 
         # have proxy that connects the position of the mouse on the
         # GraphicsLayout to display the x/y position on the current
-        # plot
-        self.proxy = pg.SignalProxy(self.gl.scene().sigMouseMoved,
-                                    rateLimit=30,
-                                    slot=self._mouse_moved)
+        # plot, additionally introduce proxy to select active plot by
+        # just clicking into the plot
+        self.proxy = pg.SignalProxy(
+            self.gl.scene().sigMouseMoved, rateLimit=30, slot=self._mouse_moved
+        )
+        self.proxy2 = pg.SignalProxy(
+            self.gl.scene().sigMouseClicked, rateLimit=2, slot=self._mouse_clicked
+        )
 
         # add the first empty plot with
         self.plots = [self.PlotObject(self.gl, self.cb_error, self.l_slider,
@@ -762,8 +1807,9 @@ class SimplePlotWidget(QGroupBox):
 
     def _add_plot(self):
         """
-        Adds a plot (via PlotObject) to the current display. Ensures that
-        the new plot is always appended to the end.
+        Add a plot (via PlotObject) to the current display.
+
+        Ensures that the new plot is always appended to the end.
         """
         index = max([plot.index for plot in self.plots]) + 1
         self.plots.append(self.PlotObject(self.gl, self.cb_error, self.l_slider,
@@ -773,9 +1819,7 @@ class SimplePlotWidget(QGroupBox):
         self.w_plots.addItem("add plot")
 
     def _remove_plot(self):
-        """
-        remove plot that is currently selected in self.w_plots
-        """
+        """Remove plot that is currently selected in self.w_plots."""
         if len(self.plots) == 1:
             # only single plot present
             return
@@ -795,7 +1839,12 @@ class SimplePlotWidget(QGroupBox):
 
     def _update_wplots(self, index):
         """
-        Updates the currently selected plot upon a change of self.w_plots
+        Update the currently selected plot upon a change of self.w_plots.
+
+        Parameters
+        ----------
+        index : int
+            Index of the newly selected plot in self.w_plots.
         """
         cnt = self.w_plots.count()
         if index == cnt-1 and cnt > 1:
@@ -806,30 +1855,41 @@ class SimplePlotWidget(QGroupBox):
             # something can be deleted, make button visible
             self.w_delete.setVisible(True)
 
-        # if currently selected plot is not 2d plot, show math
-        self.w_calc.setVisible(not self.plots[index].plot2d)
+        current_plot = self.plots[index]
+
+        # Check if any axes are categorical
+        has_categorical = current_plot.x_is_categorical or current_plot.z_is_categorical
+
+        # Keep math box visible but enable/disable based on plot type and data
+        self.w_calc.setVisible(not current_plot.plot2d)
+        self.w_calc.setEnabled(not current_plot.plot2d and not has_categorical)
+
+        # If categorical, reset to "no math" but keep box visible
+        if has_categorical:
+            self.w_calc.setCurrentIndex(0)  # "no math" index
+            current_plot.math_mode = "no math"
 
         # update widgets according to specifications in currently selected plot
         for i in range(2):
-            self.w_math[i].setText(self.plots[index].math_texts[i])
+            self.w_math[i].setText(current_plot.math_texts[i])
 
         # load math_mode from PlotObject and set index
-        index_math = self.w_calc.findText(self.plots[index].math_mode)
+        index_math = self.w_calc.findText(current_plot.math_mode)
         if index_math != -1:
             # for -1, item not found in combo box texts
             self.w_calc.setCurrentIndex(index_math)
 
         # pass current PlotObject to callback function to be handled externally
-        self.cb_index(self.plots[index])
+        self.cb_index(current_plot)
 
     def _toggle_plot2d(self, flag):
         """
-        toggles the plot2d flag and handles visibility of math widgets
+        Toggle the plot2d flag and handle visibility of math widgets.
 
         Parameters
         ----------
         flag: bool
-          flag that controls whether plot2d is False or True
+            Flag that controls whether plot2d is False or True.
         """
         self.plot2d = flag
         for widget in self.w_math + self.w_lmath:
@@ -837,11 +1897,19 @@ class SimplePlotWidget(QGroupBox):
         self.w_calc.setVisible(not flag)
 
     def _calc_or_data_changed(self):
-        """
-        Applies new data, math and labels and updates the plot
-        """
+        """Apply new data, math and labels and update the plot."""
         math_mode = self.w_calc.currentText()
         current_plot = self.w_plots.currentIndex()
+
+        # Check if current plot has categorical data
+        has_categorical = (
+            self.plots[current_plot].x_is_categorical
+            or self.plots[current_plot].z_is_categorical
+        )
+
+        # Enable/disable math combo box based on categorical data
+        self.w_calc.setEnabled(not has_categorical)
+
         if math_mode == "custom" and self.w_math[0].isVisible() is False:
             for widget in self.w_math + self.w_lmath:
                 widget.setVisible(True)
@@ -866,13 +1934,15 @@ class SimplePlotWidget(QGroupBox):
 
     def _mouse_moved(self, ev):
         """
-        handles mouse interaction - if the mouse in one of the viewboxes,
-        then display the x and y value at the mouse position
+        Handle mouse interaction and display x and y values at mouse position.
+
+        If the mouse is in one of the viewboxes, display the x and y value
+        at the mouse position.
 
         Parameters
         ----------
-        ev: mouse moved event
-          contains the coordinates of the mouse in coordinates of self.gl
+        ev : tuple
+            Contains the coordinates of the mouse in coordinates of self.gl.
         """
         boxes = [plot.vb for plot in self.plots]
         vb_mouse = None
@@ -890,10 +1960,40 @@ class SimplePlotWidget(QGroupBox):
                 "x: {:.5e}\ny: {:.5e}".format(mousePoint.x(),
                                               mousePoint.y()))
 
+    def _mouse_clicked(self, ev):
+        """
+        Handle mouse interaction and set active plot in w_plots ComboBox.
+
+        If the mouse is in one of the viewboxes, change the currently active
+        plot on click, currently works for all types of click (left/right/middle)
+
+        Parameters
+        ----------
+        ev : MouseClickEvent
+            Contains the click event of the mouse in coordinates of self.gl.
+        """
+        boxes = [plot.vb for plot in self.plots]
+        vb_mouse = None
+        for vb in boxes:
+            # get coordinate transform for top left of viewbox to identify
+            # in which of the viewboxes the mouse currently resides
+            pos = vb.mapRectFromView(vb.borderRect.rect()).topLeft()
+            if vb.boundingRect().contains(ev[0].scenePos() + pos):
+                vb_mouse = vb
+                # stop once we have found the correct viewbox
+                continue
+        if vb_mouse is not None:
+            index = boxes.index(vb_mouse)
+            self.w_plots.setCurrentIndex(index)
+
     def _update_linesetting(self, state):
         """
-        Updates the line visibility in all plot objects that are not
-        2d plots
+        Update the line visibility in all plot objects that are not 2d plots.
+
+        Parameters
+        ----------
+        state : bool
+            If True, show lines. If False, hide lines.
         """
         if state is True:
             for plot in self.plots:
@@ -906,7 +2006,7 @@ class SimplePlotWidget(QGroupBox):
 
     def _plot2d_changed(self, index, new_state):
         """
-        handles a change of the plot type by replacing the PlotObject in place
+        Handle a change of the plot type by replacing the PlotObject in place.
 
         Parameters
         ----------
@@ -933,16 +2033,21 @@ class SimplePlotWidget(QGroupBox):
 
     def save_plot(self, filename):
         """
-        Export the currently displayed plots (everything in self.gl)
-        into a png file
+        Export the currently displayed plots into a PNG file.
+
+        This method exports all plots currently visible in the graphics layout
+        (self.gl) to a single PNG image file.
+
+        Parameters
+        ----------
+        filename : str
+            The path and name of the file where the PNG image will be saved.
         """
         exporter = pg.exporters.ImageExporter(self.gl.scene())
         exporter.export(filename)
 
     def reset(self):
-        """
-        Resets the full SimplePlotWidget to its default state
-        """
+        """Reset the full SimplePlotWidget to its default state."""
         self.w_plots.blockSignals(True)
         for plot in self.plots:
             plot.remove_plot()
@@ -962,20 +2067,23 @@ class SimplePlotWidget(QGroupBox):
 
     def plot(self, z, x, y=None, plot2d=False):
         """
-        Function that allows plotting a new set of data.
+        Plot a new set of data.
 
         TODO: Document possible combinations once fully settled
 
         Parameters
         ----------
-        z: dict
-          key "data" contains np.array of dimension 1...3
-        x: dict
-          key "data" contains np.array of dimension 1 or 2
-        y: dict or None
-          key "data" contains np.array of dimension 1 or 2
-        plot2d: bool
-          determines whether plot is 2d or curve
+        z : dict
+            Dictionary containing the z-axis data. Key "data" contains
+            np.array of dimension 1, 2, or 3.
+        x : dict
+            Dictionary containing the x-axis data. Key "data" contains
+            np.array of dimension 1 or 2.
+        y : dict or None, optional
+            Dictionary containing the y-axis data. Key "data" contains
+            np.array of dimension 1 or 2. Default is None.
+        plot2d : bool, optional
+            Determines whether the plot is 2D or a curve. Default is False.
         """
         index = self.w_plots.currentIndex()
         if self.plots[index].plot2d != plot2d:
@@ -986,29 +2094,44 @@ class SimplePlotWidget(QGroupBox):
 
 class CustomViewBox(pg.ViewBox):
     """
-    Reimplements the pyqthgraph ViewBox and improves its usability with the
-    mouse.
+    Reimplements the pyqthgraph ViewBox and improves its usability with the mouse.
+
     Behavior is as follows:
 
-      right click autoscales graph
-      ---
-      mouse inside plot:
-      left drag zooms to rectangle
-      right drag allows panning plot
-      mouse wheel zooms in/out with cursor position defining center
-      ---
-      mouse on x or y axis:
-      left button drags corresponding axis
-      right button allows panning individual axis
-      mouse wheel zooms in/out with cursor position defining center
+    - Right click autoscales graph
+    - Mouse inside plot:
+        - Left drag zooms to rectangle
+        - Right drag allows panning plot
+        - Mouse wheel zooms in/out with cursor position defining center
+    - Mouse on x or y axis:
+        - Left button drags corresponding axis
+        - Right button allows panning individual axis
+        - Mouse wheel zooms in/out with cursor position defining center
     """
 
     def __init__(self, *args, **kwds):
+        """
+        Initialize the CustomViewBox.
+
+        Parameters
+        ----------
+        *args
+            Variable length argument list.
+        **kwds
+            Arbitrary keyword arguments.
+        """
         pg.ViewBox.__init__(self, *args, **kwds)
         self.setMouseMode(self.RectMode)
 
-    # reimplement right-click to autoscale plot
     def mouseClickEvent(self, ev):
+        """
+        Handle mouse click events.
+
+        Parameters
+        ----------
+        ev : QMouseEvent
+            The mouse event.
+        """
         if ev.button() == Qt.MouseButton.RightButton:
             self.autoRange()
             # set autorange upon change of data
@@ -1016,8 +2139,17 @@ class CustomViewBox(pg.ViewBox):
         # elif ev.button() == Qt.MidButton:
         #     self.raiseContextMenu(ev)
 
-    # reimplement drag event
     def mouseDragEvent(self, ev, axis=None):
+        """
+        Handle mouse drag events.
+
+        Parameters
+        ----------
+        ev : QMouseEvent
+            The mouse event.
+        axis : str, optional
+            The axis being dragged, if any.
+        """
         if ev.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
             # enable pan mode
             self.setMouseMode(self.PanMode)
@@ -1032,129 +2164,115 @@ class CustomViewBox(pg.ViewBox):
             pg.ViewBox.mouseDragEvent(self, ev, axis)
 
 
-class CustomDateAxisItem(pg.DateAxisItem):
-    # This text is included pursuant to the obligations of this upstream licence
-    # and must be retained in any derivatives of this class.
-    # This specific class may be used under the terms of the MIT-license:
-    # Permission is hereby granted, free of charge, to any person obtaining a
-    # copy of this software and associated documentation files (the “Software”),
-    # to deal in the Software without restriction, including without limitation
-    # the rights to use, copy, modify, merge, publish, distribute, sublicense,
-    # and/or sell copies of the Software, and to permit persons to whom the
-    # Software is furnished to do so, subject to the following conditions:
-    #
-    # The above copyright notice and this permission notice shall be included in
-    # all copies or substantial portions of the Software.
-    #
-    # THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-    # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-    # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    # DEALINGS IN THE SOFTWARE.
-
-    def tickValues(self, minVal, maxVal, size,):
-        """
-        Return the values and spacing of ticks to draw::
-
-            [
-                (spacing, [major ticks]),
-                (spacing, [minor ticks]),
-                ...
-            ]
-
-        By default, this method calls tickSpacing to determine the correct
-        tick locations.
-        """
-        minVal, maxVal = sorted((minVal, maxVal))
-
-        minVal *= self.scale
-        maxVal *= self.scale
-
-        ticks = []
-        tickLevels = self.tickSpacing(minVal, maxVal, size)
-        allValues = np.array([])
-        for i in range(len(tickLevels)):
-            spacing, offset = tickLevels[i]
-
-            # determine starting tick
-            start = (np.ceil((minVal-offset) / spacing) * spacing) + offset
-
-            # determine number of ticks
-            num = int((maxVal-start) / spacing) + 1
-            values = (np.arange(num) * spacing + start) / self.scale
-            # remove any ticks that were present in higher levels
-            # we assume here that if the difference between a tick value and
-            # a previously seen tick value
-            # is less than spacing/100, then they are 'equal' and we can
-            # ignore the new tick.
-            close = np.any(
-                np.isclose(allValues, values[:, np.newaxis],
-                           rtol=0, atol=spacing/self.scale*0.01),
-                axis=-1
-            )
-            values = values[~close]
-            allValues = np.concatenate([allValues, values])
-            ticks.append((spacing/self.scale, values.tolist()))
-
-        if self.logMode:
-            # not tested
-            return self.logTickValues(minVal, maxVal, size, ticks)
-
-        return ticks
-
-    def tickStrings(self, values, scale, spacing):
-        """
-        Return the labels corresponding to the tick values depending on the
-        spacing
-
-            [ tick labels corresponding to values ]
-
-        """
-
-        # Choose the date format based on the scale
-        if spacing < 0.5:  # less than 0.5 seconds
-            fmt = '%S.%f'
-        elif spacing < 5:  # less than 5 seconds
-            fmt = '%M:%S.%f'
-        elif spacing < 100:  # less than a minute
-            fmt = '%H:%M:%S'
-        elif spacing < 4000:  # less than an hour
-            fmt = '%H:%M'
-        elif spacing < 80000:  # less than a day
-            fmt = '%m-%d %H:%M'
-        elif spacing < 6e5:  # less than a week
-            fmt = '%m-%d %Hh'
-        elif spacing < 2.5e6:  # less than a month
-            fmt = '%y-%m-%d'
-        else:
-            fmt = '%Y-%m-%d'
-
-        # Convert timestamps to formatted date strings
-        if spacing >= 5:
-            return [datetime.datetime.fromtimestamp(
-                value).strftime(fmt) for value in values]
-        return [datetime.datetime.fromtimestamp(
-            value).strftime(fmt).rstrip("0") for value in values]
-
-
 class EmittingStream(QObject):
     """
-    Stream to communicate between the threads
+    Stream to communicate between threads.
+
+    Attributes
+    ----------
+    name : str
+        Name of the stream.
+    text_written : pyqtSignal
+        Signal emitted when text is written to the stream.
     """
+
     name = "GUIStream"
     text_written = pyqtSignal(str)
 
     def write(self, text):
+        """
+        Write text to the stream and emit a signal.
+
+        Parameters
+        ----------
+        text : str
+            The text to be written to the stream.
+        """
         self.text_written.emit(str(text))
 
     def flush(self):
+        """
+        Flush the stream.
+
+        This method is required for file-like objects but does nothing in this implementation.
+        """
         pass
+
+
+class MetaDataDialog(QDialog):
+    """Create a dialog able to handle meta data input for file headers."""
+
+    def __init__(self, initial_values: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Initialize the meta data dialog with optional initial values.
+
+        Parameters
+        ----------
+        initial_values : Optional[Dict[str, Any]]
+            Optional dictionary with initial values for the fields.
+        """
+        super().__init__()
+
+        self.setWindowTitle("Dublin Core Metadata Input")
+
+        # Create a QVBoxLayout instance
+        layout = QVBoxLayout()
+        # Create a QFormLayout for organized input fields
+        form_layout = QFormLayout()
+
+        # Dublin Core Elements
+        self.creator = QLineEdit()
+        self.identifier = QLineEdit()
+        self.description = QTextEdit()
+
+        # Load initial values if provided
+        if initial_values:
+            self.load_initial_values(initial_values)
+
+        # Add form elements to layout
+        form_layout.addRow("Creator/User:", self.creator)
+        form_layout.addRow("Identifier/Sample:", self.identifier)
+
+        # Add the form layout to the main layout
+        layout.addLayout(form_layout)
+        layout.addWidget(QLabel("Description:"))
+        layout.addWidget(self.description)
+
+        # Set the main layout for the dialog
+        self.setLayout(layout)
+
+    def load_initial_values(self, values: Dict[str, Any]) -> None:
+        """
+        Load initial values into the dialog fields.
+
+        Parameters
+        ----------
+        values : Dict[str, Any]
+            Dictionary with initial values for the fields.
+        """
+        self.creator.setText(values.get("creator", ""))
+        self.identifier.setText(values.get("identifier", ""))
+        self.description.setPlainText(values.get("description", ""))
+
+    def get_metadata(self) -> Dict[str, str]:
+        """
+        Get the metadata entered in the dialog.
+
+        Returns
+        -------
+        Dict[str, str]
+            Dictionary with metadata values.
+        """
+        return {
+            "creator": self.creator.text(),
+            "identifier": self.identifier.text(),
+            "description": self.description.toPlainText(),
+        }
 
 
 class TextInputDialog(QDialog):
     """Modal dialog for text input for matrix-script."""
+
     def __init__(self, query: str, parent=None):
         """
         Initialize the text input dialog with a its GUI elements.
@@ -1196,6 +2314,7 @@ class TextInputDialog(QDialog):
 
 class YesNoAbortDialog(QMessageBox):
     """Modal dialog for boolean input for matrix-script."""
+
     def __init__(self, question: str, parent=None):
         """
         Initialize the yes/no dialog with a question and buttons.
@@ -1235,3 +2354,286 @@ class YesNoAbortDialog(QMessageBox):
         elif self.clickedButton() == self.abort_button:
             return "abort"
         return "Unknown"
+
+
+class TerminationDialog(QMessageBox):
+    """
+    Dialog to determine how a terminated datafile should be marked.
+
+    This dialog presents two options to the user:
+    1. Mark the datafile as "Aborted"
+    2. Mark the datafile as "Finished"
+
+    The user's selection determines how the termination status of the datafile
+    will be recorded.
+
+    Returns
+    -------
+    str
+        The selected termination status: either "aborted" or "finished".
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Termination Status")
+        self.setText("How should the terminated datafile be marked?")
+        self.setIcon(QMessageBox.Icon.Question)
+
+        # Add buttons
+        self.abort_button = self.addButton("Aborted", QMessageBox.ButtonRole.RejectRole)
+        self.finish_button = self.addButton(
+            "Finished", QMessageBox.ButtonRole.AcceptRole
+        )
+
+    def get_selection(self):
+        """
+        Display the dialog and return the user's selection.
+
+        Returns
+        -------
+        str
+            The selected termination status: either "finished" or "aborted".
+        """
+        self.exec()
+
+        if self.clickedButton() == self.finish_button:
+            return "finished"
+        else:
+            return "aborted"
+
+
+class AboutBox(QMessageBox):
+    """Provide an about box with install debug info."""
+
+    def __init__(self, title, icon, package, date_format, parent=None):
+        """Initialize an about box dialog with installation information.
+
+        Parameters
+        ----------
+        title : str
+            Title string to show in the window title and header.
+        icon : QIcon
+            Icon to display in the about box.
+        package : module
+            Python package/module to get version and git info from.
+        date_format : str
+            Format string for displaying git commit date.
+        parent : QWidget, optional
+            Parent widget for this dialog, by default None.
+        """
+        super().__init__(parent)
+        # The rich text (html) messes with the sizes
+        icon_size = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_MessageBoxIconSize
+        )
+        pixmap = icon.pixmap(icon_size)
+        self.setIconPixmap(pixmap)
+        self.setWindowTitle(title)
+        self.setText(title)
+        (version, branch, sha, time) = self.get_install_info(package)
+        if time != "not available":
+            date = datetime.datetime.fromtimestamp(time).strftime(date_format)
+        else:
+            date = time
+        text = f"""
+                <div style="text-align: left;">
+                    <p><b>Version:</b> {version}<br>
+                    <b>Git branch:</b> {branch}<br>
+                    <b>Git commit:</b> {sha}<br>
+                    <b>Git date:</b> {date}<br>
+                    <br>
+                    (c) 2024 Matr1x Developers. All rights reserved.
+                </div>
+                """
+        self.setInformativeText(text)
+        self.setStandardButtons(QMessageBox.StandardButton.Ok)
+
+    def get_install_info(self, imported_package):
+        """Receive git infos about the installed version."""
+        commit_branch = "not available"
+        commit_time = "not available"
+        commit_short_sha = "not available"
+        try:
+            repo = pygit2.Repository(imported_package.__file__)
+            commit_branch = repo.head.shorthand
+            last_commit = repo[repo.head.target]
+            commit_short_sha = str(last_commit.id)[:7]
+            commit_time = last_commit.commit_time
+        except pygit2.GitError:
+            pass
+        installed_version = package_version(imported_package.__name__)
+        return (installed_version, commit_branch, commit_short_sha, commit_time)
+
+
+class MIcon(QIcon):
+    """Generate either Qt built-in icons, letters or Matrix specific QIcons."""
+
+    def __new__(cls, name, color="default") -> QIcon:
+        """
+        Look up 'name' and get corresponding QIcon back.
+
+        Icons from a theme such as QIcon.fromTheme("media-playback-start") are not available on all
+        platforms. Consequently, we fallback to the Qt icons, which are also repecting platform and
+        theme, at least to some extent. Additionally, icons can be generated from characters or the
+        Matrix applications icons can be used.
+
+        Parameters
+        ----------
+        name : str
+            The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
+            'CHAR_' will generate a circle with the letter in it and 'matr1x-' will use the
+            matrix application icons.
+        color : QColor
+            The color of the icon if applicable
+
+        Returns
+        -------
+        QIcon
+        """
+        # Get the included Qt icon
+        if name.startswith("SP_"):
+            icon = QApplication.style().standardIcon(
+                getattr(QStyle.StandardPixmap, name)
+            )
+            if color == "default":
+                return icon
+            else:
+                size = 256
+                pixmap = icon.pixmap(size, size)
+                # Change the color of the black parts
+                # for better visibility in a GUI
+                image = pixmap.toImage()
+                image = image.convertToFormat(QImage.Format.Format_ARGB32)
+                for x in range(image.width()):
+                    for y in range(image.height()):
+                        pixel_color = QColor(image.pixel(x, y))
+                        if pixel_color != QColor(0, 0, 0):
+                            image.setPixelColor(x, y, color)
+                pixmap = QPixmap.fromImage(image)
+                return QIcon(pixmap)
+
+        # Draw an icon from a letter
+        elif name.startswith("CHAR_"):
+            if color == "default":
+                color = QColor("RoyalBlue")
+            size = 256
+            letter = name[5]
+            # Generate a tranparent pixmap with size large enough for icons sizes
+            pixmap = QPixmap(size, size)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            # Paint a circle in the center of that pixmap
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setBrush(color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(5, 5, size - 10, size - 10)
+            # Draw the letter in the center of the circle
+            font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+            font.setPointSizeF(size * 0.8)
+            painter.setFont(font)
+            painter.setPen(QColor("white"))
+            painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
+            # Finalize and return the icon
+            painter.end()
+            return QIcon(pixmap)
+        # Use the original matrix icons
+        elif name.startswith("matr1x-"):
+            icondir = join(dirname(__file__), "scripts", "icons")
+            pixmap = QPixmap(join(icondir, name))
+            # Change the color of the white icon if requested
+            # and remove the rest for better visibility in a GUI
+            if color != "default":
+                image = pixmap.toImage()
+                image = image.convertToFormat(QImage.Format.Format_ARGB32)
+                for x in range(image.width()):
+                    for y in range(image.height()):
+                        pixel_color = QColor(image.pixel(x, y))
+                        if pixel_color != QColor("white"):
+                            image.setPixelColor(x, y, QColor(0, 0, 0, 0))
+                        else:
+                            image.setPixelColor(x, y, color)
+                pixmap = QPixmap.fromImage(image)
+            pixmap = pixmap.copy(15, 15, 226, 226)
+            return QIcon(pixmap)
+        else:
+            raise ValueError("MIcon: Unknown icon type.")
+
+
+def _set_palette(instance):
+    """Set the base and text color according to the enabled state."""
+    palette = instance.palette()
+    # use QTextEdit as an example to determine the palette
+    text_edit = QTextEdit()
+    unchanged_palette = text_edit.palette()
+    text_edit.setEnabled(False)
+    changed_palette = text_edit.palette()
+    if instance.isEnabled():
+        palette.setColor(
+            QPalette.ColorRole.Text,
+            QColor(unchanged_palette.color(QPalette.ColorRole.Text)),
+        )
+    else:
+        palette.setColor(
+            QPalette.ColorRole.Text,
+            QColor(changed_palette.color(QPalette.ColorRole.Text)),
+        )
+    if not instance.isEnabled() or instance.isReadOnly():
+        palette.setColor(
+            QPalette.ColorRole.Base,
+            QColor(changed_palette.color(QPalette.ColorRole.Base)),
+        )
+    else:
+        palette.setColor(
+            QPalette.ColorRole.Base,
+            QColor(unchanged_palette.color(QPalette.ColorRole.Base)),
+        )
+
+    instance.setPalette(palette)
+
+
+class MLineEdit(QLineEdit):
+    """Provide QLineEdit with visual cues for non-editable."""
+
+    def __init__(self):
+        """Call init of QLineEdit()."""
+        super().__init__()
+
+    def changeEvent(self, event: QEvent):
+        """
+        Detect palette and read-only changes.
+
+        This method implements visual cues that work when the palette changes,
+        for example if the desktop changes from dark to bright mode.
+
+        Parameters
+        ----------
+        event : QEvent
+            The event that triggered the change.
+        """
+        if (
+            event.type() == QEvent.Type.PaletteChange
+            or event.type() == QEvent.Type.ReadOnlyChange
+        ):
+            _set_palette(self)
+            super().changeEvent(event)
+
+
+class MTextEdit(QTextEdit):
+    """Provide QRTextEdit with visual cues for non-editable."""
+
+    def __init__(self):
+        """Call init of QTextEdit()."""
+        super().__init__()
+
+    def changeEvent(self, event: QEvent):
+        """Detect palette and read-only changes.
+
+        Implement visual cues that work also when the palette changes, for example if the desktop changes
+        from dark to bright mode.
+        """
+        if (
+            event.type() == QEvent.Type.PaletteChange
+            or event.type() == QEvent.Type.ReadOnlyChange
+        ):
+            _set_palette(self)
+            super().changeEvent(event)

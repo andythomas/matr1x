@@ -1,41 +1,57 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2024 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+"""Display data and allow simple data manipulation."""
 import logging
 import os
 import signal
 import sys
 import threading
 import time
-import warnings
 from os.path import abspath, dirname, getmtime, getsize, join
 
 import numpy as np
-
-# Try to import Qt6 and fallback to Qt5 if not available
-try:
-    from PyQt6.QtCore import QEvent, Qt, QThread, pyqtSignal
-    from PyQt6.QtGui import QIcon
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox,
-                                 QDockWidget, QFileDialog, QGridLayout,
-                                 QHBoxLayout, QLabel, QLayout, QMainWindow,
-                                 QMessageBox, QPushButton, QToolButton, QWidget)
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
-    from PyQt5.QtGui import QIcon
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox,
-                                 QDockWidget, QFileDialog, QGridLayout,
-                                 QHBoxLayout, QLabel, QLayout, QMainWindow,
-                                 QMessageBox, QPushButton, QToolButton, QWidget)
-
 import pyqtgraph as pg
 import pyqtgraph.exporters
+from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QAction, QColor, QIcon, QKeySequence
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDockWidget,
+    QFileDialog,
+    QGridLayout,
+    QLabel,
+    QLayout,
+    QMainWindow,
+    QMessageBox,
+    QSizePolicy,
+    QStyle,
+    QToolBar,
+    QWidget,
+)
+
+import matr1x
+
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
+from matr1x.util import set_correct_mac_appname
+from matr1x.gui_util import AboutBox, MIcon
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
@@ -49,9 +65,12 @@ if os.name == 'nt':
 
 
 class Matr1xApplication (QApplication):
+    """Allow double-click file open on a Mac."""
+
     openfile = pyqtSignal(str)
 
     def event(self, event):
+        """Catch file open on a Mac."""
         if event.type() == QEvent.Type.FileOpen:
             filename = event.file()
             self.openfile.emit(filename)
@@ -59,41 +78,51 @@ class Matr1xApplication (QApplication):
 
 
 class UpdateThread(QThread):
+    """Handle the thread."""
+
     update_now = pyqtSignal()
 
     def __init__(self, interval):
+        """Init thread and set sleep interval."""
         QThread.__init__(self)
         self.stopFlag = False
         self.interval = interval
 
     def run(self):
+        """Run thread and sleep in intervals."""
         while not self.stopFlag:
             time.sleep(self.interval)
             self.update_now.emit()
 
     def terminate(self):
+        """Terminate the thread."""
         self.stopFlag = True
 
 
 class SweepPreview(QMainWindow):
     """
-    Data viewer for matrix files
+    Data viewer for matrix files.
 
     Parameters
     ----------
     filename: str
-      name of matrix file (.ma6 or .ma7)
+      name of matrix file (.ma6, .ma7, .ma8)
     parent: widget or None
       parent widget
     """
+
     openfile_dialog = pyqtSignal()
-    allowed_extensions = ('.ma6', '.ma7')
+    allowed_extensions = (".ma6", ".ma7", ".ma8")
 
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
         self.filename = ""
+        self.w_meta_view = None
         # initialize basic GUI
         self.init_basic_ui()
+
+        # allow to store the settings
+        self.settings = QSettings("matr1x", "preview")
 
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
@@ -111,15 +140,18 @@ class SweepPreview(QMainWindow):
             self.file_open_thread.start()
 
     def is_valid_extension(self, file_path):
+        """Return True if extension is valid."""
         return file_path.endswith(self.allowed_extensions)
 
     def dragEnterEvent(self, event):
+        """Enable drag and drop (1)."""
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
+        """Enable drag and drop (2)."""
         urls = event.mimeData().urls()
         if len(urls) == 1:
             file_path = urls[0].toLocalFile()
@@ -135,9 +167,7 @@ class SweepPreview(QMainWindow):
                                 "Please drop only a single file.")
 
     def _get_maximum_screen_width(self):
-        """
-        determine width of the biggest available screen.
-        """
+        """Determine width of the biggest available screen."""
         width = 0
         for screen in QApplication.instance().screens():
             width = max(width, screen.geometry().width())
@@ -145,7 +175,8 @@ class SweepPreview(QMainWindow):
 
     def _delayed_file_load_attempt(self):
         """
-        Function to trigger opening the file open dialog.
+        Trigger opening the file open dialog.
+
         On Linux/Windows the file open dialog opens immediately.
         On MacOS only in case no FileOpen Event is generated in the meantime.
         """
@@ -154,10 +185,15 @@ class SweepPreview(QMainWindow):
             # a 2020 intel machine required 100ms, 300ms seems like a save
             # margin
             time.sleep(0.3)
+        if sys.platform == "linux":
+            # The sleep is needed to allow time to set up the GUI,
+            # otherwise the default window size determination fails
+            time.sleep(0.02)
         if not self.filename:
             self.openfile_dialog.emit()
 
     def eventFilter(self, f_object, f_event):
+        """Update the file view if required."""
         if f_object == self.w_file:
             if f_event.type() == QEvent.Type.MouseButtonPress:
                 self.update_file_combo()
@@ -165,9 +201,10 @@ class SweepPreview(QMainWindow):
         return False
 
     def load_button_pressed(self):
+        """Open file dialog to chose the input file."""
         filename = QFileDialog.getOpenFileName(
-            self, "Select ma file", "",
-            "matrix files (*.ma7);;old matrix files (*.ma6)",)[0]
+            self, "Select ma file", "", "matrix data files (*.ma8 *.ma7 *.ma6)"
+        )[0]
         if filename:
             self.open_file(filename)
         else:
@@ -175,13 +212,14 @@ class SweepPreview(QMainWindow):
                 self.w_status.setText("Please open a file")
 
     def open_file(self, filename):
+        """Read the data from the file."""
         logger.info(f"opening {filename}")
         self.filename = filename
         # get all files
         self.file_dir = os.path.dirname(abspath(filename))
+        self.setWindowTitle(f"Matrix Preview: {self.file_dir}")
         self.file_list_refresh()
-        self.file_index = self.data_files.index(
-            os.path.join(self.file_dir, os.path.basename(filename)))
+        self.file_index = self.data_files.index(os.path.basename(filename))
         self.udthread = None
         self.lu_time = time.time()
         self.fetch_data()
@@ -192,16 +230,19 @@ class SweepPreview(QMainWindow):
         self.w_file.installEventFilter(self)
 
     def file_list_refresh(self):
+        """Refresh all files with the correct extension in the selected directory."""
         files = os.listdir(self.file_dir)
-        self.data_files = (
-            [os.path.join(self.file_dir, file)
-             for file in files if self.is_valid_extension(file)])
+        self.data_files = [file for file in files if self.is_valid_extension(file)]
         self.data_files = sorted(
-            self.data_files, key=lambda t: os.stat(t).st_mtime)
+            self.data_files,
+            key=lambda t: os.stat(os.path.join(self.file_dir, t)).st_mtime,
+        )
 
     def update_file_combo(self):
+        """Update the combo box that displays the file names."""
         self.file_list_refresh()
         ctext = self.w_file.currentText()
+        self.w_file.setToolTip(self.file_dir)
         self.w_file.currentIndexChanged.disconnect()
         self.w_file.clear()
         self.w_file.addItems(self.data_files)
@@ -210,10 +251,69 @@ class SweepPreview(QMainWindow):
         # self.file_index, problem?
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
+    def closeEvent(self, event):
+        """Store toolbar position on close."""
+        self.saveCurrentState()
+        event.accept()
+
+    def saveCurrentState(self):
+        """Save preferences for toolbar and window placement."""
+        self.settings.setValue("position", self.pos())
+        self.settings.setValue("size", self.size())
+        self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
+        if self.w_meta_view:
+            self.settings.setValue(
+                "meta_placement", self.dockWidgetArea(self.w_meta_view)
+            )
+            self.settings.setValue("meta_floating", self.w_meta_view.isFloating())
+            self.settings.setValue("meta_position", self.w_meta_view.pos())
+            self.settings.setValue("meta_size", self.w_meta_view.size())
+
+    def restoreState(self):
+        """Restore window and toolbar placement."""
+        self.addToolBar(
+            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
+            self.toolbar,
+        )
+        recommended_size = self.sizeHint()
+        self.move(self.settings.value("position", self.pos()))
+        self.resize(self.settings.value("size", recommended_size))
+
+    def info_box(self):
+        """Display an 'about this app' widget."""
+        box = AboutBox(
+            "Matrix Preview",
+            MIcon("matr1x-matrix-preview.png"),
+            matr1x,
+            matr1x.datetimefmt,
+        )
+        box.exec()
+        return
+
+    def toggle_toolbar_view(self, checked):
+        """Toogles the visibility of the toolbar on and off."""
+        if checked:
+            self.toolbar.show()
+        else:
+            self.toolbar.hide()
+
     def init_basic_ui(self):
-        """
-        initialize basic GUI that works without chosen filename
-        """
+        """Initialize basic GUI that works without chosen filename."""
+        # build the toolbar
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFloatable(False)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ToolBarIconSize
+        )
+        intermediate = int((small + standard) / 2)
+        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        self.toolbar.setAllowedAreas(
+            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
+        )
+
         self.setWindowTitle("Matrix Preview")
 
         # initialize empty window
@@ -227,12 +327,25 @@ class SweepPreview(QMainWindow):
         self.grid = QGridLayout()
         self.widget = QWidget()
 
-        w_load = QPushButton("load file")
-        w_load.clicked.connect(self.load_button_pressed)
+        # Open
+        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action.triggered.connect(self.load_button_pressed)
+        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
+
+        # About
+        self.about_action = QAction("About", self)
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.about_action.triggered.connect(self.info_box)
+
+        # View: Toolbar
+        self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setCheckable(True)
+        self.toggle_toolbar_action.setChecked(True)
+        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
+
         self.w_status = QLabel("")
         self.w_status.setStyleSheet("QLabel { color : red; }")
 
-        self.grid.addWidget(w_load, 0, 0, 1, 1)
         self.grid.addWidget(self.w_status, 6, 0, 1, -1)
 
         self.widget.setLayout(self.grid)
@@ -240,51 +353,112 @@ class SweepPreview(QMainWindow):
 
         # Enable dragging and dropping onto the widget
         self.setAcceptDrops(True)
+
+        # add the toolbar items
+        self.toolbar.addAction(self.load_action)
+        self.addToolBar(self.toolbar)
+        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
+
+        # Create menu
+        menu = self.menuBar()
+        self.file_menu = menu.addMenu("&File")
+        self.control_menu = menu.addMenu("&Control")
+        self.view_menu = menu.addMenu("&View")
+        self.help_menu = menu.addMenu("&Help")
+        # add items
+        self.file_menu.addAction(self.load_action)
+        self.help_menu.addAction(self.about_action)
+        self.view_menu.addAction(self.toggle_toolbar_action)
+
+        self.ui_initialized = False
         self.show()
 
     def init_ui(self):
-        """
-        Initialize GUI for popup
-        """
-        l_file = QHBoxLayout()
+        """Initialize GUI for popup."""
+        # Previous
+        self.previous_action = QAction(
+            MIcon("SP_MediaSkipBackward", QColor("RoyalBlue")), "Previous", self
+        )
+        self.previous_action.triggered.connect(self.previous_file)
 
-        w_prev = QToolButton()
-        w_prev.setArrowType(Qt.ArrowType.LeftArrow)
-        w_prev.clicked.connect(self.previous_file)
+        # Next
+        self.next_action = QAction(
+            MIcon("SP_MediaSkipForward", QColor("RoyalBlue")), "Next", self
+        )
+        self.next_action.triggered.connect(self.next_file)
 
-        w_next = QToolButton()
-        w_next.setArrowType(Qt.ArrowType.RightArrow)
-        w_next.clicked.connect(self.next_file)
-
+        # File list
         self.w_file = QComboBox()
         self.w_file.addItems(self.data_files)
         self.w_file.setCurrentIndex(self.file_index)
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
-        w_meta = QPushButton("show meta data")
-        w_meta.setCheckable(True)
-        w_meta.toggled.connect(self.toggle_meta)
+        # Meta Data
+        self.meta_action = QAction(MIcon("SP_FileDialogListView"), "Metadata", self)
+        self.meta_action.setCheckable(True)
+        self.meta_action.triggered.connect(self.toggle_meta)
 
-        l_file.addWidget(w_prev)
-        l_file.addWidget(self.w_file, stretch=1)
-        l_file.addWidget(w_next)
-        l_file.addWidget(w_meta)
+        if not self.w_meta_view:
+            self.w_meta_view = gu.MetaViewerWidget(self.header)
+            self.w_meta_view.setFeatures(
+                QDockWidget.DockWidgetFeature.DockWidgetClosable
+                | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+                | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            )
+            self.w_meta_view.setAllowedAreas(
+                Qt.DockWidgetArea.LeftDockWidgetArea
+                | Qt.DockWidgetArea.RightDockWidgetArea
+            )
+            self.w_meta_view.setVisible(False)
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_meta_view)
+            # restore settings
+            self.addDockWidget(
+                self.settings.value(
+                    "meta_placement", Qt.DockWidgetArea.RightDockWidgetArea
+                ),
+                self.w_meta_view,
+            )
+            self.w_meta_view.setFloating(
+                self.settings.value("meta_floating", False, type=bool)
+            )
+            if self.w_meta_view.isFloating():
+                self.w_meta_view.move(
+                    self.settings.value("meta_position", self.w_meta_view.pos())
+                )
+                self.w_meta_view.resize(
+                    self.settings.value("meta_size", self.w_meta_view.size())
+                )
+            else:
+                self.resizeDocks(
+                    [self.w_meta_view],
+                    [self.settings.value("meta_size", self.w_meta_view.size()).width()],
+                    Qt.Orientation.Horizontal,
+                )
+        else:
+            # meta view already exists, replace and ensure w_meta button
+            # has right check state
+            self.meta_action.setChecked(self.w_meta_view.isVisible())
 
-        self.w_meta_view = gu.MetaViewerWidget(self.header)
-        self.w_meta_view.setFeatures(
-            QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.w_meta_view.visibilityChanged.connect(self.meta_action.setChecked)
 
-        w_save = QPushButton("export plot")
-        w_save.clicked.connect(self.save_plot)
+        # Export plot
+        self.export_png_action = QAction(MIcon("SP_DialogSaveButton"), "Save png", self)
+        self.export_png_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.export_png_action.triggered.connect(self.save_plot)
 
-        w_update = QPushButton("update data")
-        w_update.clicked.connect(lambda: self.conditional_fetch_data(True))
-
-        self.autoupdateBox = QCheckBox("auto update")
+        # Update
+        self.auto_update_action = QAction(
+            MIcon("SP_BrowserReload"), "Auto Update", self
+        )
+        self.auto_update_action.setCheckable(True)
+        self.auto_update_action.toggled.connect(self.updatethread)
         auinit = False
-        self.autoupdateBox.setChecked(auinit)
-        self.autoupdateBox.toggled.connect(self.updatethread)
+        self.auto_update_action.setChecked(auinit)
         self.updatethread(auinit)
+        self.update_action = QAction(
+            MIcon("CHAR_U", QColor("RoyalBlue")), "Update", self
+        )
+        self.update_action.triggered.connect(lambda: self.conditional_fetch_data(True))
 
         self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
         self.w_l[2].setVisible(False)
@@ -318,11 +492,7 @@ class SweepPreview(QMainWindow):
         self.spw.setMinimumHeight(350)
         self.iv = None
 
-        self.grid.addLayout(l_file, 0, 1, 1, -1)
         self.grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
-        self.grid.addWidget(w_save, 1, 4)
-        self.grid.addWidget(w_update, 1, 2)
-        self.grid.addWidget(self.autoupdateBox, 1, 3)
         for i in range(3):
             self.grid.addWidget(self.w_l[i], i+1, 0)
             self.grid.addWidget(self.w_index[i], i+1, 1)
@@ -340,11 +510,39 @@ class SweepPreview(QMainWindow):
         self.setMinimumWidth(800)
         self.setMaximumWidth(self._get_maximum_screen_width())
 
-        self.w_meta_view.setVisible(False)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.w_meta_view)
+        if not self.ui_initialized:
+            # add the toolbar items
+            self.toolbar.addAction(self.export_png_action)
+            self.toolbar.addSeparator()
+            self.toolbar.addAction(self.update_action)
+            self.toolbar.addAction(self.auto_update_action)
+            empty = QAction(MIcon("SP_CustomBase"), "", self)
+            self.toolbar.addAction(empty)
+            spacer = QWidget()
+            spacer.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+            )
+            self.toolbar.addWidget(spacer)
+            self.toolbar.addSeparator()
+            self.toolbar.addAction(self.previous_action)
+            self.toolbar.addWidget(self.w_file)
+            self.toolbar.addAction(self.next_action)
+            self.toolbar.addSeparator()
+            self.toolbar.addAction(self.meta_action)
+
+            # add the menu items
+            self.file_menu.addAction(self.export_png_action)
+            self.file_menu.addSeparator()
+            self.file_menu.addAction(self.update_action)
+            self.file_menu.addAction(self.auto_update_action)
+            self.control_menu.addAction(self.previous_action)
+            self.control_menu.addAction(self.next_action)
+            self.view_menu.addAction(self.meta_action)
+            # do not dublicate the items next time
+            self.ui_initialized = True
 
     def clear_ui(self):
+        """Clear the UI."""
         for i in reversed(range(2, self.grid.count())):
             item = self.grid.takeAt(i)
             widget = item.widget()
@@ -355,12 +553,14 @@ class SweepPreview(QMainWindow):
                     item.layout().takeAt(0).widget().deleteLater()
 
     def toggle_meta(self, state):
+        """Toggle the meta data view."""
         if state is True:
             self.w_meta_view.setVisible(True)
         else:
             self.w_meta_view.setVisible(False)
 
     def save_plot(self):
+        """Ask for filename and save the displayed data in a png file."""
         filename = QFileDialog.getSaveFileName(
             self, 'Select output png file', self.file_dir,
             "png files (*.png)")[0]
@@ -373,18 +573,21 @@ class SweepPreview(QMainWindow):
             self.spw.save_plot(filename)
 
     def previous_file(self):
+        """Determine the previous file."""
         self.update_file_combo()
         if self.file_index > 0:
             self.w_file.setCurrentIndex(self.file_index-1)
 
     def next_file(self):
+        """Determine the next file."""
         self.update_file_combo()
         if self.file_index < len(self.data_files) - 1:
             self.w_file.setCurrentIndex(self.file_index+1)
 
     def file_index_changed(self, index):
+        """Update info when index changes."""
         self.file_index = index
-        self.filename = self.data_files[self.file_index]
+        self.filename = os.path.join(self.file_dir, self.data_files[self.file_index])
         check = self.conditional_fetch_data(True, check=True)
         if 0 != check:
             self.column_items = [
@@ -416,9 +619,7 @@ class SweepPreview(QMainWindow):
         self.w_meta_view.update_data(self.header)
 
     def index_changed(self, newIndex):
-        """
-        If index is changed, reload the new data and handle the gui interaction
-        """
+        """If index changed, reload the new data and handle the gui interaction."""
         if self.w_index[0] == self.sender():
             if newIndex == 0:
                 self.w_index[1].setEnabled(False)
@@ -428,9 +629,7 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def transpose_toggled(self, check_state):
-        """
-        transpose has been toggled, reload data
-        """
+        """Transpose has been toggled, reload data."""
         if (self.w_plot2d.isChecked() is True and
                 self.w_plot2d_comp.isChecked() is False):
             if len(self.shapes[self.w_index[0].currentIndex()-1]) < 3:
@@ -443,9 +642,7 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def plotting_toggled(self, check_state):
-        """
-        Switch the currently selected plotting view to 2D
-        """
+        """Switch the currently selected plotting view to 2D."""
         self.w_l[0].setText("z" if check_state is True else "y")
         self.w_plot2d_comp.setVisible(check_state)
         if self.w_plot2d_comp.isChecked() is True and not check_state:
@@ -457,10 +654,7 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def plotting_complex(self, check_state):
-        """
-        Turn on the more complex 2D plotting widget provided by pyqtgraph
-        instead of using the SimplePlotWidget
-        """
+        """Turn on the more complex 2D plotting widget provided by pyqtgraph instead of using the SimplePlotWidget."""
         if check_state is True:
             self.spw.setVisible(False)
             if self.iv is None:
@@ -478,10 +672,7 @@ class SweepPreview(QMainWindow):
         self.plotting_toggled(check_state or self.w_plot2d.isChecked())
 
     def raise_error(self, error):
-        """
-        raise the error flag, can be used as callback function to set errors
-        from the SimplePlotWidget
-        """
+        """Raise the error flag, can be used as callback function to set errors from the SimplePlotWidget."""
         if error != "":
             self.w_status.setVisible(True)
             self.w_status.setText(error)
@@ -491,10 +682,7 @@ class SweepPreview(QMainWindow):
             self.w_status.setVisible(False)
 
     def index_callback(self, plot_object):
-        """
-        callback function that handles a change of the ploted index via the
-        plot selector of the SimplePlotWidget
-        """
+        """Handle a change of the ploted index via the plot selector of the SimplePlotWidget (callback)."""
         self.w_plot2d.blockSignals(True)
         self.w_plot2d.setChecked(plot_object.plot2d)
         self.w_plot2d.blockSignals(False)
@@ -505,10 +693,7 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def updatethread(self, state):
-        """
-        Function that runs and terminates a thread that reloads the data from
-        the file if the filename has changed.
-        """
+        """Run and terminate a thread that reloads the data from the file if the filename has changed."""
         if state is True:
             # start updatethread with 2s refresh time
             self.udthread = UpdateThread(2)
@@ -520,10 +705,12 @@ class SweepPreview(QMainWindow):
 
     def conditional_fetch_data(self, force=False, check=False):
         """
+        Fetch data from the file.
+
         Fetches data from the file if force is True, or if the modification
         time is past the time of the latest update (stored in self.lu_time).
         If force is false, this function was called from the updatethread,
-        therefore make it update all windows
+        therefore make it update all windows.
         """
         ret = 0
         if force is True:
@@ -547,6 +734,7 @@ class SweepPreview(QMainWindow):
         return ret
 
     def refresh_columns_size(self):
+        """Refresh size of all columns."""
         self.column_items = [
             f"{name} ({unit}), shape: {shape}" for name, unit, shape
             in zip(self.names, self.units, self.shapes)]
@@ -556,9 +744,7 @@ class SweepPreview(QMainWindow):
                 self.w_index[i].setItemText(j+1, item)
 
     def refresh_all_plots(self):
-        """
-        refresh all subplots by selecting each individually
-        """
+        """Refresh all subplots by selecting each individually."""
         ci = self.spw.w_plots.currentIndex()
         for i in range(self.spw.w_plots.count()-1):
             if ci == i:
@@ -568,6 +754,7 @@ class SweepPreview(QMainWindow):
         self.spw.w_plots.setCurrentIndex(ci)
 
     def reset(self):
+        """Reset the actual data view."""
         self.w_plot2d.setChecked(False)
         self.w_plot2d_comp.setChecked(False)
         self.w_transpose.setChecked(False)
@@ -577,9 +764,7 @@ class SweepPreview(QMainWindow):
             self.iv = None
 
     def fetch_data(self, check=False):
-        """
-        Function that actually handles the data operations
-        """
+        """Handle the data operations."""
         try:
             ret = 0
             self.header, self.data = loadmatrix(self.filename,
@@ -615,10 +800,7 @@ Please investigate the error and eventually restart matrix-preview""")
         return ret
 
     def reload_data(self):
-        """
-        wraps the 1d and 2d plotting functions and decides which one is
-        appropriate from the state of the gui
-        """
+        """Wrap the 1d and 2d plotting functions and decide which one is appropriate from the state of the gui."""
         if (self.w_plot2d.isChecked() is True or
                 self.w_plot2d_comp.isChecked() is True):
             ret = self.reload_data_2d()
@@ -628,9 +810,7 @@ Please investigate the error and eventually restart matrix-preview""")
         self.handle_error(ret)
 
     def handle_error(self, ret):
-        """
-        Handles a possible dimension error of the reload_data function
-        """
+        """Handle a possible dimension error of the reload_data function."""
         if ret < 0:
             if ret == -3:
                 self.raise_error("no data selected")
@@ -663,6 +843,7 @@ Please investigate the error and eventually restart matrix-preview""")
             self.w_status.setVisible(False)
 
     def reload_data_2d(self):
+        """Reload the data in the 2d case."""
         indexZ, indexX, indexY = [
             self.w_index[i].currentIndex() - 1 for i in range(3)]
         x = {}
@@ -789,8 +970,9 @@ Please investigate the error and eventually restart matrix-preview""")
 
     def reload_data_curve(self):
         """
-        Reloads the data and tries to make the dimensions suitable for a 1D
-        curve plot by smart guessing from the data dimension.
+        Reload the data.
+
+        Try to make the dimensions suitable for a 1D curve plot by smart guessing from the data dimension.
         """
         indexY, indexX = [self.w_index[i].currentIndex() - 1 for i in range(2)]
         x = {}
@@ -899,14 +1081,13 @@ Please investigate the error and eventually restart matrix-preview""")
 
 
 def main():
-    if "_" in os.path.basename(sys.argv[0]):
-        warnings.warn(
-            "The executable name 'matrix_preview' is deprecated. Use 'matrix-preview' instead.",
-            FutureWarning)
+    """Set the basic GUI parameters and run."""
     app = Matr1xApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
         app.setStyle('fusion')
+    elif sys.platform == "darwin":
+        set_correct_mac_appname("Matrix Preview")
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
@@ -918,5 +1099,6 @@ def main():
         else:
             ex = SweepPreview(None, sys.argv[1])
         ex.show()
+        ex.restoreState()
         ret = app.exec()
     sys.exit(ret)
