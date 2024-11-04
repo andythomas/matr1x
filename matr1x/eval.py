@@ -24,7 +24,6 @@ as well as functions for processing data in the preview.
 import ast
 import os
 import re
-import sys
 import warnings
 from os.path import isfile, join, split, splitext
 
