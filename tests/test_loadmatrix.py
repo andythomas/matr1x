@@ -21,6 +21,7 @@ import pytest
 
 path = os.path.dirname(os.path.realpath(__file__))
 
+
 def test_loadmatrix_hdf5_ma8():
     datafile = os.path.join(path, "data", "random_test.h5.ma8")
     h, d = matr1x.eval.loadmatrix(datafile)

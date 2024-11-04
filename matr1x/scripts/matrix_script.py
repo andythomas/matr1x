@@ -126,6 +126,7 @@ class Matr1xApplication(QApplication):
             self.openfile.emit(filename)
         return QApplication.event(self, event)
 
+
 class DroppableWidget(QWidget):
     """Allow drag and drop of files."""
 

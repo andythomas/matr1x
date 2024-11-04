@@ -552,7 +552,6 @@ class SweepPreview(QMainWindow):
                 for j in range(item.layout().count()):
                     item.layout().takeAt(0).widget().deleteLater()
 
-
     def toggle_meta(self, state):
         """Toggle the meta data view."""
         if state is True:

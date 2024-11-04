@@ -886,6 +886,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
     def write_config(self):
         """Write the current configuration to file."""
+
         def create_nested_dict(keys, item):
             if len(keys) == 1:
                 return {keys[0]: self.parse_item(item)}
