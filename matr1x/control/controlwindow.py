@@ -324,7 +324,8 @@ class ControlWindow(QMainWindow):
         for g in self.guidicts:
             self.saveStateSc.activated.connect(g.dock.saveCurrentState)
         # set outputStream as stdout (i.e. all output is written to status)
-        self.output_stream = EmittingStream(text_written=self.output_written)
+        self.output_stream = EmittingStream()
+        self.output_stream.text_written.connect(self.output_written)
         sys.stdout = self.output_stream
 
         # merge the guidicts Systems

@@ -1488,7 +1488,8 @@ class MainWindow(QMainWindow):
         self.shortcut_dir = None
         self.last_filename = ""
         self.settings = QSettings("matr1x", "script")
-        self.output_stream = EmittingStream(text_written=self.output_written)
+        self.output_stream = EmittingStream()
+        self.output_stream.text_written.connect(self.output_written)
 
         self.color_palette = QApplication.instance().palette()
         self.init_ui()
