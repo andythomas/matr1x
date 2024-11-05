@@ -20,6 +20,8 @@ This module provides functionality for creating control graphical user
 interfaces or devices based on the scpi_tcp_server.
 """
 
+from __future__ import annotations
+
 import copy
 import itertools
 import logging
