@@ -50,7 +50,6 @@ matrix-gui = "matr1x.scripts.matrix_gui:main"
 sweep-generator = "matr1x.scripts.sweep_generator:main"
 matrix-script = "matr1x.scripts.matrix_script:main"
 matrix-preview = "matr1x.scripts.matrix_preview:main"
-control-dummy-legacy = "matr1x.control.control_dummy_legacy:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
 
