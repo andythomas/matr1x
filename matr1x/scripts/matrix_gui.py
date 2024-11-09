@@ -359,33 +359,10 @@ class MainWindow(QMainWindow):
         self.inputEdit = MLineEdit()
         self.inputEdit.setReadOnly(True)
         self.inputEdit.textChanged.connect(self.parseSystemFromInputFile)
-
-        # Create menu
-        menu = self.menuBar()
-        file_menu = menu.addMenu("&File")
-        control_menu = menu.addMenu("&Control")
-        view_menu = menu.addMenu("&View")
-        help_menu = menu.addMenu("&Help")
-
-        # Create toolbar
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.toolbar.setFloatable(False)
-
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
-        intermediate = int((small + standard) / 2)
-        self.toolbar.setIconSize(QSize(intermediate, intermediate))
-
         # About
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
-        help_menu.addAction(self.about_action)
-
         # Preferences
         self.config_editor = ConfigEditWidget()
         self.config_editor.setFeatures(
@@ -401,14 +378,10 @@ class MainWindow(QMainWindow):
         self.config_action.setCheckable(True)
         self.config_action.toggled.connect(self.toggle_preferences)
         self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
-
         # File: Load a recipe
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.showInputDialog)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        file_menu.addAction(self.load_action)
-        self.toolbar.addAction(self.load_action)
-
         # File: Open sweep generator
         self.sweep_action = QAction(
             MIcon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
@@ -416,45 +389,31 @@ class MainWindow(QMainWindow):
             self,
         )
         self.sweep_action.triggered.connect(self.startSweepGenerator)
-        file_menu.addAction(self.sweep_action)
-        self.toolbar.addAction(self.sweep_action)
-
-        # ---
-        self.toolbar.addSeparator()
-        file_menu.addSeparator()
-
         # File: Autosave
         self.outputEdit = MLineEdit()
         self.outputEdit.setReadOnly(True)
-
         self.outputAutoGen = QAction(MIcon("SP_DriveHDIcon"), "Autosave", self)
         self.outputAutoGen.setCheckable(True)
         autogen = True
         self.outputAutoGen.setChecked(autogen)
         self.outputAutoGen.setText("Auto-filename")
-        self.toolbar.addAction(self.outputAutoGen)
-        file_menu.addAction(self.outputAutoGen)
-
         # File: Save as...
         self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save as", self)
         self.save_as_action.triggered.connect(self.showOutputDialog)
-        self.toolbar.addAction(self.save_as_action)
-        file_menu.addAction(self.save_as_action)
-
         self.outputAutoGen.toggled.connect(self.updateAutoGenFilename)
         self.updateAutoGenFilename(autogen)
-
-        # Add an empty spacer to the toolbar
-        empty = QAction(MIcon("SP_CustomBase"), "", self)
-        self.toolbar.addAction(empty)
-
+        # Quit
+        self.quit_action = QAction("Quit", self)
+        if os.name == "nt":
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
         # Control: Start
         self.start_action = QAction(
             MIcon("SP_MediaPlay", QColor("RoyalBlue")), "Start", self
         )
         self.start_action.triggered.connect(self.queueMeasurement)
-        control_menu.addAction(self.start_action)
-        self.toolbar.addAction(self.start_action)
 
         self.w_dockable_metadata = QDockWidget("Metadata", self)
         self.w_meta_view = MetaDataDialog()
@@ -465,14 +424,11 @@ class MainWindow(QMainWindow):
             QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
         )
         self.w_dockable_metadata.setWidget(self.w_meta_view)
-
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        view_menu.addAction(self.toggle_toolbar_action)
-        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
 
         self.measurements_container = QWidget()
         inner_measurement_layout = QHBoxLayout()
@@ -508,32 +464,13 @@ class MainWindow(QMainWindow):
 
         self.measurements_container.setLayout(inner_measurement_layout)
 
-        ## ---
-        file_menu.addSeparator()
-
-        file_menu.addAction(self.remove_action)
-
-        # Add an empty spacer to separate the preview from the
-        # start/stop buttons
-        empty2 = QAction(MIcon("SP_CustomBase"), "", self)
-        self.toolbar.addAction(empty2)
-
         self.preview_action = QAction(
             MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.openPreview)
-        control_menu.addSeparator()
-        control_menu.addAction(self.preview_action)
-        self.toolbar.addAction(self.preview_action)
-        # add the preferences
-        view_menu.addAction(self.config_action)
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addAction(self.config_action)
 
-        # Add the toolbar
-        self.addToolBar(self.toolbar)
+        self.create_menu()
+        self.create_toolbar()
 
         # Build the main elements
         fGrid = QVBoxLayout()
@@ -543,7 +480,6 @@ class MainWindow(QMainWindow):
         fGrid.addWidget(self.measurements_container)
         fGrid.addWidget(QLabel("Output"))
         fGrid.addWidget(self.outputEdit)
-
 
         vBox = QVBoxLayout()
         vBox.addLayout(fGrid)
@@ -559,6 +495,65 @@ class MainWindow(QMainWindow):
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self.w_dockable_metadata
         )
+
+    def create_toolbar(self) -> None:
+        """Create the Toolbar."""
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.toolbar.setFloatable(False)
+        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ToolBarIconSize
+        )
+        intermediate = int((small + standard) / 2)
+        empty = QWidget()
+        empty.setFixedWidth(intermediate)
+        empty2 = QWidget()
+        empty2.setFixedWidth(intermediate)
+        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        self.toolbar.addAction(self.load_action)
+        self.toolbar.addAction(self.sweep_action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.outputAutoGen)
+        self.toolbar.addAction(self.save_as_action)
+        self.toolbar.addWidget(empty)
+        self.toolbar.addAction(self.start_action)
+        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
+        self.toolbar.addWidget(empty2)
+        self.toolbar.addAction(self.preview_action)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.toolbar.addWidget(spacer)
+        self.toolbar.addAction(self.config_action)
+        self.addToolBar(self.toolbar)
+
+    def create_menu(self) -> None:
+        """Create the menu."""
+        menu = self.menuBar()
+        # Populate the actions
+        file_menu = menu.addMenu("&File")
+        file_menu.addAction(self.load_action)
+        file_menu.addAction(self.sweep_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.outputAutoGen)
+        file_menu.addAction(self.save_as_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.remove_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
+        #
+        control_menu = menu.addMenu("&Control")
+        control_menu.addAction(self.start_action)
+        control_menu.addSeparator()
+        control_menu.addAction(self.preview_action)
+        #
+        view_menu = menu.addMenu("&View")
+        view_menu.addAction(self.toggle_toolbar_action)
+        view_menu.addAction(self.config_action)
+        #
+        help_menu = menu.addMenu("&Help")
+        help_menu.addAction(self.about_action)
 
     def updateAutoGenFilename(self, state):
         """Disable output filename field while running."""

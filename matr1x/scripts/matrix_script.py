@@ -1888,41 +1888,13 @@ class MainWindow(QMainWindow):
         self.central_widget.fileDropped.connect(self.load_from_filename)
         self.setCentralWidget(self.central_widget)
         layout = QVBoxLayout(self.central_widget)
-
-        # Create menu
-        menu = self.menuBar()
-        file_menu = menu.addMenu("&File")
-        edit_menu = menu.addMenu("&Edit")
-        control_menu = menu.addMenu("&Control")
-        view_menu = menu.addMenu("&View")
-        help_menu = menu.addMenu("&Help")
-
-        # Create toolbar
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFloatable(False)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.toolbar.setAllowedAreas(
-            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
-        )
-
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
-        intermediate = int((small + standard) / 2)
-        self.toolbar.setIconSize(QSize(intermediate, intermediate))
-
         # Helper
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
         # About
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
-        help_menu.addAction(self.about_action)
-
         # Preferences
         self.config_editor = ConfigEditWidget()
         self.config_editor.setFeatures(
@@ -1938,173 +1910,107 @@ class MainWindow(QMainWindow):
         self.config_action.setCheckable(True)
         self.config_action.toggled.connect(self.toggle_preferences)
         self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
-
         # File: Load a recipe
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.load_from_file)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        file_menu.addAction(self.load_action)
-        self.toolbar.addAction(self.load_action)
-
-        # ---
-        file_menu.addSeparator()
-
         # File: Save
         self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
         self.save_action.triggered.connect(self.save_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-        file_menu.addAction(self.save_action)
         # File: Save As...
         self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
         self.save_as_action.triggered.connect(self.save_file_as)
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        file_menu.addAction(self.save_as_action)
         # Save in toolbar with pulldown
-        save_button = QToolButton()
-        save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        save_button.setIcon(MIcon("SP_DialogSaveButton"))
-        save_button.setText("Save")
-        save_button.setDefaultAction(self.save_action)
-        save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.save_button = QToolButton()
+        self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
+        self.save_button.setText("Save")
+        self.save_button.setDefaultAction(self.save_action)
+        self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         save_pulldown = QMenu(self)
         save_pulldown.addAction(self.save_as_action)
-        save_button.setMenu(save_pulldown)
-        self.toolbar.addWidget(save_button)
-
-        # ---
-        file_menu.addSeparator()
-
+        self.save_button.setMenu(save_pulldown)
         # File: Add System
         self.add_system_action = QAction(
             MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self
         )
         self.add_system_action.triggered.connect(self.add_system)
-        file_menu.addAction(self.add_system_action)
-
         # File: Remove System
         self.remove_system_action = QAction(
             MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
         )
         self.remove_system_action.triggered.connect(self.delete_selected_system)
-        file_menu.addAction(self.remove_system_action)
-
-        # ---
-        file_menu.addSeparator()
-
+        # Quit
         self.quit_action = QAction("Quit", self)
         if os.name == "nt":
             self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
         else:
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
-        # This gets auto-hidden on a Mac
-        file_menu.addAction(self.quit_action)
-
         # The next functions seem overly complicated, maybe an
         # easier implementation is possible?
         # Edit: Undo
         self.undo_action = self.standard_action("Undo")
         self.undo_action.triggered.connect(self.undo)
-        edit_menu.addAction(self.undo_action)
-
         # Edit: Redo
         self.redo_action = self.standard_action("Redo")
         self.redo_action.triggered.connect(self.redo)
-        edit_menu.addAction(self.redo_action)
-
-        # ---
-        edit_menu.addSeparator()
-
         # Edit: Cut
         self.cut_action = self.standard_action("Cut")
         self.cut_action.triggered.connect(self.cut)
-        edit_menu.addAction(self.cut_action)
-
         # Edit: Copy
         self.copy_action = self.standard_action("Copy")
         self.copy_action.triggered.connect(self.copy)
-        edit_menu.addAction(self.copy_action)
-
         # Edit: Paste
         self.paste_action = self.standard_action("Paste")
         self.paste_action.triggered.connect(self.paste)
-        edit_menu.addAction(self.paste_action)
-
-        # Add an empty spacer to the toolbar
-        empty = QAction(MIcon("SP_CustomBase"), "", self)
-        self.toolbar.addAction(empty)
-
         # Control: Start
         self.start_pause_action = QAction(
             MIcon("SP_MediaPlay", QColor("RoyalBlue")), "Start", self
         )
         self.start_pause_action.triggered.connect(self.start_process)
         self.start_pause_action.setCheckable(True)
-        control_menu.addAction(self.start_pause_action)
-        self.toolbar.addAction(self.start_pause_action)
-
         # Control: Stop
         self.stop_action = QAction(
             MIcon("SP_MediaStop", QColor("RoyalBlue")), "Stop", self
         )
         self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
         self.stop_action.setEnabled(False)
-        control_menu.addAction(self.stop_action)
-
         # Control: Abort
         self.abort_action = QAction(
             MIcon("SP_MediaStop", QColor("RoyalBlue")), "Abort", self
         )
         self.abort_action.triggered.connect(lambda: self.abort_thread("a"))
         self.abort_action.setEnabled(False)
-        control_menu.addAction(self.abort_action)
-
         # Control: Finish
         self.finish_action = QAction(
             MIcon("SP_MediaStop", QColor("RoyalBlue")), "Finish", self
         )
         self.finish_action.triggered.connect(lambda: self.abort_thread("f"))
         self.finish_action.setEnabled(False)
-        control_menu.addAction(self.finish_action)
-
         # Save in toolbar with pulldown
-        stop_button = QToolButton()
-        stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        stop_button.setIcon(MIcon("SP_MediaStop", QColor("RoyalBlue")))
-        stop_button.setText("Abort")
-        stop_button.setDefaultAction(self.stop_action)
-        stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.stop_button = QToolButton()
+        self.stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.stop_button.setIcon(MIcon("SP_MediaStop", QColor("RoyalBlue")))
+        self.stop_button.setText("Abort")
+        self.stop_button.setDefaultAction(self.stop_action)
+        self.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         stop_pulldown = QMenu(self)
         stop_pulldown.addAction(self.abort_action)
         stop_pulldown.addAction(self.finish_action)
-        stop_button.setMenu(stop_pulldown)
-        self.toolbar.addWidget(stop_button)
-
+        self.stop_button.setMenu(stop_pulldown)
         # Control: Kill
         self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
         self.kill_action.triggered.connect(self.kill_thread)
         self.kill_action.setEnabled(False)
-        control_menu.addAction(self.kill_action)
-        control_menu.addSeparator()
-
-        # Add an empty spacer to separate the preview from the
-        # start/stop buttons
-        empty2 = QAction(MIcon("SP_CustomBase"), "", self)
-        self.toolbar.addAction(empty2)
-
+        # Preview
         self.preview_action = QAction(
             MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.preview_data)
         self.preview_action.setEnabled(False)
-        control_menu.addAction(self.preview_action)
-        self.toolbar.addAction(self.preview_action)
-
-        # Add an empty spacer to the toolbar
-        # Looks better if the systems are moved up.
-        empty3 = QAction(MIcon("SP_CustomBase"), "", self)
-        self.toolbar.addAction(empty3)
-
         # View: Metadata
         self.dockable_metadata = QDockWidget("Metadata", self)
         self.metadata = MetaDataDialog()
@@ -2119,32 +2025,23 @@ class MainWindow(QMainWindow):
         self.toggle_metadata_action.setCheckable(True)
         self.toggle_metadata_action.setChecked(True)
         self.toggle_metadata_action.triggered.connect(self.toggle_metadata_view)
-        view_menu.addAction(self.toggle_metadata_action)
         self.dockable_metadata.visibilityChanged.connect(
             self.toggle_metadata_action.setChecked
         )
-
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        view_menu.addAction(self.toggle_toolbar_action)
-        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
-
         # Help: Editor
         self.help_editor_action = QAction("Show Editor Help", self)
         self.help_editor_action.triggered.connect(self.show_editor_commands)
-        help_menu.addAction(self.help_editor_action)
-
         # Help: System
         self.help_system_action = QAction("Show System Help", self)
         self.help_system_action.triggered.connect(self.show_system_commands)
-        help_menu.addAction(self.help_system_action)
 
         self.system_list = SystemListWidget()
         self.system_list.orderChanged.connect(self.update_systems)
-
         # TextEdits
         self.status_preview = QTextEdit(self)
         self.status_preview.setReadOnly(True)
@@ -2197,48 +2094,113 @@ class MainWindow(QMainWindow):
             QsciScintilla.AnnotationDisplay.AnnotationBoxed
         )
         self.script_edit.fileDropped.connect(self.load_from_filename)
-
-        # Edit: ---
-        edit_menu.addSeparator()
         # Edit: Lint
         self.lint_action = QAction("Lint with Pyflakes", self)
         self.lint_action.triggered.connect(self.script_edit.run_linter)
         self.lint_action.setShortcut(QKeySequence("Ctrl+7"))
-        edit_menu.addAction(self.lint_action)
-
         # Edit: Autopep8
         self.pep8_action = QAction("Format with autopep8", self)
         self.pep8_action.triggered.connect(self.script_edit.run_autopep8)
         self.pep8_action.setShortcut(QKeySequence("Ctrl+8"))
-        edit_menu.addAction(self.pep8_action)
-
-        # Add the toolbar
-        self.addToolBar(self.toolbar)
-
         # initialize widgets in layout
         self.splitter = QSplitter(self)
         self.splitter.addWidget(self.script_edit)
         self.splitter.addWidget(self.status_preview)
         layout.addWidget(self.splitter)
-
         # change the size dynamically later and allow vertical streching
         # when floating
         self.system_list.setMinimumHeight(50)
         self.system_list.setMaximumHeight(50)
+        # Create menu and toolbar
+        self.create_menu()
+        self.create_toolbar()
+        # set focus to text editor
+        self.script_edit.setFocus()
+        self.update_ui()
+        self.update_window_title()
+
+    def create_toolbar(self) -> None:
+        """Create the toolbar."""
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFloatable(False)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.toolbar.setAllowedAreas(
+            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
+        )
+        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ToolBarIconSize
+        )
+        intermediate = int((small + standard) / 2)
+        empty = QWidget()
+        empty.setFixedWidth(intermediate)
+        empty2 = QWidget()
+        empty2.setFixedWidth(intermediate)
+        empty3 = QWidget()
+        empty3.setFixedWidth(intermediate)
+        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        self.toolbar.addAction(self.load_action)
+        self.toolbar.addWidget(self.save_button)
+        self.toolbar.addWidget(empty)
+        self.toolbar.addAction(self.start_pause_action)
+        self.toolbar.addWidget(self.stop_button)
+        self.toolbar.addWidget(empty2)
+        self.toolbar.addAction(self.preview_action)
+        self.toolbar.addWidget(empty3)
+        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.add_system_action)
         self.toolbar.addWidget(self.system_list)
         self.toolbar.addAction(self.remove_system_action)
         self.toolbar.addSeparator()
-
-        # add the preferences
-        view_menu.addAction(self.config_action)
         self.toolbar.addAction(self.config_action)
+        self.addToolBar(self.toolbar)
 
-        # set focus to text editor
-        self.script_edit.setFocus()
-        self.update_ui()
-        self.update_window_title()
+    def create_menu(self) -> None:
+        """Create the main menu."""
+        menu = self.menuBar()
+        # Populate the actions
+        file_menu = menu.addMenu("&File")
+        file_menu.addAction(self.load_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.save_action)
+        file_menu.addAction(self.save_as_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.add_system_action)
+        file_menu.addAction(self.remove_system_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
+        #
+        edit_menu = menu.addMenu("&Edit")
+        edit_menu.addAction(self.undo_action)
+        edit_menu.addAction(self.redo_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.cut_action)
+        edit_menu.addAction(self.copy_action)
+        edit_menu.addAction(self.paste_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.lint_action)
+        edit_menu.addAction(self.pep8_action)
+        #
+        control_menu = menu.addMenu("&Control")
+        control_menu.addAction(self.start_pause_action)
+        control_menu.addAction(self.stop_action)
+        control_menu.addAction(self.abort_action)
+        control_menu.addAction(self.finish_action)
+        control_menu.addAction(self.kill_action)
+        control_menu.addSeparator()
+        control_menu.addAction(self.preview_action)
+        #
+        view_menu = menu.addMenu("&View")
+        view_menu.addAction(self.toggle_metadata_action)
+        view_menu.addAction(self.toggle_toolbar_action)
+        view_menu.addAction(self.config_action)
+        #
+        help_menu = menu.addMenu("&Help")
+        help_menu.addAction(self.help_editor_action)
+        help_menu.addAction(self.help_system_action)
+        help_menu.addAction(self.about_action)  # This is auto-moved on a Mac
 
     def update_window_title(self):
         """Indicate if the file was edited with an asterisk."""

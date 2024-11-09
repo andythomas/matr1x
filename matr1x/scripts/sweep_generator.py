@@ -350,91 +350,69 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         """Generate the main GUI."""
-        # build the toolbar
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFloatable(False)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
-        intermediate = int((small + standard) / 2)
-        self.toolbar.setIconSize(QSize(intermediate, intermediate))
-        self.toolbar.setAllowedAreas(
-            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
-        )
         # About
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
-
         # Open
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.gui_from_sweep)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-
         # Add System
         self.add_system_action = QAction(
             MIcon("CHAR_+", QColor("darkGray")), "Add System", self
         )
         self.add_system_action.triggered.connect(self.show_file_dialog)
-
         # Remove System
         self.remove_system_action = QAction(
             MIcon("CHAR_-", QColor("darkGray")), "Remove System", self
         )
         self.remove_system_action.triggered.connect(self.delete_selected_system)
-
         # System list
         self.systemList = SystemListWidget(self)
         self.systemList.orderChanged.connect(self.filename_changed)
         self.systemList.setMinimumHeight(50)
         self.systemList.setMaximumHeight(50)
-
         # Save
         self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
         self.save_action.triggered.connect(self.output_to_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.setEnabled(False)
-
         # Save As...
         self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
         self.save_as_action.triggered.connect(self.save_file_as)
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-
         # Append
         self.append_action = QAction(MIcon("SP_DialogSaveButton"), "Append", self)
         self.append_action.triggered.connect(self.append_to_file)
         self.appendflag = 0
-
         # Generate Pulldown
-        save_button = QToolButton()
-        save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        save_button.setIcon(MIcon("SP_DialogSaveButton"))
-        save_button.setText("Save")
-        save_button.setDefaultAction(self.save_action)
-        save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.save_button = QToolButton()
+        self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
+        self.save_button.setText("Save")
+        self.save_button.setDefaultAction(self.save_action)
+        self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         save_pulldown = QMenu(self)
         save_pulldown.addAction(self.save_as_action)
         save_pulldown.addAction(self.append_action)
-        save_button.setMenu(save_pulldown)
-
+        self.save_button.setMenu(save_pulldown)
+        # Quit
+        self.quit_action = QAction("Quit", self)
+        if os.name == "nt":
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
         # Generate sweep
         self.sweep_action = QAction(MIcon("SP_BrowserReload"), "Generate Sweep", self)
         self.sweep_action.triggered.connect(self.print_sweep_to_preview)
         self.sweep_action.setEnabled(False)
-
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
-
-        # Empty placeholders if needed
-        # empty = QAction(MIcon("SP_CustomBase"), "", self)
-        # empty2 = QAction(MIcon("SP_CustomBase"), "", self)
 
         # Start the layout
         fGrid = QGridLayout()
@@ -468,11 +446,38 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle('Sweep Generator')
 
-        # Build and add the menus
+        self.create_toolbar()
+        self.create_menu()
+
+    def create_toolbar(self) -> None:
+        """Create the Toolbar."""
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFloatable(False)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ToolBarIconSize
+        )
+        intermediate = int((small + standard) / 2)
+        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        self.toolbar.setAllowedAreas(
+            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
+        )
+        self.toolbar.addAction(self.load_action)
+        self.toolbar.addWidget(self.save_button)
+        self.toolbar.addAction(self.sweep_action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.add_system_action)
+        self.toolbar.addWidget(self.systemList)
+        self.toolbar.addAction(self.remove_system_action)
+        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
+        self.addToolBar(self.toolbar)
+
+    def create_menu(self) -> None:
+        """Create the main menu."""
         menu = self.menuBar()
         file_menu = menu.addMenu("&File")
-        control_menu = menu.addMenu("&Control")
-        view_menu = menu.addMenu("&View")
         file_menu.addAction(self.load_action)
         file_menu.addSeparator()
         file_menu.addAction(self.save_action)
@@ -481,20 +486,17 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.add_system_action)
         file_menu.addAction(self.remove_system_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
+        #
+        control_menu = menu.addMenu("&Control")
         control_menu.addAction(self.sweep_action)
+        #
+        view_menu = menu.addMenu("&View")
         view_menu.addAction(self.toggle_toolbar_action)
+        #
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.about_action)
-
-        # add the toolbar items
-        self.toolbar.addAction(self.load_action)
-        self.toolbar.addWidget(save_button)
-        self.toolbar.addAction(self.sweep_action)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.add_system_action)
-        self.toolbar.addWidget(self.systemList)
-        self.toolbar.addAction(self.remove_system_action)
-        self.addToolBar(self.toolbar)
 
     def info_box(self):
         """Display an 'about this app' widget."""

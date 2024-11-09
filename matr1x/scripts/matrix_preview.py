@@ -117,19 +117,17 @@ class SweepPreview(QMainWindow):
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
         self.filename = ""
+        self.closing_allowed = True
         self.w_meta_view = None
         # initialize basic GUI
         self.init_basic_ui()
-
         # allow to store the settings
         self.settings = QSettings("matr1x", "preview")
-
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
         if hasattr(QApplication.instance(), 'openfile'):
             QApplication.instance().openfile.connect(self.open_file)
-
         # initialize filename if available
         if filename:
             self.open_file(filename)
@@ -202,9 +200,11 @@ class SweepPreview(QMainWindow):
 
     def load_button_pressed(self):
         """Open file dialog to chose the input file."""
+        self.closing_allowed = False
         filename = QFileDialog.getOpenFileName(
             self, "Select ma file", "", "matrix data files (*.ma8 *.ma7 *.ma6)"
         )[0]
+        self.closing_allowed = True
         if filename:
             self.open_file(filename)
         else:
@@ -253,8 +253,11 @@ class SweepPreview(QMainWindow):
 
     def closeEvent(self, event):
         """Store toolbar position on close."""
-        self.saveCurrentState()
-        event.accept()
+        if self.closing_allowed:
+            self.saveCurrentState()
+            event.accept()
+        else:
+            event.ignore()
 
     def saveCurrentState(self):
         """Save preferences for toolbar and window placement."""
@@ -299,21 +302,6 @@ class SweepPreview(QMainWindow):
 
     def init_basic_ui(self):
         """Initialize basic GUI that works without chosen filename."""
-        # build the toolbar
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFloatable(False)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
-        intermediate = int((small + standard) / 2)
-        self.toolbar.setIconSize(QSize(intermediate, intermediate))
-        self.toolbar.setAllowedAreas(
-            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
-        )
-
         self.setWindowTitle("Matrix Preview")
 
         # initialize empty window
@@ -331,17 +319,60 @@ class SweepPreview(QMainWindow):
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.load_button_pressed)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-
+        # Previous
+        self.previous_action = QAction(
+            MIcon("SP_MediaSkipBackward", QColor("RoyalBlue")), "Previous", self
+        )
+        self.previous_action.setEnabled(False)
+        self.previous_action.triggered.connect(self.previous_file)
+        # Next
+        self.next_action = QAction(
+            MIcon("SP_MediaSkipForward", QColor("RoyalBlue")), "Next", self
+        )
+        self.next_action.setEnabled(False)
+        self.next_action.triggered.connect(self.next_file)
+        # Export plot
+        self.export_png_action = QAction(MIcon("SP_DialogSaveButton"), "Save png", self)
+        self.export_png_action.setEnabled(False)
+        self.export_png_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.export_png_action.triggered.connect(self.save_plot)
+        # Update
+        self.auto_update_action = QAction(
+            MIcon("SP_BrowserReload"), "Auto Update", self
+        )
+        self.auto_update_action.setEnabled(False)
+        self.auto_update_action.setCheckable(True)
+        self.auto_update_action.toggled.connect(self.updatethread)
+        self.update_action = QAction(
+            MIcon("CHAR_U", QColor("RoyalBlue")), "Update", self
+        )
+        self.update_action.setEnabled(False)
+        self.update_action.triggered.connect(lambda: self.conditional_fetch_data(True))
+        # Quit
+        self.quit_action = QAction("Quit", self)
+        if os.name == "nt":
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
+        # File List
+        self.w_file = QComboBox()
+        self.w_file.setEnabled(False)
+        self.w_file.setMinimumContentsLength(50)
         # About
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
-
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
+        # Meta Data
+        self.meta_action = QAction(MIcon("SP_FileDialogListView"), "Metadata", self)
+        self.meta_action.setEnabled(False)
+        self.meta_action.setCheckable(True)
+        self.meta_action.triggered.connect(self.toggle_meta)
 
         self.w_status = QLabel("")
         self.w_status.setStyleSheet("QLabel { color : red; }")
@@ -353,50 +384,80 @@ class SweepPreview(QMainWindow):
 
         # Enable dragging and dropping onto the widget
         self.setAcceptDrops(True)
-
-        # add the toolbar items
-        self.toolbar.addAction(self.load_action)
-        self.addToolBar(self.toolbar)
-        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
-
-        # Create menu
-        menu = self.menuBar()
-        self.file_menu = menu.addMenu("&File")
-        self.control_menu = menu.addMenu("&Control")
-        self.view_menu = menu.addMenu("&View")
-        self.help_menu = menu.addMenu("&Help")
-        # add items
-        self.file_menu.addAction(self.load_action)
-        self.help_menu.addAction(self.about_action)
-        self.view_menu.addAction(self.toggle_toolbar_action)
+        self.create_toolbar()
+        self.create_menu()
 
         self.ui_initialized = False
         self.show()
 
+    def create_toolbar(self) -> None:
+        """Create the toolbar."""
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFloatable(False)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ToolBarIconSize
+        )
+        intermediate = int((small + standard) / 2)
+        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        self.toolbar.setAllowedAreas(
+            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
+        )
+        # add the toolbar items
+        self.toolbar.addAction(self.load_action)
+        self.addToolBar(self.toolbar)
+        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
+        self.toolbar.addAction(self.export_png_action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.update_action)
+        self.toolbar.addAction(self.auto_update_action)
+        empty = QWidget()
+        empty.setFixedWidth(intermediate)
+        self.toolbar.addWidget(empty)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.toolbar.addWidget(spacer)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.previous_action)
+        self.toolbar.addWidget(self.w_file)
+        self.toolbar.addAction(self.next_action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.meta_action)
+
+    def create_menu(self) -> None:
+        """Create the main menu."""
+        menu = self.menuBar()
+        #
+        self.file_menu = menu.addMenu("&File")
+        self.file_menu.addAction(self.load_action)
+        self.file_menu.addAction(self.quit_action)
+        self.file_menu.addAction(self.export_png_action)
+        self.file_menu.addSeparator()
+        self.file_menu.addAction(self.update_action)
+        self.file_menu.addAction(self.auto_update_action)
+        if sys.platform != "darwin":
+            self.file_menu.addSeparator()
+            self.file_menu.addAction(self.quit_action)
+        #
+        self.control_menu = menu.addMenu("&Control")
+        self.control_menu.addAction(self.previous_action)
+        self.control_menu.addAction(self.next_action)
+        #
+        self.view_menu = menu.addMenu("&View")
+        self.view_menu.addAction(self.toggle_toolbar_action)
+        self.view_menu.addAction(self.meta_action)
+        #
+        self.help_menu = menu.addMenu("&Help")
+        self.help_menu.addAction(self.about_action)
+
     def init_ui(self):
         """Initialize GUI for popup."""
-        # Previous
-        self.previous_action = QAction(
-            MIcon("SP_MediaSkipBackward", QColor("RoyalBlue")), "Previous", self
-        )
-        self.previous_action.triggered.connect(self.previous_file)
-
-        # Next
-        self.next_action = QAction(
-            MIcon("SP_MediaSkipForward", QColor("RoyalBlue")), "Next", self
-        )
-        self.next_action.triggered.connect(self.next_file)
-
         # File list
-        self.w_file = QComboBox()
         self.w_file.addItems(self.data_files)
         self.w_file.setCurrentIndex(self.file_index)
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
-
-        # Meta Data
-        self.meta_action = QAction(MIcon("SP_FileDialogListView"), "Metadata", self)
-        self.meta_action.setCheckable(True)
-        self.meta_action.triggered.connect(self.toggle_meta)
 
         if not self.w_meta_view:
             self.w_meta_view = gu.MetaViewerWidget(self.header)
@@ -440,25 +501,10 @@ class SweepPreview(QMainWindow):
             self.meta_action.setChecked(self.w_meta_view.isVisible())
 
         self.w_meta_view.visibilityChanged.connect(self.meta_action.setChecked)
-
-        # Export plot
-        self.export_png_action = QAction(MIcon("SP_DialogSaveButton"), "Save png", self)
-        self.export_png_action.setShortcut(QKeySequence.StandardKey.Save)
-        self.export_png_action.triggered.connect(self.save_plot)
-
         # Update
-        self.auto_update_action = QAction(
-            MIcon("SP_BrowserReload"), "Auto Update", self
-        )
-        self.auto_update_action.setCheckable(True)
-        self.auto_update_action.toggled.connect(self.updatethread)
         auinit = False
         self.auto_update_action.setChecked(auinit)
         self.updatethread(auinit)
-        self.update_action = QAction(
-            MIcon("CHAR_U", QColor("RoyalBlue")), "Update", self
-        )
-        self.update_action.triggered.connect(lambda: self.conditional_fetch_data(True))
 
         self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
         self.w_l[2].setVisible(False)
@@ -499,7 +545,6 @@ class SweepPreview(QMainWindow):
         self.grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
         self.grid.addWidget(self.w_transpose, 2, 2, 1, 1)
         self.grid.addWidget(self.spw, 4, 0, 1, -1)
-
         # set rescaling behavior
         self.grid.setColumnStretch(1, 1)
         self.grid.setRowStretch(4, 1)
@@ -511,34 +556,14 @@ class SweepPreview(QMainWindow):
         self.setMaximumWidth(self._get_maximum_screen_width())
 
         if not self.ui_initialized:
-            # add the toolbar items
-            self.toolbar.addAction(self.export_png_action)
-            self.toolbar.addSeparator()
-            self.toolbar.addAction(self.update_action)
-            self.toolbar.addAction(self.auto_update_action)
-            empty = QAction(MIcon("SP_CustomBase"), "", self)
-            self.toolbar.addAction(empty)
-            spacer = QWidget()
-            spacer.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-            )
-            self.toolbar.addWidget(spacer)
-            self.toolbar.addSeparator()
-            self.toolbar.addAction(self.previous_action)
-            self.toolbar.addWidget(self.w_file)
-            self.toolbar.addAction(self.next_action)
-            self.toolbar.addSeparator()
-            self.toolbar.addAction(self.meta_action)
-
-            # add the menu items
-            self.file_menu.addAction(self.export_png_action)
-            self.file_menu.addSeparator()
-            self.file_menu.addAction(self.update_action)
-            self.file_menu.addAction(self.auto_update_action)
-            self.control_menu.addAction(self.previous_action)
-            self.control_menu.addAction(self.next_action)
-            self.view_menu.addAction(self.meta_action)
-            # do not dublicate the items next time
+            self.export_png_action.setEnabled(True)
+            self.update_action.setEnabled(True)
+            self.auto_update_action.setEnabled(True)
+            self.previous_action.setEnabled(True)
+            self.w_file.setEnabled(True)
+            self.next_action.setEnabled(True)
+            self.meta_action.setEnabled(True)
+            # do not duplicate the items next time
             self.ui_initialized = True
 
     def clear_ui(self):
