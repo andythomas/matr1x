@@ -239,7 +239,8 @@ class VisaDevice:
             # make sure that enough time has passed so that a new command
             # can be sent
             while self.timedelay > time.time() - self.timer:
-                delta_t = self.timedelay - (time.time() - self.timer)
+                # calculate wait time and avoid negative time delays.
+                delta_t = max(self.timedelay - (time.time() - self.timer), 0)
                 time.sleep(delta_t)
             self.timer = time.time()
 

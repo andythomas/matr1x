@@ -382,9 +382,10 @@ class MercuryIPS(VisaDevice):
                    "zFSet": ([0], ":FSET", addressZ, True),
                    "zRSet": ([0], ":RFST", addressZ, True)}
 
-    def __init__(self, interface):
-        super().__init__(interface, write_termination="\n",
-                         read_termination="\n")
+    def __init__(self, interface, **kwargs):
+        super().__init__(
+            interface, write_termination="\n", read_termination="\n", **kwargs
+        )
         # determine status now
         self.queryAllDicts()
         self.logAllDicts()
@@ -746,9 +747,10 @@ class MercuryITC(VisaDevice):
                    "TSet": ([0], ":TSET", addressTSensLoop, False),
                    "Temp": ([0], ":TEMP", addressTSens, True)}
 
-    def __init__(self, interface):
-        super().__init__(interface, write_termination="\n",
-                         read_termination="\n")
+    def __init__(self, interface, **kwargs):
+        super().__init__(
+            interface, write_termination="\n", read_termination="\n", **kwargs
+        )
         self.queryAllDicts()
         self.logAllDicts()
 
