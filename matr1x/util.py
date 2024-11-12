@@ -327,6 +327,7 @@ def generate_script_prefix_suffix(systems):
     import inspect as _inspect
     import math as _math
     import os as _os
+    import sys as _sys
     import textwrap as _textwrap
     import time as _time
     import types as _types
@@ -378,16 +379,35 @@ def generate_script_prefix_suffix(systems):
                 print("'user script' key already present in system, not overwriting!")
 
 
+    def _find_caller_frame():
+        '''Find the frame of the actual caller, skipping over decorator frames.'''
+        # stepping back on frame, since the inner most frame is from this function
+        frame = _inspect.currentframe().f_back
+        # Try to find the first __call__ frame, as in Python 3.13+
+        while frame:
+            if frame.f_code.co_name == "__call__":
+                return frame.f_back  # Return the frame just outside __call__
+            frame = frame.f_back
+
+        # Fallback for Python 3.12 or earlier: step back a fixed number of frames
+        frame = _inspect.currentframe()
+        steps_back = 3 if _sys.version_info >= (3, 13) else 2
+        for _ in range(steps_back):
+            frame = frame.f_back if frame else None
+
+        return frame  # Returns the frame that we believe to be the caller
+
+
     @wrapt.decorator
     def _lineno_decorator(wrapped, instance, args, kwargs):
         '''Decorator to report the executing line number back to the GUI.'''
-        frame = _inspect.currentframe().f_back
-        caller_name = frame.f_code.co_name
-        caller_filename = frame.f_code.co_filename
-        line_number = frame.f_lineno
-        if caller_name == "<module>" and caller_filename == "<string>":
-            # report line only if called directly from script
-            _report_line(line_number)
+        frame = _find_caller_frame()
+        if frame:
+            caller_name = frame.f_code.co_name
+            caller_filename = frame.f_code.co_filename
+            if caller_name == "<module>" and caller_filename == "<string>":
+                # report line only if called directly from script
+                _report_line(frame.f_lineno)
         return wrapped(*args, **kwargs)
 
 
