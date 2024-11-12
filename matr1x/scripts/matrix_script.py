@@ -1269,7 +1269,7 @@ class CustomQsciAPI(QsciAPIs):
         "meta_data['identifier']",
         "meta_data['description']",
         "devs",
-        "wait(seconds: float, message: str = '', silent: float = 10)",
+        "wait(duration: float = None, until: str | datetime = None, message: str = '', silent: float = 10)",
         "end_script(finished: bool = None)",
         "input(query: str = '')",
         "input_bool(query: str = '')",
@@ -1510,9 +1510,10 @@ class MainWindow(QMainWindow):
           measure_system(print_setpoint=True, print_data=True,
                          print_telemetry=True)
             # performs a single measurement as specified in system
-          wait(seconds, message="", silent=10)
-            # waits for seconds and acts as a breakpoint to pause and
-            # abort the execution, for seconds>silent, prints message
+          wait(duration=None, until=None, message="", silent=10)
+            # waits for either a duration or until a timestamp
+            # this also acts as a breakpoint to pause and abort the execution,
+            # for wait period > silent, prints message
           end_script(finished=None)
             # if finished is True, file is marked as "finished", for False
             # it is marked as aborted, otherwise user is querried

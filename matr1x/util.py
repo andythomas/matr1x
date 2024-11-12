@@ -21,6 +21,7 @@ and various helper functions for data processing and system configuration.
 import datetime
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import sysconfig
@@ -322,6 +323,7 @@ def generate_script_prefix_suffix(systems):
     """
     prefix = textwrap.dedent(
         f"""
+    import datetime as _datetime
     import inspect as _inspect
     import math as _math
     import os as _os
@@ -539,22 +541,48 @@ def generate_script_prefix_suffix(systems):
 
 
     @_lineno_decorator
-    def wait(*args, **kwargs):
+    def wait(duration=None, until=None, message="", silent=10):
         '''
-        Wait for a given period.
-
-        During a wait the script can always be paused/stopped.
+        Pauses execution for a specified duration, until a specified timestamp, or for a relative time.
 
         Parameters
         ----------
-        sleep : float
-            Wait time in seconds.
+        duration : float or int, optional
+            The number of seconds to sleep. If specified, the function will sleep for this duration.
+            If paused during this duration the remaining wait time continue after unpausing.
+            If a str or datetime object is used here it will be redirected to the until argument.
+        until : str or datetime, optional
+            A target time or relative time string. It can be:
+            - An absolute timestamp in a format like "YYYY-MM-DD HH:MM:SS" or "HH:MM".
+            - A relative time string starting with '+' followed by a number and a unit
+                (e.g., "+24h" for 24 hours, "+30m" for 30 minutes, "+1d" for 1 day).
+            - A `datetime` object representing a specific time.
         message : str, optional
             A string which is printed if the sleep exceeds the silent argument.
         silent : float, optional
             If the wait time exceeds this value a message string will be printed.
+
+        Examples
+        --------
+        >>> wait(duration=10)
+        Pauses execution for 10 seconds.
+
+        >>> wait(until="2025-11-05 15:30")
+        Pauses execution until 15:30 on November 5, 2025.
+
+        >>> wait(until="+2h")
+        Pauses execution for 2 hours from the current time.
+
+        >>> wait(until="18:00")
+        Pauses execution until 18:00 today, or until the same time tomorrow if it has already passed today.
         '''
-        _interrupt(*args, system=_system, **kwargs)
+        if isinstance(duration, (str, _datetime.datetime)) and not until:
+            until = duration
+            duration = None
+        if duration and until:
+            print("until (%s) argument of the wait function will be ignored" % until)
+            until = None
+        _interrupt(duration=duration, until=until, message=message, silent=silent, system=_system)
 
 
     @_lineno_decorator
@@ -826,7 +854,6 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
     None
     """
     # import required dependencies
-    import re
     import socket
     import threading
     import traceback
@@ -1026,73 +1053,252 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
             self.stop_status.finished = state
             self.interrupt_flag = True
 
-        def interrupt(self, sleep, message="", silent=10, system=None):
+        def interrupt(
+            self, duration=None, until=None, message="", silent=10, system=None
+        ):
             """
-            Handle the interrupting as well as waiting/sleep times.
-
-            The function prints out some message if the wait time exceeds the
-            value of the silent argument. If the execution is paused or quit a
-            comment is added to the datafile.
+            Pauses execution for a specified duration, until a specified timestamp, or for a relative time.
 
             Parameters
             ----------
-            sleep : float
-                Time to sleep in seconds.
-            message : str, optional
-                Message to display.
-            silent : float, optional
-                Time threshold above which to display messages.
-            system : object, optional
-                System object to add comments to.
-            """
-            t0 = time.time()
-            end = datetime.datetime.today() + datetime.timedelta(seconds=sleep)
-            if sleep > silent:
-                msg = "" if not message else f" ({message})"
-                until = f" until {end.strftime('%H:%M:%S')}"
-                print(f"Waiting {sleep:.0f} seconds{msg}{until}")
+            duration : float or int, optional
+                The number of seconds to sleep. If specified, the function will sleep for this duration.
 
-            while (time.time() - t0) < sleep:
-                now = time.time()
-                remaining = sleep - (now - t0)
-                if remaining > 1.1:
-                    # if multiple seconds remaining, wait in chunks of 1s
-                    if sleep > silent:
-                        print(f"\r{remaining:.0f} seconds remaining", end="")
-                    time.sleep(1)
+            until : str or datetime, optional
+                A target time or relative time string. It can be:
+                - An absolute timestamp in a format like "YYYY-MM-DD HH:MM:SS" or "HH:MM".
+                - A relative time string starting with '+' followed by a number and a unit
+                (e.g., "+24h" for 24 hours, "+30m" for 30 minutes, "+1d" for 1 day).
+                - A `datetime` object representing a specific time.
+
+            message : str, optional
+                Message to display during the wait.
+
+            silent : float, optional
+                Time threshold above which to display messages about the wait.
+
+            system : object, optional
+                System object to log comments if a pause or interrupt occurs.
+
+            Raises
+            ------
+            ValueError
+                If neither `duration` nor `until` is provided, or if the `until` format is not recognized.
+
+            TypeError
+                If `until` is not a string or `datetime` object.
+            """
+            now = datetime.datetime.now()
+            end_time = None
+            sleep_time = None
+            msg = "" if not message else f" ({message})"
+
+            if duration is not None:
+                sleep_time = duration
+                end_time = now + datetime.timedelta(seconds=sleep_time)
+                if sleep_time > silent or msg:
+                    print(
+                        f"Waiting {sleep_time:.0f} seconds{msg} until {end_time.strftime('%H:%M:%S')}"
+                    )
+
+            elif until is not None:
+                if isinstance(until, str) and until.startswith("+"):
+                    # Parse relative time
+                    match = re.match(r"\+(\d+\.?\d*)([smhd])", until)
+                    if match:
+                        value, unit = float(match.group(1)), match.group(2)
+                        if unit == "s":
+                            end_time = now + datetime.timedelta(seconds=value)
+                        elif unit == "m":
+                            end_time = now + datetime.timedelta(minutes=value)
+                        elif unit == "h":
+                            end_time = now + datetime.timedelta(hours=value)
+                        elif unit == "d":
+                            end_time = now + datetime.timedelta(days=value)
+                    else:
+                        raise ValueError("Invalid relative time format.")
+
+                elif isinstance(until, datetime.datetime):
+                    end_time = until
                 else:
-                    # wait remaining time
-                    time.sleep(remaining)
-                    if sleep > silent:
-                        print("\rWaiting done")
-                    break
-                # interrupt during long waits to stop clock from ticking
-                # is ignored for short waits
-                self.check_for_interrupt_and_pause(system)
-            # force one breakpoint independent of wait time (also for wait(0))
+                    # Parse absolute time with multiple date formats
+                    formats = [
+                        "%Y-%m-%d %H:%M:%S",
+                        "%d-%m-%Y %H:%M:%S",
+                        "%m/%d/%Y %I:%M:%S %p",
+                        "%m/%d/%Y %H:%M:%S",
+                        "%Y-%m-%d %H:%M",
+                        "%d-%m-%Y %H:%M",
+                        "%Y-%m-%d",
+                        "%d-%m-%Y",
+                        "%H:%M:%S",
+                        "%H:%M",
+                        "%Y/%m/%d %H:%M",
+                        "%d.%m.%Y %H:%M",
+                        "%d.%m.%Y %H:%M",
+                    ]
+
+                    for fmt in formats:
+                        try:
+                            parsed_time = datetime.datetime.strptime(until, fmt)
+                            if fmt in ["%H:%M:%S", "%H:%M"]:
+                                parsed_time = parsed_time.replace(
+                                    year=now.year, month=now.month, day=now.day
+                                )
+                                if parsed_time < now:
+                                    parsed_time += datetime.timedelta(days=1)
+                            end_time = parsed_time
+                            break
+                        except ValueError:
+                            continue
+                    if not end_time:
+                        raise ValueError("Timestamp format not recognized.")
+
+                if end_time < now:
+                    print(
+                        f"Specified wait until time {end_time.strftime('%Y-%m-%d %H:%M:%S')} is in the past. "
+                        "Continuing immediately."
+                    )
+                    self.check_for_interrupt_and_pause(system)
+                    return
+                sleep_time = (end_time - now).total_seconds()
+
+                if sleep_time > silent or msg:
+                    if sleep_time < 3:
+                        sleeptstr = f"{sleep_time:.2f}"
+                    else:
+                        sleeptstr = f"{sleep_time:.0f}"
+                    print(
+                        f"Waiting until {end_time.strftime('%Y-%m-%d %H:%M:%S')} (in {sleeptstr} seconds){msg}"
+                    )
+
+            else:
+                raise ValueError("Either `duration` or `until` must be provided.")
+
+            # Perform the wait with pause handling
+            self._execute_sleep(
+                sleep_time, end_time, duration is not None, silent, msg, system
+            )
+            # Ensure interrupt and pause checks are called at least once, even if `sleep_time` is 0
             self.check_for_interrupt_and_pause(system)
 
-        def check_for_interrupt_and_pause(self, system):
-            """Functions checking for the pause and interupt flag.
+        def _execute_sleep(
+            self, sleep_time, end_time, is_duration, silent, message, system
+        ):
+            """Handle sleeping with interrupt and pause checks.
 
-            If one of those flags is set the execution is either halted or a
-            keyboard interupt is sent to the script.
+            Parameters
+            ----------
+            sleep_time : float
+                Total time to sleep in seconds.
+            end_time : datetime
+                The target end time for the sleep.
+            is_duration : bool
+                Whether the initial wait was specified with a duration or until a timestamp.
+            silent : float
+                Threshold for showing status messages.
+            message : str
+                Message to display during waiting.
+            system :
+                System object to log comments if a pause or interrupt occurs.
+            """
+            start_time = time.time()
+            pause_duration = (
+                0  # Tracks cumulative pause duration for duration-based waits
+            )
+            initial_sleep_time = sleep_time  # Save the initial sleep time for reference
+
+            while sleep_time > 0:
+                # Calculate remaining time based on the end time for "until" waits
+                if not is_duration and end_time:
+                    sleep_time = (end_time - datetime.datetime.now()).total_seconds()
+
+                # Check for interruption or pause
+                pause_start = time.time()  # Record when the pause starts
+                if self.check_for_interrupt_and_pause(system):
+                    if (
+                        not is_duration
+                        and end_time
+                        and datetime.datetime.now() >= end_time
+                    ):
+                        print(
+                            "\nThe target time passed during pause. Continuing immediately."
+                        )
+                        return
+                    elif is_duration:
+                        # Calculate pause duration and extend end_time accordingly
+                        pause_end = time.time()
+                        pause_duration += pause_end - pause_start
+                        end_time = datetime.datetime.now() + datetime.timedelta(
+                            seconds=(
+                                initial_sleep_time
+                                - (time.time() - start_time - pause_duration)
+                            )
+                        )
+
+                        # Recalculate sleep_time after adjusting for pause
+                        sleep_time = (
+                            end_time - datetime.datetime.now()
+                        ).total_seconds()
+                        print(f"\nResuming wait for {sleep_time:.0f} seconds{message}.")
+                    else:
+                        # For "until" wait, recalculate based on the current end_time
+                        sleep_time = max(
+                            0, (end_time - datetime.datetime.now()).total_seconds()
+                        )
+                        print(
+                            f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
+                            f"({sleep_time:.0f} seconds remaining)."
+                        )
+
+                # Sleep in precise intervals, adjusting each time
+                if sleep_time > 1:
+                    if initial_sleep_time > silent:
+                        print(f"\r{int(sleep_time)} seconds remaining", end="")
+                    time.sleep(min(1, sleep_time))  # Sleep in chunks
+                    sleep_time -= 1
+                else:
+                    time.sleep(sleep_time)
+                    break
+
+            if initial_sleep_time > silent:
+                print("\rWaiting done")
+
+        def check_for_interrupt_and_pause(self, system):
+            """Check for interrupt and pause flags and take appropriate action.
+
+            Parameters
+            ----------
+            system :
+                System class providing add_comment to write a message to the datafile.
+
+            Returns
+            -------
+            bool
+                True if execution was paused, False otherwise
+
+            Raises
+            ------
+            KeyboardInterrupt
+                If the interrupt_flag is True
             """
             # This function is used as part of the decorator of many functions
             # inside the script. Make sure that all functions called here are
             # not decorated themselves. (e.g. system.add_comment)
-            if self.interrupt_flag is True:
+            if self.interrupt_flag:
                 # script will be aborted
                 if system:
                     system.add_comment("measurement aborted on user request")
                 self.interrupt_flag = False
-                raise KeyboardInterrupt
+                raise KeyboardInterrupt("Execution interrupted by user.")
             if self.pause_flag:
                 if system:
                     system.add_comment("measurement paused on user request")
-            while self.pause_flag is True and self.interrupt_flag is False:
-                # execution paused, wait for 100ms and recheck
-                time.sleep(0.1)
+                while self.pause_flag and not self.interrupt_flag:
+                    # execution paused, wait for 100ms and recheck
+                    time.sleep(0.1)
+                return True
+            return False
 
         def input(self, message="", system=None, input_type="string"):
             """Handle user input requests from the script.

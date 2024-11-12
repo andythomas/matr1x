@@ -26,3 +26,4 @@ for field in fields:
   wait(0.01)
   print(f"current field {field}")
   measure_system()
+  wait(until="+0.01s")
