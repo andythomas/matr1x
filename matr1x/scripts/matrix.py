@@ -280,6 +280,11 @@ def measure_urwid(inputfile, systemfile, system):
         def inputcb(n):
             nonlocal msg
             for key in loop.screen.get_input():
+                if isinstance(key, tuple):
+                    # mouse presses result in tuple of shape
+                    #  ("mouse release", 1, 35, 20)
+                    # -> ignore those.
+                    continue
                 if key.lower() in ("q", "f", "a"):
                     msg += f"Note: aborted with {key} after {n} points"
                     system.add_comment(

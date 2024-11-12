@@ -17,7 +17,6 @@
 import logging
 import time
 
-from pyvisa import VisaIOError
 
 from .visadevice import VisaDevice
 
@@ -255,12 +254,14 @@ class Danfysik9100(VisaDevice):
         output:
          no output
         """
-        self.write(f"PO {polarity}")
-        # device may send back a message, read it to clear the buffer
-        try:
-            self.read()
-        except VisaIOError:
-            pass
+        if polarity != self.getPolarityStatus():
+            self.write(f"PO {polarity}")
+            time.sleep(3)
+            while self.fetchStatus()["MPS not ready"] is not False:
+                if self.fetchStatus()["Main Power off"] is True:
+                    time.sleep(0.5)
+                    return
+                time.sleep(0.5)
 
 
 class Danfysik9700(Danfysik9100):

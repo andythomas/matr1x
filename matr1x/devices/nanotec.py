@@ -323,9 +323,22 @@ class NanotecPD4(VisaDevice):
         """
         answer = self.query("#1$")
         status = answer.replace("001$", "")
-        isMoving = (int(status) & 0b00000001) is False
+        isMoving = 0 == (int(status) & 0b1)
         self.moving = isMoving
         return isMoving
+
+    def getErrorStatus(self):
+        """
+        read if the motor is still moving.
+        input: None
+        output: moving (bool)
+        """
+        answer = self.query("#1$")
+        status = answer.replace("001$", "")
+        print(status)
+        isPosError = 0 != (int(status) & 0b100)
+        self.poserror = isPosError
+        return isPosError
 
     def getRotDir(self):
         """
