@@ -70,6 +70,7 @@ from matr1x.gui_util import (
     EmittingStream,
     MetaDataDialog,
     MIcon,
+    MTextEdit,
     SystemListWidget,
     TerminationDialog,
     TextInputDialog,
@@ -1786,66 +1787,63 @@ class MainWindow(QMainWindow):
 
     def update_ui(self):
         """Perform all the required tasks after a theme change."""
-        # visually mark the widget as read only by slighty adjusting the
-        # background color.
-        # Why is Qt/Scintilla not doing it after ReadOnly = True ?!
         palette = self.status_preview.palette()
-        palette.setColor(
-            QPalette.ColorRole.Base,
-            QColor(self.color_palette.color(QPalette.ColorRole.AlternateBase)),
-        )
-        self.status_preview.setPalette(palette)
-        self.lexer.setPaper(QColor(self.color_palette.color(QPalette.ColorRole.Base)))
-        self.script_edit.setCaretLineBackgroundColor(
-            QColor(self.color_palette.color(QPalette.ColorRole.AlternateBase))
-        )
-        self.script_edit.setMarginsBackgroundColor(
-            QColor(self.color_palette.color(QPalette.ColorRole.AlternateBase))
-        )
+        text_edit = QTextEdit()
+        text_edit.setEnabled(False)
+        changed_palette = text_edit.palette()
         # self.script_edit.indicatorDefine(QsciScintilla.IndicatorStyle.DiagonalIndicator, 0)
         # self.script_edit.setIndicatorOutlineColor(QColor(self.color_palette.color(QPalette.ColorRole.LinkVisited)))
-        # We choose hard coded colors that work with dark and bright schemes and supposedly
-        # everything in between or pick colors that change according to the scheme
+        text_color = QColor(self.color_palette.color(QPalette.ColorRole.Text))
+        base_color = QColor(self.color_palette.color(QPalette.ColorRole.Base))
+        marker_color = QColor(changed_palette.color(QPalette.ColorRole.Base))
+        unclosed_color = QColor("red")
+        highlight_color = QColor(self.color_palette.color(QPalette.ColorRole.Highlight))
         if palette.color(QPalette.ColorRole.Window).value() < 128:
             # dark_mode
             method_color = QColor(195, 195, 156)
+            comment_color = QColor(106, 153, 86)
+            string_color = QColor(205, 145, 120)
+            class_color = QColor(85, 155, 212)
+            keyword_color = QColor(197, 134, 192)
+            if marker_color == base_color:
+                # circumvents a bug in the default Linux color scheme
+                marker_color = marker_color.lighter(140)
+            own_identifier_color = QColor(244, 15, 255)
         else:
             # bright mode
             method_color = QColor(117, 95, 48)
-        string_color = QColor(179, 105, 94)
-        comment_color = QColor(116, 152, 93)
+            comment_color = QColor(30, 135, 23)
+            string_color = QColor(176, 55, 55)
+            class_color = QColor(13, 5, 255)
+            keyword_color = QColor(182, 23, 223)
+            if marker_color == base_color:
+                # circumvents a bug in the default Linux color scheme
+                marker_color = marker_color.darker(107)
+            own_identifier_color = QColor(245, 54, 255)
+        self.executed_line_color = highlight_color
+        self.lexer.setPaper(base_color)
+        self.script_edit.setCaretLineBackgroundColor(marker_color)
+        self.script_edit.setMarginsBackgroundColor(marker_color)
+        self.script_edit.setCaretForegroundColor(text_color)
+        self.script_edit.setMarginsForegroundColor(text_color)
         # the sequence relates to the enumerator
         STYLES = {
-            QsciLexerPython.Default: QColor(
-                self.color_palette.color(QPalette.ColorRole.Text)
-            ),
+            QsciLexerPython.Default: text_color,
             QsciLexerPython.Comment: comment_color,
-            QsciLexerPython.Number: QColor(
-                self.color_palette.color(QPalette.ColorRole.Text)
-            ),
+            QsciLexerPython.Number: text_color,
             QsciLexerPython.DoubleQuotedString: string_color,
             QsciLexerPython.SingleQuotedString: string_color,
-            QsciLexerPython.Keyword: QColor(
-                self.color_palette.color(QPalette.ColorRole.Link)
-            ),
+            QsciLexerPython.Keyword: keyword_color,
             QsciLexerPython.TripleSingleQuotedString: string_color,
             QsciLexerPython.TripleDoubleQuotedString: string_color,
-            QsciLexerPython.ClassName: QColor(114, 177, 175),
+            QsciLexerPython.ClassName: class_color,
             QsciLexerPython.FunctionMethodName: method_color,
-            QsciLexerPython.Operator: QColor(
-                self.color_palette.color(QPalette.ColorRole.Text)
-            ),
-            QsciLexerPython.Identifier: QColor(
-                self.color_palette.color(QPalette.ColorRole.Text)
-            ),
+            QsciLexerPython.Operator: text_color,
+            QsciLexerPython.Identifier: text_color,
             QsciLexerPython.CommentBlock: comment_color,
-            QsciLexerPython.UnclosedString: QColor("red"),
-            # the next one refers to identifiers defined by us,
-            # e.g., measure_system()
-            QsciLexerPython.HighlightedIdentifier: QColor(
-                self.color_palette.color(QPalette.ColorRole.LinkVisited)
-            ),
-            #
+            QsciLexerPython.UnclosedString: unclosed_color,
+            # the next line refers to identifiers defined by us, e.g., measure_system()
+            QsciLexerPython.HighlightedIdentifier: own_identifier_color,
             QsciLexerPython.SingleQuotedFString: string_color,
             QsciLexerPython.TripleSingleQuotedFString: string_color,
             QsciLexerPython.DoubleQuotedFString: string_color,
@@ -1933,14 +1931,10 @@ class MainWindow(QMainWindow):
         save_pulldown.addAction(self.save_as_action)
         self.save_button.setMenu(save_pulldown)
         # File: Add System
-        self.add_system_action = QAction(
-            MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self
-        )
+        self.add_system_action = QAction(MIcon("CHAR_+"), "Add System", self)
         self.add_system_action.triggered.connect(self.add_system)
         # File: Remove System
-        self.remove_system_action = QAction(
-            MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
-        )
+        self.remove_system_action = QAction(MIcon("CHAR_-"), "Remove System", self)
         self.remove_system_action.triggered.connect(self.delete_selected_system)
         # Quit
         self.quit_action = QAction("Quit", self)
@@ -1967,33 +1961,25 @@ class MainWindow(QMainWindow):
         self.paste_action = self.standard_action("Paste")
         self.paste_action.triggered.connect(self.paste)
         # Control: Start
-        self.start_pause_action = QAction(
-            MIcon("SP_MediaPlay", QColor("RoyalBlue")), "Start", self
-        )
+        self.start_pause_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
         self.start_pause_action.triggered.connect(self.start_process)
         self.start_pause_action.setCheckable(True)
         # Control: Stop
-        self.stop_action = QAction(
-            MIcon("SP_MediaStop", QColor("RoyalBlue")), "Stop", self
-        )
+        self.stop_action = QAction(MIcon("CUSTOM_Stop"), "Stop", self)
         self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
         self.stop_action.setEnabled(False)
         # Control: Abort
-        self.abort_action = QAction(
-            MIcon("SP_MediaStop", QColor("RoyalBlue")), "Abort", self
-        )
+        self.abort_action = QAction(MIcon("CUSTOM_Stop"), "Abort", self)
         self.abort_action.triggered.connect(lambda: self.abort_thread("a"))
         self.abort_action.setEnabled(False)
         # Control: Finish
-        self.finish_action = QAction(
-            MIcon("SP_MediaStop", QColor("RoyalBlue")), "Finish", self
-        )
+        self.finish_action = QAction(MIcon("CUSTOM_Stop"), "Finish", self)
         self.finish_action.triggered.connect(lambda: self.abort_thread("f"))
         self.finish_action.setEnabled(False)
         # Save in toolbar with pulldown
         self.stop_button = QToolButton()
         self.stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.stop_button.setIcon(MIcon("SP_MediaStop", QColor("RoyalBlue")))
+        self.stop_button.setIcon(MIcon("CUSTOM_Stop"))
         self.stop_button.setText("Abort")
         self.stop_button.setDefaultAction(self.stop_action)
         self.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
@@ -2043,7 +2029,7 @@ class MainWindow(QMainWindow):
         self.system_list = SystemListWidget()
         self.system_list.orderChanged.connect(self.update_systems)
         # TextEdits
-        self.status_preview = QTextEdit(self)
+        self.status_preview = MTextEdit()
         self.status_preview.setReadOnly(True)
         default_font_size = self.status_preview.font().pointSize()
         # Font
@@ -2420,9 +2406,17 @@ class MainWindow(QMainWindow):
             number:int - line number to be highlighted
         """
         self.clear_annotations()
+        # this should be simpler...
+        red = self.executed_line_color.red()
+        green = self.executed_line_color.green()
+        blue = self.executed_line_color.blue()
+        highlighter = QColor(red, green, blue, 64)
+        self.script_edit.setIndicatorForegroundColor(highlighter)
+        self.script_edit.setIndicatorOutlineColor(self.executed_line_color)
         self.script_edit.indicatorDefine(
-            QsciScintilla.IndicatorStyle.FullBoxIndicator, 1)
-        self.script_edit.fillIndicatorRange(number, 0, number+1, 0, 1)
+            QsciScintilla.IndicatorStyle.FullBoxIndicator, 1
+        )
+        self.script_edit.fillIndicatorRange(number, 0, number + 1, 0, 1)
 
     def clear_annotations(self):
         """Clear all annotations in the QScintilla edit."""
@@ -2444,13 +2438,13 @@ class MainWindow(QMainWindow):
         self.is_running = flag
 
         if flag:
-            self.start_pause_action.setIcon(MIcon("SP_MediaPause", QColor("RoyalBlue")))
+            self.start_pause_action.setIcon(MIcon("CUSTOM_Pause"))
             self.start_pause_action.setText("Pause")
             self.start_pause_action.triggered.disconnect(self.start_process)
             self.start_pause_action.triggered.connect(self.pause_thread)
         else:
             self.clear_annotations()
-            self.start_pause_action.setIcon(MIcon("SP_MediaPlay", QColor("RoyalBlue")))
+            self.start_pause_action.setIcon(MIcon("CUSTOM_Play"))
             self.start_pause_action.setText("Start")
             self.start_pause_action.triggered.disconnect(self.pause_thread)
             self.start_pause_action.triggered.connect(self.start_process)

@@ -360,12 +360,12 @@ class MainWindow(QMainWindow):
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
         # Add System
         self.add_system_action = QAction(
-            MIcon("CHAR_+", QColor("darkGray")), "Add System", self
+            MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self
         )
         self.add_system_action.triggered.connect(self.show_file_dialog)
         # Remove System
         self.remove_system_action = QAction(
-            MIcon("CHAR_-", QColor("darkGray")), "Remove System", self
+            MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
         )
         self.remove_system_action.triggered.connect(self.delete_selected_system)
         # System list

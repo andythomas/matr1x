@@ -320,15 +320,11 @@ class SweepPreview(QMainWindow):
         self.load_action.triggered.connect(self.load_button_pressed)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
         # Previous
-        self.previous_action = QAction(
-            MIcon("SP_MediaSkipBackward", QColor("RoyalBlue")), "Previous", self
-        )
+        self.previous_action = QAction(MIcon("SP_ArrowLeft"), "Previous", self)
         self.previous_action.setEnabled(False)
         self.previous_action.triggered.connect(self.previous_file)
         # Next
-        self.next_action = QAction(
-            MIcon("SP_MediaSkipForward", QColor("RoyalBlue")), "Next", self
-        )
+        self.next_action = QAction(MIcon("SP_ArrowRight"), "Next", self)
         self.next_action.setEnabled(False)
         self.next_action.triggered.connect(self.next_file)
         # Export plot

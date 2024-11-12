@@ -410,9 +410,7 @@ class MainWindow(QMainWindow):
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
         # Control: Start
-        self.start_action = QAction(
-            MIcon("SP_MediaPlay", QColor("RoyalBlue")), "Start", self
-        )
+        self.start_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
         self.start_action.triggered.connect(self.queueMeasurement)
 
         self.w_dockable_metadata = QDockWidget("Metadata", self)
@@ -453,9 +451,7 @@ class MainWindow(QMainWindow):
         self.remove_button.setToolButtonStyle(
             Qt.ToolButtonStyle.ToolButtonTextUnderIcon
         )
-        self.remove_action = QAction(
-            MIcon("CHAR_-", QColor("darkGray")), "Remove", self
-        )
+        self.remove_action = QAction(MIcon("CHAR_-"), "Remove", self)
         self.remove_action.triggered.connect(self.removeMeasurement)
         self.remove_button.setDefaultAction(self.remove_action)
 
@@ -702,7 +698,7 @@ class MainWindow(QMainWindow):
     def runMatrix(self):
         """Start running the queued measurements."""
         self.running = True
-        self.start_action.setIcon(MIcon("CHAR_+", QColor("black")))
+        self.start_action.setIcon(MIcon("CHAR_+"))
         self.start_action.setText("Queue")
         self.runNextMeasurement()
 
@@ -730,7 +726,7 @@ class MainWindow(QMainWindow):
         if self.meas_list.count() > 0 and self.running is True:
             self.runNextMeasurement()
         else:
-            self.start_action.setIcon(MIcon("SP_MediaPlay", QColor("RoyalBlue")))
+            self.start_action.setIcon(MIcon("CUSTOM_Play"))
             self.start_action.setText("Start")
             self.running = False
         # if all measurements were run, reset the measurement counter

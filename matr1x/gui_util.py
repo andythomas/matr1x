@@ -37,6 +37,7 @@ from PyQt6.QtCore import (
     QLocale,
     QModelIndex,
     QObject,
+    QPoint,
     Qt,
     pyqtSignal,
 )
@@ -51,6 +52,7 @@ from PyQt6.QtGui import (
     QPainter,
     QPalette,
     QPixmap,
+    QPolygon,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -2468,21 +2470,21 @@ class AboutBox(QMessageBox):
 class MIcon(QIcon):
     """Generate either Qt built-in icons, letters or Matrix specific QIcons."""
 
-    def __new__(cls, name, color="default") -> QIcon:
+    def __new__(cls, name, color=QColor("RoyalBlue")) -> QIcon:
         """
         Look up 'name' and get corresponding QIcon back.
 
         Icons from a theme such as QIcon.fromTheme("media-playback-start") are not available on all
         platforms. Consequently, we fallback to the Qt icons, which are also repecting platform and
-        theme, at least to some extent. Additionally, icons can be generated from characters or the
-        Matrix applications icons can be used.
+        theme, at least to some extent. Additionally, icons can be generated or the Matrix
+        applications icons can be used.
 
         Parameters
         ----------
         name : str
             The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
-            'CHAR_' will generate a circle with the letter in it and 'matr1x-' will use the
-            matrix application icons.
+            'CHAR_' will generate a circle with the letter in it, 'CUSTOM_' provides several
+            painted icons and 'matr1x-' will use the matrix application icons.
         color : QColor
             The color of the icon if applicable
 
@@ -2495,47 +2497,7 @@ class MIcon(QIcon):
             icon = QApplication.style().standardIcon(
                 getattr(QStyle.StandardPixmap, name)
             )
-            if color == "default":
-                return icon
-            else:
-                size = 256
-                pixmap = icon.pixmap(size, size)
-                # Change the color of the black parts
-                # for better visibility in a GUI
-                image = pixmap.toImage()
-                image = image.convertToFormat(QImage.Format.Format_ARGB32)
-                for x in range(image.width()):
-                    for y in range(image.height()):
-                        pixel_color = QColor(image.pixel(x, y))
-                        if pixel_color != QColor(0, 0, 0):
-                            image.setPixelColor(x, y, color)
-                pixmap = QPixmap.fromImage(image)
-                return QIcon(pixmap)
-
-        # Draw an icon from a letter
-        elif name.startswith("CHAR_"):
-            if color == "default":
-                color = QColor("RoyalBlue")
-            size = 256
-            letter = name[5]
-            # Generate a tranparent pixmap with size large enough for icons sizes
-            pixmap = QPixmap(size, size)
-            pixmap.fill(Qt.GlobalColor.transparent)
-            # Paint a circle in the center of that pixmap
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setBrush(color)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(5, 5, size - 10, size - 10)
-            # Draw the letter in the center of the circle
-            font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-            font.setPointSizeF(size * 0.8)
-            painter.setFont(font)
-            painter.setPen(QColor("white"))
-            painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
-            # Finalize and return the icon
-            painter.end()
-            return QIcon(pixmap)
+            return icon
         # Use the original matrix icons
         elif name.startswith("matr1x-"):
             icondir = join(dirname(__file__), "scripts", "icons")
@@ -2555,9 +2517,61 @@ class MIcon(QIcon):
                 pixmap = QPixmap.fromImage(image)
             pixmap = pixmap.copy(15, 15, 226, 226)
             return QIcon(pixmap)
+        # Draw to shared circle part
+        size = 256
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(5, 5, size - 10, size - 10)
+        if name.startswith("CHAR_"):  # Draw an icon with a letter in the center
+            letter = name[5]
+            font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+            font.setPointSizeF(size * 0.8)
+            painter.setFont(font)
+            painter.setPen(QColor("white"))
+            painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
+        elif name.startswith("CUSTOM_"):
+            custom_name = name[7:]
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setBrush(QColor("white"))
+            painter.setPen(QColor("white"))
+            if custom_name == "Play":
+                triangle = QPolygon(
+                    [
+                        QPoint(int(size // 15 + size * 0.3), int(size * 0.2)),
+                        QPoint(int(size // 15 + size * 0.3), int(size * 0.8)),
+                        QPoint(int(size // 15 + size * 0.7), int(size * 0.5)),
+                    ]
+                )
+                painter.drawPolygon(triangle)
+            elif custom_name == "Stop":
+                painter.drawRect(
+                    int(size * 0.3), int(size * 0.3), int(size * 0.4), int(size * 0.4)
+                )
+            elif custom_name == "Pause":
+                bar_width = size * 0.15
+                bar_height = size * 0.4
+                spacing = size * 0.1
+                x_offset = (size - 2 * bar_width - spacing) / 2
+                y_offset = (size - bar_height) / 2
+                painter.drawRect(
+                    int(x_offset), int(y_offset), int(bar_width), int(bar_height)
+                )
+                painter.drawRect(
+                    int(x_offset + bar_width + spacing),
+                    int(y_offset),
+                    int(bar_width),
+                    int(bar_height),
+                )
+            else:
+                raise ValueError(f"MIcon: Unknown icon type {name}.")
         else:
-            raise ValueError("MIcon: Unknown icon type.")
-
+            raise ValueError(f"MIcon: Unknown icon type {name}.")
+        painter.end()
+        return QIcon(pixmap)
 
 def _set_palette(instance):
     """Set the base and text color according to the enabled state."""
