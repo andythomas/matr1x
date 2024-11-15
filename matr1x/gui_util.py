@@ -2470,7 +2470,7 @@ class AboutBox(QMessageBox):
 class MIcon(QIcon):
     """Generate either Qt built-in icons, letters or Matrix specific QIcons."""
 
-    def __new__(cls, name, color=QColor("RoyalBlue")) -> QIcon:
+    def __new__(cls, name, color="default") -> QIcon:
         """
         Look up 'name' and get corresponding QIcon back.
 
@@ -2485,8 +2485,8 @@ class MIcon(QIcon):
             The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
             'CHAR_' will generate a circle with the letter in it, 'CUSTOM_' provides several
             painted icons and 'matr1x-' will use the matrix application icons.
-        color : QColor
-            The color of the icon if applicable
+        color : QColor or str
+            The color of the icon if applicable.
 
         Returns
         -------
@@ -2518,6 +2518,8 @@ class MIcon(QIcon):
             pixmap = pixmap.copy(15, 15, 226, 226)
             return QIcon(pixmap)
         # Draw to shared circle part
+        if color == "default":
+            color = QColor("RoyalBlue")
         size = 256
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)

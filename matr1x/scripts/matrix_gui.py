@@ -355,6 +355,7 @@ class MainWindow(QMainWindow):
 
     def initUI(self):
         """Initialize the basic GUI for the graphical version of matrix."""
+        self.setWindowTitle("Matrix GUI")
         self.setWindowIcon(MIcon("matr1x-matrix-gui.png"))
         self.inputEdit = MLineEdit()
         self.inputEdit.setReadOnly(True)
@@ -385,7 +386,7 @@ class MainWindow(QMainWindow):
         # File: Open sweep generator
         self.sweep_action = QAction(
             MIcon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
-            "Generate",
+            "Generator",
             self,
         )
         self.sweep_action.triggered.connect(self.startSweepGenerator)
@@ -398,7 +399,8 @@ class MainWindow(QMainWindow):
         self.outputAutoGen.setChecked(autogen)
         self.outputAutoGen.setText("Auto-filename")
         # File: Save as...
-        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save as", self)
+        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
+        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_as_action.triggered.connect(self.showOutputDialog)
         self.outputAutoGen.toggled.connect(self.updateAutoGenFilename)
         self.updateAutoGenFilename(autogen)
@@ -424,6 +426,7 @@ class MainWindow(QMainWindow):
         self.w_dockable_metadata.setWidget(self.w_meta_view)
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
@@ -486,7 +489,6 @@ class MainWindow(QMainWindow):
         self.widget = QWidget()
         self.widget.setLayout(vBox)
         self.setCentralWidget(self.widget)
-        self.setWindowTitle('Matrix GUI')
 
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self.w_dockable_metadata

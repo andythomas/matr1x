@@ -26,12 +26,12 @@ import time
 import traceback
 from ast import literal_eval
 from math import floor
-from os.path import basename, dirname, join, splitext
+from os.path import basename, splitext
 
 import pyqtgraph as pg
 from numpy import linspace, uint
 from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QIcon, QPalette, QKeySequence
+from PyQt6.QtGui import QAction, QColor, QPalette, QKeySequence
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -272,8 +272,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, filename=None, system=None, inputcb=None):
         super().__init__()
-        icondir = join(dirname(__file__), 'icons')
-        self.setWindowIcon(QIcon(join(icondir, 'matr1x-sweep-generator.png')))
+        self.setWindowIcon(MIcon("matr1x-sweep-generator.png"))
 
         self.system = system
         self.inputcb = inputcb
@@ -350,6 +349,7 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         """Generate the main GUI."""
+        self.setWindowTitle("Sweep Generator")
         # About
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
@@ -410,6 +410,7 @@ class MainWindow(QMainWindow):
         self.sweep_action.setEnabled(False)
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
@@ -443,8 +444,6 @@ class MainWindow(QMainWindow):
                                   QSizePolicy.Policy.Fixed)
         self.widget.setLayout(vBox)
         self.setCentralWidget(self.widget)
-
-        self.setWindowTitle('Sweep Generator')
 
         self.create_toolbar()
         self.create_menu()

@@ -2009,6 +2009,7 @@ class MainWindow(QMainWindow):
         )
         self.dockable_metadata.setWidget(self.metadata)
         self.toggle_metadata_action = QAction("Show Metadata", self)
+        self.toggle_metadata_action.setShortcut(QKeySequence("Ctrl+2"))
         self.toggle_metadata_action.setCheckable(True)
         self.toggle_metadata_action.setChecked(True)
         self.toggle_metadata_action.triggered.connect(self.toggle_metadata_view)
@@ -2017,6 +2018,7 @@ class MainWindow(QMainWindow):
         )
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
@@ -2180,8 +2182,8 @@ class MainWindow(QMainWindow):
         control_menu.addAction(self.preview_action)
         #
         view_menu = menu.addMenu("&View")
-        view_menu.addAction(self.toggle_metadata_action)
         view_menu.addAction(self.toggle_toolbar_action)
+        view_menu.addAction(self.toggle_metadata_action)
         view_menu.addAction(self.config_action)
         #
         help_menu = menu.addMenu("&Help")

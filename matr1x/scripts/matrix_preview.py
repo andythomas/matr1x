@@ -21,13 +21,13 @@ import signal
 import sys
 import threading
 import time
-from os.path import abspath, dirname, getmtime, getsize, join
+from os.path import abspath, getmtime, getsize
 
 import numpy as np
 import pyqtgraph as pg
 import pyqtgraph.exporters
 from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QIcon, QKeySequence
+from PyQt6.QtGui import QAction, QColor, QKeySequence
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -303,10 +303,7 @@ class SweepPreview(QMainWindow):
     def init_basic_ui(self):
         """Initialize basic GUI that works without chosen filename."""
         self.setWindowTitle("Matrix Preview")
-
-        # initialize empty window
-        icondir = join(dirname(__file__), 'icons')
-        self.setWindowIcon(QIcon(join(icondir, 'matr1x-matrix-preview.png')))
+        self.setWindowIcon(MIcon("matr1x-matrix-preview.png"))
 
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
@@ -321,10 +318,18 @@ class SweepPreview(QMainWindow):
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
         # Previous
         self.previous_action = QAction(MIcon("SP_ArrowLeft"), "Previous", self)
+        cmd_left_shortcut = QKeySequence(
+            Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Left
+        )
+        self.previous_action.setShortcut(cmd_left_shortcut)
         self.previous_action.setEnabled(False)
         self.previous_action.triggered.connect(self.previous_file)
         # Next
         self.next_action = QAction(MIcon("SP_ArrowRight"), "Next", self)
+        cmd_right_shortcut = QKeySequence(
+            Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Right
+        )
+        self.next_action.setShortcut(cmd_right_shortcut)
         self.next_action.setEnabled(False)
         self.next_action.triggered.connect(self.next_file)
         # Export plot
@@ -361,11 +366,13 @@ class SweepPreview(QMainWindow):
         self.about_action.triggered.connect(self.info_box)
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
         # Meta Data
         self.meta_action = QAction(MIcon("SP_FileDialogListView"), "Metadata", self)
+        self.meta_action.setShortcut(QKeySequence("Ctrl+2"))
         self.meta_action.setEnabled(False)
         self.meta_action.setCheckable(True)
         self.meta_action.triggered.connect(self.toggle_meta)
