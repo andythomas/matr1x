@@ -1267,6 +1267,7 @@ class CustomQsciAPI(QsciAPIs):
         "meta_data",
         "meta_data['creator']",
         "meta_data['identifier']",
+        "meta_data['relation']",
         "meta_data['description']",
         "devs",
         "wait(duration: float = None, until: str | datetime = None, message: str = '', silent: float = 10)",
@@ -1530,7 +1531,7 @@ class MainWindow(QMainWindow):
           devs  # dictionary that contains all devices
           system  # merged system object from the selected systems
           meta_data  # dictionary that contains all meta information
-                     # Keywords "creator", "identifier" and "description"
+                     # Keywords "creator", "identifier", "relation" and "description"
                      # contain meta data information from the editor widget
 
         Use the help button to get a list of available parameters and devices.

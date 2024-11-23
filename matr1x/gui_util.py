@@ -2225,6 +2225,7 @@ class MetaDataDialog(QDialog):
         # Dublin Core Elements
         self.creator = QLineEdit()
         self.identifier = QLineEdit()
+        self.relation = QLineEdit()
         self.description = QTextEdit()
 
         # Load initial values if provided
@@ -2234,6 +2235,8 @@ class MetaDataDialog(QDialog):
         # Add form elements to layout
         form_layout.addRow("Creator/User:", self.creator)
         form_layout.addRow("Identifier/Sample:", self.identifier)
+        form_layout.addRow("Relation:", self.relation)
+
 
         # Add the form layout to the main layout
         layout.addLayout(form_layout)
@@ -2254,6 +2257,7 @@ class MetaDataDialog(QDialog):
         """
         self.creator.setText(values.get("creator", ""))
         self.identifier.setText(values.get("identifier", ""))
+        self.relation.setText(values.get("relation", ""))
         self.description.setPlainText(values.get("description", ""))
 
     def get_metadata(self) -> Dict[str, str]:
@@ -2268,9 +2272,9 @@ class MetaDataDialog(QDialog):
         return {
             "creator": self.creator.text(),
             "identifier": self.identifier.text(),
+            "relation": self.relation.text(),
             "description": self.description.toPlainText(),
         }
-
 
 class TextInputDialog(QDialog):
     """Modal dialog for text input for matrix-script."""
