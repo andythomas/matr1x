@@ -2217,18 +2217,19 @@ class MainWindow(QMainWindow):
         if self.last_loaded_file:
             directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog
-        filename = QFileDialog.getOpenFileName(
+        filenames = QFileDialog.getOpenFileNames(
             self, "Select system file to add", directory, "system files (system*.py)"
         )[0]
-        if "" == filename:
+        if filenames == []:
             return
-        self.last_loaded_file = filename
-        filename = os.path.realpath(filename)
-        module_name = get_importable_module_name(filename)
-        if module_name:
-            self.system_list.addItem(module_name)
-        else:
-            self.system_list.addItem(filename)
+        for filename in filenames:
+            self.last_loaded_file = filename
+            filename = os.path.realpath(filename)
+            module_name = get_importable_module_name(filename)
+            if module_name:
+                self.system_list.addItem(module_name)
+            else:
+                self.system_list.addItem(filename)
         self.systems_dirty = True
         self.update_window_title()
         # update systems to use list for config editor

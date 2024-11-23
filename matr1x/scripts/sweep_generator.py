@@ -362,7 +362,7 @@ class MainWindow(QMainWindow):
         self.add_system_action = QAction(
             MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self
         )
-        self.add_system_action.triggered.connect(self.show_file_dialog)
+        self.add_system_action.triggered.connect(self.add_system)
         # Remove System
         self.remove_system_action = QAction(
             MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
@@ -1020,30 +1020,30 @@ class MainWindow(QMainWindow):
             else:
                 self.clear_layout(item)
 
-    def show_file_dialog(self):
+    def add_system(self):
         """Opes a QFileDialog with filter system*.py."""
         directory = system_directories[-1]
         if not self.shortcut_dir and len(system_names) > 1:
             self.shortcut_dir = create_temp_dir_with_symlinks(
                 system_names, system_directories)
         if self.shortcut_dir:
-            directory = os.path.join(self.shortcut_dir.name,
-                                     system_names[-1])
+            directory = os.path.join(self.shortcut_dir.name, system_names[-1])
         if self.last_loaded_file:
             directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog
-        filename = QFileDialog.getOpenFileName(
+        filenames = QFileDialog.getOpenFileNames(
             self, 'Select system file', directory,
             "system files (system*.py)")[0]
-        if "" == filename:
+        if filenames == []:
             return
-        self.last_loaded_file = filename
-        filename = os.path.realpath(filename)
-        module_name = get_importable_module_name(filename)
-        if module_name:
-            self.systemList.addItem(module_name)
-        else:
-            self.systemList.addItem(filename)
+        for filename in filenames:
+            self.last_loaded_file = filename
+            filename = os.path.realpath(filename)
+            module_name = get_importable_module_name(filename)
+            if module_name:
+                self.systemList.addItem(module_name)
+            else:
+                self.systemList.addItem(filename)
         self.filename_changed()
 
     def delete_selected_system(self):
