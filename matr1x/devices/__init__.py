@@ -35,9 +35,9 @@ from .kepco import BOP5020mg  # noqa: F401
 from .keysight import (  # noqa: F401
     PSA_E4440A,
     PSG8257D,
+    Agilent8114A,
     KeysightB2961,
     PNA5225b,
-    Agilent8114A,
 )
 from .lakeshore import Lakeshore335, Lakeshore340, Lakeshore475  # noqa: F401
 from .magnet_physik import FH55  # noqa: F401
@@ -45,8 +45,7 @@ from .minicircuits import RC_2SPDT_A18  # noqa: F401
 from .nanotec import NanotecPD4  # noqa: F401
 from .owis import SMS, Ps10  # noqa: F401
 from .oxford import ILM200, IPS120, ITC503, IPS120_switchheater  # noqa: F401
-from .oxford_mercury import (MercuryIPS, MercuryITC,  # noqa: F401
-                             MercurySingleAxisIPS)
+from .oxford_mercury import MercuryIPS, MercuryITC, MercurySingleAxisIPS  # noqa: F401
 from .pfeiffer import MPT200  # noqa: F401
 from .physikinstrumente import MercuryC663  # noqa: F401
 from .pico import PicoVNA  # noqa: F401

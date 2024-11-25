@@ -32,6 +32,7 @@ import pyqtgraph as pg
 from numpy import linspace, uint
 from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QPalette, QKeySequence
+
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,

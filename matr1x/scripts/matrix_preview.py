@@ -46,12 +46,11 @@ from PyQt6.QtWidgets import (
 )
 
 import matr1x
-
 from matr1x import gui_util as gu
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
-from matr1x.util import set_correct_mac_appname
 from matr1x.gui_util import AboutBox, MIcon
+from matr1x.util import set_correct_mac_appname
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 

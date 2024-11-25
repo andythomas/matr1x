@@ -35,13 +35,20 @@ import time
 import traceback
 
 import urwid
-from matr1x.system import MergedSystem
-from matr1x.util import (flatten, flush_input, generate_col_index,
-                         nonblocking_getch, open_and_error,
-                         print_formatted_line, telemetry_string)
 
-from . import MATRIX_GUI_PORT
+from matr1x.system import MergedSystem
+from matr1x.util import (
+    flatten,
+    flush_input,
+    generate_col_index,
+    nonblocking_getch,
+    open_and_error,
+    print_formatted_line,
+    telemetry_string,
+)
+
 from .. import VALID_META_KEYS
+from . import MATRIX_GUI_PORT
 
 abortmap = {"q": 1, "a": 2, "f": 3}
 # define abort conditions for different keys

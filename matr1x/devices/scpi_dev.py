@@ -19,9 +19,10 @@ import pickle
 import re
 import time
 
-from matr1x.util import Get, normalize_cmds
 from pymeasure.instruments import Instrument
 from pymeasure.instruments.validators import strict_discrete_set
+
+from matr1x.util import Get, normalize_cmds
 
 
 def makeSCPIdevice(*cmds, system=True):

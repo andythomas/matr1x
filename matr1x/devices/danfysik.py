@@ -17,7 +17,6 @@
 import logging
 import time
 
-
 from .visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)

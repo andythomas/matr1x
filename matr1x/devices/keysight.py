@@ -14,10 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import time
 from struct import unpack
 
 import numpy as np
-import time
 from wrapt import synchronized
 
 from .util import strToList
