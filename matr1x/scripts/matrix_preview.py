@@ -24,7 +24,7 @@ import time
 from os.path import abspath, getmtime, getsize
 
 import numpy as np
-import pyqtgraph as pg
+import pyqtgraph
 import pyqtgraph.exporters
 from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeySequence
@@ -46,7 +46,7 @@ from PyQt6.QtWidgets import (
 )
 
 import matr1x
-from matr1x import gui_util as gu
+from matr1x import gui_util
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
 from matr1x.gui_util import AboutBox, MIcon
@@ -304,8 +304,8 @@ class SweepPreview(QMainWindow):
         self.setWindowTitle("Matrix Preview")
         self.setWindowIcon(MIcon("matr1x-matrix-preview.png"))
 
-        pg.setConfigOption('background', 'w')
-        pg.setConfigOption('foreground', 'k')
+        pyqtgraph.setConfigOption("background", "w")
+        pyqtgraph.setConfigOption("foreground", "k")
 
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.grid = QGridLayout()
@@ -336,6 +336,12 @@ class SweepPreview(QMainWindow):
         self.export_png_action.setEnabled(False)
         self.export_png_action.setShortcut(QKeySequence.StandardKey.Save)
         self.export_png_action.triggered.connect(self.save_plot)
+        # Save data as as text file
+        self.export_data_action = QAction(
+            MIcon("SP_FileDialogDetailedView"), "Save txt", self
+        )
+        self.export_data_action.setEnabled(False)
+        self.export_data_action.triggered.connect(self.save_data)
         # Update
         self.auto_update_action = QAction(
             MIcon("SP_BrowserReload"), "Auto Update", self
@@ -412,6 +418,7 @@ class SweepPreview(QMainWindow):
         self.addToolBar(self.toolbar)
         self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
         self.toolbar.addAction(self.export_png_action)
+        self.toolbar.addAction(self.export_data_action)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.update_action)
         self.toolbar.addAction(self.auto_update_action)
@@ -436,6 +443,7 @@ class SweepPreview(QMainWindow):
         self.file_menu.addAction(self.load_action)
         self.file_menu.addAction(self.quit_action)
         self.file_menu.addAction(self.export_png_action)
+        self.file_menu.addAction(self.export_data_action)
         self.file_menu.addSeparator()
         self.file_menu.addAction(self.update_action)
         self.file_menu.addAction(self.auto_update_action)
@@ -462,7 +470,7 @@ class SweepPreview(QMainWindow):
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
         if not self.w_meta_view:
-            self.w_meta_view = gu.MetaViewerWidget(self.header)
+            self.w_meta_view = gui_util.MetaViewerWidget(self.header)
             self.w_meta_view.setFeatures(
                 QDockWidget.DockWidgetFeature.DockWidgetClosable
                 | QDockWidget.DockWidgetFeature.DockWidgetFloatable
@@ -534,7 +542,7 @@ class SweepPreview(QMainWindow):
         self.w_transpose.setVisible(False)
         self.w_transpose.toggled.connect(self.transpose_toggled)
 
-        self.spw = gu.SimplePlotWidget(self.raise_error, self.index_callback)
+        self.spw = gui_util.SimplePlotWidget(self.raise_error, self.index_callback)
         # minimum height of plot widget, could be removed but then
         # window always needs to be resized
         self.spw.setMinimumHeight(350)
@@ -559,6 +567,7 @@ class SweepPreview(QMainWindow):
 
         if not self.ui_initialized:
             self.export_png_action.setEnabled(True)
+            self.export_data_action.setEnabled(True)
             self.update_action.setEnabled(True)
             self.auto_update_action.setEnabled(True)
             self.previous_action.setEnabled(True)
@@ -586,18 +595,46 @@ class SweepPreview(QMainWindow):
         else:
             self.w_meta_view.setVisible(False)
 
-    def save_plot(self):
+    def get_filename_without_extension(self) -> str:
+        """Return the actual filename without extension."""
+        for extension in self.allowed_extensions:
+            if self.filename.endswith(extension):
+                return self.filename[: -len(extension)]
+        return self.filename
+
+    def save_plot(self) -> None:
         """Ask for filename and save the displayed data in a png file."""
         filename = QFileDialog.getSaveFileName(
-            self, 'Select output png file', self.file_dir,
-            "png files (*.png)")[0]
-        if ".png" != filename[-4:].lower():
-            filename += ".png"
-        if self.iv is not None:
-            exporter = pg.exporters.ImageExporter(self.iv.view)
-            exporter.export(filename)
-        else:
-            self.spw.save_plot(filename)
+            self,
+            "Select output png file",
+            self.get_filename_without_extension() + ".png",
+            "png files (*.png)",
+        )[0]
+        if filename:
+            if ".png" != filename[-4:].lower():
+                filename += ".png"
+            if self.iv is not None:
+                exporter = pyqtgraph.exporters.ImageExporter(self.iv.view)
+                exporter.export(filename)
+            else:
+                self.spw.save_plot(filename)
+
+    def save_data(self) -> None:
+        """Ask for filename and save the displayed data in an text file."""
+        columns = self.spw.get_columns()
+        suggested_filename = (
+            self.get_filename_without_extension() + "_" + columns[1] + "_" + columns[0]
+        )
+        filename = QFileDialog.getSaveFileName(
+            self,
+            "Select output text file",
+            suggested_filename,
+            "text files (*.txt)",
+        )[0]
+        if filename:
+            if ".txt" != filename[-4:].lower():
+                filename += ".txt"
+            self.spw.save_data(filename)
 
     def previous_file(self):
         """Determine the previous file."""
@@ -678,6 +715,7 @@ class SweepPreview(QMainWindow):
             check_state = not check_state
         self.w_l[2].setVisible(check_state)
         self.w_index[2].setVisible(check_state)
+        self.export_data_action.setEnabled(not check_state)
         self.reload_data()
 
     def plotting_complex(self, check_state):
@@ -686,7 +724,7 @@ class SweepPreview(QMainWindow):
             self.spw.setVisible(False)
             if self.iv is None:
                 # set up image view on first initialization
-                self.iv = pg.ImageView()
+                self.iv = pyqtgraph.ImageView()
                 self.widget.layout().addWidget(self.iv, 4, 0, 1, -1)
             else:
                 self.iv.setVisible(True)

@@ -30,7 +30,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import pygit2
-import pyqtgraph as pg
+import pyqtgraph
 from PyQt6.QtCore import (
     QAbstractItemModel,
     QEvent,
@@ -1029,7 +1029,7 @@ class SimplePlotWidget(QGroupBox):
             "delta+": [lambda xf: delta(xf)[0],
                        lambda yf: delta(yf)[0]]}
 
-        class CustomDateAxisItem(pg.DateAxisItem):
+        class CustomDateAxisItem(pyqtgraph.DateAxisItem):
             # This text is included pursuant to the obligations of this upstream licence
             # and must be retained in any derivatives of this class.
             # This specific class may be used under the terms of the MIT-license:
@@ -1183,7 +1183,7 @@ class SimplePlotWidget(QGroupBox):
                     for value in values
                 ]
 
-        class CategoricalAxis(pg.AxisItem):
+        class CategoricalAxis(pyqtgraph.AxisItem):
             """Custom axis item for displaying categorical data.
 
             This class extends pyqtgraph's AxisItem to properly display categorical
@@ -1287,7 +1287,7 @@ class SimplePlotWidget(QGroupBox):
             # initialize the pyqtgraph display widgets
             self.vb = CustomViewBox()
             if self.plot2d is True:
-                self.plt = pg.ImageView(view=self.vb)
+                self.plt = pyqtgraph.ImageView(view=self.vb)
                 self.pw = self.l_plot.addPlot(row=self.index, col=0,
                                               viewBox=self.vb,
                                               title=f"p{index}")
@@ -1760,7 +1760,7 @@ class SimplePlotWidget(QGroupBox):
             l_math.addWidget(self.w_math[i], stretch=1)
 
         # Add GraphicsLayout and make most prominent widget
-        self.gl = pg.GraphicsLayoutWidget()
+        self.gl = pyqtgraph.GraphicsLayoutWidget()
         self.gl.setSizePolicy(QSizePolicy.Policy.Expanding,
                               QSizePolicy.Policy.Expanding)
 
@@ -1768,10 +1768,10 @@ class SimplePlotWidget(QGroupBox):
         # GraphicsLayout to display the x/y position on the current
         # plot, additionally introduce proxy to select active plot by
         # just clicking into the plot
-        self.proxy = pg.SignalProxy(
+        self.proxy = pyqtgraph.SignalProxy(
             self.gl.scene().sigMouseMoved, rateLimit=30, slot=self._mouse_moved
         )
-        self.proxy2 = pg.SignalProxy(
+        self.proxy2 = pyqtgraph.SignalProxy(
             self.gl.scene().sigMouseClicked, rateLimit=2, slot=self._mouse_clicked
         )
 
@@ -2045,8 +2045,38 @@ class SimplePlotWidget(QGroupBox):
         filename : str
             The path and name of the file where the PNG image will be saved.
         """
-        exporter = pg.exporters.ImageExporter(self.gl.scene())
+        exporter = pyqtgraph.exporters.ImageExporter(self.gl.scene())
         exporter.export(filename)
+
+    def get_columns(self) -> tuple[str, str]:
+        """Return the plotted columns."""
+        index = self.w_plots.currentIndex()
+        y = self.plots[index].labels[0]
+        x = self.plots[index].labels[1]
+        return (y, x)
+
+    def save_data(self, filename) -> None:
+        """Export the currently displayed plot into a text file.
+
+        Parameters
+        ----------
+        filename : str
+            The path and name of the file where the text file will be saved.
+        """
+        index = self.w_plots.currentIndex()
+        z, x = self.plots[index]._get_math(self.plots[index].z, self.plots[index].x)
+        data = np.column_stack((x, z))
+        delimiter = "\t"
+        newline = "\n"
+        with open(filename, "w") as f:
+            f.write(
+                f"{self.plots[index].labels[1]}{delimiter}{self.plots[index].labels[0]}{newline}"
+            )
+            f.write(
+                f"{self.plots[index].units[1]}{delimiter}{self.plots[index].units[0]}{newline}"
+            )
+        with open(filename, "a") as f:
+            np.savetxt(f, data, delimiter=delimiter, newline=newline)
 
     def reset(self):
         """Reset the full SimplePlotWidget to its default state."""
@@ -2094,7 +2124,7 @@ class SimplePlotWidget(QGroupBox):
         self._calc_or_data_changed()
 
 
-class CustomViewBox(pg.ViewBox):
+class CustomViewBox(pyqtgraph.ViewBox):
     """
     Reimplements the pyqthgraph ViewBox and improves its usability with the mouse.
 
@@ -2122,7 +2152,7 @@ class CustomViewBox(pg.ViewBox):
         **kwds
             Arbitrary keyword arguments.
         """
-        pg.ViewBox.__init__(self, *args, **kwds)
+        pyqtgraph.ViewBox.__init__(self, *args, **kwds)
         self.setMouseMode(self.RectMode)
 
     def mouseClickEvent(self, ev):
@@ -2155,15 +2185,15 @@ class CustomViewBox(pg.ViewBox):
         if ev.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
             # enable pan mode
             self.setMouseMode(self.PanMode)
-            pg.ViewBox.mouseDragEvent(self, ev, axis)
+            pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
             self.setMouseMode(self.RectMode)
         elif ev.button() == Qt.MouseButton.LeftButton and axis is not None:
             # enable pan mode on individual axis
             self.setMouseMode(self.PanMode)
-            pg.ViewBox.mouseDragEvent(self, ev, axis)
+            pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
             self.setMouseMode(self.RectMode)
         else:
-            pg.ViewBox.mouseDragEvent(self, ev, axis)
+            pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
 
 
 class EmittingStream(QObject):
