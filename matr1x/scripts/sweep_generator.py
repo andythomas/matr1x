@@ -64,6 +64,7 @@ from matr1x.gui_util import (
     MIcon,
     MTextEdit,
     SystemListWidget,
+    set_client_decorations,
     validator,
 )
 from matr1x.system import MergedSystem
@@ -272,6 +273,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, filename=None, system=None, inputcb=None):
         super().__init__()
+        set_client_decorations(self)
         self.setWindowIcon(MIcon("matr1x-sweep-generator.png"))
 
         self.system = system

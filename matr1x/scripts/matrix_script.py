@@ -75,6 +75,7 @@ from matr1x.gui_util import (
     TerminationDialog,
     TextInputDialog,
     YesNoAbortDialog,
+    set_client_decorations,
 )
 from matr1x.scripts import matrix_preview
 from matr1x.util import (
@@ -1481,6 +1482,7 @@ class MainWindow(QMainWindow):
     def __init__(self, filename=None):
         """Initialize the GUI for scripted matrix control."""
         super().__init__()
+        set_client_decorations(self)
         self.systems = []
         self.scriptname = ""
         self.measurement_file = ""

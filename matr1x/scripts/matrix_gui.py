@@ -47,7 +47,14 @@ from PyQt6.QtWidgets import (
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import get_latest_datafile
-from matr1x.gui_util import AboutBox, ConfigEditWidget, MetaDataDialog, MIcon, MLineEdit
+from matr1x.gui_util import (
+    AboutBox,
+    ConfigEditWidget,
+    MetaDataDialog,
+    MIcon,
+    MLineEdit,
+    set_client_decorations,
+)
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
     matrix_preview,
@@ -233,6 +240,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        set_client_decorations(self)
         self.color_palette = QApplication.instance().palette()
         self.initUI()
         self.sg = None

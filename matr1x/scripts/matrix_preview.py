@@ -49,7 +49,7 @@ import matr1x
 from matr1x import gui_util
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
-from matr1x.gui_util import AboutBox, MIcon
+from matr1x.gui_util import AboutBox, MIcon, set_client_decorations
 from matr1x.util import set_correct_mac_appname
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -115,6 +115,7 @@ class SweepPreview(QMainWindow):
 
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
+        set_client_decorations(self)
         self.filename = ""
         self.closing_allowed = True
         self.w_meta_view = None

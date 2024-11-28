@@ -2641,6 +2641,25 @@ def _set_palette(instance):
     instance.setPalette(palette)
 
 
+def set_client_decorations(instance) -> None:
+    """Draw the outline border or other decorations instead of the window manager."""
+    config = load_config()
+    enabled = config["matr1x"]["scripts"].get("client_decorations", False)
+    if enabled:
+        instance.setStyleSheet(
+            """
+                    QMainWindow {
+                        border: 1px solid gray;
+                        border-radius: 10px;
+                    }
+                    QToolBar {
+                        border: 1px solid gray;
+                        border-radius: 5px;
+                    }
+                """
+        )
+
+
 class MLineEdit(QLineEdit):
     """Provide QLineEdit with visual cues for non-editable."""
 

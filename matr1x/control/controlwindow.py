@@ -63,7 +63,7 @@ from PyQt6.QtWidgets import (
 
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
-from matr1x.gui_util import EmittingStream
+from matr1x.gui_util import EmittingStream, set_client_decorations
 from matr1x.util import Get
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -228,6 +228,7 @@ class ControlWindow(QMainWindow):
         os.environ["QT_NO_FT_CACHE"] = "1"
 
         super().__init__(parent=parent)
+        set_client_decorations(self)
         self.setWindowTitle(name)
         self.settings = QSettings(package, name)
         # initialize paramaters
