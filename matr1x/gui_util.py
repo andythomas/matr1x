@@ -273,6 +273,20 @@ class SystemListWidget(QListWidget):
         super().dropEvent(event)
         self.orderChanged.emit()  # Emit the custom signal when the order changes
 
+    def addItem(self, item) -> None:
+        """Add item but avoid duplicates.
+
+        Parameters
+        ----------
+        item
+            The item, i.e. system file to be added."""
+        for index in range(self.count()):
+            existing = self.item(index).text()
+            if item == existing:
+                print(f"{item} is already added and was omitted.")
+                return
+        super().addItem(item)
+
 
 class MetaViewerWidget(QDockWidget):
     """
