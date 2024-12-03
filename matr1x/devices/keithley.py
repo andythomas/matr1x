@@ -188,12 +188,10 @@ class Keithley2450(VisaDevice):
         # ignore telnet commands sent by the instrument
         # after initialization get the source function to determine
         # whether voltage or current is the sourced
-        self.write(":SOUR:FUNC?")
-        self.sourceMode = self.read()
-        self.write(":SENS:FUNC?")
-        self.senseMode = self.read()
-        self.write(":OUTP?")
-        self.outputState = bool(int(self.read()))
+        
+        self.sourceMode = self.query(":SOUR:FUNC?")
+        self.senseMode = self.query(":SENS:FUNC?")
+        self.outputState = bool(int(self.query(":OUTP?")))
 
     # high level functions
     @synchronized
@@ -611,7 +609,6 @@ class Keithley2182A(VisaDevice):
         for cmd in cmdList:
             self.query("*OPC?")
             self.write(cmd)
-        self.query("*OPC?")
 
     def triggerReading(self):
         if self.triggered is False:
