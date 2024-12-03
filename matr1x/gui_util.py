@@ -49,6 +49,7 @@ from PyQt6.QtGui import (
     QIcon,
     QImage,
     QIntValidator,
+    QKeySequence,
     QPainter,
     QPalette,
     QPixmap,
@@ -2673,6 +2674,37 @@ def set_client_decorations(instance) -> None:
                 """
         )
 
+
+def detect_shortcut(event, shortcut):
+    """
+    Compare a combination of keys in a string to a keypress event.
+
+    Parameters
+    ----------
+    event : QEvent
+        The event that was detected
+    shortcut : str or QKeySequence
+        The keyboard shortcut as used in QKeySequence(string) or directly
+
+    Returns
+    -------
+    bool
+        Indicates if there is a match
+    """
+    key = event.key()
+    modifiers = event.modifiers()
+    # A QKeySequence could be a sequence of several keys. Only the first
+    # combination makes sense as a shortcut
+    if isinstance(shortcut, str):
+        keys = QKeySequence(shortcut)[0]
+    elif isinstance(shortcut, QKeySequence):
+        keys = shortcut[0]
+    else:
+        raise ValueError("Shortcut has to be of type(str) or type(QKeySequence).")
+    if key == keys.key() and modifiers == keys.keyboardModifiers():
+        return True
+    else:
+        return False
 
 class MLineEdit(QLineEdit):
     """Provide QLineEdit with visual cues for non-editable."""

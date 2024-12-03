@@ -75,6 +75,7 @@ from matr1x.gui_util import (
     TerminationDialog,
     TextInputDialog,
     YesNoAbortDialog,
+    detect_shortcut,
     set_client_decorations,
 )
 from matr1x.scripts import matrix_preview
@@ -818,39 +819,6 @@ class CompleterPython(QObject):
         return (self.editor.currentStyle() ==
                 QsciLexerPython.TripleSingleQuotedString)
 
-
-def detectShortcut(event, shortcut):
-    """
-    Compare a combination of keys in a string to a keypress event.
-
-    Parameters
-    ----------
-    event : QEvent
-        The event that was detected
-    shortcut : str or QKeySequence
-        The keyboard shortcut as used in QKeySequence(string) or directly
-
-    Returns
-    -------
-    bool
-        Indicates if there is a match
-    """
-    key = event.key()
-    modifiers = event.modifiers()
-    # A QKeySequence could be a sequence of several keys. Only the first
-    # combination makes sense as a shortcut
-    if isinstance(shortcut, str):
-        keys = QKeySequence(shortcut)[0]
-    elif isinstance(shortcut, QKeySequence):
-        keys = shortcut[0]
-    else:
-        raise ValueError("Shortcut has to be of type(str) or type(QKeySequence).")
-    if key == keys.key() and modifiers == keys.keyboardModifiers():
-        return True
-    else:
-        return False
-
-
 class QScintillaCustom(QsciScintilla, DroppableWidget):
     # adapted from https://hg.die-offenbachs.homelinux.org/eric/file/eric7/src/eric7/QScintilla/QsciScintillaCompat.py
     # with commenting functionality from https://github.com/matkuki/qscintilla_docs/blob/master/examples/commenting.py
@@ -873,13 +841,13 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         key = event.key()
         # key_modifiers = event.modifiers()
 
-        if detectShortcut(event, "Ctrl+/"):
+        if detect_shortcut(event, "Ctrl+/"):
             self.toggle_commenting()
-        if detectShortcut(event, "Ctrl+Shift+7"):
+        if detect_shortcut(event, "Ctrl+Shift+7"):
             self.toggle_commenting()
-        if detectShortcut(event, "Ctrl+8"):
+        if detect_shortcut(event, "Ctrl+8"):
             self.run_autopep8()
-        if detectShortcut(event, "Ctrl+7"):
+        if detect_shortcut(event, "Ctrl+7"):
             self.run_linter()
         if key == Qt.Key.Key_QuoteDbl:
             # check that something is selected
@@ -1666,9 +1634,9 @@ class MainWindow(QMainWindow):
     def keyPressEvent(self, event: QKeyEvent):
         """Allow to modify systems list with keyboard shortcuts."""
         if self.system_list.hasFocus():
-            if detectShortcut(event, QKeySequence(QKeySequence.StandardKey.Delete)):
+            if detect_shortcut(event, QKeySequence(QKeySequence.StandardKey.Delete)):
                 self.delete_selected_system()
-            if detectShortcut(event, QKeySequence(Qt.Key.Key_Backspace)):
+            if detect_shortcut(event, QKeySequence(Qt.Key.Key_Backspace)):
                 self.delete_selected_system()
         super().keyPressEvent(event)
 

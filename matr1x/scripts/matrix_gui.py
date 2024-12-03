@@ -24,7 +24,7 @@ import sys
 from os.path import exists
 
 from PyQt6.QtCore import QSettings, QSize, Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QKeySequence
+from PyQt6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -53,6 +53,7 @@ from matr1x.gui_util import (
     MetaDataDialog,
     MIcon,
     MLineEdit,
+    detect_shortcut,
     set_client_decorations,
 )
 from matr1x.scripts import (
@@ -696,6 +697,9 @@ class MainWindow(QMainWindow):
         self.meas_queue[index] = param
         self.meas_list.addItem(f"{index} - {os.path.basename(inputFile)} - "
                                f"{os.path.basename(outputFile)} -")
+        if self.meas_list.count() > 0:
+            last_item = self.meas_list.item(self.meas_list.count() - 1)
+            self.meas_list.scrollToItem(last_item)
         if self.running is True:
             pass
         else:
@@ -711,6 +715,15 @@ class MainWindow(QMainWindow):
         self.start_action.setIcon(MIcon("CHAR_+"))
         self.start_action.setText("Queue")
         self.runNextMeasurement()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """Allow to modify systems list with keyboard shortcuts."""
+        if self.meas_list.hasFocus():
+            if detect_shortcut(event, QKeySequence(QKeySequence.StandardKey.Delete)):
+                self.removeMeasurement()
+            if detect_shortcut(event, QKeySequence(Qt.Key.Key_Backspace)):
+                self.removeMeasurement()
+        super().keyPressEvent(event)
 
     def removeMeasurement(self):
         """Remove selected or last item from meas_list."""
