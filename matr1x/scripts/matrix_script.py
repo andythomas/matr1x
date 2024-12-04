@@ -1875,6 +1875,9 @@ class MainWindow(QMainWindow):
         self.config_editor.setFloating(True)
         self.config_editor.close()
         self.config_action = QAction(MIcon("CHAR_≡"), "Preferences", self)
+        self.config_action.setToolTip(
+            "Show the application preferences/ configuration."
+        )
         self.config_action.setMenuRole(QAction.MenuRole.PreferencesRole)
         self.config_action.setShortcut(QKeySequence.StandardKey.Preferences)
         self.config_action.setCheckable(True)
@@ -1882,10 +1885,12 @@ class MainWindow(QMainWindow):
         self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
         # File: Load a recipe
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action.setToolTip("Open a script file.")
         self.load_action.triggered.connect(self.load_from_file)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
         # File: Save
         self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
+        self.save_action.setToolTip("Save the under the current filename.")
         self.save_action.triggered.connect(self.save_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         # File: Save As...
@@ -1904,9 +1909,13 @@ class MainWindow(QMainWindow):
         self.save_button.setMenu(save_pulldown)
         # File: Add System
         self.add_system_action = QAction(MIcon("CHAR_+"), "Add System", self)
+        self.add_system_action.setToolTip("Add a matrix system file.")
         self.add_system_action.triggered.connect(self.add_system)
         # File: Remove System
         self.remove_system_action = QAction(MIcon("CHAR_-"), "Remove System", self)
+        self.remove_system_action.setToolTip(
+            "Remove the selected or last matrix system file."
+        )
         self.remove_system_action.triggered.connect(self.delete_selected_system)
         # Quit
         self.quit_action = QAction("Quit", self)
@@ -1934,10 +1943,12 @@ class MainWindow(QMainWindow):
         self.paste_action.triggered.connect(self.paste)
         # Control: Start
         self.start_pause_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
+        self.start_pause_action.setToolTip("Execute the script.")
         self.start_pause_action.triggered.connect(self.start_process)
         self.start_pause_action.setCheckable(True)
         # Control: Stop
         self.stop_action = QAction(MIcon("CUSTOM_Stop"), "Stop", self)
+        self.stop_action.setToolTip("Stop the script and query status.")
         self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
         self.stop_action.setEnabled(False)
         # Control: Abort
@@ -2145,7 +2156,6 @@ class MainWindow(QMainWindow):
         #
         control_menu = menu.addMenu("&Control")
         control_menu.addAction(self.start_pause_action)
-        control_menu.addAction(self.stop_action)
         control_menu.addAction(self.abort_action)
         control_menu.addAction(self.finish_action)
         control_menu.addAction(self.kill_action)
@@ -2415,12 +2425,14 @@ class MainWindow(QMainWindow):
         if flag:
             self.start_pause_action.setIcon(MIcon("CUSTOM_Pause"))
             self.start_pause_action.setText("Pause")
+            self.start_pause_action.setToolTip("Pause the currently running script.")
             self.start_pause_action.triggered.disconnect(self.start_process)
             self.start_pause_action.triggered.connect(self.pause_thread)
         else:
             self.clear_annotations()
             self.start_pause_action.setIcon(MIcon("CUSTOM_Play"))
             self.start_pause_action.setText("Start")
+            self.start_pause_action.setToolTip("Execute the script.")
             self.start_pause_action.triggered.disconnect(self.pause_thread)
             self.start_pause_action.triggered.connect(self.start_process)
             self.clear_annotations()
