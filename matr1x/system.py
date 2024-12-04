@@ -33,7 +33,7 @@ import h5py
 import numpy as np
 from pymeasure.instruments import Instrument
 
-from . import VALID_META_KEYS, datetimefmt, output_extension
+from . import VALID_META_KEYS, datetimefmt, get_config_dict, output_extension
 from .util import (
     DcDict,
     construct_query_string,
@@ -348,6 +348,7 @@ class System:
             Name of the measurement system.
         """
         self.__name__ = str(name)
+        self._config = get_config_dict("matr1x.scripts.matrix-script")
         # define merged system reference
         self.merged_system = None
         # initialize lists for later use
@@ -371,7 +372,8 @@ class System:
         self._hdf5 = False
         # data filename variables
         self.filename = None
-        self._file_mode = 'a'
+        self._file_mode = "w"
+        self._datafile_initialized = False
 
         # Dublin Core metadata default entries
         self.dcdata = DcDict(
@@ -542,6 +544,24 @@ class System:
                 self.hdf5 = True
         elif parm.chunks > 1:
             self.hdf5 = True
+
+    def _print(self, *args, **kwargs):
+        """Extend builtin print by optional adding the printout to the datafile.
+
+        The behavior of this function depends on the config option
+        matr1x.scripts.matrix-script.print_to_comment
+
+        Parameters
+        ----------
+        *args : tuple
+            Arguments to pass to print function.
+        **kwargs : dict
+            Keyword arguments to pass to print function.
+        """
+        if self._config["print_to_comment"] and self._datafile_initialized:
+            message = " ".join(str(arg) for arg in args)
+            self.add_comment(message.lstrip("\r"))
+        print(*args, **kwargs)
 
     def generate_datafilename(self, outputfile="", inputfile="", append=False):
         """
@@ -1256,11 +1276,13 @@ class System:
         """
         if output_filename:
             self.filename = output_filename
-        if not output_filename and self._file_mode == "a":
-            # in case append is true, do not create a new header
-            print(f"Appending to datafile: {self.filename}")
-            return
         if exists(self.filename):
+            self._datafile_initialized = True
+            if not output_filename and self._file_mode == "a":
+                # in case append is true, do not create a new header
+                print(f"Appending to datafile: {self.filename}")
+                return
+            print(f"File {self.filename} already exists, not adding header")
             return
         # query info from the devices
         self.query_dict = self.query()
@@ -1315,6 +1337,7 @@ class System:
                 data_file.write(construct_query_string(self.query_dict))
 
                 init_ascii_header(data_file, *telemetry)
+        self._datafile_initialized = True
 
     def take_measurement_point(self, datafilename=None):
         """
@@ -1393,6 +1416,9 @@ class System:
 
         if dfilename is None:
             # if not valid datafile was initialized do nothing.
+            return
+        if not message:
+            # do not add empty comment
             return
 
         timestamp = time.strftime(f"{datetimefmt}", time.localtime())
@@ -1588,6 +1614,25 @@ class MergedSystem(System):
         for subsys in self.subsys:
             subsys.filename = value
         self._filename = value
+
+    @property
+    def _datafile_initialized(self):
+        """Datafile initialized flag property getter."""
+        return all(subsys._datafile_initialized for subsys in self.subsys)
+
+    @_datafile_initialized.setter
+    def _datafile_initialized(self, value):
+        """Set the datafile initialized property.
+
+        This method is needed to keep the flag on the subsystems in sync.
+
+        Parameters
+        ----------
+        value : bool
+            The new value to be set.
+        """
+        for subsys in self.subsys:
+            subsys._datafile_initialized = value
 
     def _merge_dcdata(self):
         class OrderedSetList:

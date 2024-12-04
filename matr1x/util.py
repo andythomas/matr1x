@@ -267,7 +267,7 @@ def module_from_path(filename):
 
 def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
     """
-    Return a formatted line with data values.
+    Output a formatted line with data values.
 
     Parameters
     ----------
@@ -323,6 +323,7 @@ def generate_script_prefix_suffix(systems):
     """
     prefix = textwrap.dedent(
         f"""
+    import builtins as _builtins
     import datetime as _datetime
     import inspect as _inspect
     import math as _math
@@ -452,7 +453,7 @@ def generate_script_prefix_suffix(systems):
     def _inject_decorator(instance, decorator):
         '''Inject decorator into instance methods.'''
         for attr_name in dir(instance):
-            if attr_name in ['add_comment',]:
+            if attr_name in ['add_comment', '_print']:
                 # exclude this methods from decoration since they are
                 # potentially called from inside the decorator. anything called
                 # inside the _interrupt function should be added here/not
@@ -661,6 +662,16 @@ def generate_script_prefix_suffix(systems):
         raise KeyboardInterrupt
 
 
+    @_lineno_decorator
+    def print(*args, **kwargs):
+        '''Use system._print to optionally forward the printed message to the datafile.
+
+        The behavior of this function depends on the config option
+        matr1x.scripts.matrix-script.print_to_comment
+        '''
+        _system._print(*args, **kwargs)
+
+
     # load execution path of scripts and change to this directory
     _configure_execution_path(_scriptname)
     # optionally set user script to be stored in data file
@@ -715,9 +726,9 @@ def generate_script_prefix_suffix(systems):
             append=append)
         if append == False or not _os.path.exists(filename):
             # write header to file
-            print("acquire configuration, and initializing file")
             _system.dcdata["description"] = comment
             _system.init_datafile(_scriptname or "matrix script generated")
+            print("acquired configuration, and initialized file")
         if print_header:
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_system.columns))
@@ -776,12 +787,13 @@ def generate_script_prefix_suffix(systems):
                 remaining = (elapsed/_npoints*_ntot-elapsed)/60
             else:
                 remaining = _math.nan
-            print(_matrix_util.telemetry_string.format(
+            # use builtins.print here to make sure the telemetry do not get added to the datafile
+            _builtins.print(_matrix_util.telemetry_string.format(
                 _npoints, _ntot or -1, elapsed/60, remaining, preread-_preset,
                 _time.time()-preread))
         if print_data or print_telemetry or print_setpoint:
             # isolate different iterations of measure system by a space
-            print("")
+            _builtins.print("")
         _preset = _time.time()
         return return_list
 
@@ -1112,12 +1124,13 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
             end_time = None
             sleep_time = None
             msg = "" if not message else f" ({message})"
+            print_func = system._print if system else print
 
             if duration is not None:
                 sleep_time = duration
                 end_time = now + datetime.timedelta(seconds=sleep_time)
                 if sleep_time > silent or msg:
-                    print(
+                    print_func(
                         f"Waiting {sleep_time:.0f} seconds{msg} until {end_time.strftime('%H:%M:%S')}"
                     )
 
@@ -1175,7 +1188,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                         raise ValueError("Timestamp format not recognized.")
 
                 if end_time < now:
-                    print(
+                    print_func(
                         f"Specified wait until time {end_time.strftime('%Y-%m-%d %H:%M:%S')} is in the past. "
                         "Continuing immediately."
                     )
@@ -1188,7 +1201,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                         sleeptstr = f"{sleep_time:.2f}"
                     else:
                         sleeptstr = f"{sleep_time:.0f}"
-                    print(
+                    print_func(
                         f"Waiting until {end_time.strftime('%Y-%m-%d %H:%M:%S')} (in {sleeptstr} seconds){msg}"
                     )
 
@@ -1227,6 +1240,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                 0  # Tracks cumulative pause duration for duration-based waits
             )
             initial_sleep_time = sleep_time  # Save the initial sleep time for reference
+            print_func = system._print if system else print
 
             while sleep_time > 0:
                 # Calculate remaining time based on the end time for "until" waits
@@ -1241,7 +1255,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                         and end_time
                         and datetime.datetime.now() >= end_time
                     ):
-                        print(
+                        print_func(
                             "\nThe target time passed during pause. Continuing immediately."
                         )
                         return
@@ -1260,13 +1274,15 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                         sleep_time = (
                             end_time - datetime.datetime.now()
                         ).total_seconds()
-                        print(f"\nResuming wait for {sleep_time:.0f} seconds{message}.")
+                        print_func(
+                            f"\nResuming wait for {sleep_time:.0f} seconds{message}."
+                        )
                     else:
                         # For "until" wait, recalculate based on the current end_time
                         sleep_time = max(
                             0, (end_time - datetime.datetime.now()).total_seconds()
                         )
-                        print(
+                        print_func(
                             f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                             f"({sleep_time:.0f} seconds remaining)."
                         )
@@ -1274,6 +1290,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                 # Sleep in precise intervals, adjusting each time
                 if sleep_time > 1:
                     if initial_sleep_time > silent:
+                        # use normal print here to avoid having updates in datafile
                         print(f"\r{int(sleep_time)} seconds remaining", end="")
                     time.sleep(min(1, sleep_time))  # Sleep in chunks
                     sleep_time -= 1
@@ -1282,7 +1299,7 @@ def matrix_script_process(filename, meta_data={}, scriptname=""):
                     break
 
             if initial_sleep_time > silent:
-                print("\rWaiting done")
+                print_func("\rWaiting done")
 
         def check_for_interrupt_and_pause(self, system):
             """Check for interrupt and pause flags and take appropriate action.

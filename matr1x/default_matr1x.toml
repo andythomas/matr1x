@@ -8,6 +8,8 @@ systems_directory = "<pkgroot>/systems"
 [matr1x.scripts.matrix-script]
 script_path = ""
 store_script_in_datafile = false
+duplicate_output_to_logfile = false
+print_to_comment = false
 
 [matr1x.devices.visadevice]
 cmdpers = 30

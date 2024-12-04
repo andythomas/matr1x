@@ -48,8 +48,7 @@ from enum import IntEnum
 from functools import wraps
 from operator import attrgetter
 from subprocess import PIPE, Popen
-from types import TracebackType
-from typing import Optional, TextIO, Type, Union
+from typing import Optional, Union
 
 import numpy
 import psutil
@@ -89,7 +88,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .. import config, datetimefmt, logfolder, system, usersfolder
-from ..gui_util import validator
+from ..gui_util import OutputRedirection, validator
 from ..util import normalize_cmds
 from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
 
@@ -1379,95 +1378,6 @@ def sendNotificationEmail(
                 )
         except Exception as e:
             print("ignoring error during sending email: {}".format(e))
-
-
-class OutputRedirection:
-    """
-    A class for redirecting output to both the original stream and a log file.
-
-    This class is used to duplicate output from a given stream (like stdout or stderr)
-    to both the original destination and a log file. It's particularly useful for
-    preserving output in GUI applications that might crash.
-
-    Attributes
-    ----------
-    terminal : Optional[TextIO]
-        The original stream being redirected. If None, output is only written to the log file.
-    log : TextIO
-        The file object for the log file where output is duplicated.
-    """
-
-    def __init__(
-        self, stream: Optional[TextIO], prefix: str = "control", fallbackname: str = ""
-    ) -> None:
-        """
-        Initialize an object for output duplication into a file.
-
-        Parameters
-        ----------
-        stream : Optional[TextIO]
-            The stream to duplicate output from. If None, only writes to the log file.
-        prefix : str, optional
-            Prefix for the log file name, by default 'control'.
-        fallbackname : str, optional
-            Fallback name for the log file if stream has no name, by default "".
-        """
-        self.terminal = stream
-        if stream is not None:
-            name = stream.name.strip("<>")
-        else:
-            name = fallbackname
-        self.log = open(os.path.join(logfolder, f"{prefix}-{name}.log"), "a")
-        print(f"opening log: {self.log.name}")
-
-    def write(self, message: str) -> None:
-        """
-        Write the message to both the terminal and the log file.
-
-        Parameters
-        ----------
-        message : str
-            The message to be written.
-        """
-        if self.terminal is not None:
-            self.terminal.write(message)
-        if message != "\n":
-            self.log.write(f"{time.strftime(datetimefmt)}: ")
-        self.log.write(message)
-        self.flush()
-
-    def flush(self) -> None:
-        """Flush both the terminal and log file streams."""
-        if self.terminal is not None:
-            self.terminal.flush()
-        self.log.flush()
-
-    def close(self) -> None:
-        """Close the log file."""
-        self.log.close()
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
-    ) -> None:
-        """
-        Exit the context manager and close the log file.
-
-        Parameters
-        ----------
-        exc_type : Optional[Type[BaseException]]
-            The type of the exception that caused the context to be exited.
-            None if no exception occurred.
-        exc_value : Optional[BaseException]
-            The instance of the exception that caused the context to be exited.
-            None if no exception occurred.
-        traceback : Optional[TracebackType]
-            A traceback object encoding the stack trace.
-            None if no exception occurred.
-        """
-        self.close()
 
 
 class SelectLakeshoreInput(QDialog):

@@ -71,6 +71,7 @@ from matr1x.gui_util import (
     MetaDataDialog,
     MIcon,
     MTextEdit,
+    OutputRedirection,
     SystemListWidget,
     TerminationDialog,
     TextInputDialog,
@@ -89,6 +90,7 @@ from matr1x.util import (
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 logger.info("matrix-script starting")
+config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
 # pyflakes warnings that trigger an error
 LINTER_ERRORS = [
@@ -872,7 +874,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         Call the linter for the editor view.
 
         Convenience function to call the linter, generates the script
-        according to what matrix_script would do when one presses the run
+        according to what matrix-script would do when one presses the run
         button. Custom definitions for parameters that are passed by the
         process are made here.
 
@@ -2743,14 +2745,21 @@ def main():
         app.setStyle('fusion')
     elif sys.platform == "darwin":
         set_correct_mac_appname("Matrix Script")
-    app.setDesktopFileName("matrix-script")
+    appname = "matrix-script"
+    app.setDesktopFileName(appname)
     with QtGracefulKiller():
-        if len(sys.argv) < 2:
-            ex = MainWindow()
-        else:
-            ex = MainWindow(filename=sys.argv[1])
+        ex = MainWindow(filename=sys.argv[1] if len(sys.argv) >= 2 else None)
+        if config["duplicate_output_to_logfile"]:
+            sys.stdout = OutputRedirection(sys.stdout, prefix=appname)
+            sys.stderr = OutputRedirection(
+                sys.stderr, prefix=appname, fallbackname="stderr"
+            )
         ex.show()
         ex.restoreState()
         ret = app.exec()
-        sys.stdout = sys.__stdout__
+    if config["duplicate_output_to_logfile"]:
+        sys.stdout.close()
+        sys.stderr.close()
+    sys.stderr = sys.__stderr__
+    sys.stdout = sys.__stdout__
     sys.exit(ret)
