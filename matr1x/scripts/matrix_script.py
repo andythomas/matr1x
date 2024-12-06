@@ -1647,8 +1647,19 @@ class MainWindow(QMainWindow):
             self.color_palette = QApplication.instance().palette()
             self.update_ui()
 
-    def closeEvent(self, event):
-        """Capture close events and ask user whether script should be saved."""
+    def closeEvent(self, event: QEvent) -> None:
+        """
+        Capture close events and ask user whether script should be saved.
+
+        If a script is running, the event is ignored and an explanation is given.
+        If the script was modified without saving and not empty, a dialog asks
+        how to proceed.
+
+        Parameters
+        ----------
+        event : QEvent
+            The received 'close event'
+        """
         if self.is_running:
             QMessageBox.critical(
                 QWidget(),
@@ -1668,7 +1679,9 @@ class MainWindow(QMainWindow):
                 if saved_text == newscript:
                     self.systems_dirty = False
 
-        if self.script_edit.isModified() or self.systems_dirty:
+        if (
+            self.script_edit.isModified() or self.systems_dirty
+        ) and self.script_edit.text() != "":
             qApp = QApplication.instance()
             qApp.processEvents()
             a = QMessageBox(parent=self)
