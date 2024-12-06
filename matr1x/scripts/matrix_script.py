@@ -68,6 +68,7 @@ from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
     EmittingStream,
+    MApplication,
     MetaDataDialog,
     MIcon,
     MTextEdit,
@@ -77,7 +78,6 @@ from matr1x.gui_util import (
     TextInputDialog,
     YesNoAbortDialog,
     detect_shortcut,
-    set_client_decorations,
 )
 from matr1x.scripts import matrix_preview
 from matr1x.util import (
@@ -119,7 +119,7 @@ LINTER_ERRORS = [
 SCRIPT_OFFSET = len(generate_script_prefix_suffix("")[0].splitlines()) + 1
 
 
-class Matr1xApplication(QApplication):
+class Matr1xApplication(MApplication):
     """Enable double-click open on a Mac."""
 
     openfile = pyqtSignal(str)
@@ -1452,7 +1452,6 @@ class MainWindow(QMainWindow):
     def __init__(self, filename=None):
         """Initialize the GUI for scripted matrix control."""
         super().__init__()
-        set_client_decorations(self)
         self.systems = []
         self.scriptname = ""
         self.measurement_file = ""

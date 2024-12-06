@@ -88,7 +88,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .. import config, datetimefmt, logfolder, system, usersfolder
-from ..gui_util import OutputDuplication, validator
+from ..gui_util import MApplication, OutputDuplication, validator
 from ..util import normalize_cmds
 from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
 
@@ -1674,7 +1674,7 @@ def control_main(
         except ImportError:
             pass
 
-    app = QApplication(sys.argv)
+    app = MApplication(sys.argv)
     if os.name == "nt":
         # enable modern mode on windows which allows for darkmode
         app.setStyle("fusion")

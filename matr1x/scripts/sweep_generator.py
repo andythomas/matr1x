@@ -61,10 +61,10 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import (
     AboutBox,
     CustomViewBox,
+    MApplication,
     MIcon,
     MTextEdit,
     SystemListWidget,
-    set_client_decorations,
     validator,
 )
 from matr1x.system import MergedSystem
@@ -273,7 +273,6 @@ class MainWindow(QMainWindow):
 
     def __init__(self, filename=None, system=None, inputcb=None):
         super().__init__()
-        set_client_decorations(self)
         self.setWindowIcon(MIcon("matr1x-sweep-generator.png"))
 
         self.system = system
@@ -1174,7 +1173,7 @@ class MainWindow(QMainWindow):
 
 def main():
     """Set the basic GUI parameters and run."""
-    app = QApplication(sys.argv)
+    app = MApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
         app.setStyle('fusion')

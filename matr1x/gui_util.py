@@ -24,11 +24,13 @@ These are used by sweep-generator, matrix-gui, matrix-preview, and matrix-script
 """
 
 import datetime
+import os
+import sys
 import time
 from importlib.metadata import version as package_version
 from os.path import dirname, expanduser, join, normpath
 from types import TracebackType
-from typing import Any, Dict, Optional, TextIO, Type
+from typing import Any, Dict, Optional, Sequence, TextIO, Type
 
 import numpy as np
 import pygit2
@@ -36,6 +38,7 @@ import pyqtgraph
 from PyQt6.QtCore import (
     QAbstractItemModel,
     QEvent,
+    QLibraryInfo,
     QLocale,
     QModelIndex,
     QObject,
@@ -2754,26 +2757,6 @@ def _set_palette(instance):
 
     instance.setPalette(palette)
 
-
-def set_client_decorations(instance) -> None:
-    """Draw the outline border or other decorations instead of the window manager."""
-    config = load_config()
-    enabled = config["matr1x"]["scripts"].get("client_decorations", False)
-    if enabled:
-        instance.setStyleSheet(
-            """
-                    QMainWindow {
-                        border: 1px solid gray;
-                        border-radius: 10px;
-                    }
-                    QToolBar {
-                        border: 1px solid gray;
-                        border-radius: 5px;
-                    }
-                """
-        )
-
-
 def detect_shortcut(event, shortcut):
     """
     Compare a combination of keys in a string to a keypress event.
@@ -2851,3 +2834,48 @@ class MTextEdit(QTextEdit):
         ):
             _set_palette(self)
             super().changeEvent(event)
+
+
+class MApplication(QApplication):
+    """Fix GUI related issues for all applications."""
+
+    def _list_platform_plugins(self) -> Sequence[str]:
+        """
+        List available platforms by inspecting the platforms directory.
+
+        Returns
+        -------
+        list of str
+            A list consisting of all possible platforms
+        """
+        plugin_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)
+        platforms_path = os.path.join(plugin_path, "platforms")
+
+        if os.path.exists(platforms_path):
+            plugins = [
+                f
+                for f in os.listdir(platforms_path)
+                if os.path.isfile(os.path.join(platforms_path, f))
+            ]
+            platforms = [
+                os.path.splitext(plugin)[0].replace("libq", "") for plugin in plugins
+            ]
+            return platforms
+        else:
+            return []
+
+    def __init__(self, args: Sequence[str]) -> None:
+        """
+        Call init of QApplication and automatically select the xcb client.
+
+        If, for example, wayland is used as the default window manager, the lack of client side decorations
+        would lead to missing visual cues such as window shadows. To regain the visual aids, the client-side is
+        switched to xcb.
+
+        args : list of str
+            Arguments for QApplication
+        """
+        if sys.platform == "linux":
+            if "xcb" in self._list_platform_plugins():
+                os.environ["QT_QPA_PLATFORM"] = "xcb"
+        super().__init__(args)

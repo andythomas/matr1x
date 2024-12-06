@@ -50,11 +50,11 @@ from matr1x.eval import get_latest_datafile
 from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
+    MApplication,
     MetaDataDialog,
     MIcon,
     MLineEdit,
     detect_shortcut,
-    set_client_decorations,
 )
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
@@ -241,7 +241,6 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        set_client_decorations(self)
         self.color_palette = QApplication.instance().palette()
         self.initUI()
         self.sg = None
@@ -781,7 +780,7 @@ class MainWindow(QMainWindow):
 
 def main():
     """Set the basic GUI parameters and run."""
-    app = QApplication(sys.argv)
+    app = MApplication(sys.argv)
     if os.name == 'nt':
         # enable modern mode on windows which allows for darkmode
         app.setStyle('fusion')
