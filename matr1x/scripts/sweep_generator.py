@@ -348,7 +348,7 @@ class MainWindow(QMainWindow):
         else:
             self.toolbar.hide()
 
-    def init_ui(self):
+    def init_ui(self) -> None:
         """Generate the main GUI."""
         self.setWindowTitle("Sweep Generator")
         # About
@@ -368,6 +368,7 @@ class MainWindow(QMainWindow):
         self.remove_system_action = QAction(
             MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
         )
+        self.remove_system_action.setEnabled(False)
         self.remove_system_action.triggered.connect(self.delete_selected_system)
         # System list
         self.systemList = SystemListWidget(self)
@@ -1021,8 +1022,12 @@ class MainWindow(QMainWindow):
             else:
                 self.clear_layout(item)
 
-    def add_system(self):
-        """Opes a QFileDialog with filter system*.py."""
+    def add_system(self) -> None:
+        """
+        Add a system file to the system list.
+
+        Opens a QFileDialog with filter system*.py.
+        """
         directory = system_directories[-1]
         if not self.shortcut_dir and len(system_names) > 1:
             self.shortcut_dir = create_temp_dir_with_symlinks(
@@ -1045,22 +1050,20 @@ class MainWindow(QMainWindow):
                 self.systemList.addItem(module_name)
             else:
                 self.systemList.addItem(filename)
+        self.remove_system_action.setEnabled(True)
         self.filename_changed()
 
-    def delete_selected_system(self):
-        """Remove selected system from systemList.
-
-        If no selection is active the last system will be removed.
-        """
-        # remove selected system
+    def delete_selected_system(self) -> None:
+        """Remove selected or last system from the system list."""
         selected = self.systemList.selectedItems()
         if len(selected) > 0:
             self.systemList.takeItem(self.systemList.row(selected[0]))
-        elif 0 < self.systemList.count():  # remove last item
+        elif 0 < self.systemList.count():
             self.systemList.takeItem(self.systemList.count()-1)
         else:
             return
-        # update system definition
+        if self.systemList.count() == 0:
+            self.remove_system_action.setEnabled(False)
         self.filename_changed()
 
     def save_file_as(self):

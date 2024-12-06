@@ -1852,7 +1852,7 @@ class MainWindow(QMainWindow):
         else:
             self.config_editor.hide()
 
-    def init_ui(self):
+    def init_ui(self) -> None:
         """Generate the main GUI."""
         self.setWindowIcon(MIcon("matr1x-matrix-script.png"))
         self.central_widget = DroppableWidget(self)
@@ -1914,6 +1914,7 @@ class MainWindow(QMainWindow):
         self.add_system_action.triggered.connect(self.add_system)
         # File: Remove System
         self.remove_system_action = QAction(MIcon("CHAR_-"), "Remove System", self)
+        self.remove_system_action.setEnabled(False)
         self.remove_system_action.setToolTip(
             "Remove the selected or last matrix system file."
         )
@@ -2186,8 +2187,12 @@ class MainWindow(QMainWindow):
             text += "<unsaved>"
         self.setWindowTitle(text)
 
-    def add_system(self):
-        """Open a QFileDialog with filter system*.py."""
+    def add_system(self) -> None:
+        """
+        Add a system file to the system list.
+
+        Opens a QFileDialog with filter system*.py.
+        """
         directory = matr1x.system_directories[-1]
         if not self.shortcut_dir and len(matr1x.system_names) > 1:
             self.shortcut_dir = create_temp_dir_with_symlinks(
@@ -2211,12 +2216,13 @@ class MainWindow(QMainWindow):
                 self.system_list.addItem(module_name)
             else:
                 self.system_list.addItem(filename)
+        self.remove_system_action.setEnabled(True)
         self.systems_dirty = True
         self.update_window_title()
         # update systems to use list for config editor
         self.update_systems()
 
-    def delete_selected_system(self):
+    def delete_selected_system(self) -> None:
         """
         Remove selected system from system_list.
 
@@ -2227,6 +2233,8 @@ class MainWindow(QMainWindow):
             self.system_list.takeItem(self.system_list.row(selected[0]))
         elif 0 < self.system_list.count():
             self.system_list.takeItem(self.system_list.count()-1)
+        if self.system_list.count() == 0:
+            self.remove_system_action.setEnabled(False)
         self.systems_dirty = True
         self.update_window_title()
         self.update_systems()
