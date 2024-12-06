@@ -169,6 +169,10 @@ class Parameter():
     trigger : callable, str, or list, optional
         Takes a trigger function. The options are equal to the getter options. For
         the optional arguments and kwargs use trigger_args/trigger_kwargs.
+    label : str, optional
+        Parameters label if different from name. This might be in particular
+        needed if an automatically generated label from a name-list is not
+        describing the content very well.
 
     Attributes
     ----------
@@ -182,11 +186,24 @@ class Parameter():
         If parameter types are incorrect.
     """
 
-    def __init__(self, name, unit, setter=None, getter=None,
-                 default=None, dtypes=None, chunks=None, trigger=None,
-                 setter_args=None, setter_kwargs=None,
-                 getter_args=None, getter_kwargs=None,
-                 trigger_args=None, trigger_kwargs=None):
+    def __init__(
+        self,
+        name,
+        unit,
+        setter=None,
+        getter=None,
+        default=None,
+        dtypes=None,
+        chunks=None,
+        trigger=None,
+        setter_args=None,
+        setter_kwargs=None,
+        getter_args=None,
+        getter_kwargs=None,
+        trigger_args=None,
+        trigger_kwargs=None,
+        label=None,
+    ):
         # general error checking
         if any([isinstance(name, (list, tuple)),
                 isinstance(unit, (list, tuple))]):
@@ -224,6 +241,10 @@ class Parameter():
         # set identifiers
         self.unit = self.verify(unit, str)
         self.name = self.verify(name, str)
+        if label:
+            self.label = self.make_command_line_compatible(label)
+        else:
+            self.label = self.make_command_line_compatible(self.name)
         if dtypes is None:
             # initialize dtypes to default value if unspecified
             if isinstance(self.unit, (list, tuple)):
@@ -268,6 +289,34 @@ class Parameter():
         if self.name == other.name and self.unit == other.unit:
             return True
         return False
+
+    @staticmethod
+    def make_command_line_compatible(s):
+        """Convert input string(s) to command line argument format.
+
+        Replaces non-alphanumeric characters with hyphens, converts to
+        lowercase, and prepends with double dashes. If a list of strings is
+        given only the first entry is used for the output generation.
+
+        Parameters
+        ----------
+        s : str or list of str
+            Input string(s) to convert to command line argument format.
+
+        Returns
+        -------
+        str
+            Command line argument compatible representation of the input string.
+        """
+        # If input is a list/tuple, use first element
+        if isinstance(s, (list, tuple)):
+            s = s[0]
+
+        # Replace non-alphanumeric characters with hyphens, convert to lowercase, and strip extra hyphens
+        s = re.sub(r"[^a-zA-Z0-9]", "-", s).strip("-").lower()
+
+        # Handle empty string fallback
+        return s if s else "arg"
 
     def verify(self, param, cast):
         """
@@ -353,11 +402,6 @@ class System:
         self.merged_system = None
         # initialize lists for later use
         self.parameters = []
-        self.columns = []
-        self.default_values = []
-        self.units = []
-        self.dtypes = []
-        self.chunks = []
 
         # initialize devices dict
         self.devs = {}
@@ -448,17 +492,41 @@ class System:
     @property
     def hdf5(self):
         """
-        Define whether the system requires the hdf5 format.
+        Get whether the system requires or uses HDF5 format for data storage.
+
+        This property determines if HDF5 format is needed based on the structure
+        of parameter chunks. HDF5 is required if any parameter:
+        - Has a list/tuple of chunks but single name
+        - Has nested tuple chunks
+        - Has any chunk size greater than 1
 
         Returns
         -------
         bool
-            True if the system has readout parameters that provide a full list of values.
+            True if HDF5 format is required, False if plain text format can be used.
         """
+        # check if hdf5 format has to be used
+        for parm in self.parameters:
+            if isinstance(parm.chunks, (list, tuple)):
+                if not isinstance(parm.name, (list, tuple)):
+                    self.hdf5 = True
+                elif any([isinstance(p, (tuple,)) for p in parm.chunks]):
+                    self.hdf5 = True
+                elif any([p > 1 for p in parm.chunks]):
+                    self.hdf5 = True
+            elif parm.chunks > 1:
+                self.hdf5 = True
         return self._hdf5
 
     @hdf5.setter
-    def hdf5(self, value):
+    def hdf5(self, value: bool) -> None:
+        """Set the HDF5 format flag and update the data format accordingly.
+
+        Parameters
+        ----------
+        value : bool
+            Whether to use HDF5 format (True) or plain text format (False)
+        """
         self._hdf5 = value
         if value is True:
             self.dcdata["format"] = "application/x-hdf5"
@@ -488,7 +556,6 @@ class System:
                                          getter_kwargs=getter_kwargs,
                                          trigger_args=trigger_args,
                                          trigger_kwargs=trigger_kwargs))
-        self.add_parameter_to_lists(self.parameters[-1])
 
     def add_dev(self, name, descriptor, args=None, kwargs=None,
                 config_params=None):
@@ -522,28 +589,71 @@ class System:
         if config_params is not None:
             self.system_config_params[name] = config_params
 
-    def add_parameter_to_lists(self, parm):
-        """
-        Take an individual parameter and append it to the lists.
+    @property
+    def columns(self) -> List[str]:
+        """Return a list of column names extracted from parameters.
 
-        These lists are used to interact with the matrix as well as the
-        sweep_generator.
+        Returns
+        -------
+        list
+            List containing the name of each parameter column
         """
-        self.columns.append(parm.name)
-        self.units.append(parm.unit)
-        self.default_values.append(parm.default)
-        self.chunks.append(parm.chunks)
-        self.dtypes.append(parm.dtypes)
-        # check if hdf5 format has to be used
-        if isinstance(parm.chunks, (list, tuple)):
-            if not isinstance(parm.name, (list, tuple)):
-                self.hdf5 = True
-            elif any([isinstance(p, (tuple,)) for p in parm.chunks]):
-                self.hdf5 = True
-            elif any([p > 1 for p in parm.chunks]):
-                self.hdf5 = True
-        elif parm.chunks > 1:
-            self.hdf5 = True
+        return [parm.name for parm in self.parameters]
+
+    @property
+    def labels(self) -> List[str]:
+        """Return a list of labels extracted from parameters.
+
+        Returns
+        -------
+        list
+            List containing the label of each parameter
+        """
+        return [parm.label for parm in self.parameters]
+
+    @property
+    def units(self) -> List[str]:
+        """Return a list of units extracted from parameters.
+
+        Returns
+        -------
+        list
+            List containing the units of each parameter
+        """
+        return [parm.unit for parm in self.parameters]
+
+    @property
+    def default_values(self) -> List[Union[None, float, list, tuple]]:
+        """Return a list of default values extracted from parameters.
+
+        Returns
+        -------
+        list
+            List containing the default value of each parameter
+        """
+        return [parm.default for parm in self.parameters]
+
+    @property
+    def chunks(self) -> List[Union[int, list, tuple]]:
+        """Return a list of chunks extracted from parameters.
+
+        Returns
+        -------
+        list
+            List containing the chunks of each parameter
+        """
+        return [parm.chunks for parm in self.parameters]
+
+    @property
+    def dtypes(self) -> List[Union[str, list, tuple]]:
+        """Return a list of dtypes extracted from parameters.
+
+        Returns
+        -------
+        list
+            List containing the dtype of each parameter
+        """
+        return [parm.dtypes for parm in self.parameters]
 
     def _print(self, *args, **kwargs):
         """Extend builtin print by optional adding the printout to the datafile.
@@ -642,27 +752,9 @@ class System:
         return self.filename
 
     def clear_parameters(self):
-        """Clear all system parameters and the lists that have been generated."""
-        del (self.parameters, self.columns, self.default_values,
-             self.units, self.dtypes, self.chunks)
+        """Clear all system parameters."""
+        del self.parameters
         self.parameters = []
-        self.columns = []
-        self.default_values = []
-        self.units = []
-        self.dtypes = []
-        self.chunks = []
-
-    def generate_lists(self):
-        """
-        Generate the necessary lists from the parameters defined above.
-
-        These lists are used to interact with the matrix as well as the
-        sweep_generator.
-        This command is only used when a new system is dynamically created from
-        a list of parameters.
-        """
-        for parm in self.parameters:
-            self.add_parameter_to_lists(parm)
 
     def _inform_exception(self, i, func, action):
         """
@@ -1533,9 +1625,6 @@ class MergedSystem(System):
                     f"removing duplicated column {param.name} from merged system")
                 self.parameters.remove(param)
         self.parameters.reverse()
-
-        # generate lists for new system
-        self.generate_lists()
 
         # add timeUTC if not in system yet
         if "timeUTC" not in self.columns:
