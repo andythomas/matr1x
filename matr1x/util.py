@@ -2178,6 +2178,7 @@ class DcDict(dict):
 
     This class extends the built-in dictionary class to modify its behavior
     when in append mode or when a merged system exists.
+    In append mode non-empty entries are extended.
 
     Methods
     -------
@@ -2209,7 +2210,7 @@ class DcDict(dict):
             self._append_value(
                 key, value, ";@set:", ref=self.system_ref.merged_system.dcdata
             )
-        elif self.append:
+        elif self.append and self[key]:
             # read only mode is enabled, append values
             self._append_value(key, value, ";@ap:")
         else:
