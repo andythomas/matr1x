@@ -39,6 +39,7 @@ dependencies = [
     "tomli-w",
 ]
 [project.optional-dependencies]
+elab = ["elabapi_python", "jinja2"]
 spi = ["spidev", "RPi"]
 standa = ["PyUSMC", "pyximc"]
 
