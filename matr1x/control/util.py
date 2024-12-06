@@ -88,7 +88,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .. import config, datetimefmt, logfolder, system, usersfolder
-from ..gui_util import OutputRedirection, validator
+from ..gui_util import OutputDuplication, validator
 from ..util import normalize_cmds
 from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
 
@@ -1708,8 +1708,8 @@ Kill the other process ({otherpid}) before restarting.""",
     logger.info("Starting GUI")
     with QtGracefulKiller():
         with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
-            sys.stdout = OutputRedirection(sys.stdout, prefix=f"{package}.{name}")
-            sys.stderr = OutputRedirection(
+            sys.stdout = OutputDuplication(sys.stdout, prefix=f"{package}.{name}")
+            sys.stderr = OutputDuplication(
                 sys.stderr, prefix=f"{package}.{name}", fallbackname="stderr"
             )
             ret = app.exec()

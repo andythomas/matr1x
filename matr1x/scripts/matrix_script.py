@@ -71,7 +71,7 @@ from matr1x.gui_util import (
     MetaDataDialog,
     MIcon,
     MTextEdit,
-    OutputRedirection,
+    OutputDuplication,
     SystemListWidget,
     TerminationDialog,
     TextInputDialog,
@@ -2750,8 +2750,8 @@ def main():
     with QtGracefulKiller():
         ex = MainWindow(filename=sys.argv[1] if len(sys.argv) >= 2 else None)
         if config["duplicate_output_to_logfile"]:
-            sys.stdout = OutputRedirection(sys.stdout, prefix=appname)
-            sys.stderr = OutputRedirection(
+            sys.stdout = OutputDuplication(sys.stdout, prefix=appname)
+            sys.stderr = OutputDuplication(
                 sys.stderr, prefix=appname, fallbackname="stderr"
             )
         ex.show()

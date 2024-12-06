@@ -2256,9 +2256,9 @@ class EmittingStream(QObject):
         pass
 
 
-class OutputRedirection:
+class OutputDuplication:
     """
-    A class for redirecting output to both the original stream and a log file.
+    A class for duplicating print output to both the original stream and a log file.
 
     This class is used to duplicate output from a given stream (like stdout or stderr)
     to both the original destination and a log file. It's particularly useful for
@@ -2267,9 +2267,9 @@ class OutputRedirection:
     Attributes
     ----------
     terminal : Optional[TextIO]
-        The original stream being redirected. If None, output is only written to the log file.
+        The original stream being duplicated. If None, only log is used.
     log : TextIO
-        The file object for the log file where output is duplicated.
+        The file object for the log file where output is additionally written.
     """
 
     def __init__(
