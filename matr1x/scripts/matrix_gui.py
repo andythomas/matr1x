@@ -319,15 +319,27 @@ class MainWindow(QMainWindow):
         box.exec()
         return
 
-    def saveCurrentState(self):
-        """Save window and toolbar placement."""
+    def saveCurrentState(self) -> None:
+        """
+        Save application configuration until next startup.
+
+        For convenience, main window size, position and layout, the toolbar placement,
+        and the size and position of metadata and configuration pane are saved.
+        """
         self.settings.setValue("position", self.pos())
         self.settings.setValue("size", self.size())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
         self.settings.setValue("metadata_size", self.w_dockable_metadata.size())
+        self.settings.setValue("config_position", self.config_editor.pos())
+        self.settings.setValue("config_size", self.config_editor.size())
 
-    def restoreState(self):
-        """Restore window and toolbar placement."""
+    def restoreState(self) -> None:
+        """
+        Restore application configuration to look similar to the previous use.
+
+        Main window size, position and layout, the toolbar placement, and the size and
+        position of metadata and configuration pane are restored.
+        """
         self.addToolBar(
             self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
             self.toolbar,
@@ -343,6 +355,12 @@ class MainWindow(QMainWindow):
                 ).width()
             ],
             Qt.Orientation.Horizontal,
+        )
+        self.config_editor.move(
+            self.settings.value("config_position", self.config_editor.pos())
+        )
+        self.config_editor.resize(
+            self.settings.value("config_size", self.config_editor.size())
         )
 
     def toggle_preferences(self, checked):

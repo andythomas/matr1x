@@ -1516,8 +1516,12 @@ class MainWindow(QMainWindow):
         if filename is not None:
             self.load_from_filename(filename)
 
-    def saveCurrentState(self):
-        """Save current geometry and dock items."""
+    def saveCurrentState(self) -> None:
+        """Save application configuration until next startup.
+
+        For convenience, main window size, position and layout, the toolbar placement,
+        and the size and position of metadata and configuration pane are saved.
+        """
         self.settings.setValue("created", 1)
         self.settings.beginGroup("MainWindow")
         self.settings.setValue("position", self.pos())
@@ -1553,8 +1557,18 @@ class MainWindow(QMainWindow):
         self.settings.setValue("size", self.dockable_metadata.size())
         self.settings.endGroup()
 
-    def restoreState(self):
-        """Load saved geometry and dock items."""
+        self.settings.beginGroup("config_editor")
+        self.settings.setValue("position", self.config_editor.pos())
+        self.settings.setValue("size", self.config_editor.size())
+        self.settings.endGroup()
+
+    def restoreState(self) -> None:
+        """
+        Restore application configuration to look similar to the previous use.
+
+        Main window size, position and layout, the toolbar placement, and the size and
+        position of metadata and configuration pane are restored.
+        """
         recommended_size = self.sizeHint()
         self.settings.beginGroup("MainWindow")
         self.move(self.settings.value("position", self.pos()))
@@ -1630,6 +1644,15 @@ class MainWindow(QMainWindow):
                     ],
                     Qt.Orientation.Horizontal,
                 )
+            self.settings.endGroup()
+
+            self.settings.beginGroup("config_editor")
+            self.config_editor.move(
+                self.settings.value("position", self.config_editor.pos())
+            )
+            self.config_editor.resize(
+                self.settings.value("size", self.config_editor.size())
+            )
             self.settings.endGroup()
 
     def keyPressEvent(self, event: QKeyEvent):
