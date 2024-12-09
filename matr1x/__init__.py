@@ -166,6 +166,12 @@ def write_config(config_dict):
             tomli_w.dump(user_config, toml_file)
 
 
+def reload_config():
+    """Reload the configuration dictionary."""
+    global config
+    config = load_config()
+
+
 # load config and combine values from multiple sources
 config = load_config()
 

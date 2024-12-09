@@ -43,6 +43,7 @@ from PyQt6.QtCore import (
     QModelIndex,
     QObject,
     QPoint,
+    QSortFilterProxyModel,
     Qt,
     pyqtSignal,
 )
@@ -66,6 +67,8 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDockWidget,
+    QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QGridLayout,
@@ -79,6 +82,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSlider,
+    QSpinBox,
     QStyle,
     QStyledItemDelegate,
     QTextEdit,
@@ -246,6 +250,53 @@ class QRangeWidget(QGroupBox):
         return self.slider.maximum()
 
 
+class FileLineEdit(QLineEdit):
+    """
+    Widget that displays a LineEdit with a button that opens a QFileDialog.
+
+    This widget consists of a QLineEdit and a FileDialog. Upon return the
+    selected filename is passed to the callback function provided as argument
+    """
+
+    def __init__(self, callback, parent=None, spec="file"):
+        super().__init__(parent)
+
+        self.callback = callback
+        self.spec = spec
+        # Create the QLineEdit and QPushBottn
+        self.dialog_button = QToolButton(self)
+        self.dialog_button.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
+        )
+        self.dialog_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.dialog_button.setToolTip("Open file dialog")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addStretch()
+        layout.addWidget(self.dialog_button)
+        self.setLayout(layout)
+
+        self.dialog_button.clicked.connect(self._open_file_dialog)
+
+    def _open_file_dialog(self):
+        dialog = QFileDialog(self.parent())
+        if self.spec == "file":
+            dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+            dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+            dialog.setOption(QFileDialog.Option.DontConfirmOverwrite)
+        else:
+            dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+            dialog.setFileMode(QFileDialog.FileMode.Directory)
+            dialog.setOption(QFileDialog.Option.ShowDirsOnly)
+
+        if dialog.exec():
+            # pass value to callback
+            if len(dialog.selectedFiles()) > 0:
+                self.callback(dialog.selectedFiles()[0])
+
+
 class SystemListWidget(QListWidget):
     """
     A custom QListWidget that allows drag-and-drop reordering of items.
@@ -344,18 +395,85 @@ class MetaViewerWidget(QDockWidget):
 
             Returns
             -------
-            QTextEdit
-                A custom QTextEdit widget configured for editing.
+            Widget according to variable type
+                A widget configured for editing, widget type depends on
+                variable type (str - QTextEdit, str/path - FileLineEdit,
+                int - QSpinBox, float - QDoubleSpinBox, any/strict - QComboBox).
             """
+            cast_type, cast_spec = index.model().type(index)
+            item = index.internalPointer()
+            item.setData(index, "", Qt.ItemDataRole.DisplayRole)
             # Create a QTextEdit for more advanced text selection
-            editor = QTextEdit(parent)
+            if isinstance(cast_spec, map):
+                # strict, use combobox
+                editor = QComboBox(parent)
+                editor.insertItems(0, [i for i in map(str, cast_spec)])
+                editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
+            elif cast_type[0] is bool:
+                editor = QCheckBox(parent)
+                editor.setStyleSheet("QCheckBox { border: none; padding: 0px; }")
+            elif cast_type[0] is int:
+                editor = QSpinBox(parent)
+                if not cast_spec:
+                    # unbounded
+                    editor.setRange(-int(1e9), int(1e9))
+                elif len(cast_spec) == 1:
+                    # lower bound
+                    editor.setRange(cast_spec[0], int(1e9))
+                elif len(cast_spec) == 2:
+                    # lower and upper bound
+                    editor.setRange(cast_spec[0], cast_spec[1])
+                elif len(cast_spec) == 3:
+                    # lower and upper bound and step
+                    editor.setRange(cast_spec[0], cast_spec[1])
+                    editor.setSingleStep(cast_spec[2])
+                else:
+                    # unbounded and something is wrong with config
+                    # raise error?
+                    editor.setRange(-int(1e9), int(1e9))
+                editor.setStyleSheet("QSpinBox { border: none; padding: 0px; }")
+            elif cast_type[0] is float:
+                editor = QDoubleSpinBox(parent)
+                if cast_type[1]:
+                    editor.setDecimals(cast_type[1])
+                if not cast_spec:
+                    # unbounded
+                    editor.setRange(-1e9, 1e9)
+                elif len(cast_spec) == 1:
+                    # lower bound
+                    editor.setRange(cast_spec[0], 1e9)
+                elif len(cast_spec) == 2:
+                    # lower and upper bound
+                    editor.setRange(cast_spec[0], cast_spec[1])
+                elif len(cast_spec) == 3:
+                    # lower and upper bound and step
+                    editor.setRange(cast_spec[0], cast_spec[1])
+                    editor.setSingleStep(cast_spec[2])
+                else:
+                    # unbounded and something is wrong with config
+                    # raise error?
+                    editor.setRange(-1e9, 1e9)
+                editor.setStyleSheet("QDoubleSpinBox { border: none; padding: 0px; }")
+            elif cast_type[0] is str and cast_spec in ["file", "folder"]:
+
+                def cb(value):
+                    # I do not like this callback function.
+                    # Can this be done with signals?
+                    index.model().setData(index, value, Qt.ItemDataRole.EditRole)
+                    index.model().dataChanged.emit(index, index)
+
+                editor = FileLineEdit(cb, parent, cast_spec)
+                editor.setStyleSheet("QLineEdit { border: none; padding: 0px; }")
+            else:
+                editor = QTextEdit(parent)
+                editor.setStyleSheet("QTextBox { border: none; padding: 0px; }")
+                # disable frame remove margins and scroll bar
+                editor.setFrameStyle(0)
+                editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             # Make it read-only, but still allow text selection
-            editor.setReadOnly(not self.editable)
-            # disable frame of textedit, remove margins and scroll bar
-            editor.setFrameStyle(0)
-            editor.setStyleSheet("QTextEdit { border: none; padding: 0px; }")
+            if not isinstance(editor, (QComboBox, QCheckBox)):
+                editor.setReadOnly(not self.editable)
             editor.setContentsMargins(0, 0, 0, 0)
-            editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             return editor
 
         def setEditorData(self, editor, index):
@@ -369,8 +487,34 @@ class MetaViewerWidget(QDockWidget):
             index : QModelIndex
                 The index of the item being edited.
             """
-            value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
-            editor.setText(value)
+            value = index.model().data(index, Qt.ItemDataRole.EditRole)
+            if isinstance(editor, QTextEdit):
+                editor.setText(value)
+            elif isinstance(editor, QCheckBox):
+                try:
+                    editor.setChecked(value.lower() == "true")
+                except ValueError:
+                    # should only happen when previous value is present
+                    # in editor (edited in the file)
+                    editor.setValue(False)
+            elif isinstance(editor, FileLineEdit):
+                editor.setText(value)
+            elif isinstance(editor, QComboBox):
+                editor.setCurrentText(value)
+            elif isinstance(editor, QSpinBox):
+                try:
+                    editor.setValue(int(value))
+                except ValueError:
+                    # should only happen when previous value is present
+                    # in editor (edited in the file)
+                    editor.setValue(0)
+            elif isinstance(editor, QDoubleSpinBox):
+                try:
+                    editor.setValue(float(value))
+                except ValueError:
+                    # should only happen when previous value is present
+                    # in editor (edited in the file)
+                    editor.setValue(0)
 
         def setModelData(self, editor, model, index):
             """
@@ -385,8 +529,23 @@ class MetaViewerWidget(QDockWidget):
             index : QModelIndex
                 The index of the item being edited.
             """
-            value = editor.toPlainText()
+            if isinstance(editor, QTextEdit):
+                value = editor.toPlainText()
+            elif isinstance(editor, QCheckBox):
+                value = bool(editor.isChecked())
+            elif isinstance(editor, FileLineEdit):
+                value = editor.text()
+            elif isinstance(editor, QComboBox):
+                value = editor.currentText()
+            elif isinstance(editor, (QSpinBox, QDoubleSpinBox)):
+                value = editor.value()
             index.model().setData(index, value, Qt.ItemDataRole.EditRole)
+
+        def sizeHint(self, option, index):
+            """Return size hint of editor widget."""
+            sizeHint = super().sizeHint(option, index)
+            # sizeHint.setHeight(50)
+            return sizeHint
 
     class TreeItem:
         """
@@ -411,28 +570,115 @@ class MetaViewerWidget(QDockWidget):
             The key or identifier for this item.
         value : Any
             The value associated with this item.
+        types : Any
+            The type associated with this item.
         """
 
-        def __init__(self, key, value, parent=None):
+        def parse_config_type(self, cast_type_spec):
+            """
+            Parse type info from type string provided in matr1x config.
+
+            Arguments
+            ---------
+            cast_type_spec : string
+                string according to the matr1x config type format
+
+            Returns
+            -------
+            cast_type : tuple of type + additional parameter (used only for float)
+                first entry contains type of config variable (str, int, float)
+                second entry contains number of decimals for float display
+            cast_spec : tuple, map, str or None
+                provides the specifications for the type. Can be either
+                range limits ([low, high, step], value map for strict variable,
+                or "folder"/"file" for path variables
+            """
+            if not cast_type_spec:
+                return ((str, None), None)
+            # alternative way of parsing using regex:
+            # regex =  r"(\w+)(?:;;(\d+))?(?:;;(folder|file|strict|range))?(?:;;(\S+))?"
+            cast_split = cast_type_spec.split(";;")
+            try:
+                # make sure type is interpreted correctly
+                cast_type = (globals()["__builtins__"][cast_split[0]], None)
+            except AttributeError:
+                raise AttributeError("Wrong type specified in config")
+            if len(cast_split) == 1:
+                # only type is specified
+                return (cast_type, None)
+            if cast_type[0] is float:
+                # on float, second parameter can be number of digits
+                try:
+                    cast_type = (cast_type[0], int(cast_split[1]))
+                    cast_split.pop(1)  # remove entry
+                    if len(cast_split) == 1:
+                        # only type and decimals are specified
+                        return (cast_type, None)
+                except ValueError:
+                    pass  # variable not a digit, keep parsing
+            if cast_split[1] == "strict":
+                # strict type, following values are list, make sure they
+                # are interepreted as the correct type
+                try:
+                    return (cast_type, map(cast_type[0], cast_split[2:]))
+                except TypeError:
+                    raise TypeError("Wrong value specified for strict config setting")
+            if cast_split[1] == "range":
+                # range type, create range spec
+                if len(cast_split) < 3:
+                    raise IndexError("Range value missing in config")
+                try:
+                    return (cast_type, [i for i in map(cast_type[0], cast_split[2:])])
+                except TypeError:
+                    raise TypeError("Wrong value specified for range config setting")
+            if cast_type[0] is str and (
+                cast_split[1] == "folder" or cast_split[1] == "file"
+            ):
+                # file/folder path
+                return (cast_type, cast_split[1])
+            # something went wrong with parsing the settings, use default
+            return ((str, None), None)
+
+        def __init__(self, key, value, types=None, parent=None):
             self.parent_item = parent
             self.child_items = []
 
             self.key = key
             self.value = value
+            self._type = types
+            self.hidden = False
 
             # If value is a dict, convert its items to TreeItem children
             if isinstance(self.value, dict):
                 for child_key, child_value in value.items():
+                    cast_type = "str"
+                    if isinstance(self._type, dict):
+                        if self._type[child_key]:
+                            cast_type = self._type[child_key]
+                    else:
+                        if self._type:
+                            cast_type = self._type
                     self.child_items.append(
-                        MetaViewerWidget.TreeItem(child_key, child_value, self)
+                        MetaViewerWidget.TreeItem(
+                            child_key, child_value, cast_type, self
+                        )
                     )
             elif isinstance(self.value, (tuple, list, np.ndarray)):
                 # for lists with finite length also use nest view
                 # key is list index
+                cast_type = "str"
+                if isinstance(self._type, dict):
+                    if self._type[child_key]:
+                        cast_type = self._type[child_key]
+                else:
+                    if self._type:
+                        cast_type = self._type
                 if len(self.value) > 1:
                     for i, child_value in enumerate(self.value):
                         self.child_items.append(
-                            MetaViewerWidget.TreeItem(f"{i}", child_value, self)
+                            MetaViewerWidget.TreeItem(
+                                f"{i}", child_value, cast_type, parent=self
+                            )
                         )
                 elif len(self.value) == 1:
                     # only list with length one, use that element only
@@ -479,7 +725,7 @@ class MetaViewerWidget(QDockWidget):
             """
             return 2  # Key and Value columns
 
-        def data(self, column):
+        def type(self, column):
             """
             Get the data for the specified column.
 
@@ -494,11 +740,39 @@ class MetaViewerWidget(QDockWidget):
                 The data for the specified column.
             """
             if column == 0:
+                return "str", None
+            elif column == 1:
+                if isinstance(self.value, (tuple, list, dict, np.ndarray)):
+                    # empty widgets are of type str
+                    return "str", None
+                return self.parse_config_type(self._type)
+            return None
+
+        def data(self, column, role):
+            """
+            Get the data for the specified column.
+
+            Parameters
+            ----------
+            column : int
+                The column index (0 for Key, 1 for Value).
+            read_hidden : bool
+                If true, yield the hidden value, else show nothing if hidden
+
+            Returns
+            -------
+            str
+                The data for the specified column.
+            """
+            if column == 0:
                 return self.key
             elif column == 1:
                 if isinstance(self.value, (tuple, list, dict, np.ndarray)):
                     # Display an empty value if it's a nested iterable
                     return ""
+                if self.hidden and role == Qt.ItemDataRole.DisplayRole:
+                    # editor is active, act like there is no value
+                    return str("")
                 return str(self.value)  # Convert non-dict values to string
             return None
 
@@ -521,7 +795,11 @@ class MetaViewerWidget(QDockWidget):
                 if self.child_count() > 0:
                     # prevent writing into the header lines
                     return None
-                self.value = value
+                if role == Qt.ItemDataRole.EditRole:
+                    self.value = value
+                    self.hidden = False
+                else:
+                    self.hidden = True
 
         def parent(self):
             """
@@ -585,7 +863,36 @@ class MetaViewerWidget(QDockWidget):
             item = index.internalPointer()
 
             if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
-                return item.data(index.column())
+                return item.data(index.column(), role)
+
+            if role == Qt.ItemDataRole.TextAlignmentRole:
+                return Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+
+            return None
+
+        def type(self, index, role=Qt.ItemDataRole.DisplayRole):
+            """
+            Return data for the given index and role.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The index of the item.
+            role : Qt.ItemDataRole, optional
+                The role of the data being requested.
+
+            Returns
+            -------
+            Any
+                The type for the given index and role.
+            """
+            if not index.isValid():
+                return None
+
+            item = index.internalPointer()
+
+            if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
+                return item.type(index.column())
 
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
@@ -720,7 +1027,7 @@ class MetaViewerWidget(QDockWidget):
 
             return self.createIndex(parent_item.row(), 0, parent_item)
 
-        def resetData(self, data):
+        def resetData(self, data, types=None):
             """
             Reset the model with new data.
 
@@ -728,10 +1035,12 @@ class MetaViewerWidget(QDockWidget):
             ----------
             data : dict
                 The new hierarchical data to be displayed in the tree.
+            types : dict
+                Types of the displayed data
             """
             self.beginResetModel()
             del self.root_item
-            self.root_item = MetaViewerWidget.TreeItem("Root", data)
+            self.root_item = MetaViewerWidget.TreeItem("Root", data, types)
             self.endResetModel()
 
         def rowCount(self, parent=QModelIndex()):
@@ -807,7 +1116,7 @@ class MetaViewerWidget(QDockWidget):
         #     }
         # """)
 
-    def update_data(self, meta):
+    def update_data(self, meta, types={}):
         """
         Update data stored in the model and resize table to fit contents.
 
@@ -815,8 +1124,10 @@ class MetaViewerWidget(QDockWidget):
         ----------
         meta : dict
             New metadata to be displayed.
+        types : dict
+            Type definition for editable meta data
         """
-        self.model.resetData(self.parse_header(meta))
+        self.model.resetData(self.parse_header(meta), self.parse_header(types))
         # resize and expand all entries
         # (the latter might be disabled in the future, or configurable?)
         for i in range(2):
@@ -841,10 +1152,6 @@ class MetaViewerWidget(QDockWidget):
         """
         data = {}
         for key, val in hdr.items():
-            if key in ["columns", "units"]:
-                # omit columns and units since these belong directly to the
-                # data
-                continue
             data[key] = val
         return data
 
@@ -876,6 +1183,31 @@ class ConfigEditWidget(MetaViewerWidget):
         widget.setLayout(layout)
         self.setWidget(widget)
 
+    def parse_header(self, hdr):
+        """
+        Parse a matrix header and prepare for display in the table view.
+
+        Parameters
+        ----------
+        hdr : dict
+            Header dictionary to be parsed.
+
+        Returns
+        -------
+        dict
+            Parsed header data.
+
+        TODO: Implement sorting?
+        """
+        data = {}
+        for key, val in hdr.items():
+            if key in ["columns", "units"]:
+                # omit columns and units since these belong directly to the
+                # data
+                continue
+            data[key] = val
+        return data
+
     def update_data(self, systemfile):
         """
         Update data stored in the model with system configuration.
@@ -888,7 +1220,25 @@ class ConfigEditWidget(MetaViewerWidget):
         syst_dict = {}
         for syst in systemfile:
             syst_dict[syst.strip()] = get_config_dict(syst.strip())
-        super().update_data(syst_dict)
+
+        def parse_dict_and_types(d, dv, dt):
+            for key, item in d.items():
+                if "_types" == key:
+                    dt.update(d[key])
+                    continue
+                elif isinstance(item, dict):
+                    dv[key] = {}
+                    dt[key] = {}
+                    parse_dict_and_types(item, dv[key], dt[key])
+                else:
+                    dv[key] = d[key]
+
+        self.value_dict = {}
+        self.types_dict = {}
+
+        parse_dict_and_types(syst_dict, self.value_dict, self.types_dict)
+
+        super().update_data(self.value_dict, self.types_dict)
         self.w_write_config.setEnabled(True)
 
     def parse_item(self, item):
@@ -911,13 +1261,16 @@ class ConfigEditWidget(MetaViewerWidget):
             for child_item in item.child_items:
                 config[child_item.data(0)] = self.parse_item(child_item)
         else:
-            return item.data(1)
+            if item.type(1)[0][0] is bool:
+                return item.data(1).lower() == "true"
+            return item.type(1)[0][0](item.data(1))
         return config
 
     def write_config(self):
         """Write the current configuration to file."""
 
         def create_nested_dict(keys, item):
+            """Create a nested dictioinary from QItemView."""
             if len(keys) == 1:
                 return {keys[0]: self.parse_item(item)}
             return {keys[0]: create_nested_dict(keys[1:], item)}
@@ -2423,6 +2776,7 @@ class MetaDataDialog(QDialog):
             "description": self.description.toPlainText(),
         }
 
+
 class TextInputDialog(QDialog):
     """Modal dialog for text input for matrix-script."""
 
@@ -2725,6 +3079,7 @@ class MIcon(QIcon):
             raise ValueError(f"MIcon: Unknown icon type {name}.")
         painter.end()
         return QIcon(pixmap)
+
 
 def _set_palette(instance):
     """Set the base and text color according to the enabled state."""

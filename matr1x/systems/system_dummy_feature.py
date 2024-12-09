@@ -47,13 +47,32 @@ class MeasSystem(System):
         """
         super().__init__()
         # define default parameters for configurable settings
-        self.config = {"setting1": "VOLT", "setting2": 5}
+        self.config = {
+            "setting1": "VOLT",
+            "setting2": 6,
+            "setting3": 3.3215,
+            "setting4": "~/.matr1x.toml",
+        }
         # here one updates the config with settings potentially saved in the
         # user config. The ~/.matr1x.toml or local matr1x.toml file can contain
         # the following:
         # [matr1x.systems.system_dummy_feature]
         # setting1 = "CURR"
         # setting2 = 2
+        # additionally, types and limits can be specified in the config
+        # using the following:
+        # [matr1x.systems.system_dummy_feature._types]
+        # # type definition can be
+        # # int, float, string
+        # # string according to this specification:
+        # # type;;strict;;val1;;val2;;val3;;val4
+        # # type;;range;;lower;;upper;;step
+        # # the latter only works for int/float and upper/step are optional
+        # # string value must not contain ;;
+        # setting1 = "str;;strict;;CURR;;VOLT"
+        # # positive ints
+        # setting2 = "int;;range;;0;;300;;30"
+        # setting3 = "float"
         self.config.update(get_config_dict("matr1x.systems.system_dummy_feature"))
         self.dcdata["source"] = "Dummy feature system"
         self.dcdata["publisher"] = "matr1x measurement suite"

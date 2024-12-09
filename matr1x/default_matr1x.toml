@@ -11,6 +11,12 @@ store_script_in_datafile = false
 duplicate_output_to_logfile = false
 print_to_comment = false
 
+[matr1x.systems.system_dummy_feature._types]
+setting1 = "str;;strict;;CURR;;VOLT"
+setting2 = "bool"
+setting3 = "float;;4;;range;;-1e9;;99;;3"
+setting4 = "str;;file"
+
 [matr1x.devices.visadevice]
 cmdpers = 30
 pts = false

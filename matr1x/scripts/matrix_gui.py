@@ -690,6 +690,7 @@ class MainWindow(QMainWindow):
         configurable = [
             system for system in systemfile if not os.path.exists(system.strip())
         ]
+        matr1x.reload_config()
         self.config_editor.update_data(configurable)
 
     def queueMeasurement(self):
