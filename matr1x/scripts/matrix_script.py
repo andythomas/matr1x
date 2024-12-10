@@ -118,6 +118,18 @@ LINTER_ERRORS = [
 # +1 here is needed since otherwise the last newline is not counted.
 SCRIPT_OFFSET = len(generate_script_prefix_suffix("")[0].splitlines()) + 1
 
+MAX_LINES_STATUS = 10000
+# to test what a good limiting value is, use the following:
+# ```
+# for i in range(1000):
+#   print(f"{i}" + 10*"snsnsnsnsn\n" + f"{i}")
+#   wait(0.1)
+# ```
+# By setting the appropriate wait and multiplier, the highest expected
+# number of lines/s can be set (here 110 lines/s). With this in place
+# run matrix-script until it reaches the limit and see whether the
+# display perforamnce of the GUI drops.
+
 
 class Matr1xApplication(MApplication):
     """Enable double-click open on a Mac."""
@@ -2058,6 +2070,7 @@ class MainWindow(QMainWindow):
         # Font
         mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         mono_font.setPointSizeF(default_font_size)
+        self.status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
         self.status_preview.setFont(mono_font)
         # CodeEditor
         self.script_edit = QScintillaCustom(self.output_stream, self)
