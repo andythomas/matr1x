@@ -849,6 +849,9 @@ class SweepPreview(QMainWindow):
             self.names = names
             self.units = units
             self.shapes = shapes
+            # update meta data info
+            if self.w_meta_view:
+                self.w_meta_view.update_data(self.header)
         except Exception:
             # file could not be opened
             exc_type, exc_value, exc_traceback = sys.exc_info()

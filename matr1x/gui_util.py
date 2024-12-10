@@ -43,7 +43,6 @@ from PyQt6.QtCore import (
     QModelIndex,
     QObject,
     QPoint,
-    QSortFilterProxyModel,
     Qt,
     pyqtSignal,
 )
@@ -62,6 +61,7 @@ from PyQt6.QtGui import (
     QPolygon,
 )
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -653,8 +653,9 @@ class MetaViewerWidget(QDockWidget):
                 for child_key, child_value in value.items():
                     cast_type = "str"
                     if isinstance(self._type, dict):
-                        if self._type[child_key]:
-                            cast_type = self._type[child_key]
+                        if child_key in self._type.keys():
+                            if self._type[child_key]:
+                                cast_type = self._type[child_key]
                     else:
                         if self._type:
                             cast_type = self._type
@@ -1098,6 +1099,9 @@ class MetaViewerWidget(QDockWidget):
         self.tree_view.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
+        self.tree_view.setVerticalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
         self.setWidget(self.tree_view)
 
         # Set the custom editable delegate
@@ -1127,12 +1131,16 @@ class MetaViewerWidget(QDockWidget):
         types : dict
             Type definition for editable meta data
         """
+        # get position of scroll bar before resetting the data
+        current_pos = self.tree_view.verticalScrollBar().value()
         self.model.resetData(self.parse_header(meta), self.parse_header(types))
         # resize and expand all entries
         # (the latter might be disabled in the future, or configurable?)
         for i in range(2):
             self.tree_view.resizeColumnToContents(i)
         self.tree_view.expandAll()
+        # restore scroll bar position
+        self.tree_view.verticalScrollBar().setValue(current_pos)
 
     def parse_header(self, hdr):
         """
