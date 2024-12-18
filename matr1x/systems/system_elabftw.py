@@ -8,6 +8,7 @@ electronic lab notebook system.
 import difflib
 import logging
 import os
+import re
 
 import elabapi_python
 from elabapi_python.rest import ApiException
@@ -56,12 +57,7 @@ class ElabSystem(System):
                 {%- if dcdata['identifier'] %}
                     {%- set _ = title_parts.append(dcdata['identifier']) %}
                 {%- endif %}
-                {%- if dcdata['type'] %}
-                    {%- set _ = title_parts.append(dcdata['type']) %}
-                {%- endif %}
-                {%- if dcdata['source'] %}
-                    {%- set _ = title_parts.append(dcdata['source']) %}
-                {%- endif %}
+                {%- set _ = title_parts.append(base_filename) %}
                 {{- title_parts | join(' - ') -}}
             """,
             "body_template": """
@@ -185,6 +181,7 @@ class ElabSystem(System):
             template_str = template
         jinjatemplate = Template(template_str)
         return jinjatemplate.render(
+            base_filename=os.path.basename(self.filename),
             filename=self.filename,
             dcdata=self.merged_system.dcdata,
             query=self.merged_system.query_dict,
@@ -390,6 +387,31 @@ class ElabSystem(System):
             )
         return None
 
+    def _parse_tags_from_line(self, line: str) -> list | None:
+        """
+        Parse tags from line, tags are marked with #.
+
+        Parameters
+        ----------
+        line
+            Line from which to parse the tags.
+
+        Returns
+        -------
+        list or None
+            Returns a list with parsed tags, otherwise None
+        """
+        if not line:
+            return
+        if "#" not in line:
+            return
+        pattern = r"#(?:\(([^)]+)\)|(\S+))"
+        matches = re.findall(pattern, line)
+
+        # Extract matched hashtags
+        hashtags = [match[0] if match[0] else match[1] for match in matches]
+        return hashtags
+
     def elab_post_experiment(self, status: str) -> None:
         """
         Create a new experiment in elabFTW.
@@ -404,6 +426,13 @@ class ElabSystem(System):
         # create content for uploading experiment
         title = self._render_template(self.config["title_template"])
         body = self._render_template(self.config["body_template"])
+        if self.merged_system.dcdata["description"]:
+            additional_tags = self._parse_tags_from_line(
+                self.merged_system.dcdata["description"].splitlines()[0]
+            )
+            if additional_tags:
+                for tag in additional_tags:
+                    self.add_tag(tag)
 
         experimentsApi = elabapi_python.ExperimentsApi(self.api_client)
 
@@ -555,10 +584,14 @@ class ElabSystem(System):
                     print(
                         f"File size ({file_size_mb:.2f} MB) exceeds the limit. Not uploading."
                     )
-            try:
-                self.elab_post_experiment(kwargs.get("status", None))
-            except Exception:
-                self._backup_info(kwargs.get("status", None))
+            if self.filename:
+                # only create measurement if there is a datafile
+                try:
+                    self.elab_post_experiment(kwargs.get("status", None))
+                except Exception:
+                    self._backup_info(kwargs.get("status", None))
+            else:
+                print("no measurement file exists, not creating entry")
         super().reset(*args, **kwargs)
         # reset internal variables to enable reuse of a class instance
         self._attachments = {}
