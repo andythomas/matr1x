@@ -1083,6 +1083,7 @@ class GuiDict(UserDict, ABC):
                 attr = attrgetter(cmd.setfunc)(self)
                 if callable(attr):
                     setfunc = attr
+                    setargs = cmd.setargs
                 else:
 
                     def setfunc(value, c=self, a=cmd.setfunc):
@@ -1109,6 +1110,7 @@ class GuiDict(UserDict, ABC):
             attr = attrgetter(funcname)(system.devs[devname])
             if callable(attr):
                 setfunc = attr
+                setargs = cmd.setargs
             else:
 
                 def setfunc(value, c=system.devs[devname], a=funcname):
@@ -1137,6 +1139,7 @@ class GuiDict(UserDict, ABC):
                 attr = attrgetter(cmd.getfunc)(self)
                 if callable(attr):
                     getfunc = attr
+                    getargs = cmd.getargs
                 else:
                     getfunc = self.__getattribute__
                     getargs = [
@@ -1168,6 +1171,7 @@ class GuiDict(UserDict, ABC):
             attr = attrgetter(funcname)(system.devs[devname])
             if callable(attr):
                 getfunc = attr
+                getargs = cmd.getargs
             else:
 
                 def getfunc(c=system.devs[devname], a=funcname):

@@ -340,6 +340,7 @@ class ControlWindow(QMainWindow):
         }
         if extra_cmds:
             self.cmd_list.update(extra_cmds)
+
         # show the GUI
         self.show()
 

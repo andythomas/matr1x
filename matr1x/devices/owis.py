@@ -58,7 +58,7 @@ class SMS(VisaDevice):
         super().__init__(interface, **kwargs)
 
         # define class variables
-        self._steps_per_deg = 200*1400/360
+        self._steps_per_deg = 200 * 1400 / 540
         self._settings = {ax: {} for ax, it in self._axes.items()}
         self._limits = {
             ax: {"lo": -40, "hi": 400} for ax, it in self._axes.items()}
