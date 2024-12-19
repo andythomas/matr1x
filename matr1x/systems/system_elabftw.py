@@ -151,6 +151,20 @@ class ElabSystem(System):
         if resource_id:
             self._resources[resource] = resource_id
 
+    def conditional_add_file(self):
+        """Attach the filename but only if allowed by configuration."""
+        if self.config["upload_datafile"] and self.filename:
+            file_size_mb = os.path.getsize(self.filename) / (1024 * 1024)
+            if (
+                isinstance(self.config["upload_datafile"], bool)
+                or file_size_mb <= self.config["upload_datafile"]
+            ):
+                self.add_attachment(self.filename, "Data file")
+            else:
+                print(
+                    f"File size ({file_size_mb:.2f} MB) exceeds the limit. Not uploading."
+                )
+
     def _render_template(self, template: str) -> str:
         """
         Render a template string or file using Jinja2.
@@ -412,7 +426,7 @@ class ElabSystem(System):
         hashtags = [match[0] if match[0] else match[1] for match in matches]
         return hashtags
 
-    def elab_post_experiment(self, status: str) -> None:
+    def elab_post_experiment(self, status: str, reset_tags: bool = True) -> None:
         """
         Create a new experiment in elabFTW.
 
@@ -422,6 +436,8 @@ class ElabSystem(System):
         ----------
         status
             Status string which will be attempted to set also in elabFTW.
+        reset_tags
+            Controls whether tags are reset after experiment is posted
         """
         # create content for uploading experiment
         title = self._render_template(self.config["title_template"])
@@ -485,7 +501,9 @@ class ElabSystem(System):
             response_body, status_code, response_headers = (
                 experimentsApi.post_experiment_with_http_info(body=create_body)
             )
-            self._tags = []
+            if reset_tags:
+                # reset tags if parameter is set
+                self._tags = []
             experiment_id = response_headers["Location"].split("/")[-1]
 
             experimentsApi.patch_experiment(id=experiment_id, body=params)
@@ -573,17 +591,7 @@ class ElabSystem(System):
         """
         # if measurement was not unsuccessful a elab entry is generated
         if "status" not in kwargs or kwargs["status"] != "aborted":
-            if self.config["upload_datafile"] and self.filename:
-                file_size_mb = os.path.getsize(self.filename) / (1024 * 1024)
-                if (
-                    isinstance(self.config["upload_datafile"], bool)
-                    or file_size_mb <= self.config["upload_datafile"]
-                ):
-                    self.add_attachment(self.filename, "Data file")
-                else:
-                    print(
-                        f"File size ({file_size_mb:.2f} MB) exceeds the limit. Not uploading."
-                    )
+            self.conditional_add_file()
             if self.filename:
                 # only create measurement if there is a datafile
                 try:
