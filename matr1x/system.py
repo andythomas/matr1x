@@ -26,6 +26,7 @@ import re
 import sys
 import time
 import warnings
+from operator import attrgetter
 from os.path import exists, expanduser, isfile, splitext
 from typing import List, Union
 
@@ -918,7 +919,8 @@ class System:
             Optional keyword arguments to the setter function.
         """
         dev = self.devs[setter[0]]
-        attr = getattr(dev, setter[1])
+        # Use attrgetter to support nested properties
+        attr = attrgetter(setter[1])(dev)
         if callable(attr):  # callable device method
             if len(setter) == 3:  # optional arguments
                 self._set_by_func(attr, value, args or setter[2], kwargs)
@@ -928,7 +930,12 @@ class System:
             else:
                 self._set_by_func(attr, value, args, kwargs)
         else:
-            setattr(dev, setter[1], value)
+            # Direct setattr() cannot handle dotted property paths - need to traverse chain
+            *parent_attrs, final_attr = setter[1].split(".")
+            parent = dev
+            for attr in parent_attrs:
+                parent = getattr(parent, attr)
+            setattr(parent, final_attr, value)
 
     def trigger_value(self, i):
         """
@@ -1058,7 +1065,8 @@ class System:
             If needs_callable is True and the attribute is not callable.
         """
         dev = self.devs[listdef[0]]
-        attr = getattr(dev, listdef[1])
+        # Use attrgetter to support nested properties
+        attr = attrgetter(listdef[1])(dev)
         if callable(attr):
             if len(listdef) == 3:  # optional arguments
                 ret = self._call_func(attr, args or listdef[2], kwargs)
