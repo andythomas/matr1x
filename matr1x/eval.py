@@ -60,7 +60,7 @@ def detect_hdf5(filename):
 
 def get_latest_datafile(path=None, basename=None):
     """
-    automagically find latest datafile in 'path' which follows the pattern of 'basename'.
+    Automagically find latest datafile in 'path' which follows the pattern of 'basename'.
 
     Note that a trailing "_[integer]" is removed from basename to
     find the latest file recorded with the same basename. If path is None the path

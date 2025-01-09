@@ -42,7 +42,6 @@ import warnings
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QKeySequence, QShortcut, QTextCursor
 from PyQt6.QtWidgets import (
-    QApplication,
     QDockWidget,
     QFileDialog,
     QFrame,
@@ -63,7 +62,7 @@ from PyQt6.QtWidgets import (
 
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
-from matr1x.gui_util import EmittingStream
+from matr1x.gui_util import EmittingStream, MApplication
 from matr1x.util import Get
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -1019,7 +1018,7 @@ class ControlWindow(QMainWindow):
             self.terminated_log = True
         self.activity.emit("lightgray")
         self.deactivate.emit(True)
-        qApp = QApplication.instance()
+        qApp = MApplication.instance()
         qApp.processEvents()
         # stop SCPI server to reflect that something is wrong instead of
         # returning the same reading over and over

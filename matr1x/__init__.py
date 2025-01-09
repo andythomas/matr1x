@@ -87,7 +87,7 @@ def merge_dicts(dict1, dict2):
 
 def get_config_dict(section: str):
     """
-    return the dictionary with config settings of a specific subsection.
+    Return the dictionary with config settings of a specific subsection.
 
     If no such entry exists in the config an empty dict will be returned.
 

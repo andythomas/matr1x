@@ -27,7 +27,6 @@ from PyQt6.QtCore import QSettings, QSize, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -37,7 +36,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QSpacerItem,
-    QStyle,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -241,7 +239,6 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.color_palette = QApplication.instance().palette()
         self.initUI()
         self.sg = None
         self.running = False
@@ -526,16 +523,12 @@ class MainWindow(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.toolbar.setFloatable(False)
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
-        intermediate = int((small + standard) / 2)
+        icon_size = MApplication.instance().toolbar_icon_size()
         empty = QWidget()
-        empty.setFixedWidth(intermediate)
+        empty.setFixedWidth(icon_size)
         empty2 = QWidget()
-        empty2.setFixedWidth(intermediate)
-        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        empty2.setFixedWidth(icon_size)
+        self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.addAction(self.load_action)
         self.toolbar.addAction(self.sweep_action)
         self.toolbar.addSeparator()

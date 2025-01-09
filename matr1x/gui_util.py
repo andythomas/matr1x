@@ -20,7 +20,8 @@
 """
 Contains GUI related functions and class definitions.
 
-These are used by sweep-generator, matrix-gui, matrix-preview, and matrix-script.
+These are used by sweep-generator, matrix-gui, matrix-preview, matrix-script and
+control-guis.
 """
 
 import datetime
@@ -3227,13 +3228,92 @@ class MApplication(QApplication):
         else:
             return []
 
+    def _repair_palette(self) -> None:
+        """
+        Repair the palette if disabled and enabled state are indistinguishable.
+
+        This fixes a bug prevalent in, e.g., Linux machines using Qt6.5 under some circumstances.
+        """
+        palette = QPalette()
+        if self._palette_bug:
+            if palette.color(QPalette.ColorRole.Text).value() < 128:  # bright mode
+                white = QColor("#FFFFFF")
+                off_white = QColor("#F5F5F5")
+                grayish = QColor("#ECECEC")
+                palette.setColor(
+                    QPalette.ColorGroup.Active, QPalette.ColorRole.Window, grayish
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, grayish
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.Window, grayish
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Active, QPalette.ColorRole.Base, white
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, white
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base, grayish
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Active,
+                    QPalette.ColorRole.AlternateBase,
+                    off_white,
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Inactive,
+                    QPalette.ColorRole.AlternateBase,
+                    off_white,
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Disabled,
+                    QPalette.ColorRole.AlternateBase,
+                    off_white,
+                )
+            else:  # dark mode
+                black = QColor("#171717")
+                dark = QColor("#323232")
+                gray = QColor("#989898")
+                palette.setColor(
+                    QPalette.ColorGroup.Active, QPalette.ColorRole.Window, dark
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, dark
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.Window, dark
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Active, QPalette.ColorRole.Base, black
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, black
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base, dark
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Active, QPalette.ColorRole.AlternateBase, gray
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.AlternateBase, gray
+                )
+                palette.setColor(
+                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.AlternateBase, gray
+                )
+            self.setPalette(palette)
+
     def __init__(self, args: Sequence[str]) -> None:
         """
-        Call init of QApplication and automatically select the xcb client.
+        Call init of QApplication, automatically select the xcb client and fix palette if need be.
 
-        If, for example, wayland is used as the default window manager, the lack of client side decorations
+        (1) If, for example, wayland is used as the default window manager, the lack of client side decorations
         would lead to missing visual cues such as window shadows. To regain the visual aids, the client-side is
-        switched to xcb.
+        switched to xcb. (2) Linux machines using Qt6.5 experience a broken palette under some circumstances. This
+        bug is detected and fixed here.
 
         args : list of str
             Arguments for QApplication
@@ -3241,4 +3321,32 @@ class MApplication(QApplication):
         if sys.platform == "linux":
             if "xcb" in self._list_platform_plugins():
                 os.environ["QT_QPA_PLATFORM"] = "xcb"
+        active_base = QPalette().color(
+            QPalette.ColorGroup.Active, QPalette.ColorRole.Base
+        )
+        disabled_base = QPalette().color(
+            QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base
+        )
+        if active_base == disabled_base:
+            self._palette_bug = True
+        else:
+            self._palette_bug = False
         super().__init__(args)
+        MApplication.instance().paletteChanged.connect(self._repair_palette)
+        self._repair_palette()
+
+    def toolbar_icon_size(self) -> int:
+        """
+        Return the toolbar icon size for all GUIs.
+
+        Returns
+        -------
+        int
+            size of the icon
+        """
+        small = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = MApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ToolBarIconSize
+        )
+        intermediate = int((small + standard) / 2)
+        return intermediate

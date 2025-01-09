@@ -33,7 +33,6 @@ from numpy import linspace, uint
 from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeySequence, QPalette
 from PyQt6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -47,7 +46,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QStyle,
     QTextEdit,
     QToolBar,
     QToolButton,
@@ -456,12 +454,8 @@ class MainWindow(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
-        intermediate = int((small + standard) / 2)
-        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        icon_size = MApplication.instance().toolbar_icon_size()
+        self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
         )

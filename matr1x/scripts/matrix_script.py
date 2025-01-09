@@ -45,7 +45,6 @@ from PyQt6.QtGui import (
     QTextCursor,
 )
 from PyQt6.QtWidgets import (
-    QApplication,
     QDialog,
     QDockWidget,
     QFileDialog,
@@ -54,7 +53,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QSplitter,
-    QStyle,
     QTextEdit,
     QToolBar,
     QToolButton,
@@ -141,7 +139,7 @@ class Matr1xApplication(MApplication):
         if event.type() == QEvent.Type.FileOpen:
             filename = event.file()
             self.openfile.emit(filename)
-        return QApplication.event(self, event)
+        return MApplication.event(self, event)
 
 
 class DroppableWidget(QWidget):
@@ -1476,7 +1474,7 @@ class MainWindow(QMainWindow):
         self.output_stream = EmittingStream()
         self.output_stream.text_written.connect(self.output_written)
 
-        self.color_palette = QApplication.instance().palette()
+        self.color_palette = MApplication.instance().palette()
         self.init_ui()
         # set outputStream as stdout (i.e. all output is written to status
         # preview
@@ -1679,7 +1677,7 @@ class MainWindow(QMainWindow):
     def changeEvent(self, event: QEvent):
         """Detect palette changes such as dark and bright mode desktops."""
         if event.type() == QEvent.Type.PaletteChange:
-            self.color_palette = QApplication.instance().palette()
+            self.color_palette = MApplication.instance().palette()
             self.update_ui()
 
     def closeEvent(self, event: QEvent) -> None:
@@ -1717,7 +1715,7 @@ class MainWindow(QMainWindow):
         if (
             self.script_edit.isModified() or self.systems_dirty
         ) and self.script_edit.text() != "":
-            qApp = QApplication.instance()
+            qApp = MApplication.instance()
             qApp.processEvents()
             a = QMessageBox(parent=self)
             a.setIcon(QMessageBox.Icon.Question)
@@ -1757,7 +1755,7 @@ class MainWindow(QMainWindow):
 
     def undo(self):
         """Perform 'undo' on the widget with the focus."""
-        focus_widget = QApplication.focusWidget()
+        focus_widget = MApplication.focusWidget()
         try:
             focus_widget.undo()
         except AttributeError:
@@ -1765,7 +1763,7 @@ class MainWindow(QMainWindow):
 
     def redo(self):
         """Perform 'redo' on the widget with the focus."""
-        focus_widget = QApplication.focusWidget()
+        focus_widget = MApplication.focusWidget()
         try:
             focus_widget.redo()
         except AttributeError:
@@ -1773,7 +1771,7 @@ class MainWindow(QMainWindow):
 
     def cut(self):
         """Perform 'cut' on the widget with the focus."""
-        focus_widget = QApplication.focusWidget()
+        focus_widget = MApplication.focusWidget()
         try:
             focus_widget.cut()
         except AttributeError:
@@ -1781,7 +1779,7 @@ class MainWindow(QMainWindow):
 
     def copy(self):
         """Perform 'copy' on the widget with the focus."""
-        focus_widget = QApplication.focusWidget()
+        focus_widget = MApplication.focusWidget()
         try:
             focus_widget.copy()
         except AttributeError:
@@ -1789,7 +1787,7 @@ class MainWindow(QMainWindow):
 
     def paste(self):
         """Perform 'paste' on the widget with the focus."""
-        focus_widget = QApplication.focusWidget()
+        focus_widget = MApplication.focusWidget()
         try:
             focus_widget.paste()
         except AttributeError:
@@ -1826,9 +1824,6 @@ class MainWindow(QMainWindow):
             string_color = QColor(205, 145, 120)
             class_color = QColor(85, 155, 212)
             keyword_color = QColor(197, 134, 192)
-            if marker_color == base_color:
-                # circumvents a bug in the default Linux color scheme
-                marker_color = marker_color.lighter(140)
             own_identifier_color = QColor(244, 15, 255)
         else:
             # bright mode
@@ -1837,9 +1832,6 @@ class MainWindow(QMainWindow):
             string_color = QColor(176, 55, 55)
             class_color = QColor(13, 5, 255)
             keyword_color = QColor(182, 23, 223)
-            if marker_color == base_color:
-                # circumvents a bug in the default Linux color scheme
-                marker_color = marker_color.darker(107)
             own_identifier_color = QColor(245, 54, 255)
         self.executed_line_color = highlight_color
         self.lexer.setPaper(base_color)
@@ -2150,18 +2142,14 @@ class MainWindow(QMainWindow):
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
         )
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
-        intermediate = int((small + standard) / 2)
+        icon_size = MApplication.instance().toolbar_icon_size()
         empty = QWidget()
-        empty.setFixedWidth(intermediate)
+        empty.setFixedWidth(icon_size)
         empty2 = QWidget()
-        empty2.setFixedWidth(intermediate)
+        empty2.setFixedWidth(icon_size)
         empty3 = QWidget()
-        empty3.setFixedWidth(intermediate)
-        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        empty3.setFixedWidth(icon_size)
+        self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.addAction(self.load_action)
         self.toolbar.addWidget(self.save_button)
         self.toolbar.addWidget(empty)
@@ -2540,7 +2528,7 @@ class MainWindow(QMainWindow):
         if -1 == self.script_edit.run_linter():
             print("Script execution was halted because of linter errors")
             print("==========")
-            qApp = QApplication.instance()
+            qApp = MApplication.instance()
             qApp.processEvents()
             # open a popup window to inform about the error
             a = QMessageBox(parent=self)
@@ -2763,7 +2751,7 @@ class MainWindow(QMainWindow):
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
         if self.script_edit.isModified() or self.systems_dirty:
-            qApp = QApplication.instance()
+            qApp = MApplication.instance()
             qApp.processEvents()
             a = QMessageBox(parent=self)
             a.setIcon(QMessageBox.Icon.Question)

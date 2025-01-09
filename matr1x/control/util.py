@@ -64,7 +64,6 @@ from PyQt6.QtCore import (
     pyqtSlot,
 )
 from PyQt6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -1224,7 +1223,7 @@ class QtGracefulKiller:
     def exit_gracefully(self, signam, frame):
         """Terminates the application."""
         print(f"Kill signal received ({signam})")
-        QApplication.quit()
+        MApplication.quit()
 
     def __enter__(self):
         """Start a timer for Ctrl+C to work."""

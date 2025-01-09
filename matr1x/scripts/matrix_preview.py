@@ -29,7 +29,6 @@ import pyqtgraph.exporters
 from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeySequence
 from PyQt6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDockWidget,
@@ -40,7 +39,6 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QSizePolicy,
-    QStyle,
     QToolBar,
     QWidget,
 )
@@ -73,7 +71,7 @@ class Matr1xApplication(MApplication):
         if event.type() == QEvent.Type.FileOpen:
             filename = event.file()
             self.openfile.emit(filename)
-        return QApplication.event(self, event)
+        return MApplication.event(self, event)
 
 
 class UpdateThread(QThread):
@@ -125,8 +123,8 @@ class SweepPreview(QMainWindow):
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
-        if hasattr(QApplication.instance(), 'openfile'):
-            QApplication.instance().openfile.connect(self.open_file)
+        if hasattr(MApplication.instance(), "openfile"):
+            MApplication.instance().openfile.connect(self.open_file)
         # initialize filename if available
         if filename:
             self.open_file(filename)
@@ -166,7 +164,7 @@ class SweepPreview(QMainWindow):
     def _get_maximum_screen_width(self):
         """Determine width of the biggest available screen."""
         width = 0
-        for screen in QApplication.instance().screens():
+        for screen in MApplication.instance().screens():
             width = max(width, screen.geometry().width())
         return width
 
@@ -404,12 +402,8 @@ class SweepPreview(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        small = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
-        intermediate = int((small + standard) / 2)
-        self.toolbar.setIconSize(QSize(intermediate, intermediate))
+        icon_size = MApplication.instance().toolbar_icon_size()
+        self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
         )
@@ -423,7 +417,7 @@ class SweepPreview(QMainWindow):
         self.toolbar.addAction(self.update_action)
         self.toolbar.addAction(self.auto_update_action)
         empty = QWidget()
-        empty.setFixedWidth(intermediate)
+        empty.setFixedWidth(icon_size)
         self.toolbar.addWidget(empty)
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
