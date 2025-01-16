@@ -86,7 +86,7 @@ class ElabSystem(System):
                 </table>
             """,  # the template strings can also refer to filenames.
         }
-        self.config.update(get_config_dict("ifwlib.systems.system_elabftw"))
+        self.config.update(get_config_dict("matr1x.systems.system_elabftw"))
         self._team_id = self.config.get("teamid", 0)
         configuration = elabapi_python.Configuration()
         configuration.api_key["api_key"] = self.config["api_key"]
