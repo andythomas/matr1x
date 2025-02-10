@@ -1654,8 +1654,8 @@ def control_main(
         Identifier string used as Window title and for the lock file.
     window_class : ControlWindow or QMainWindow
         Class derived from QMainWindow to be used to construct the GUI.
-    guidicts : list or tuple, optional
-        Several GuiDict (or normal dict) objects with the description of the GUI.
+    guidicts : GuiDict, list or tuple of GuiDicts, optional
+        GuiDict object(s) with the definition of the GUI.
     extra_cmds : dict, optional
         Dictionary with commands for the measurement interface. While most
         commands will be connected with the GuiDicts, those which do not fit there

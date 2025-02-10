@@ -194,8 +194,8 @@ class ControlWindow(QMainWindow):
     ----------
     name : str
         Identifier string of the control GUI.
-    guidicts : list or tuple of GuiDict
-        Several GuiDict objects which build the basis of the controlGUI.
+    guidicts : One GuiDict or a list or tuple of GuiDict
+        GuiDict object(s) which build the basis of the controlGUI.
     extra_cmds : dict, optional
         Dictionary of commands offered for the measurement system. Commands from
         the GuiDict object are merged together with this list.
@@ -252,7 +252,10 @@ class ControlWindow(QMainWindow):
         self.S_log.__name__ = f"{package}.{name}_control_logging_system"
         # initialize data logging dictionaries
         if guidicts:
-            self.guidicts = list(guidicts)
+            if isinstance(guidicts, (list, tuple)):
+                self.guidicts = list(guidicts)
+            else:
+                self.guidicts = [guidicts]
         else:
             self.guidicts = []
         # harmonize guidict entries to 'var'-objects
