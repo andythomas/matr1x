@@ -2764,6 +2764,7 @@ class MainWindow(QMainWindow):
                 | QMessageBox.StandardButton.Discard
                 | QMessageBox.StandardButton.Cancel
             )
+            a.button(QMessageBox.StandardButton.Discard).setText("Don't Save")
             a.setDefaultButton(QMessageBox.StandardButton.Save)
             # Is this the best default button?
             ret = a.exec()
