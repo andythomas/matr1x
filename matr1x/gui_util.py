@@ -1,5 +1,5 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# Copyright (C) 2024 matr1x developers
+# Copyright (C) 2006-2025 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -2958,7 +2958,7 @@ class AboutBox(QMessageBox):
                     <b>Git commit:</b> {sha}<br>
                     <b>Git date:</b> {date}<br>
                     <br>
-                    (c) 2024 Matr1x Developers. All rights reserved.
+                    (C) 2006-2025 Matr1x Developers. All rights reserved.
                 </div>
                 """
         self.setInformativeText(text)
