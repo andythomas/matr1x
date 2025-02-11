@@ -46,22 +46,22 @@ class Lakeshore3xx(VisaDevice):
         super().__init__(interface, **kwargs)
 
     @synchronized
-    def query(self, msg, depth=0):
+    def query(self, command, depth=0):
         if depth > 5:
-            logger.info(
-                f"{self.name}.query: maximal depth exceeded ('{msg}')")
-            if msg.startswith("PID?") or msg.startswith("RAMP?"):
+            logger.info(f"{self.name}.query: maximal depth exceeded ('{command}')")
+            if command.startswith("PID?") or command.startswith("RAMP?"):
                 return "0,0,0"
             else:
                 return "0"
-        self.write(msg)
+        self.write(command)
         ret = self.read()
         if ret == "":
             logger.info(
-                f"{self.name}.query: empty reply, reopening interface ('{msg}', {ret})")
+                f"{self.name}.query: empty reply, reopening interface ('{command}', {ret})"
+            )
             self.close()
             self.open()
-            return self.query(msg, depth=depth+1)
+            return self.query(command, depth=depth + 1)
         return ret
 
     @synchronized
@@ -121,8 +121,16 @@ class Lakeshore3xx(VisaDevice):
     def getManualOutput(self, loop=1):
         return self.query_float("MOUT? " + str(loop))
 
-    def getHeater(self, channel=1):
-        return self.query_float("HTR? " + str(channel))
+    def getHeater(self, loop: int = 1) -> float:
+        """
+        Get heater value.
+
+        Parameters
+        ----------
+        loop : int
+            Heater loop to query.
+        """
+        return self.query_float(f"HTR? {loop}")
 
     def getControlMode(self, loop=1):
         return self.query_int("CMODE? " + str(loop)) - 1
@@ -216,15 +224,38 @@ class Lakeshore335(Lakeshore3xx):
             kwargs["parity"] = constants.Parity.odd
         super().__init__(interface, **kwargs)
 
-    def getHeaterRange(self, channel=1):
-        return self.query_int("RANGE? " + str(channel))
+    def getHeaterRange(self, loop: int = 1) -> int:
+        """
+        Get the heater range.
 
-    def setHeaterRange(self, heaterRange, channel=1):
+        Parameters
+        ----------
+        loop : int
+            Heater loop to query.
+
+        Returns
+        -------
+        int
+            The selected range of the heater loop.
+        """
+        return self.query_int(f"RANGE? {loop}")
+
+    def setHeaterRange(self, heaterRange: int, loop: int = 1) -> None:
+        """
+        Set the heater range.
+
+        The function tests, if the range would be correctly set, i.e. 1, 2 or 3.
+
+        Parameters
+        ----------
+        heaterRange : int
+            The range to set (1, 2 or 3).
+        """
         try:
             int(heaterRange)
             if 0 > heaterRange or 3 < heaterRange:
                 return
-            self.write(f"RANGE {channel},{heaterRange}")
+            self.write(f"RANGE {loop},{heaterRange}")
         except ValueError:
             return
 
