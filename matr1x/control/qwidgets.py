@@ -1,24 +1,40 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# AnimatedToggle adapted from
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# AnimatedToggle class in this file was adapted from
 # https://www.pythonguis.com/tutorials/pyqt6-animated-widgets/
 # licensed under MIT-license
-# ---
-import warnings
 
-try:
-    from PyQt6.QtCore import (QEasingCurve, QPoint, QPointF, QPropertyAnimation,
-                              QRectF, QSize, Qt, pyqtProperty, pyqtSlot)
-    from PyQt6.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPen
-    from PyQt6.QtWidgets import QCheckBox, QProgressBar, QPushButton
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5.QtCore import (QEasingCurve, QPoint, QPointF, QPropertyAnimation,
-                              QRectF, QSize, Qt, pyqtProperty, pyqtSlot)
-    from PyQt5.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPen
-    from PyQt5.QtWidgets import QCheckBox, QProgressBar, QPushButton
+"""Module containing custom GUI widgets for the matr1x data acquisition software."""
+
+from typing import List, Optional, Tuple, Union
+
+from PyQt6.QtCore import (
+    QEasingCurve,
+    QPoint,
+    QPointF,
+    QPropertyAnimation,
+    QRectF,
+    QSize,
+    Qt,
+    pyqtProperty,
+    pyqtSlot,
+)
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPen
+from PyQt6.QtWidgets import QCheckBox, QProgressBar, QPushButton
 
 
 class AnimatedToggle(QCheckBox):
@@ -26,7 +42,7 @@ class AnimatedToggle(QCheckBox):
     # and must be retained in any derivatives of this class.
     # This specific class may be used under the terms of the MIT-license:
     # Permission is hereby granted, free of charge, to any person obtaining a
-    # copy of this software and associated documentation files (the “Software”),
+    # copy of this software and associated documentation files (the "Software"),
     # to deal in the Software without restriction, including without limitation
     # the rights to use, copy, modify, merge, publish, distribute, sublicense,
     # and/or sell copies of the Software, and to permit persons to whom the
@@ -35,7 +51,7 @@ class AnimatedToggle(QCheckBox):
     # The above copyright notice and this permission notice shall be included in
     # all copies or substantial portions of the Software.
     #
-    # THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
     # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
     # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
     # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
@@ -47,16 +63,29 @@ class AnimatedToggle(QCheckBox):
 
     Code was adapted from
     https://www.pythonguis.com/tutorials/pyqt6-animated-widgets
+
+    Parameters
+    ----------
+    parent : Optional[QWidget]
+        The parent widget.
+    bar_color : Qt.GlobalColor
+        The color of the toggle bar when unchecked.
+    checked_color : str
+        The color of the toggle bar and handle when checked.
+    handle_color : Qt.GlobalColor
+        The color of the handle when unchecked.
     """
+
     _transparent_pen = QPen(Qt.GlobalColor.transparent)
     _light_grey_pen = QPen(Qt.GlobalColor.lightGray)
 
-    def __init__(self,
-                 parent=None,
-                 bar_color=Qt.GlobalColor.gray,
-                 checked_color="#00B0FF",
-                 handle_color=Qt.GlobalColor.white,
-                 ):
+    def __init__(
+        self,
+        parent: Optional[QCheckBox] = None,
+        bar_color: Qt.GlobalColor = Qt.GlobalColor.gray,
+        checked_color: str = "#00B0FF",
+        handle_color: Qt.GlobalColor = Qt.GlobalColor.white,
+    ):
         super().__init__(parent)
 
         # Save our properties on the object via self, so we can access them later
@@ -77,14 +106,43 @@ class AnimatedToggle(QCheckBox):
 
         self.stateChanged.connect(self.setup_animation)
 
-    def sizeHint(self):
+    def sizeHint(self) -> QSize:
+        """
+        Get the recommended size for the widget.
+
+        Returns
+        -------
+        QSize
+            The recommended size for the widget.
+        """
         return QSize(32, 20)
 
-    def hitButton(self, pos: QPoint):
+    def hitButton(self, pos: QPoint) -> bool:
+        """
+        Determine if the given position is within the button's hit area.
+
+        Parameters
+        ----------
+        pos : QPoint
+            The position to check.
+
+        Returns
+        -------
+        bool
+            True if the position is within the button's hit area, False otherwise.
+        """
         return self.contentsRect().contains(pos)
 
     @pyqtSlot(int)
-    def setup_animation(self, value):
+    def setup_animation(self, value: int) -> None:
+        """
+        Set up the animation for the toggle switch.
+
+        Parameters
+        ----------
+        value : int
+            The new state of the toggle switch.
+        """
         self.animation.stop()
         if value:
             self.animation.setEndValue(1)
@@ -92,8 +150,15 @@ class AnimatedToggle(QCheckBox):
             self.animation.setEndValue(0)
         self.animation.start()
 
-    def paintEvent(self, e: QPaintEvent):
+    def paintEvent(self, e: QPaintEvent) -> None:
+        """
+        Handle the paint event for the toggle switch.
 
+        Parameters
+        ----------
+        e : QPaintEvent
+            The paint event.
+        """
         contRect = self.contentsRect()
         handleRadius = round(0.44 * contRect.height())
 
@@ -102,8 +167,7 @@ class AnimatedToggle(QCheckBox):
 
         p.setPen(self._transparent_pen)
         barRect = QRectF(
-            0, 0,
-            contRect.width() - handleRadius, 0.70 * contRect.height()
+            0, 0, contRect.width() - handleRadius, 0.70 * contRect.height()
         )
         barRect.moveCenter(QPointF(contRect.center()))
         rounding = barRect.height() / 2
@@ -124,22 +188,35 @@ class AnimatedToggle(QCheckBox):
             p.setPen(self._light_grey_pen)
             p.setBrush(self._handle_brush)
 
-        p.drawEllipse(
-            QPointF(xPos, barRect.center().y()),
-            handleRadius, handleRadius)
+        p.drawEllipse(QPointF(xPos, barRect.center().y()), handleRadius, handleRadius)
 
         p.end()
 
     @pyqtProperty(float)
-    def handle_position(self):
+    def handle_position(self) -> float:
+        """
+        Get the current position of the handle.
+
+        Returns
+        -------
+        float
+            The current position of the handle.
+        """
         return self._handle_position
 
     @handle_position.setter
-    def handle_position(self, pos):
-        """change the property
-        we need to trigger QWidget.update() method, either by:
+    def handle_position(self, pos: float) -> None:
+        """
+        Set the position of the handle.
+
+        We need to trigger QWidget.update() method, either by:
             1- calling it here [ what we doing ].
             2- connecting the QPropertyAnimation.valueChanged() signal to it.
+
+        Parameters
+        ----------
+        pos : float
+            The new position of the handle.
         """
         self._handle_position = pos
         self.update()
@@ -147,9 +224,9 @@ class AnimatedToggle(QCheckBox):
 
 class matr1xProgressBar(QProgressBar):
     """
-    overload Progressbar to make it better suite the needs to show values in
-    the range between -5 and 105. Values outside that range are indicated by a
-    red color
+    Overload QProgressBar to allow values between -5 and 105.
+
+    Values outside that range are indicated by a red color.
     """
 
     def __init__(self):
@@ -157,29 +234,41 @@ class matr1xProgressBar(QProgressBar):
         self.setRange(-5, 105)
         self.setFormat("%v")
 
-    def setValue(self, value):
+    def setValue(self, value: int) -> None:
+        """
+        Set the current value of the progress bar.
+
+        Parameters
+        ----------
+        value : int
+            The value to set for the progress bar.
+        """
         if value > self.maximum() or value < self.minimum():
             # change color
             self.reset()
-            self.setStyleSheet("QProgressBar"
-                               "{"
-                               "background-color : red;"
-                               "}")
+            self.setStyleSheet("QProgressBar" "{" "background-color : red;" "}")
         else:
-            self.setStyleSheet("QProgressBar"
-                               "{"
-                               "}")
+            self.setStyleSheet("QProgressBar" "{" "}")
 
         super().setValue(value)
 
 
 class ToggleButton(QPushButton):
     """
-    custom QPushButton to emulate a proper toggle button (including the change
-    of the button's label upon pushing)
+    Custom QPushButton to emulate a proper toggle button.
+
+    Including the change of the button's label upon pushing.
+
+    Parameters
+    ----------
+    *args : Union[str, List[str], Tuple[str, str]]
+        Positional arguments. The first argument should be either a string
+        (single label) or a list/tuple of two strings (labels for unchecked/checked states).
+    **kwargs : dict
+        Keyword arguments to be passed to the QPushButton constructor.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Union[str, List[str], Tuple[str, str]], **kwargs):
         if isinstance(args[0], (list, tuple)):
             label = args[0][0]
         else:
@@ -188,9 +277,14 @@ class ToggleButton(QPushButton):
         self._labels = args[0]
         self.setCheckable(True)
 
-    def setChecked(self, state):
+    def setChecked(self, state: bool) -> None:
         """
-        change label of toggle button
+        Change label of toggle button.
+
+        Parameters
+        ----------
+        state : bool
+            The new checked state of the button.
         """
         super().setChecked(state)
         # if it is checked

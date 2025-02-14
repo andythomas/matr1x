@@ -1,7 +1,19 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import re
 import time
 
@@ -311,9 +323,22 @@ class NanotecPD4(VisaDevice):
         """
         answer = self.query("#1$")
         status = answer.replace("001$", "")
-        isMoving = (int(status) & 0b00000001) is False
+        isMoving = 0 == (int(status) & 0b1)
         self.moving = isMoving
         return isMoving
+
+    def getErrorStatus(self):
+        """
+        read if the motor is still moving.
+        input: None
+        output: moving (bool)
+        """
+        answer = self.query("#1$")
+        status = answer.replace("001$", "")
+        print(status)
+        isPosError = 0 != (int(status) & 0b100)
+        self.poserror = isPosError
+        return isPosError
 
     def getRotDir(self):
         """

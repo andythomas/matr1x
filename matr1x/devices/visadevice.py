@@ -1,7 +1,19 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 In this module the base class for all device drivers in this package is
 defined. It is itself based on the pyvisa library which handles all the low
@@ -16,6 +28,8 @@ from functools import wraps
 
 import pyvisa
 from wrapt import synchronized
+
+from .. import get_config_dict
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +111,10 @@ class VisaDevice:
     def __init__(self, interface, cmdpers=None, **kwargs):
         self.interface = interface
         self.name = f"{type(self).__name__}@{self.interface}"
+        self._config = get_config_dict("matr1x.devices.visadevice")
         # have never tested these myself
-        self.pts = kwargs.pop("pts", False)
-        if kwargs.pop("visadebug", False):
+        self.pts = kwargs.pop("pts", self._config["pts"])
+        if kwargs.pop("visadebug", self._config["visadebug"]):
             pyvisa.log_to_screen()
         # mutex lock to synchronize devices sharing the same connection
         # currently this is needed only by IsobusDevices
@@ -110,8 +125,8 @@ class VisaDevice:
             try:
                 cmdpers = int(cmdpers)
             except TypeError:
-                # Use a d efault number of commands per second of 30
-                cmdpers = 30
+                # Use a default number of commands per second from the config
+                cmdpers = self._config["cmdpers"]
             if 0 == cmdpers:
                 # prevent division by 0
                 cmdpers = 1
@@ -224,7 +239,8 @@ class VisaDevice:
             # make sure that enough time has passed so that a new command
             # can be sent
             while self.timedelay > time.time() - self.timer:
-                delta_t = self.timedelay - (time.time() - self.timer)
+                # calculate wait time and avoid negative time delays.
+                delta_t = max(self.timedelay - (time.time() - self.timer), 0)
                 time.sleep(delta_t)
             self.timer = time.time()
 

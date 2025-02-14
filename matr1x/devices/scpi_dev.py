@@ -1,18 +1,31 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import ast
 import pickle
 import re
 import time
 
-from matr1x.util import Get, normalize_cmds
 from pymeasure.instruments import Instrument
 from pymeasure.instruments.validators import strict_discrete_set
 
+from matr1x.util import Get, normalize_cmds
 
-def makeSCPIdevice(*cmds, sys=True):
+
+def makeSCPIdevice(*cmds, system=True):
     """
     dynamically generate a pymeasure device which can be used in systems to
     connect to the SCPI commands
@@ -22,7 +35,7 @@ def makeSCPIdevice(*cmds, sys=True):
     cmds: dict
       multiple dictionaries with commands. Those will be merged internally and
       therefore must only contain unique keys.
-    sys: bool
+    system: bool
       flag to decide if config_params shall be defined on the device
     """
     typeplaceholder = {int: "%d", float: "%g", bool: "%d",
@@ -52,7 +65,7 @@ def makeSCPIdevice(*cmds, sys=True):
     def list2str(value, dtype):
         ret = []
         for v, dt in zip(value, dtype):
-            if dt == bool:
+            if dt is bool:
                 ret.append(typeplaceholder[int] % v)
             else:
                 ret.append(typeplaceholder[dt] % v)
@@ -61,7 +74,7 @@ def makeSCPIdevice(*cmds, sys=True):
     def castlist(values, dtype):
         ret = []
         for v, t in zip(values, dtype):
-            if t == bool:
+            if t is bool:
                 if v == 'False':
                     castval = False
                 elif v == 'True':
@@ -109,8 +122,8 @@ def makeSCPIdevice(*cmds, sys=True):
             check_set_errors(self)
         return parameterless
 
-    def id(self):
-        """ return idn """
+    def id(self):  # noqa: A001  # use pymeasure Instrument.id
+        """Get the identification of the Instrument."""
         return self.idn
 
     attributes = dict()
@@ -124,7 +137,7 @@ def makeSCPIdevice(*cmds, sys=True):
     attributes["config_params"] = {"id": "idn"}
 
     # add system query to config_params
-    if sys and ":conf" not in cmd_list:
+    if system and ":conf" not in cmd_list:
         attributes["config_params"]["SCPIdevconf"] = "conf"
         cmd_list[":conf"] = Get(
             lambda b: pickle.loads(ast.literal_eval(b)),

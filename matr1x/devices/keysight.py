@@ -1,11 +1,23 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import time
 from struct import unpack
 
 import numpy as np
-import time
 from wrapt import synchronized
 
 from .util import strToList
@@ -864,17 +876,6 @@ class PSA_E4440A(VisaDevice):
             **kwargs,
         )
         self.timeout = timeout
-        self.write("SYST:PRES:TYPE MODE")
-        self.write("SYST:PRES")  # SYSTem:PRESet
-
-        self.write("TRIG:SOUR IMM")
-        self.write("SWE:TIME:AUTO ON")
-        self.write("POW:RF:GAIN:STAT ON")  # turns on internal preamp
-        self.write("POW:RF:GAIN 30")  # set gain of preamp to 30 dB
-        self.write("POW:RF:ATT:AUTO OFF")  # turns on automatic attenuation
-        self.write("POWer:ATT 0")  # set attenuation to 0 dB
-        self.write("CAL:AUTO OFF")
-
         if reset:
             self.reset()
 
@@ -950,11 +951,11 @@ class PSA_E4440A(VisaDevice):
 
         if average:
             if avgType == "rms":
-                self.write("AVERage:TYPE:RMS")
+                self.write("AVERage:TYPE RMS")
             elif avgType == "log":
-                self.write("AVERage:TYPE:LOG")
+                self.write("AVERage:TYPE LOG")
             elif avgType == "scalar":
-                self.write("AVERage:TYPE:SCAL")
+                self.write("AVERage:TYPE SCAL")
             else:
                 print("Please choose a valid average type! Your input was: {}".format(
                     str(avgType)))
@@ -1010,16 +1011,17 @@ class PSA_E4440A(VisaDevice):
           before returning.
         """
         # get number of points and sweep time for timeout estimation
-        n_points = float(self.query(":SOUR:SWE:POIN?"))
-        sweep_time = float(self.query(":SOUR:SWE:TIME?"))
+        n_points = float(self.query(":SWE:POIN?"))
+        sweep_time = float(self.query(":SWE:TIME?"))
 
-        for i in range(self.maxAverage):
-            # estimate of sweep time by VNA + 1ms for frequency change
-            self.connection.timeout = 1e3 * sweep_time + n_points + 10e3
-            self.write("INIT:IMM")
-            self.query("*OPC?")
-            # reset timeout to default
-            self.connection.timeout = self.timeout
+        # estimate of sweep time by VNA + 1ms for frequency change
+        self.connection.timeout = (
+            self.maxAverage * (1e3 * sweep_time + n_points) + 120e3
+        )
+        self.write("INIT:IMM")
+        self.query("*OPC?")
+        # reset timeout to default
+        self.connection.timeout = self.timeout
 
     @synchronized
     def getData(self, precision="single"):
@@ -1359,7 +1361,7 @@ class KeysightB2961(VisaDevice):
                 ":SOUR:ARB:{}:SIN:PMAR:SIGN ext1".format(self.sourceMode))
             cmdlist.append(":SOUR:DIG:EXT1:FUNC TOUT")
             cmdlist.append(":SOUR:DIG:EXT1:POL POS")
-            cmdlist.append(":SOUR:DIG:EXT1:TOUT:WIDT 100e-6")
+            cmdlist.append(":SOUR:DIG:EXT1:TOUT:WIDT 50e-6")
 
             # generate triggers for source internally
             cmdlist.append(":TRIG:TRAN:COUN 1")

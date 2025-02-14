@@ -1,7 +1,19 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import logging
 
 from .boss import BOSS  # noqa: F401
@@ -24,9 +36,9 @@ from .kepco import BOP5020mg  # noqa: F401
 from .keysight import (  # noqa: F401
     PSA_E4440A,
     PSG8257D,
+    Agilent8114A,
     KeysightB2961,
     PNA5225b,
-    Agilent8114A,
 )
 from .lakeshore import Lakeshore335, Lakeshore340, Lakeshore475  # noqa: F401
 from .magnet_physik import FH55  # noqa: F401
@@ -34,8 +46,7 @@ from .minicircuits import RC_2SPDT_A18  # noqa: F401
 from .nanotec import NanotecPD4  # noqa: F401
 from .owis import SMS, Ps10  # noqa: F401
 from .oxford import ILM200, IPS120, ITC503, IPS120_switchheater  # noqa: F401
-from .oxford_mercury import (MercuryIPS, MercuryITC,  # noqa: F401
-                             MercurySingleAxisIPS)
+from .oxford_mercury import MercuryIPS, MercuryITC, MercurySingleAxisIPS  # noqa: F401
 from .pfeiffer import MPT200  # noqa: F401
 from .physikinstrumente import MercuryC663  # noqa: F401
 from .pico import PicoVNA  # noqa: F401

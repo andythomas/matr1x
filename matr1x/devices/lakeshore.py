@@ -1,7 +1,19 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import logging
 import math
 import time
@@ -34,22 +46,22 @@ class Lakeshore3xx(VisaDevice):
         super().__init__(interface, **kwargs)
 
     @synchronized
-    def query(self, msg, depth=0):
+    def query(self, command, depth=0):
         if depth > 5:
-            logger.info(
-                f"{self.name}.query: maximal depth exceeded ('{msg}')")
-            if msg.startswith("PID?") or msg.startswith("RAMP?"):
+            logger.info(f"{self.name}.query: maximal depth exceeded ('{command}')")
+            if command.startswith("PID?") or command.startswith("RAMP?"):
                 return "0,0,0"
             else:
                 return "0"
-        self.write(msg)
+        self.write(command)
         ret = self.read()
         if ret == "":
             logger.info(
-                f"{self.name}.query: empty reply, reopening interface ('{msg}', {ret})")
+                f"{self.name}.query: empty reply, reopening interface ('{command}', {ret})"
+            )
             self.close()
             self.open()
-            return self.query(msg, depth=depth+1)
+            return self.query(command, depth=depth + 1)
         return ret
 
     @synchronized
@@ -94,11 +106,31 @@ class Lakeshore3xx(VisaDevice):
         except ValueError:
             return
 
+    def setManualOutput(self, setpoint, loop=1):
+        try:
+            setpoint = float(setpoint)
+            if 0 > setpoint or 100 < setpoint:
+                return
+            self.write("MOUT " + str(loop) + ",{:.5f}".format(setpoint))
+        except ValueError:
+            return
+
     def getSetpoint(self, loop=1):
         return self.query_float("SETP? " + str(loop))
 
-    def getHeater(self, channel=1):
-        return self.query_float("HTR? " + str(channel))
+    def getManualOutput(self, loop=1):
+        return self.query_float("MOUT? " + str(loop))
+
+    def getHeater(self, loop: int = 1) -> float:
+        """
+        Get heater value.
+
+        Parameters
+        ----------
+        loop : int
+            Heater loop to query.
+        """
+        return self.query_float(f"HTR? {loop}")
 
     def getControlMode(self, loop=1):
         return self.query_int("CMODE? " + str(loop)) - 1
@@ -192,15 +224,38 @@ class Lakeshore335(Lakeshore3xx):
             kwargs["parity"] = constants.Parity.odd
         super().__init__(interface, **kwargs)
 
-    def getHeaterRange(self, channel=1):
-        return self.query_int("RANGE? " + str(channel))
+    def getHeaterRange(self, loop: int = 1) -> int:
+        """
+        Get the heater range.
 
-    def setHeaterRange(self, heaterRange, channel=1):
+        Parameters
+        ----------
+        loop : int
+            Heater loop to query.
+
+        Returns
+        -------
+        int
+            The selected range of the heater loop.
+        """
+        return self.query_int(f"RANGE? {loop}")
+
+    def setHeaterRange(self, heaterRange: int, loop: int = 1) -> None:
+        """
+        Set the heater range.
+
+        The function tests, if the range would be correctly set, i.e. 1, 2 or 3.
+
+        Parameters
+        ----------
+        heaterRange : int
+            The range to set (1, 2 or 3).
+        """
         try:
             int(heaterRange)
             if 0 > heaterRange or 3 < heaterRange:
                 return
-            self.write(f"RANGE {channel},{heaterRange}")
+            self.write(f"RANGE {loop},{heaterRange}")
         except ValueError:
             return
 
@@ -362,12 +417,11 @@ class Lakeshore475(VisaDevice):
         if on is True:
             self.write("CMODE 1")
 
-    def configure(self, reset=False, autoRange=True, range=None, dcRes=None,
-                  fUnit=None):
+    def configure(
+        self, reset=False, autoRange=True, range_val=None, dcRes=None, fUnit=None
+    ):
         """
-        function not tested
-
-        Configure LS475 measurement parameters
+        Configure LS475 measurement parameters.
 
         Arguments
         -----
@@ -375,7 +429,7 @@ class Lakeshore475(VisaDevice):
           If True reset the instrument
         autoRange:bool
           switches auto range on
-        range:int
+        range_val:int
           has to be between 1 and 5, where 1 is the smallest
           range and 5 the largest, probe dependent
         dcRes:int
@@ -389,9 +443,9 @@ class Lakeshore475(VisaDevice):
             self.write("*RST")
         if autoRange is True:
             self.write("AUTO 1")
-        elif range is not None and 0 < range and 6 > range:
+        elif range_val is not None and 0 < range_val and 6 > range_val:
             self.write("AUTO 0")
-            self.write("RANGE " + str(range))
+            self.write("RANGE " + str(range_val))
         if dcRes is not None and 0 < dcRes and 4 > dcRes:
             self.write("RDGMODE 1," + str(dcRes) + ",1,1,1")
         if fUnit is not None and 0 < fUnit and 5 > fUnit:

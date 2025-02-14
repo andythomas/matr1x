@@ -1,28 +1,39 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Provides an example and test implementation of a control GUI."""
 
 import collections
 import time
-import warnings
 
 import numpy
+from PyQt6 import QtCore
+
 from matr1x import system
-from matr1x.control import ControlWindow, GuiDict, catchEmitError, control_main
+from matr1x.control import (
+    ControlWindow,
+    GuiDict,
+    catchEmitError,
+    control_main,
+    linear_trend,
+    var,
+)
 from matr1x.control import guiObject as go
-from matr1x.control import linear_trend, var
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
 from matr1x.util import Command, Get
-
-try:
-    from PyQt6 import QtCore
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5 import QtCore
-
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
 # type can be one of int, float, bool, tuple or list.
@@ -30,18 +41,23 @@ except ImportError:
 # If a pure getter command is needed use Get(type getfunc)
 # All functions can take optional setargs, getargs arguments containing lists of
 # additional arguments for the setfunc and getfunc
-common_commands = {"*idn": Get(str, "dummy_control"), }
+common_commands = {
+    "*idn": Get(str, "dummy_control"),
+}
 
 
 class exampleDict(GuiDict):
-    # Initialize dicts for GUI display as well as variable storage
-    # Variables are stored in dict[key].value, GUI elements in dict[key].widgets
-    # The GUI is initialized with the elements specified in dict[key].columns, where
-    # key is label and entries should be of type guiObject.
-    # A list means multiple widgets on one row
-    # The unit of a variable can be set using the "unit" parameter and is then
-    # shown in the label and included in the logging file. The logging
-    # preference for the parameter is set by the boolean "log" parameter.
+    """Initialize dicts for GUI display as well as variable storage.
+
+    Variables are stored in dict[key].value, GUI elements in dict[key].widgets
+    The GUI is initialized with the elements specified in dict[key].columns, where
+    key is label and entries should be of type guiObject.
+    A list means multiple widgets on one row
+    The unit of a variable can be set using the "unit" parameter and is then
+    shown in the label and included in the logging file. The logging
+    preference for the parameter is set by the boolean "log" parameter.
+    """
+
     cmds = {
         ":v1": Command(str, "setV1", "V1"),
         ":v2": Command(float, ("dummy", "p2"), "V2"),
@@ -51,25 +67,53 @@ class exampleDict(GuiDict):
     }
     data = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
-        "V1": var(dtype=str, columns=[go.labeltext, go.combobox],
-                  log=True, init=[None, ("i1", "i2")]),
+        "V1": var(
+            dtype=str,
+            columns=[go.labeltext, go.combobox],
+            log=True,
+            init=[None, ("i1", "i2")],
+        ),
         "V2": var(float, columns=[go.labeltext, go.lineedit], unit="mT"),
-        "V3": var(dtype=float, outType=int, columns=[go.progressbar,
-                                                     go.doublespinbox],
-                  log=False, unit="%", init=[None, (0, 100)], hide=True),
-        "V4": var(dtype=bool, outType=bool,
-                  columns=[go.checkbox, go.checkbox], log=True,),
-        "toggle": var(dtype=bool, outType=bool, columns=[go.checkbox,
-                                                         go.togglebutton],
-                      init=[None, ("Slow", "Error")], log=None),
-        "Set": var(None, columns=[go.button, go.button],
-                   init=["Set", "Copy"]),
+        "V3": var(
+            dtype=float,
+            outType=int,
+            columns=[go.progressbar, go.doublespinbox],
+            log=False,
+            unit="%",
+            init=[None, (0, 100)],
+            hide=True,
+        ),
+        "V4": var(
+            dtype=bool,
+            outType=bool,
+            columns=[go.checkbox, go.checkbox],
+            log=True,
+        ),
+        "toggle": var(
+            dtype=bool,
+            outType=bool,
+            columns=[go.checkbox, go.togglebutton],
+            init=[None, ("Slow", "Error")],
+            log=None,
+        ),
+        "Set": var(None, columns=[go.button, go.button], init=["Set", "Copy"]),
     }
     S = system.System(name="dummy")
-    S.add_dev("dummy", dummy, args=("TCPIP::localhost::10007::SOCKET", ),
-              kwargs={'p1': 'i1', 'p2': 0, 'p5': 5.5, 'p6': True})
+    S.add_dev(
+        "dummy",
+        dummy,
+        args=("TCPIP::localhost::10007::SOCKET",),
+        kwargs={"p1": "i1", "p2": 0, "p5": 5.5, "p6": True},
+    )
 
     def create_GUI(self):
+        """Build the actual GUI.
+
+        Returns
+        -------
+        content : object
+            The GUI content.
+        """
         content = super().create_GUI()
         # connect set/copy buttons
         self["Set"].widgets[1].clicked.connect(self.write)
@@ -81,8 +125,15 @@ class exampleDict(GuiDict):
         return content
 
     def refresh(self, count):
-        # read updated values from hardware (here fake)
-        # always set the value (never change GUI directly!!!)
+        """Read updated values from hardware (here fake).
+
+        Always set the value (never change GUI directly!!!).
+
+        Parameters
+        ----------
+        count : int
+            The current iteration count.
+        """
         self["V1"].value = self.S.devs["dummy"].p1
         self["V2"].value = self.S.devs["dummy"].p2
         self["V4"].value = self.S.devs["dummy"].p6
@@ -97,9 +148,7 @@ class exampleDict(GuiDict):
             self.refresh_worker.panic.emit(True, "value V4 is False")
 
     def write(self):
-        """
-        Set values in the hardware
-        """
+        """Set values in the hardware."""
         self.setV1(self["V1"].getGUIvalue())
         self.S.devs["dummy"].p2 = self["V2"].getGUIvalue()
         self.S.devs["dummy"].p5 = self["V3"].getGUIvalue()
@@ -107,8 +156,12 @@ class exampleDict(GuiDict):
 
     @catchEmitError
     def set_toggle(self, state):
-        """
-        set toggle button functionality in hardware
+        """Set toggle button functionality in hardware.
+
+        Parameters
+        ----------
+        state : bool
+            The state of the toggle button.
         """
         # if it is checked
         if state:
@@ -122,39 +175,73 @@ class exampleDict(GuiDict):
 
     # example functions
     def setV1(self, val):
+        """Provide example function 1.
+
+        Parameters
+        ----------
+        val : str
+            The value to set.
+        """
         self.S.devs["dummy"].p1 = val
 
     def setV2V3(self, val):
+        """Provide example function 2.
+
+        Parameters
+        ----------
+        val : tuple
+            A tuple containing two float values.
+        """
         self.S.devs["dummy"].p2 = val[0]
         self.S.devs["dummy"].p5 = val[1]
 
     def getV2V3(self):
-        """
-        Return the values buffered in the GUI to make this request fast.
-        Alternatively device access here is of course possible.
+        """Get V2 and V3 values.
+
+        Returns
+        -------
+        list
+            A list containing the values of V2 and V3.
         """
         return [self["V2"].value, self["V3"].value]
 
     def panic(self):
         """
-        raises an error for testing purposes. A real controlGUI should bring all
-        parameters to a safe state here. e.g. remove field from a magnet
+        Raise an error for testing purposes.
+
+        A real controlGUI should bring all parameters to a safe state here.
+        e.g. remove field from a magnet.
+
+        Raises
+        ------
+        ValueError
+            This is an error for testing purpose.
         """
         raise ValueError("This is an error for testing purpose.")
 
 
 class exampleDict2(GuiDict):
+    """Initialize dicts for GUI display as well as variable storage.
+
+    Provide a second example to demonstrate, e.g. the dockable widgets
+    and a fake pressure gauge.
+    """
+
     cmds = {
         ":v5": Command(float, "v5", "V5"),
     }
     data = {
         "Example2": var(None, columns="Readout"),
         "V5": var(float, columns=go.labeltext, unit="mbar"),
-        "Info": var(str, columns="For testing purposes errors are raised \n"
-                    "when V4 is set to False, the toggle \n"
-                    "switch is pressed twice, or via the \n"
-                    "Panic Button.",
-                    hide=True),
+        " ": var(None, columns=go.hline, hide=True),
+        "Info": var(
+            str,
+            columns="For testing purposes errors are raised \n"
+            "when V4 is set to False, the toggle \n"
+            "switch is pressed twice, or via the \n"
+            "Panic Button.",
+            hide=True,
+        ),
     }
     # set a custom interval for the refresh function which updates the values
     # from the hardware
@@ -164,11 +251,12 @@ class exampleDict2(GuiDict):
     v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
 
     class MyQObject(QtCore.QObject):
+        """Define pyqtSignals via QObjects.
+
+        We need an object derived from QObject here. In this example
+        it is used to set a tooltip string in a thread safe manner.
         """
-        In order to be able to define pyqtSignals we need an object derived from
-        QObject here. In this example it is used to be able to set a tooltip
-        string in a thread safe manner.
-        """
+
         tooltip = QtCore.pyqtSignal(str, str)
 
     def __init__(self):
@@ -182,6 +270,13 @@ class exampleDict2(GuiDict):
         self.qobject.tooltip.connect(self.set_tooltip)
 
     def refresh(self, count):
+        """Refresh the (fake) read-out values.
+
+        Parameters
+        ----------
+        count : int
+            The current iteration count.
+        """
         self["V5"].value = self.v5
         self.timestamps.appendleft(time.time())
         self.dataseries.appendleft(self.v5)
@@ -194,11 +289,20 @@ class exampleDict2(GuiDict):
                     "V5",
                     "last minute \n"
                     f"slope: {slope/60:.3f}mbar/min\n"
-                    f"std: {std:.3f} mbar")
-            self.v5 = round(30*numpy.random.random(), 3)
+                    f"std: {std:.3f} mbar",
+                )
+            self.v5 = round(30 * numpy.random.random(), 3)
 
     def set_tooltip(self, label, tooltip):
-        """Set tooltip thread safe on any widget in the first column."""
+        """Set tooltip thread safe on any widget in the first column.
+
+        Parameters
+        ----------
+        label : str
+            The label of the widget.
+        tooltip : str
+            The tooltip text to set.
+        """
         if label in self:
             self[label].widgets[1].setToolTip(tooltip)
 
@@ -206,12 +310,16 @@ class exampleDict2(GuiDict):
 # define clientdevice to be used by measurement systems interfacing with this
 # controlGUI. If no interfacing of a measurement system is intended this can be
 # removed.
-clientdevice = makeSCPIdevice(exampleDict.cmds, exampleDict2.cmds,
-                              common_commands, sys=True)
+clientdevice = makeSCPIdevice(
+    exampleDict.cmds, exampleDict2.cmds, common_commands, system=True
+)
 
 
 def main():
-    control_main("dummy",
-                 ControlWindow,
-                 guidicts=(exampleDict(), exampleDict2()),
-                 extra_cmds=common_commands)
+    """Run the actual control window."""
+    control_main(
+        "dummy",
+        ControlWindow,
+        guidicts=(exampleDict(), exampleDict2()),
+        extra_cmds=common_commands,
+    )

@@ -200,7 +200,6 @@ class BSC103(VisaDevice):
         self.connection.timeout = 100
         self.read_very_eager()
         self.connection.timeout = tm
-        self.id()
 
     def write(self, data):
         """
@@ -328,6 +327,7 @@ class BSC103(VisaDevice):
             self.dst = dst
             self.src = src
             self.respLen = respLen
+            self.data = b""
 
             if isinstance(payload, tuple):
                 self.param1 = payload[0]

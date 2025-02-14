@@ -1,10 +1,27 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Utility functions for the matr1x data acquisition software.
+
+This module includes functions for file handling, script generation, sweep calculations,
+and various helper functions for data processing and system configuration.
+"""
 import datetime
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import sysconfig
@@ -12,8 +29,9 @@ import tempfile
 import textwrap
 import time
 from contextlib import contextmanager
-from os.path import abspath, isabs, isdir, isfile, join, relpath, sep
+from os.path import abspath, isabs, isdir, isfile, join, relpath
 
+import h5py
 import numpy as np
 
 # conditional import for non-blocking io
@@ -23,11 +41,32 @@ else:
     import termios
     from select import select
 
+# conditional import for Mac: Required to correctly set the app name and left-most menu
+if sys.platform == "darwin":
+    from AppKit import NSApplication
+    from Foundation import NSBundle
+
 # allow error handling while using with
 
 
 @contextmanager
 def open_and_error(filename, mode="r"):
+    """
+    Context manager to handle file opening with error handling.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the file to open.
+    mode : str, optional
+        Mode in which to open the file. Default is "r" (read mode).
+
+    Yields
+    ------
+    tuple
+        A tuple containing the file object and None if successful,
+        or None and the error if an exception occurs.
+    """
     try:
         f = open(filename, mode)
     except Exception as error:
@@ -53,7 +92,18 @@ telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
 
 
 def get_package_path(package_name):
-    """determine path of a python package
+    """
+    Determine the path of a Python package.
+
+    Parameters
+    ----------
+    package_name : str
+        Name of the package.
+
+    Returns
+    -------
+    str or None
+        Path to the package if found, None otherwise.
     """
     spec = importlib.util.find_spec(package_name)
     if spec and spec.origin:
@@ -63,8 +113,20 @@ def get_package_path(package_name):
 
 def get_importable_module_name(filename):
     """
-    Obtain import module name if the filename corresponds to an installed
-    Python (sub)module, otherwise returns False.
+    Get importable module name if filename point to an installed module.
+
+    If the filename does not correspond to an installed Python (sub)module
+    this method returns False.
+
+    Parameters
+    ----------
+    filename : str
+        Path to the file.
+
+    Returns
+    -------
+    str or bool
+        Module name if importable, False otherwise.
     """
     # Normalize the path
     filename = abspath(filename)
@@ -92,7 +154,7 @@ def get_importable_module_name(filename):
     if best_match:
         # Remove the base_path from the module_path and convert to module name
         relative_path = relpath(module_path, best_match)
-        module_name = relative_path.replace(sep, '.')
+        module_name = relative_path.replace(os.sep, ".")
 
         # Check if the module is installed
         try:
@@ -107,21 +169,23 @@ def get_importable_module_name(filename):
 
 
 def create_temp_dir_with_symlinks(names, targets):
-    """create temporary directory with symlinks
+    """
+    Create temporary directory with symlinks.
 
-    this function works similar on all major platforms,
+    This function works similarly on all major platforms,
     but uses different ways to achieve this.
 
     Parameters
     ----------
-    names: list
-     names of the symlinks
-    targets: list
-     target folders for the links
+    names : list
+        Names of the symlinks.
+    targets : list
+        Target folders for the links.
 
     Returns
     -------
-    TemporaryDirectory instance
+    TemporaryDirectory
+        Temporary directory instance.
     """
     # Create a temporary directory
     temp_dir = tempfile.TemporaryDirectory(prefix="systemdir-links-")
@@ -145,15 +209,20 @@ def create_temp_dir_with_symlinks(names, targets):
 
 def get_matrix_binary():
     """
-    check if matrix binary is on the path and otherwise try known python binary
-    folders.
+    Find matrix binary from PATH and otherwise try known Python binary folders.
 
     This executes "matrix --help" to test if this works without error. If no
-    executable is found an FileNotFoundError will be raised
+    executable is found an FileNotFoundError will be raised.
 
     Returns
     -------
-    binary_name
+    str
+        Name of the matrix binary.
+
+    Raises
+    ------
+    FileNotFoundError
+        If matrix executable could not be found.
     """
     user_scripts_path = sysconfig.get_path('scripts', f'{os.name}_user')
     system_scripts_path = sysconfig.get_path('scripts')
@@ -171,6 +240,19 @@ def get_matrix_binary():
 
 
 def module_from_path(filename):
+    """
+    Create a module from a file path.
+
+    Parameters
+    ----------
+    filename : str
+        Path to the file.
+
+    Returns
+    -------
+    module
+        Imported module.
+    """
     # module path was defined, check that file exists
     if not isabs(filename):
         # get absolute path
@@ -180,14 +262,23 @@ def module_from_path(filename):
                                                   filename)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    # set the name of the system to reflect the filename
-    mod.sys.__name__ = filename
     return mod
 
 
 def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
     """
-    return a formated line with data values
+    Output a formatted line with data values.
+
+    Parameters
+    ----------
+    vlist : list
+        List of values to format.
+    prefix : str, optional
+        Prefix for the line. Default is "".
+    appendix : str, optional
+        Appendix for the line. Default is "".
+    column_width : int, optional
+        Width of each column. Default is 10.
     """
     entry_string = "{:>%d}  " % column_width
     outstr = f"{prefix:>6}"
@@ -212,27 +303,33 @@ def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
 
 def generate_script_prefix_suffix(systems):
     """
-    Definition of the prefix and suffix of the script used in matrix_script
+    Define the prefix and suffix of the script used in matrix_script.
 
     Parameters
-    ----
-    systems : list of system (file)names
-      defines system that is supposed to be used
+    ----------
+    systems : list
+        List of system (file)names that define the system to be used.
 
     Returns
-    ----
-    prefix : str
-      prefix of a script that can be directly executed and allows to use
-      the custom matrix_script syntax.
-      Ends with try statement, so use script has to be indented by 4 spaces
-    suffix : str
-      corresponding suffix of the scriot, finishes the try statement
+    -------
+    tuple
+        A tuple containing two strings:
+        - prefix : str
+            Prefix of a script that can be directly executed and allows use of
+            the custom matrix_script syntax. Ends with try statement, so use
+            script has to be indented by 4 spaces.
+        - suffix : str
+            Corresponding suffix of the script, finishes the try statement.
     """
     prefix = textwrap.dedent(
         f"""
+    import builtins as _builtins
+    import datetime as _datetime
     import inspect as _inspect
     import math as _math
     import os as _os
+    import sys as _sys
+    import textwrap as _textwrap
     import time as _time
     import types as _types
 
@@ -243,48 +340,125 @@ def generate_script_prefix_suffix(systems):
 
     from matr1x.system import MergedSystem as _MergedSystem
 
-
-    # change execution directory if requested
-    if _matr1x.matrix_script_execution_path == "<script-location>":
-        if _os.path.dirname(_scriptname):
-            _os.chdir(_os.path.dirname(_scriptname))
-    elif _matr1x.matrix_script_execution_path:
-        _os.chdir(_matr1x.matrix_script_execution_path)
+    # load config section from toml file
+    _config = _matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
     _system = _MergedSystem.from_files([{", ".join(repr(s) for s in systems)}])
 
     # pass meta information
-    _system.dcdata['Identifier'] = _sample
-    _system.dcdata['Creator'] = _user
+    for _key, _value in _meta_data.items():
+        if _key in _matr1x.VALID_META_KEYS.keys():
+            if _matr1x.VALID_META_KEYS[_key]:
+                _system.dcdata[_key] = _value
     _setvalues = []  # buffer for set values for printing
     _npoints = 0  # internal measurement point counter
     _ntot = None  # total number of measurement points for telemetry
     _starttime = _time.time()
     _preset = _starttime
+    _reset_kwargs = {{}}
+
+
+    def _configure_execution_path(scriptname):
+        '''Change execution path if requested in config.'''
+        if _config["script_path"] == "<script-location>":
+            if _os.path.dirname(scriptname):
+                _os.chdir(_os.path.dirname(scriptname))
+        elif _os.path.exists(_config["script_path"]):
+            _os.chdir(_config["script_path"])
+
+
+    def _configure_script_storing(system, script):
+        '''Store user script if requested in config.'''
+        if _config["store_script_in_datafile"]:
+            prefix, suffix = _matrix_util.generate_script_prefix_suffix("")
+            npref, nsuff = len(prefix.splitlines()), len(suffix.splitlines())
+            # strip prefix and suffix lines from script for storing
+            user_script = _textwrap.dedent("\\n".join(script.splitlines()[npref:-nsuff]))
+            if "user script" not in system.system_config_params:
+                system.system_config_params["user script"] = user_script
+            else:
+                print("'user script' key already present in system, not overwriting!")
+
+
+    def _find_caller_frame():
+        '''Find the frame of the actual caller, skipping over decorator frames.'''
+        # stepping back on frame, since the inner most frame is from this function
+        frame = _inspect.currentframe().f_back
+        # Try to find the first __call__ frame, as in Python 3.13+
+        while frame:
+            if frame.f_code.co_name == "__call__":
+                return frame.f_back  # Return the frame just outside __call__
+            frame = frame.f_back
+
+        # Fallback for Python 3.12 or earlier: step back a fixed number of frames
+        frame = _inspect.currentframe()
+        steps_back = 3 if _sys.version_info >= (3, 13) else 2
+        for _ in range(steps_back):
+            frame = frame.f_back if frame else None
+
+        return frame  # Returns the frame that we believe to be the caller
 
 
     @wrapt.decorator
     def _lineno_decorator(wrapped, instance, args, kwargs):
-        "decorator to report the executing line number back to the GUI"
-        frame = _inspect.currentframe().f_back
-        caller_name = frame.f_code.co_name
-        caller_filename = frame.f_code.co_filename
-        line_number = frame.f_lineno
-        if caller_name == "<module>" and caller_filename == "<string>":
-            # report line only if called directly from script
-            _report_line(line_number)
+        '''Decorator to report the executing line number back to the GUI.'''
+        frame = _find_caller_frame()
+        if frame:
+            caller_name = frame.f_code.co_name
+            caller_filename = frame.f_code.co_filename
+            if caller_name == "<module>" and caller_filename == "<string>":
+                # report line only if called directly from script
+                _report_line(frame.f_lineno)
         return wrapped(*args, **kwargs)
 
 
     @wrapt.decorator
     def _breakpoint(wrapped, instance, args, kwargs):
-        "decorator to add a breakpoint check"
-        _wait(0)
-        return wrapped(*args, **kwargs)
+        '''Decorator to add a breakpoint check.'''
+        # avoid recursive loop (a decorated function calling another)
+        # If the wrapped object is a method, attach _calling to the instance
+        if instance is not None:
+            if not hasattr(instance, '_calling'):
+                instance._calling = False
+
+            if instance._calling:
+                # do not call decoration recursively
+                return wrapped(*args, **kwargs)
+
+            instance._calling = True
+            try:
+                _interrupt(0, system=_system)
+                result = wrapped(*args, **kwargs)
+            finally:
+                instance._calling = False
+        else:
+            # If the wrapped object is a function,
+            # attach _calling to the function itself
+            if not hasattr(wrapped, '_calling'):
+                wrapped._calling = False
+
+            if wrapped._calling:
+                # do not call decoration recursively
+                return wrapped(*args, **kwargs)
+
+            wrapped._calling = True
+            try:
+                _interrupt(0, system=_system)
+                result = wrapped(*args, **kwargs)
+            finally:
+                wrapped._calling = False
+        return result
 
 
     def _inject_decorator(instance, decorator):
+        '''Inject decorator into instance methods.'''
         for attr_name in dir(instance):
+            if attr_name in ['add_comment', '_print']:
+                # exclude this methods from decoration since they are
+                # potentially called from inside the decorator. anything called
+                # inside the _interrupt function should be added here/not
+                # decorated.
+                continue
             attr = getattr(instance, attr_name)
             if isinstance(attr, _types.MethodType):
                 decorated_attr = decorator(attr)
@@ -292,6 +466,7 @@ def generate_script_prefix_suffix(systems):
 
 
     def _reset_setvalues():
+        '''Reset the setvalues variable.'''
         global _setvalues
         _setvalues = []
         for i, col in enumerate(_system.columns):
@@ -310,14 +485,26 @@ def generate_script_prefix_suffix(systems):
     _reset_setvalues()  # initialize the setvalues variable
     # bring meta_data and system into namespace
     meta_data = _system.dcdata
-    sys = _system
+    system = _system
 
     # redefine set_value to limit user typing requirements
     @_lineno_decorator
     def set_value(col, value):
         '''
-        wrapper for _system.set_values to allow storing all set parameters
-        between two measurements
+        Wrapper for _system.set_values to allow storing all set parameters
+        between two measurements.
+
+        Parameters
+        ----------
+        col : str or int
+            Column name or index.
+        value : Any
+            Value to set.
+
+        Returns
+        -------
+        Any
+            Set value.
         '''
         global _setvalues
 
@@ -333,63 +520,162 @@ def generate_script_prefix_suffix(systems):
             _setvalues[i] = setv
         return setv
 
+
     @_lineno_decorator
     def trigger_value(*args, **kwargs):
         '''
-        execute sys.trigger_value. all arguments are forwarded.
+        Execute system.trigger_value. All arguments are forwarded.
+
+        Parameters
+        ----------
+        *args : tuple
+            Positional arguments.
+        **kwargs : dict
+            Keyword arguments.
+
+        Returns
+        -------
+        Any
+            Result of system.trigger_value.
         '''
         _system.trigger_value(*args, **kwargs)
+
 
     @_lineno_decorator
     def read_value(*args, **kwargs):
         '''
-        execute sys.read_value. all arguments are forwarded.
+        Execute system.read_value. All arguments are forwarded.
+
+        Parameters
+        ----------
+        *args : tuple
+            Positional arguments.
+        **kwargs : dict
+            Keyword arguments.
+
+        Returns
+        -------
+        Any
+            Result of system.read_value.
         '''
         return _system.read_value(*args, **kwargs)
 
-    @_lineno_decorator
-    def wait(*args, **kwargs):
-        '''
-        wait for a given period.
 
-        During a wait the script can always be paused/stopped.
+    @_lineno_decorator
+    def wait(duration=None, until=None, message="", silent=10):
+        '''
+        Pauses execution for a specified duration, until a specified timestamp, or for a relative time.
 
         Parameters
         ----------
-        sleep: float
-         wait time in seconds
+        duration : float or int, optional
+            The number of seconds to sleep. If specified, the function will sleep for this duration.
+            If paused during this duration the remaining wait time continue after unpausing.
+            If a str or datetime object is used here it will be redirected to the until argument.
+        until : str or datetime, optional
+            A target time or relative time string. It can be:
+            - An absolute timestamp in a format like "YYYY-MM-DD HH:MM:SS" or "HH:MM".
+            - A relative time string starting with '+' followed by a number and a unit
+                (e.g., "+24h" for 24 hours, "+30m" for 30 minutes, "+1d" for 1 day).
+            - A `datetime` object representing a specific time.
         message : str, optional
-         a string which is printed if the sleep exceeds the silent argument
+            A string which is printed if the sleep exceeds the silent argument.
         silent : float, optional
-         if the wait time exceeds this value a message string will be printed
+            If the wait time exceeds this value a message string will be printed.
+
+        Examples
+        --------
+        >>> wait(duration=10)
+        Pauses execution for 10 seconds.
+
+        >>> wait(until="2025-11-05 15:30")
+        Pauses execution until 15:30 on November 5, 2025.
+
+        >>> wait(until="+2h")
+        Pauses execution for 2 hours from the current time.
+
+        >>> wait(until="18:00")
+        Pauses execution until 18:00 today, or until the same time tomorrow if it has already passed today.
         '''
-        _wait(*args, **kwargs)
+        if isinstance(duration, (str, _datetime.datetime)) and not until:
+            until = duration
+            duration = None
+        if duration and until:
+            print("until (%s) argument of the wait function will be ignored" % until)
+            until = None
+        _interrupt(duration=duration, until=until, message=message, silent=silent, system=_system)
+
 
     @_lineno_decorator
-    def input(*args, **kwargs):
+    def input(query: str):
         '''
-        ask user to provide some free text input.
+        Ask user to provide some free text input.
 
         Parameters
         ----------
-        query: str
-         query string presented to the user so they know what to enter
+        query : str
+            Query string presented to the user so they know what to enter.
+
+        Returns
+        -------
+        str
+            User input.
         '''
-        return _input(*args, **kwargs)
+        return _input(query, system=_system)
+
 
     @_lineno_decorator
     def input_bool(query: str):
         '''
-        ask user to answer a yes/no question.
+        Ask user to answer a yes/no question.
 
-        If the user answers yes the return value will be True and False otherwise.
+        Parameters
+        ----------
+        query : str
+            Question to ask the user.
+
+        Returns
+        -------
+        bool
+            True if the user answers yes, False otherwise.
         '''
-        ret = _input(query, type='bool')
+        ret = _input(query, system=_system, input_type='bool')
         if ret == "yes":
             return True
         return False
 
 
+    @_lineno_decorator
+    def end_script(finished: bool = None):
+        '''
+        End the script execution and define the file status as finished or
+        unfinished if not None.
+
+        Parameters
+        ----------
+        finished : bool, optional
+            If True, mark the script as finished. If False, mark as unfinished.
+            If None, don't change the status.
+        '''
+        global _status
+        _status.finished = finished
+        raise KeyboardInterrupt
+
+
+    @_lineno_decorator
+    def print(*args, **kwargs):
+        '''Use system._print to optionally forward the printed message to the datafile.
+
+        The behavior of this function depends on the config option
+        matr1x.scripts.matrix-script.print_to_comment
+        '''
+        _system._print(*args, **kwargs)
+
+
+    # load execution path of scripts and change to this directory
+    _configure_execution_path(_scriptname)
+    # optionally set user script to be stored in data file
+    _configure_script_storing(_system, _script)
     # initialize system and put devs into namespace
     print("setting devices")
     # system.set is called before the filename is set so we have no arguments
@@ -397,32 +683,36 @@ def generate_script_prefix_suffix(systems):
     _system.set()
     devs = _system.devs
 
+    # switch meta data to append state
+    _system.dcdata.append = True
+
 
     @_lineno_decorator
     @_breakpoint
-    def init_datafile(filename, comment="", append=False, print_header=True,
+    def init_datafile(filename, comment=None, append=False, print_header=True,
                       ntot=None):
         '''
-        initialize the datafile for the matrix_script measurement. By default a
-        new datafile will be generated whose name is generated in a way that no
-        existing datafile can be overwritten.
+        Initialize the datafile for the matrix_script measurement.
+
+        By default a new datafile will be generated whose name is generated in a
+        way that no existing datafile can be overwritten.
 
         Parameters
         ----------
-        filename: str
-          name of the datafile to be used.
-        comment: str, optional
-          comment to be saved in the file header
-        append: bool, optional
-          flag to tell if an existing datafile should be used. If append is
-          False a new datafile with a non-conflicting name will be generated by
-          appending "_<number>" to the filename
-        print_header: bool, optional
-         flag to decide if the header information with column names and units
-         should be printed
-        ntot: int, optional
-          total number of expected datapoints for estimation of remaining
-          measurement time.
+        filename : str
+            Name of the datafile to be used.
+        comment : str, optional
+            Comment to be saved in the file header.
+        append : bool, optional
+            Flag to tell if an existing datafile should be used. If append is
+            False a new datafile with a non-conflicting name will be generated by
+            appending "_<number>" to the filename.
+        print_header : bool, optional
+            Flag to decide if the header information with column names and units
+            should be printed.
+        ntot : int, optional
+            Total number of expected datapoints for estimation of remaining
+            measurement time.
         '''
         global _ntot, _npoints, _starttime
 
@@ -436,18 +726,16 @@ def generate_script_prefix_suffix(systems):
             append=append)
         if append == False or not _os.path.exists(filename):
             # write header to file
-            print("running config query")
-            query_dict = _system.query()
-            print("configuration acquired, initializing file")
-            _system.dcdata["Description"] = comment
-            _system.write_matrix_header(
-                _scriptname or "matrix script generated",
-                query_dict)
+            _system.dcdata["description"] = comment
+            _system.init_datafile(_scriptname or "matrix script generated")
+            print("acquired configuration, and initialized file")
         if print_header:
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_system.columns))
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_system.units))
+        # report file to matrix_script
+        _report_path(filename)
 
 
     # wrap system.trigger and system.take_measurement_point into measure_system
@@ -455,21 +743,27 @@ def generate_script_prefix_suffix(systems):
     @_breakpoint
     def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
         '''
-        Perform the measurment of a single data point. This means a sequence of
-        system.trigger, and reading the data is performed.
+        Perform the measurement of a single data point.
+
+        This means a sequence of system.trigger, and reading the data is performed.
 
         Parameters
         ----------
-        print_setpoint: bool, optional
-         flag to decide if the column values set since the last measurement
-         should be printed in a way combatible with the header information of
-         init_datafile
-        print_data: bool, optional
-         flag to decide if the measured data values should be printed in a way
-         combatible with the header information of init_datafile
-        print_telemetry: bool, optional
-         flag to decide if telemetry data about the measurement duration should
-         be printed
+        print_setpoint : bool, optional
+            Flag to decide if the column values set since the last measurement
+            should be printed in a way compatible with the header information of
+            init_datafile.
+        print_data : bool, optional
+            Flag to decide if the measured data values should be printed in a way
+            compatible with the header information of init_datafile.
+        print_telemetry : bool, optional
+            Flag to decide if telemetry data about the measurement duration should
+            be printed.
+
+        Returns
+        -------
+        list
+            List of measured values.
         '''
         global _preset, _npoints
         _npoints += 1
@@ -493,12 +787,13 @@ def generate_script_prefix_suffix(systems):
                 remaining = (elapsed/_npoints*_ntot-elapsed)/60
             else:
                 remaining = _math.nan
-            print(_matrix_util.telemetry_string.format(
+            # use builtins.print here to make sure the telemetry do not get added to the datafile
+            _builtins.print(_matrix_util.telemetry_string.format(
                 _npoints, _ntot or -1, elapsed/60, remaining, preread-_preset,
                 _time.time()-preread))
         if print_data or print_telemetry or print_setpoint:
             # isolate different iterations of measure system by a space
-            print("")
+            _builtins.print("")
         _preset = _time.time()
         return return_list
 
@@ -511,12 +806,25 @@ def generate_script_prefix_suffix(systems):
     suffix = textwrap.dedent(
         """
     except KeyboardInterrupt:
-        print("\\nscript has been aborted by user, calling reset")
+        print("\\nscript has been aborted by user.")
+        # mark script as aborted per default once abort is called
+        if _status.finished:
+            _reset_kwargs["status"] = "finished"
+        elif _status.finished is False:
+            # supposed to be marked as aborted
+            _reset_kwargs["status"] = "aborted"
+        else:
+            # finished is None, so ask what is supposed to happen
+            _reset_kwargs["status"] = _input("", system=_system, input_type="__end_script__")
+
     # ===== end user area =====
+    # mark last open file as finished, if not labeled elsewhere
+    if not "status" in _reset_kwargs.keys():
+        _reset_kwargs["status"] = "finished"
     # the reset function is called at the script end only, but we nevertheless
     # specify the last datafile name to be as close as possible to the behavior
     # of matrix
-    _system.reset()
+    _system.reset(**_reset_kwargs)
     """
     )
     return prefix, suffix
@@ -524,59 +832,60 @@ def generate_script_prefix_suffix(systems):
 
 def generate_script(systems, user_script):
     """
-    Definition of the general part of the script used in matrix_script
+    Define the general part of the script used in matrix_script.
 
     Parameters
-    ----
-    systems : list of system (file)names
-      defines system that is supposed to be used
+    ----------
+    systems : list
+        List of system (file)names that define the system to be used.
     user_script : str
-      custom user script that is typically provided by matrix_script, which is
-      supposed to be executed.
+        Custom user script that is typically provided by matrix_script, which is
+        supposed to be executed.
 
     Returns
-    ----
-    script : str
-      Script that can be directly executed and allows to use the custom
-      matrix_script syntax.
-      Returned script must be run in the context of the matrix_script_process
+    -------
+    str
+        Script that can be directly executed and allows use of the custom
+        matrix_script syntax. Returned script must be run in the context of the
+        matrix_script_process.
     """
     # define basic part of script, imports relevant commands
     prefix, suffix = generate_script_prefix_suffix(systems)
     if user_script.strip() == "":
-        # if empty script is passed, avoid indendation error but otherwise
-        # make script execution possible
+        # if empty script is passed, avoid indendation error and make script
+        # execution possible
         user_script = "pass"
     return prefix + textwrap.indent(user_script, "    ") + suffix
 
 
-def matrix_script_process(filename, user="", sample="",
-                          scriptname=""):
+def matrix_script_process(filename, meta_data={}, scriptname=""):
     """
     Process in which the script generated by generate_script is executed.
+
     Provides functionality to pause and gracefully quit the script execution
     at a breakpoint.
 
-    temporary file is used to avoid difficulties with passing the full script
+    A temporary file is used to avoid difficulties with passing the full script
     as terminal argument.
 
-    Arguments
-    ----
+    Parameters
+    ----------
     filename : str
-      filename to the (temporary) file containing the script to be executed.
-      Script in file should have been generated by generate_script.
-    user : str
-      user name that is written into the meta data of the output file
-    sample : str
-      sample name that is written into the meta data of the output file
-    scriptname: str
-      script name used as fallback template for the datafile name if its not
-      set in the script and the directory of this file is used as a base
-      directory for executing the script. This means Python files inside this
-      directory can be imported by the user-script
+        Filename to the (temporary) file containing the script to be executed.
+        Script in file should have been generated by generate_script.
+    meta_data : dict, optional
+        Meta data such as, e.g., user name, description.
+    scriptname : str, optional
+        Script name used as fallback template for the datafile name if it's not
+        set in the script and the directory of this file is used as a base
+        directory for executing the script. This means Python files inside this
+        directory can be imported by the user-script.
+
+    Returns
+    -------
+    None
     """
     # import required dependencies
-    import re
     import socket
     import threading
     import traceback
@@ -588,46 +897,149 @@ def matrix_script_process(filename, user="", sample="",
     # define killable thread to execute the script
     class ExecThread(threading.Thread):
         """
-        Thread that handles the execution of the measurement script
+        Thread that handles the execution of the measurement script.
 
-        Arguments
-        -----
+        Attributes
+        ----------
         script : str
-          Measurement script generated by generate_script
-        sample : str
-          sample name
-        user : str
-          user name
+            Measurement script generated by generate_script.
+        meta_data : dict
+            Meta data.
+        scriptname : str
+            Name of the script.
+        stop_status : Status
+            Status object to track if the script is finished.
+        pause_flag : bool
+            Flag to indicate if the script is paused.
+        interrupt_flag : bool
+            Flag to indicate if the script should be interrupted.
+        recv_flag : bool
+            Flag to indicate if input is being received.
+        recv : str
+            Received input.
+        n_pref : int
+            Number of prefix lines.
+        socket : socket.socket or None
+            Socket for communication.
         """
+
         class Unbuffered:
-            """
-            implements a wrapper on stdout to make sure data is passed
-            on immediately and messages are terminated with \0 to allow
-            using \n and \r in print conventionally without breaking
-            the formatting
+            r"""
+            Implements a wrapper on stdout to make sure data is passed on immediately.
+
+            This wrapper terminates messages with \0 to allow using \n and \r in print
+            conventionally without breaking the formatting.
             """
 
             def __init__(self, stream):
+                """
+                Initialize the Unbuffered wrapper.
+
+                Parameters
+                ----------
+                stream : file-like object
+                    The stream to wrap.
+                """
                 self.stream = stream
 
             def write(self, data):
+                """
+                Write data to the stream.
+
+                Parameters
+                ----------
+                data : str
+                    Data to write.
+
+                Returns
+                -------
+                None
+                """
                 self.stream.write(data + "\0")
                 self.stream.flush()
 
             def writelines(self, datas):
+                """
+                Write multiple lines to the stream.
+
+                Parameters
+                ----------
+                datas : iterable of str
+                    Lines to write.
+
+                Returns
+                -------
+                None
+                """
                 self.stream.writelines(datas)
                 self.stream.flush()
 
             def __getattr__(self, attr):
+                """
+                Get attribute from the underlying stream.
+
+                Parameters
+                ----------
+                attr : str
+                    Attribute name.
+
+                Returns
+                -------
+                Any
+                    The attribute value.
+                """
                 return getattr(self.stream, attr)
 
-        def __init__(self, script, sample, user, scriptname, socket):
-            """ initialize all variable """
+        class Status:
+            """Status class that stores the finished status for aborting."""
+
+            def __init__(self, value=None):
+                """
+                Initialize the Status object.
+
+                Parameters
+                ----------
+                value : bool or None, optional
+                    Initial finished value.
+                """
+                self.finished = value
+
+            @property
+            def finished(self):
+                """
+                Get the finished status.
+
+                Returns
+                -------
+                bool or None
+                    The finished status.
+                """
+                return self._finished
+
+            @finished.setter
+            def finished(self, value):
+                """
+                Set finished value to either None, True or False.
+
+                Parameters
+                ----------
+                value : bool or None
+                    The value to set.
+
+                Returns
+                -------
+                None
+                """
+                if value in (None, True, False):
+                    self._finished = value
+
+        def __init__(self, script, meta_data, scriptname, socket):
+            """Initialize all variables."""
             super().__init__()
             self.script = script
-            self.sample = sample
-            self.user = user
+            self.meta_data = meta_data
             self.scriptname = scriptname
+            self.stop_status = self.Status()
             self.pause_flag = False
             self.interrupt_flag = False
             self.recv_flag = False
@@ -640,72 +1052,326 @@ def matrix_script_process(filename, user="", sample="",
                 sys.stdout = self.Unbuffered(file)
 
         def pause(self, state):
-            """ pause the execution at the breakpoint """
+            """
+            Pause the execution at the breakpoint.
+
+            Parameters
+            ----------
+            state : bool
+                True to pause, False to resume.
+
+            Returns
+            -------
+            None
+            """
             self.pause_flag = bool(state)
             if state is True:
                 print("\npaused")
 
-        def stop(self):
-            """ set the interrupt flag, so that the execution is stopped at
-                the breakpoint the execution at the breakpoint """
+        def stop(self, state=None):
+            """
+            Set the interrupt flag, to stop execution at next breakpoint.
+
+            Parameters
+            ----------
+            state : bool or None, optional
+                The state to set for stop_status.finished.
+
+            Returns
+            -------
+            None
+            """
+            self.pause_flag = False
+            self.stop_status.finished = state
             self.interrupt_flag = True
 
-        def breakpoint(self, sleep, message="", silent=10):
-            """ breakpoint function that handles the interrupt as well
-                as the waiting/sleep times
-
-            The function prints out some message if the wait time exceeds the
-            value of the silent argument.
+        def interrupt(
+            self, duration=None, until=None, message="", silent=10, system=None
+        ):
             """
-            t0 = time.time()
-            end = datetime.datetime.today() + datetime.timedelta(seconds=sleep)
-            if sleep > silent:
-                msg = "" if not message else f" ({message})"
-                until = f" until {end.strftime('%H:%M:%S')}"
-                print(f"Waiting {sleep:.0f} seconds{msg}{until}")
+            Pauses execution for a specified duration, until a specified timestamp, or for a relative time.
 
-            while (time.time() - t0) < sleep:
-                now = time.time()
-                remaining = sleep - (now - t0)
-                if remaining > 1.1:
-                    # if multiple seconds remaining, wait in chunks of 1s
-                    if sleep > silent:
-                        print(f"\r{remaining:.0f} seconds remaining", end="")
-                    time.sleep(1)
+            Parameters
+            ----------
+            duration : float or int, optional
+                The number of seconds to sleep. If specified, the function will sleep for this duration.
+
+            until : str or datetime, optional
+                A target time or relative time string. It can be:
+                - An absolute timestamp in a format like "YYYY-MM-DD HH:MM:SS" or "HH:MM".
+                - A relative time string starting with '+' followed by a number and a unit
+                (e.g., "+24h" for 24 hours, "+30m" for 30 minutes, "+1d" for 1 day).
+                - A `datetime` object representing a specific time.
+
+            message : str, optional
+                Message to display during the wait.
+
+            silent : float, optional
+                Time threshold above which to display messages about the wait.
+
+            system : object, optional
+                System object to log comments if a pause or interrupt occurs.
+
+            Raises
+            ------
+            ValueError
+                If neither `duration` nor `until` is provided, or if the `until` format is not recognized.
+
+            TypeError
+                If `until` is not a string or `datetime` object.
+            """
+            now = datetime.datetime.now()
+            end_time = None
+            sleep_time = None
+            msg = "" if not message else f" ({message})"
+            print_func = system._print if system else print
+
+            if duration is not None:
+                sleep_time = duration
+                end_time = now + datetime.timedelta(seconds=sleep_time)
+                if sleep_time > silent or msg:
+                    print_func(
+                        f"Waiting {sleep_time:.0f} seconds{msg} until {end_time.strftime('%H:%M:%S')}"
+                    )
+
+            elif until is not None:
+                if isinstance(until, str) and until.startswith("+"):
+                    # Parse relative time
+                    match = re.match(r"\+(\d+\.?\d*)([smhd])", until)
+                    if match:
+                        value, unit = float(match.group(1)), match.group(2)
+                        if unit == "s":
+                            end_time = now + datetime.timedelta(seconds=value)
+                        elif unit == "m":
+                            end_time = now + datetime.timedelta(minutes=value)
+                        elif unit == "h":
+                            end_time = now + datetime.timedelta(hours=value)
+                        elif unit == "d":
+                            end_time = now + datetime.timedelta(days=value)
+                    else:
+                        raise ValueError("Invalid relative time format.")
+
+                elif isinstance(until, datetime.datetime):
+                    end_time = until
                 else:
-                    # wait remaining time
-                    time.sleep(remaining)
-                    if sleep > silent:
-                        print("\rWaiting done")
+                    # Parse absolute time with multiple date formats
+                    formats = [
+                        "%Y-%m-%d %H:%M:%S",
+                        "%d-%m-%Y %H:%M:%S",
+                        "%m/%d/%Y %I:%M:%S %p",
+                        "%m/%d/%Y %H:%M:%S",
+                        "%Y-%m-%d %H:%M",
+                        "%d-%m-%Y %H:%M",
+                        "%Y-%m-%d",
+                        "%d-%m-%Y",
+                        "%H:%M:%S",
+                        "%H:%M",
+                        "%Y/%m/%d %H:%M",
+                        "%d.%m.%Y %H:%M",
+                        "%d.%m.%Y %H:%M",
+                    ]
+
+                    for fmt in formats:
+                        try:
+                            parsed_time = datetime.datetime.strptime(until, fmt)
+                            if fmt in ["%H:%M:%S", "%H:%M"]:
+                                parsed_time = parsed_time.replace(
+                                    year=now.year, month=now.month, day=now.day
+                                )
+                                if parsed_time < now:
+                                    parsed_time += datetime.timedelta(days=1)
+                            end_time = parsed_time
+                            break
+                        except ValueError:
+                            continue
+                    if not end_time:
+                        raise ValueError("Timestamp format not recognized.")
+
+                if end_time < now:
+                    print_func(
+                        f"Specified wait until time {end_time.strftime('%Y-%m-%d %H:%M:%S')} is in the past. "
+                        "Continuing immediately."
+                    )
+                    self.check_for_interrupt_and_pause(system)
+                    return
+                sleep_time = (end_time - now).total_seconds()
+
+                if sleep_time > silent or msg:
+                    if sleep_time < 3:
+                        sleeptstr = f"{sleep_time:.2f}"
+                    else:
+                        sleeptstr = f"{sleep_time:.0f}"
+                    print_func(
+                        f"Waiting until {end_time.strftime('%Y-%m-%d %H:%M:%S')} (in {sleeptstr} seconds){msg}"
+                    )
+
+            else:
+                raise ValueError("Either `duration` or `until` must be provided.")
+
+            # Perform the wait with pause handling
+            self._execute_sleep(
+                sleep_time, end_time, duration is not None, silent, msg, system
+            )
+            # Ensure interrupt and pause checks are called at least once, even if `sleep_time` is 0
+            self.check_for_interrupt_and_pause(system)
+
+        def _execute_sleep(
+            self, sleep_time, end_time, is_duration, silent, message, system
+        ):
+            """Handle sleeping with interrupt and pause checks.
+
+            Parameters
+            ----------
+            sleep_time : float
+                Total time to sleep in seconds.
+            end_time : datetime
+                The target end time for the sleep.
+            is_duration : bool
+                Whether the initial wait was specified with a duration or until a timestamp.
+            silent : float
+                Threshold for showing status messages.
+            message : str
+                Message to display during waiting.
+            system :
+                System object to log comments if a pause or interrupt occurs.
+            """
+            start_time = time.time()
+            pause_duration = (
+                0  # Tracks cumulative pause duration for duration-based waits
+            )
+            initial_sleep_time = sleep_time  # Save the initial sleep time for reference
+            print_func = system._print if system else print
+
+            while sleep_time > 0:
+                # Calculate remaining time based on the end time for "until" waits
+                if not is_duration and end_time:
+                    sleep_time = (end_time - datetime.datetime.now()).total_seconds()
+
+                # Check for interruption or pause
+                pause_start = time.time()  # Record when the pause starts
+                if self.check_for_interrupt_and_pause(system):
+                    if (
+                        not is_duration
+                        and end_time
+                        and datetime.datetime.now() >= end_time
+                    ):
+                        print_func(
+                            "\nThe target time passed during pause. Continuing immediately."
+                        )
+                        return
+                    elif is_duration:
+                        # Calculate pause duration and extend end_time accordingly
+                        pause_end = time.time()
+                        pause_duration += pause_end - pause_start
+                        end_time = datetime.datetime.now() + datetime.timedelta(
+                            seconds=(
+                                initial_sleep_time
+                                - (time.time() - start_time - pause_duration)
+                            )
+                        )
+
+                        # Recalculate sleep_time after adjusting for pause
+                        sleep_time = (
+                            end_time - datetime.datetime.now()
+                        ).total_seconds()
+                        print_func(
+                            f"\nResuming wait for {sleep_time:.0f} seconds{message}."
+                        )
+                    else:
+                        # For "until" wait, recalculate based on the current end_time
+                        sleep_time = max(
+                            0, (end_time - datetime.datetime.now()).total_seconds()
+                        )
+                        print_func(
+                            f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
+                            f"({sleep_time:.0f} seconds remaining)."
+                        )
+
+                # Sleep in precise intervals, adjusting each time
+                if sleep_time > 1:
+                    if initial_sleep_time > silent:
+                        # use normal print here to avoid having updates in datafile
+                        print(f"\r{int(sleep_time)} seconds remaining", end="")
+                    time.sleep(min(1, sleep_time))  # Sleep in chunks
+                    sleep_time -= 1
+                else:
+                    time.sleep(sleep_time)
                     break
-                # interrupt during long waits to stop clock from ticking
-                # is ignored for short waits
-                self.check_for_interrupt_and_pause()
-            # force one breakpoint independent of wait time (also for wait(0))
-            self.check_for_interrupt_and_pause()
 
-        def check_for_interrupt_and_pause(self):
-            if self.interrupt_flag is True:
+            if initial_sleep_time > silent:
+                print_func("\rWaiting done")
+
+        def check_for_interrupt_and_pause(self, system):
+            """Check for interrupt and pause flags and take appropriate action.
+
+            Parameters
+            ----------
+            system :
+                System class providing add_comment to write a message to the datafile.
+
+            Returns
+            -------
+            bool
+                True if execution was paused, False otherwise
+
+            Raises
+            ------
+            KeyboardInterrupt
+                If the interrupt_flag is True
+            """
+            # This function is used as part of the decorator of many functions
+            # inside the script. Make sure that all functions called here are
+            # not decorated themselves. (e.g. system.add_comment)
+            if self.interrupt_flag:
                 # script will be aborted
-                raise KeyboardInterrupt
-            while self.pause_flag is True and self.interrupt_flag is False:
-                # execution paused, wait for 100ms and recheck
-                time.sleep(0.1)
+                if system:
+                    system.add_comment("measurement aborted on user request")
+                self.interrupt_flag = False
+                raise KeyboardInterrupt("Execution interrupted by user.")
+            if self.pause_flag:
+                if system:
+                    system.add_comment("measurement paused on user request")
+                while self.pause_flag and not self.interrupt_flag:
+                    # execution paused, wait for 100ms and recheck
+                    time.sleep(0.1)
+                return True
+            return False
 
-        def input(self, message="", type="string"):
+        def input(self, message="", system=None, input_type="string"):
+            """Handle user input requests from the script.
+
+            This method manages the input request workflow, including displaying prompts,
+            waiting for user response, and handling timeouts and interrupts.
+
+            Parameters
+            ----------
+            message : str, optional
+                Message to display to user requesting input. Default is empty string.
+            system : object, optional
+                System object that can be interrupted/paused. Default is None.
+            input_type : str, optional
+                Type of input expected. Default is "string".
+
+            Returns
+            -------
+            str
+                The user's input response with whitespace stripped.
+            """
             t0 = time.time()
             if self.recv != "" and not self.recv_flag:
                 self.recv = ""
             if "" == message:
-                print(f"__input_{type}:User input requested, see executing line for context.__")
+                print(
+                    f"__input_{input_type}:User input requested, see executing line for context.__"
+                )
             else:
-                print(f"__input_{type}:{message}__")
+                print(f"__input_{input_type}:{message}__")
             while (self.recv == "" or self.recv_flag is True):
                 time.sleep(0.1)
                 if (time.time() - t0) > 60:
                     print("still waiting for user input")
                     t0 = time.time()
-                self.check_for_interrupt_and_pause()
+                self.check_for_interrupt_and_pause(system)
             # remove trailling line feed
             ret = self.recv.strip()
             # print output
@@ -715,12 +1381,22 @@ def matrix_script_process(filename, user="", sample="",
 
         # callback function that handles the input
         def handle_input(self, inp):
-            """ handles input that is passed to the thread """
+            """Handle input that is passed to the thread.
+
+            Parameters
+            ----------
+            inp : str
+                The input string to be handled.
+            """
             if self.recv_flag is False:
                 if inp == "p":
                     self.pause(not self.pause_flag)
                 elif inp == "q":
                     self.stop()
+                elif inp == "f":
+                    self.stop(True)
+                elif inp == "a":
+                    self.stop(False)
                 elif inp == "i":
                     # reset input if already available
                     self.recv = ""
@@ -732,9 +1408,14 @@ def matrix_script_process(filename, user="", sample="",
 
         def report_line(self, lineno):
             """
-            reports currently executing line number to the
-            matrix-script
-            format is __lineno{+-number of line}__
+            Report currently executing line number to the matrix-script.
+
+            Reports the line number in the format __lineno{+-number of line}__.
+
+            Parameters
+            ----------
+            lineno : int
+                The line number to report.
             """
             if self.socket is None:
                 # only print line number if connected to a socket
@@ -743,19 +1424,43 @@ def matrix_script_process(filename, user="", sample="",
             if lineno > -1:
                 print(f"__lineno{lineno:d}__", end="")
 
+        def report_path(self, path):
+            """
+            Report datafile that is currently written by matrix-script.
+
+            The format is __//{path to measurement file}//__
+
+            Parameters
+            ----------
+            path : str
+                Path to the measurement file.
+            """
+            if self.socket is None:
+                # only report filename if connected to a socket
+                return
+            if path != "":
+                print(f"__//{path}//__", end="")
+
         def run(self):
-            """ run the script and provide meaningful error information
-                if the script exits with an error """
+            """Run the script and provide meaningful error information.
+
+            This method executes the script and handles any errors that occur
+            during execution, providing detailed error information.
+            """
             try:
                 self.n_pref = len(
                     generate_script_prefix_suffix("")[0].splitlines())
                 try:
-                    _vars = {"_wait": self.breakpoint,
-                             "_report_line": self.report_line,
-                             "_input": self.input,
-                             "_user": self.user,
-                             "_sample": self.sample,
-                             "_scriptname": self.scriptname}
+                    _vars = {
+                        "_interrupt": self.interrupt,
+                        "_status": self.stop_status,
+                        "_report_line": self.report_line,
+                        "_report_path": self.report_path,
+                        "_input": self.input,
+                        "_meta_data": self.meta_data,
+                        "_scriptname": self.scriptname,
+                        "_script": self.script,
+                    }
                     exec(self.script, _vars)
                 except Exception:
                     print("script exited with error:")
@@ -814,9 +1519,9 @@ def matrix_script_process(filename, user="", sample="",
 
     # initialize the thread
     if connected is True:
-        thread = ExecThread(script, sample, user, scriptname, client_socket)
+        thread = ExecThread(script, meta_data, scriptname, client_socket)
     else:
-        thread = ExecThread(script, sample, user, scriptname, None)
+        thread = ExecThread(script, meta_data, scriptname, None)
 
     # start the thread that runs the script
     thread.start()
@@ -858,9 +1563,7 @@ def matrix_script_process(filename, user="", sample="",
 
 
 def flush_input():
-    """
-    flush the input buffer to get only fresh input later on
-    """
+    """Flush the input buffer to get only fresh input later on."""
     if os.name == "nt":
         while msvcrt.kbhit():
             msvcrt.getch()
@@ -873,19 +1576,19 @@ def flush_input():
 
 def nonblocking_getch(callback=None):
     """
-    offers a cross-platform nonblocking implementation of getch
+    Cross-platform nonblocking implementation of getch.
 
     In a linux terminal, enter has been pressed to trigger the getch, as
     otherwise the stdin is not flushed.
 
-    Arguments
-    ----
+    Parameters
+    ----------
     callback : function handle (optional)
         should be a function that takes the character and performs some
         action with it
 
     Returns
-    ----
+    -------
     c : str
       Key that has been pressed, only if callback is None
     """
@@ -911,36 +1614,39 @@ def nonblocking_getch(callback=None):
 # sweep functions
 def calculate_sweep(sweepParms, loopOver, upDown, repeat, functions):
     """
-    Generates a list of sweeps defined by given parameters
+    Generate a list of sweeps defined by given parameters.
 
-    Arguments
-    ------
+    Parameters
+    ----------
     sweepParms : list
-      List of lists containing the sweep parameters (as 3 item list)
+        List of lists containing the sweep parameters (as 3 item list).
     loopOver : list
-      List of integers(<len(loopOver)) defining the looping scheme
+        List of integers (<len(loopOver)) defining the looping scheme.
     upDown : list
-      List of bools defining if the sweep is going both ways
+        List of bools defining if the sweep is going both ways.
     repeat : list
-      List of integers defining how often the sweep ranges are repeated
+        List of integers defining how often the sweep ranges are repeated.
+    functions : list
+        List of functions to apply to each sweep.
 
     Returns
-    ------
-    sweep : list
-      List of sweep that contains all parameters that are to be set, individual
-      sweeps from columns still need to be stretched to equal length (sparse).
-      Otherwise, loop over is not handled properly.
+    -------
+    list
+        List of sweeps that contains all parameters that are to be set. Individual
+        sweeps from columns still need to be stretched to equal length (sparse).
+        Otherwise, loop over is not handled properly.
 
-    Example
-    -----
-    sweepParms -- [[[1, 2, 2], [3, 4, 2]], [], [[-1, 1, 2]]]
-    loopOver -- [-1, -1, 0]
-    upDown -- [True, False, False]
-    repeat -- [1, 1, 1]
-    functions -- [None, sin, None]
-    returns [[1.0, 2.0, 3.0, 4.0, 4.0, 3.0, 2.0, 1.0], [],
-    [-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0,
-    -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0]]
+    Examples
+    --------
+    >>> sweepParms = [[[1, 2, 2], [3, 4, 2]], [], [[-1, 1, 2]]]
+    >>> loopOver = [-1, -1, 0]
+    >>> upDown = [True, False, False]
+    >>> repeat = [1, 1, 1]
+    >>> functions = [None, np.sin, None]
+    >>> calculate_sweep(sweepParms, loopOver, upDown, repeat, functions)
+    [[1.0, 2.0, 3.0, 4.0, 4.0, 3.0, 2.0, 1.0], [],
+     [-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0,
+      -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0]]
     """
     lenA = len(sweepParms)
     if len(loopOver) != lenA or len(upDown) != lenA or len(repeat) != lenA:
@@ -1000,30 +1706,36 @@ def calculate_sweep(sweepParms, loopOver, upDown, repeat, functions):
 
 def check_dep(index, array, depth=0):
     """
-    Recursive function for checking the occurence of occurences.
+    Recursive function to determine the hierarchical depth of an item in an array.
 
-    Arguments
-    -----
+    This function checks how deeply nested an item is within a given array structure.
+    It recursively follows references until it reaches the deepest level or detects
+    a circular reference.
+
+    Parameters
+    ----------
     index : int
-      index of the item in array for which the hirarchy is to be determined
+        Index of the item in array for which the hierarchy is to be determined.
     array : list
-      the array defining the hirarchy
+        The array defining the hierarchy.
     depth : int, optional
-      recursion depth, does not need to be set when calling the function
+        Recursion depth, does not need to be set when calling the function.
 
     Returns
-    -----
-    hirarchy : int
-      hirarchy of the item index within the given array
+    -------
+    int
+        Hierarchy of the item index within the given array.
 
-    Example
-    -----
-      * check_dep(0, [-1, -1, 1, 2]) returns 0 as index 0 is not referenced
-      * check_dep(1, [-1, -1, 1, 2]) returns 2 as index 1 is referenced by
-        index 2 which is in turn referenced by index 3
-      * check_dep(2, [-1, -1, 1, 2]) returns 1 as index 2 is referenced by
-        index 3
-      * check_dep(3, [-1, -1, 1, 2]) returns 0 as index 3 is not referenced
+    Examples
+    --------
+    >>> check_dep(0, [-1, -1, 1, 2])
+    0
+    >>> check_dep(1, [-1, -1, 1, 2])
+    2
+    >>> check_dep(2, [-1, -1, 1, 2])
+    1
+    >>> check_dep(3, [-1, -1, 1, 2])
+    0
     """
     if depth > 50:
         # break the recursion, something went wrong
@@ -1048,9 +1760,25 @@ def check_dep(index, array, depth=0):
 
 def generate_col_index(index):
     """
-    generates the column indices for matrix/sweep generator etc.
-    currently can handle 701 columns and is easily extendable
-    format is "a" -> "z" -> "aa" -> "az" -> "ba" -> etc.
+    Generate column indices for matrix/sweep generator.
+
+    Generate column indices using the format "a" -> "z" -> "aa" -> "az" -> "ba" -> etc.
+    Currently can handle 701 columns and is easily extendable.
+
+    Parameters
+    ----------
+    index : int
+        The index for which to generate the column label.
+
+    Returns
+    -------
+    str
+        The generated column label.
+
+    Raises
+    ------
+    ValueError
+        If the index is out of range (>701).
     """
     if index < 26:
         letter = chr(index+97)
@@ -1063,12 +1791,25 @@ def generate_col_index(index):
 
 def construct_query_string(query_dict, depth=2):
     """
-    prepares query_string from output of system.query to include in file header
-    Format is specified as
+    Prepare query string from output of system.query to include in file header.
+
+    Format is specified as:
     ## dev1
     ### key1 : value1
     ### key2 : value2
     ## dev2 ... and so on
+
+    Parameters
+    ----------
+    query_dict : dict
+        Dictionary containing the query results.
+    depth : int, optional
+        Current depth in the nested dictionary structure, by default 2.
+
+    Returns
+    -------
+    str
+        Formatted query string.
     """
     ret = ""
     for k, v in query_dict.items():
@@ -1079,28 +1820,74 @@ def construct_query_string(query_dict, depth=2):
             if isinstance(v, str):
                 # ignore carriage returns (would break the datafile!)
                 v = v.replace("\r", "\n")
-                v = v.replace("\n", "\n" + "#"*(depth+1))
-                v = v.replace('"', '\"')
-            ret += "#"*depth + f" {k} : \"{v}\"\n"
+                v = v.replace("\n", "\n" + "#" * (depth + 1) + " ")
+                v = v.replace('"', r"\"")
+                ret += "#" * depth + f' {k} : "{v}"\n'
+            else:
+                ret += "#" * depth + f" {k} : {v}\n"
     return ret
+
+
+def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) -> None:
+    """
+    Save a dictionary to an HDF5 file in a hierachical data group.
+
+    Parameters
+    ----------
+    data_dict : dict
+        The dictionary to be saved.
+    hdf5_file : h5py.File
+        File handle of the HDF5 file to save the data to.
+    root_group : str
+        The name of the root group in the HDF5 file.
+
+    Notes
+    -----
+    This function recursively writes nested dictionaries to HDF5 groups and
+    datasets. Lists are converted to datasets, and scalar values are saved as
+    attributes.
+    """
+
+    def write_dict(group: h5py.Group, d: dict) -> None:
+        """Recursively write a dictionary to an HDF5 group."""
+        for key, value in d.items():
+            if isinstance(value, dict):
+                # Create a subgroup for nested dictionaries
+                subgroup = group.create_group(key)
+                write_dict(subgroup, value)
+            elif isinstance(value, list):
+                # Convert lists to datasets
+                group.create_dataset(key, data=value)
+            else:
+                # Save scalar values
+                group.attrs[key] = value
+
+    # Create or get the specified root group
+    if root_group in hdf5_file:
+        group = hdf5_file[root_group]
+    else:
+        group = hdf5_file.create_group(root_group)
+
+    write_dict(group, data_dict)
 
 
 def init_ascii_header(file_handle, columns, units, separator):
     """
-    Initialize the header of the measurement file using the given telemetry
+    Initialize the header of the measurement file using the given telemetry.
 
     Parameters
-    -----
-    file_handle : opened file
-      file that the header should be written to
+    ----------
+    file_handle : file
+        File that the header should be written to.
     columns : list
-      column names written into the header
+        Column names written into the header.
     units : list
-      column units to be written into the header
+        Column units to be written into the header.
+    separator : str
+        Separator to use between columns.
     """
     file_handle.write(separator.join(columns) + "\n")
     file_handle.write(separator.join(units) + "\n")
-    file_handle.write(separator.join(columns) + "\n")
 
 
 def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):
@@ -1108,19 +1895,29 @@ def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):
     Initialize a HDF5 file skeleton for a measurement file.
 
     Parameters
-    -----
-    file_handle : opened file
-      h5py file that the header should be written to
+    ----------
+    file_handle : h5py.File
+        Opened HDF5 file that the header should be written to.
     columns : list
-      column names written into the header
+        Column names written into the header.
     units : list
-      column units to be written into the header
+        Column units to be written into the header.
     chunks : list
-      list of ints that define the chunk length of the individual datasets
+        List of ints that define the chunk length of the individual datasets.
     dtypes : list
-      list of strings specifying the dtype of the individual datasets
+        List of strings specifying the dtype of the individual datasets.
     """
+    # lazy import of h5py to only load it when it is required
+    import h5py
     data_grp = file_handle.create_group("data")
+    dt = np.dtype(
+        [
+            ("message", h5py.string_dtype(encoding="utf-8")),
+            ("timestamp", h5py.string_dtype(encoding="utf-8")),
+        ]
+    )
+    # Create an empty dataset for comments
+    file_handle.create_dataset("comments", shape=(0,), maxshape=(None,), dtype=dt)
     for col, uni, chu, dtype in zip(columns, units, chunks, dtypes):
         if isinstance(chu, tuple):
             data_grp.create_dataset(col, (0, *chu), maxshape=(None, *chu),
@@ -1135,7 +1932,19 @@ def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):
 
 def flatten(iterable, types=(tuple, list, np.ndarray)):
     """
-    Recursively flatten a list to have only one dimension left
+    Recursively flatten an iterable to have only one dimension.
+
+    Parameters
+    ----------
+    iterable : iterable
+        The iterable to be flattened.
+    types : tuple, optional
+        Types to be considered for flattening, by default (tuple, list, np.ndarray).
+
+    Yields
+    ------
+    Any
+        Elements from the flattened iterable.
     """
     for el in iterable:
         if ((isinstance(el, types) and not
@@ -1148,8 +1957,17 @@ def flatten(iterable, types=(tuple, list, np.ndarray)):
 # utility functions
 def get_pt100_temp(res):
     """
-    returns the Pt100 equivalent temperature according to Wikipedia
-    coefficients
+    Calculate the Pt100 equivalent temperature using Wikipedia coefficients.
+
+    Parameters
+    ----------
+    res : float
+        Resistance value of the Pt100 sensor in ohms.
+
+    Returns
+    -------
+    float
+        Equivalent temperature in degrees Celsius.
     """
     a = 3.9083e-3
     b = -5.775e-7
@@ -1167,24 +1985,24 @@ class Command:
 
     def __init__(self, dtype, setfunc, getfunc, setargs=None, getargs=None,
                  polling_cmd=None):
-        """
+        """Initialize the Command object.
+
         Parameters
         ----------
-        dtype: int, float, str, ...
-          data-type of the connected variable
-        setfunc: function(value, *args)
-          setter function to change the connected variable
-        getfunc: function(value, *args)
-          getter function to obtain the value of the variable
-        setargs: tuple, or None
-          optional additonal arguments for the setter function
-        getargs: tuple, or None
-          optional arguments for the getter function
-        polling_cmd: str or None
-          optional command to poll to check if the setpoint was reached
-
-        Note: setfunc/getfunc can also be a list/tuple with a device name and
-        device property.
+        dtype : type
+            Data type of the connected variable.
+        setfunc : callable or tuple
+            Setter function to change the connected variable.
+            Can also be a tuple with a device name and device property.
+        getfunc : callable or tuple
+            Getter function to obtain the value of the variable.
+            Can also be a tuple with a device name and device property.
+        setargs : tuple, optional
+            Additional arguments for the setter function.
+        getargs : tuple, optional
+            Additional arguments for the getter function.
+        polling_cmd : str, optional
+            Command to poll to check if the setpoint was reached.
         """
         self.dtype = dtype
         self.setfunc = setfunc
@@ -1200,18 +2018,41 @@ class Command:
         self.polling_cmd = polling_cmd
 
     def __repr__(self):
+        """
+        Return a string representation of the Command object.
+
+        Returns
+        -------
+        str
+            A string representation of the Command object.
+        """
         return self.__str__()
 
     def __str__(self):
+        """
+        Return a string representation of the Command object.
+
+        Returns
+        -------
+        str
+            A string representation of the Command object, including its class name,
+            data type, setter function, getter function, and their respective arguments.
+        """
         r = f"{self.__class__.__name__}: {self.dtype}, {self.setfunc}"
         if self.setargs:
-            r += "({self.setargs})"
+            r += f"({self.setargs})"
         r += f", {self.getfunc}"
         if self.getargs:
             r += f"({self.getargs})"
         return r
 
     def reset_to_None(self):
+        """
+        Reset the Command object's setter and getter functions and arguments to None.
+
+        This method sets the setter function, getter function, and their respective
+        arguments to None or empty lists.
+        """
         self.setfunc = None
         self.getfunc = None
         self.setargs = []
@@ -1245,41 +2086,39 @@ class Command:
 
 
 class Get(Command):
-    """
-    Class representing a Getter-command of a ControlGUI
-    """
+    """Class representing a Getter-command of a ControlGUI."""
 
     def __init__(self, dtype, getfunc, getargs=None):
-        """
+        """Initialize the Get command.
+
         Parameters
         ----------
-        dtype: int, float, str, ...
-          data-type of the connected variable
-        getfunc: function(value, *args)
-          getter function to obtain the value of the variable
-        getargs: tuple, or None
-          optional arguments for the getter function
+        dtype : type
+            Data type of the connected variable.
+        getfunc : callable
+            Getter function to obtain the value of the variable.
+        getargs : tuple or None, optional
+            Optional arguments for the getter function.
         """
         super().__init__(dtype, setfunc=None, getfunc=getfunc, getargs=getargs)
 
 
 class Set(Command):
-    """
-    Class representing a Setter-command of a controlGUI
-    """
+    """Class representing a Setter-command of a ControlGUI."""
 
     def __init__(self, dtype, setfunc, setargs=None, polling_cmd=None):
-        """
+        """Initialize the Set command.
+
         Parameters
         ----------
-        dtype: int, float, str, ...
-          data-type of the connected variable
-        setfunc: function(value, *args)
-          setter function to change the connected variable
-        setargs: tuple, or None
-          optional additonal arguments for the setter function
-        polling_cmd: str or None
-          optional command to poll to check if the setpoint was reached
+        dtype : type
+            Data type of the connected variable.
+        setfunc : callable
+            Setter function to change the connected variable.
+        setargs : tuple or None, optional
+            Optional additional arguments for the setter function.
+        polling_cmd : str or None, optional
+            Optional command to poll to check if the setpoint was reached.
         """
         super().__init__(dtype, setfunc, getfunc=None, setargs=setargs,
                          polling_cmd=polling_cmd)
@@ -1287,11 +2126,112 @@ class Set(Command):
 
 def normalize_cmds(cmds):
     """
-    make all commands instances of Command
+    Make all commands instances of Command.
 
-    changes are performed inplace
+    Changes are performed in-place.
+
+    Parameters
+    ----------
+    cmds : dict
+        Dictionary of commands to normalize.
+
+    Returns
+    -------
+    None
     """
     # harmonize the cmds dictionary -> convert all to Command
     for cmd, val in cmds.items():
         if not isinstance(val, Command):
             cmds[cmd] = Command.from_deprecated_list(val)
+    # harmonize the cmds dictionary -> convert all to Command
+    for cmd, val in cmds.items():
+        if not isinstance(val, Command):
+            cmds[cmd] = Command.from_deprecated_list(val)
+
+
+def set_correct_mac_appname(name: str) -> None:
+    """
+    Set the correct app name on a Mac.
+
+    Parameters
+    ----------
+    name : str
+        The desired name of the application.
+    """
+    bundle = NSBundle.mainBundle()
+    if bundle:
+        info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+        info_dict["CFBundleName"] = name
+    # Correct the menu
+    app = NSApplication.sharedApplication()
+    mainMenu = app.mainMenu()
+    # Get left-most menu with app-specific items
+    app_menu = mainMenu.itemAtIndex_(0).submenu()
+    for i in range(app_menu.numberOfItems()):
+        item = app_menu.itemAtIndex_(i)
+        item.setTitle_(item.title().replace("Python", name))
+
+
+class DcDict(dict):
+    """
+    Custom dictionary class that only allows append if key already exists.
+
+    This class extends the built-in dictionary class to modify its behavior
+    when in append mode or when a merged system exists.
+    In append mode non-empty entries are extended.
+
+    Methods
+    -------
+    overwrite_value(key, value)
+        Overwrite the value for a given key.
+    """
+
+    def __init__(self, system_ref, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.append = False
+        self.system_ref = system_ref
+
+    def __setitem__(self, key, value):
+        """
+        Set item in the dictionary with modified behavior.
+
+        This method wraps dict.__setitem__ to change behavior when in append mode
+        or when a merged system exists (append in that case).
+
+        Parameters
+        ----------
+        key : hashable
+            The key to set.
+        value : Any
+            The value to set for the given key.
+        """
+        if self.system_ref.merged_system:
+            # initialized subsystem, write into merged parent
+            self._append_value(
+                key, value, ";@set:", ref=self.system_ref.merged_system.dcdata
+            )
+        elif self.append and self[key]:
+            # read only mode is enabled, append values
+            self._append_value(key, value, ";@ap:")
+        else:
+            super().__setitem__(key, value)
+
+    def _append_value(self, key, value, sep, ref=None):
+        if not value:
+            # only append values that are not None
+            return
+        if ref:
+            # reference system is defined, write meta_data to that system
+            if key in ref.keys():
+                if ref[key]:
+                    # only append to available value if it exists (not None)
+                    ref[key] = sep.join([ref[key], value])
+                    return
+            ref[key] = sep[1:] + value
+        else:
+            # append meta data to current current array
+            if key in self.keys():
+                if self[key]:
+                    super().__setitem__(key, sep.join([self[key], value]))
+                    return
+            super().__setitem__(key, sep[1:] + value)

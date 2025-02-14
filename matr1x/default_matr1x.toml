@@ -1,0 +1,29 @@
+[matr1x]
+datetime_format = "%Y-%m-%dT%H:%M:%S"
+logging_directory = "~/logs"
+logging_format = "%(asctime)s,%(msecs)03d,%(levelname)s,%(name)s: %(message)s"
+users_directory = "~/users"
+systems_directory = "<pkgroot>/systems"
+
+[matr1x.scripts.matrix-script]
+script_path = ""
+store_script_in_datafile = false
+duplicate_output_to_logfile = false
+print_to_comment = false
+
+[matr1x.systems.system_dummy_feature._types]
+setting1 = "str;;strict;;CURR;;VOLT"
+setting2 = "bool"
+setting3 = "float;;4;;range;;-1e9;;99;;3"
+setting4 = "str;;file"
+
+[matr1x.devices.visadevice]
+cmdpers = 30
+pts = false
+visadebug = false
+
+[matr1x.install]
+root_path = "core_library/"
+create_directories = false
+desktopintegration = true
+pip_options = "-q --log install.log"

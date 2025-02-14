@@ -1,10 +1,24 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
-This module defines a system for testing and demonstration purposes of the
-merging feature of different systems.
+Defines a system for testing and demonstration purposes.
+
+This module provides a sample implementation to showcase how
+various systems can be merged together.
 """
 # ============================
 # Custom import area
@@ -26,8 +40,8 @@ from matr1x.system import System
 
 # ============================
 # initialize system
-sys = System()
-sys.dcdata["Source"] = "dummy system for testing system merging"
+system = System()
+system.dcdata["source"] = "dummy system for testing system merging"
 # ============================
 
 # ========================================================================
@@ -44,15 +58,19 @@ sys.dcdata["Source"] = "dummy system for testing system merging"
 # together with the constructor arguments needed to initialize the class later
 # Here dev1F, dev2F will be initalized when system is `set`.
 # The third parameter (args) accepts a list/tuple (even for single parameter!)
-# of arguments that is passed upon device initializeation when sys.set() is
+# of arguments that is passed upon device initializeation when system.set() is
 # called.
 # The fourth parameter (kwargs) accepts a dictionary with keyword arguments.
 # The fifth parameter (config_params) can be a dictionary specifying possible
 # query options which allow to readout the configuration of a device which will
 # be stored in the data file header.
-sys.add_dev("devmeas", dummy, args=("TCPIP::localhost::10005::SOCKET", ),
-            kwargs={"p5": 5, "p4": [5, 3, 2, 1]}, config_params={"p4":
-                                                                 "p4"})
+system.add_dev(
+    "devmeas",
+    dummy,
+    args=("TCPIP::localhost::10005::SOCKET",),
+    kwargs={"p5": 5, "p4": [5, 3, 2, 1]},
+    config_params={"p4": "p4"},
+)
 
 # ============================
 # define columns for measurement
@@ -65,18 +83,16 @@ sys.add_dev("devmeas", dummy, args=("TCPIP::localhost::10005::SOCKET", ),
 # (=length of readout array, used only for HDF5 systems), and the default value
 # to be used when setting the device (if no value is specified in the sweep
 # file)
-sys.add_param(
+system.add_param(
     ["devmeas p3a", "devmeas p3b"], ["cnta", "cntb"],
     ["devmeas", "p3"],
     ["devmeas", "p3"])
-sys.add_param(
+system.add_param(
     "devmeas p2", "cnt",
     setter=["devmeas", "p2"],
     getter=["devmeas", "p2"],
     trigger=["devmeas", "trg"],
-    default=5)
-sys.add_param(
-    "devmeas p1", "cnt",
-    None,
-    ["devmeas", "p5"])
+    default=5,
+)
+system.add_param("devmeas p1", "cnt", None, ["devmeas", "p5"])
 # ============================

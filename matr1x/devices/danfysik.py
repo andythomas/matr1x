@@ -1,11 +1,21 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import logging
 import time
-
-from pyvisa import VisaIOError
 
 from .visadevice import VisaDevice
 
@@ -243,12 +253,14 @@ class Danfysik9100(VisaDevice):
         output:
          no output
         """
-        self.write(f"PO {polarity}")
-        # device may send back a message, read it to clear the buffer
-        try:
-            self.read()
-        except VisaIOError:
-            pass
+        if polarity != self.getPolarityStatus():
+            self.write(f"PO {polarity}")
+            time.sleep(3)
+            while self.fetchStatus()["MPS not ready"] is not False:
+                if self.fetchStatus()["Main Power off"] is True:
+                    time.sleep(0.5)
+                    return
+                time.sleep(0.5)
 
 
 class Danfysik9700(Danfysik9100):

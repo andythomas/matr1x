@@ -1,11 +1,27 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-This module contains utility function for generating control guis or devices
-based on the scpi_tcp_server
+Contains utility functions for generating control GUIs or devices.
+
+This module provides functionality for creating control graphical user
+interfaces or devices based on the scpi_tcp_server.
 """
+
+from __future__ import annotations
+
 import copy
 import itertools
 import logging
@@ -19,7 +35,6 @@ import ssl
 import sys
 import time
 import traceback
-import warnings
 from abc import ABC, abstractmethod
 from collections import UserDict
 from collections.abc import Iterable
@@ -33,44 +48,67 @@ from enum import IntEnum
 from functools import wraps
 from operator import attrgetter
 from subprocess import PIPE, Popen
+from typing import Optional, Union
 
 import numpy
 import psutil
+from PyQt6 import QtCore
+from PyQt6.QtCore import (
+    QObject,
+    QSettings,
+    Qt,
+    QThread,
+    QTimer,
+    QVariant,
+    pyqtSignal,
+    pyqtSlot,
+)
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDockWidget,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QSpinBox,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
 
-try:
-    from PyQt6 import QtCore
-    from PyQt6.QtCore import (QObject, QSettings, Qt, QThread, QTimer, QVariant,
-                              pyqtSignal, pyqtSlot)
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDockWidget, QDoubleSpinBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                                 QListWidget, QMessageBox, QProgressBar,
-                                 QPushButton, QSizePolicy, QSpinBox, QTableView,
-                                 QVBoxLayout, QWidget)
-except ImportError:
-    warnings.warn("PyQt5 support will be removed in 2024. Switch to PyQt6",
-                  DeprecationWarning)
-    from PyQt5 import QtCore
-    from PyQt5.QtCore import (QObject, QSettings, Qt, QThread, QTimer,
-                              QVariant, pyqtSignal, pyqtSlot)
-    from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-                                 QDockWidget, QDoubleSpinBox, QFileDialog,
-                                 QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                                 QListWidget, QMessageBox, QProgressBar,
-                                 QPushButton, QSizePolicy, QSpinBox, QTableView,
-                                 QVBoxLayout, QWidget)
-
-from .. import confparser, datetimefmt, logfolder, system, usersfolder
-from ..gui_util import validator
+from .. import config, datetimefmt, logfolder, system, usersfolder
+from ..gui_util import MApplication, OutputDuplication, validator
 from ..util import normalize_cmds
 from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
 
 
 def catchEmitError(method):
     """
-    Define error handling decorator (works only with ControlWindow which defines
-    a sig_error signal)
+    Define error handling decorator.
+
+    This decorator works only with ControlWindow which defines a sig_error signal.
+
+    Parameters
+    ----------
+    method : callable
+        The method to be decorated.
+
+    Returns
+    -------
+    callable
+        The decorated method.
     """
+
     @wraps(method)
     def decorated_method(self, *args, **kwargs):
         try:
@@ -117,9 +155,12 @@ def catchEmitError(method):
 
 class guiObject(IntEnum):
     """
-    Enum object to make it easier to write readable code and identify GUI
-    elements by their name instead of only by a number
+    Enum object for GUI elements identification.
+
+    This enum makes it easier to write readable code and identify GUI
+    elements by their name instead of only by a number.
     """
+
     button = 0
     lineedit = 1
     checkbox = 2
@@ -129,61 +170,64 @@ class guiObject(IntEnum):
     spinbox = 6
     doublespinbox = 7
     labeltext = 8
+    hline = 9
 
     @classmethod
     def getWidget(cls, label, wType, init=None):
         """
-        Retruns the widget of the correct type
+        Return the widget of the correct type.
 
         Parameters
         ----------
         label : str
-          label of widget (used as a fallback string on the button if no init
-          value is given)
+            Label of widget (used as a fallback string on the button if no init
+            value is given).
         wType : int or guiObject
-          Can be one of:
-
-          * str : QLabel: string used as label text.
-          * 0 : QPushButton
-          * 1 : QLineEdit
-          * 2 : QCheckBox
-          * 3 : matr1xProgressBar/QProgressBar
-          * 4 : QComboBox
-          * 5 : QPushButton(checkable=True)
-          * 6 : QSpinBox
-          * 7 : QDoubleSpinBox
-          * 8 : QLabel: used as Value indicator
+            Can be one of:
+            * str : QLabel: string used as label text.
+            * 0 : QPushButton
+            * 1 : QLineEdit
+            * 2 : QCheckBox
+            * 3 : matr1xProgressBar/QProgressBar
+            * 4 : QComboBox
+            * 5 : QPushButton(checkable=True)
+            * 6 : QSpinBox
+            * 7 : QDoubleSpinBox
+            * 8 : QLabel: used as Value indicator
+            * 9 : QFrame: used to generate a horizontal separator line
         init : tuple, str, optional
-          provides the initialization values (button label, valid ranges,
-          combobox entries)
+            Provides the initialization values (button label, valid ranges,
+            combobox entries).
+
+        Returns
+        -------
+        QWidget or None
+            Widget of requested type or None.
 
         Examples
         --------
-        - Generate a toggle button which changes its label upon being set:
-          getWidget("Property", guiObject.togglebutton, init=("Slow", "Fast"))
-        - Generate a QComboBox with prefilled options:
-          getWidget("Property", guiObject.combobox, init=("opt 1", "opt 2"))
-        - Generate a SpinBox (similar for DoubleSpinBox):
-          getWidget("Property", guiObject.spinbox, init=(0, 200))
-        - Generate a PushBotton with text "Set":
-          getWidget("Property", guiObject.button, init="Set")
-        - Generate a label with text "Example":
-          getWidget("Property", "Example")
+        Generate a toggle button which changes its label upon being set:
+        >>> getWidget("Property", guiObject.togglebutton, init=("Slow", "Fast"))
 
-        Returns
-        -----
-        widget : QWidget
-          widget of requested type or None
+        Generate a QComboBox with prefilled options:
+        >>> getWidget("Property", guiObject.combobox, init=("opt 1", "opt 2"))
+
+        Generate a SpinBox (similar for DoubleSpinBox):
+        >>> getWidget("Property", guiObject.spinbox, init=(0, 200))
+
+        Generate a PushBotton with text "Set":
+        >>> getWidget("Property", guiObject.button, init="Set")
+
+        Generate a label with text "Example":
+        >>> getWidget("Property", "Example")
         """
         if isinstance(wType, str):
             qlab = QLabel(wType)
-            qlab.setSizePolicy(QSizePolicy.Policy.Preferred,
-                               QSizePolicy.Policy.Fixed)
+            qlab.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
             return qlab
         if cls.labeltext == wType:
             label = QLabel(init if init else None)
-            label.setTextInteractionFlags(
-                Qt.TextInteractionFlag.TextSelectableByMouse)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             return label
         if cls.button == wType:
             return QPushButton(init if init else label)
@@ -210,43 +254,64 @@ class guiObject(IntEnum):
             if init is not None:
                 sb.setRange(*init)
             return sb
+        if cls.hline == wType:
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Sunken)
+            line.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if init is not None:
+                line.setFixedWidth(init)
+            line.setMinimumHeight(2)
+            return line
         return None
 
 
 class var(QObject):
     """
-    Variable storage for implementing with qt GUI,
-    emits valueChanged signal if the value has changed so it can
-    be connected to a display
+    Variable storage for implementing with qt GUI.
+
+    Emits valueChanged signal if the value has changed so it can
+    be connected to a display.
 
     Parameters
-    -----
-    dType : type, or (type, type)
-      type of variable that is to be stored and its emitted type upon a value
-      change
+    ----------
+    dType : type or tuple of (type, type) or None
+        Type of variable that is to be stored and its emitted type upon a value
+        change.
     outType : type
-      type the emitted value should be cast into (only present for backward
-      compatibility. should be set nowadays in the dtype argument.
-    columns: list
-      list of GUI elements needed for this variable. typically here are two
-      entries to view the current value in the first element and be able to
-      alter it in the second. The values should be enumerations from guiObject.
-    unit: str
-      unit string used in the label and data logging.
-    log: bool or None
-      boolean flag to set the default behavior in the logging config, if None
-      no checkbox is shown
-      If dType is None, this value is ignored
-    init: list
-      initialization values. This should be a list of the same length as
-      columns. If it is of non-list type its assumed to apply to all entries of
-      columns equally.
+        Type the emitted value should be cast into (only present for backward
+        compatibility. should be set nowadays in the dtype argument).
+    columns : Union[list, str, int, guiObject], optional
+        GUI elements needed for this variable. Typically here are two
+        entries to view the current value in the first element and be able to
+        alter it in the second. The values should be enumerations from guiObject.
+        Will be converted to a list internally.
+    unit : str, optional
+        Unit string used in the label and data logging.
+    log : bool or None, optional
+        Boolean flag to set the default behavior in the logging config. If None,
+        no checkbox is shown. If dType is None, this value is ignored.
+    init : list, optional
+        Initialization values. This should be a list of the same length as
+        columns. If it is of non-list type its assumed to apply to all entries of
+        columns equally.
+    hide : bool, optional
+        Flag to hide the variable in the GUI.
     """
+
     valueChanged = pyqtSignal([str], [float], [int], [bool])
     unitChanged = pyqtSignal([str])
 
-    def __init__(self, dtype=(float, str), outType=str, columns=None, unit="",
-                 log=False, init=None, hide=False):
+    def __init__(
+        self,
+        dtype: Union[type, tuple[type, type], None] = (float, str),
+        outType: type = str,
+        columns: Optional[Union[list, str, int, guiObject]] = None,
+        unit: str = "",
+        log: Optional[bool | None] = False,
+        init: Optional[list] = None,
+        hide: bool = False,
+    ):
         super().__init__()
         if isinstance(dtype, Iterable):
             self.variableType = dtype[0]
@@ -266,23 +331,45 @@ class var(QObject):
         if columns is None:
             self.columns = []
         elif not isinstance(columns, list):
-            self.columns = [columns, ]
+            self.columns = [
+                columns,
+            ]
         else:
             self.columns = columns
         self.widgets = []
 
     def setValue(self, newValue):
+        """
+        Set the value of the variable.
+
+        Parameters
+        ----------
+        newValue : Any
+            The new value to set.
+        """
         self.value = newValue
 
     @property
     def value(self):
+        """
+        Get the current value of the variable.
+
+        Returns
+        -------
+        Any
+            The current value of the variable.
+        """
         return self._value
 
     @value.setter
     def value(self, newValue):
         """
-        if the value is set, emit a signal so that a possible change can be
-        tracked
+        Set the value of the variable and emit a signal if it has changed.
+
+        Parameters
+        ----------
+        newValue : Any
+            The new value to set.
         """
         if newValue is None:
             self._value = None
@@ -294,47 +381,68 @@ class var(QObject):
 
     @property
     def unit(self):
+        """
+        Get the unit of the variable.
+
+        Returns
+        -------
+        str
+            The unit of the variable.
+        """
         return self._unit
 
     @unit.setter
     def unit(self, newunit):
+        """
+        Set the unit of the variable and emit a signal.
+
+        Parameters
+        ----------
+        newunit : str
+            The new unit to set.
+        """
         self._unit = newunit
         self.unitChanged[str].emit(self._unit)
 
     def generate_widgets(self, label=""):
         """
-        Generates a list of Qt widgets corresponding to the label and columns.
+        Generate a list of Qt widgets corresponding to the label and columns.
 
         These widgets can be used to build a graphical user interface. The
         widgets property is filled with the corresponding items after this
         function was executed. Variable values will be automatically linked to
         these widgets with the connect_signal method.
 
-        Example
-        -----
-        var((int, int), columns=[guiObject.lineedit, guiObject.checkbox])
-        will result in a (visible) layout as follows
+        Parameters
+        ----------
+        label : str, optional
+            The label for the widgets.
 
-        QLabel(label) - QLineEdit - QCheckBox
+        Examples
+        --------
+        >>> var((int, int), columns=[guiObject.lineedit, guiObject.checkbox])
+        # will result in a (visible) layout as follows:
+        # QLabel(label) - QLineEdit - QCheckBox
 
-        int to variable type conversion is specified in guiObject.getWidget,
-        where the widget is also initialized.
-        var((int, int),
-            columns=[guiObject.combobox, guiObject.combobox],
-            init=("a", "b"))
-        results in:
+        >>> var((int, int),
+        ...     columns=[guiObject.combobox, guiObject.combobox],
+        ...     init=("a", "b"))
+        # results in:
+        # QLabel(label) - QComboBox("a", "b") - QComboBox("a", "b")
 
-        QLabel(label) - QComboBox("a", "b") - QComboBox("a", "b")
-
-        Note: In all cases above the label and first GUI element will be
-        declared read only since the are assumed to serve to show a value
+        Note
+        ----
+        In all cases above the label and first GUI element will be
+        declared read only since they are assumed to serve to show a value
         read-out from an instrument.
 
         In addition to the visible items a by default hidden checkbox will be
-        added which showing and changing the logging preferences.
+        added which shows and changes the logging preferences.
         """
         fulllabel = f"{label} ({self.unit})" if "" != self.unit else label
-        self.widgets = [QLabel(fulllabel), ]
+        self.widgets = [
+            QLabel(fulllabel),
+        ]
 
         for i, widget in enumerate(self.columns):
             if isinstance(self.init, list):
@@ -345,18 +453,20 @@ class var(QObject):
 
         # set sensible default values and disable readout column
         if len(self.widgets) > 1:
-            if (not isinstance(self.widgets[1], QCheckBox)):
-                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(
-                ): qsize
+            if not isinstance(self.widgets[1], QCheckBox):
+                self.widgets[1].sizeHint = lambda qsize=self.widgets[
+                    1
+                ].minimumSizeHint(): qsize
             if isinstance(self.widgets[1], QLineEdit):
                 self.widgets[1].setReadOnly(True)
             elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
                 self.widgets[1].setEnabled(False)
         # apply a validator
         if len(self.widgets) > 2:
-            if (not isinstance(self.widgets[2], QCheckBox)):
-                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(
-                ): qsize
+            if not isinstance(self.widgets[2], QCheckBox):
+                self.widgets[1].sizeHint = lambda qsize=self.widgets[
+                    1
+                ].minimumSizeHint(): qsize
             if isinstance(self.widgets[2], QLineEdit):
                 val = validator.get(self.variableType, None)
                 if val:
@@ -378,22 +488,41 @@ class var(QObject):
                 w.hide()
 
     def updateLabel(self, newunit):
+        """
+        Update the label of the widget with a new unit.
+
+        Parameters
+        ----------
+        newunit : str
+            The new unit to display in the label.
+        """
         label = self.widgets[0].text()
-        if re.search(r'\([^)]*\)', label):
-            newlabel = re.sub(r'\([^)]*\)', f'({newunit})', label)
+        if re.search(r"\([^)]*\)", label):
+            newlabel = re.sub(r"\([^)]*\)", f"({newunit})", label)
         else:
             newlabel = f"{label} ({newunit})"
         self.widgets[0].setText(newlabel)
 
     def getGUIvalue(self, column=2):
         """
-        return the value obtained from the GUI element in the respective
-        column. The return value will be cast to the variableType.
+        Return the value obtained from the GUI element in the respective column.
+
+        The return value will be cast to the variableType.
 
         Parameters
         ----------
-        column: int, optional
-          column index in the widget list to read the value from.
+        column : int, optional
+            Column index in the widget list to read the value from.
+
+        Returns
+        -------
+        Any
+            The value from the GUI element, cast to variableType.
+
+        Raises
+        ------
+        TypeError
+            If the GUI element type is unknown.
         """
         element = self.widgets[column]
         if isinstance(element, (QLineEdit, QLabel)):
@@ -413,45 +542,32 @@ class var(QObject):
         return self.variableType(value)
 
     def connect_signal(self):
-        """
-        connects the valueChanged signal of self.value to the corresponding
-        widget
-        """
+        """Connect the valueChanged signal to the corresponding widget."""
         if len(self.widgets) >= 2 and self.variableType is not None:
             if isinstance(self.widgets[1], (QLineEdit, QLabel)):
-                self.valueChanged[str].connect(
-                    self.widgets[1].setText)
-            elif isinstance(self.widgets[1],
-                            (QSpinBox, QProgressBar)):
-                self.valueChanged[int].connect(
-                    self.widgets[1].setValue)
+                self.valueChanged[str].connect(self.widgets[1].setText)
+            elif isinstance(self.widgets[1], (QSpinBox, QProgressBar)):
+                self.valueChanged[int].connect(self.widgets[1].setValue)
             elif isinstance(self.widgets[1], QDoubleSpinBox):
-                self.valueChanged[float].connect(
-                    self.widgets[1].setValue)
+                self.valueChanged[float].connect(self.widgets[1].setValue)
             elif isinstance(self.widgets[1], QComboBox):
-                self.valueChanged[int].connect(
-                    self.widgets[1].setCurrentIndex)
-                self.valueChanged[str].connect(
-                    self.widgets[1].setCurrentText)
+                self.valueChanged[int].connect(self.widgets[1].setCurrentIndex)
+                self.valueChanged[str].connect(self.widgets[1].setCurrentText)
             elif isinstance(self.widgets[1], QCheckBox):
-                self.valueChanged[bool].connect(
-                    self.widgets[1].setChecked)
+                self.valueChanged[bool].connect(self.widgets[1].setChecked)
             if isinstance(self.widgets[0], QLabel):
-                self.unitChanged[str].connect(
-                    self.updateLabel)
+                self.unitChanged[str].connect(self.updateLabel)
 
         # automatically copy state of checkbox to togglebutton
         if len(self.widgets) >= 3:
-            if (isinstance(self.widgets[2], ToggleButton) and
-                    isinstance(self.widgets[1], QCheckBox)):
+            if isinstance(self.widgets[2], ToggleButton) and isinstance(
+                self.widgets[1], QCheckBox
+            ):
                 if self.widgets[2].isCheckable():
-                    self.valueChanged[bool].connect(
-                        self.widgets[2].setChecked)
+                    self.valueChanged[bool].connect(self.widgets[2].setChecked)
 
     def copy_value(self):
-        """
-        copies the read values into the set field
-        """
+        """Copy the read values into the set field."""
         # check that a set-field exists, otherwise pass
         if len(self.columns) >= 2 and self.variableType is not None:
             try:
@@ -475,8 +591,24 @@ class var(QObject):
 
     def __getitem__(self, idx):
         """
-        function for backward compatible access to the GUI dictionary items.
+        Access GUI dictionary items for backward compatibility.
+
         This function shall be declared deprecated in future.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the item to retrieve.
+
+        Returns
+        -------
+        Any
+            The requested item.
+
+        Raises
+        ------
+        NotImplementedError
+            If the index is not supported.
         """
         if idx == 0:
             return self
@@ -484,16 +616,36 @@ class var(QObject):
             if self.widgets:
                 return self.widgets
             if isinstance(self.columns, list):
-                return self.columns + [self.log, ]
-            return [self.columns, ] + [self.log, ]
+                return self.columns + [
+                    self.log,
+                ]
+            return [
+                self.columns,
+            ] + [
+                self.log,
+            ]
         if idx == 2:
             return self.unit
         raise NotImplementedError
 
     def __setitem__(self, idx, value):
         """
-        function for backward compatible access to the GUI dictionary items.
-        This function shall be declared deprecated in future.
+        Set an item in the GUI dictionary.
+
+        This function provides backward compatible access to the GUI dictionary items.
+        It will be deprecated in the future.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the item to set.
+        value : Any
+            The value to set.
+
+        Raises
+        ------
+        NotImplementedError
+            If the index is not supported.
         """
         if idx == 1:
             self.widgets = value
@@ -502,10 +654,16 @@ class var(QObject):
 
     def __len__(self):
         """
-        function for backward compatible access to the GUI dictionary items.
-        This function shall be declared deprecated in future.
-        """
+        Get the length of the GUI dictionary items.
 
+        This function provides backward compatible access to the GUI dictionary items.
+        It will be deprecated in the future.
+
+        Returns
+        -------
+        int
+            The length of the GUI dictionary items.
+        """
         if self.unit:
             return 3
         return 2
@@ -513,8 +671,7 @@ class var(QObject):
 
 class GuiDict(UserDict, ABC):
     """
-    Custom dictionary representing elemens and commands related to part of the
-    control GUI.
+    Custom dictionary representing elements and commands of the control GUI.
 
     Derived classes have to implement the 'refresh' method which shall read
     updated values from the hardware and write them into the local variable
@@ -523,32 +680,35 @@ class GuiDict(UserDict, ABC):
     Additionally a System object with related devices can be stored in this
     class as object variable.
 
-    Important class variable which shall be overwritten are:
+    Important class variables which shall be overwritten are:
 
+    Attributes
+    ----------
     cmds : dict
-      list of commands for this device
-      e.g.: cmds = {":v1", Command(int, "setV1", "V1"),
-                    "*idn", Get(str, "id-string")}
-    data : dict with var entries
-      GUI dictionary elements
-      e.g.
-      data = {"Example": var(None, columns=["Readout", "Setpoint"]),
-              "V1": var((int, int), columns=[go.combobox, go.combobox],
-                        log=True, init=("i1", "i2")),
-              "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
-              "Set": var(None, columns=[go.button, go.button],
-                         init=["Set", "Copy"]),
-             }
+        List of commands for this device.
+        e.g.: cmds = {":v1": Command(int, "setV1", "V1"),
+                      "*idn": Get(str, "id-string")}
+    data : dict
+        GUI dictionary elements.
+        e.g.
+        data = {"Example": var(None, columns=["Readout", "Setpoint"]),
+                "V1": var((int, int), columns=[go.combobox, go.combobox],
+                          log=True, init=("i1", "i2")),
+                "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
+                "Set": var(None, columns=[go.button, go.button],
+                           init=["Set", "Copy"]),
+               }
     refresh_period : float
-      period (in seconds) in which the timer attempts to run the refresh method
-      once. If the refresh method takes more executation time than this
-      period its called without further delay. It will never be called more
-      often then once per this period. (default: 1 sec)
+        Period (in seconds) in which the timer attempts to run the refresh method
+        once. If the refresh method takes more execution time than this
+        period it's called without further delay. It will never be called more
+        often than once per this period. (default: 1 sec)
     allow_disabling : bool
-      flag to decide if the GuiDict can be disabled. If this is set to True the
-      underlying devices should all provide a `close` method or be a pymeasure
-      Instrument. Otherwise likely reenabling will fail.
+        Flag to decide if the GuiDict can be disabled. If this is set to True the
+        underlying devices should all provide a `close` method or be a pymeasure
+        Instrument. Otherwise likely reenabling will fail.
     """
+
     cmds = {}
     data = {}
     refresh_period = 1
@@ -556,9 +716,20 @@ class GuiDict(UserDict, ABC):
 
     class _Worker(QObject):
         """
-        Worker object for the refresh thread. This is needed for the QTimer to
-        work inside the QThread.
+        Worker object for the refresh thread.
+
+        This is needed for the QTimer to work inside the QThread.
+
+        Attributes
+        ----------
+        activity : pyqtSignal
+            Signal to indicate an iteration of the refresh timer.
+        panic : pyqtSignal
+            Signal to indicate a panic state.
+        sig_error : pyqtSignal
+            Signal to report errors.
         """
+
         # activity signal to indicate an iteration of the refresh timer
         activity = pyqtSignal(str)
         panic = pyqtSignal(bool, str)
@@ -575,6 +746,14 @@ class GuiDict(UserDict, ABC):
         @pyqtSlot(bool)
         @catchEmitError
         def run(self, copy=True):
+            """
+            Start the worker's refresh loop.
+
+            Parameters
+            ----------
+            copy : bool, optional
+                Whether to copy values from readout to set fields upon first run.
+            """
             self._timer = QTimer()
             self._timer.setInterval(self.interval)
             counter = itertools.count(1)
@@ -588,13 +767,19 @@ class GuiDict(UserDict, ABC):
 
         @pyqtSlot()
         def stop(self):
+            """Stop the worker's refresh loop."""
             self._timer.stop()
             self.activity.emit("lightgray")
 
         @catchEmitError
         def _target(self, count):
             """
-            encapsulate target function to emit the activity signal
+            Encapsulate target function to emit the activity signal.
+
+            Parameters
+            ----------
+            count : int
+                The current iteration count.
             """
             if count % 2:
                 self.activity.emit("green")
@@ -631,12 +816,17 @@ class GuiDict(UserDict, ABC):
         """
         Create a QDockWidget to be attached to the main control GUI.
 
-        Also link all buttons to repective methods.
+        Also link all buttons to respective methods.
+
+        Returns
+        -------
+        QDockWidget
+            The created dock widget.
         """
+
         class MyQDockWidget(QDockWidget):
-            """
-            Modify QDockWidget to be able to track its closing
-            """
+            """Modify QDockWidget to be able to track its closing."""
+
             dockClosed = pyqtSignal()
 
             def __init__(self, title, appname):
@@ -649,9 +839,7 @@ class GuiDict(UserDict, ABC):
 
             @pyqtSlot()
             def saveCurrentState(self):
-                """
-                Save current dock geometry and enable state.
-                """
+                """Save current dock geometry and enable state."""
                 self.settings.beginGroup(self.windowTitle())
                 self.settings.setValue("size", self.size())
                 self.settings.setValue("pos", self.pos())
@@ -660,29 +848,24 @@ class GuiDict(UserDict, ABC):
                 self.settings.endGroup()
 
             def restoreState(self):
-                """
-                Load stored dock geometry and disable state.
-                """
+                """Load stored dock geometry and disable state."""
                 self.settings.beginGroup(self.windowTitle())
                 if self.settings.value("size") is not None:
                     self.resize(self.settings.value("size"))
                 if self.settings.value("pos") is not None:
                     self.move(self.settings.value("pos"))
-                self.disabled = self.settings.value(
-                    "disabled", False, type=bool)
-                self.extended = self.settings.value(
-                    "extended", False, type=bool)
+                self.disabled = self.settings.value("disabled", False, type=bool)
+                self.extended = self.settings.value("extended", False, type=bool)
                 self.settings.endGroup()
 
             def closeEvent(self, event):
                 super().closeEvent(event)
                 self.dockClosed.emit()
 
-        self.dock = MyQDockWidget(
-            list(self.keys())[0], self.parent.windowTitle())
+        self.dock = MyQDockWidget(list(self.keys())[0], self.parent.windowTitle())
         self.dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable
+            QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
         self.dock.setAllowedAreas(Qt.DockWidgetArea.TopDockWidgetArea)
         dockcontainer = QWidget()
@@ -718,13 +901,13 @@ class GuiDict(UserDict, ABC):
         return self.dock
 
     def create_content(self):
-        """create the real content of the GuiDict
+        """
+        Create the real content of the GuiDict.
 
         This function takes the variables from the GuiDict and generates the
         respective GUI widgets. If a user overwrites this function it will need
         to attach its output to self.container!
         """
-
         grid = QGridLayout(self.container)
         # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
@@ -736,13 +919,25 @@ class GuiDict(UserDict, ABC):
                     continue
                 grid.addWidget(widget, row, col, 1, 1)
 
-    def toggle_hidden(self, state):
+    def toggle_hidden(self, state: bool) -> None:
+        """
+        Toggle the visibility of hidden widgets.
+
+        Parameters
+        ----------
+        state : bool
+            If True, show hidden widgets; if False, hide them.
+        """
         if state:
             self.dock.extended = True
             for variable in self.values():
                 if isinstance(variable, var) and variable.hide:
                     for i, w in enumerate(variable.widgets):
-                        if (i == len(variable.widgets)-1 and not self.showlog):
+                        if (
+                            variable.log is not None
+                            and i == len(variable.widgets) - 1
+                            and not self.showlog
+                        ):
                             continue
                         w.show()
         else:
@@ -752,57 +947,73 @@ class GuiDict(UserDict, ABC):
                     for w in variable.widgets:
                         w.hide()
 
-    def copy_values(self):
-        """
-        Copies the values of a this GuiDict from the
-        first to the second column.
-        """
+    def copy_values(self) -> None:
+        """Copy the values from the first to the second column."""
         for variable in self.values():
             variable.copy_value()
 
     @property
-    def refresh_period_ms(self):
-        """Return refresh period in milliseconds."""
+    def refresh_period_ms(self) -> int:
+        """
+        Get the refresh period in milliseconds.
+
+        Returns
+        -------
+        int
+            The refresh period in milliseconds.
+        """
         return int(self.refresh_period * 1000)
 
-    def makeEnabled(self, state):
+    def makeEnabled(self, state: int) -> None:
+        """
+        Enable or disable the GUI based on the given state.
+
+        Parameters
+        ----------
+        state : int
+            0 to disable, any other value to enable.
+        """
         if state == 0:
             self.stop()
         else:
             self.start()
         self.dock.disabled = not self.enable_switch.isChecked()
 
-    def restoreFeatures(self):
-        """
-        restore features based on enable switch setting.
-        """
+    def restoreFeatures(self) -> None:
+        """Restore features based on the enable switch setting."""
         if self.enable_switch.isChecked():
             self.container.setEnabled(True)
             if self.allow_disabling:
                 self.dock.setFeatures(
-                    self.dock.features() &
-                    ~QDockWidget.DockWidgetFeature.DockWidgetClosable
+                    self.dock.features()
+                    & ~QDockWidget.DockWidgetFeature.DockWidgetClosable
                 )
         else:
             self.container.setEnabled(False)
             if self.allow_disabling:
                 self.dock.setFeatures(
-                    self.dock.features() |
-                    QDockWidget.DockWidgetFeature.DockWidgetClosable
+                    self.dock.features()
+                    | QDockWidget.DockWidgetFeature.DockWidgetClosable
                 )
 
-    def stop(self, wait=True):
-        """Disable GUI fields and the update loop
+    def stop(self, wait: bool = True) -> None:
+        """
+        Disable GUI fields and the update loop.
 
         Parameters
-        wait: bool, optional
-          flag to make this function block up to twice the refresh period or
-          until the refresh thread ended
+        ----------
+        wait : bool, optional
+            Flag to make this function block up to twice the refresh period or
+            until the refresh thread ended (default is True).
+
+        Returns
+        -------
+        None
         """
         if self.running:
             self._refresh_thread.quit()
             if wait:
-                self._refresh_thread.wait(2*self.refresh_period_ms)
+                self._refresh_thread.wait(2 * self.refresh_period_ms)
             self.restoreFeatures()
             self.S.reset()
             self.S.close()
@@ -811,7 +1022,7 @@ class GuiDict(UserDict, ABC):
             self.running = False
 
     def _reset(self):
-        """reset all values and cmd functions to None.
+        """Reset all values and cmd functions to None.
 
         This is done to avoid logging or reporting something not updated.
         """
@@ -827,21 +1038,22 @@ class GuiDict(UserDict, ABC):
             # initialize the system
             self.S.set()
             # convert command function names to executables
-            self.set_cmd_funcs(window_obj=self.parent, sys=self.S)
+            self.set_cmd_funcs(window_obj=self.parent, system=self.S)
             self.restoreFeatures()
             self._refresh_thread.start()
             self.running = True
 
-    def set_cmd_funcs(self, window_obj=None, sys=None):
+    def set_cmd_funcs(self, window_obj=None, system=None):
         """
-        Replace setter and getter functions by the respective class methods,
-        variables or device functions from the system.
-        Also every entry is made to be an instance of Command.
+        Replace setter and getter functions by an instance of Command.
+
+        Depending on the setter and getter functions type either the respective class methods,
+        variables or device functions from the system are used.
         """
         # replace entries with executable functions
         for name, cmd in self._orig_cmds.items():
-            setfunc, setargs = self._create_setfunc(name, cmd, window_obj, sys)
-            getfunc, getargs = self._create_getfunc(name, cmd, window_obj, sys)
+            setfunc, setargs = self._create_setfunc(name, cmd, window_obj, system)
+            getfunc, getargs = self._create_getfunc(name, cmd, window_obj, system)
 
             # set new Command properties in existing list
             self.cmds[name].setfunc = setfunc
@@ -850,11 +1062,12 @@ class GuiDict(UserDict, ABC):
             self.cmds[name].getargs = getargs
         return self.cmds
 
-    def _create_setfunc(self, name, cmd, window_obj=None, sys=None):
+    def _create_setfunc(self, name, cmd, window_obj=None, system=None):
         """
-        create the setter function from the command definition. The function
-        determines what the user intended by the specified cmd and generates an
-        appropriate function.
+        Create the setter function from the command definition.
+
+        The function determines what the user intended by the specified cmd and
+        generates an appropriate function.
         """
         setargs = []
         setfunc = None
@@ -869,10 +1082,13 @@ class GuiDict(UserDict, ABC):
                 attr = attrgetter(cmd.setfunc)(self)
                 if callable(attr):
                     setfunc = attr
+                    setargs = cmd.setargs
                 else:
+
                     def setfunc(value, c=self, a=cmd.setfunc):
                         setattr(c, a, value)
             elif cmd.setfunc in self:  # if GuiDict.data entry
+
                 def setfunc(value, c=self.data[cmd.setfunc]):
                     setattr(c, "value", value)
             elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
@@ -880,30 +1096,34 @@ class GuiDict(UserDict, ABC):
                 if callable(attr):
                     setfunc = attr
                 else:
+
                     def setfunc(value, c=window_obj, a=cmd.setfunc):
                         setattr(c, a, value)
         elif isinstance(cmd.setfunc, (tuple, list)):
             # system device name and method
-            if sys is None:
+            if system is None:
                 raise ValueError(
-                    "System must be specified as 'sys' keyword argument")
+                    "System must be specified as 'system' keyword argument"
+                )
             devname, funcname = cmd.setfunc
-            attr = attrgetter(funcname)(sys.devs[devname])
+            attr = attrgetter(funcname)(system.devs[devname])
             if callable(attr):
                 setfunc = attr
+                setargs = cmd.setargs
             else:
-                def setfunc(value, c=sys.devs[devname], a=funcname):
+
+                def setfunc(value, c=system.devs[devname], a=funcname):
                     setattr(c, a, value)
         else:
-            raise ValueError(
-                f"could not identify '{cmd.setfunc}' of '{name}'")
+            raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
         return setfunc, setargs
 
-    def _create_getfunc(self, name, cmd, window_obj=None, sys=None):
+    def _create_getfunc(self, name, cmd, window_obj=None, system=None):
         """
-        create the getter function from the command definition. The function
-        determines what the user intended by the specified cmd and generates an
-        appropriate function.
+        Create the getter function from the command definition.
+
+        The function determines what the user intended by the specified cmd and
+        generates an appropriate function.
         """
         getargs = []
         getfunc = None
@@ -918,10 +1138,14 @@ class GuiDict(UserDict, ABC):
                 attr = attrgetter(cmd.getfunc)(self)
                 if callable(attr):
                     getfunc = attr
+                    getargs = cmd.getargs
                 else:
                     getfunc = self.__getattribute__
-                    getargs = [cmd.getfunc, ]
+                    getargs = [
+                        cmd.getfunc,
+                    ]
             elif cmd.getfunc in self:  # if GuiDict.data entry
+
                 def getfunc(c=self.data[cmd.getfunc]):
                     return getattr(c, "value")
             elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
@@ -929,40 +1153,43 @@ class GuiDict(UserDict, ABC):
                 if callable(attr):
                     getfunc = attr
                 else:
+
                     def getfunc(c=window_obj, a=cmd.getfunc):
                         return getattr(c, a)
             elif cmd.dtype == str and not cmd.getargs:
+
                 def getfunc(v=cmd.getfunc):
                     return cmd.dtype(v)
         elif isinstance(cmd.getfunc, (tuple, list)):
             # system device name and method
-            if sys is None:
+            if system is None:
                 raise ValueError(
-                    "System must be specified as 'sys' keyword argument")
+                    "System must be specified as 'system' keyword argument"
+                )
             devname, funcname = cmd.getfunc
-            attr = attrgetter(funcname)(sys.devs[devname])
+            attr = attrgetter(funcname)(system.devs[devname])
             if callable(attr):
                 getfunc = attr
+                getargs = cmd.getargs
             else:
-                def getfunc(c=sys.devs[devname], a=funcname):
+
+                def getfunc(c=system.devs[devname], a=funcname):
                     return getattr(c, a)
         else:
-            raise ValueError(
-                f"could not identify '{cmd.getfunc}' of '{name}'")
+            raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
         return getfunc, getargs
 
     def panic(self):
         """
-        Enable panic mode and put everyting to a save state. Should be
-        overloaded by derived functions if needed.
+        Enable panic mode and put everyting to a save state.
+
+        Should be overloaded by derived functions if needed.
         """
         self._panic = True
         self.enable_switch.setEnabled(False)
 
     def unpanic(self):
-        """
-        Make device operational again
-        """
+        """Make device operational again."""
         self.enable_switch.setEnabled(True)
         self._panic = False
 
@@ -970,6 +1197,7 @@ class GuiDict(UserDict, ABC):
     def refresh(self, count):
         """
         Update values from the device and show them in the GUI.
+
         This method has to be implementated by every derived class.
 
         It should contain code to refresh the GUI values a single time (no
@@ -985,38 +1213,49 @@ class GuiDict(UserDict, ABC):
         #     self["V1"].value = self.S["dev"].get_another_value()
 
 
-class QtGracefulKiller():
-    """
-    Graceful killer, that handles the proper termination of Qt application
-    """
+class QtGracefulKiller:
+    """Graceful killer, that handles the proper termination of Qt application."""
 
     def __init__(self):
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
     def exit_gracefully(self, signam, frame):
-        """
-        terminates the application
-        """
+        """Terminates the application."""
         print(f"Kill signal received ({signam})")
-        QApplication.quit()
+        MApplication.quit()
 
     def __enter__(self):
-        """
-        start a timer for Ctrl+C to work
-        """
+        """Start a timer for Ctrl+C to work."""
         self.timer = QTimer()
         self.timer.timeout.connect(lambda: None)
         self.timer.start(100)
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, value, traceback):
+        """
+        Stop the timer when exiting the context manager.
+
+        This method is called when exiting the context manager (i.e., at the end of the
+        'with' statement). It stops the timer that was started in the __enter__ method.
+
+        Parameters
+        ----------
+        exc_type : type
+            The type of the exception that caused the context to be exited.
+            None if the context was exited without an exception.
+        value : Exception
+            The instance of the exception that caused the context to be exited.
+            None if the context was exited without an exception.
+        traceback : traceback
+            A traceback object encoding the stack trace.
+            None if the context was exited without an exception.
+        """
         self.timer.stop()
 
 
 def linear_trend(timestamps, data, interval=60):
     """
-    Calculate the slope and standard deviation of the data in the last
-    'interval' seconds.
+    Calculate the linear trend of the data in the last 'interval' seconds.
 
     Parameters
     ----------
@@ -1049,11 +1288,13 @@ def linear_trend(timestamps, data, interval=60):
     return ret
 
 
-def sendNotificationEmail(address, subject, msgtext, attachments=[]):
-    """
-    utility function to send messages to a list of email addresses. The function
-    uses the sendmail command line function which has to be configured to work
-    as intended!
+def sendNotificationEmail(
+    address: str, subject: str, msgtext: str, attachments: list[str] = []
+) -> None:
+    """Send messages to a list of email addresses.
+
+    Utility function that uses the sendmail command line function which has to
+    be configured to work as intended.
 
     Parameters
     ----------
@@ -1066,13 +1307,14 @@ def sendNotificationEmail(address, subject, msgtext, attachments=[]):
      (-> attach the image file)
     attachments: list
      list of file names of things to attach to the email.
+
     """
     # a check for valid email adresses should be added here!
-    if address != '':
+    if address != "":
         msg = MIMEMultipart()
         msg["To"] = address
         msg["Subject"] = subject
-        mimetxt = MIMEText(msgtext, 'html')
+        mimetxt = MIMEText(msgtext, "html")
         msg.attach(mimetxt)
         # add attachments (code adapted from
         # https://docs.python.org/3.4/library/email-examples.html)
@@ -1086,98 +1328,78 @@ def sendNotificationEmail(address, subject, msgtext, attachments=[]):
             if ctype is None or encoding is not None:
                 # No guess could be made, or the file is encoded (compressed),
                 # so use a generic bag-of-bits type.
-                ctype = 'application/octet-stream'
-            maintype, subtype = ctype.split('/', 1)
-            if maintype == 'text':
+                ctype = "application/octet-stream"
+            maintype, subtype = ctype.split("/", 1)
+            if maintype == "text":
                 with open(fname) as fp:
                     # Note: we should handle calculating the charset
                     att = MIMEText(fp.read(), _subtype=subtype)
-            elif maintype == 'image':
-                with open(fname, 'rb') as fp:
+            elif maintype == "image":
+                with open(fname, "rb") as fp:
                     att = MIMEImage(fp.read(), _subtype=subtype)
-                att.add_header('Content-ID', '<{}>'.format(fname))
-            elif maintype == 'audio':
-                with open(fname, 'rb') as fp:
+                att.add_header("Content-ID", "<{}>".format(fname))
+            elif maintype == "audio":
+                with open(fname, "rb") as fp:
                     att = MIMEAudio(fp.read(), _subtype=subtype)
             else:
-                with open(fname, 'rb') as fp:
+                with open(fname, "rb") as fp:
                     att = MIMEBase(maintype, subtype)
                     att.set_payload(fp.read())
                 # Encode the payload using Base64
                 encoders.encode_base64(msg)
             # Set the filename parameter
-            att.add_header('Content-Disposition', 'attachment', filename=fname)
+            att.add_header("Content-Disposition", "attachment", filename=fname)
             msg.attach(att)
 
         # read email config
-        (smtp_srv,
-         smtp_user,
-         frommail,
-         passwd) = [confparser.get("email", field, fallback=None) for field in ("smtp_server",
-                                                                                "smtp_user",
-                                                                                "fromemail",
-                                                                                "password")]
-        port = confparser.get("email", "smtp_port", fallback=465)
+        if "email" in config["matr1x"]:
+            conf = config["matr1x"]["email"]
+            (smtp_srv, smtp_user, frommail, passwd) = [
+                conf.get(field, None)
+                for field in ("smtp_server", "smtp_user", "fromemail", "password")
+            ]
+            port = conf.get("smtp_port", 465)
+        else:
+            (smtp_srv, smtp_user, frommail, passwd) = (None,) * 4
+            port = 465
         context = ssl.create_default_context()
 
         try:
             if all(var is not None for var in (smtp_srv, smtp_user, frommail, passwd)):
                 with smtplib.SMTP_SSL(smtp_srv, port, context=context) as server:
                     server.login(smtp_user, passwd)
-                    server.send_message(
-                        msg, from_addr=frommail, to_addrs=address)
-            elif os.name == 'posix':
+                    server.send_message(msg, from_addr=frommail, to_addrs=address)
+            elif os.name == "posix":
                 p = Popen(["sendmail", "-t"], stdin=PIPE)
                 p.communicate(msg.as_bytes())
                 p.wait()
                 logger = logging.getLogger(__name__)
-                logger.info(
-                    "notification email {} sent to {}".format(msgtext, address))
+                logger.info("notification email {} sent to {}".format(msgtext, address))
             else:
                 print(
-                    "no email configuration found; see documentation on how to set it up")
+                    "no email configuration found; see documentation on how to set it up"
+                )
         except Exception as e:
             print("ignoring error during sending email: {}".format(e))
 
 
-class OutputRedirection:
-    def __init__(self, stream, prefix='control', fallbackname=""):
-        """
-        object for output duplication into a file. Useful to avoid loss of
-        output upon crash of GUI programs.
-        """
-        self.terminal = stream
-        if stream is not None:
-            name = stream.name.strip('<>')
-        else:
-            name = fallbackname
-        self.log = open(os.path.join(logfolder, f"{prefix}-{name}.log"), "a")
-        print(f"opening log: {self.log.name}")
-
-    def write(self, message):
-        if self.terminal is not None:
-            self.terminal.write(message)
-        if message != '\n':
-            self.log.write(f"{time.strftime(datetimefmt)}: ")
-        self.log.write(message)
-        self.flush()
-
-    def flush(self):
-        if self.terminal is not None:
-            self.terminal.flush()
-        self.log.flush()
-
-    def close(self):
-        self.log.close()
-
-    def __exit__(self):
-        self.close()
-
-
 class SelectLakeshoreInput(QDialog):
     """
-    open dialog which allows the user to select a sensor calibration curve
-    for the Lakeshore temperature controller
+    Open a dialog for selecting a sensor calibration curve for the Lakeshore temperature controller.
+
+    This dialog allows the user to choose from a list of available calibration curves
+    for the Lakeshore temperature controller. It displays the curve numbers and names,
+    and allows the user to set the selected curve for the controller.
+
+    Attributes
+    ----------
+    curves : dict
+        A dictionary of available calibration curves, where keys are
+        curve numbers and values are curve names.
+    activeCurve : int
+        The currently active curve number.
+    curvesList : QListWidget
+        A widget displaying the list of available curves.
     """
 
     def __init__(self, parent, lakeshore_dev=None):
@@ -1192,15 +1414,13 @@ class SelectLakeshoreInput(QDialog):
         self.show()
 
     def initUI(self):
-        """
-        Initialize GUI for popup
-        """
+        """Initialize GUI for popup."""
         self.setWindowTitle("Select Lakeshore input curve")
         grid = QGridLayout()
 
         self.curvesList = QListWidget()
         self.curvesList.addItems([f"{k}: {v}" for k, v in self.curves.items()])
-        self.curvesList.setCurrentRow(self.activeCurve-1)
+        self.curvesList.setCurrentRow(self.activeCurve - 1)
 
         cancelButton = QPushButton("Cancel")
         cancelButton.clicked.connect(self.close)
@@ -1214,6 +1434,12 @@ class SelectLakeshoreInput(QDialog):
         self.setLayout(grid)
 
     def set_curve(self):
+        """
+        Set the selected calibration curve for the Lakeshore temperature controller.
+
+        This method reads the selected curve from the QListWidget, sets it on the
+        Lakeshore device if possible, and closes the dialog.
+        """
         selectedcurve = int(self.curvesList.currentItem().text().split(":")[0])
         if hasattr(self._dev, "setCurveNumber"):
             self._dev.setCurveNumber(selectedcurve)
@@ -1221,25 +1447,99 @@ class SelectLakeshoreInput(QDialog):
 
 
 class TableModel(QtCore.QAbstractTableModel):
+    """
+    A table model for displaying PID parameters.
 
-    def __init__(self, data):
+    This model is designed to work with a 2D numpy array containing
+    PID parameters and related data.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        A 2D numpy array containing the data to be displayed in the table.
+    """
+
+    def __init__(self, data: numpy.ndarray) -> None:
         super(TableModel, self).__init__()
         self._data = data
 
-    def data(self, index, role):
+    def data(self, index: QtCore.QModelIndex, role: int) -> Union[str, None]:
+        """
+        Return the data stored under the given role for the item referred to by the index.
+
+        Parameters
+        ----------
+        index : QtCore.QModelIndex
+            The index of the requested data.
+        role : int
+            The role for which the data is requested.
+
+        Returns
+        -------
+        Union[str, None]
+            The requested data as a string if the role is DisplayRole, None otherwise.
+        """
         if role == Qt.ItemDataRole.DisplayRole:
-            # Note: self._data[index.row()][index.column()] will also work
             value = self._data[index.row(), index.column()]
             return str(value)
+        return None
 
-    def rowCount(self, index):
+    def rowCount(self, index: QtCore.QModelIndex) -> int:
+        """
+        Return the number of rows in the model.
+
+        Parameters
+        ----------
+        index : QtCore.QModelIndex
+            The parent index (unused in this implementation).
+
+        Returns
+        -------
+        int
+            The number of rows in the data.
+        """
         return self._data.shape[0]
 
-    def columnCount(self, index):
+    def columnCount(self, index: QtCore.QModelIndex) -> int:
+        """
+        Return the number of columns in the model.
+
+        Parameters
+        ----------
+        index : QtCore.QModelIndex
+            The parent index (unused in this implementation).
+
+        Returns
+        -------
+        int
+            The number of columns in the data.
+        """
         return self._data.shape[1]
 
-    def headerData(self, section, orientation, role):
-        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+    def headerData(
+        self, section: int, orientation: Qt.Orientation, role: int
+    ) -> Union[str, QVariant]:
+        """
+        Return the header data for the given role and section in the header with the specified orientation.
+
+        Parameters
+        ----------
+        section : int
+            The section number for which the header data is required.
+        orientation : Qt.Orientation
+            The orientation of the header (horizontal or vertical).
+        role : int
+            The role for which the data is requested.
+
+        Returns
+        -------
+        Union[str, QVariant]
+            The header data as a string if the conditions are met, QVariant() otherwise.
+        """
+        if (
+            role == Qt.ItemDataRole.DisplayRole
+            and orientation == Qt.Orientation.Horizontal
+        ):
             if section == 0:
                 return "T (K)"
             elif section == 1:
@@ -1255,12 +1555,14 @@ class TableModel(QtCore.QAbstractTableModel):
 
 class WriteLakeshoreZonePID(QDialog):
     """
-    open dialog which allows the user to select PID parameter table for use
-    with the ZONE mode.
+    Dialog to select a PID parameter table for use with the ZONE mode.
 
     The PID parameter file must be a text file which contains columns for:
-    The upper temperature of the zones, P, I, D parameters, and heater range.
+    the upper temperature of the zones, P, I, D parameters, and heater range.
     A total of 10 entries are allowed.
+
+    This dialog provides functionality to load a PID table from a file,
+    display it in a table view, and write the parameters to the Lakeshore device.
     """
 
     def __init__(self, parent, lakeshore_dev=None):
@@ -1270,16 +1572,14 @@ class WriteLakeshoreZonePID(QDialog):
         self.show()
 
     def initUI(self):
-        """
-        Initialize GUI for popup
-        """
+        """Initialize GUI for popup."""
         self.setWindowTitle("Select Lakeshore input curve")
         grid = QGridLayout()
 
         self.fileEdit = QLineEdit(self)
         self.fileEdit.setReadOnly(True)
 
-        loadButton = QPushButton('Load PID Table')
+        loadButton = QPushButton("Load PID Table")
         loadButton.clicked.connect(self.load_pid_table)
 
         grid.addWidget(self.fileEdit, 0, 0, 1, 2)
@@ -1289,7 +1589,7 @@ class WriteLakeshoreZonePID(QDialog):
         # self.table.setReadOnly(True)
         grid.addWidget(self.table, 1, 0, 10, -1)
 
-        self.writeButton = QPushButton('Write Table to Device')
+        self.writeButton = QPushButton("Write Table to Device")
         self.writeButton.clicked.connect(self.write_zone_to_device)
         self.writeButton.setEnabled(False)
         cancelButton = QPushButton("Cancel")
@@ -1301,10 +1601,17 @@ class WriteLakeshoreZonePID(QDialog):
         self.setLayout(grid)
 
     def load_pid_table(self):
-        # get filename from dialog
+        """
+        Load a PID table from a file and display it in the table view.
+
+        This method opens a file dialog for the user to select a PID table file,
+        loads the data from the file, creates a TableModel with the data,
+        and sets it as the model for the table view. If the loaded data has
+        the correct shape, it enables the write button.
+        """
         filename = QFileDialog.getOpenFileName(
-            self, 'Select PID table file', usersfolder,
-            "calibration file (*.*)")[0]
+            self, "Select PID table file", usersfolder, "calibration file (*.*)"
+        )[0]
         self.fileEdit.setText(filename)
         if filename != "":
             self.data = numpy.loadtxt(filename, unpack=True)
@@ -1315,59 +1622,69 @@ class WriteLakeshoreZonePID(QDialog):
                 self.writeButton.setEnabled(True)
 
     def write_zone_to_device(self):
+        """
+        Write the loaded PID table to the Lakeshore device.
+
+        This method checks if the Lakeshore device has a 'writeZonePID' method.
+        If it does, it calls this method with the loaded PID data as arguments.
+        After writing the data (or if the method doesn't exist), it closes the dialog.
+        """
         if hasattr(self._dev, "writeZonePID"):
             self._dev.writeZonePID(*self.data)
         self.close()
 
 
-def control_main(name, window_class, guidicts=None, extra_cmds=None,
-                 lockfile=True, package='matr1x', **kwargs):
+def control_main(
+    name,
+    window_class,
+    guidicts=None,
+    extra_cmds=None,
+    lockfile=True,
+    package="matr1x",
+    **kwargs,
+):
     """
-    Utility main function to avoid duplication in all control GUIs
+    Run main function of control GUI.
+
+    This function exists to avoid duplication in all control GUIs.
 
     Parameters
     ----------
     name : str
-      identifier string used as Window title and for the lock file
-    window_class : ControlWindow, QMainWindow
-      class derived from QMainWindow to be used to construct the GUI
-    guidicts : list, tuple
-      several GuiDict (or normal dict) objects with the description of the GUI
-    extra_cmds : dict
-      dictionary with commands for the measurement interface. While most
-      commands will be connected with the GuiDicts those which do not fit there
-      can be supplied here.
+        Identifier string used as Window title and for the lock file.
+    window_class : ControlWindow or QMainWindow
+        Class derived from QMainWindow to be used to construct the GUI.
+    guidicts : GuiDict, list or tuple of GuiDicts, optional
+        GuiDict object(s) with the definition of the GUI.
+    extra_cmds : dict, optional
+        Dictionary with commands for the measurement interface. While most
+        commands will be connected with the GuiDicts, those which do not fit there
+        can be supplied here.
     lockfile : bool, optional
-      boolean flag to specify if an lockfile shall be created/checked to avoid
-      multiple instances of the control GUI
+        Boolean flag to specify if a lockfile shall be created/checked to avoid
+        multiple instances of the control GUI. Default is True.
     package : str, optional
-      package name to identify the desktop file
-    kwargs : dict, optional
-      keyword arguments which are forwarded to the window_class constructor
+        Package name to identify the desktop file. Default is "matr1x".
+    **kwargs : dict
+        Keyword arguments which are forwarded to the window_class constructor.
     """
-
-    if os.name == 'nt':
+    if os.name == "nt":
         try:
             from ctypes import windll  # Only exists on Windows.
-            myappid = f'python.{package}.{name}.version'
+
+            myappid = f"python.{package}.{name}.version"
             windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except ImportError:
             pass
 
-    if "_dummy" in os.path.basename(sys.argv[0]):
-        warnings.warn(
-            "The executable name 'control_dummy' is deprecated. Use 'control-dummy' instead.",
-            FutureWarning)
-    app = QApplication(sys.argv)
-    if os.name == 'nt':
+    app = MApplication(sys.argv)
+    if os.name == "nt":
         # enable modern mode on windows which allows for darkmode
-        app.setStyle('fusion')
-    app.setDesktopFileName(
-        f"python.{package}.{os.path.basename(sys.argv[0])}")
+        app.setStyle("fusion")
+    app.setDesktopFileName(f"python.{package}.{os.path.basename(sys.argv[0])}")
 
     if lockfile:
-        lockfilename = os.path.join(
-            logfolder, f"{package}_gui_{name}.lock")
+        lockfilename = os.path.join(logfolder, f"{package}_gui_{name}.lock")
         if os.path.exists(lockfilename):
             # check if process still running
             with open(lockfilename, "r", encoding="utf-8") as lockf:
@@ -1375,10 +1692,12 @@ def control_main(name, window_class, guidicts=None, extra_cmds=None,
             try:
                 psutil.Process(otherpid)
                 QMessageBox.critical(
-                    QWidget(), "Other instance running",
+                    QWidget(),
+                    "Other instance running",
                     f"""Another instance of '{name}' was found running.
 The control GUI can not start.
-Kill the other process ({otherpid}) before restarting.""")
+Kill the other process ({otherpid}) before restarting.""",
+                )
                 sys.exit()
             except psutil.NoSuchProcess:
                 # this is the normal behavior in this case -> move on.
@@ -1387,19 +1706,15 @@ Kill the other process ({otherpid}) before restarting.""")
         with open(lockfilename, "w", encoding="utf-8") as lockf:
             lockf.write(f"{os.getpid()}\n")
 
-    kwargs['package'] = package
+    kwargs["package"] = package
     logger = logging.getLogger(__name__)
     logger.info("Starting GUI")
     with QtGracefulKiller():
-        with window_class(name,
-                          guidicts=guidicts,
-                          extra_cmds=extra_cmds,
-                          **kwargs):
-            sys.stdout = OutputRedirection(sys.stdout,
-                                           prefix=f"{package}.{name}")
-            sys.stderr = OutputRedirection(sys.stderr,
-                                           prefix=f"{package}.{name}",
-                                           fallbackname="stderr")
+        with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
+            sys.stdout = OutputDuplication(sys.stdout, prefix=f"{package}.{name}")
+            sys.stderr = OutputDuplication(
+                sys.stderr, prefix=f"{package}.{name}", fallbackname="stderr"
+            )
             ret = app.exec()
     logger.info("Exiting GUI")
     if lockfile:

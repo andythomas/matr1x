@@ -1,57 +1,56 @@
 [project]
 name = "matr1x"
-version = "7.4.0"
+version = "7.5.0"
 description = "Python package for data acquisition and measurement control"
 requires-python = ">=3.8"
-license = {text = "GPL-3.0-or-later"}
+license = { text = "GPL-3.0-or-later" }
 classifiers = [
-  "Private :: Do Not Upload",
-  "Development Status :: 5 - Production/Stable",
-  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-  "Programming Language :: Python :: 3",
-  "Topic :: Scientific/Engineering",
-  "Intended Audience :: Science/Research",
-  "Operating System :: Microsoft :: Windows",
-  "Operating System :: POSIX :: Linux",
-  "Operating System :: MacOS",
+    "Private :: Do Not Upload",
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Science/Research",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
 ]
 dependencies = [
-  "natsort",
-  "numpy",
-  "pandas",
-  "psutil",
-  "pyflakes",
-  "pymeasure",
-  "pyserial",
-  "pyvisa",
-  "pyvisa-py",
-  "urwid>2.0",
-  "wrapt",
-  "pyqtgraph >= 0.11.0",
-  "PyQt6",
-  "PyQt6 >= 6.5.0 ; platform_system == 'Windows'",
-  "PyQt6-QScintilla",
-  "autopep8",
-  "h5py",
+    "natsort",
+    "numpy",
+    "pandas",
+    "psutil",
+    "pyflakes",
+    "pygit2",
+    "pymeasure",
+    "pyserial",
+    "pyvisa",
+    "pyvisa-py",
+    "urwid>2.0",
+    "wrapt",
+    "pyqtgraph >= 0.11.0",
+    "PyQt6",
+    "PyQt6 >= 6.5.0 ; platform_system == 'Windows'",
+    "PyQt6-QScintilla",
+    "pyobjc ; platform_system == 'Darwin'",
+    "autopep8",
+    "h5py",
+    "tomli ; python_version < '3.11'",
+    "tomli-w",
 ]
 [project.optional-dependencies]
+elab = ["elabapi_python", "jinja2"]
 spi = ["spidev", "RPi"]
 standa = ["PyUSMC", "pyximc"]
-git = ["pygit2"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
-matrix_gui = "matr1x.scripts.matrix_gui:main"
 matrix-gui = "matr1x.scripts.matrix_gui:main"
 
 [project.gui-scripts]
-sweep_generator = "matr1x.scripts.sweep_generator:main"
 sweep-generator = "matr1x.scripts.sweep_generator:main"
-matrix_script = "matr1x.scripts.matrix_script:main"
 matrix-script = "matr1x.scripts.matrix_script:main"
-matrix_preview = "matr1x.scripts.matrix_preview:main"
 matrix-preview = "matr1x.scripts.matrix_preview:main"
-control-dummy-legacy = "matr1x.control.control_dummy_legacy:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
 
@@ -62,9 +61,6 @@ homepage = "https://github.com/andythomas/IFW_software"
 # use flit since setuptools does currently not support PEP660
 requires = ["flit_core >=3.6,<4"]
 build-backend = "flit_core.buildapi"
-
-[tool.ruff]
-line-length = 120
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"

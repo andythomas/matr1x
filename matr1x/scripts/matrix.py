@@ -1,8 +1,22 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# ---
-# (c) 2024 matr1x developers. All rights reserved.
-# ---
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
+Performs measurements utilizing several input files.
+
 matrix.py takes an input file, a system file (can be specified in the input
 file) and an output file as arguments to perform a measurement.
 The measurement setup itself is specified in the system, while the parameters
@@ -13,6 +27,7 @@ file of ascii or hdf5 format, depending on the system specifications
 import argparse
 import math
 import os
+import re
 import shlex
 import socket
 import sys
@@ -20,19 +35,27 @@ import time
 import traceback
 
 import urwid
-from matr1x.system import MergedSystem
-from matr1x.util import (flatten, flush_input, generate_col_index,
-                         nonblocking_getch, open_and_error,
-                         print_formatted_line, telemetry_string)
 
+from matr1x.system import MergedSystem
+from matr1x.util import (
+    flatten,
+    flush_input,
+    generate_col_index,
+    nonblocking_getch,
+    open_and_error,
+    print_formatted_line,
+    telemetry_string,
+)
+
+from .. import VALID_META_KEYS
 from . import MATRIX_GUI_PORT
+
+abortmap = {"q": 1, "a": 2, "f": 3}
+# define abort conditions for different keys
 
 
 def parse_inputfile(inputfile, system):
-    """
-    reads the input file and provides point by point set values needed for the
-    measurement
-    """
+    """Read the input file and provides point by point set values needed for the measurement."""
     # define sorting algorithm
     def sort(arg):
         # get key
@@ -91,10 +114,7 @@ def parse_inputfile(inputfile, system):
 def measurementloop(inputfile, system,
                     setvalcb=lambda s: None, readvalcb=lambda r: None,
                     telemetrycb=lambda s: None, inputcb=lambda n: 0):
-    """
-    measurement loops with callback functions for visualization of the
-    measurement and its progress
-    """
+    """Measurement loops with callback functions for visualization of the measurement and its progress."""
     # count number of setpoints for telemetry information
     points = 0
     with open(inputfile, 'r') as f:
@@ -140,33 +160,42 @@ def measurementloop(inputfile, system,
                 (elapsed/(point_idx+1)*points-elapsed)/60, preread-preset,
                 time.time()-preread))
         # handle input on the end of one measurement point
-        if inputcb(point_idx+1) != 0:
-            break
+        ret_input = inputcb(point_idx + 1)
+        if ret_input != 0:
+            return ret_input
     return 0
 
 
 def measure_plain(inputfile, system, quiet=False):
     """
-    measurement loop with plain print output to the terminal or reduced output
-    when quiet is set to True. This measurement mode is mainly used for
+    Measurement loop with reduced output.
+
+    Measurements can be with plain print output to the terminal or futhrer reduced
+    output when quiet is set to True. This measurement mode is mainly used for
     continuous integration on Github actions and use on MS Windows.
     """
 
     def inputcb(n):
         key = nonblocking_getch()
-        if key in ('q', 'Q'):
-            sys.stdout.write(f"Note: aborted with q after {n} points\n\n\n")
-            return 1
+        if key and key.lower() in ("q", "a", "f"):
+            sys.stdout.write(f"Note: aborted with {key} after {n} points\n\n\n")
+            system.add_comment(
+                f"measurement aborted by keyboard input after {n} points"
+            )
+            return abortmap[key.lower()]
         if key in ('p', 'P'):
             sys.stdout.write("paused - continue with 'p'\n")
+            system.add_comment("measurement paused by keyboard input")
             # wait for unpause with p
             while True:
                 time.sleep(0.1)
                 key = nonblocking_getch()
-                if key in ('q', 'Q'):
-                    sys.stdout.write(
-                        f"Note: aborted with q after {n} points\n\n\n")
-                    return 1
+                if key and key.lower() in ("q", "a", "f"):
+                    sys.stdout.write(f"Note: aborted with {key} after {n} points\n\n\n")
+                    system.add_comment(
+                        "measurement aborted by keyboard input " f"after {n} points"
+                    )
+                    return abortmap[key.lower()]
                 if key in ('p', 'P'):
                     break
         return 0
@@ -191,9 +220,7 @@ def measure_plain(inputfile, system, quiet=False):
 
 
 def measure_urwid(inputfile, systemfile, system):
-    """
-    measurement loop with urwid based output to the terminal
-    """
+    """Measurement loop with urwid based output to the terminal."""
     msg = ""
     # display some info
     info = urwid.Text(
@@ -237,7 +264,7 @@ def measure_urwid(inputfile, systemfile, system):
             self.loop.start()
             return self.loop
 
-        def __exit__(self, type, value, traceback):
+        def __exit__(self, exc_type, value, traceback):
             self.loop.stop()
 
     with UrwidContext(filler) as loop:
@@ -260,21 +287,35 @@ def measure_urwid(inputfile, systemfile, system):
         def inputcb(n):
             nonlocal msg
             for key in loop.screen.get_input():
-                if key in ('q', 'Q'):
-                    msg += f"Note: aborted with q after {n} points"
-                    return 1
+                if isinstance(key, tuple):
+                    # mouse presses result in tuple of shape
+                    #  ("mouse release", 1, 35, 20)
+                    # -> ignore those.
+                    continue
+                if key.lower() in ("q", "f", "a"):
+                    msg += f"Note: aborted with {key} after {n} points"
+                    system.add_comment(
+                        "measurement aborted by keyboard input " f"after {n} points"
+                    )
+                    return abortmap[key.lower()]
                 if key in ('p', 'P'):
                     msg += f"paused at {time.time()} after {n} points\n"
                     status.set_text("paused - continue with 'p'")
+                    system.add_comment("measurement paused by keyboard input")
                     loop.draw_screen()
                     # wait for unpause with p
                     flag = True
                     while flag:
                         time.sleep(0.1)
                         for key in loop.screen.get_input():
-                            if key in ('q', 'Q'):
-                                msg += f"Note: aborted with q after {n} points"
-                                return 1
+                            if key.lower() in ("q", "f", "a"):
+                                msg += f"Note: aborted with {key} after {n} points"
+                                system.add_comment(
+                                    "measurement aborted by "
+                                    f"keyboard input after {n} "
+                                    "points"
+                                )
+                                return abortmap[key.lower()]
                             if key in ('p', 'P'):
                                 flag = False
                     status.set_text("")
@@ -291,6 +332,7 @@ def measure_urwid(inputfile, systemfile, system):
 
 
 def main():
+    """Read the command line and perform measurement accordingly."""
     # define the possible command line parameters
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--inputfile",
@@ -299,12 +341,6 @@ def main():
                         help="specifies system(s)")
     parser.add_argument("-o", "--outputfile", default=None,
                         help="Output filename")
-    parser.add_argument("-m", "--comment", default=None,
-                        help="arbritary comment string")
-    parser.add_argument("-u", "--user", default=None,
-                        help="Name of the operator/user for the data file header")
-    parser.add_argument("-S", "--sample", default=None,
-                        help="sample identification for the data file header")
     parser.add_argument("-af", "--append", action='store_true',
                         help="instead of appending a continuous number " +
                         "to the output file, append to output file.")
@@ -312,6 +348,15 @@ def main():
                         help="use plain output instead of the urwid library")
     parser.add_argument("-q", "--quiet", action='store_true',
                         help="produce reduced output (no measurement data)")
+
+    # add keys to allow transmitting meta data
+    for key in VALID_META_KEYS.keys():
+        parser.add_argument(
+            f"-d{key[:2].lower()}",
+            f"--dc_{key.lower()}",
+            default=None,
+            help=f"Dublin Core meta data entry {key}",
+        )
 
     # parse the command line
     options = parser.parse_args()
@@ -336,15 +381,15 @@ def main():
             sys.exit(1)
         else:
             for line in f:
-                if "# System" in line:
-                    systemfile = line.replace(
-                        "# System filename : ", "").split(",")
-                if "# Settable columns" in line:
-                    settable_names_file = line.strip().replace(
-                        "# Settable columns : ", "").split(",")
-                if "# Settable units" in line:
-                    settable_units_file = line.strip().replace(
-                        "# Settable units : ", "").split(",")
+                system_pattern = r"^# [Ss]ystem filename : (.+)"
+                settable_names_pattern = r"^# [Ss]ettable columns : (.+)"
+                settable_units_pattern = r"^# [Ss]ettable units : (.+)"
+                if match := re.match(system_pattern, line.strip()):
+                    systemfile = match.group(1).split(",")
+                elif match := re.match(settable_names_pattern, line.strip()):
+                    settable_names_file = match.group(1).split(",")
+                elif match := re.match(settable_units_pattern, line.strip()):
+                    settable_units_file = match.group(1).split(",")
                 if "#" != line[0]:
                     break
 
@@ -393,30 +438,28 @@ def main():
         client_socket.send(output_filename.encode())
         client_socket.close()
 
+    # update the meta data with potential user input
+    for key, editable in VALID_META_KEYS.items():
+        if editable:
+            # only parse user editable keys
+            opt_val = getattr(options, f"dc_{key.lower()}")
+            if opt_val is not None:
+                system.dcdata[key] = opt_val
+
     # initialize devices and notify user what is going on
     print("setting devices")
     system.set(input_file=options.inputfile, output_file=output_filename)
 
     # acquire configuration from devices and notify user what is going on
-    print("devices set, acquiring configuration")
+    print("devices set, acquiring configuration and writing header")
+    # initialize datefile and insert device query
     try:
-        query_dict = system.query()
-    except Exception:
-        print("matrix: error: could not aquire configuration.")
-        sys.exit(1)
-
-    # initialize header and insert command line options into measurement
-    # file (can include device config etc.)
-    if options.comment is not None:
-        system.dcdata["Description"] = options.comment
-    if options.user is not None:
-        system.dcdata["Creator"] = options.user
-    if options.sample is not None:
-        system.dcdata["Identifier"] = options.sample
-    try:
-        system.write_matrix_header(options.inputfile, query_dict)
+        system.init_datafile(options.inputfile)
     except IOError:
         print("matrix: error: cannot create output file")
+        sys.exit(1)
+    except Exception:
+        print("matrix: error: could not acquire configuration.")
         sys.exit(1)
 
     # do the loop
@@ -442,8 +485,24 @@ def main():
               "Traceback of error:\n")
         traceback.print_tb(e.__traceback__)
         ret = 1
+    reset_kwargs = {
+        "input_file": options.inputfile,
+        "output_file": output_filename,
+    }
+    if ret == 1:
+        x = input(
+            "Shall the termination of the sequence lead to marking the "
+            "datafile as aborted? (Y/n)"
+        )
+        if x.lower().startswith("y") or x == "":
+            print("marking file as aborted")
+            reset_kwargs["status"] = "aborted"
+    if ret == 2:
+        reset_kwargs["status"] = "aborted"
+    if "status" not in reset_kwargs.keys():
+        reset_kwargs["status"] = "finished"
     print("resetting devices")
     # reset system/devices
-    system.reset(input_file=options.inputfile, output_file=output_filename)
+    system.reset(**reset_kwargs)
     # set returncode of the measurementloop as our exit status
     sys.exit(ret)
