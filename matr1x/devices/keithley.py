@@ -548,9 +548,9 @@ class Keithley2182A(VisaDevice):
         super().__init__(interface, **kwargs)
         self.triggered = False
         self.interface = interface
+        self.connection.clear()
 
     def query(self, *args, **kwargs):
-        self.connection.clear()
         return super().query(*args, **kwargs)
 
     # high level functions
