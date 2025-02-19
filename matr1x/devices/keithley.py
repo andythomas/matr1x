@@ -200,7 +200,7 @@ class Keithley2450(VisaDevice):
         # ignore telnet commands sent by the instrument
         # after initialization get the source function to determine
         # whether voltage or current is the sourced
-        
+
         self.sourceMode = self.query(":SOUR:FUNC?")
         self.senseMode = self.query(":SENS:FUNC?")
         self.outputState = bool(int(self.query(":OUTP?")))
@@ -1606,7 +1606,7 @@ class KeithleyDMM6500(VisaDevice):
         window=None,
         NPLC=None,
         dFil=None,
-        range=None,
+        rang=None,
         rangeAuto=None,
         trigBus=None,
         repeatingFilter=None,
@@ -1647,9 +1647,9 @@ class KeithleyDMM6500(VisaDevice):
             cmdList.append(":SENS:FRES:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:FRES:RANG:AUTO ON")
-        elif range is not None:
+        elif rang is not None:
             cmdList.append(":SENS:FRES:RANG:AUTO OFF")
-            cmdList.append(":SENS:FRES:RANG " + str(float(range)))
+            cmdList.append(":SENS:FRES:RANG " + str(float(rang)))
         if dFil is True:
             cmdList.append(":SENS:FRES:AVER:STATE ON")
             if count is not None:
@@ -1672,7 +1672,7 @@ class KeithleyDMM6500(VisaDevice):
         window=None,
         NPLC=None,
         dFil=None,
-        range=None,
+        rang=None,
         rangeAuto=None,
         trigBus=None,
         repeatingFilter=None,
@@ -1714,9 +1714,9 @@ class KeithleyDMM6500(VisaDevice):
             cmdList.append(":SENS:RES:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:RES:RANG:AUTO ON")
-        elif range is not None:
+        elif rang is not None:
             cmdList.append(":SENS:RES:RANG:AUTO OFF")
-            cmdList.append(":SENS:RES:RANG " + str(float(range)))
+            cmdList.append(":SENS:RES:RANG " + str(float(rang)))
         if dFil is True:
             cmdList.append(":SENS:RES:AVER:STATE ON")
             if count is not None:
@@ -1739,7 +1739,7 @@ class KeithleyDMM6500(VisaDevice):
         window=None,
         NPLC=None,
         dFil=None,
-        range=None,
+        rang=None,
         rangeAuto=None,
         trigBus=None,
         repeatingFilter=None,
@@ -1780,9 +1780,9 @@ class KeithleyDMM6500(VisaDevice):
             cmdList.append(":SENS:VOLT:DIG " + str(int(digits)))
         if rangeAuto is True:
             cmdList.append(":SENS:VOLT:RANG:AUTO ON")
-        elif range is not None:
+        elif rang is not None:
             cmdList.append(":SENS:VOLT:RANG:AUTO OFF")
-            cmdList.append(":SENS:VOLT:RANG " + str(float(range)))
+            cmdList.append(":SENS:VOLT:RANG " + str(float(rang)))
         if dFil is True:
             cmdList.append(":SENS:VOLT:AVER:STATE ON")
             if count is not None:
