@@ -30,6 +30,7 @@ from .keithley import (  # noqa: F401
     Keithley2611A,
     Keithley2701,
     Keithley6221,
+    KeithleyDMM6500,
 )
 from .kepco import BOP5020mg  # noqa: F401
 from .keysight import (  # noqa: F401
@@ -53,6 +54,7 @@ from .rohdeschwarz import FSW8  # noqa: F401
 from .standa import Standa8SMC1  # noqa: F401
 from .stanford_research_systems import SR830  # noqa: F401
 from .thorlabs import BSC103  # noqa: F401
+from .twickenham import HDI  # noqa: F401
 from .visadevice import VisaDevice  # noqa: F401
 
 logger = logging.getLogger(__name__)

@@ -198,18 +198,12 @@ class Keithley2450(VisaDevice):
             kwargs["read_termination"] = "\n"
         super().__init__(interface, **kwargs)
         # ignore telnet commands sent by the instrument
-        try:
-            self.read(9)
-        except Exception:
-            pass
         # after initialization get the source function to determine
         # whether voltage or current is the sourced
-        self.write(":SOUR:FUNC?")
-        self.sourceMode = self.read()
-        self.write(":SENS:FUNC?")
-        self.senseMode = self.read()
-        self.write(":OUTP?")
-        self.outputState = bool(int(self.read()))
+
+        self.sourceMode = self.query(":SOUR:FUNC?")
+        self.senseMode = self.query(":SENS:FUNC?")
+        self.outputState = bool(int(self.query(":OUTP?")))
 
     # high level functions
     @synchronized
@@ -553,15 +547,11 @@ class Keithley2182A(VisaDevice):
             kwargs["timeout"] = 50000
         super().__init__(interface, **kwargs)
         self.triggered = False
+        self.interface = interface
+        self.connection.clear()
 
-        tstore = self.connection.timeout
-        self.connection.timeout = 1
-        time.sleep(1)
-        try:
-            self.read(20)
-        except Exception:
-            pass
-        self.connection.timeout = tstore
+    def query(self, *args, **kwargs):
+        return super().query(*args, **kwargs)
 
     # high level functions
     @synchronized
@@ -607,7 +597,8 @@ class Keithley2182A(VisaDevice):
         cmdList = []
         if reset is True:
             self.write("*RST")
-            time.sleep(0.05)
+            self.query("*OPC?")
+
         # we want to measure volts
         cmdList.append(':SENS:FUNC "VOLT"')
         if NPLC is not None:
@@ -639,8 +630,8 @@ class Keithley2182A(VisaDevice):
             cmdList.append(":TRIG:COUN INF")
             cmdList.append(":INIT")
         for cmd in cmdList:
+            self.query("*OPC?")
             self.write(cmd)
-        time.sleep(0.2)
 
     def triggerReading(self):
         if self.triggered is False:
@@ -1160,6 +1151,9 @@ class Keithley2000(VisaDevice):
         for cmd in cmdList:
             self.write(cmd)
 
+    def getFunction(self):
+        return self.query(":SENS:FUNC?").replace('"', "")
+
     def triggerReading(self):
         self.write("*TRG")
         self.triggered = True
@@ -1586,3 +1580,228 @@ class Keithley6221(VisaDevice):
         self.write("SOUR:WAVE:ABOR")
         self.write("OUTP OFF")
         self.write("ABOR")
+
+
+class KeithleyDMM6500(VisaDevice):
+    config_params = {
+        "Mode": ":SENS:FUNC?",
+        "VOLT:RANGE": "VOLT:RANG?",
+        "VOLT:NPLC": ":SENS:VOLT:NPLC?",
+        "Model-identifing": "*IDN?",
+    }
+
+    def __init__(self, interface, **kwargs):
+        if "write_termination" not in kwargs:
+            kwargs["write_termination"] = "\n"
+        if "read_termination" not in kwargs:
+            kwargs["read_termination"] = "\n"
+        super().__init__(interface, **kwargs)
+        self.triggered = False
+
+    @synchronized
+    def configure4WireOhm(
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        rang=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
+    ):
+        """
+        Configure the Keitley DMM6500 to detect 4wire resistance
+
+        Arguments:
+            digits:int -- number of digits to display (4-8). default: None
+            count:int -- filter count for the digital filter. default: None
+            window:float -- filter window for the digital filter, default: None
+            NPLC:int -- Number of power line cycles to integrate over.
+                        default: None
+            dFil:bool -- If true, turn on the digital filter. If False
+                            window and filter count are ignored- default: None
+            repeatingFilter:bool -- If true set the filter to repeating,
+                                       If false to moving - default: None
+            range:float -- Range of the voltage detection. Selected by the
+                           instrument to include the value of range.
+                           default: None
+            rangeAuto:bool -- Automatic detection of the measurement range
+                                 Take care, takes additional time during
+                                 measurements! default: None
+            trigBus:bool -- does nothing
+            reset:bool -- if true, the device is reset prior to
+                             configuration, default: False
+        """
+        if reset is True:
+            cmdList = ["*RST"]
+        else:
+            cmdList = []
+        # we want to measure volts
+        cmdList.append(':SENS:FUNC "FRES"')
+        if NPLC is not None:
+            cmdList.append(":SENS:FRES:NPLC " + str(int(NPLC)))
+        if digits is not None:
+            cmdList.append(":SENS:FRES:DIG " + str(int(digits)))
+        if rangeAuto is True:
+            cmdList.append(":SENS:FRES:RANG:AUTO ON")
+        elif rang is not None:
+            cmdList.append(":SENS:FRES:RANG:AUTO OFF")
+            cmdList.append(":SENS:FRES:RANG " + str(float(rang)))
+        if dFil is True:
+            cmdList.append(":SENS:FRES:AVER:STATE ON")
+            if count is not None:
+                cmdList.append(":SENS:FRES:AVER:COUN " + str(int(count)))
+            if repeatingFilter is True:
+                cmdList.append(":SENS:FRES:AVER:TCON REP")
+            elif repeatingFilter is False:
+                cmdList.append(":SENS:FRES:AVER:TCON MOV")
+        elif dFil is False:
+            cmdList.append(":SENS:FRES:AVER:STATE OFF")
+        cmdList.append(":INIT:CONT OFF")  # Only triggered reading
+        for cmd in cmdList:
+            self.write(cmd)
+
+    @synchronized
+    def configure2WireOhm(
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        rang=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
+    ):
+        """
+        Configure the Keitley DMM6500 to detect 2wire resistance
+
+        Arguments:
+            digits:int -- number of digits to display (4-8). default: None
+            count:int -- filter count for the digital filter. default: None
+            window:float -- filter window for the digital filter, default: None
+            NPLC:int -- Number of power line cycles to integrate over.
+                        default: None
+            dFil:bool -- If true, turn on the digital filter. If False
+                            window and filter count are ignored- default: None
+            repeatingFilter:bool -- If true set the filter to repeating,
+                                       If false to moving - default: None
+            range:float -- Range of the voltage detection. Selected by the
+                           instrument to include the value of range.
+                           default: None
+            rangeAuto:bool -- Automatic detection of the measurement range
+                                 Take care, takes additional time during
+                                 measurements! default: None
+            trigBus:bool -- does nothing
+            reset:bool -- if true, the device is reset prior to
+                             configuration
+                             default: False
+        """
+        if reset is True:
+            cmdList = ["*RST"]
+        else:
+            cmdList = []
+        # we want to measure volts
+        cmdList.append(':SENS:FUNC "RES"')
+        if NPLC is not None:
+            cmdList.append(":SENS:RES:NPLC " + str(int(NPLC)))
+        if digits is not None:
+            cmdList.append(":SENS:RES:DIG " + str(int(digits)))
+        if rangeAuto is True:
+            cmdList.append(":SENS:RES:RANG:AUTO ON")
+        elif rang is not None:
+            cmdList.append(":SENS:RES:RANG:AUTO OFF")
+            cmdList.append(":SENS:RES:RANG " + str(float(rang)))
+        if dFil is True:
+            cmdList.append(":SENS:RES:AVER:STATE ON")
+            if count is not None:
+                cmdList.append(":SENS:RES:AVER:COUN " + str(int(count)))
+            if repeatingFilter is True:
+                cmdList.append(":SENS:RES:AVER:TCON REP")
+            elif repeatingFilter is False:
+                cmdList.append(":SENS:RES:AVER:TCON MOV")
+        elif dFil is False:
+            cmdList.append(":SENS:RES:AVER:STATE OFF")
+        cmdList.append(":INIT:CONT OFF")  # Only triggered reading
+        for cmd in cmdList:
+            self.write(cmd)
+
+    @synchronized
+    def configureVolt(
+        self,
+        digits=None,
+        count=None,
+        window=None,
+        NPLC=None,
+        dFil=None,
+        rang=None,
+        rangeAuto=None,
+        trigBus=None,
+        repeatingFilter=None,
+        reset=False,
+    ):
+        """
+        Configure the Keitley 2000 to detect voltages
+
+        Arguments:
+            digits:int -- number of digits to display (4-8). default: None
+            count:int -- filter count for the digital filter. default: None
+            window:float -- filter window for the digital filter, default: None
+            NPLC:int -- Number of power line cycles to integrate over.
+                        default: None
+            dFil:bool -- If true, turn on the digital filter. If False
+                            window and filter count are ignored- default: None
+            repeatingFilter:bool -- If true set the filter to repeating,
+                                       If false to moving - default: None
+            range:float -- Range of the voltage detection. Selected by the
+                           instrument to include the value of range.
+                           default: None
+            rangeAuto:bool -- Automatic detection of the measurement range
+                                 Take care, takes additional time during
+                                 measurements! default: None
+            trigBus:bool -- does nothing
+            reset:bool -- if true, the device is reset prior to
+                             configuration, default: False
+        """
+        cmdList = []
+        if reset is True:
+            self.write("*RST")
+            time.sleep(0.05)
+        # we want to measure volts
+        cmdList.append(':SENS:FUNC "VOLT:DC"')
+        if NPLC is not None:
+            cmdList.append(":SENS:VOLT:NPLC " + str(float(NPLC)))
+        if digits is not None:
+            cmdList.append(":SENS:VOLT:DIG " + str(int(digits)))
+        if rangeAuto is True:
+            cmdList.append(":SENS:VOLT:RANG:AUTO ON")
+        elif rang is not None:
+            cmdList.append(":SENS:VOLT:RANG:AUTO OFF")
+            cmdList.append(":SENS:VOLT:RANG " + str(float(rang)))
+        if dFil is True:
+            cmdList.append(":SENS:VOLT:AVER:STATE ON")
+            if count is not None:
+                cmdList.append(":SENS:VOLT:AVER:COUN " + str(int(count)))
+            if repeatingFilter is True:
+                cmdList.append(":SENS:VOLT:AVER:TCON REP")
+            elif repeatingFilter is False:
+                cmdList.append(":SENS:VOLT:AVER:TCON MOV")
+        elif dFil is False:
+            cmdList.append(":SENS:VOLT:AVER:STATE OFF")
+        for cmd in cmdList:
+            self.write(cmd)
+
+    def triggerReading(self):
+        self.write("*TRG")
+        self.triggered = True
+
+    def getReading(self):
+        if self.triggered is True:
+            result = self.query(":READ?")
+            self.triggered = False
+            return float(result)
