@@ -34,7 +34,16 @@ import pyflakes.checker
 import pyflakes.messages
 import pyflakes.reporter
 from PyQt6.Qsci import QsciAPIs, QsciLexerPython, QsciScintilla
-from PyQt6.QtCore import QEvent, QObject, QSettings, QSize, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import (
+    QByteArray,
+    QEvent,
+    QObject,
+    QSettings,
+    QSize,
+    Qt,
+    QThread,
+    pyqtSignal,
+)
 from PyQt6.QtGui import (
     QAction,
     QColor,
@@ -1527,15 +1536,15 @@ class MainWindow(QMainWindow):
             self.load_from_filename(filename)
 
     def saveCurrentState(self) -> None:
-        """Save application configuration until next startup.
+        """
+        Save application configuration until next startup.
 
-        For convenience, main window size, position and layout, the toolbar placement,
+        For convenience, main window geometry, the toolbar placement,
         and the size and position of metadata and configuration pane are saved.
         """
         self.settings.setValue("created", 1)
         self.settings.beginGroup("MainWindow")
-        self.settings.setValue("position", self.pos())
-        self.settings.setValue("size", self.size())
+        self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("splitter", self.splitter.sizes())
         self.settings.endGroup()
 
@@ -1576,13 +1585,13 @@ class MainWindow(QMainWindow):
         """
         Restore application configuration to look similar to the previous use.
 
-        Main window size, position and layout, the toolbar placement, and the size and
+        Main window geometry, the toolbar placement, and the size and
         position of metadata and configuration pane are restored.
         """
-        recommended_size = self.sizeHint()
+        # Just in case it is the first start
+        self.resize(self.sizeHint())
         self.settings.beginGroup("MainWindow")
-        self.move(self.settings.value("position", self.pos()))
-        self.resize(self.settings.value("size", recommended_size))
+        self.restoreGeometry(self.settings.value("geometry", QByteArray()))
         self.splitter.setSizes(
             [
                 int(size)

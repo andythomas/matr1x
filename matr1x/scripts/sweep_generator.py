@@ -30,7 +30,7 @@ from os.path import basename, splitext
 
 import pyqtgraph as pg
 from numpy import linspace, uint
-from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeySequence, QPalette
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -323,17 +323,25 @@ class MainWindow(QMainWindow):
         self.saveCurrentState()
         event.accept()
 
-    def saveCurrentState(self):
-        """Save window and toolbar placement."""
-        self.settings.setValue("position", self.pos())
-        self.settings.setValue("size", self.size())
+    def saveCurrentState(self) -> None:
+        """
+        Save application configuration until next startup.
+
+        For convenience, main window geometry and toolbar
+        placement are saved.
+        """
+        self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
 
-    def restoreState(self):
-        """Restore window and toolbar placement."""
-        recommended_size = self.sizeHint()
-        self.move(self.settings.value("position", self.pos()))
-        self.resize(self.settings.value("size", recommended_size))
+    def restoreState(self) -> None:
+        """
+        Restore application configuration to look similar to the previous use.
+
+        Main window geometry and toolbar placement are restored.
+        """
+        # Just in case it is the first start
+        self.resize(self.sizeHint())
+        self.restoreGeometry(self.settings.value("geometry", QByteArray()))
         self.addToolBar(
             self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
             self.toolbar,

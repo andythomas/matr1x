@@ -23,7 +23,7 @@ import subprocess
 import sys
 from os.path import exists
 
-from PyQt6.QtCore import QSettings, QSize, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import QByteArray, QSettings, QSize, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -320,11 +320,10 @@ class MainWindow(QMainWindow):
         """
         Save application configuration until next startup.
 
-        For convenience, main window size, position and layout, the toolbar placement,
+        For convenience, main window geometry, the toolbar placement,
         and the size and position of metadata and configuration pane are saved.
         """
-        self.settings.setValue("position", self.pos())
-        self.settings.setValue("size", self.size())
+        self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
         self.settings.setValue("metadata_size", self.w_dockable_metadata.size())
         self.settings.setValue("config_position", self.config_editor.pos())
@@ -334,16 +333,16 @@ class MainWindow(QMainWindow):
         """
         Restore application configuration to look similar to the previous use.
 
-        Main window size, position and layout, the toolbar placement, and the size and
+        Main window geometry, the toolbar placement, and the size and
         position of metadata and configuration pane are restored.
         """
         self.addToolBar(
             self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
             self.toolbar,
         )
-        recommended_size = self.sizeHint()
-        self.move(self.settings.value("position", self.pos()))
-        self.resize(self.settings.value("size", recommended_size))
+        # Just in case it is the first start
+        self.resize(self.sizeHint())
+        self.restoreGeometry(self.settings.value("geometry", QByteArray()))
         self.resizeDocks(
             [self.w_dockable_metadata],
             [

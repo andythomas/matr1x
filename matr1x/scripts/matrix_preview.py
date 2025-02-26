@@ -26,7 +26,7 @@ from os.path import abspath, getmtime, getsize
 import numpy as np
 import pyqtgraph
 import pyqtgraph.exporters
-from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeySequence
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -256,10 +256,14 @@ class SweepPreview(QMainWindow):
         else:
             event.ignore()
 
-    def saveCurrentState(self):
-        """Save preferences for toolbar and window placement."""
-        self.settings.setValue("position", self.pos())
-        self.settings.setValue("size", self.size())
+    def saveCurrentState(self) -> None:
+        """
+        Save application configuration until next startup.
+
+        For convenience, main window geometry, the toolbar placement,
+        and the size and position of the metadata pane are saved.
+        """
+        self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
         if self.w_meta_view:
             self.settings.setValue(
@@ -269,15 +273,19 @@ class SweepPreview(QMainWindow):
             self.settings.setValue("meta_position", self.w_meta_view.pos())
             self.settings.setValue("meta_size", self.w_meta_view.size())
 
-    def restoreState(self):
-        """Restore window and toolbar placement."""
+    def restoreState(self) -> None:
+        """
+        Restore application configuration to look similar to the previous use.
+
+        Main window geometry and the toolbar placement are restored.
+        """
         self.addToolBar(
             self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
             self.toolbar,
         )
-        recommended_size = self.sizeHint()
-        self.move(self.settings.value("position", self.pos()))
-        self.resize(self.settings.value("size", recommended_size))
+        # Just in case it is the first start
+        self.resize(self.sizeHint())
+        self.restoreGeometry(self.settings.value("geometry", QByteArray()))
 
     def info_box(self):
         """Display an 'about this app' widget."""
