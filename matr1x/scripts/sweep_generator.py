@@ -353,6 +353,10 @@ class MainWindow(QMainWindow):
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
+        # New
+        self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
+        self.new_file_action.triggered.connect(self.new_file)
+        self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
         # Open
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.gui_from_sweep)
@@ -459,6 +463,7 @@ class MainWindow(QMainWindow):
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
         )
+        self.toolbar.addAction(self.new_file_action)
         self.toolbar.addAction(self.load_action)
         self.toolbar.addWidget(self.save_button)
         self.toolbar.addAction(self.sweep_action)
@@ -473,6 +478,7 @@ class MainWindow(QMainWindow):
         """Create the main menu."""
         menu = self.menuBar()
         file_menu = menu.addMenu("&File")
+        file_menu.addAction(self.new_file_action)
         file_menu.addAction(self.load_action)
         file_menu.addSeparator()
         file_menu.addAction(self.save_action)
@@ -1167,6 +1173,43 @@ class MainWindow(QMainWindow):
                     else:
                         currentWidget.setText(str(self.repeat[col]))
 
+    def new_file(self) -> None:
+        """
+        Prepare a completely new sweep.
+
+        Delete all existing sweep parameters, update the sweep grid
+        accordingly and empty the sweep preview. Also reset all
+        input fields to their original states.
+        """
+        self.sweep_params = []
+        for row, label in zip(range(len(self.labels)), self.labels):
+            if "Start" in label[0]:
+                start = row
+            elif "End" in label[0]:
+                end = row
+            elif "Point" in label[0]:
+                point = row
+            elif "Repeat" in label[0]:
+                repeat = row
+            elif "Up" in label[0]:
+                up_and_down = row
+            elif "Loop" in label[0]:
+                loop = row
+            elif "Function" in label[0]:
+                function = row
+        for col in range(self.nParmsUsed):
+            self.sweep_params.append([])
+            self.grid.itemAtPosition(start + 1, col + 1).widget().setText("")
+            self.grid.itemAtPosition(end + 1, col + 1).widget().setText("")
+            self.grid.itemAtPosition(point + 1, col + 1).widget().setText("")
+            self.grid.itemAtPosition(repeat + 1, col + 1).widget().setText("")
+            self.grid.itemAtPosition(up_and_down + 1, col + 1).widget().setChecked(
+                False
+            )
+            self.grid.itemAtPosition(loop + 1, col + 1).widget().setCurrentIndex(0)
+            self.grid.itemAtPosition(function + 1, col + 1).widget().setCurrentIndex(0)
+            self.populate_sweep_grid(col + 1)
+        self.print_sweep_to_preview()
 
 def main():
     """Set the basic GUI parameters and run."""

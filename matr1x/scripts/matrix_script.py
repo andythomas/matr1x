@@ -1924,6 +1924,10 @@ class MainWindow(QMainWindow):
         self.config_action.setCheckable(True)
         self.config_action.toggled.connect(self.toggle_preferences)
         self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
+        # File: New
+        self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
+        self.new_file_action.triggered.connect(self.new_file)
+        self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
         # File: Load a recipe
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.setToolTip("Open a script file.")
@@ -2150,6 +2154,7 @@ class MainWindow(QMainWindow):
         empty3 = QWidget()
         empty3.setFixedWidth(icon_size)
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
+        self.toolbar.addAction(self.new_file_action)
         self.toolbar.addAction(self.load_action)
         self.toolbar.addWidget(self.save_button)
         self.toolbar.addWidget(empty)
@@ -2172,6 +2177,7 @@ class MainWindow(QMainWindow):
         menu = self.menuBar()
         # Populate the actions
         file_menu = menu.addMenu("&File")
+        file_menu.addAction(self.new_file_action)
         file_menu.addAction(self.load_action)
         file_menu.addSeparator()
         file_menu.addAction(self.save_action)
@@ -2489,6 +2495,7 @@ class MainWindow(QMainWindow):
         self.finish_action.setEnabled(flag)
         self.kill_action.setEnabled(flag)
         self.script_edit.setReadOnly(flag)
+        self.new_file_action.setEnabled(not flag)
         self.load_action.setEnabled(not flag)
         self.help_system_action.setEnabled(not flag)
         self.help_editor_action.setEnabled(not flag)
@@ -2747,31 +2754,47 @@ class MainWindow(QMainWindow):
         self.last_filename = filename
         self.update_window_title()
 
-    def load_from_file(self):
+    def save_messagebox(self) -> int:
+        """
+        Show a messagebox to query file save.
+
+        Ask the user to write unsaved changes to a file
+        and return choice.
+
+        Returns
+        -------
+        return : int
+            The choice as a QMessageBox.StandardButton enum.
+        """
+        msg = QMessageBox(parent=self)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setText("The script has been modified")
+        msg.setInformativeText(
+            "Do you want to save your changes before opening another file?"
+        )
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel
+        )
+        msg.button(QMessageBox.StandardButton.Discard).setText("Don't Save")
+        # Is this the best default button?
+        msg.setDefaultButton(QMessageBox.StandardButton.Save)
+        return msg.exec()
+
+    def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
         if self.script_edit.isModified() or self.systems_dirty:
             qApp = MApplication.instance()
             qApp.processEvents()
-            a = QMessageBox(parent=self)
-            a.setIcon(QMessageBox.Icon.Question)
-            a.setText("The script has been modified")
-            a.setInformativeText(
-                "Do you want to save your changes before opening another file?"
-            )
-            a.setStandardButtons(
-                QMessageBox.StandardButton.Save
-                | QMessageBox.StandardButton.Discard
-                | QMessageBox.StandardButton.Cancel
-            )
-            a.button(QMessageBox.StandardButton.Discard).setText("Don't Save")
-            a.setDefaultButton(QMessageBox.StandardButton.Save)
-            # Is this the best default button?
-            ret = a.exec()
+            ret = self.save_messagebox()
             if ret == QMessageBox.StandardButton.Cancel:
                 return
             if ret == QMessageBox.StandardButton.Save:
-                self.save_file()
+                saved = self.save_file()
+                if saved == -1:
+                    return
         # Now, proceed opeing the file
         filename = QFileDialog.getOpenFileName(
             self,
@@ -2782,6 +2805,27 @@ class MainWindow(QMainWindow):
         filename = filename[0]
         self.load_from_filename(filename)
 
+    def new_file(self) -> None:
+        """
+        Start over with a blank script.
+
+        Ask the user to write unsaved changes to a file, remove the
+        'system dirty' flag and forget last filename.
+        """
+        if self.script_edit.isModified() or self.systems_dirty:
+            qApp = MApplication.instance()
+            qApp.processEvents()
+            ret = self.save_messagebox()
+            if ret == QMessageBox.StandardButton.Cancel:
+                return
+            if ret == QMessageBox.StandardButton.Save:
+                saved = self.save_file()
+                if saved == -1:
+                    return
+        self.systems_dirty = False
+        self.last_filename = ""
+        self.script_edit.clear()
+        self.script_edit.setModified(False)
 
 def main():
     """Set the basic GUI parameters and run."""
