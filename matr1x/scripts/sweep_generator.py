@@ -31,13 +31,14 @@ from os.path import basename, splitext
 import pyqtgraph as pg
 from numpy import linspace, uint
 from PyQt6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QKeySequence, QPalette
+from PyQt6.QtGui import QAction, QColor, QFontDatabase, QKeySequence, QPalette
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -46,6 +47,8 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
     QTextEdit,
     QToolBar,
     QToolButton,
@@ -175,14 +178,16 @@ class SweepPreviewPopup(QDialog):
         self.canvas = None
 
         # initialize ui
-        grid = QGridLayout()
+        main_layout = QHBoxLayout()
+        left_layout = QVBoxLayout()
+        right_layout = QVBoxLayout()
 
-        closeButton = QPushButton("Close preview")
-        closeButton.clicked.connect(self.closePopup)
-
-        self.textEdit = MTextEdit()
-        self.textEdit.setReadOnly(True)
-        self.textEdit.setMinimumHeight(100)
+        self.data_table = QTableWidget()
+        self.data_table.setColumnCount(1)
+        self.data_table.setAlternatingRowColors(True)
+        self.data_table.setHorizontalHeaderLabels(["Value"])
+        header = self.data_table.horizontalHeader()
+        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
 
         # add label to show cursor position
         self.posLabel = QLabel("x: {:e}\ny: {:e}".format(0, 0))
@@ -209,29 +214,48 @@ class SweepPreviewPopup(QDialog):
                                     slot=self.mouseMoved)
 
         self.plotListRangeX(index)
-        self.updateTextEdit(index)
+        self.update_data_table(index)
 
-        grid.addWidget(closeButton, 0, 0)
-        grid.addWidget(comboBox, 1, 0)
-        grid.addWidget(self.textEdit, 2, 0, 4, 1)
+        left_layout.addWidget(comboBox)
+        left_layout.addWidget(self.data_table)
+        right_layout.addWidget(self.posLabel)
+        right_layout.addWidget(self.pw)
+        main_layout.addLayout(left_layout)
+        main_layout.addLayout(right_layout)
 
-        grid.addWidget(self.posLabel, 0, 1, 1, 5)
-        grid.addWidget(self.pw, 1, 1, 5, 5)
-
-        self.setLayout(grid)
+        self.setLayout(main_layout)
         self.show()
 
-    def indexChanged(self, newIndex):
-        """Show the interface for new index if index is changed."""
-        self.plotListRangeX(newIndex)
-        self.updateTextEdit(newIndex)
+    def indexChanged(self, newIndex: int) -> None:
+        """
+        Show the interface for new index if index is changed.
 
-    def updateTextEdit(self, index):
-        """Update the textEdit to show the current sweep[index]."""
-        self.textEdit.clear()
+        Parameters
+        ----------
+        newIndex : int
+            The updated index.
+        """
+        self.plotListRangeX(newIndex)
+        self.update_data_table(newIndex)
+
+    def update_data_table(self, index: int) -> None:
+        """
+        Update the table to show the current sweep.
+
+        Parameters
+        ----------
+        index : int
+            The index of the sweep to be displayed.
+        """
+        self.data_table.setRowCount(len(self.sweep[index]))
         for index, item in zip(range(len(self.sweep[index])),
                                self.sweep[index]):
-            self.textEdit.append(str(index) + "\t| " + str(item))
+            value = QTableWidgetItem(str(item))
+            value.setTextAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            self.data_table.setItem(index, 0, value)
+        self.data_table.update()
 
     def mouseMoved(self, ev):
         """Implement event to update cursor position while pointer is in plot."""
@@ -249,10 +273,6 @@ class SweepPreviewPopup(QDialog):
         self.pw.setLabel("bottom", "index")
         self.pw.setLabel("left", (self.cols[index].strip() + " [" +
                                   self.units[index].strip() + "]"))
-
-    def closePopup(self):
-        """Close the pop-up."""
-        self.close()
 
 
 class MainWindow(QMainWindow):
@@ -438,6 +458,8 @@ class MainWindow(QMainWindow):
 
         self.statusBar = MTextEdit()
         self.statusBar.setReadOnly(True)
+        mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        self.statusBar.setCurrentFont(mono_font)
         self.statusBar.setMinimumHeight(80)
 
         sGrid = QGridLayout()
@@ -752,23 +774,33 @@ class MainWindow(QMainWindow):
         self.sweepBox.addWidget(self.currentCol)
         self.sweepBox.addWidget(scrollArea)
 
-        self.sweepPreview = MTextEdit()
-        self.sweepPreview.setReadOnly(True)
+        self.sweep_preview = QTableWidget()
+        self.sweep_preview.setColumnCount(1)
+        self.sweep_preview.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.sweep_preview.setAlternatingRowColors(True)
+        self.sweep_preview.setHorizontalHeaderLabels(
+            ["Preview of the generated sweep-parameters"]
+        )
+        header = self.sweep_preview.horizontalHeader()
+        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
+        table_width = self.sweep_preview.viewport().width()
+        self.sweep_preview.setColumnWidth(0, table_width)
 
         self.fileEditOutput = QLineEdit(self)
 
-        self.gridUtility.addWidget(QLabel("Generated Sweep:"), 0, 0)
         self.gridUtility.addWidget(QLabel("Output filename:"), 6, 0, 1, 1)
         self.gridUtility.addWidget(self.fileEditOutput, 6, 1, 1, 5)
 
         self.gridUtility.addLayout(self.sweepBox, 0, 5, 6, 2)
-        self.gridUtility.addWidget(self.sweepPreview, 0, 1, 6, 4)
+        self.gridUtility.addWidget(self.sweep_preview, 0, 0, 6, 4)
         # make the column with the preview and the textedit to take all
         # available space
         self.gridUtility.setColumnStretch(1, 1)
         self.gridUtility.setColumnStretch(5, 1)
 
-    def preview_sweep(self):
+    def preview_sweep(self) -> None:
         """Display a popup with the sweep given in the column (as plot and list)."""
         col = self.grid.getItemPosition(self.grid.indexOf(self.sender()))[1]
         sweep = self.generate_sweep()
@@ -784,8 +816,8 @@ class MainWindow(QMainWindow):
                                   self.flat_unit, self.col_sign)
         popup.show()
 
-    def print_sweep_to_preview(self):
-        """Print the complete set of sweeps to self.sweepPreview."""
+    def print_sweep_to_preview(self) -> None:
+        """Print the complete set of sweeps to self.sweep_preview."""
         sweep = self.generate_sweep()
         if sweep is None:
             # sweep generation failed
@@ -833,10 +865,10 @@ class MainWindow(QMainWindow):
             else:
                 mult.append(maxLen/len(sweep[i]))
 
-        self.sweepPreview.clear()
         # initialize outputList, here the strings for the lines will be input
         # this is equivalent to what goes into the file
         self.outputList = []
+        self.sweep_preview.setRowCount(maxLen)
         for i in range(maxLen):
             string = []
             for j, swp in enumerate(sweep):
@@ -855,9 +887,11 @@ class MainWindow(QMainWindow):
             # add everything into a single string
             string = "".join(string)
             # add at most 1000 characters per line
-            self.sweepPreview.append(string[:1000])
+            value = QTableWidgetItem(string[:1000])
+            self.sweep_preview.setItem(i, 0, value)
             # replace excess spaces from file and print, could be removed
             self.outputList.append(string.replace("   ", " ") + "\n")
+        self.sweep_preview.update()
         return 1
 
     def append_to_file(self):
