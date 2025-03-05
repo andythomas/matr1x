@@ -48,6 +48,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -101,6 +102,17 @@ class LineEditFocus(QLineEdit):
 
     def focusInEvent(self, e, parent=None):
         """Reimplement LineEdit with focusInEvent."""
+        super().focusInEvent(e)
+        self.focusIn.emit()
+
+
+class SpinBoxFocus(QSpinBox):
+    """Reimplement QSpinBox with focusInEvent."""
+
+    focusIn = pyqtSignal()
+
+    def focusInEvent(self, e, parent=None):
+        """Reimplement QSpinBox with focusInEvent."""
         super().focusInEvent(e)
         self.focusIn.emit()
 
@@ -420,6 +432,7 @@ class MainWindow(QMainWindow):
         self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
         self.new_file_action.triggered.connect(self.new_file)
         self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
+        self.new_file_action.setEnabled(False)
         # Open
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.gui_from_sweep)
@@ -628,9 +641,11 @@ class MainWindow(QMainWindow):
                      for j in range(self.systemList.count())]
         if 0 == len(filenames):
             self.reset_layout()
+            self.new_file_action.setEnabled(False)
             self.save_action.setEnabled(False)
             self.sweep_action.setEnabled(False)
             return
+        self.new_file_action.setEnabled(True)
         self.save_action.setEnabled(True)
         self.sweep_action.setEnabled(True)
         modulestr = ""
@@ -752,6 +767,7 @@ class MainWindow(QMainWindow):
                     # float entry add lineedit with double validator
                     lineEdit = LineEditFocus()
                     lineEdit.setValidator(validator[float])
+                    lineEdit.setAlignment(Qt.AlignmentFlag.AlignRight)
                     lineEdit.focusIn.connect(self.populate_sweep_grid)
                     self.grid.addWidget(lineEdit, row+1, col+1)
                 elif label[1] == "buttonA":
@@ -761,10 +777,11 @@ class MainWindow(QMainWindow):
                     self.grid.addWidget(appendButton, row+1, col+1)
                 elif label[1] == "int":
                     # int entry with int validator
-                    lineEdit = LineEditFocus()
-                    lineEdit.setValidator(validator[uint])
-                    lineEdit.focusIn.connect(self.populate_sweep_grid)
-                    self.grid.addWidget(lineEdit, row+1, col+1)
+                    spin_box = SpinBoxFocus()
+                    spin_box.setRange(1, 2**31 - 1)
+                    spin_box.setAlignment(Qt.AlignmentFlag.AlignRight)
+                    spin_box.focusIn.connect(self.populate_sweep_grid)
+                    self.grid.addWidget(spin_box, row + 1, col + 1)
                 elif label[1] == "boolean":
                     # boolean entry generates checkbox
                     checkBox = QCheckBox(self)
@@ -1031,11 +1048,18 @@ class MainWindow(QMainWindow):
             # add the list of three parameters to the sweep_params for the
             # given column
             self.sweep_params[position[1]-1].append(param_set)
-            for i in range(3):
-                # clear widgets with the original values, as these are now
-                # appended to the sweep_params
-                self.grid.itemAtPosition(position[0]-(3-i),
-                                         position[1]).widget().setText("")
+            # clear widgets with the original values, as these are now
+            # appended to the sweep_params
+            self.grid.itemAtPosition(position[0] - (3), position[1]).widget().setText(
+                ""
+            )
+            self.grid.itemAtPosition(position[0] - (2), position[1]).widget().setText(
+                ""
+            )
+            self.grid.itemAtPosition(position[0] - (1), position[1]).widget().setValue(
+                1
+            )
+
             # update the sweep grid for the active column (should now display
             # the new parameter set)
             self.populate_sweep_grid(position[1])
@@ -1195,16 +1219,7 @@ class MainWindow(QMainWindow):
                     else:
                         self.up_down.append(0)
                 elif "int" == label[1] and "Repeat" in label[0]:
-                    try:
-                        text = currentWidget.text()
-                        if "" == text:
-                            self.repeat.append(1)
-                        else:
-                            self.repeat.append(int(text))
-                    except TypeError:
-                        self.statusBar.append("Type Error called by repeat," +
-                                              "should not happen")
-                        return
+                    self.repeat.append(currentWidget.value())
 
         # all lists are up to date, now generate sweep lists
         sweep = calculate_sweep(self.sweep_params, self.loop_over.copy(),
@@ -1297,8 +1312,8 @@ class MainWindow(QMainWindow):
             self.sweep_params.append([])
             self.grid.itemAtPosition(start + 1, col + 1).widget().setText("")
             self.grid.itemAtPosition(end + 1, col + 1).widget().setText("")
-            self.grid.itemAtPosition(point + 1, col + 1).widget().setText("")
-            self.grid.itemAtPosition(repeat + 1, col + 1).widget().setText("")
+            self.grid.itemAtPosition(point + 1, col + 1).widget().setValue(1)
+            self.grid.itemAtPosition(repeat + 1, col + 1).widget().setValue(1)
             self.grid.itemAtPosition(up_and_down + 1, col + 1).widget().setChecked(
                 False
             )
