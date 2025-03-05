@@ -27,6 +27,7 @@ import traceback
 from ast import literal_eval
 from math import floor
 from os.path import basename, splitext
+from typing import Union
 
 import pyqtgraph as pg
 from numpy import linspace, uint
@@ -105,9 +106,17 @@ class LineEditFocus(QLineEdit):
 
 
 class QLabelWithColor(QLabel):
-    """Allow QLabel with highlight color."""
+    """Allow QLabel with highlight color and mouseclick reaction."""
 
-    def __init__(self, string=None, color1="#DCF5D4", color2="#325725"):
+    clicked = pyqtSignal(int)
+
+    def __init__(
+        self,
+        string: Union[str, None] = None,
+        color1: str = "#DCF5D4",
+        color2: str = "#325725",
+        column=0,
+    ):
         """Init with colored background.
 
         Provide two colors for bright and dark mode.
@@ -115,11 +124,13 @@ class QLabelWithColor(QLabel):
         Parameters
         ----------
         string: str or None
-            Text of the QLabel
+            Text of the QLabel.
         color1: str
-            Hex code of the color for bright mode
+            Hex code of the color for bright mode.
         color2: str
-            Hex code of the color for dark mode
+            Hex code of the color for dark mode.
+        column : int
+            Its column in the grid.
         """
         super().__init__(string)
         self.bright = f"""
@@ -134,9 +145,10 @@ class QLabelWithColor(QLabel):
                          color: #DBDBDB;
                      }}
                  """
+        self.column = column + 1
         self._update_colors()
 
-    def _update_colors(self):
+    def _update_colors(self) -> None:
         """Change color while avoiding recursion."""
         self.updating_stylesheet = True
         if QTextEdit().palette().color(QPalette.ColorRole.Text).value() > 128:
@@ -146,10 +158,33 @@ class QLabelWithColor(QLabel):
         self.updating_stylesheet = False
 
     def changeEvent(self, event: QEvent):
-        """Detect palette changes such as dark and bright mode desktops."""
+        """
+        Detect palette changes such as dark and bright mode desktops.
+
+        Parameters
+        ----------
+        event : QEvent
+            The event that causes the call.
+        """
         if event.type() == QEvent.Type.PaletteChange and not self.updating_stylesheet:
             self._update_colors()
         return super().changeEvent(event)
+
+    def mousePressEvent(self, event: QEvent):
+        """
+        Detect mouse-click for proper column highlighting.
+
+        The column of the click is emitted as a pyqtSignal.
+
+        Parameters
+        ----------
+        event : QEvent
+            The event that causes the call.
+        """
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.column)
+        return super().mousePressEvent(event)
+
 
 class SweepPreviewPopup(QDialog):
     """
@@ -676,22 +711,27 @@ class MainWindow(QMainWindow):
                 last_letter = letter
                 color1 = not color1
             if color1:
-                col_sign_label = QLabelWithColor(self.col_sign[pos])
-                flat_col_label = QLabelWithColor(self.flat_col[pos].strip())
-                flat_unit_label = QLabelWithColor(self.flat_unit[pos].strip())
+                col_sign_label = QLabelWithColor(self.col_sign[pos], column=pos)
+                flat_col_label = QLabelWithColor(self.flat_col[pos].strip(), column=pos)
+                flat_unit_label = QLabelWithColor(
+                    self.flat_unit[pos].strip(), column=pos
+                )
             else:
                 col_sign_label = QLabelWithColor(
-                    self.col_sign[pos], "#D0EBFE", "#1E4962"
+                    self.col_sign[pos], "#D0EBFE", "#1E4962", pos
                 )
                 flat_col_label = QLabelWithColor(
-                    self.flat_col[pos].strip(), "#D0EBFE", "#1E4962"
+                    self.flat_col[pos].strip(), "#D0EBFE", "#1E4962", pos
                 )
                 flat_unit_label = QLabelWithColor(
-                    self.flat_unit[pos].strip(), "#D0EBFE", "#1E4962"
+                    self.flat_unit[pos].strip(), "#D0EBFE", "#1E4962", pos
                 )
             col_sign_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             flat_col_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             flat_unit_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            col_sign_label.clicked.connect(self.populate_sweep_grid)
+            flat_col_label.clicked.connect(self.populate_sweep_grid)
+            flat_unit_label.clicked.connect(self.populate_sweep_grid)
             self.grid.addWidget(col_sign_label, 1, pos + 1)
             self.grid.addWidget(flat_col_label, 2, pos + 1)
             self.grid.addWidget(flat_unit_label, 3, pos + 1)
@@ -753,8 +793,7 @@ class MainWindow(QMainWindow):
                     self.grid.addWidget(previewButton, row+1, col+1)
 
         # generate sweep grid labels and layout
-        self.currentCol = QLabel("Selected Column - \nStart - Stop - Points")
-
+        self.currentCol = QLabel("Start - Stop - Points")
         self.sweepGrid = QGridLayout()
 
         # set layout and box containing sweep grid, required for
@@ -1008,11 +1047,18 @@ class MainWindow(QMainWindow):
         del self.sweep_params[col-1][row]
         self.populate_sweep_grid(col)
 
-    def populate_sweep_grid(self, col=None):
-        """Display the actual sweep parameters."""
-        if col is None:
+    def populate_sweep_grid(self, actual_column: Union[int, None] = None) -> None:
+        """
+        Display the actual sweep parameters.
+
+        Parameters
+        ----------
+        actual_column : int or None
+            The column that is selected.
+        """
+        if actual_column is None:
             try:
-                col = self.grid.getItemPosition(
+                actual_column = self.grid.getItemPosition(
                     self.grid.indexOf(self.sender()))[1]
             except AttributeError:
                 self.statusBar("No sender could be found, check function calls"
@@ -1020,16 +1066,26 @@ class MainWindow(QMainWindow):
                                "called without col parameter by a direct"
                                "function call")
                 return
-        self.currentCol.setText("Selected Column:\t" +
-                                self.col_sign[col-1] + " -- " +
-                                str(self.flat_col[col-1]).strip() +
-                                "\nStart - Stop - Points")
-
+        for column in range(self.grid.columnCount()):
+            col_sign_label = self.grid.itemAtPosition(1, column).widget()
+            flat_col_label = self.grid.itemAtPosition(2, column).widget()
+            flat_unit_label = self.grid.itemAtPosition(3, column).widget()
+            if column == actual_column:
+                col_sign_label.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
+                col_sign_label.setLineWidth(2)
+                flat_col_label.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
+                flat_col_label.setLineWidth(2)
+                flat_unit_label.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
+                flat_unit_label.setLineWidth(2)
+            else:
+                col_sign_label.setFrameStyle(QLabel.Shape.NoFrame)
+                flat_col_label.setFrameStyle(QLabel.Shape.NoFrame)
+                flat_unit_label.setFrameStyle(QLabel.Shape.NoFrame)
         # Clear Widget
         self.clear_layout(self.sweepGrid)
 
         row = 0
-        for param_set in self.sweep_params[col-1]:
+        for param_set in self.sweep_params[actual_column - 1]:
             for i in range(3):
                 le = QLineEdit(self)
                 le.setText(str(param_set[i]))
@@ -1038,13 +1094,11 @@ class MainWindow(QMainWindow):
                 else:
                     le.setValidator(validator[float])
                 le.editingFinished.connect(
-                    lambda: self.change_sweep_param(col))
+                    lambda: self.change_sweep_param(actual_column)
+                )
                 self.sweepGrid.addWidget(le, row, i)
             qpb = QPushButton("Delete")
-            # Fun Function :), parameter calls lambda, which calls
-            # self.remove_sweep_param(col), because connect can pass no parameters
-            # directly, feels quite dirty but seems to work
-            qpb.clicked.connect(lambda: self.remove_sweep_param(col))
+            qpb.clicked.connect(lambda: self.remove_sweep_param(actual_column))
             self.sweepGrid.addWidget(qpb, row, 3)
             row += 1
 
