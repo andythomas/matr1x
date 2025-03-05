@@ -32,7 +32,7 @@ from typing import Union
 import pyqtgraph as pg
 from numpy import linspace, uint
 from PyQt6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QFontDatabase, QKeySequence, QPalette
+from PyQt6.QtGui import QAction, QColor, QKeySequence, QPalette
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -66,7 +66,6 @@ from matr1x.gui_util import (
     CustomViewBox,
     MApplication,
     MIcon,
-    MTextEdit,
     SystemListWidget,
     validator,
 )
@@ -374,7 +373,6 @@ class MainWindow(QMainWindow):
 
         # initialize generic (system independent) part of ui
         self.outputList = None
-
         self.populated = False
 
         # Enable dragging and dropping onto the widget
@@ -494,39 +492,17 @@ class MainWindow(QMainWindow):
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-
-        # Start the layout
-        fGrid = QGridLayout()
-
+        # Layout
+        main_layout = QVBoxLayout()
         self.grid = QGridLayout()
         self.grid.setSpacing(5)
-
-        self.gridUtility = QGridLayout()
-        self.gridUtility.setSpacing(5)
-
-        self.statusBar = MTextEdit()
-        self.statusBar.setReadOnly(True)
-        mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-        self.statusBar.setCurrentFont(mono_font)
-        self.statusBar.setMinimumHeight(80)
-
-        sGrid = QGridLayout()
-
-        sGrid.addWidget(QLabel("Status"), 0, 0)
-        sGrid.addWidget(self.statusBar, 0, 1, 1, 10)
-
-        vBox = QVBoxLayout()
-        vBox.addLayout(fGrid)
-        vBox.addLayout(self.grid)
-        vBox.addLayout(self.gridUtility)
-        vBox.addLayout(sGrid)
-
-        self.widget = QWidget()
-        self.widget.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                  QSizePolicy.Policy.Fixed)
-        self.widget.setLayout(vBox)
-        self.setCentralWidget(self.widget)
-
+        main_layout.addLayout(self.grid)
+        self.utility_layout = QVBoxLayout()
+        main_layout.addLayout(self.utility_layout)
+        self.main_widget = QWidget()
+        self.main_widget.setLayout(main_layout)
+        self.setCentralWidget(self.main_widget)
+        # Menu and toolbar
         self.create_toolbar()
         self.create_menu()
 
@@ -577,7 +553,7 @@ class MainWindow(QMainWindow):
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.about_action)
 
-    def info_box(self):
+    def info_box(self) -> None:
         """Display an 'about this app' widget."""
         box = AboutBox(
             "Sweep Generator",
@@ -586,7 +562,6 @@ class MainWindow(QMainWindow):
             matr1x.datetimefmt,
         )
         box.exec()
-        return
 
     def is_valid_extension(self, file_path):
         """Return True if extension is valid."""
@@ -624,17 +599,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Multiple Files",
                                 "Please drop only a single file.")
 
-    def reset_layout(self):
+    def reset_layout(self) -> None:
         """Reset layout to clean state."""
         if self.populated:
             self.clear_layout(self.grid)
-            self.clear_layout(self.gridUtility)
+            self.clear_layout(self.utility_layout)
             for i in range(self.nParmsUsed):
                 self.grid.setColumnStretch(i+1, 0)
-        self.widget.adjustSize()
-        self.adjustSize()
 
-    def filename_changed(self):
+    def filename_changed(self) -> bool:
         """Import new system on changed filename."""
         # get new system filename
         filenames = [self.systemList.item(j).text()
@@ -644,7 +617,7 @@ class MainWindow(QMainWindow):
             self.new_file_action.setEnabled(False)
             self.save_action.setEnabled(False)
             self.sweep_action.setEnabled(False)
-            return
+            return False
         self.new_file_action.setEnabled(True)
         self.save_action.setEnabled(True)
         self.sweep_action.setEnabled(True)
@@ -657,27 +630,32 @@ class MainWindow(QMainWindow):
             self.system = MergedSystem.from_files(filenames)
             for file in filenames:
                 modulestr += basename(splitext(file)[0]) + ","
-            self.statusBar.append("Successfully imported -- " + modulestr)
             # update gui using the system specifications
             self.import_system()
         except Exception as e:
             if isinstance(e, ModuleNotFoundError):
-                self.statusBar.append("ModuleNotFoundError was raised," +
-                                      "Check path to module")
+                error_text = '<p style="color:red">Please check the path to the system files and whether all required dependencies are present.</p>'
             else:
-                self.statusBar.append(
-                    "The following error was raised during system " +
-                    "import, please check system for errors")
+                error_text = "The following error was raised during system "
+                error_text += "import, please check the system for errors.\n\n"
             tbinfo = traceback.format_exception(e)
             tbstr = "".join(tbinfo[7:])
-            self.statusBar.append(tbstr)
+            error_text += "" + tbstr
+            QMessageBox.warning(
+                self, "Module not found.", error_text.replace("\n", "<br>")
+            )
+            return False
+        return True
 
     def import_system(self):
         """Import specified system and populate layout."""
         if len(self.system.columns) != len(self.system.units):
             # simple sanity check
-            self.statusBar.append("Lists with columns, units and settable" +
-                                  "not of equal length, check system file!")
+            QMessageBox.warning(
+                self,
+                "Import error!",
+                "Lists with columns, units and settables are not of equal length, check system file.",
+            )
             return
         self.reset_layout()
         # store old columns
@@ -753,8 +731,6 @@ class MainWindow(QMainWindow):
         self.populate_layout()
         if not self.populated:
             self.populated = True
-        self.statusBar.append("Initialization of sweep generator completed"
-                              " - enjoy!")
 
     def populate_layout(self):
         """Populate sweep controls dynamically from specifications in self.labels."""
@@ -846,15 +822,18 @@ class MainWindow(QMainWindow):
 
         self.fileEditOutput = QLineEdit(self)
 
-        self.gridUtility.addWidget(QLabel("Output filename:"), 6, 0, 1, 1)
-        self.gridUtility.addWidget(self.fileEditOutput, 6, 1, 1, 5)
+        output_view = QHBoxLayout()
+        output_view.addWidget(QLabel("Output filename:"))
+        output_view.addWidget(self.fileEditOutput)
 
-        self.gridUtility.addLayout(self.sweepBox, 0, 5, 6, 2)
-        self.gridUtility.addWidget(self.sweep_preview, 0, 0, 6, 4)
-        # make the column with the preview and the textedit to take all
-        # available space
-        self.gridUtility.setColumnStretch(1, 1)
-        self.gridUtility.setColumnStretch(5, 1)
+        central_view = QHBoxLayout()
+        central_view.addWidget(self.sweep_preview)
+        central_view.addLayout(self.sweepBox)
+
+        self.utility_layout.addLayout(central_view)
+        self.utility_layout.addWidget(QLabel(""))
+        self.utility_layout.addLayout(output_view)
+        self.utility_layout.addWidget(QLabel(""))
 
     def preview_sweep(self) -> None:
         """Display a popup with the sweep given in the column (as plot and list)."""
@@ -866,7 +845,7 @@ class MainWindow(QMainWindow):
             # if an error is encountered during the generation of the sweep
             # lists from the parameter, a helpful error message should be
             # provided here
-            self.statusBar.append(sweep)
+            QMessageBox.warning(self, "Error during sweep generation!", sweep)
             return
         popup = SweepPreviewPopup(self, col-1, sweep, self.flat_col,
                                   self.flat_unit, self.col_sign)
@@ -882,7 +861,7 @@ class MainWindow(QMainWindow):
             # if an error is encountered during the generation of the sweep
             # lists from the parameter, a helpful error message should be
             # provided here
-            self.statusBar.append(sweep)
+            QMessageBox.warning(self, "Error during sweep generation!", sweep)
             return
         # get length of longest sweep and
         # make sure all sweeps in a group are of equal length
@@ -891,16 +870,18 @@ class MainWindow(QMainWindow):
         for i in range(len(sweep)):
             # make sure that values that belong to the same parameter have the
             # same length
-            if ((self.col_sign[i] == self.col_sign[i-1] and
-                 len(sweep[i]) != len(sweep[i-1]))):
-                self.statusBar.append("Not all parameters for that " +
-                                      "instrument have the same length\n" +
-                                      "Please correct your sweep params " +
-                                      "in instrument " + self.col_sign[i] +
-                                      " -> " + self.flat_col[i] +
-                                      "\nIf a parameter accepts multiple "
-                                      "values, the different values for that "
-                                      "parameter must have the same length")
+            if self.col_sign[i] == self.col_sign[i - 1] and len(sweep[i]) != len(
+                sweep[i - 1]
+            ):
+                error_text = (
+                    "Not all parameters for that instrument have the same length."
+                )
+                error_text += f"Please correct your sweep parameters in instrument {self.col_sign[i]} "
+                error_text += (
+                    f" -> {self.flat_col[i]}. If a parameter accepts multiple "
+                )
+                error_text += "values, the different values for that parameter must have the same length."
+                QMessageBox.warning(self, "Parameter error!", error_text)
                 return
             maxLen.append(len(sweep[i]))
 
@@ -914,9 +895,9 @@ class MainWindow(QMainWindow):
             if [] == sweep[i]:
                 mult.append(0)
             elif maxLen % len(sweep[i]):
-                self.statusBar.append("sweep_params seem unsuitable for "
-                                      "measurements, lengths not multiples. "
-                                      "Check that loops are set correctly.")
+                error_text = "Sweep_parameters seem unsuitable for measurements, lengths not multiples. "
+                error_text += "Check that loops are set correctly."
+                QMessageBox.warning(self, "Sweep parameters incompatible!", error_text)
                 return
             else:
                 mult.append(maxLen/len(sweep[i]))
@@ -964,7 +945,7 @@ class MainWindow(QMainWindow):
             self.save_file_as()
             return
         elif "" == self.systemFilename:
-            self.statusBar.append("System undefined")
+            QMessageBox.warning(self, "Error!", "System undefined.")
             return
         else:
             if self.print_sweep_to_preview() is None:
@@ -977,7 +958,6 @@ class MainWindow(QMainWindow):
             try:
                 outputFile = open(filename, 'r')
             except (OSError, IOError):
-                self.statusBar.append("File does not exist yet, adding header")
                 append = 0
             try:
                 if 2 == append:
@@ -986,7 +966,7 @@ class MainWindow(QMainWindow):
                 else:
                     outputFile = open(filename, 'w')
             except (OSError, IOError):
-                self.statusBar.append("File can not be opened")
+                QMessageBox.warning(self, "Error!", "File can not be opened.")
                 return
         # get telemtry and append to file
         timestamp = time.strftime(f"{datetimefmt} \n", time.localtime())
@@ -1019,12 +999,6 @@ class MainWindow(QMainWindow):
         outputFile.close()
         if self.inputcb is not None:
             self.inputcb(filename)
-        if 2 == append:
-            self.statusBar.append("Output appended to " + filename + " at " +
-                                  timestamp)
-        else:
-            self.statusBar.append("Output written to " + filename + " at " +
-                                  timestamp)
 
     def append_sweep_col(self):
         """Add defined sweep parameters to self.sweep_params and populate sweepGrid.
@@ -1041,8 +1015,11 @@ class MainWindow(QMainWindow):
                 position[0]-(3-i), position[1]).widget().text())
 
         if "" in param_set:
-            self.statusBar.append("Missing value, " +
-                                  "please specify all three parameters")
+            QMessageBox.warning(
+                self,
+                "Missing value!",
+                "Please specify start value, end value and point count.",
+            )
             return
         else:
             # add the list of three parameters to the sweep_params for the
@@ -1225,8 +1202,11 @@ class MainWindow(QMainWindow):
         sweep = calculate_sweep(self.sweep_params, self.loop_over.copy(),
                                 self.up_down, self.repeat, self.functions)
         if sweep is None:
-            self.statusBar.append("Error during sweep generation, " +
-                                  "check that all loops are set correctly")
+            QMessageBox.warning(
+                self,
+                "Sweep generation failed",
+                "Please check that all loops are set correctly.",
+            )
             return
         return sweep
 
@@ -1253,7 +1233,8 @@ class MainWindow(QMainWindow):
                 regex = r"^# [Ss]ystem filename : (.+)"
                 if match := re.match(regex, line.strip()):
                     self.systemList.addItems(match.group(1).split(","))
-                    self.filename_changed()
+                    if not self.filename_changed():
+                        return
                 for key in params.keys():
                     if key in line:
                         # read the parameters from the corresponding line
