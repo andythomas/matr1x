@@ -26,6 +26,7 @@ control-guis.
 
 import datetime
 import os
+import platform
 import sys
 import time
 from importlib.metadata import version as package_version
@@ -45,6 +46,7 @@ from PyQt6.QtCore import (
     QObject,
     QPoint,
     Qt,
+    qVersion,
     pyqtSignal,
 )
 from PyQt6.QtGui import (
@@ -102,6 +104,21 @@ from . import (
     write_config,
 )
 from .eval import delta
+
+_gtk_fix_available = False
+if "linux" in platform.system().lower() or "bsd" in platform.system().lower():
+    if QPalette().color(
+        QPalette.ColorGroup.Active, QPalette.ColorRole.Base
+    ) == QPalette().color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base):
+        try:
+            import gi
+
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gtk
+
+            _gtk_fix_available = True
+        except ImportError:
+            _gtk_fix_available = False
 
 # dictionary of commonly used validators
 validator = {
@@ -2957,6 +2974,8 @@ class AboutBox(QMessageBox):
                     <b>Git branch:</b> {branch}<br>
                     <b>Git commit:</b> {sha}<br>
                     <b>Git date:</b> {date}<br>
+                    <b>Qt version:</b> {qVersion()}<br>
+                    <b>GTK available:</b> {_gtk_fix_available}<br>
                     <br>
                     (C) 2006-2025 Matr1x Developers. All rights reserved.
                 </div>
@@ -3235,75 +3254,21 @@ class MApplication(QApplication):
         This fixes a bug prevalent in, e.g., Linux machines using Qt6.5 under some circumstances.
         """
         palette = QPalette()
-        if self._palette_bug:
-            if palette.color(QPalette.ColorRole.Text).value() < 128:  # bright mode
-                white = QColor("#FFFFFF")
-                off_white = QColor("#F5F5F5")
-                grayish = QColor("#ECECEC")
-                palette.setColor(
-                    QPalette.ColorGroup.Active, QPalette.ColorRole.Window, grayish
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, grayish
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.Window, grayish
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Active, QPalette.ColorRole.Base, white
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, white
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base, grayish
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Active,
-                    QPalette.ColorRole.AlternateBase,
-                    off_white,
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Inactive,
-                    QPalette.ColorRole.AlternateBase,
-                    off_white,
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Disabled,
-                    QPalette.ColorRole.AlternateBase,
-                    off_white,
-                )
-            else:  # dark mode
-                black = QColor("#171717")
-                dark = QColor("#323232")
-                gray = QColor("#989898")
-                palette.setColor(
-                    QPalette.ColorGroup.Active, QPalette.ColorRole.Window, dark
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, dark
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.Window, dark
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Active, QPalette.ColorRole.Base, black
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, black
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base, dark
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Active, QPalette.ColorRole.AlternateBase, gray
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Inactive, QPalette.ColorRole.AlternateBase, gray
-                )
-                palette.setColor(
-                    QPalette.ColorGroup.Disabled, QPalette.ColorRole.AlternateBase, gray
-                )
+        if _gtk_fix_available:
+            Gtk.init([])
+            style_context = Gtk.StyleContext()
+            style_context.add_class("view")
+            color = style_context.lookup_color("theme_base_color")
+            red = color[1].red
+            green = color[1].green
+            blue = color[1].blue
+            alpha = color[1].alpha
+            base = QColor()
+            base.setRgbF(red, green, blue, alpha)
+            palette.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Base, base)
+            palette.setColor(
+                QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, base
+            )
             self.setPalette(palette)
 
     def __init__(self, args: Sequence[str]) -> None:
@@ -3321,16 +3286,6 @@ class MApplication(QApplication):
         if sys.platform == "linux":
             if "xcb" in self._list_platform_plugins():
                 os.environ["QT_QPA_PLATFORM"] = "xcb"
-        active_base = QPalette().color(
-            QPalette.ColorGroup.Active, QPalette.ColorRole.Base
-        )
-        disabled_base = QPalette().color(
-            QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base
-        )
-        if active_base == disabled_base:
-            self._palette_bug = True
-        else:
-            self._palette_bug = False
         super().__init__(args)
         MApplication.instance().paletteChanged.connect(self._repair_palette)
         self._repair_palette()

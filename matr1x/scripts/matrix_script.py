@@ -1818,14 +1818,17 @@ class MainWindow(QMainWindow):
         palette = self.status_preview.palette()
         text_edit = QTextEdit()
         text_edit.setEnabled(False)
-        changed_palette = text_edit.palette()
         # self.script_edit.indicatorDefine(QsciScintilla.IndicatorStyle.DiagonalIndicator, 0)
         # self.script_edit.setIndicatorOutlineColor(QColor(self.color_palette.color(QPalette.ColorRole.LinkVisited)))
         text_color = QColor(self.color_palette.color(QPalette.ColorRole.Text))
         base_color = QColor(self.color_palette.color(QPalette.ColorRole.Base))
-        marker_color = QColor(changed_palette.color(QPalette.ColorRole.Base))
-        unclosed_color = QColor("red")
         highlight_color = QColor(self.color_palette.color(QPalette.ColorRole.Highlight))
+        button_color = QColor(self.color_palette.color(QPalette.ColorRole.Button))
+        button_text_color = QColor(
+            self.color_palette.color(QPalette.ColorRole.ButtonText)
+        )
+        unclosed_color = QColor("red")
+        caret_color = QColor(self.color_palette.color(QPalette.ColorRole.AlternateBase))
         if palette.color(QPalette.ColorRole.Window).value() < 128:
             # dark_mode
             method_color = QColor(195, 195, 156)
@@ -1844,10 +1847,10 @@ class MainWindow(QMainWindow):
             own_identifier_color = QColor(245, 54, 255)
         self.executed_line_color = highlight_color
         self.lexer.setPaper(base_color)
-        self.script_edit.setCaretLineBackgroundColor(marker_color)
-        self.script_edit.setMarginsBackgroundColor(marker_color)
+        self.script_edit.setCaretLineBackgroundColor(caret_color)
+        self.script_edit.setMarginsBackgroundColor(button_color)
         self.script_edit.setCaretForegroundColor(text_color)
-        self.script_edit.setMarginsForegroundColor(text_color)
+        self.script_edit.setMarginsForegroundColor(button_text_color)
         # the sequence relates to the enumerator
         STYLES = {
             QsciLexerPython.Default: text_color,
