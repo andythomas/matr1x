@@ -3082,6 +3082,10 @@ class MIcon(QIcon):
                     ]
                 )
                 painter.drawPolygon(triangle)
+            elif custom_name == "Power":
+                width = size // 8
+                height = size // 2
+                painter.drawRect(size // 2 - width // 2, size // 4, width, height)
             elif custom_name == "Stop":
                 painter.drawRect(
                     int(size * 0.3), int(size * 0.3), int(size * 0.4), int(size * 0.4)

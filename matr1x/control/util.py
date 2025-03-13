@@ -56,6 +56,7 @@ from PyQt6 import QtCore
 from PyQt6.QtCore import (
     QObject,
     QSettings,
+    QSize,
     Qt,
     QThread,
     QTimer,
@@ -81,15 +82,17 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSpinBox,
+    QStyle,
     QTableView,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
 from .. import config, datetimefmt, logfolder, system, usersfolder
 from ..gui_util import MApplication, OutputDuplication, validator
-from ..util import normalize_cmds
-from .qwidgets import AnimatedToggle, ToggleButton, matr1xProgressBar
+from ..util import normalize_cmds, set_correct_mac_appname
+from .qwidgets import ToggleButton, matr1xProgressBar
 
 
 def catchEmitError(method):
@@ -809,6 +812,8 @@ class GuiDict(UserDict, ABC):
         # buffer original commands
         normalize_cmds(self.cmds)
         self._orig_cmds = copy.deepcopy(self.cmds)
+        # empty custom menu
+        self.menu_actions = []
         # initialize all with None
         self._reset()
 
@@ -870,28 +875,31 @@ class GuiDict(UserDict, ABC):
         self.dock.setAllowedAreas(Qt.DockWidgetArea.TopDockWidgetArea)
         dockcontainer = QWidget()
         column = QVBoxLayout(dockcontainer)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+
         self.dock.setWidget(dockcontainer)
         self.container = QWidget()
+        self.container.setContentsMargins(10, 0, 10, 10)
 
         # add top controls (hiding/enable) to the content widget
-        control_layout = QHBoxLayout()
-        self.extend_switch = AnimatedToggle()
-        self.extend_switch.setFixedSize(self.extend_switch.sizeHint())
-        self.enable_switch = AnimatedToggle()
-        self.enable_switch.setFixedSize(self.enable_switch.sizeHint())
+        self.control_layout = QHBoxLayout()
+        self.toolbar = QToolBar()
+        icon_size = MApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_SmallIconSize
+        )
+        self.toolbar.setIconSize(QSize(icon_size, icon_size))
+        self.control_layout.addWidget(self.toolbar)
+        self.extend_switch = QCheckBox()
+        self.enable_switch = QCheckBox()
+
         has_hiding = any(variable.hide for variable in self.values())
         if has_hiding:
-            control_layout.addWidget(QLabel("Full info"))
             self.extend_switch.stateChanged.connect(self.toggle_hidden)
             self.extend_switch.setChecked(False)
-            control_layout.addWidget(self.extend_switch)
-        control_layout.addStretch()
         if self.allow_disabling:
-            control_layout.addWidget(QLabel("Enable"))
-            control_layout.addWidget(self.enable_switch)
             self.enable_switch.stateChanged.connect(self.makeEnabled)
-        if has_hiding or self.allow_disabling:
-            column.addLayout(control_layout)
+        column.addLayout(self.control_layout)
         column.addWidget(self.container)
         column.addStretch()
 
@@ -1681,6 +1689,8 @@ def control_main(
     if os.name == "nt":
         # enable modern mode on windows which allows for darkmode
         app.setStyle("fusion")
+    elif sys.platform == "darwin":
+        set_correct_mac_appname(f"{name}")
     app.setDesktopFileName(f"python.{package}.{os.path.basename(sys.argv[0])}")
 
     if lockfile:

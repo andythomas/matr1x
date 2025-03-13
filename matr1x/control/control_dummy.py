@@ -20,6 +20,7 @@ import time
 
 import numpy
 from PyQt6 import QtCore
+from PyQt6.QtGui import QAction
 
 from matr1x import system
 from matr1x.control import (
@@ -33,6 +34,7 @@ from matr1x.control import (
 from matr1x.control import guiObject as go
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
+from matr1x.gui_util import MIcon
 from matr1x.util import Command, Get
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
@@ -115,6 +117,13 @@ class exampleDict(GuiDict):
             The GUI content.
         """
         content = super().create_GUI()
+        # optional custom menu
+        print_action = QAction("Print in logger")
+        print_action.setIcon(MIcon("CHAR_P"))
+        print_action.triggered.connect(self.print_function)
+        # return all actions as a list to the controlwindow
+        # Just one action in is case
+        self.menu_actions = [print_action]
         # connect set/copy buttons
         self["Set"].widgets[1].clicked.connect(self.write)
         self["Set"].widgets[2].clicked.connect(self.copy_values)
@@ -123,6 +132,14 @@ class exampleDict(GuiDict):
         # adjust some widgets details
         self["V3"].widgets[2].setDecimals(1)
         return content
+
+    def print_function(self) -> None:
+        """
+        Print 'Hello' in the logger.
+
+        Demonstrate the custom menu.
+        """
+        print("Hello from a guidict.")
 
     def refresh(self, count):
         """Read updated values from hardware (here fake).

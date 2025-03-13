@@ -40,9 +40,8 @@ import time
 import warnings
 
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QIcon, QKeySequence, QShortcut, QTextCursor
+from PyQt6.QtGui import QAction, QColor, QIcon, QKeySequence, QShortcut, QTextCursor
 from PyQt6.QtWidgets import (
-    QDockWidget,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -62,7 +61,7 @@ from PyQt6.QtWidgets import (
 
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
-from matr1x.gui_util import EmittingStream, MApplication
+from matr1x.gui_util import EmittingStream, MApplication, MIcon
 from matr1x.util import Get
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -343,14 +342,14 @@ class ControlWindow(QMainWindow):
         if extra_cmds:
             self.cmd_list.update(extra_cmds)
 
+        # add the menu bar
+        self.create_menu()
+
         # show the GUI
         self.show()
 
         # connect signals so that at least one dock remains visible! (needs to be done after show!)
         for g in self.guidicts:
-            g.dock.dockLocationChanged.connect(self.check_dock_status)
-            g.dock.visibilityChanged.connect(self.check_dock_status)
-            g.dock.dockClosed.connect(self.check_dock_status)
             g.dock.topLevelChanged.connect(self.needToAdjustSize)
 
         # enable logging if requested by arguments
@@ -373,15 +372,325 @@ class ControlWindow(QMainWindow):
         self.extra_layout(layout)
         self.statusloggingUI(layout)
 
+    def toggle_full_info(self, checked: bool, index: int) -> None:
+        """
+        Change the 'Full Info' view of one of the guidicts.
+
+        Change the icon of the button from + to - according to the state.
+
+        Parameters
+        ----------
+        checked : bool
+            Expand 'Full info' (True) or hide additional info (False).
+        index : int
+            Number/Index of the guidict.
+        """
+        if checked:
+            self.guidicts[index].extend_switch.setChecked(True)
+            self.full_info[index].setIcon(MIcon("CHAR_-"))
+        else:
+            self.guidicts[index].extend_switch.setChecked(False)
+            self.full_info[index].setIcon(MIcon("CHAR_+"))
+        self.check_full_infos()
+
+    def toggle_enable(self, checked: bool, index: int) -> None:
+        """
+        Enable and disable one of the guidicts.
+
+        Change the color of the on/off switch according to the state.
+
+        Parameters
+        ----------
+        checked : bool
+            Switch it On (True) or Off (False).
+        index : int
+            Number/Index of the guidict.
+        """
+        if checked:
+            self.guidicts[index].enable_switch.setChecked(True)
+            self.guidicts[index].dock.show()
+            self.enable[index].setIcon(
+                MIcon("CUSTOM_Power", color=QColor("forestgreen"))
+            )
+        else:
+            self.guidicts[index].enable_switch.setChecked(False)
+            self.enable[index].setIcon(MIcon("CUSTOM_Power", color=QColor("gray")))
+        self.check_enables()
+
+    def toggle_visible(self, checked: bool, index: int) -> None:
+        """
+        Show and hide one of the guidicts.
+
+        Parameters
+        ----------
+        checked : bool
+            Visible (True) or hidden (False).
+        index : int
+            Number/Index of the guidict.
+        """
+        if checked:
+            self.guidicts[index].dock.show()
+        else:
+            self.guidicts[index].dock.hide()
+
+    def check_enables(self) -> None:
+        """Determine if 'en/disable all' should be available."""
+        on = 0
+        off = 0
+        total = 0
+        for guidict in self.guidicts:
+            if guidict.allow_disabling:
+                total += 1
+                if guidict.enable_switch.isChecked():
+                    on += 1
+                else:
+                    off += 1
+        if off < total:
+            self.disable_all_action.setEnabled(True)
+        else:
+            self.disable_all_action.setEnabled(False)
+        if on < total:
+            self.enable_all_action.setEnabled(True)
+        else:
+            self.enable_all_action.setEnabled(False)
+
+    def check_full_infos(self) -> None:
+        """Determine if 'all/none full-info' should be available."""
+        on = 0
+        off = 0
+        total = 0
+        for guidict in self.guidicts:
+            has_hiding = any(variable.hide for variable in guidict.values())
+            if has_hiding:
+                total += 1
+                if guidict.extend_switch.isChecked():
+                    on += 1
+                else:
+                    off += 1
+        if off < total:
+            self.less_info_all_action.setEnabled(True)
+        else:
+            self.less_info_all_action.setEnabled(False)
+        if on < total:
+            self.full_info_all_action.setEnabled(True)
+        else:
+            self.full_info_all_action.setEnabled(False)
+
+    def enable_all(self) -> None:
+        """Enable all guidicts."""
+        for index, guidict in enumerate(self.guidicts):
+            if guidict.allow_disabling:
+                self.toggle_enable(True, index)
+
+    def disable_all(self) -> None:
+        """Disable all guidicts."""
+        for index, guidict in enumerate(self.guidicts):
+            if guidict.allow_disabling:
+                self.toggle_enable(False, index)
+
+    def full_info_all(self) -> None:
+        """Show full info for all guidicts."""
+        for index, guidict in enumerate(self.guidicts):
+            has_hiding = any(variable.hide for variable in guidict.values())
+            if has_hiding:
+                self.toggle_full_info(True, index)
+
+    def less_info_all(self) -> None:
+        """Show less info for all guidicts."""
+        for index, guidict in enumerate(self.guidicts):
+            has_hiding = any(variable.hide for variable in guidict.values())
+            if has_hiding:
+                self.toggle_full_info(False, index)
+
+    def toggle_activity_indicators(self) -> None:
+        """
+        Move the activity indicator from the logger to the docks (and back).
+
+        It slightly adjusts the size for the respective options.
+        """
+        widgets = []
+        if self.activity_in_logger:
+            for i in range(self.activity_layout.count()):
+                item = self.activity_layout.itemAt(i)
+                widgets.append(item.widget())
+            for i, widget in enumerate(widgets):
+                widget.setFixedHeight(10)
+                self.guidicts[i].toolbar.addWidget(widget)
+                empty = QWidget()
+                empty.setFixedWidth(10)
+                self.guidicts[i].toolbar.addWidget(empty)
+                self.activity_in_logger = False
+        else:
+            for guidict in self.guidicts:
+                items = len(guidict.toolbar.actions())
+                for i, action in enumerate(guidict.toolbar.actions()):
+                    if i == items - 2:
+                        widgets.append(guidict.toolbar.widgetForAction(action))
+                        guidict.toolbar.removeAction(action)
+                    if i == items - 1:
+                        guidict.toolbar.removeAction(action)
+            for widget in widgets:
+                widget.setFixedHeight(30)
+                self.activity_layout.addWidget(widget)
+                widget.show()
+            self.activity_in_logger = True
+
+    def toggle_toolbar_view(self, checked: bool) -> None:
+        """
+        Toogles the visibility of all toolbars on and off.
+
+        Parameters
+        ----------
+        checked : bool
+            Show (True) or hide (False).
+        """
+        for guidict in self.guidicts:
+            if checked:
+                guidict.toolbar.show()
+            else:
+                guidict.toolbar.hide()
+
+    def create_menu(self) -> None:
+        """
+        Create the main menu.
+
+        Add 'Full Info', 'Enable' and 'View' menus to the main menu bar.
+        """
+        menu = self.menuBar()
+        self.file_menu = menu.addMenu("&File")
+        self.enable_menu = menu.addMenu("&Enable")
+        self.fullinfo_menu = menu.addMenu("&Full info")
+        self.view_menu = menu.addMenu("&View")
+        self.custom_menu = menu.addMenu("&Custom")
+
+        self.file_menu.addAction(self.quit_action)
+
+        self.full_info = []
+        self.enable = []
+        self.guidict_view = []
+        for i, guidict in enumerate(self.guidicts):
+            dict_name = list(guidict.keys())[0]
+            # Enable/ Disable
+            enable_action = QAction(
+                MIcon("CUSTOM_Power", color=QColor("forestgreen")), dict_name, self
+            )
+            enable_action.setIconText("Enable")
+            self.enable.append(enable_action)
+            self.enable[i].setCheckable(True)
+            if guidict.enable_switch.isChecked():
+                self.enable[i].setChecked(True)
+            else:
+                self.enable[i].setIcon(MIcon("CUSTOM_Power", color=QColor("gray")))
+                self.enable[i].setChecked(False)
+            self.enable[i].setEnabled(False)
+            if guidict.allow_disabling:
+                self.enable[i].setEnabled(True)
+                self.enable[i].triggered.connect(
+                    lambda checked=self.enable[
+                        i
+                    ].isChecked(), index=i: self.toggle_enable(checked, index)
+                )
+            guidict.toolbar.addAction(self.enable[i])
+            self.enable_menu.addAction(self.enable[i])
+            # View toggles
+            view_action = QAction(dict_name, self)
+            self.guidict_view.append(view_action)
+            self.guidict_view[i].setCheckable(True)
+            self.guidict_view[i].setChecked(True)
+            self.guidict_view[i].triggered.connect(
+                lambda checked=self.guidict_view[
+                    i
+                ].isChecked(), index=i: self.toggle_visible(checked, index)
+            )
+            self.view_menu.addAction(self.guidict_view[i])
+            # Full info toggles
+            has_hiding = any(variable.hide for variable in guidict.values())
+            full_info_action = QAction(MIcon("CHAR_+"), dict_name, self)
+            full_info_action.setIconText("Full info")
+            self.full_info.append(full_info_action)
+            self.full_info[i].setCheckable(True)
+            if guidict.extend_switch.isChecked():
+                self.full_info[i].setChecked(True)
+                self.full_info[i].setIcon(MIcon("CHAR_-"))
+            else:
+                self.full_info[i].setChecked(False)
+            self.full_info[i].setEnabled(False)
+            if has_hiding:
+                self.full_info[i].setEnabled(True)
+                self.full_info[i].triggered.connect(
+                    lambda checked=self.full_info[
+                        i
+                    ].isChecked(), index=i: self.toggle_full_info(checked, index)
+                )
+                guidict.extend_switch.toggled.connect(self.full_info[i].setChecked)
+            guidict.toolbar.addAction(self.full_info[i])
+            self.fullinfo_menu.addAction(self.full_info[i])
+            spacer = QWidget()
+            spacer.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+            )
+            guidict.toolbar.addWidget(spacer)
+            # Custom menu
+            for action in guidict.menu_actions:
+                action.setParent(self)
+                self.custom_menu.addAction(action)
+            if len(guidict.menu_actions) != 0:
+                self.custom_menu.addSeparator()
+
+        self.enable_all_action = QAction("Enable all", self)
+        self.enable_all_action.triggered.connect(self.enable_all)
+        self.disable_all_action = QAction("Disable all", self)
+        self.disable_all_action.triggered.connect(self.disable_all)
+
+        self.full_info_all_action = QAction("Full info all", self)
+        self.full_info_all_action.triggered.connect(self.full_info_all)
+        self.less_info_all_action = QAction("Less info all", self)
+        self.less_info_all_action.triggered.connect(self.less_info_all)
+
+        toggle_activity = QAction("Move activity indicators", self)
+        toggle_activity.triggered.connect(self.toggle_activity_indicators)
+
+        toggle_toolbar_action = QAction("Show Toolbar", self)
+        toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
+        toggle_toolbar_action.setCheckable(True)
+        initial_toolbar_view = False
+        toggle_toolbar_action.setChecked(initial_toolbar_view)
+        self.toggle_toolbar_view(initial_toolbar_view)
+        toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
+
+        # Build the rest of the menu
+        self.enable_menu.addSeparator()
+        self.enable_menu.addAction(self.enable_all_action)
+        self.enable_menu.addAction(self.disable_all_action)
+
+        self.fullinfo_menu.addSeparator()
+        self.fullinfo_menu.addAction(self.full_info_all_action)
+        self.fullinfo_menu.addAction(self.less_info_all_action)
+
+        self.view_menu.addSeparator()
+        self.view_menu.addAction(toggle_toolbar_action)
+        self.view_menu.addAction(toggle_activity)
+
+        self.check_enables()
+        self.check_full_infos()
+
     def basicUI(self) -> QVBoxLayout:
         """
-        Declare main GUI components and set Icon.
+        Declare main GUI components, set icon and general menu action.
 
         Returns
         -------
         QVBoxLayout
             The main layout of the GUI.
         """
+        # General menu bar items
+        self.quit_action = QAction("Quit", self)
+        if os.name == "nt":
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
+
         icondir = os.path.join(os.path.dirname(__file__), "..", "scripts", "icons")
         self.setWindowIcon(QIcon(os.path.join(icondir, "matr1x-control.png")))
         self.widget = QWidget()
@@ -409,44 +718,6 @@ class ControlWindow(QMainWindow):
             content = guidict.create_GUI()
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
 
-    @pyqtSlot()
-    def check_dock_status(self) -> None:
-        """
-        Check dock status and adjust widget features.
-
-        In case of undocking/redocking, this method ensures that at least one
-        dockwidget remains docked and eventually disables the undocking feature.
-        """
-        # count docked widgets
-        count_docked = sum(int(not g.dock.isFloating()) for g in self.guidicts)
-        # count visible widgets
-        count_vis = sum(int(g.dock.isVisible()) for g in self.guidicts)
-        if count_docked <= 1 or count_vis <= 1:
-            # forbid last visible/docked widget to be undocked/moved
-            for guidict in self.guidicts:
-                dock = guidict.dock
-                if not dock.isFloating():
-                    dock.setFeatures(
-                        dock.features()
-                        & ~QDockWidget.DockWidgetFeature.DockWidgetFloatable
-                        & ~QDockWidget.DockWidgetFeature.DockWidgetMovable
-                    )
-        else:
-            for guidict in self.guidicts:
-                dock = guidict.dock
-                dock.setFeatures(
-                    dock.features()
-                    | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-                    | QDockWidget.DockWidgetFeature.DockWidgetMovable
-                )
-        if count_vis <= 1:
-            # redock last visible widget
-            for guidict in self.guidicts:
-                dock = guidict.dock
-                if dock.isWindow() and dock.isVisible():
-                    print(f"enforce docking of {dock.objectName()}")
-                    dock.setFloating(False)
-                    break
 
     @pyqtSlot()
     def needToAdjustSize(self) -> None:
@@ -494,8 +765,8 @@ class ControlWindow(QMainWindow):
         self.status.setReadOnly(True)
         self.keep_enabled.append(self.status)
         self.activityIndicator = []
-        activity_layout = QHBoxLayout()
-        activity_layout.setSpacing(0)
+        self.activity_layout = QHBoxLayout()
+        self.activity_layout.setSpacing(0)
         indicator_width = 17
         if len(self.guidicts) * indicator_width > 200:
             indicator_width = int(200 / len(self.guidicts))
@@ -510,7 +781,8 @@ class ControlWindow(QMainWindow):
                 lambda c, idx=idx: self.change_single_color(c, idx)
             )
             guidict.refresh_worker.panic.connect(self.panic)
-            activity_layout.addWidget(ql)
+            self.activity_layout.addWidget(ql)
+        self.activity_in_logger = True
 
         self.activity.connect(self.change_color)
         self.deactivate.connect(self.deactivate_gui)
@@ -542,7 +814,7 @@ class ControlWindow(QMainWindow):
         self.status_grid.addLayout(leftcolumn)
         line1 = QHBoxLayout()
         leftcolumn.addLayout(line1)
-        line1.addLayout(activity_layout)
+        line1.addLayout(self.activity_layout)
         line1.addStretch()
         line2 = QHBoxLayout()
         leftcolumn.addLayout(line2)
