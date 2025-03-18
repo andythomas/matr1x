@@ -50,6 +50,7 @@ from PyQt6.QtGui import (
     QKeyEvent,
     QKeySequence,
     QPalette,
+    QTextCharFormat,
     QTextCursor,
 )
 from PyQt6.QtWidgets import (
@@ -77,7 +78,6 @@ from matr1x.gui_util import (
     MApplication,
     MetaDataDialog,
     MIcon,
-    MTextEdit,
     OutputDuplication,
     SystemListWidget,
     TerminationDialog,
@@ -185,6 +185,37 @@ class DroppableWidget(QWidget):
         else:
             QMessageBox.warning(self, "Multiple Files",
                                 "Please drop only a single file.")
+
+
+class TerminalOutput(QTextEdit):
+    """Custom class for terminal-like text output."""
+
+    def __init__(self) -> None:
+        """Init the class with a mono-spaced font and respect theme."""
+        super().__init__()
+        self.setReadOnly(True)
+        mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        mono_font.setPointSizeF(self.font().pointSize())
+        self.setFont(mono_font)
+        self.updateColors()
+
+    def updateColors(self) -> None:
+        """Update terminal colors based on system theme."""
+        palette = self.palette()
+        text_edit = QTextEdit()
+        text_edit.setEnabled(False)
+        changed_palette = text_edit.palette()
+        palette.setColor(
+            QPalette.ColorRole.Base,
+            QColor(changed_palette.color(QPalette.ColorRole.Base)),
+        )
+        self.setPalette(palette)
+
+    def changeEvent(self, event) -> None:
+        """Detect theme change event."""
+        if event.type() == event.Type.PaletteChange:
+            self.updateColors()
+        super().changeEvent(event)
 
 
 class CustomReporter(pyflakes.reporter.Reporter):
@@ -849,8 +880,9 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
     line_ending = "\n"
     fileDropped = pyqtSignal(str)
 
-    def __init__(self, stream, parent=None):
+    def __init__(self, stream, parent):
         super().__init__(parent=parent)
+        self.parent = parent
         self.output_stream = stream
         self.reporter = CustomReporter(self.output_stream,
                                        self.handle_linter)
@@ -957,7 +989,8 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
     def handle_linter(self, line, col, message, message_args, style):
         """Call back function that is passed to the reporter of the linter."""
         if line < 0 or line >= len(self.text().splitlines()):
-            print("error outside script", message)
+            error_message = "error outside script" + message
+            self.parent.print_colored(error_message)
             return
         # remove comment to add verbose output of linter to status_preview
         # print(f"Error in line {line+1} at position {col+1} : \n  {message}")
@@ -1491,6 +1524,27 @@ class MainWindow(QMainWindow):
         # by loading the file
         if filename is not None:
             self.load_from_filename(filename)
+
+    def print_colored(self, line: str) -> None:
+        """
+        Print a colored text.
+
+        Afterwards, recover the original text color and follow theme changes.
+
+        Parameters
+        ----------
+        line : str
+            The line to be printed.
+        """
+        cursor = self.status_preview.textCursor()
+        error_format = QTextCharFormat()
+        # Royal Blue is one of the few colors that works in dark and light modes.
+        error_format.setForeground(QColor("royalblue"))
+        cursor.setCharFormat(error_format)
+        cursor.insertText(line)
+        default_format = QTextCharFormat()
+        cursor.setCharFormat(default_format)
+        cursor.insertText("\n")
 
     def insert_code(self, function: str) -> None:
         """
@@ -2077,20 +2131,16 @@ class MainWindow(QMainWindow):
         self.system_list = SystemListWidget()
         self.system_list.orderChanged.connect(self.update_systems)
         # TextEdits
-        self.status_preview = MTextEdit()
-        self.status_preview.setReadOnly(True)
-        default_font_size = self.status_preview.font().pointSize()
-        # Font
-        mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-        mono_font.setPointSizeF(default_font_size)
+        self.status_preview = TerminalOutput()
         self.status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
-        self.status_preview.setFont(mono_font)
         # CodeEditor
         self.script_edit = QScintillaCustom(self.output_stream, self)
         # Connect text edit signals to the slot that checks for changes
         self.script_edit.modificationChanged.connect(self.update_window_title)
         self.lexer = CustomLexer(self)
         self.script_edit.setLexer(self.lexer)
+        mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        mono_font.setPointSizeF(self.status_preview.font().pointSize())
         self.lexer.setFont(mono_font)
         autocomp = CompleterPython(self.script_edit)
         autocomp.setEnabled(True)
@@ -2384,8 +2434,9 @@ class MainWindow(QMainWindow):
     def kill_thread(self):
         """Kill the thread."""
         self.thread.kill()
-        print("Script terminated by user - " +
-              "file integrity might be compromised")
+        self.print_colored(
+            "Script terminated by user - " + "file integrity might be compromised"
+        )
 
     def show_editor_commands(self):
         """Print shortcuts and editor functions."""
@@ -2556,8 +2607,7 @@ class MainWindow(QMainWindow):
         Return buttons to original state, delete the finished process.
         """
         self.enable_buttons(False)
-        print("\nExecution finished")
-        print("==========")
+        self.print_colored("\nExecution finished")
         del self.thread
 
     def start_process(self):
@@ -2570,8 +2620,7 @@ class MainWindow(QMainWindow):
         self.update_systems()
         if 0 == len(self.systems):
             self.start_pause_action.setChecked(False)
-            print("No system selected")
-            print("==========")
+            self.print_colored("No system selected")
             return
         # avoid script execution for empty scripts?
         # if self.script_edit.text().strip() == "":
@@ -2580,8 +2629,7 @@ class MainWindow(QMainWindow):
         #    return
         # run linter to make sure there are no errors
         if -1 == self.script_edit.run_linter():
-            print("Script execution was halted because of linter errors")
-            print("==========")
+            self.print_colored("Script execution was halted because of linter errors")
             qApp = MApplication.instance()
             qApp.processEvents()
             # open a popup window to inform about the error
@@ -2596,7 +2644,7 @@ class MainWindow(QMainWindow):
             if ret == QMessageBox.StandardButton.Cancel:
                 self.start_pause_action.setChecked(False)
                 return
-        print("### Running script now")
+        self.print_colored("### Running script now")
         # define basic part of script, imports relevant commands
         user_script = self.script_edit.text()
         script = generate_script(self.systems, user_script)
@@ -2659,16 +2707,14 @@ class MainWindow(QMainWindow):
     def write_file(self, filename):
         """Save script to file and write system information to header."""
         if "" == filename:
-            print("Please specify file")
-            print("==========")
+            self.print_colored("Please specify file")
             return -1
         elif not filename.endswith(self.extension):
             filename += self.extension
         try:
             output_file = open(filename, 'w')
         except (OSError, IOError):
-            print("File cannot be opened")
-            print("==========")
+            self.print_colored("File cannot be opened")
             return -1
         self.scriptname = filename
         self.update_systems()
@@ -2705,8 +2751,10 @@ class MainWindow(QMainWindow):
                     f"{matr1x.datetimefmt}\n", time.localtime()
                 )
             except Exception:
-                print("error in generating settable_info from file, telemetry "
-                      "header could not be generated")
+                self.print_colored(
+                    "error in generating settable_info from file, telemetry "
+                    "header could not be generated"
+                )
         # take out script and remove trailling newlines
         script = self.script_edit.text().rstrip()
         newscript = header
@@ -2727,14 +2775,12 @@ class MainWindow(QMainWindow):
         if self.is_running:
             return
         if "" == filename:
-            print("Please specify file")
-            print("==========")
+            self.print_colored("Please specify file")
             return
         try:
             input_file = open(filename, 'r')
         except (OSError, IOError):
-            print("File cannot be opened")
-            print("==========")
+            self.print_colored("File cannot be opened")
             return
         self.scriptname = filename
         self.script_edit.clear()
@@ -2754,14 +2800,15 @@ class MainWindow(QMainWindow):
                             settable_info = self.get_settable_info()
                         except KeyError:
                             sys_err = True
-                            print("System that was used to generate the "
-                                  "script was not found in installed systems."
-                                  " Please check .matrix.conf file.")
-                            print("==========\n")
+                            self.print_colored(
+                                "System that was used to generate the "
+                                "script was not found in installed systems."
+                                " Please check .matrix.conf file."
+                            )
                 else:
-                    print("No system defined in script, " +
-                          "please choose system(s)")
-                    print("==========\n")
+                    self.print_colored(
+                        "No system defined in script, " + "please choose system(s)"
+                    )
             elif 1 == i and not sys_err:
                 # make sure that system column definition agrees with
                 # current system
@@ -2769,15 +2816,17 @@ class MainWindow(QMainWindow):
                     system_names = line.strip().replace("# system names : ",
                                                         "")
                     if settable_info[1] != system_names.split(","):
-                        print("Column names have changed between generation "
-                              "of script and now, please make sure that "
-                              "columns are set correctly before running the "
-                              "script")
-                        print("==========\n")
+                        self.print_colored(
+                            "Column names have changed between generation "
+                            "of script and now, please make sure that "
+                            "columns are set correctly before running the "
+                            "script"
+                        )
                 else:
-                    print("Could not verify column names, please verify"
-                          " that columns have not changed")
-                    print("==========\n")
+                    self.print_colored(
+                        "Could not verify column names, please verify"
+                        " that columns have not changed"
+                    )
             elif 2 == i and not sys_err:
                 # make sure that system unit definition agrees with
                 # current system
@@ -2785,15 +2834,17 @@ class MainWindow(QMainWindow):
                     system_units = line.strip().replace("# system units : ",
                                                         "")
                     if settable_info[2] != system_units.split(","):
-                        print("Column units have changed between generation "
-                              "of script and now, please make sure that "
-                              "columns are set correctly before running the "
-                              "script")
-                        print("==========\n")
+                        self.print_colored(
+                            "Column units have changed between generation "
+                            "of script and now, please make sure that "
+                            "columns are set correctly before running the "
+                            "script"
+                        )
                 else:
-                    print("Could not verify column units, please verify"
-                          " that columns have not changed")
-                    print("==========\n")
+                    self.print_colored(
+                        "Could not verify column units, please verify"
+                        " that columns have not changed"
+                    )
             self.script_edit.append(line)
         input_file.close()
         self.script_edit.setModified(False)

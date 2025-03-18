@@ -3202,27 +3202,6 @@ class MLineEdit(QLineEdit):
             super().changeEvent(event)
 
 
-class MTextEdit(QTextEdit):
-    """Provide QRTextEdit with visual cues for non-editable."""
-
-    def __init__(self):
-        """Call init of QTextEdit()."""
-        super().__init__()
-
-    def changeEvent(self, event: QEvent):
-        """Detect palette and read-only changes.
-
-        Implement visual cues that work also when the palette changes, for example if the desktop changes
-        from dark to bright mode.
-        """
-        if (
-            event.type() == QEvent.Type.PaletteChange
-            or event.type() == QEvent.Type.ReadOnlyChange
-        ):
-            _set_palette(self)
-            super().changeEvent(event)
-
-
 class MApplication(QApplication):
     """Fix GUI related issues for all applications."""
 
