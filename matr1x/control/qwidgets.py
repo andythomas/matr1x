@@ -16,21 +16,9 @@
 
 """Module containing custom GUI widgets for the matr1x data acquisition software."""
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
-from PyQt6.QtCore import (
-    QEasingCurve,
-    QPoint,
-    QPointF,
-    QPropertyAnimation,
-    QRectF,
-    QSize,
-    Qt,
-    pyqtProperty,
-    pyqtSlot,
-)
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPen
-from PyQt6.QtWidgets import QCheckBox, QProgressBar, QPushButton
+from PyQt6.QtWidgets import QProgressBar, QPushButton
 
 
 class matr1xProgressBar(QProgressBar):

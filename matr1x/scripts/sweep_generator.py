@@ -47,7 +47,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,

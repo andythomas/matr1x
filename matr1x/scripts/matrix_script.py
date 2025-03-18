@@ -17,7 +17,6 @@
 """Allow to write measurement scripts in Python."""
 
 import ast
-import getpass
 import logging
 import os
 import re
@@ -1488,52 +1487,61 @@ class MainWindow(QMainWindow):
         # set outputStream as stdout (i.e. all output is written to status
         # preview
         sys.stdout = self.output_stream
-
-        welcome_string = textwrap.dedent(
-            f"""\
-        Welcome {getpass.getuser()},
-        Available functions are:
-
-          init_datafile(filename, comment="", append=False,
-                        print_header=True, ntot=None)
-            # ntot is total number of points in a given measurement
-            # and is used to calculate measurement duration
-          measure_system(print_setpoint=True, print_data=True,
-                         print_telemetry=True)
-            # performs a single measurement as specified in system
-          wait(duration=None, until=None, message="", silent=10)
-            # waits for either a duration or until a timestamp
-            # this also acts as a breakpoint to pause and abort the execution,
-            # for wait period > silent, prints message
-          end_script(finished=None)
-            # if finished is True, file is marked as "finished", for False
-            # it is marked as aborted, otherwise user is querried
-          input(query="")
-            # waits for user text input
-          input_bool(question="")
-            # waits for user to answer a yes/no question.
-
-        System parameters can be accessed via:
-
-          set_value(value_index/name, value)
-          trigger_value(value_index/name)
-          read_value(value_index/name)
-          devs  # dictionary that contains all devices
-          system  # merged system object from the selected systems
-          meta_data  # dictionary that contains all meta information
-                     # Keywords "creator", "identifier", "relation" and "description"
-                     # contain meta data information from the editor widget
-
-        Use the help button to get a list of available parameters and devices.
-
-        Note that no variable names should start with an underscore!"""
-        )
-        print(welcome_string)
-        print("==========")
         # If filename is passed when matrix-script is started, start
         # by loading the file
         if filename is not None:
             self.load_from_filename(filename)
+
+    def insert_code(self, function: str) -> None:
+        """
+        Insert a code fragment with explanation at the current cursor position.
+
+        Parameters
+        ----------
+        function : str
+            The function name to be explained.
+        """
+        line, index = self.script_edit.getCursorPosition()
+        if function == "init_datafile":
+            code = 'init_datafile(filename, comment="", append=False, print_header=True, ntot=None)\n'
+            code += "# ntot is total number of points in a given measurement\n"
+            code += "# and is used to calculate measurement duration\n"
+        elif function == "measure_system":
+            code = "measure_system(print_setpoint=True, print_data=True, print_telemetry=True)\n"
+            code += "# performs a single measurement as specified in system\n"
+        elif function == "wait":
+            code = 'wait(duration=None, until=None, message="", silent=10)\n'
+            code += "# waits for either a duration or until a timestamp\n"
+            code += (
+                "# this also acts as a breakpoint to pause and abort the execution,\n"
+            )
+            code += "# for wait period > silent, prints message\n"
+        elif function == "end_script":
+            code = "end_script(finished=None)\n"
+            code += '# if finished is True, file is marked as "finished", for False\n'
+            code += "# it is marked as aborted, otherwise user is querried\n"
+        elif function == "input":
+            code = 'input(query="")\n'
+            code += "# waits for user text input\n"
+        elif function == "input_bool":
+            code = 'input_bool(question="")\n'
+            code += "# waits for user to answer a yes/no question.\n"
+        elif function == "set_value":
+            code = "set_value(column, value)\n"
+            code += "# column can be the index or the name.\n"
+            code += "# Please use 'help/system' for more information.\n"
+        elif function == "read_value":
+            code = "read_value(column)\n"
+            code += "# column can be the index or the name.\n"
+            code += "# Please use 'help/system' for more information.\n"
+        elif function == "trigger_value":
+            code = "trigger_value(column)\n"
+            code += "# column can be the index or the name.\n"
+            code += "# Please use 'Help/Show system help' for more information.\n"
+        else:
+            code = f"Unknown function <{function}> in 'insert_code', please file a bug report.\n"
+        self.script_edit.insertAt(code, line, index)
+        self.script_edit.setCursorPosition(line, index + len(code))
 
     def saveCurrentState(self) -> None:
         """
@@ -2062,9 +2070,6 @@ class MainWindow(QMainWindow):
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        # Help: Editor
-        self.help_editor_action = QAction("Show Editor Help", self)
-        self.help_editor_action.triggered.connect(self.show_editor_commands)
         # Help: System
         self.help_system_action = QAction("Show System Help", self)
         self.help_system_action.triggered.connect(self.show_system_commands)
@@ -2208,8 +2213,39 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.copy_action)
         edit_menu.addAction(self.paste_action)
         edit_menu.addSeparator()
+        block_comment = QAction("Block comment", self)
+        shortcut = chr(39)
+        block_comment.setShortcut(shortcut)
+        block_comment.triggered.connect(
+            lambda: self.script_edit.add_block_commenting(shortcut)
+        )
+        edit_menu.addAction(block_comment)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.lint_action)
         edit_menu.addAction(self.pep8_action)
+        #
+        code_menu = menu.addMenu("&Code")
+        functions = (
+            "init_datafile",
+            "measure_system",
+            "wait",
+            "end_script",
+            "input",
+            "input_bool",
+            "separator",
+            "set_value",
+            "read_value",
+            "trigger_value",
+        )
+        for function in functions:
+            if function == "separator":
+                code_menu.addSeparator()
+            else:
+                action = QAction(function + "()", self)
+                action.triggered.connect(
+                    lambda checked, function=function: self.insert_code(function)
+                )
+                code_menu.addAction(action)
         #
         control_menu = menu.addMenu("&Control")
         control_menu.addAction(self.start_pause_action)
@@ -2225,7 +2261,6 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.config_action)
         #
         help_menu = menu.addMenu("&Help")
-        help_menu.addAction(self.help_editor_action)
         help_menu.addAction(self.help_system_action)
         help_menu.addAction(self.about_action)  # This is auto-moved on a Mac
 

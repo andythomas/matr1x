@@ -46,8 +46,8 @@ from PyQt6.QtCore import (
     QObject,
     QPoint,
     Qt,
-    qVersion,
     pyqtSignal,
+    qVersion,
 )
 from PyQt6.QtGui import (
     QColor,
