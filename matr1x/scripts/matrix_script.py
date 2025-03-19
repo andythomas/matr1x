@@ -2596,7 +2596,6 @@ class MainWindow(QMainWindow):
         self.new_file_action.setEnabled(not flag)
         self.load_action.setEnabled(not flag)
         self.help_system_action.setEnabled(not flag)
-        self.help_editor_action.setEnabled(not flag)
         self.add_system_action.setEnabled(not flag)
         self.remove_system_action.setEnabled(not flag)
 
