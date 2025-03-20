@@ -528,6 +528,8 @@ class System:
         value : bool
             Whether to use HDF5 format (True) or plain text format (False)
         """
+        if self._hdf5 == value:
+            return
         self._hdf5 = value
         if value is True:
             self.dcdata["format"] = "application/x-hdf5"

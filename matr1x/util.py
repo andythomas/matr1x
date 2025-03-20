@@ -46,6 +46,9 @@ if sys.platform == "darwin":
     from AppKit import NSApplication
     from Foundation import NSBundle
 
+# appendable meta keys:
+APP_META_KEY = ["description"]
+
 # allow error handling while using with
 
 
@@ -2207,11 +2210,19 @@ class DcDict(dict):
         """
         if self.system_ref.merged_system:
             # initialized subsystem, write into merged parent
+            if key not in APP_META_KEY:
+                # is meta key is non-editable, no append is allowed
+                super().__setitem__(key, value)
+                return
             self._append_value(
                 key, value, ";@set:", ref=self.system_ref.merged_system.dcdata
             )
         elif self.append and self[key]:
             # read only mode is enabled, append values
+            if key not in APP_META_KEY:
+                # is meta key is non-editable, no append is allowed
+                super().__setitem__(key, value)
+                return
             self._append_value(key, value, ";@ap:")
         else:
             super().__setitem__(key, value)
