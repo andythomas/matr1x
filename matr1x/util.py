@@ -80,12 +80,6 @@ def open_and_error(filename, mode="r"):
         finally:
             f.close()
 
-
-# sweep functions for sweep generator
-sweepFunctions = {"x^2": lambda x: np.power(x, 2), "sqrt": np.sqrt,
-                  "ln": np.log, "log10": np.log10, "exp": np.exp,
-                  "10^x": lambda x: np.power(10, x), "None": lambda x: x}
-
 # default separator
 default_separator = "\t"
 
@@ -1615,7 +1609,7 @@ def nonblocking_getch(callback=None):
 
 
 # sweep functions
-def calculate_sweep(sweepParms, loopOver, upDown, repeat, functions):
+def calculate_sweep(sweepParms, loopOver, upDown, repeat):
     """
     Generate a list of sweeps defined by given parameters.
 
@@ -1629,8 +1623,6 @@ def calculate_sweep(sweepParms, loopOver, upDown, repeat, functions):
         List of bools defining if the sweep is going both ways.
     repeat : list
         List of integers defining how often the sweep ranges are repeated.
-    functions : list
-        List of functions to apply to each sweep.
 
     Returns
     -------
@@ -1641,12 +1633,12 @@ def calculate_sweep(sweepParms, loopOver, upDown, repeat, functions):
 
     Examples
     --------
+    The example was generate dusing np.set_printoptions(legacy='1.25')
     >>> sweepParms = [[[1, 2, 2], [3, 4, 2]], [], [[-1, 1, 2]]]
     >>> loopOver = [-1, -1, 0]
     >>> upDown = [True, False, False]
     >>> repeat = [1, 1, 1]
-    >>> functions = [None, np.sin, None]
-    >>> calculate_sweep(sweepParms, loopOver, upDown, repeat, functions)
+    >>> calculate_sweep(sweepParms, loopOver, upDown, repeat)
     [[1.0, 2.0, 3.0, 4.0, 4.0, 3.0, 2.0, 1.0], [],
      [-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0,
       -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0]]
@@ -1664,12 +1656,9 @@ def calculate_sweep(sweepParms, loopOver, upDown, repeat, functions):
                 # generate the sweepRange using np.linspace, has to be list
                 # so += works
 
-                sweepRange = sweepFunctions[functions[indexS]](
-                    np.linspace(float(parm[0]), float(parm[1]),
-                                int(parm[2])))
+                sweepRange = np.linspace(float(parm[0]), float(parm[1]), int(parm[2]))
                 if any(np.isnan(sweepRange)) or any(np.isinf(sweepRange)):
-                    return ("Inf or Nan in sweep, check functions and " +
-                            "parameters")
+                    return "Inf or Nan in sweep, check parameters"
                 tempSweep += list(sweepRange)
             if upDown[indexS]:
                 # if up down is true, add the reversed sweep to the sweep
