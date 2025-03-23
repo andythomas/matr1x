@@ -27,6 +27,7 @@ control-guis.
 import datetime
 import os
 import platform
+import subprocess
 import sys
 import time
 from importlib.metadata import version as package_version
@@ -47,7 +48,8 @@ from PyQt6.QtCore import (
     QPoint,
     Qt,
     pyqtSignal,
-    qVersion,
+    QT_VERSION_STR,
+    PYQT_VERSION_STR,
 )
 from PyQt6.QtGui import (
     QColor,
@@ -104,21 +106,6 @@ from . import (
     write_config,
 )
 from .eval import delta
-
-_gtk_fix_available = False
-if "linux" in platform.system().lower() or "bsd" in platform.system().lower():
-    if QPalette().color(
-        QPalette.ColorGroup.Active, QPalette.ColorRole.Base
-    ) == QPalette().color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base):
-        try:
-            import gi
-
-            gi.require_version("Gtk", "3.0")
-            from gi.repository import Gtk
-
-            _gtk_fix_available = True
-        except ImportError:
-            _gtk_fix_available = False
 
 # dictionary of commonly used validators
 validator = {
@@ -2968,14 +2955,27 @@ class AboutBox(QMessageBox):
             date = datetime.datetime.fromtimestamp(time).strftime(date_format)
         else:
             date = time
+        system_type = platform.system().lower()
+        result = subprocess.run(
+            "qmake6 --version | grep -oE '6[.][0-9]+[.][0-9]+'",
+            shell=True,
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            qmake_qt6_version = result.stdout.strip()
+        else:
+            qmake_qt6_version = "unavailable"
         text = f"""
                 <div style="text-align: left;">
                     <p><b>Version:</b> {version}<br>
                     <b>Git branch:</b> {branch}<br>
                     <b>Git commit:</b> {sha}<br>
                     <b>Git date:</b> {date}<br>
-                    <b>Qt version:</b> {qVersion()}<br>
-                    <b>GTK available:</b> {_gtk_fix_available}<br>
+                    <b>Platform:</b> {system_type}<br>
+                    <b>Qt version:</b> {QT_VERSION_STR}<br>
+                    <b>PyQt version:</b> {PYQT_VERSION_STR}<br>
+                    <b>Qt (qmake):</b> {qmake_qt6_version}<br>
                     <br>
                     (C) 2006-2025 Matr1x Developers. All rights reserved.
                 </div>
@@ -3230,38 +3230,13 @@ class MApplication(QApplication):
         else:
             return []
 
-    def _repair_palette(self) -> None:
-        """
-        Repair the palette if disabled and enabled state are indistinguishable.
-
-        This fixes a bug prevalent in, e.g., Linux machines using Qt6.5 under some circumstances.
-        """
-        palette = QPalette()
-        if _gtk_fix_available:
-            Gtk.init([])
-            style_context = Gtk.StyleContext()
-            style_context.add_class("view")
-            color = style_context.lookup_color("theme_base_color")
-            red = color[1].red
-            green = color[1].green
-            blue = color[1].blue
-            alpha = color[1].alpha
-            base = QColor()
-            base.setRgbF(red, green, blue, alpha)
-            palette.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Base, base)
-            palette.setColor(
-                QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, base
-            )
-            self.setPalette(palette)
-
     def __init__(self, args: Sequence[str]) -> None:
         """
-        Call init of QApplication, automatically select the xcb client and fix palette if need be.
+        Call init of QApplication, automatically select the xcb client.
 
-        (1) If, for example, wayland is used as the default window manager, the lack of client side decorations
+        If, for example, wayland is used as the default window manager, the lack of client side decorations
         would lead to missing visual cues such as window shadows. To regain the visual aids, the client-side is
-        switched to xcb. (2) Linux machines using Qt6.5 experience a broken palette under some circumstances. This
-        bug is detected and fixed here.
+        switched to xcb.
 
         args : list of str
             Arguments for QApplication
@@ -3270,8 +3245,6 @@ class MApplication(QApplication):
             if "xcb" in self._list_platform_plugins():
                 os.environ["QT_QPA_PLATFORM"] = "xcb"
         super().__init__(args)
-        MApplication.instance().paletteChanged.connect(self._repair_palette)
-        self._repair_palette()
 
     def toolbar_icon_size(self) -> int:
         """

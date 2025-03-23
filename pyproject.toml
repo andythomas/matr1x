@@ -28,7 +28,6 @@ dependencies = [
     "pyvisa-py",
     "urwid>2.0",
     "wrapt",
-    "PyGObject ; platform_system == 'Linux'",
     "pyqtgraph >= 0.11.0",
     "PyQt6",
     "PyQt6 >= 6.5.0 ; platform_system == 'Windows'",
