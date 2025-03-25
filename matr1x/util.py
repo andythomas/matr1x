@@ -379,12 +379,21 @@ def generate_script_prefix_suffix(systems):
 
     def _find_caller_frame():
         '''Find the frame of the actual caller, skipping over decorator frames.'''
-        # stepping back on frame, since the inner most frame is from this function
-        frame = _inspect.currentframe().f_back
-        # Try to find the first __call__ frame, as in Python 3.13+
+        # stepping twice back on frame, since the inner most frame is from this
+        # and the second one is from the _lineno_decorator function
+        frame = _inspect.currentframe().f_back.f_back
+        # Try to find the first frame called in script environment
+        # in Python 3.13+
         while frame:
-            if frame.f_code.co_name == "__call__":
-                return frame.f_back  # Return the frame just outside __call__
+            if frame.f_code.co_filename == "<string>":
+                if (frame.f_code.co_name.startswith("_") or
+                    frame.f_code.co_name in ["wait", "print"]
+                ):
+                    frame = frame.f_back
+                    continue
+                else:
+                    return frame
+
             frame = frame.f_back
 
         # Fallback for Python 3.12 or earlier: step back a fixed number of frames
@@ -401,9 +410,8 @@ def generate_script_prefix_suffix(systems):
         '''Decorator to report the executing line number back to the GUI.'''
         frame = _find_caller_frame()
         if frame:
-            caller_name = frame.f_code.co_name
             caller_filename = frame.f_code.co_filename
-            if caller_name == "<module>" and caller_filename == "<string>":
+            if caller_filename == "<string>":
                 # report line only if called directly from script
                 _report_line(frame.f_lineno)
         return wrapped(*args, **kwargs)

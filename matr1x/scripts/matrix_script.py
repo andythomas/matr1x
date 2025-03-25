@@ -989,7 +989,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
     def handle_linter(self, line, col, message, message_args, style):
         """Call back function that is passed to the reporter of the linter."""
         if line < 0 or line >= len(self.text().splitlines()):
-            error_message = "error outside script" + message
+            error_message = "error outside script: " + message
             self.parent.print_colored(error_message)
             return
         # remove comment to add verbose output of linter to status_preview
