@@ -39,6 +39,8 @@ import numpy as np
 import pygit2
 import pyqtgraph
 from PyQt6.QtCore import (
+    PYQT_VERSION_STR,
+    QT_VERSION_STR,
     QAbstractItemModel,
     QEvent,
     QLibraryInfo,
@@ -48,8 +50,6 @@ from PyQt6.QtCore import (
     QPoint,
     Qt,
     pyqtSignal,
-    QT_VERSION_STR,
-    PYQT_VERSION_STR,
 )
 from PyQt6.QtGui import (
     QColor,
