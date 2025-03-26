@@ -18,4 +18,3 @@
 """set the TCP ports of the GUI applications."""
 
 MATRIX_GUI_PORT = 54329
-MATRIX_SCRIPT_PORT = 54330

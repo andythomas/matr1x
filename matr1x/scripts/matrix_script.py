@@ -1459,20 +1459,22 @@ class ExecThread(QThread):
             # all information has been written to temporary file, make sure it
             # is updated
             tf.flush()
-            # pass the script that we want to execute and generate correct
-            # parameters to pass to matr1x/utils.py:matrix_script_process
-            cmd = f"""import matr1x.util as mu
-mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
-                         {repr(self.datafilefallback)})"""
             # start socket that is used to communicate with the child process
             # that runs the script
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # only accept local connections and start listening
-            s.bind(('127.0.0.1', matr1x.scripts.MATRIX_SCRIPT_PORT))
+            s.bind(("127.0.0.1", 0))  # use dynamic port
+            port = s.getsockname()[1]
             s.listen(1)
             # start subprocess, stderr is piped to stdout, and both of them are
             # piped so that we can read them
+            # pass the script that we want to execute and generate correct
+            # parameters to pass to matr1x/utils.py:matrix_script_process
+            cmd = f"""import matr1x.util as mu
+mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
+                         {repr(self.datafilefallback)}, {repr(port)})"""
+
             self.proc = subprocess.Popen([sys.executable, "-c", cmd],
                                          stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE,
