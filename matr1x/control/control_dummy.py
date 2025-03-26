@@ -82,7 +82,7 @@ class exampleDict(GuiDict):
             columns=[go.progressbar, go.doublespinbox],
             log=False,
             unit="%",
-            init=[None, (0, 100)],
+            init=[0, (0, 100)],
             hide=True,
         ),
         "V4": var(
@@ -155,10 +155,8 @@ class exampleDict(GuiDict):
         self["V2"].value = self.S.devs["dummy"].p2
         self["V4"].value = self.S.devs["dummy"].p6
         self["toggle"].value = self.S.devs["dummy"].p7
-
-        if self.extend_switch.isChecked():
-            # update hidable items only when shown
-            self["V3"].value = self.S.devs["dummy"].p5
+        # update hidable items also when not shown
+        self["V3"].value = self.S.devs["dummy"].p5
 
         if self["V4"].value is False:
             # emit panic signel

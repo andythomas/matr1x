@@ -239,7 +239,10 @@ class guiObject(IntEnum):
         if cls.checkbox == wType:
             return QCheckBox()
         if cls.progressbar == wType:
-            return matr1xProgressBar()
+            pbar = matr1xProgressBar()
+            if init:
+                pbar.setValue(init)
+            return pbar
         if cls.combobox == wType:
             qcombo = QComboBox()
             if init is not None:
