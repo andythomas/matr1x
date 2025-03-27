@@ -3013,7 +3013,7 @@ class AboutBox(QMessageBox):
 class MIcon(QIcon):
     """Generate either Qt built-in icons, letters or Matrix specific QIcons."""
 
-    def __new__(cls, name, color="default") -> QIcon:
+    def __new__(cls, name, color="default", pencolor=QColor("white")) -> QIcon:
         """
         Look up 'name' and get corresponding QIcon back.
 
@@ -3030,6 +3030,8 @@ class MIcon(QIcon):
             painted icons and 'matr1x-' will use the matrix application icons.
         color : QColor or str
             The color of the icon if applicable.
+        pencolor: QColor
+            The color of the painted items.
 
         Returns
         -------
@@ -3076,13 +3078,13 @@ class MIcon(QIcon):
             font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
             font.setPointSizeF(size * 0.8)
             painter.setFont(font)
-            painter.setPen(QColor("white"))
+            painter.setPen(pencolor)
             painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
         elif name.startswith("CUSTOM_"):
             custom_name = name[7:]
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setBrush(QColor("white"))
-            painter.setPen(QColor("white"))
+            painter.setBrush(pencolor)
+            painter.setPen(pencolor)
             if custom_name == "Play":
                 triangle = QPolygon(
                     [
@@ -3092,6 +3094,23 @@ class MIcon(QIcon):
                     ]
                 )
                 painter.drawPolygon(triangle)
+            elif custom_name == "Updown":
+                up_arrow = QPolygon(
+                    [
+                        QPoint(int(size * 0.25), int(size * 0.2)),
+                        QPoint(int(size * 0.05), int(size * 0.8)),
+                        QPoint(int(size * 0.45), int(size * 0.8)),
+                    ]
+                )
+                down_arrow = QPolygon(
+                    [
+                        QPoint(int(size * 0.55), int(size * 0.2)),
+                        QPoint(int(size * 0.75), int(size * 0.8)),
+                        QPoint(int(size * 0.95), int(size * 0.2)),
+                    ]
+                )
+                painter.drawPolygon(up_arrow)
+                painter.drawPolygon(down_arrow)
             elif custom_name == "Power":
                 width = size // 8
                 height = size // 2

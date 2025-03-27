@@ -86,26 +86,34 @@ if os.name == 'nt':
         pass
 
 
+def add_focusInEvent(cls):
+    """Add a focusIn signal and focusInEvent handling."""
+
+    class decorated_class(cls):
+        """The class shell."""
+
+        focusIn = pyqtSignal()
+
+        def focusInEvent(self, e: QEvent, parent=None):
+            super().focusInEvent(e)
+            self.focusIn.emit()
+
+    return decorated_class
+
+
+@add_focusInEvent
+class CheckBoxFocus(QCheckBox):
+    """Reimplement CheckBox with focusInEvent."""
+
+
+@add_focusInEvent
 class LineEditFocus(QLineEdit):
     """Reimplement LineEdit with focusInEvent."""
 
-    focusIn = pyqtSignal()
 
-    def focusInEvent(self, e, parent=None):
-        """Reimplement LineEdit with focusInEvent."""
-        super().focusInEvent(e)
-        self.focusIn.emit()
-
-
+@add_focusInEvent
 class SpinBoxFocus(QSpinBox):
     """Reimplement QSpinBox with focusInEvent."""
-
-    focusIn = pyqtSignal()
-
-    def focusInEvent(self, e, parent=None):
-        """Reimplement QSpinBox with focusInEvent."""
-        super().focusInEvent(e)
-        self.focusIn.emit()
 
 
 class QLabelWithColor(QLabel):
@@ -352,15 +360,14 @@ class MainWindow(QMainWindow):
         self.preview_column = 1
         self.labels = (
             ("column", "Column"),
-            ("name", "Name"),
-            ("unit", "Unit"),
+            ("nameunit", "Name (Unit)"),
             ("start", "Start value"),
             ("end", "End value"),
             ("points", "Point count"),
             ("append", "Append sweep"),
             ("repeat", "Repeat"),
-            ("updown", "Up- and down"),
-            ("loopover", "Loop over column"),
+            ("updown", "Up-down"),
+            ("loopover", "Loop over"),
         )
         # initialize generic (system independent) part of ui
         self.outputList = None
@@ -492,7 +499,8 @@ class MainWindow(QMainWindow):
         self.preview_action.setEnabled(False)
         # Start the layout
         self.grid = QGridLayout()
-        self.grid.setSpacing(5)
+        self.grid.setVerticalSpacing(5)
+        self.grid.setHorizontalSpacing(10)
         main_layout = QVBoxLayout()
         main_layout.addLayout(self.grid)
         self.utility_layout = QVBoxLayout()
@@ -647,7 +655,7 @@ class MainWindow(QMainWindow):
                 error_text = "The following error was raised during system "
                 error_text += "import, please check the system for errors.\n\n"
             tbinfo = traceback.format_exception(e)
-            tbstr = "".join(tbinfo[7:])
+            tbstr = "".join(tbinfo)
             error_text += "" + tbstr
             QMessageBox.warning(
                 self, "Module not found.", error_text.replace("\n", "<br>")
@@ -725,31 +733,48 @@ class MainWindow(QMainWindow):
         QWidget
             The widget.
         """
-        if name == "column" or name == "name" or name == "unit":
+        if name == "column" or name == "nameunit":
             widget = QLabelWithColor()
             widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
             widget.clicked.connect(lambda: self.populate_sweep_grid(column))
-        elif name == "start" or name == "end":
+        elif name == "start" or name == "end" or name == "points":
             widget = LineEditFocus()
             widget.setAlignment(Qt.AlignmentFlag.AlignRight)
-            widget.setValidator(validator[float])
             widget.focusIn.connect(lambda: self.populate_sweep_grid(column))
-        elif name == "points" or name == "repeat":
+            widget.textChanged.connect(
+                lambda text, column=column - 1: self.update_append(text, column)
+            )
+            if name == "points":
+                widget.setValidator(validator[int])
+            else:
+                widget.setValidator(validator[float])
+        elif name == "repeat":
             widget = SpinBoxFocus()
-            widget.setRange(1, 2**31 - 1)
+            widget.setRange(1, 999)
             widget.setAlignment(Qt.AlignmentFlag.AlignRight)
             widget.focusIn.connect(lambda: self.populate_sweep_grid(column))
         elif name == "append":
-            widget = QPushButton("Append")
+            widget = QPushButton("+")
+            temp_widget = QLineEdit()
+            size = temp_widget.sizeHint().height()
+            del temp_widget
+            # A vertical button that almost spans the three lines it appends looks nice
+            widget.setFixedSize(size, int(2.9 * size))
             widget.clicked.connect(lambda: self.append_sweep_col(column))
         elif name == "updown":
-            widget = QCheckBox(self)
+            widget = CheckBoxFocus(self)
+            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))
         elif name == "loopover":
             widget = QComboBox(self)
+            widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            font = widget.font()
+            font.setPointSize(font.pointSize() - 1)
+            widget.setFont(font)
             columns = ["None"]
             for i in range(self.nParmsUsed):
-                columns.append(self.col_sign[i] + " - " + self.flat_col[i].strip())
+                columns.append(self.flat_col[i].strip())
             widget.addItems(columns)
+            widget.activated.connect(lambda: self.populate_sweep_grid(column))
         else:
             # we catch too many exceptions, this improves debugging
             print(f"Unknown widget in {inspect.currentframe().f_code.co_name}")
@@ -768,8 +793,10 @@ class MainWindow(QMainWindow):
                     label[0], column=column + 1
                 )
             sweep_widgets["column"].setText(self.col_sign[column])
-            sweep_widgets["name"].setText(self.flat_col[column].strip())
-            sweep_widgets["unit"].setText(self.flat_unit[column].strip())
+            nameunit = (
+                f"{self.flat_col[column].strip()} ({self.flat_unit[column].strip()})"
+            )
+            sweep_widgets["nameunit"].setText(nameunit)
             # alternate the column label colors
             letter = self.col_sign[column][0]
             if letter != last_letter:
@@ -777,15 +804,70 @@ class MainWindow(QMainWindow):
                 color1 = not color1
             if not color1:
                 sweep_widgets["column"].setColors("#D0EBFE", "#1E4962")
-                sweep_widgets["name"].setColors("#D0EBFE", "#1E4962")
-                sweep_widgets["unit"].setColors("#D0EBFE", "#1E4962")
+                sweep_widgets["nameunit"].setColors("#D0EBFE", "#1E4962")
             self.grid_widgets.append(sweep_widgets)
 
+        self.grid.addWidget(QLabel(self.labels[0][1]), 0, 0)
+        self.grid.addWidget(QLabel(self.labels[1][1]), 1, 0)
+        parameters = QVBoxLayout()
+        parameters.addWidget(QLabel(self.labels[2][1]))
+        parameters.addWidget(QLabel(self.labels[3][1]))
+        parameters.addWidget(QLabel(self.labels[4][1]))
+        self.grid.addLayout(parameters, 2, 0)
+        modifiers = f"{self.labels[6][1]}/ {self.labels[7][1]}"
+        self.grid.addWidget(QLabel(modifiers), 3, 0)
+        combolabel = f"{self.labels[8][1]}\n "
+        self.grid.addWidget(QLabel(combolabel), 4, 0)
+        # determine how many columns can fit
+        combobox = self.get_custom_widget("loopover")
+        max_width = combobox.minimumSizeHint().width() + self.grid.horizontalSpacing()
+        del combobox
+        left, top, right, bottom = self.grid.getContentsMargins()
+        screen_width = self.screen().availableGeometry().width() - left - right
+        column_fit = screen_width // max_width - 1
         for column in range(self.nParmsUsed):
-            for row, entry in enumerate(self.grid_widgets[column].values()):
-                if column == 0:
-                    self.grid.addWidget(QLabel(self.labels[row][1]), row + 1, 0)
-                self.grid.addWidget(entry, row + 1, column + 1)
+            if column < column_fit:
+                row = (column // column_fit) * column_fit
+            else:
+                row = ((column - column_fit) // (column_fit + 1) + 1) * (column_fit + 1)
+            grid_column = (column + 1) % (column_fit + 1)
+            self.grid.addWidget(
+                self.grid_widgets[column]["column"], 0 + row, grid_column
+            )
+            self.grid.addWidget(
+                self.grid_widgets[column]["nameunit"], 1 + row, grid_column
+            )
+            parameters = QVBoxLayout()
+            parameters.setSpacing(3)
+            parameters.addWidget(self.grid_widgets[column]["start"])
+            parameters.addWidget(self.grid_widgets[column]["end"])
+            parameters.addWidget(self.grid_widgets[column]["points"])
+            quart = QHBoxLayout()
+            quart.setSpacing(8)
+            quart.addLayout(parameters)
+            quart.addWidget(self.grid_widgets[column]["append"])
+            self.grid_widgets[column]["append"].setDisabled(True)
+            self.grid.addLayout(quart, 2 + row, grid_column)
+            modifiers = QHBoxLayout()
+            modifiers.setSpacing(5)
+            modifiers.addWidget(self.grid_widgets[column]["repeat"], stretch=1)
+            temp_widget = QLineEdit()
+            size = temp_widget.sizeHint().height()
+            del temp_widget
+            arrow_icon = MIcon(
+                "CUSTOM_Updown",
+                color=QColor("transparent"),
+                pencolor=QColor("darkgray"),
+            )
+            arrow_label = QLabel()
+            arrow_label.setPixmap(arrow_icon.pixmap(size, size))
+            modifiers.addWidget(arrow_label)
+            modifiers.addWidget(self.grid_widgets[column]["updown"])
+            self.grid.addLayout(modifiers, 3 + row, grid_column)
+            combobox = QVBoxLayout()
+            combobox.addWidget(self.grid_widgets[column]["loopover"])
+            combobox.addWidget(QLabel(" "))
+            self.grid.addLayout(combobox, 4 + row, grid_column)
 
         # generate sweep grid labels and layout
         self.currentCol = QLabel("Start - Stop - Points")
@@ -836,6 +918,25 @@ class MainWindow(QMainWindow):
         self.utility_layout.addWidget(QLabel(""))
         self.utility_layout.addLayout(output_view)
         self.utility_layout.addWidget(QLabel(""))
+
+    def update_append(self, text: str, column: int) -> None:
+        """
+        Update the append button if all 3 required fields are filled.
+
+        Parameters
+        ----------
+        column : int
+            The column of the append button.
+        """
+        if (
+            self.grid_widgets[column]["start"].text().strip()
+            and self.grid_widgets[column]["end"].text().strip()
+            and self.grid_widgets[column]["points"].text().strip()
+        ):
+            #
+            self.grid_widgets[column]["append"].setEnabled(True)
+        else:
+            self.grid_widgets[column]["append"].setEnabled(False)
 
     def preview_sweep(self) -> None:
         """Display a popup with the sweep given in the column (as plot and list)."""
@@ -1016,18 +1117,10 @@ class MainWindow(QMainWindow):
         param_set.append(self.grid_widgets[column - 1]["start"].text())
         param_set.append(self.grid_widgets[column - 1]["end"].text())
         param_set.append(self.grid_widgets[column - 1]["points"].text())
-
-        if "" in param_set:
-            QMessageBox.warning(
-                self,
-                "Missing value!",
-                "Please specify start value, end value and point count.",
-            )
-            return
         self.sweep_params[column - 1].append(param_set)
         self.grid_widgets[column - 1]["start"].setText("")
         self.grid_widgets[column - 1]["end"].setText("")
-        self.grid_widgets[column - 1]["points"].setValue(1)
+        self.grid_widgets[column - 1]["points"].setText("")
         # update the sweep grid for the active column (should now display
         # the new parameter set)
         self.populate_sweep_grid(column)
@@ -1049,21 +1142,19 @@ class MainWindow(QMainWindow):
             The column that is selected.
         """
         self.preview_column = actual_column
-        for column in range(self.grid.columnCount()):
+        for column in range(self.nParmsUsed + 1):
             col_sign_label = self.grid_widgets[column - 1]["column"]
-            flat_col_label = self.grid_widgets[column - 1]["name"]
-            flat_unit_label = self.grid_widgets[column - 1]["unit"]
+            flat_col_nameunit = self.grid_widgets[column - 1]["nameunit"]
             if column == actual_column:
                 col_sign_label.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
                 col_sign_label.setLineWidth(2)
-                flat_col_label.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
-                flat_col_label.setLineWidth(2)
-                flat_unit_label.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
-                flat_unit_label.setLineWidth(2)
+                flat_col_nameunit.setFrameStyle(
+                    QLabel.Shape.Panel | QLabel.Shadow.Sunken
+                )
+                flat_col_nameunit.setLineWidth(2)
             else:
                 col_sign_label.setFrameStyle(QLabel.Shape.NoFrame)
-                flat_col_label.setFrameStyle(QLabel.Shape.NoFrame)
-                flat_unit_label.setFrameStyle(QLabel.Shape.NoFrame)
+                flat_col_nameunit.setFrameStyle(QLabel.Shape.NoFrame)
         # Clear Widget
         self.clear_layout(self.sweepGrid)
 
@@ -1080,9 +1171,11 @@ class MainWindow(QMainWindow):
                     lambda: self.change_sweep_param(actual_column)
                 )
                 self.sweepGrid.addWidget(le, row, i)
-            qpb = QPushButton("Delete")
-            qpb.clicked.connect(lambda: self.remove_sweep_param(actual_column))
-            self.sweepGrid.addWidget(qpb, row, 3)
+            delete_button = QPushButton("-")
+            delete_button.clicked.connect(
+                lambda: self.remove_sweep_param(actual_column)
+            )
+            self.sweepGrid.addWidget(delete_button, row, 3)
             row += 1
 
     def change_sweep_param(self, col):
@@ -1098,6 +1191,8 @@ class MainWindow(QMainWindow):
             item = layout.takeAt(0)
             if item.widget() is not None:
                 item.widget().deleteLater()
+            elif item.spacerItem():
+                pass
             else:
                 self.clear_layout(item)
 
@@ -1264,12 +1359,13 @@ class MainWindow(QMainWindow):
             self.sweep_params.append([])
             self.grid_widgets[col]["start"].setText("")
             self.grid_widgets[col]["end"].setText("")
-            self.grid_widgets[col]["points"].setValue(1)
+            self.grid_widgets[col]["points"].setText("")
             self.grid_widgets[col]["repeat"].setValue(1)
             self.grid_widgets[col]["updown"].setChecked(False)
             self.grid_widgets[col]["loopover"].setCurrentIndex(0)
             self.populate_sweep_grid(col + 1)
         self.print_sweep_to_preview()
+        self.grid_widgets[0]["start"].setFocus()
 
 def main():
     """Set the basic GUI parameters and run."""
