@@ -37,6 +37,7 @@ from PyQt6.QtCore import (
     QByteArray,
     QEvent,
     QObject,
+    QRegularExpression,
     QSettings,
     QSize,
     Qt,
@@ -53,13 +54,20 @@ from PyQt6.QtGui import (
     QTextCharFormat,
     QTextCursor,
 )
+from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
 from PyQt6.QtWidgets import (
+    QBoxLayout,
+    QCheckBox,
     QDialog,
     QDockWidget,
     QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
     QMainWindow,
     QMenu,
     QMessageBox,
+    QPushButton,
     QSizePolicy,
     QSplitter,
     QTextEdit,
@@ -1599,6 +1607,89 @@ class MainWindow(QMainWindow):
         self.script_edit.insertAt(code, line, index)
         self.script_edit.setCursorPosition(line, index + len(code))
 
+    def print_document(self) -> None:
+        """Print the script."""
+        # go via QTextEdit functions for better portability
+        text_edit = QTextEdit()
+        text_edit.setText(self.script_edit.text())
+        printer = QPrinter()
+        print_dialog = QPrintDialog(printer, self)
+        if print_dialog.exec():
+            text_edit.print(printer)
+        del text_edit
+
+    def show_layout(self, layout: QBoxLayout, visible: bool) -> None:
+        """
+        Show or hide all widgets in a layout.
+
+        Parameters
+        ----------
+        layout : QBoxLayout
+            The layout the show or hide.
+        visible : bool
+            Show (True) or hide (False) all the widgets.
+        """
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            widget = item.widget()
+            if widget:
+                widget.setVisible(visible)
+
+    def find(self) -> None:
+        """Show the find layout and focus in the line edit."""
+        self.show_layout(self.find_layout, True)
+        self.find_line.setFocus()
+
+    def find_update(self) -> None:
+        """Update the number of occurances of the search term."""
+        text_edit = QTextEdit()
+        text_edit.setText(self.script_edit.text())
+        cursor = text_edit.textCursor()
+        count = 0
+        cursor.setPosition(0)
+        text_edit.setTextCursor(cursor)
+        if self.find_line.text().strip() != "":
+            if self.find_regex.isChecked():
+                pattern = QRegularExpression(self.find_line.text().strip())
+            else:
+                pattern = self.find_line.text()
+            while text_edit.find(pattern):
+                found_cursor = text_edit.textCursor()
+                text_edit.setTextCursor(found_cursor)
+                count += 1
+            self.find_count.setText(str(count))
+
+    def find_next(self) -> None:
+        """
+        Find the next occurance of the search term and selected it.
+
+        If the end of the document is reached, wrap around.
+        """
+        # go via QTextEdit functions for better portability
+        text_edit = QTextEdit()
+        text_edit.setText(self.script_edit.text())
+        cursor = text_edit.textCursor()
+        current_position = self.script_edit.SendScintilla(
+            QsciScintilla.SCI_GETSELECTIONEND
+        )
+        cursor.setPosition(current_position)
+        text_edit.setTextCursor(cursor)
+        if self.find_regex.isChecked():
+            pattern = QRegularExpression(self.find_line.text().strip())
+        else:
+            pattern = self.find_line.text()
+        if not text_edit.find(pattern):
+            cursor.setPosition(0)
+            text_edit.setTextCursor(cursor)
+            text_edit.find(pattern)
+        found_cursor = text_edit.textCursor()
+        text_edit.setTextCursor(found_cursor)
+        start = text_edit.textCursor().selectionStart()
+        end = text_edit.textCursor().selectionEnd()
+        self.script_edit.SendScintilla(QsciScintilla.SCI_SETSELECTIONSTART, start)
+        self.script_edit.SendScintilla(QsciScintilla.SCI_SETSELECTIONEND, end)
+        del text_edit
+
     def saveCurrentState(self) -> None:
         """
         Save application configuration until next startup.
@@ -1745,6 +1836,9 @@ class MainWindow(QMainWindow):
                 self.delete_selected_system()
             if detect_shortcut(event, QKeySequence(Qt.Key.Key_Backspace)):
                 self.delete_selected_system()
+        if self.find_line.hasFocus() or self.find_regex.hasFocus():
+            if detect_shortcut(event, QKeySequence(Qt.Key.Key_Escape)):
+                self.show_layout(self.find_layout, False)
         super().keyPressEvent(event)
 
     def changeEvent(self, event: QEvent):
@@ -1812,57 +1906,49 @@ class MainWindow(QMainWindow):
         self.saveCurrentState()
         event.accept()
 
-    def standard_action(self, name):
+    def standard_action(self, name, display_name=None) -> QAction:
         """
-        Create a standard action such as 'Undo'.
+        Create and return a standard action such as 'Undo'.
 
-        Also connects the action with a system agnostic shortcut.
+        Also connects the action with a system agnostic shortcut and
+        with the corresponding method.
+
+        Parameters
+        ----------
+        name : str
+            The name of the method as in QKeySequence.StandardKey.
+        display_name : str, optional
+            The name to be displayed in menu and toolbar.
+
+        Returns
+        -------
+        QAction
+            The action.
         """
-        action = QAction(name, self)
+        if not display_name:
+            display_name = name
+        action = QAction(display_name, self)
         action.setShortcut(getattr(QKeySequence.StandardKey, name))
+        method_name = name[:1].lower() + name[1:]
+        action.triggered.connect(
+            lambda checked, method=method_name: self.standard_method(method)
+        )
         return action
 
-    # to redefine the following function with getattr failed because then
-    # they are evaluated at startup time and None (focus_widget) has no
-    # methods...
+    def standard_method(self, method_name: str) -> None:
+        """
+        Perform a standard method such as 'undo' on the focussed widget.
 
-    def undo(self):
-        """Perform 'undo' on the widget with the focus."""
+        Parameters
+        ----------
+        method_name : str
+            The name of the method.
+        """
         focus_widget = MApplication.focusWidget()
         try:
-            focus_widget.undo()
-        except AttributeError:
-            pass
-
-    def redo(self):
-        """Perform 'redo' on the widget with the focus."""
-        focus_widget = MApplication.focusWidget()
-        try:
-            focus_widget.redo()
-        except AttributeError:
-            pass
-
-    def cut(self):
-        """Perform 'cut' on the widget with the focus."""
-        focus_widget = MApplication.focusWidget()
-        try:
-            focus_widget.cut()
-        except AttributeError:
-            pass
-
-    def copy(self):
-        """Perform 'copy' on the widget with the focus."""
-        focus_widget = MApplication.focusWidget()
-        try:
-            focus_widget.copy()
-        except AttributeError:
-            pass
-
-    def paste(self):
-        """Perform 'paste' on the widget with the focus."""
-        focus_widget = MApplication.focusWidget()
-        try:
-            focus_widget.paste()
+            method = getattr(focus_widget, method_name)
+            if callable(method):
+                method()
         except AttributeError:
             pass
 
@@ -1975,14 +2061,14 @@ class MainWindow(QMainWindow):
         self.central_widget.fileDropped.connect(self.load_from_filename)
         self.setCentralWidget(self.central_widget)
         layout = QVBoxLayout(self.central_widget)
-        # Helper
+        layout.setSpacing(0)
+        layout.setContentsMargins(11, 4, 11, 11)
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        # About
+        # Actions
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
-        # Preferences
         self.config_editor = ConfigEditWidget()
         self.config_editor.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetClosable
@@ -2000,25 +2086,20 @@ class MainWindow(QMainWindow):
         self.config_action.setCheckable(True)
         self.config_action.toggled.connect(self.toggle_preferences)
         self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
-        # File: New
         self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
         self.new_file_action.triggered.connect(self.new_file)
         self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
-        # File: Load a recipe
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.setToolTip("Open a script file.")
         self.load_action.triggered.connect(self.load_from_file)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        # File: Save
         self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
         self.save_action.setToolTip("Save the under the current filename.")
         self.save_action.triggered.connect(self.save_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-        # File: Save As...
         self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
         self.save_as_action.triggered.connect(self.save_file_as)
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        # Save in toolbar with pulldown
         self.save_button = QToolButton()
         self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
@@ -2028,60 +2109,51 @@ class MainWindow(QMainWindow):
         save_pulldown = QMenu(self)
         save_pulldown.addAction(self.save_as_action)
         self.save_button.setMenu(save_pulldown)
-        # File: Add System
         self.add_system_action = QAction(MIcon("CHAR_+"), "Add System", self)
         self.add_system_action.setToolTip("Add a matrix system file.")
         self.add_system_action.triggered.connect(self.add_system)
-        # File: Remove System
         self.remove_system_action = QAction(MIcon("CHAR_-"), "Remove System", self)
         self.remove_system_action.setEnabled(False)
         self.remove_system_action.setToolTip(
             "Remove the selected or last matrix system file."
         )
         self.remove_system_action.triggered.connect(self.delete_selected_system)
-        # Quit
         self.quit_action = QAction("Quit", self)
         if os.name == "nt":
             self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
         else:
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
-        # The next functions seem overly complicated, maybe an
-        # easier implementation is possible?
-        # Edit: Undo
         self.undo_action = self.standard_action("Undo")
-        self.undo_action.triggered.connect(self.undo)
-        # Edit: Redo
         self.redo_action = self.standard_action("Redo")
-        self.redo_action.triggered.connect(self.redo)
-        # Edit: Cut
         self.cut_action = self.standard_action("Cut")
-        self.cut_action.triggered.connect(self.cut)
-        # Edit: Copy
         self.copy_action = self.standard_action("Copy")
-        self.copy_action.triggered.connect(self.copy)
-        # Edit: Paste
         self.paste_action = self.standard_action("Paste")
-        self.paste_action.triggered.connect(self.paste)
-        # Control: Start
+        self.zoom_in_action = self.standard_action("ZoomIn", "Zoom in")
+        self.zoom_out_action = self.standard_action("ZoomOut", "Zoom Out")
+        self.print_action = QAction("Print", self)
+        self.print_action.setShortcut(QKeySequence.StandardKey.Print)
+        self.print_action.triggered.connect(self.print_document)
+        self.find_action = QAction("Find", self)
+        self.find_action.setShortcut(QKeySequence.StandardKey.Find)
+        self.find_action.triggered.connect(self.find)
+        self.find_next_action = QAction("Find Next", self)
+        self.find_next_action.setShortcut(QKeySequence.StandardKey.FindNext)
+        self.find_next_action.triggered.connect(self.find_next)
         self.start_pause_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
         self.start_pause_action.setToolTip("Execute the script.")
         self.start_pause_action.triggered.connect(self.start_process)
         self.start_pause_action.setCheckable(True)
-        # Control: Stop
         self.stop_action = QAction(MIcon("CUSTOM_Stop"), "Stop", self)
         self.stop_action.setToolTip("Stop the script and query status.")
         self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
         self.stop_action.setEnabled(False)
-        # Control: Abort
         self.abort_action = QAction(MIcon("CUSTOM_Stop"), "Abort", self)
         self.abort_action.triggered.connect(lambda: self.abort_thread("a"))
         self.abort_action.setEnabled(False)
-        # Control: Finish
         self.finish_action = QAction(MIcon("CUSTOM_Stop"), "Finish", self)
         self.finish_action.triggered.connect(lambda: self.abort_thread("f"))
         self.finish_action.setEnabled(False)
-        # Save in toolbar with pulldown
         self.stop_button = QToolButton()
         self.stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.stop_button.setIcon(MIcon("CUSTOM_Stop"))
@@ -2092,17 +2164,14 @@ class MainWindow(QMainWindow):
         stop_pulldown.addAction(self.abort_action)
         stop_pulldown.addAction(self.finish_action)
         self.stop_button.setMenu(stop_pulldown)
-        # Control: Kill
         self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
         self.kill_action.triggered.connect(self.kill_thread)
         self.kill_action.setEnabled(False)
-        # Preview
         self.preview_action = QAction(
             MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.preview_data)
         self.preview_action.setEnabled(False)
-        # View: Metadata
         self.dockable_metadata = QDockWidget("Metadata", self)
         self.metadata = MetaDataDialog()
         self.dockable_metadata.setAllowedAreas(
@@ -2120,22 +2189,18 @@ class MainWindow(QMainWindow):
         self.dockable_metadata.visibilityChanged.connect(
             self.toggle_metadata_action.setChecked
         )
-        # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
         self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        # Help: System
         self.help_system_action = QAction("Show System Help", self)
         self.help_system_action.triggered.connect(self.show_system_commands)
-
+        #
         self.system_list = SystemListWidget()
         self.system_list.orderChanged.connect(self.update_systems)
-        # TextEdits
         self.status_preview = TerminalOutput()
         self.status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
-        # CodeEditor
         self.script_edit = QScintillaCustom(self.output_stream, self)
         # Connect text edit signals to the slot that checks for changes
         self.script_edit.modificationChanged.connect(self.update_window_title)
@@ -2165,7 +2230,6 @@ class MainWindow(QMainWindow):
         self.script_edit.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
-
         # autocompletion, source is document and custom commands
         api = CustomQsciAPI(self.lexer)
         api.prepare()
@@ -2181,11 +2245,10 @@ class MainWindow(QMainWindow):
             QsciScintilla.AnnotationDisplay.AnnotationBoxed
         )
         self.script_edit.fileDropped.connect(self.load_from_filename)
-        # Edit: Lint
+        # The next two actions need script edit to exist first
         self.lint_action = QAction("Lint with Pyflakes", self)
         self.lint_action.triggered.connect(self.script_edit.run_linter)
         self.lint_action.setShortcut(QKeySequence("Ctrl+7"))
-        # Edit: Autopep8
         self.pep8_action = QAction("Format with autopep8", self)
         self.pep8_action.triggered.connect(self.script_edit.run_autopep8)
         self.pep8_action.setShortcut(QKeySequence("Ctrl+8"))
@@ -2193,6 +2256,26 @@ class MainWindow(QMainWindow):
         self.splitter = QSplitter(self)
         self.splitter.addWidget(self.script_edit)
         self.splitter.addWidget(self.status_preview)
+        self.find_layout = QHBoxLayout()
+        self.find_layout.setSpacing(11)
+        self.find_line = QLineEdit()
+        self.find_line.textChanged.connect(self.find_update)
+        self.script_edit.textChanged.connect(self.find_update)
+        self.find_count = QLabel("0")
+        self.find_regex = QCheckBox("RegEx mode")
+        self.find_regex.clicked.connect(self.find_update)
+        find_next = QPushButton("Find Next")
+        find_next.clicked.connect(self.find_next)
+        find_close = QPushButton()
+        find_close.setIcon(MIcon("SP_LineEditClearButton"))
+        find_close.clicked.connect(lambda: self.show_layout(self.find_layout, False))
+        self.find_layout.addWidget(self.find_line)
+        self.find_layout.addWidget(self.find_count)
+        self.find_layout.addWidget(self.find_regex)
+        self.find_layout.addWidget(find_next)
+        self.find_layout.addWidget(find_close)
+        self.show_layout(self.find_layout, False)
+        layout.addLayout(self.find_layout)
         layout.addWidget(self.splitter)
         # change the size dynamically later and allow vertical streching
         # when floating
@@ -2255,6 +2338,8 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.add_system_action)
         file_menu.addAction(self.remove_system_action)
         file_menu.addSeparator()
+        file_menu.addAction(self.print_action)
+        file_menu.addSeparator()
         file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
         #
         edit_menu = menu.addMenu("&Edit")
@@ -2264,6 +2349,9 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.cut_action)
         edit_menu.addAction(self.copy_action)
         edit_menu.addAction(self.paste_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.find_action)
+        edit_menu.addAction(self.find_next_action)
         edit_menu.addSeparator()
         block_comment = QAction("Block comment", self)
         shortcut = chr(39)
@@ -2308,6 +2396,9 @@ class MainWindow(QMainWindow):
         control_menu.addAction(self.preview_action)
         #
         view_menu = menu.addMenu("&View")
+        view_menu.addAction(self.zoom_in_action)
+        view_menu.addAction(self.zoom_out_action)
+        view_menu.addSeparator()
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.toggle_metadata_action)
         view_menu.addAction(self.config_action)
