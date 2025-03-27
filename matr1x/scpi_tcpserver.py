@@ -29,7 +29,7 @@ import numpy
 
 from . import datetimefmt
 
-PORT = 8898
+DEFAULT_PORT = 8898
 logger = logging.getLogger(__name__)
 
 
@@ -249,7 +249,7 @@ class SCPI_TCP_Server:
     host : str, optional
         The host address to bind the server to. Default is 'localhost'.
     port : int, optional
-        The port number to listen on. Default is PORT (8898).
+        The port number to listen on. Default is 8898.
 
     Attributes
     ----------
@@ -305,7 +305,7 @@ class SCPI_TCP_Server:
           e.g. value="curvename"
     """
 
-    def __init__(self, cmd_list, host='localhost', port=PORT):
+    def __init__(self, cmd_list, host="localhost", port=DEFAULT_PORT):
         # run on localhost at port 8898 (default), take care, can be
         # accessible also from the internet if PC is accessible from there and
         # the host is not set to localhost!

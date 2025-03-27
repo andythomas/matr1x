@@ -206,6 +206,8 @@ class ControlWindow(QMainWindow):
         Flag to enable logging on startup of the control GUI. If a numerical
         value is given, the integer part of it will be used as interval (in
         seconds) for the logging function.
+    port : int, optional
+        TCP port number for the control GUI SCPI server socket.
     """
 
     sig_error = pyqtSignal(type, Exception, str)
@@ -220,6 +222,7 @@ class ControlWindow(QMainWindow):
         parent=None,
         package="matr1x",
         logging=False,
+        port=scpi_tcpserver.DEFAULT_PORT,
     ):
         # work around a bug in PyQt which can cause a segfault after a Python
         # exception. see issue #357
@@ -246,6 +249,7 @@ class ControlWindow(QMainWindow):
         self.sig_error.connect(self.handleError)
         # SCPI TCP server placeholders
         self._local_server = None
+        self._port = port
         # initialize data logging system
         self.S_log = system.System()
         self.S_log.__name__ = f"{package}.{name}_control_logging_system"
@@ -1174,7 +1178,9 @@ class ControlWindow(QMainWindow):
         This method initializes and starts a SCPI TCP server using the command list
         defined in the class.
         """
-        self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list)
+        self._local_server = scpi_tcpserver.SCPI_TCP_Server(
+            self.cmd_list, port=self._port
+        )
         self._local_server.start()
 
     def stopServer(self) -> None:

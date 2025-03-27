@@ -104,7 +104,7 @@ class exampleDict(GuiDict):
     S.add_dev(
         "dummy",
         dummy,
-        args=("TCPIP::localhost::10007::SOCKET",),
+        args=("TCPIP::localhost::10006::SOCKET",),
         kwargs={"p1": "i1", "p2": 0, "p5": 5.5, "p6": True},
     )
 
@@ -337,4 +337,6 @@ def main():
         ControlWindow,
         guidicts=(exampleDict(), exampleDict2()),
         extra_cmds=common_commands,
+        # use specific port to allow running next to other controlGUIs
+        port=8897,
     )

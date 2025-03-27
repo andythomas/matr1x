@@ -21,7 +21,6 @@
 
 
 from matr1x.control import control_dummy
-from matr1x.scpi_tcpserver import PORT
 from matr1x.system import System
 
 # ============================
@@ -43,9 +42,7 @@ system.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
 #   Otherwise the import would block any other use of the devices
 #   Make sure to adhere to this or errors will occur!
 # ========================================================================
-system.add_dev(
-    "gui", control_dummy.clientdevice, (f"TCPIP::localhost::{PORT}::SOCKET",)
-)
+system.add_dev("gui", control_dummy.clientdevice, ("TCPIP::localhost::8897::SOCKET",))
 # ============================
 # define columns for measurement
 # ============================

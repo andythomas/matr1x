@@ -84,7 +84,7 @@ system = MeasSystem()
 #   Otherwise the import would block any other use of the devices
 #   Make sure to adhere to this or errors will occur!
 # ========================================================================
-system.add_dev("devhdf", dummy, args=("TCPIP::localhost::10009::SOCKET",))
+system.add_dev("devhdf", dummy, args=("TCPIP::localhost::10010::SOCKET",))
 
 # enforce HDF5 flag, will be set automatically if needed by any Parameter
 # system.hdf5 = True
