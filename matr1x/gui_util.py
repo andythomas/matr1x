@@ -2994,6 +2994,16 @@ class AboutBox(QMessageBox):
             last_commit = repo[repo.head.target]
             commit_short_sha = str(last_commit.id)[:7]
             commit_time = last_commit.commit_time
+
+            if commit_branch == "HEAD":
+                # Attempt to find the remote branch
+                for ref_name in repo.references:
+                    ref = repo.lookup_reference(ref_name)
+                    if ref.target == repo.head.target and ref_name.startswith(
+                        "refs/remotes/"
+                    ):
+                        commit_branch = ref.shorthand
+                        break
         except pygit2.GitError:
             pass
         installed_version = package_version(imported_package.__name__)
