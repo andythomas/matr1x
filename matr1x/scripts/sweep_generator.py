@@ -1315,9 +1315,6 @@ class MainWindow(QMainWindow):
         # 'Functions' is depracated. Old files read and issue a warning if the functionality
         # is used. Otherwise they just load. Delete the this backward compatibility for Matrix v9.
         # Andy 20250306
-        if None in params.values():
-            # not all parameters could be read from the file
-            return
         if len(params.values()) == 5:  # old filename
             (
                 self.sweep_params,
@@ -1330,14 +1327,15 @@ class MainWindow(QMainWindow):
             (self.sweep_params, self.loop_over, self.up_down, self.repeat) = (
                 params.values()
             )
-        for function in functions:
-            if function != "None":
-                QMessageBox.warning(
-                    self,
-                    "Open file error.",
-                    "This file uses the removed 'function' functionality. Please use matrix-script. File did not load!",
-                )
-                return
+        if functions:
+            for function in functions:
+                if function != "None":
+                    QMessageBox.warning(
+                        self,
+                        "Open file error.",
+                        "This file uses the removed 'function' functionality. Please use matrix-script. File did not load!",
+                    )
+                    return
         # initialize layout with values specified in file
         for col in range(self.nParmsUsed):
             self.grid_widgets[col]["loopover"].setCurrentIndex(self.loop_over[col] + 1)
