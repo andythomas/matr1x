@@ -2691,6 +2691,7 @@ class MainWindow(QMainWindow):
         self.help_system_action.setEnabled(not flag)
         self.add_system_action.setEnabled(not flag)
         self.remove_system_action.setEnabled(not flag)
+        self.metadata.setEnabled(not flag)
 
     def process_finished(self):
         """

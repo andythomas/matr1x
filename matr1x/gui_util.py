@@ -2789,6 +2789,20 @@ class MetaDataDialog(QDialog):
             "description": self.description.toPlainText(),
         }
 
+    def setEnabled(self, state: bool) -> None:
+        """
+        Accept or prohibit user inputs.
+
+        Parameters
+        ----------
+        state : bool
+            Accept (True) or block (False) input.
+        """
+        self.creator.setEnabled(state)
+        self.identifier.setEnabled(state)
+        self.relation.setEnabled(state)
+        self.description.setEnabled(state)
+        QDialog.setEnabled(self, state)
 
 class TextInputDialog(QDialog):
     """Modal dialog for text input for matrix-script."""
