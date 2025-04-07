@@ -508,6 +508,57 @@ class MainWindow(QMainWindow):
         self.main_widget = QWidget()
         self.main_widget.setLayout(main_layout)
         self.setCentralWidget(self.main_widget)
+
+        # generate sweep grid labels and layout
+        self.currentCol = QLabel("Start - Stop - Points")
+        self.sweepGrid = QGridLayout()
+
+        # set layout and box containing sweep grid, required for
+        # straightforward deletion/reinitialization
+        self.baseBox = QVBoxLayout()
+        self.baseBox.addLayout(self.sweepGrid)
+        self.baseBox.addStretch(1)
+
+        baseArea = QWidget(self)
+        baseArea.setLayout(self.baseBox)
+
+        scrollArea = QScrollArea(self)
+        scrollArea.setWidget(baseArea)
+        scrollArea.setWidgetResizable(True)
+
+        self.sweepBox = QVBoxLayout()
+        self.sweepBox.addWidget(self.currentCol)
+        self.sweepBox.addWidget(scrollArea)
+
+        self.sweep_preview = QTableWidget()
+        self.sweep_preview.setColumnCount(1)
+        self.sweep_preview.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.sweep_preview.setAlternatingRowColors(True)
+        self.sweep_preview.setHorizontalHeaderLabels(
+            ["Preview of the generated sweep-parameters"]
+        )
+        header = self.sweep_preview.horizontalHeader()
+        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
+        table_width = self.sweep_preview.viewport().width()
+        self.sweep_preview.setColumnWidth(0, table_width)
+
+        self.fileEditOutput = QLineEdit(self)
+
+        output_view = QHBoxLayout()
+        output_view.addWidget(QLabel("Output filename:"))
+        output_view.addWidget(self.fileEditOutput)
+
+        central_view = QHBoxLayout()
+        central_view.addWidget(self.sweep_preview)
+        central_view.addLayout(self.sweepBox)
+
+        self.utility_layout.addLayout(central_view)
+        self.utility_layout.addWidget(QLabel(""))
+        self.utility_layout.addLayout(output_view)
+        self.utility_layout.addWidget(QLabel(""))
+
         # Menu and toolbar
         self.create_toolbar()
         self.create_menu()
@@ -616,25 +667,36 @@ class MainWindow(QMainWindow):
     def reset_layout(self) -> None:
         """Reset layout to clean state."""
         if self.populated:
+            self.sweep_params = []
+            self.flat_col = []
             self.clear_layout(self.grid)
-            self.clear_layout(self.utility_layout)
-            for i in range(self.nParmsUsed):
-                self.grid.setColumnStretch(i+1, 0)
+            self.clear_layout(self.sweepGrid)
+            self.sweep_preview.setRowCount(0)
 
     def filename_changed(self) -> bool:
-        """Import new system on changed filename."""
-        # get new system filename
+        """
+        Import new system because a filename changed.
+
+        Returns
+        -------
+        bool
+            True on success and False on error during import.
+        """
         filenames = [self.systemList.item(j).text()
                      for j in range(self.systemList.count())]
         if 0 == len(filenames):
             self.reset_layout()
             self.new_file_action.setEnabled(False)
             self.save_action.setEnabled(False)
+            self.save_as_action.setEnabled(False)
+            self.append_action.setEnabled(False)
             self.sweep_action.setEnabled(False)
             self.preview_action.setEnabled(False)
             return False
         self.new_file_action.setEnabled(True)
         self.save_action.setEnabled(True)
+        self.save_as_action.setEnabled(True)
+        self.append_action.setEnabled(True)
         self.sweep_action.setEnabled(True)
         self.preview_action.setEnabled(True)
         modulestr = ""
@@ -707,9 +769,6 @@ class MainWindow(QMainWindow):
             else:
                 # otherwise, set empty list
                 self.sweep_params.append([])
-            # for each used parameter generate labels according to system
-            # specifications
-            self.grid.setColumnStretch(pos+1, 1)
         self.populate_layout()
         if not self.populated:
             self.populated = True
@@ -824,12 +883,15 @@ class MainWindow(QMainWindow):
         del combobox
         left, top, right, bottom = self.grid.getContentsMargins()
         screen_width = self.screen().availableGeometry().width() - left - right
+        # The first column fits one column less because of the labels.
         column_fit = screen_width // max_width - 1
+        row = 0
         for column in range(self.nParmsUsed):
-            if column < column_fit:
-                row = (column // column_fit) * column_fit
-            else:
-                row = ((column - column_fit) // (column_fit + 1) + 1) * (column_fit + 1)
+            # Fit the calculated number of columns in the first row and one more in the subsequent ones.
+            # The grid requires 5 rows for every parameter set: column, nameunit, parameters, modifiers
+            # and combobox.
+            if column >= column_fit:
+                row = ((column - column_fit) // (column_fit + 1) + 1) * 5
             grid_column = (column + 1) % (column_fit + 1)
             self.grid.addWidget(
                 self.grid_widgets[column]["column"], 0 + row, grid_column
@@ -868,56 +930,6 @@ class MainWindow(QMainWindow):
             combobox.addWidget(self.grid_widgets[column]["loopover"])
             combobox.addWidget(QLabel(" "))
             self.grid.addLayout(combobox, 4 + row, grid_column)
-
-        # generate sweep grid labels and layout
-        self.currentCol = QLabel("Start - Stop - Points")
-        self.sweepGrid = QGridLayout()
-
-        # set layout and box containing sweep grid, required for
-        # straightforward deletion/reinitialization
-        self.baseBox = QVBoxLayout()
-        self.baseBox.addLayout(self.sweepGrid)
-        self.baseBox.addStretch(1)
-
-        baseArea = QWidget(self)
-        baseArea.setLayout(self.baseBox)
-
-        scrollArea = QScrollArea(self)
-        scrollArea.setWidget(baseArea)
-        scrollArea.setWidgetResizable(True)
-
-        self.sweepBox = QVBoxLayout()
-        self.sweepBox.addWidget(self.currentCol)
-        self.sweepBox.addWidget(scrollArea)
-
-        self.sweep_preview = QTableWidget()
-        self.sweep_preview.setColumnCount(1)
-        self.sweep_preview.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
-        self.sweep_preview.setAlternatingRowColors(True)
-        self.sweep_preview.setHorizontalHeaderLabels(
-            ["Preview of the generated sweep-parameters"]
-        )
-        header = self.sweep_preview.horizontalHeader()
-        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
-        table_width = self.sweep_preview.viewport().width()
-        self.sweep_preview.setColumnWidth(0, table_width)
-
-        self.fileEditOutput = QLineEdit(self)
-
-        output_view = QHBoxLayout()
-        output_view.addWidget(QLabel("Output filename:"))
-        output_view.addWidget(self.fileEditOutput)
-
-        central_view = QHBoxLayout()
-        central_view.addWidget(self.sweep_preview)
-        central_view.addLayout(self.sweepBox)
-
-        self.utility_layout.addLayout(central_view)
-        self.utility_layout.addWidget(QLabel(""))
-        self.utility_layout.addLayout(output_view)
-        self.utility_layout.addWidget(QLabel(""))
 
     def update_append(self, text: str, column: int) -> None:
         """
@@ -1198,7 +1210,7 @@ class MainWindow(QMainWindow):
 
     def add_system(self) -> None:
         """
-        Add a system file to the system list.
+        Add a system file to the system list and initiate import.
 
         Opens a QFileDialog with filter system*.py.
         """
@@ -1224,8 +1236,11 @@ class MainWindow(QMainWindow):
                 self.systemList.addItem(module_name)
             else:
                 self.systemList.addItem(filename)
-        self.remove_system_action.setEnabled(True)
-        self.filename_changed()
+        if not self.filename_changed():
+            for filename in filenames:
+                self.systemList.takeItem(self.systemList.count() - 1)
+        if self.systemList.count() != 0:
+            self.remove_system_action.setEnabled(True)
 
     def delete_selected_system(self) -> None:
         """Remove selected or last system from the system list."""
