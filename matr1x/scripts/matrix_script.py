@@ -27,6 +27,7 @@ import tempfile
 import textwrap
 import time
 from os.path import basename, dirname
+from typing import List, Tuple, Union
 
 import autopep8
 import pyflakes.checker
@@ -894,6 +895,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         self.output_stream = stream
         self.reporter = CustomReporter(self.output_stream,
                                        self.handle_linter)
+        self.parent = parent
 
     def keyPressEvent(self, event):
         """Check for shortcuts such as linting."""
@@ -2424,7 +2426,7 @@ class MainWindow(QMainWindow):
         """
         Add a system file to the system list.
 
-        Opens a QFileDialog with filter system*.py.
+        Opens a QFileDialog with filter system*.py. Update help is need be.
         """
         directory = matr1x.system_directories[-1]
         if not self.shortcut_dir and len(matr1x.system_names) > 1:
@@ -2454,12 +2456,17 @@ class MainWindow(QMainWindow):
         self.update_window_title()
         # update systems to use list for config editor
         self.update_systems()
+        # update the help if visible
+        existing_box = self.findChild(QMessageBox, "SystemHelp")
+        if existing_box:
+            self.show_system_commands()
 
     def delete_selected_system(self) -> None:
         """
         Remove selected system from system_list.
 
-        If no selection is active the last system will be removed.
+        If no selection is active the last system will be removed. Update help
+        if need be.
         """
         selected = self.system_list.selectedItems()
         if len(selected) > 0:
@@ -2471,6 +2478,10 @@ class MainWindow(QMainWindow):
         self.systems_dirty = True
         self.update_window_title()
         self.update_systems()
+        # update the help if visible
+        existing_box = self.findChild(QMessageBox, "SystemHelp")
+        if existing_box:
+            self.show_system_commands()
 
     def get_script_input(self, query: str, input_type: str):
         """
@@ -2542,14 +2553,24 @@ class MainWindow(QMainWindow):
         )
         print(help_string)
 
-    def show_system_commands(self):
-        """Print information about current system to the status display."""
-        self.update_systems()
-        if 0 == len(self.systems):
-            print("No system selected")
-            print("==========")
-            return
-        # use external process to not have the systems in the namespace
+    def get_settables(
+        self,
+    ) -> Tuple[Union[List[int], None], Union[List[bool], None], Union[List[str], None]]:
+        """
+        Get the settables of the system files.
+
+        This is used to find errors in the script and
+        the help message box.
+
+        Returns
+        -------
+        indexes: list [int] or None
+            The indexes of the columns.
+        settables : list[bool] or None
+            True, if the property is settable.
+        columns : list[str] or None
+            The names of the columns.
+        """
         info = subprocess.run(
             [sys.executable, '-c',
              "from matr1x.system import MergedSystem;"
@@ -2557,19 +2578,67 @@ class MainWindow(QMainWindow):
              "grab_information())"
              ],
             capture_output=True)
-        # print information string
         if info.returncode != 0:
-            print("Error when trying to import system")
-            print("----------")
-            self.status_preview.append((info.stderr).decode())
-            self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
+            error_box = QMessageBox(self)
+            text = "<b>Error while trying to import system file(s)!</b>\n"
+            text += "<pre>" + (info.stderr).decode() + "</pre>"
+            error_box.setInformativeText(text)
+            error_box.exec()
+            return (None, None, None)
         else:
-            print("Devices and commands for " + ", ".join(self.systems))
-            print("----------")
-            self.status_preview.append((info.stdout).decode())
-            self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
-        print("==========")
-        self.status_preview.moveCursor(QTextCursor.MoveOperation.End)
+            output = (info.stdout).decode()
+            matches = re.findall(r"(\d+?) (<[yn]>) (.*)", output)
+            indexes = []
+            settables = []
+            columns = []
+            if matches:
+                for match in matches:
+                    indexes.append(match[0])
+                    if match[1] == "<y>":
+                        settables.append(True)
+                    else:
+                        settables.append(False)
+                    columns.append(match[2])
+            return (indexes, settables, columns)
+
+    def show_system_commands(self) -> None:
+        """Print information about current system(s) in a message box."""
+        self.update_systems()
+        existing_box = self.findChild(QMessageBox, "SystemHelp")
+        if existing_box:
+            info_box = existing_box
+        else:
+            info_box = QMessageBox(self)
+        title = "Selected systems information"
+        # work around os specifics, title not necessarily shown
+        info_box.setWindowTitle(title)
+        info_box.setText(title)
+        info_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        if len(self.systems) == 0:
+            info_box.setInformativeText("No system file selected!")
+            info_box.exec()
+            return
+        indexes, settables, columns = self.get_settables()
+        if indexes and settables and columns:
+            text = "The following devices were selected:<br><b>"
+            for system in self.systems:
+                text = text + system + "<br>"
+            text += "<br></b>These devices provide the following<br>"
+            text += "parameters. <b>Bold parameters</b> can be set <br>"
+            text += "as well and the others only read:<br><br>"
+            text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: center;">'
+            text += '<tr style="background-color: #f0f0f0;">'
+            text += "<th>Index</th><th>Settable</th><th>Name</th></tr>"
+            for i, settable in enumerate(settables):
+                if settable:
+                    text = f"{text}<tr><td><b>{indexes[i]}</b></td><td><b>yes</b></td><td><b>{columns[i]}</b></tr></tr>"
+                else:
+                    text = f"{text}<tr><td>{indexes[i]}</td><td>no</td><td>{columns[i]}</tr></tr>"
+            text += "</table><br><br>"
+            info_box.setInformativeText(text)
+            info_box.setWindowModality(Qt.WindowModality.NonModal)
+            info_box.setObjectName("SystemHelp")
+            info_box.show()
 
     def output_written(self, text):
         """
@@ -2995,6 +3064,7 @@ class MainWindow(QMainWindow):
         )
         filename = filename[0]
         self.load_from_filename(filename)
+        self.remove_system_action.setEnabled(True)
 
     def new_file(self) -> None:
         """
