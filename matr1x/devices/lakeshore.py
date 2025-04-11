@@ -260,7 +260,7 @@ class Lakeshore335(Lakeshore3xx):
             self.write(f"RANGE {loop},{heaterRange}")
         except ValueError:
             return
-        
+
     def getControlMode(self, loop: int = 1) -> int:
         """
         Get the control mode of the heater loop.
@@ -273,23 +273,23 @@ class Lakeshore335(Lakeshore3xx):
         Returns
         -------
         int
-            The control mode of the heater loop (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop, 
+            The control mode of the heater loop (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop,
             4 = Monitor out, 5 = Warmup Supply).
         """
         ret = self.query(f"OUTMODE? {loop}")
         try:
-            return int(ret.split(',')[0])
+            return int(ret.split(",")[0])
         except ValueError:
             return
 
-    def setControlMode(self, mode: int, loop: int = 1, channel: str = 'A') -> None:
+    def setControlMode(self, mode: int, loop: int = 1, channel: str = "A") -> None:
         """
         Set the control mode of the heater loop.
 
         Parameters
         ----------
         mode : int
-            The control mode to set (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop, 
+            The control mode to set (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop,
             4 = Monitor out, 5 = Warmup Supply).
         loop : int
             Heater loop to set the control mode for.
@@ -302,9 +302,9 @@ class Lakeshore335(Lakeshore3xx):
         """
 
         channel_num = 0
-        if channel == 'A':
+        if channel == "A":
             channel_num = 1
-        elif channel == 'B':
+        elif channel == "B":
             channel_num = 2
         try:
             mode = int(mode)
@@ -313,7 +313,7 @@ class Lakeshore335(Lakeshore3xx):
             self.write(f"OUTMODE {loop},{mode},{channel_num},1")
         except ValueError:
             return
-        
+
     def setManOutput(self, power: float, loop: int = 1) -> None:
         """
         Set the manual output of the heater loop.
@@ -336,7 +336,7 @@ class Lakeshore335(Lakeshore3xx):
             self.write(f"MOUT {loop},{power}")
         except ValueError:
             return
-        
+
     def initiateAutotune(self, mode: int, loop: int = 1) -> None:
         """
         Initiate autotune on the specified heater loop.
@@ -352,7 +352,7 @@ class Lakeshore335(Lakeshore3xx):
         -------
         None
         """
-        
+
         try:
             mode = int(mode)
             if mode < 0 or mode > 2:
@@ -360,7 +360,7 @@ class Lakeshore335(Lakeshore3xx):
             self.write(f"ATUNE {loop},{mode}")
         except ValueError:
             return
-        
+
     def getTuningStatus(self) -> list[str]:
         """
         Get the current autotune status.
@@ -368,16 +368,16 @@ class Lakeshore335(Lakeshore3xx):
         Returns
         -------
         list[str]
-            A list of strings: 
+            A list of strings:
             [0]: 0 = no active tuning, 1 = active tuning.
             [1]: 1 = Output 1, 2 = Output 2
             [2]: 0 = no tuning error, 1 = tuning error
             [3]: stage status
         """
 
-        return self.query("TUNEST?").split(',')
-    
-    def setTLimit(self, limit: int, channel: str = 'A') -> None:        
+        return self.query("TUNEST?").split(",")
+
+    def setTLimit(self, limit: int, channel: str = "A") -> None:
         """
         Set the temperature limit of the specified channel.
 
