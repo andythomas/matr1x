@@ -220,6 +220,8 @@ class Lakeshore335(Lakeshore3xx):
             kwargs["baud_rate"] = 57600
         if "data_bits" not in kwargs:
             kwargs["data_bits"] = 7
+        if "read_termination" not in kwargs:
+            kwargs["read_termination"] = "\r\n"
         if "parity" not in kwargs:
             kwargs["parity"] = constants.Parity.odd
         super().__init__(interface, **kwargs)
@@ -256,6 +258,143 @@ class Lakeshore335(Lakeshore3xx):
             if 0 > heaterRange or 3 < heaterRange:
                 return
             self.write(f"RANGE {loop},{heaterRange}")
+        except ValueError:
+            return
+        
+    def getControlMode(self, loop: int = 1) -> int:
+        """
+        Get the control mode of the heater loop.
+
+        Parameters
+        ----------
+        loop : int
+            Heater loop to query.
+
+        Returns
+        -------
+        int
+            The control mode of the heater loop (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop, 
+            4 = Monitor out, 5 = Warmup Supply).
+        """
+        ret = self.query(f"OUTMODE? {loop}")
+        try:
+            return int(ret.split(',')[0])
+        except ValueError:
+            return
+
+    def setControlMode(self, mode: int, loop: int = 1, channel: str = 'A') -> None:
+        """
+        Set the control mode of the heater loop.
+
+        Parameters
+        ----------
+        mode : int
+            The control mode to set (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop, 
+            4 = Monitor out, 5 = Warmup Supply).
+        loop : int
+            Heater loop to set the control mode for.
+        channel : str
+            Channel to set the control mode for (A or B).
+
+        Returns
+        -------
+        None
+        """
+
+        channel_num = 0
+        if channel == 'A':
+            channel_num = 1
+        elif channel == 'B':
+            channel_num = 2
+        try:
+            mode = int(mode)
+            if 0 > mode or 5 < mode:
+                return
+            self.write(f"OUTMODE {loop},{mode},{channel_num},1")
+        except ValueError:
+            return
+        
+    def setManOutput(self, power: float, loop: int = 1) -> None:
+        """
+        Set the manual output of the heater loop.
+
+        Parameters
+        ----------
+        power : float
+            The manual output power to set (0 to 100 %).
+        loop : int
+            Heater loop to set the manual output for.
+
+        Returns
+        -------
+        None
+        """
+        try:
+            power = float(power)
+            if power < 0 or power > 100:
+                return
+            self.write(f"MOUT {loop},{power}")
+        except ValueError:
+            return
+        
+    def initiateAutotune(self, mode: int, loop: int = 1) -> None:
+        """
+        Initiate autotune on the specified heater loop.
+
+        Parameters
+        ----------
+        mode : int
+            The autotune mode to use (0 = P Only, 1 = PI, 2 = PID).
+        loop : int
+            The heater loop to initiate autotune on.
+
+        Returns
+        -------
+        None
+        """
+        
+        try:
+            mode = int(mode)
+            if mode < 0 or mode > 2:
+                return
+            self.write(f"ATUNE {loop},{mode}")
+        except ValueError:
+            return
+        
+    def getTuningStatus(self) -> list[str]:
+        """
+        Get the current autotune status.
+
+        Returns
+        -------
+        list[str]
+            A list of strings: 
+            [0]: 0 = no active tuning, 1 = active tuning.
+            [1]: 1 = Output 1, 2 = Output 2
+            [2]: 0 = no tuning error, 1 = tuning error
+            [3]: stage status
+        """
+
+        return self.query("TUNEST?").split(',')
+    
+    def setTLimit(self, limit: int, channel: str = 'A') -> None:        
+        """
+        Set the temperature limit of the specified channel.
+
+        Parameters
+        ----------
+        limit : int
+            The temperature limit to set (in Kelvin).
+        channel : str
+            The channel to set the temperature limit for (A or B).
+
+        Returns
+        -------
+        None
+        """
+        try:
+            limit = int(limit)
+            self.write(f"TLIMIT {channel},{limit}")
         except ValueError:
             return
 
