@@ -953,7 +953,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             # additional line here
             script = "_interrupt=lambda x, s:x;_print=lambda x:x;"
             script += "_input=lambda x:x;_report_line=lambda x:x;"
-            script += "_report_path=lambda x:x;"
+            script += "_report_path=lambda x:x; _status='';"
             script += "_meta_data='';_scriptname='';_script='';"
             script += generate_script("", self.text())
             # reimplement the pyflakes.api.check function

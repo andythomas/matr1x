@@ -511,8 +511,6 @@ def generate_script_prefix_suffix(systems):
         Any
             Set value.
         '''
-        global _setvalues
-
         if col in _system.columns:
             i = _system.columns.index(col)
         else:
@@ -662,7 +660,6 @@ def generate_script_prefix_suffix(systems):
             If True, mark the script as finished. If False, mark as unfinished.
             If None, don't change the status.
         '''
-        global _status
         _status.finished = finished
         raise KeyboardInterrupt
 
