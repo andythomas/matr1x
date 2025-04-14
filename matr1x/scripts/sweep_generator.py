@@ -1309,8 +1309,18 @@ class MainWindow(QMainWindow):
         if filename:
             self.open_file(filename)
 
-    def open_file(self, filename):
-        """Load system from file, define read out parameters to parse."""
+    def open_file(self, filename: str) -> None:
+        """
+        Load a sweep file.
+
+        Load system from file, define read out parameters to parse and
+        display the sweep in the corresponding preview.
+
+        Parameters
+        ----------
+        filename : str
+            Sweep file to open.
+        """
         params = {"# params : ": None, "# loop_over : ": None,
                   "# functions : ": None, "# up_down : ": None,
                   "# repeat : ": None}
@@ -1358,6 +1368,7 @@ class MainWindow(QMainWindow):
                 Qt.CheckState(self.up_down[col])
             )
             self.grid_widgets[col]["repeat"].setValue(self.repeat[col])
+        self.print_sweep_to_preview()
 
     def new_file(self) -> None:
         """
