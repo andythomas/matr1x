@@ -66,6 +66,7 @@ from matr1x.gui_util import (
     MApplication,
     MIcon,
     SystemListWidget,
+    save_messagebox,
     validator,
 )
 from matr1x.system import MergedSystem
@@ -332,12 +333,18 @@ class MainWindow(QMainWindow):
       callback function used to return the filename of the generated file
     """
 
+    extension = ".sw8"
+
     def __init__(self, filename=None, system=None, inputcb=None):
         super().__init__()
         self.setWindowIcon(MIcon("matr1x-sweep-generator.png"))
 
+        # file handling helpers
         self.system = system
         self.inputcb = inputcb
+        self.last_loaded_system = None
+        self.last_filename = ""
+        self.dirty = False
         self.shortcut_dir = None
 
         # allow to store the settings
@@ -354,7 +361,6 @@ class MainWindow(QMainWindow):
         self.repeat = []
         self.sweepParams = []
         self.systemFilename = ""
-        self.last_loaded_file = None
 
         # gui variables
         self.preview_column = 1
@@ -380,9 +386,29 @@ class MainWindow(QMainWindow):
         if filename is not None:
             if self.is_valid_extension(filename):
                 self.open_file(filename)
+                self.last_filename = filename
 
-    def closeEvent(self, event):
-        """Store settings before closing app."""
+    def closeEvent(self, event: QEvent) -> None:
+        """
+        Store settings before closing app.
+
+        If the script was modified without saving, a dialog asks how to proceed.
+
+        Parameters
+        ----------
+        event : QEvent
+            The received 'close event'
+        """
+        if self.dirty:
+            ret = save_messagebox(self)
+            if ret == QMessageBox.StandardButton.Cancel:
+                event.ignore()
+                return
+            if ret == QMessageBox.StandardButton.Save:
+                if not self.save_file():
+                    # if save fails, ignore message
+                    event.ignore()
+                    return
         self.saveCurrentState()
         event.accept()
 
@@ -451,17 +477,16 @@ class MainWindow(QMainWindow):
         self.systemList.setMaximumHeight(50)
         # Save
         self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
-        self.save_action.triggered.connect(self.output_to_file)
+        self.save_action.triggered.connect(self.save_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.setEnabled(False)
         # Save As...
         self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
-        self.save_as_action.triggered.connect(self.save_file_as)
+        self.save_as_action.triggered.connect(lambda: self.save_file(dialog=True))
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         # Append
         self.append_action = QAction(MIcon("SP_DialogSaveButton"), "Append", self)
-        self.append_action.triggered.connect(self.append_to_file)
-        self.appendflag = 0
+        self.append_action.triggered.connect(lambda: self.save_file(append=True))
         # Generate Pulldown
         self.save_button = QToolButton()
         self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -481,7 +506,7 @@ class MainWindow(QMainWindow):
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
         # Generate sweep
-        self.sweep_action = QAction(MIcon("SP_BrowserReload"), "Generate Sweep", self)
+        self.sweep_action = QAction(MIcon("SP_BrowserReload"), "Draft Sweep", self)
         self.sweep_action.triggered.connect(self.print_sweep_to_preview)
         self.sweep_action.setEnabled(False)
         # View: Toolbar
@@ -544,20 +569,11 @@ class MainWindow(QMainWindow):
         table_width = self.sweep_preview.viewport().width()
         self.sweep_preview.setColumnWidth(0, table_width)
 
-        self.fileEditOutput = QLineEdit(self)
-
-        output_view = QHBoxLayout()
-        output_view.addWidget(QLabel("Output filename:"))
-        output_view.addWidget(self.fileEditOutput)
-
         central_view = QHBoxLayout()
         central_view.addWidget(self.sweep_preview)
         central_view.addLayout(self.sweepBox)
 
         self.utility_layout.addLayout(central_view)
-        self.utility_layout.addWidget(QLabel(""))
-        self.utility_layout.addLayout(output_view)
-        self.utility_layout.addWidget(QLabel(""))
 
         # Menu and toolbar
         self.create_toolbar()
@@ -634,7 +650,7 @@ class MainWindow(QMainWindow):
         # remove old pattern with next major update, i.e. Matrix v9
         if pattern.search(file_path) is not None:
             return True
-        elif ".sw8" in file_path:
+        elif self.extension in file_path:
             return True
         else:
             return False
@@ -658,7 +674,7 @@ class MainWindow(QMainWindow):
                     self,
                     "Invalid File",
                     # remove old pattern with next major update
-                    "Only files with extensions matching .<number>t or .sw8 are supported.",
+                    f"Only files with extensions matching .<number>t or {self.extension} are supported.",
                 )
         else:
             QMessageBox.warning(self, "Multiple Files",
@@ -692,6 +708,7 @@ class MainWindow(QMainWindow):
             self.append_action.setEnabled(False)
             self.sweep_action.setEnabled(False)
             self.preview_action.setEnabled(False)
+            self.remove_system_action.setEnabled(False)
             return False
         self.new_file_action.setEnabled(True)
         self.save_action.setEnabled(True)
@@ -699,6 +716,7 @@ class MainWindow(QMainWindow):
         self.append_action.setEnabled(True)
         self.sweep_action.setEnabled(True)
         self.preview_action.setEnabled(True)
+        self.remove_system_action.setEnabled(True)
         modulestr = ""
         # update entries in GUI list
         for j, systemfile in enumerate(filenames):
@@ -812,6 +830,7 @@ class MainWindow(QMainWindow):
             widget.setRange(1, 999)
             widget.setAlignment(Qt.AlignmentFlag.AlignRight)
             widget.focusIn.connect(lambda: self.populate_sweep_grid(column))
+            widget.valueChanged.connect(lambda: self.update_window_title(dirty=True))
         elif name == "append":
             widget = QPushButton("+")
             temp_widget = QLineEdit()
@@ -820,9 +839,11 @@ class MainWindow(QMainWindow):
             # A vertical button that almost spans the three lines it appends looks nice
             widget.setFixedSize(size, int(2.9 * size))
             widget.clicked.connect(lambda: self.append_sweep_col(column))
+            widget.clicked.connect(lambda: self.update_window_title(dirty=True))
         elif name == "updown":
             widget = CheckBoxFocus(self)
             widget.focusIn.connect(lambda: self.populate_sweep_grid(column))
+            widget.stateChanged.connect(lambda: self.update_window_title(dirty=True))
         elif name == "loopover":
             widget = QComboBox(self)
             widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -834,6 +855,9 @@ class MainWindow(QMainWindow):
                 columns.append(self.flat_col[i].strip())
             widget.addItems(columns)
             widget.activated.connect(lambda: self.populate_sweep_grid(column))
+            widget.currentIndexChanged.connect(
+                lambda: self.update_window_title(dirty=True)
+            )
         else:
             # we catch too many exceptions, this improves debugging
             print(f"Unknown widget in {inspect.currentframe().f_code.co_name}")
@@ -1049,48 +1073,82 @@ class MainWindow(QMainWindow):
             # replace excess spaces from file and print, could be removed
             self.outputList.append(string.replace("   ", " ") + "\n")
         self.sweep_preview.update()
-        return 1
 
-    def append_to_file(self):
-        """Append the contents of self.outputList to the file specified for output."""
-        self.appendflag = 2
-        self.output_to_file()
-        self.appendflag = 0
+    def update_window_title(self, dirty: bool = False) -> None:
+        """
+        Indicate if the file was edited with an asterisk.
 
-    def output_to_file(self):
-        """Write the contents of self.outputList to the file specified for output."""
-        append = self.appendflag
-        filename = self.fileEditOutput.text()
-        if "" == filename:
-            self.save_file_as()
-            return
-        elif "" == self.systemFilename:
-            QMessageBox.warning(self, "Error!", "System undefined.")
-            return
+        Parameters
+        ----------
+        dirty : bool
+            The file was edited (True) or, e.g., recently saved (False).
+        """
+        self.dirty = dirty
+        text = "Sweep Generator"
+        if dirty:
+            text += ": *"
+        elif self.last_filename:
+            text += ": "
+        if self.last_filename:
+            text += basename(self.last_filename)
+        elif dirty:
+            text += "<unsaved>"
+        self.setWindowTitle(text)
+
+    def save_file(self, append: bool = False, dialog: bool = False) -> bool:
+        """
+        Save the generated sweep to a file.
+
+        Parameters
+        ----------
+        append : bool, optional
+            Append the file (True) or create/ overwrite the file (False).
+        dialog : bool, optional
+            Do (True) or do not (False) show a dialog to chose a filename.
+
+        Returns
+        -------
+        bool
+            Saved (True) or cancelled (False)
+        """
+        if self.last_filename == "":
+            dialog = True
         else:
-            if self.print_sweep_to_preview() is None:
-                return
-            # append .sw8 if not already in filename and update textEdit
-            match = ".sw8"
-            if match not in filename:
-                filename += match
-                self.fileEditOutput.setText(filename)
-            try:
-                outputFile = open(filename, 'r')
-            except (OSError, IOError):
-                append = 0
-            try:
-                if 2 == append:
-                    # user wants to append
-                    outputFile = open(filename, 'a')
-                else:
-                    outputFile = open(filename, 'w')
-            except (OSError, IOError):
-                QMessageBox.warning(self, "Error!", "File can not be opened.")
-                return
-        # get telemtry and append to file
+            filename = self.last_filename
+        if dialog:
+
+            prefilled_file = (
+                self.last_filename if self.last_filename != "" else usersfolder
+            )
+            filename = QFileDialog.getSaveFileName(
+                self,
+                "Select output file",
+                prefilled_file,
+                f"sweep files (*{self.extension})",
+            )
+            if filename[0] != "":
+                self.last_filename = filename[0]
+                filename = filename[0]
+            else:
+                return False
+        self.print_sweep_to_preview()
+        if filename[-len(self.extension) :] != self.extension:
+            filename += self.extension
+        try:
+            outputFile = open(filename, "r")
+        except (OSError, IOError):
+            append = False
+        try:
+            if append:
+                outputFile = open(filename, "a")
+            else:
+                outputFile = open(filename, "w")
+        except (OSError, IOError):
+            QMessageBox.warning(self, "Error!", "File can not be opened.")
+            return False
+        # get telemetry and append to file
         timestamp = time.strftime(f"{datetimefmt} \n", time.localtime())
-        if 2 != append:
+        if not append:
             outputFile.write(
                 "# v8 input file for matrix program generated" + " by sweep-generator"
             )
@@ -1115,8 +1173,11 @@ class MainWindow(QMainWindow):
         for line in self.outputList:
             outputFile.write(line)
         outputFile.close()
+        self.last_filename = filename
+        self.update_window_title(dirty=False)
         if self.inputcb is not None:
             self.inputcb(filename)
+        return True
 
     def append_sweep_col(self, column: int) -> None:
         """
@@ -1173,20 +1234,24 @@ class MainWindow(QMainWindow):
         row = 0
         for param_set in self.sweep_params[actual_column - 1]:
             for i in range(3):
-                le = QLineEdit(self)
-                le.setText(str(param_set[i]))
+                line_edit = QLineEdit(self)
+                line_edit.setText(str(param_set[i]))
                 if 3 == i:
-                    le.setValidator(validator[uint])
+                    line_edit.setValidator(validator[uint])
                 else:
-                    le.setValidator(validator[float])
-                le.editingFinished.connect(
+                    line_edit.setValidator(validator[float])
+                line_edit.editingFinished.connect(
                     lambda: self.change_sweep_param(actual_column)
                 )
-                self.sweepGrid.addWidget(le, row, i)
+                line_edit.textChanged.connect(
+                    lambda: self.update_window_title(dirty=True)
+                )
+                self.sweepGrid.addWidget(line_edit, row, i)
             delete_button = QPushButton("-")
             delete_button.clicked.connect(
                 lambda: self.remove_sweep_param(actual_column)
             )
+            delete_button.clicked.connect(lambda: self.update_window_title(dirty=True))
             self.sweepGrid.addWidget(delete_button, row, 3)
             row += 1
 
@@ -1220,8 +1285,8 @@ class MainWindow(QMainWindow):
                 system_names, system_directories)
         if self.shortcut_dir:
             directory = os.path.join(self.shortcut_dir.name, system_names[-1])
-        if self.last_loaded_file:
-            directory = os.path.dirname(self.last_loaded_file)
+        if self.last_loaded_system:
+            directory = os.path.dirname(self.last_loaded_system)
         # get filenames from dialog
         filenames = QFileDialog.getOpenFileNames(
             self, 'Select system file', directory,
@@ -1229,13 +1294,14 @@ class MainWindow(QMainWindow):
         if filenames == []:
             return
         for filename in filenames:
-            self.last_loaded_file = filename
+            self.last_loaded_system = filename
             filename = os.path.realpath(filename)
             module_name = get_importable_module_name(filename)
             if module_name:
                 self.systemList.addItem(module_name)
             else:
                 self.systemList.addItem(filename)
+        self.update_window_title(dirty=True)
         if not self.filename_changed():
             for filename in filenames:
                 self.systemList.takeItem(self.systemList.count() - 1)
@@ -1254,15 +1320,7 @@ class MainWindow(QMainWindow):
         if self.systemList.count() == 0:
             self.remove_system_action.setEnabled(False)
         self.filename_changed()
-
-    def save_file_as(self):
-        """Open a QFileDialog to receive save file name."""
-        filename = QFileDialog.getSaveFileName(
-            self, "Select output file", usersfolder, "All files (*)"
-        )
-        if filename[0] != "":
-            self.fileEditOutput.setText(filename[0])
-            self.output_to_file()
+        self.update_window_title(dirty=True)
 
     def generate_sweep(self):
         """
@@ -1300,11 +1358,12 @@ class MainWindow(QMainWindow):
     def gui_from_sweep(self):
         """Open a QFileDialog to open an existing sweep file."""
         # get filename from dialog
+        prefilled_file = self.last_filename if self.last_filename != "" else usersfolder
         filename = QFileDialog.getOpenFileName(
             self,
             "Select input file",
-            usersfolder,
-            "Sweep 8 files (*.sw8);;t files (*.*t)",
+            prefilled_file,
+            f"Sweep 8 files (*{self.extension});;t files (*.*t)",  # Delete old extension in MA9
         )[0]
         if filename:
             self.open_file(filename)
@@ -1368,16 +1427,26 @@ class MainWindow(QMainWindow):
                 Qt.CheckState(self.up_down[col])
             )
             self.grid_widgets[col]["repeat"].setValue(self.repeat[col])
+        self.last_filename = filename
+        self.update_window_title()
         self.print_sweep_to_preview()
 
     def new_file(self) -> None:
         """
         Prepare a completely new sweep.
 
-        Delete all existing sweep parameters, update the sweep grid
-        accordingly and empty the sweep preview. Also reset all
-        input fields to their original states.
+        Delete all existing sweep parameters, update the sweep grid accordingly
+        and empty the sweep preview. Also reset all input fields to their
+        original states.
         """
+        if self.dirty:
+            ret = save_messagebox(self)
+            if ret == QMessageBox.StandardButton.Cancel:
+                return
+            if ret == QMessageBox.StandardButton.Save:
+                saved = self.save_file()
+                if not saved:
+                    return
         self.sweep_params = []
         for col in range(self.nParmsUsed):
             self.sweep_params.append([])
@@ -1390,6 +1459,8 @@ class MainWindow(QMainWindow):
             self.populate_sweep_grid(col + 1)
         self.print_sweep_to_preview()
         self.grid_widgets[0]["start"].setFocus()
+        self.last_filename = ""
+        self.update_window_title(dirty=False)
 
 def main():
     """Set the basic GUI parameters and run."""

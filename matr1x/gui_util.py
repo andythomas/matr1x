@@ -3218,6 +3218,34 @@ def detect_shortcut(event, shortcut):
     else:
         return False
 
+
+def save_messagebox(instance) -> int:
+    """
+    Show a messagebox to query file save.
+
+    Ask the user to write unsaved changes to a file
+    and return choice.
+
+    Returns
+    -------
+    return : int
+        The choice as a QMessageBox.StandardButton enum.
+    """
+    msg = QMessageBox(parent=instance)
+    msg.setIcon(QMessageBox.Icon.Question)
+    msg.setText("Unsaved modifications!")
+    msg.setInformativeText("Do you want to save your changes?")
+    msg.setStandardButtons(
+        QMessageBox.StandardButton.Save
+        | QMessageBox.StandardButton.Discard
+        | QMessageBox.StandardButton.Cancel
+    )
+    msg.button(QMessageBox.StandardButton.Discard).setText("Don't Save")
+    # Is this the best default button?
+    msg.setDefaultButton(QMessageBox.StandardButton.Save)
+    return msg.exec()
+
+
 class MLineEdit(QLineEdit):
     """Provide QLineEdit with visual cues for non-editable."""
 

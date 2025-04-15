@@ -93,6 +93,7 @@ from matr1x.gui_util import (
     TextInputDialog,
     YesNoAbortDialog,
     detect_shortcut,
+    save_messagebox,
 )
 from matr1x.scripts import matrix_preview
 from matr1x.util import (
@@ -1886,16 +1887,7 @@ class MainWindow(QMainWindow):
         ) and self.script_edit.text() != "":
             qApp = MApplication.instance()
             qApp.processEvents()
-            a = QMessageBox(parent=self)
-            a.setIcon(QMessageBox.Icon.Question)
-            a.setText("The script has been modified")
-            a.setInformativeText("Do you want to save your changes?")
-            a.setStandardButtons(QMessageBox.StandardButton.Save |
-                                 QMessageBox.StandardButton.Discard |
-                                 QMessageBox.StandardButton.Cancel)
-            a.setDefaultButton(QMessageBox.StandardButton.Save)
-            # Is this the best default button?
-            ret = a.exec()
+            ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 event.ignore()
                 return
@@ -3014,41 +3006,13 @@ class MainWindow(QMainWindow):
         self.last_filename = filename
         self.update_window_title()
 
-    def save_messagebox(self) -> int:
-        """
-        Show a messagebox to query file save.
-
-        Ask the user to write unsaved changes to a file
-        and return choice.
-
-        Returns
-        -------
-        return : int
-            The choice as a QMessageBox.StandardButton enum.
-        """
-        msg = QMessageBox(parent=self)
-        msg.setIcon(QMessageBox.Icon.Question)
-        msg.setText("The script has been modified")
-        msg.setInformativeText(
-            "Do you want to save your changes before opening another file?"
-        )
-        msg.setStandardButtons(
-            QMessageBox.StandardButton.Save
-            | QMessageBox.StandardButton.Discard
-            | QMessageBox.StandardButton.Cancel
-        )
-        msg.button(QMessageBox.StandardButton.Discard).setText("Don't Save")
-        # Is this the best default button?
-        msg.setDefaultButton(QMessageBox.StandardButton.Save)
-        return msg.exec()
-
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
         if self.script_edit.isModified() or self.systems_dirty:
             qApp = MApplication.instance()
             qApp.processEvents()
-            ret = self.save_messagebox()
+            ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 return
             if ret == QMessageBox.StandardButton.Save:
@@ -3076,7 +3040,7 @@ class MainWindow(QMainWindow):
         if self.script_edit.isModified() or self.systems_dirty:
             qApp = MApplication.instance()
             qApp.processEvents()
-            ret = self.save_messagebox()
+            ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 return
             if ret == QMessageBox.StandardButton.Save:
