@@ -833,9 +833,9 @@ class MainWindow(QMainWindow):
             widget.valueChanged.connect(lambda: self.update_window_title(dirty=True))
         elif name == "append":
             widget = QPushButton("+")
-            temp_widget = QLineEdit()
+            temp_widget = QLineEdit(None)
             size = temp_widget.sizeHint().height()
-            del temp_widget
+            temp_widget.deleteLater()
             # A vertical button that almost spans the three lines it appends looks nice
             widget.setFixedSize(size, int(2.9 * size))
             widget.clicked.connect(lambda: self.append_sweep_col(column))
@@ -904,7 +904,7 @@ class MainWindow(QMainWindow):
         # determine how many columns can fit
         combobox = self.get_custom_widget("loopover")
         max_width = combobox.minimumSizeHint().width() + self.grid.horizontalSpacing()
-        del combobox
+        combobox.deleteLater()
         left, top, right, bottom = self.grid.getContentsMargins()
         screen_width = self.screen().availableGeometry().width() - left - right
         # The first column fits one column less because of the labels.
@@ -937,9 +937,9 @@ class MainWindow(QMainWindow):
             modifiers = QHBoxLayout()
             modifiers.setSpacing(5)
             modifiers.addWidget(self.grid_widgets[column]["repeat"], stretch=1)
-            temp_widget = QLineEdit()
+            temp_widget = QLineEdit(None)
             size = temp_widget.sizeHint().height()
-            del temp_widget
+            temp_widget.deleteLater()
             arrow_icon = MIcon(
                 "CUSTOM_Updown",
                 color=QColor("transparent"),
