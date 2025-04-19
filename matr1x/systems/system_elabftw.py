@@ -49,6 +49,7 @@ class ElabSystem(System):
         # see the code for their use and meaning.
         self.config = {
             "debug": False,
+            "require_server": False,  # boolean to decide if server is required
             "upload_datafile": False,  # boolean or maximal file size in MB
             "create_resource": False,  # if sample Identifier can not be found a resource entry can be created
             "resource_category": None,  # category for newly generated resources.
@@ -88,11 +89,36 @@ class ElabSystem(System):
         }
         self.config.update(get_config_dict("matr1x.systems.system_elabftw"))
         self._team_id = self.config.get("teamid", 0)
+
+        # predefine api client
+        self.api_client = None
+        # internal variables to queue things for upload
+        self._attachments = {}
+        self._tags = []
+        self._resources = {}
+
+    def set(self, *args, **kwargs):
+        """
+        Initialize the server connection and resource and create if requested.
+
+        The resource will be linked to the experiment entry generated during reset.
+        """
+        super().set(*args, **kwargs)
         configuration = elabapi_python.Configuration()
-        configuration.api_key["api_key"] = self.config["api_key"]
-        configuration.api_key_prefix["api_key"] = "Authorization"
-        configuration.host = self.config["host"] + "/api/v2"
-        configuration.debug = self.config["debug"]
+        try:
+            configuration.api_key["api_key"] = self.config["api_key"]
+            configuration.api_key_prefix["api_key"] = "Authorization"
+            configuration.host = self.config["host"] + "/api/v2"
+            configuration.debug = self.config["debug"]
+        except KeyError:
+            print(
+                "ElabFTW connection API key not found in the TOML config, make "
+                "sure api_key and host address of the server are specified."
+            )
+            raise Exception(
+                "ElabFTW API key not found in the TOML config, make sure "
+                "api_key and host address of the server are specified."
+            )
         configuration.verify_ssl = True
 
         # create an instance of the API class
@@ -101,10 +127,32 @@ class ElabSystem(System):
         self.api_client.set_default_header(
             header_name="Authorization", header_value=self.config["api_key"]
         )
-        # internal variables to queue things for upload
-        self._attachments = {}
-        self._tags = []
-        self._resources = {}
+        # test server connection by a harmless read-only query
+        try:
+            info_client = elabapi_python.InfoApi(self.api_client)
+            info_client.get_info()
+        except Exception:
+            if self.config["require_server"]:
+                print(
+                    "ElabFTW connection could not be established but is configured to be required."
+                )
+                raise Exception("ElabFTW connection could not be established")
+            else:
+                print("ElabFTW connection could not be established")
+                print("no labbook entry will be created, but we continue.")
+        for key in ["identifier", "relation"]:
+            # add resource link to sample specified in identifier and relation
+            samplename = self.merged_system.dcdata[key]
+            if not samplename:
+                continue
+            try:
+                self.add_resource(samplename)
+            except Exception:
+                pass
+            if self.config.get("create_resource") and samplename not in self._resources:
+                # need to create the resource
+                resource_id = self._create_resource(samplename)
+                self._resources[samplename] = resource_id
 
     def add_tag(self, name: str) -> None:
         """
@@ -558,29 +606,6 @@ class ElabSystem(System):
             print(f"Link Resources: {self._resources.keys()}")
         if status:
             print(f"Set experiment status: {status}")
-
-    def set(self, *args, **kwargs):
-        """
-        Initialize the resource and create if requested.
-
-        The resource will be linked to the experiment entry generated during reset.
-        """
-        super().set(*args, **kwargs)
-        for key in ["identifier", "relation"]:
-            # add resource link to sample specified in identifier and relation
-            samplename = self.merged_system.dcdata[key]
-            if not samplename:
-                continue
-            try:
-                self.add_resource(samplename)
-            except Exception:
-                print(
-                    "ElabFTW connection could not be established. no labbook entry will be created"
-                )
-            if self.config.get("create_resource") and samplename not in self._resources:
-                # need to create the resource
-                resource_id = self._create_resource(samplename)
-                self._resources[samplename] = resource_id
 
     def reset(self, *args, **kwargs):
         """
