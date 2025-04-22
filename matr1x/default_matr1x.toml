@@ -17,6 +17,19 @@ setting2 = "bool"
 setting3 = "float;;4;;range;;-1e9;;99;;3"
 setting4 = "str;;file"
 
+[matr1x.systems.system_elabftw._types]
+debug = "bool"
+enable_elab = "bool"
+require_server = "bool"
+upload_datafile = "bool"
+create_resource = "bool"
+host = "str"
+api_key = "str"
+category = "str"
+resource_category = "str"
+title_template = "str"
+body_template = "str"
+
 [matr1x.devices.visadevice]
 cmdpers = 30
 pts = false

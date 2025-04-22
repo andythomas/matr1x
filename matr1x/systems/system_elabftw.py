@@ -49,6 +49,7 @@ class ElabSystem(System):
         # see the code for their use and meaning.
         self.config = {
             "debug": False,
+            "enable_elab": True,  # boolean flag to decide about entry creation
             "require_server": False,  # boolean to decide if server is required
             "upload_datafile": False,  # boolean or maximal file size in MB
             "create_resource": False,  # if sample Identifier can not be found a resource entry can be created
@@ -104,6 +105,8 @@ class ElabSystem(System):
         The resource will be linked to the experiment entry generated during reset.
         """
         super().set(*args, **kwargs)
+        if not self.config["enable_elab"]:
+            return
         configuration = elabapi_python.Configuration()
         try:
             configuration.api_key["api_key"] = self.config["api_key"]
@@ -258,6 +261,8 @@ class ElabSystem(System):
         int or None
             The user ID if found, None otherwise.
         """
+        if not self.api_client:
+            return None
         userApi = elabapi_python.UsersApi(self.api_client)
         try:
             response = userApi.read_users()
@@ -304,6 +309,8 @@ class ElabSystem(System):
         int or None
             The category ID if found, None otherwise.
         """
+        if not self.api_client:
+            return None
         catApi = elabapi_python.ExperimentsCategoriesApi(self.api_client)
         category_name = self.config.get("category", None)
         if not category_name:
@@ -335,6 +342,8 @@ class ElabSystem(System):
         int or None
             The status ID if found, None otherwise.
         """
+        if not self.api_client:
+            return None
         expstatusApi = elabapi_python.ExperimentsStatusApi(self.api_client)
         try:
             response = expstatusApi.read_team_experiments_status(self._team_id)
@@ -355,6 +364,8 @@ class ElabSystem(System):
         int or None
             The resource category ID if found, None otherwise.
         """
+        if not self.api_client:
+            return None
         category_name = self.config.get("resource_category", None)
         if not category_name:
             return None
@@ -368,7 +379,7 @@ class ElabSystem(System):
         # find id for search category
         return next((item.id for item in response if item.title == category_name), None)
 
-    def _create_resource(self, name: str) -> int:
+    def _create_resource(self, name: str) -> int | None:
         """
         Create a new resource in elabFTW.
 
@@ -382,7 +393,7 @@ class ElabSystem(System):
 
         Returns
         -------
-        int
+        int or None
             The ID of the newly created resource.
 
         Raises
@@ -395,6 +406,8 @@ class ElabSystem(System):
         This method requires a valid resource category to be specified in the
         configuration. If not found, it will raise a ValueError.
         """
+        if not self.api_client:
+            return None
         resource_cat = self._determine_resource_category()
         if not resource_cat:
             raise ValueError(
@@ -431,7 +444,7 @@ class ElabSystem(System):
         int or None
             The resource ID if found, None otherwise.
         """
-        if not resource:
+        if not resource or not self.api_client:
             return None
         itemsApi = elabapi_python.ItemsApi(self.api_client)
         try:
@@ -487,6 +500,8 @@ class ElabSystem(System):
         reset_tags
             Controls whether tags are reset after experiment is posted
         """
+        if not self.config["enable_elab"]:
+            return
         # create content for uploading experiment
         title = self._render_template(self.config["title_template"])
         body = self._render_template(self.config["body_template"])
