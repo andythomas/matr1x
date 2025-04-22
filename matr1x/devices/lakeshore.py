@@ -253,13 +253,10 @@ class Lakeshore335(Lakeshore3xx):
         heaterRange : int
             The range to set (1, 2 or 3).
         """
-        try:
-            int(heaterRange)
-            if 0 > heaterRange or 3 < heaterRange:
-                return
-            self.write(f"RANGE {loop},{heaterRange}")
-        except ValueError:
+        heaterRange = int(heaterRange)
+        if 0 > heaterRange or 3 < heaterRange:
             return
+        self.write(f"RANGE {loop},{heaterRange}")
 
     def getControlMode(self, loop: int = 1) -> int:
         """
@@ -277,10 +274,7 @@ class Lakeshore335(Lakeshore3xx):
             4 = Monitor out, 5 = Warmup Supply).
         """
         ret = self.query(f"OUTMODE? {loop}")
-        try:
-            return int(ret.split(",")[0])
-        except ValueError:
-            return
+        return int(ret.split(",")[0])
 
     def setControlMode(self, mode: int, loop: int = 1, channel: str = "A") -> None:
         """
@@ -306,13 +300,11 @@ class Lakeshore335(Lakeshore3xx):
             channel_num = 1
         elif channel == "B":
             channel_num = 2
-        try:
-            mode = int(mode)
-            if 0 > mode or 5 < mode:
-                return
-            self.write(f"OUTMODE {loop},{mode},{channel_num},1")
-        except ValueError:
+
+        mode = int(mode)
+        if 0 > mode or 5 < mode:
             return
+        self.write(f"OUTMODE {loop},{mode},{channel_num},1")
 
     def setManOutput(self, power: float, loop: int = 1) -> None:
         """
@@ -329,13 +321,10 @@ class Lakeshore335(Lakeshore3xx):
         -------
         None
         """
-        try:
-            power = float(power)
-            if power < 0 or power > 100:
-                return
-            self.write(f"MOUT {loop},{power}")
-        except ValueError:
+        power = float(power)
+        if power < 0 or power > 100:
             return
+        self.write(f"MOUT {loop},{power}")
 
     def initiateAutotune(self, mode: int, loop: int = 1) -> None:
         """
@@ -352,14 +341,10 @@ class Lakeshore335(Lakeshore3xx):
         -------
         None
         """
-
-        try:
-            mode = int(mode)
-            if mode < 0 or mode > 2:
-                return
-            self.write(f"ATUNE {loop},{mode}")
-        except ValueError:
+        mode = int(mode)
+        if mode < 0 or mode > 2:
             return
+        self.write(f"ATUNE {loop},{mode}")
 
     def getTuningStatus(self) -> list[str]:
         """
@@ -392,11 +377,8 @@ class Lakeshore335(Lakeshore3xx):
         -------
         None
         """
-        try:
-            limit = int(limit)
-            self.write(f"TLIMIT {channel},{limit}")
-        except ValueError:
-            return
+        limit = int(limit)
+        self.write(f"TLIMIT {channel},{limit}")
 
 
 class Lakeshore340(Lakeshore3xx):
