@@ -147,6 +147,150 @@ MAX_LINES_STATUS = 10000
 # display perforamnce of the GUI drops.
 
 
+class Matr1xFunctionChecker(ast.NodeVisitor):
+    """Implements ast-based function checker for matr1x functions."""
+
+    def __init__(self, parent, indexes, settables, columns):
+        self.parent = parent
+        self.indexes = indexes
+        self.settables = settables
+        self.columns = columns
+        self.errors = 0
+
+    def visit_Call(self, node):
+        """Reimplemented function to perform custom function checking."""
+        if isinstance(node.func, ast.Name):
+            func_name = node.func.id
+            lineno = node.func.lineno
+
+            if func_name in ("set_value", "read_value", "trigger_value"):
+                args = node.args
+
+                num_required = 2 if func_name == "set_value" else 1
+
+                scriptname = "sc"
+                error_title = "value error"
+
+                # make sure number of parameters is correct
+                if len(args) < num_required:
+                    if len(args) == 1 and num_required == 2:
+                        # check for starred expression and report that
+                        # these cannot be checked
+                        if isinstance(args[0], ast.Starred):
+                            error_text = (
+                                "Cannot statically check starred expression"
+                                f" <*{args[0].value.id}> in set_value call in"
+                                f" line {args[0].lineno}"
+                            )
+                            self.parent.reporter.syntaxError(
+                                scriptname,
+                                "warning",
+                                lineno,
+                                0,
+                                error_text,
+                                0,
+                            )
+                            return
+                        else:
+                            self.errors += 1
+                            error_text = "too few parameters."
+                            self.parent.reporter.syntaxError(
+                                scriptname,
+                                error_title,
+                                lineno,
+                                0,
+                                error_text,
+                            )
+                            return
+                    else:
+                        self.errors += 1
+                        error_text = "too few parameters."
+                        self.parent.reporter.syntaxError(
+                            scriptname,
+                            error_title,
+                            lineno,
+                            0,
+                            error_text,
+                        )
+                        return
+                elif len(args) > num_required:
+                    self.errors += 1
+                    error_text = "too many parameterz."
+                    self.parent.reporter.syntaxError(
+                        scriptname,
+                        error_title,
+                        lineno,
+                        0,
+                        error_text,
+                    )
+                    return
+                col_name = args[0]
+                if isinstance(col_name, ast.Constant):
+                    value = col_name.value
+                    if isinstance(value, int):
+                        if value >= len(self.indexes) or value < 0:
+                            # make sure column index is in valid range
+                            self.errors += 1
+                            error_text = f"index <{value}> beyond valid range."
+                            self.parent.reporter.syntaxError(
+                                scriptname,
+                                error_title,
+                                lineno,
+                                0,
+                                error_text,
+                            )
+                        elif not self.settables[value] and func_name == "set_value":
+                            # make sure column is settable in set_value
+                            self.errors += 1
+                            error_text = f"index <{value}> not settable."
+                            self.parent.reporter.syntaxError(
+                                scriptname,
+                                error_title,
+                                lineno,
+                                0,
+                                error_text,
+                            )
+                    elif value not in self.columns:
+                        # check validity of string based columns
+                        self.errors += 1
+                        error_text = f"<{value}> not a valid column name."
+                        self.parent.reporter.syntaxError(
+                            scriptname,
+                            error_title,
+                            lineno,
+                            0,
+                            error_text,
+                        )
+                    elif (
+                        not self.settables[self.columns.index(value)]
+                        and func_name == "set_value"
+                    ):
+                        # make sure column is settable in set_value function
+                        self.errors += 1
+                        error_text = f"column <{value}> not settable."
+                        self.parent.reporter.syntaxError(
+                            scriptname,
+                            error_title,
+                            lineno,
+                            0,
+                            error_text,
+                        )
+                # could add check for defined variables at an earlier point
+                # however, requires more sophisticated checking of variable
+                # definitions
+                # for now, remain with a printed warning to the user
+                # could also be made into a warning
+                # elif isinstance(col_name, ast.Name):...
+                else:
+                    error_text = (
+                        f"Cannot statically check arg in {func_name}"
+                        f" in line {col_name.lineno}"
+                    )
+                    self.parent.reporter.syntaxError(
+                        scriptname, "warning", SCRIPT_OFFSET + lineno, 0, error_text, 0
+                    )
+
+
 class Matr1xApplication(MApplication):
     """Enable double-click open on a Mac."""
 
@@ -261,7 +405,7 @@ class CustomReporter(pyflakes.reporter.Reporter):
                          message.message % message.message_args,
                          message.message_args, style)
 
-    def syntaxError(self, filename, msg, lineno, offset, text):
+    def syntaxError(self, filename, msg, lineno, offset, text, style=1):
         """
         Reimplement the syntax error function.
 
@@ -294,7 +438,7 @@ class CustomReporter(pyflakes.reporter.Reporter):
             ret = (f"{msg} : {line.lstrip()}", (f"{line.lstrip()[offset:]}",))
         else:
             ret = (f"{msg}", ("",))
-        self.linter_hook(lineno, offset, *ret, 1)
+        self.linter_hook(lineno, offset, *ret, style)
 
 
 # code of the rxIndex function, CompleterPython and QScintillaCustom classes
@@ -941,9 +1085,12 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
 
         Returns -1 if a syntax error was found
         """
-        if self.text().strip() != "":
+        if self.text().strip() != "" and len(self.text().strip().splitlines()) > 0:
+            # the second check is required to no crash the len_last
+
             # remove potential annotations from previous linting run
             self.clearAnnotations()
+            ret_err = 0
             last_line = len(self.text().splitlines()) - 1
             len_last = len(self.text().splitlines()[-1])
             # remove potential indicators from previous linting run
@@ -959,19 +1106,31 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             script += generate_script("", self.text())
             # reimplement the pyflakes.api.check function
             scriptname = "sc"
-            ret_err = 0
             try:
                 tree = ast.parse(script, filename=scriptname)
             except SyntaxError as e:
-                self.reporter.syntaxError(scriptname, e.args[0], e.lineno,
-                                          e.offset, e.text)
-                ret_err = -1
-            except Exception:
-                self.reporter(scriptname, "problem decoding source")
-                ret_err = -1
-            if ret_err == -1:
+                self.reporter.syntaxError(
+                    scriptname, e.args[0], e.lineno, e.offset, e.text
+                )
                 print("Linter found a syntax error.")
-                return ret_err
+                return -1
+            except Exception as e:
+                self.reporter.syntaxError(
+                    scriptname,
+                    "Problem decoding source",
+                    SCRIPT_OFFSET,
+                    0,
+                    "Error during linting.",
+                )
+                print(f"Linter found the following error:\n{e}.")
+                return -1
+            checker = Matr1xFunctionChecker(self, *self.parent.get_settables())
+            checker.visit(tree)
+            if checker.errors > 0:
+                print_str = f"Linter found {checker.errors} value error(s) "
+                ret_err = -1
+            else:
+                print_str = "Linter found no value error "
             w = pyflakes.checker.Checker(tree, filename=scriptname)
             w.messages.sort(key=lambda m: m.lineno)
             n_err = 0
@@ -982,9 +1141,9 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
                     n_err += 1
             n_msg = len(w.messages)
             n_warn = n_msg - n_err
-            print_str = "Linter found "
+            print_str += "and "
             if n_msg == 0:
-                print_str += "no issues."
+                print_str += "no syntax errors."
                 print(print_str)
             else:
                 if n_err > 0:
@@ -2418,7 +2577,7 @@ class MainWindow(QMainWindow):
         """
         Add a system file to the system list.
 
-        Opens a QFileDialog with filter system*.py. Update help is need be.
+        Opens a QFileDialog with filter system*.py. Update help if need be.
         """
         directory = matr1x.system_directories[-1]
         if not self.shortcut_dir and len(matr1x.system_names) > 1:
