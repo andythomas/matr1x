@@ -19,7 +19,6 @@ Generate sweeps for matrix via a straightforward GUI.
 
 It heavily relies on numpy.linspace for the creation of the sweep segments.
 """
-import inspect
 import os
 import re
 import sys
@@ -487,6 +486,13 @@ class MainWindow(QMainWindow):
         # Append
         self.append_action = QAction(MIcon("SP_DialogSaveButton"), "Append", self)
         self.append_action.triggered.connect(lambda: self.save_file(append=True))
+        # Append to
+        self.append_to_action = QAction(
+            MIcon("SP_DialogSaveButton"), "Append To...", self
+        )
+        self.append_to_action.triggered.connect(
+            lambda: self.save_file(append=True, dialog=True)
+        )
         # Generate Pulldown
         self.save_button = QToolButton()
         self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -497,6 +503,7 @@ class MainWindow(QMainWindow):
         save_pulldown = QMenu(self)
         save_pulldown.addAction(self.save_as_action)
         save_pulldown.addAction(self.append_action)
+        save_pulldown.addAction(self.append_to_action)
         self.save_button.setMenu(save_pulldown)
         # Quit
         self.quit_action = QAction("Quit", self)
@@ -724,10 +731,6 @@ class MainWindow(QMainWindow):
         self.systemFilename = ",".join(filenames)
         try:
             self.system = MergedSystem.from_files(filenames)
-            for file in filenames:
-                modulestr += basename(splitext(file)[0]) + ","
-            # update gui using the system specifications
-            self.import_system()
         except Exception as e:
             if isinstance(e, ModuleNotFoundError):
                 error_text = '<p style="color:red">Please check the path to the system files and whether all required dependencies are present.</p>'
@@ -737,14 +740,16 @@ class MainWindow(QMainWindow):
             tbinfo = traceback.format_exception(e)
             tbstr = "".join(tbinfo)
             error_text += "" + tbstr
-            QMessageBox.warning(
-                self, "Module not found.", error_text.replace("\n", "<br>")
-            )
+            QMessageBox.warning(self, "Import error.", error_text.replace("\n", "<br>"))
             return False
+        for file in filenames:
+            modulestr += basename(splitext(file)[0]) + ","
+        # update gui using the system specifications
+        self.process_system_import()
         return True
 
-    def import_system(self) -> None:
-        """Import specified system and populate layout."""
+    def process_system_import(self) -> None:
+        """Process specified system imports and populate layout."""
         if len(self.system.columns) != len(self.system.units):
             # simple sanity check
             QMessageBox.warning(
@@ -859,9 +864,7 @@ class MainWindow(QMainWindow):
                 lambda: self.update_window_title(dirty=True)
             )
         else:
-            # we catch too many exceptions, this improves debugging
-            print(f"Unknown widget in {inspect.currentframe().f_code.co_name}")
-            sys.exit(1)
+            raise ValueError(f"Unknown widget {name}.")
         return widget
 
     def populate_layout(self) -> None:
@@ -1116,16 +1119,23 @@ class MainWindow(QMainWindow):
         else:
             filename = self.last_filename
         if dialog:
-
             prefilled_file = (
                 self.last_filename if self.last_filename != "" else usersfolder
             )
-            filename = QFileDialog.getSaveFileName(
-                self,
-                "Select output file",
-                prefilled_file,
-                f"sweep files (*{self.extension})",
-            )
+            if append:
+                filename = QFileDialog.getOpenFileName(
+                    self,
+                    "Select file to append to",
+                    prefilled_file,
+                    f"Sweep 8 files (*{self.extension})",
+                )
+            else:
+                filename = QFileDialog.getSaveFileName(
+                    self,
+                    "Select output file",
+                    prefilled_file,
+                    f"Sweep 8 files (*{self.extension})",
+                )
             if filename[0] != "":
                 self.last_filename = filename[0]
                 filename = filename[0]
@@ -1134,10 +1144,6 @@ class MainWindow(QMainWindow):
         self.print_sweep_to_preview()
         if filename[-len(self.extension) :] != self.extension:
             filename += self.extension
-        try:
-            outputFile = open(filename, "r")
-        except (OSError, IOError):
-            append = False
         try:
             if append:
                 outputFile = open(filename, "a")
