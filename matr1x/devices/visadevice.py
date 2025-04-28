@@ -53,7 +53,10 @@ def output_name_on_error(func):
 
 class VisaDevice:
     """
-    The VISA device class.
+    The VISA device class of matr1x.
+
+    Note: Do NOT implement new devices based on this class. Use pymeasure Instrument instead.
+    Pull requests with new devices will not be merged in the future.
 
     Device connection is established upon initialization of this class.
     The connection is closed by the `close` method after which the device can be
