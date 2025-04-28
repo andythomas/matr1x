@@ -2439,6 +2439,15 @@ class MainWindow(QMainWindow):
         self.create_toolbar()
         # set focus to text editor
         self.script_edit.setFocus()
+        self.system_command_help = QDialog(self)
+        box_layout = QVBoxLayout()
+        self.system_command_text_edit = QTextEdit()
+        self.system_command_text_edit.setReadOnly(True)
+        box_layout.addWidget(self.system_command_text_edit)
+        self.system_command_help.setLayout(box_layout)
+        title = "Selected systems information"
+        self.system_command_help.setWindowTitle(title)
+        self.system_command_help.setWindowModality(Qt.WindowModality.NonModal)
         self.update_ui()
         self.update_window_title()
 
@@ -2607,9 +2616,8 @@ class MainWindow(QMainWindow):
         self.update_window_title()
         # update systems to use list for config editor
         self.update_systems()
-        # update the help if visible
-        existing_box = self.findChild(QMessageBox, "SystemHelp")
-        if existing_box:
+        self.update_system_commands()
+        if self.system_command_help.isVisible():
             self.show_system_commands()
 
     def delete_selected_system(self) -> None:
@@ -2629,9 +2637,8 @@ class MainWindow(QMainWindow):
         self.systems_dirty = True
         self.update_window_title()
         self.update_systems()
-        # update the help if visible
-        existing_box = self.findChild(QMessageBox, "SystemHelp")
-        if existing_box:
+        self.update_system_commands()
+        if self.system_command_help.isVisible():
             self.show_system_commands()
 
     def get_script_input(self, query: str, input_type: str):
@@ -2752,44 +2759,39 @@ class MainWindow(QMainWindow):
                     columns.append(match[2])
             return (indexes, settables, columns)
 
-    def show_system_commands(self) -> None:
-        """Print information about current system(s) in a message box."""
-        self.update_systems()
-        existing_box = self.findChild(QMessageBox, "SystemHelp")
-        if existing_box:
-            info_box = existing_box
-        else:
-            info_box = QMessageBox(self)
-        title = "Selected systems information"
-        # work around os specifics, title not necessarily shown
-        info_box.setWindowTitle(title)
-        info_box.setText(title)
-        info_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+    def update_system_commands(self) -> None:
+        """Update the help info about the current system(s)."""
         if len(self.systems) == 0:
-            info_box.setInformativeText("No system file selected!")
-            info_box.exec()
-            return
-        indexes, settables, columns = self.get_settables()
-        if indexes and settables and columns:
-            text = "The following devices were selected:<br><b>"
-            for system in self.systems:
-                text = text + system + "<br>"
-            text += "<br></b>These devices provide the following<br>"
-            text += "parameters. <b>Bold parameters</b> can be set <br>"
-            text += "as well and the others only read:<br><br>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: center;">'
-            text += '<tr style="background-color: #f0f0f0;">'
-            text += "<th>Index</th><th>Settable</th><th>Name</th></tr>"
-            for i, settable in enumerate(settables):
-                if settable:
-                    text = f"{text}<tr><td><b>{indexes[i]}</b></td><td><b>yes</b></td><td><b>{columns[i]}</b></tr></tr>"
-                else:
-                    text = f"{text}<tr><td>{indexes[i]}</td><td>no</td><td>{columns[i]}</tr></tr>"
-            text += "</table><br><br>"
-            info_box.setInformativeText(text)
-            info_box.setWindowModality(Qt.WindowModality.NonModal)
-            info_box.setObjectName("SystemHelp")
-            info_box.show()
+            text = "No system file selected!"
+        else:
+            indexes, settables, columns = self.get_settables()
+            if indexes and settables and columns:
+                text = "The following systems were selected:<br><b>"
+                for system in self.systems:
+                    text = text + system + "<br>"
+                text += "<br></b>These systems provide the following<br>"
+                text += "parameters. <b>Bold parameters</b> can be<br>"
+                text += "set as well and the others only read:<br><br>"
+                text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left;">'
+                text += '<tr style="background-color: #f0f0f0;">'
+                text += "<th>Index</th><th>Settable</th><th>Name</th></tr>"
+                for i, settable in enumerate(settables):
+                    if settable:
+                        text = f"{text}<tr><td><b>{indexes[i]}</b></td><td><b>yes</b></td><td><b>{columns[i]}</b></tr></tr>"
+                    else:
+                        text = f"{text}<tr><td>{indexes[i]}</td><td>no</td><td>{columns[i]}</tr></tr>"
+                text += "</table><br><br>"
+            else:
+                text = "Could not parse the system file(s)!"
+        self.system_command_text_edit.setText(text)
+
+    def show_system_commands(self) -> None:
+        """Print information about current system(s) in a help window."""
+        self.system_command_help.show()
+        self.system_command_help.raise_()
+        self.system_command_help.setMinimumWidth(
+            self.system_command_help.sizeHint().width()
+        )
 
     def output_written(self, text):
         """
