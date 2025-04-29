@@ -2745,7 +2745,7 @@ class MainWindow(QMainWindow):
             return (None, None, None)
         else:
             output = (info.stdout).decode()
-            matches = re.findall(r"(\d+?) (<[yn]>) (.*)", output)
+            matches = re.findall(r"(\d+?) (<[yn]>) ([^\r\n]*)", output)
             indexes = []
             settables = []
             columns = []
