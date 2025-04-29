@@ -143,6 +143,8 @@ class ElabSystem(System):
             else:
                 print("ElabFTW connection could not be established")
                 print("no labbook entry will be created, but we continue.")
+                # disable api_client for rest of run to be more smooth
+                self.api_client = None
         for key in ["identifier", "relation"]:
             # add resource link to sample specified in identifier and relation
             samplename = self.merged_system.dcdata[key]
