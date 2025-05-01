@@ -14,6 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Tests for matr1x data loading functionality.
+
+This module tests the loadmatrix functionality for various matr1x file formats.
+"""
+
 import os
 
 import matr1x.eval
@@ -23,6 +28,11 @@ path = os.path.dirname(os.path.realpath(__file__))
 
 
 def test_loadmatrix_hdf5_ma8():
+    """Test loading of HDF5 MA8 format files.
+
+    Tests loading and validating contents of an HDF5 MA8 format data file.
+    Checks header information, data columns, units, and specific data values.
+    """
     datafile = os.path.join(path, "data", "random_test.h5.ma8")
     h, d = matr1x.eval.loadmatrix(datafile)
     assert h["dcterms:publisher"] == "matr1x measurement suite"
@@ -45,6 +55,11 @@ def test_loadmatrix_hdf5_ma8():
 
 
 def test_loadmatrix_ma8():
+    """Test loading of MA8 format files.
+
+    Tests loading and validating contents of an MA8 format data file.
+    Checks header information, data columns, units, and specific data values.
+    """
     datafile = os.path.join(path, "data", "random_test.ma8")
     h, d = matr1x.eval.loadmatrix(datafile)
     assert h["dcterms:type"] is None
@@ -69,6 +84,11 @@ def test_loadmatrix_ma8():
 
 
 def test_loadmatrix_hdf5_ma7():
+    """Test loading of HDF5 MA7 format files.
+
+    Tests loading and validating contents of an HDF5 MA7 format data file.
+    Checks header information, data columns, units, and specific data values.
+    """
     datafile = os.path.join(path, "data", "magic_sample.h5.ma7")
     h, d = matr1x.eval.loadmatrix(datafile)
     assert h["DC.Publisher"] == "matr1x;University of Konstanz"
@@ -89,6 +109,11 @@ def test_loadmatrix_hdf5_ma7():
 
 
 def test_loadmatrix_ma7():
+    """Test loading of MA7 format files.
+
+    Tests loading and validating contents of an MA7 format data file.
+    Checks header information, data columns, units, and specific data values.
+    """
     datafile = os.path.join(path, "data", "mgk240213.ma7")
     h, d = matr1x.eval.loadmatrix(datafile)
     assert h["DC.Type"] == "Transport data"
@@ -109,6 +134,11 @@ def test_loadmatrix_ma7():
 
 
 def test_loadmatrix_hdf5_ma6():
+    """Test loading of HDF5 MA6 format files.
+
+    Tests loading and validating contents of an HDF5 MA6 format data file.
+    Checks header information, data columns, units, and specific data values.
+    """
     datafile = os.path.join(path, "data", "polybox.h5.ma6")
     h, d = matr1x.eval.loadmatrix(datafile)
     assert len(h["columns"]) == 6  # check number of data columns
@@ -127,6 +157,11 @@ def test_loadmatrix_hdf5_ma6():
 
 
 def test_loadmatrix_ma6():
+    """Test loading of MA6 format files.
+
+    Tests loading and validating contents of an MA6 format data file.
+    Checks header information, data columns, units, and specific data values.
+    """
     datafile = os.path.join(path, "data", "ARMR.ma6")
     h, d = matr1x.eval.loadmatrix(datafile)
     assert (

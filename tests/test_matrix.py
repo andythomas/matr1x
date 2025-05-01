@@ -14,6 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Matrix test module.
+
+This module contains tests for the matrix data acquisition software.
+"""
+
 import glob
 import os
 import subprocess
@@ -31,6 +36,16 @@ path = os.path.dirname(os.path.realpath(__file__))
 
 @pytest.fixture(autouse=True)
 def clean_data_files():
+    """Clean up data files created during tests.
+
+    This fixture runs automatically before and after each test to clean up any
+    data files that were created. It tracks existing files before the test and
+    removes any new files created during test execution.
+
+    Yields
+    ------
+    None
+    """
     existingfiles = glob.glob(os.path.join(path, f"*{output_extension}"))
     # run test
     yield
@@ -41,6 +56,18 @@ def clean_data_files():
 
 
 def test_matrix_dummy():
+    """Test basic matrix functionality with dummy sweep data.
+
+    Tests running matrix with a simple dummy sweep input file and verifies
+    the output data file format and contents.
+
+    Asserts
+    -------
+    return code is 0
+    exactly one new file is created
+    output has 6 data columns
+    dataset has shape (9,)
+    """
     inputfile = os.path.join(path, "sys_dummy_sweep_all.5t")
     basename = os.path.splitext(inputfile)[0]
     existingfiles = glob.glob(basename + "*")
@@ -61,6 +88,18 @@ def test_matrix_dummy():
 
 
 def test_matrix_dummy_merged():
+    """Test matrix functionality with merged dummy data.
+
+    Tests running matrix with merged dummy data input and verifies the
+    output data file format and contents.
+
+    Asserts
+    -------
+    return code is 0
+    at least one output file exists
+    output has 10 data columns
+    dataset has shape (11,)
+    """
     inputfile = os.path.join(path, "sys_dummy_merged.8t")
     outputfile = os.path.join(path, f"test_merged{output_extension}")
     cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o",
@@ -78,6 +117,19 @@ def test_matrix_dummy_merged():
 
 
 def test_matrix_dummy_hdf5():
+    """Test matrix functionality with HDF5 dummy data.
+
+    Tests running matrix with HDF5 format dummy data input and verifies
+    the output data file format and contents, including various dataset
+    shapes.
+
+    Asserts
+    -------
+    return code is 0
+    at least one output file exists
+    output has 8 data columns
+    datasets have expected shapes for flat, 1D, 2D arrays
+    """
     inputfile = os.path.join(path, "sys_dummy_hdf5_sweep.3t")
     outputfile = os.path.join(path, f"test_hdf5.h5{output_extension}")
     cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o",
@@ -100,6 +152,15 @@ def test_matrix_dummy_hdf5():
 
 
 def test_matrix_script_pyflakes():
+    """Test matrix script functionality with pyflakes.
+
+    Tests running a matrix script through pyflakes for syntax checking.
+    Prepares test environment with dummy functions and runs script validation.
+
+    Asserts
+    -------
+    pyflakes returns 0 (no errors)
+    """
     # prepares and runs a test script in the same fashion as done by
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
@@ -118,6 +179,18 @@ def test_matrix_script_pyflakes():
 
 
 def test_matrix_script_dummy_merged():
+    """Test matrix script functionality with merged dummy data.
+
+    Tests running a matrix script with merged dummy data. Generates script,
+    processes it, and verifies output data format and contents.
+
+    Asserts
+    -------
+    script process returns 0
+    at least one output file exists
+    output has 10 data columns
+    dataset has shape (22, 10)
+    """
     # prepares and runs a test script in the same fashion as done by
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
