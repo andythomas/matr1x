@@ -679,7 +679,7 @@ def generate_script_prefix_suffix(systems):
     # optionally set user script to be stored in data file
     _configure_script_storing(_system, _script)
     # initialize system and put devs into namespace
-    print("setting devices")
+    print("setting system")
     # system.set is called before the filename is set so we have no arguments
     # here -> this is a difference to matrix
     _system.set()
@@ -803,6 +803,9 @@ def generate_script_prefix_suffix(systems):
     # merge user input into script
     # ==== begin user area ====
     try:
+        # the pass statement is needed to handle "empty" scripts
+        # an empty script is one without code, but only comments
+        pass
     """
     )
     suffix = textwrap.dedent(
@@ -826,6 +829,7 @@ def generate_script_prefix_suffix(systems):
     # the reset function is called at the script end only, but we nevertheless
     # specify the last datafile name to be as close as possible to the behavior
     # of matrix
+    print("resetting system")
     _system.reset(**_reset_kwargs)
     """
     )
@@ -853,10 +857,6 @@ def generate_script(systems, user_script):
     """
     # define basic part of script, imports relevant commands
     prefix, suffix = generate_script_prefix_suffix(systems)
-    if user_script.strip() == "":
-        # if empty script is passed, avoid indendation error and make script
-        # execution possible
-        user_script = "pass"
     return prefix + textwrap.indent(user_script, "    ") + suffix
 
 

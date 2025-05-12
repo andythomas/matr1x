@@ -2871,8 +2871,12 @@ class MainWindow(QMainWindow):
     def clear_annotations(self):
         """Clear all annotations in the QScintilla edit."""
         self.script_edit.clearAnnotations()
-        last_line = len(self.script_edit.text().splitlines()) - 1
-        len_last = len(self.script_edit.text().splitlines()[-1])
+        code_lines = self.script_edit.text().splitlines()
+        last_line = len(code_lines) - 1
+        if last_line >= 0:
+            len_last = len(code_lines[-1])
+        else:
+            len_last = 0
         self.script_edit.clearIndicatorRange(
             0, 0, last_line, len_last, 1)
 

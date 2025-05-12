@@ -215,3 +215,21 @@ def test_matrix_script_dummy_merged():
         h, d = matr1x.eval.loadmatrix(files[-1], structured=None)
         assert len(h["columns"]) == 10
         assert d.shape == (22, 10)
+
+
+def test_empty_script():
+    """Test running an empty matrix script.
+
+    Tests that an empty script can be processed without errors.
+
+    Asserts
+    -------
+    script process returns 0
+    """
+    with tempfile.NamedTemporaryFile(mode="w+b") as tf:
+        script = (
+            "import matr1x.util as mu\n"
+            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
+        )
+        ret = subprocess.run([sys.executable, "-c", script], cwd=path)
+        assert ret.returncode == 0
