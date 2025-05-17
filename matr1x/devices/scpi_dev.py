@@ -171,6 +171,10 @@ def makeSCPIdevice(*cmds, system=True):
             kwargs['cast'] = cmd.dtype
 
         if cmd.setfunc is None:
+            if "validator" in kwargs:
+                # for pure get property some kwargs are not allowed
+                del kwargs["validator"]
+                del kwargs["set_process"]
             attributes[att] = Instrument.measurement(
                 name + '?', f"get {att}", **kwargs)
         elif cmd.getfunc is None:

@@ -62,10 +62,11 @@ class exampleDict(GuiDict):
 
     cmds = {
         ":v1": Command(str, "setV1", "V1"),
-        ":v2": Command(float, ("dummy", "p2"), "V2"),
+        ":v2": Command(float, ("dummy", "p2"), "V2", polling_cmd=":v2rd"),
         ":v3": Command(float, ("dummy", "p5"), "V3"),
-        ":v2v3": Command((float, float), "setV2V3", "getV2V3"),
+        ":v2v3": Command((float, float), "setV2V3", "getV2V3", setargs=(2,)),
         ":v4": Command(bool, ("dummy", "p6"), "V4"),
+        ":v2rd": Get(bool, "v2ready"),
     }
     data = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
@@ -199,16 +200,18 @@ class exampleDict(GuiDict):
         """
         self.S.devs["dummy"].p1 = val
 
-    def setV2V3(self, val):
+    def setV2V3(self, val, digits=None):
         """Provide example function 2.
 
         Parameters
         ----------
         val : tuple
             A tuple containing two float values.
+        digits : int, optional
+            The number of digits to round to.
         """
-        self.S.devs["dummy"].p2 = val[0]
-        self.S.devs["dummy"].p5 = val[1]
+        self.S.devs["dummy"].p2 = round(val[0], digits)
+        self.S.devs["dummy"].p5 = round(val[1], digits)
 
     def getV2V3(self):
         """Get V2 and V3 values.
@@ -219,6 +222,16 @@ class exampleDict(GuiDict):
             A list containing the values of V2 and V3.
         """
         return [self["V2"].value, self["V3"].value]
+
+    def v2ready(self):
+        """Check if V2 is ready.
+
+        Returns
+        -------
+        bool
+            True if V2 is equal to device value, False otherwise.
+        """
+        return self["V2"].value == self.S.devs["dummy"].p2
 
     def panic(self):
         """
