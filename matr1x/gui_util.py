@@ -103,6 +103,7 @@ from . import (
     load_config,
     logfolder,
     merge_dicts,
+    reload_config,
     write_config,
 )
 from .eval import delta
@@ -1178,18 +1179,26 @@ class ConfigEditWidget(MetaViewerWidget):
 
     def __init__(self):
         super().__init__({}, heading="Preferences", editable=True)
+        self.system_file = None
 
         widget = QWidget()
         # Create a QVBoxLayout instance
         layout = QVBoxLayout()
+        button_layout = QHBoxLayout()
 
         # Dublin Core Elements
         self.w_write_config = QPushButton("Write config")
         self.w_write_config.setEnabled(False)
         self.w_write_config.clicked.connect(self.write_config)
 
+        self.w_update_config = QPushButton("Update config")
+        self.w_update_config.setEnabled(False)
+        self.w_update_config.clicked.connect(self.update_data)
+
         # Add the form layout to the main layout
-        layout.addWidget(self.w_write_config)
+        button_layout.addWidget(self.w_write_config)
+        button_layout.addWidget(self.w_update_config)
+        layout.addLayout(button_layout)
         layout.addWidget(self.tree_view)
 
         # Set the main layout for the dialog
@@ -1221,17 +1230,26 @@ class ConfigEditWidget(MetaViewerWidget):
             data[key] = val
         return data
 
-    def update_data(self, systemfile):
+    def set_systemfile(self, systemfile):
         """
-        Update data stored in the model with system configuration.
+        Set systemfile for config editor, must be called before update_data.
 
         Parameters
         ----------
         systemfile : list
             List of system names to update.
         """
+        self.systemfile = systemfile
+
+    def update_data(self):
+        """Update data stored in the model with system configuration."""
+        if self.systemfile is None:
+            return
         syst_dict = {}
-        for syst in systemfile:
+        # update global config from file system
+        reload_config()
+        # parse config of systems specified in self.systemfile
+        for syst in self.systemfile:
             syst_dict[syst.strip()] = get_config_dict(syst.strip())
 
         def parse_dict_and_types(d, dv, dt):
@@ -1253,6 +1271,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
         super().update_data(self.value_dict, self.types_dict)
         self.w_write_config.setEnabled(True)
+        self.w_update_config.setEnabled(True)
 
     def parse_item(self, item):
         """

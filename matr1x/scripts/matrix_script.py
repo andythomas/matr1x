@@ -2984,7 +2984,8 @@ class MainWindow(QMainWindow):
         # only systems that are part of matrix or ifwlib can be configured
         configurable = [system for system in self.systems if not os.path.exists(system)]
         matr1x.reload_config()
-        self.config_editor.update_data(configurable)
+        self.config_editor.set_systemfile(configurable)
+        self.config_editor.update_data()
 
     def get_settable_info(self):
         """Verify that the systems match the ones from the loaded script."""

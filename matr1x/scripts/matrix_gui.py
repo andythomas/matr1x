@@ -683,7 +683,8 @@ class MainWindow(QMainWindow):
             system for system in systemfile if not os.path.exists(system.strip())
         ]
         matr1x.reload_config()
-        self.config_editor.update_data(configurable)
+        self.config_editor.set_systemfile(configurable)
+        self.config_editor.update_data()
 
     def queueMeasurement(self):
         """Queue a measurement into the measurement menu."""
