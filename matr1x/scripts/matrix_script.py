@@ -44,6 +44,7 @@ from PyQt6.QtCore import (
     Qt,
     QThread,
     pyqtSignal,
+    pyqtSlot,
 )
 from PyQt6.QtGui import (
     QAction,
@@ -87,6 +88,7 @@ from matr1x.gui_util import (
     MApplication,
     MetaDataDialog,
     MIcon,
+    NumericalInputDialog,
     OutputDuplication,
     SystemListWidget,
     TerminationDialog,
@@ -1446,7 +1448,7 @@ class CustomLexer(QsciLexerPython):
             return super().keywords(val)
         return (
             "init_datafile measure_system wait set_value trigger_value "
-            "read_value meta_data devs system input input_bool end_script"
+            "read_value meta_data devs system input input_bool input_numerical end_script"
         )
 
 
@@ -1464,9 +1466,10 @@ class CustomQsciAPI(QsciAPIs):
         "devs",
         "wait(duration: float = None, until: str | datetime = None, message: str = '', silent: float = 10)",
         "end_script(finished: bool = None)",
-        "input(query: str = '')",
-        "input_bool(query: str = '')",
-        "init_datafile(filename: str, comment: str = '', append: bool = False, "
+        "input(query: str = '', timeout: float = float('inf'), default_value: str = '')",
+        "input_bool(query: str = '', timeout: float = float('inf'), default_value: str = 'yes')",
+        "input_numerical(query: str = '', timeout: float = float('inf'), default_value: float = 0.0, min_value: float=-100e9, max_value: float=100e9, step: float=1.0, decimals: int=2)",
+        "init_datafile(filename: str, comment: str = '', append: bool = False, ",
         "print_header: bool = True, ntot: int = None)",
         "measure_system(print_setpoint: bool = True, print_data: bool = True, "
         "print_telemetry: bool = True)",
@@ -1497,7 +1500,9 @@ class ExecThread(QThread):
     """Control and the thread running the measurements."""
 
     # signal initiating user input from the GUI.
-    input_signal = pyqtSignal(str, str)
+    # Signature: query (str), input_type (str), timeout (float), default_value (str), min_value (object, float or None),
+    #            max_value (object, float or None), step (object, float or None), decimals (object, int or None)
+    input_signal = pyqtSignal(str, str, float, str, object, object, object, object)
     # signal to report the currently executing line number to the editor.
     lineno_signal = pyqtSignal(int)
     # signal to report the filename of the file that is written by the process
@@ -1587,10 +1592,13 @@ class ExecThread(QThread):
         """
         pattern_lineno = r"__lineno(-?\d+)__"
         pattern_filename = r"__//(.*)//__"
-        pattern_input = r"__input_(?P<type>[^:]+):(?P<strlabel>.+)__"
+        # Format: __input_type:message:timeout:default:min:max:step:decimals__ (trailing parameters are optional)
+        # Regex to capture type, message, timeout, default, min, max, step, decimals
+        # Handles empty optional fields correctly (e.g., :: means empty field)
+        pattern_input = r"__input_(?P<type>[^:]+):(?P<strlabel>[^:]+)(?::(?P<timeout>[^:]*))?(?::(?P<default>[^:]*))?(?::(?P<min>[^:]*))?(?::(?P<max>[^:]*))?(?::(?P<step>[^:]*))?(?::(?P<decimals>[^:]*))?__"
         lines = inp.split(os.linesep)
         for i, line in enumerate(lines[:-1]):
-            # add "\n" to all but the last element in split
+            # add \"\\n\" to all but the last element in split
             # (last element contains everything after last "\n")
             lines[i] += "\n"
         for line in lines:
@@ -1602,8 +1610,83 @@ class ExecThread(QThread):
             if match := re.search(pattern_input, line):
                 input_type = match.group("type")
                 strlabel = match.group("strlabel")
-                print(f"Requesting input type: {input_type}, Query: {strlabel}")
-                self.input_signal.emit(strlabel, input_type)
+
+                default_value = ""  # Default for string/bool
+                timeout = float("inf")
+                min_value = None
+                max_value = None
+                step = None
+                decimals = None
+
+                # Parse timeout
+                timeout_str = match.group("timeout")
+                if timeout_str:
+                    try:
+                        timeout = float(timeout_str)
+                    except ValueError:
+                        print(f"Warning: Invalid timeout value received: {timeout_str}")
+                        timeout = float("inf")  # Use default on error
+
+                # Parse default value (depends on input_type, handle as string initially)
+                default_str = match.group("default")
+                if (
+                    default_str is not None
+                ):  # match.group returns None if group wasn\'t in the match
+                    default_value = default_str  # Keep as string for emitting
+
+                # Parse numerical specific parameters if type is 'numerical'
+                if input_type == "numerical":
+                    min_str = match.group("min")
+                    if min_str:
+                        try:
+                            min_value = float(min_str)
+                        except ValueError:
+                            print(f"Warning: Invalid min value received: {min_str}")
+                            min_value = None  # Use default (None) on error
+
+                    max_str = match.group("max")
+                    if max_str:
+                        try:
+                            max_value = float(max_str)
+                        except ValueError:
+                            print(f"Warning: Invalid max value received: {max_str}")
+                            max_value = None  # Use default (None) on error
+
+                    step_str = match.group("step")
+                    if step_str:
+                        try:
+                            step = float(step_str)
+                        except ValueError:
+                            print(f"Warning: Invalid step value received: {step_str}")
+                            step = None  # Use default (None) on error
+
+                    decimals_str = match.group("decimals")
+                    if decimals_str:
+                        try:
+                            decimals = int(decimals_str)
+                        except ValueError:
+                            print(
+                                f"Warning: Invalid decimals value received: {decimals_str}"
+                            )
+                            decimals = None  # Use default (None) on error
+
+                print(
+                    f"Requesting input type: {input_type}, Query: {strlabel}, "
+                    f"Timeout: {timeout}, Default: {default_value}, Min: {min_value}, Max: {max_value}, Step: {step}"
+                )
+
+                # Emit the signal with all parameters
+                self.input_signal.emit(
+                    strlabel,
+                    input_type,
+                    timeout,
+                    default_value,
+                    min_value,
+                    max_value,
+                    step,
+                    decimals,
+                )
+
                 line = re.sub(pattern_input, "", line)
             if match := re.search(pattern_filename, line):
                 path = match.group(1)
@@ -1747,11 +1830,14 @@ class MainWindow(QMainWindow):
             code += '# if finished is True, file is marked as "finished", for False\n'
             code += "# it is marked as aborted, otherwise user is querried\n"
         elif function == "input":
-            code = 'input(query="")\n'
-            code += "# waits for user text input\n"
+            code = 'input(query="", timeout=float("inf"), default_value="")\n'
+            code += "# waits for user text input or timeouts with a default reply.\n"
         elif function == "input_bool":
-            code = 'input_bool(question="")\n'
-            code += "# waits for user to answer a yes/no question.\n"
+            code = 'input_bool(question="", timeout=float("inf"), default_value="")\n'
+            code += "# waits for user to answer a yes/no question or continues with the default reply after timeout.\n"
+        elif function == "input_numerical":
+            code = 'input_numerical(query="", timeout=float("inf"), default_value=0.0, min_value=-100e9, max_value=100e9, step=1.0, decimals=2)\n'
+            code += "# waits for user to input a number or continues with the default after timeout.\n"
         elif function == "set_value":
             code = "set_value(column, value)\n"
             code += "# column can be the index or the name.\n"
@@ -2534,6 +2620,7 @@ class MainWindow(QMainWindow):
             "end_script",
             "input",
             "input_bool",
+            "input_numerical",
             "separator",
             "set_value",
             "read_value",
@@ -2641,29 +2728,80 @@ class MainWindow(QMainWindow):
         if self.system_command_help.isVisible():
             self.show_system_commands()
 
-    def get_script_input(self, query: str, input_type: str):
+    @pyqtSlot(str, str, float, str, object, object, object, object)
+    def get_script_input(
+        self,
+        query: str,
+        input_type: str,
+        timeout: float = float("inf"),
+        default_value: str = "",
+        min_value: float | None = None,
+        max_value: float | None = None,
+        step: float | None = None,
+        decimals: int | None = None,
+    ):
         """
-        Open a text dialog and forward input to the script.
+        Open a dialog and forward input to the script.
 
         Parameters
         ----------
         query: str
-         label to explain the user what they input
+         Label to explain the user what they input
         input_type: str
-         Type of expected input. can be 'string' or 'bool'
+         Type of expected input. can be 'string' or 'bool' or 'numerical'
+        timeout: float, optional
+         Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+        default_value: str, optional
+         Default value to show in input field and use if timeout occurs. Default is empty string.
+        min_value: float, optional
+         Minimum value for numerical input.
+        max_value: float, optional
+         Maximum value for numerical input.
+        step: float, optional
+         Step size for numerical input.
         """
         if input_type == "string":
-            dialog = TextInputDialog(query, parent=self)
+            dialog = TextInputDialog(
+                query, parent=self, timeout=timeout, default_value=default_value
+            )
             if dialog.exec() == QDialog.DialogCode.Accepted:
-                ret = dialog.input.text()
+                ret = dialog.get_input_text()
             else:
                 # abort executing script
                 self.abort_thread()
                 return
         elif input_type == "bool":
-            dialog = YesNoAbortDialog(query)
+            dialog = YesNoAbortDialog(
+                query, parent=self, timeout=timeout, default_value=default_value
+            )
             ret = dialog.exec_and_get_response()
             if ret == "abort":
+                self.abort_thread()
+                return
+        elif input_type == "numerical":
+            try:
+                # Convert default_value string to float
+                numerical_default_value = float(default_value) if default_value else 0.0
+            except ValueError:
+                print(
+                    f"Warning: Invalid default_value '{default_value}' for numerical input. Using 0.0"
+                )
+                numerical_default_value = 0.0
+
+            dialog = NumericalInputDialog(
+                query,
+                parent=self,
+                timeout=timeout,
+                default_value=numerical_default_value,
+                min_value=min_value,
+                max_value=max_value,
+                step=step,
+                decimals=decimals,
+            )
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                ret = str(dialog.get_input_value())
+            else:
+                # abort executing script
                 self.abort_thread()
                 return
         elif input_type == "__end_script__":

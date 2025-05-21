@@ -610,7 +610,7 @@ def generate_script_prefix_suffix(systems):
 
 
     @_lineno_decorator
-    def input(query: str):
+    def input(query: str, timeout=float('inf'), default_value=""):
         '''
         Ask user to provide some free text input.
 
@@ -618,17 +618,21 @@ def generate_script_prefix_suffix(systems):
         ----------
         query : str
             Query string presented to the user so they know what to enter.
+        timeout : float, optional
+            Maximum time in seconds to wait for user input. Default is infinity.
+        default_value : str, optional
+            Value to return if timeout occurs. Default is empty string.
 
         Returns
         -------
         str
             User input.
         '''
-        return _input(query, system=_system)
+        return _input(query, system=_system, timeout=timeout, default_value=default_value)
 
 
     @_lineno_decorator
-    def input_bool(query: str):
+    def input_bool(query: str, timeout=float('inf'), default_value="yes"):
         '''
         Ask user to answer a yes/no question.
 
@@ -636,16 +640,69 @@ def generate_script_prefix_suffix(systems):
         ----------
         query : str
             Question to ask the user.
+        timeout : float, optional
+            Maximum time in seconds to wait for user input. Default is infinity.
+        default_value : str, optional
+            Value to return if timeout occurs. Default is empty string.
 
         Returns
         -------
         bool
             True if the user answers yes, False otherwise.
         '''
-        ret = _input(query, system=_system, input_type='bool')
+        ret = _input(query, system=_system, input_type="bool", timeout=timeout, default_value=default_value)
         if ret == "yes":
             return True
         return False
+
+
+    @_lineno_decorator
+    def input_numerical(
+        query: str,
+        timeout=float('inf'),
+        default_value: float=0.0,
+        min_value: float=-100e9,
+        max_value: float=100e9,
+        step: float=1.0,
+        decimals: int=2,
+    ):
+        '''
+        Ask user to answer a yes/no question.
+
+        Parameters
+        ----------
+        query : str
+            Question to ask the user.
+        timeout : float, optional
+            Maximum time in seconds to wait for user input. Default is infinity.
+        default_value : str, optional
+            Value to return if timeout occurs. Default is empty string.
+        min_value : float, optional
+            Minimal input value. Default is -1e9
+        max_value : float, optional
+            Maximum input value. Default is 1e9
+        step : float, optional
+            Allowed steps between user input values. Default is 1.0
+        decimals : int, optional
+            Number of decimals of the input number
+
+        Returns
+        -------
+        float
+            numerical user input value.
+        '''
+        ret = _input(
+            query,
+            system=_system,
+            input_type="numerical",
+            timeout=timeout,
+            default_value=default_value,
+            min_value=min_value,
+            max_value=max_value,
+            step=step,
+            decimals=decimals,
+        )
+        return float(ret)
 
 
     @_lineno_decorator
@@ -1338,7 +1395,18 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 return True
             return False
 
-        def input(self, message="", system=None, input_type="string"):
+        def input(
+            self,
+            message: str = "",
+            system: object = None,
+            input_type: str = "string",
+            timeout: float = float("inf"),
+            default_value: str = "",
+            min_value: float = None,  # Optional: minimum value for numerical input
+            max_value: float = None,  # Optional: maximum value for numerical input
+            step: float = None,  # Optional: step size for numerical input
+            decimals: int = None,  # Optional: number of decimals for numerical input
+        ):
             """Handle user input requests from the script.
 
             This method manages the input request workflow, including displaying prompts,
@@ -1352,6 +1420,10 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 System object that can be interrupted/paused. Default is None.
             input_type : str, optional
                 Type of input expected. Default is "string".
+            timeout : float, optional
+                Timeout in seconds. Will be handled by GUI layer. Default is infinity.
+            default_value : str, optional
+                Default value if timeout occurs. Will be handled by GUI layer. Default is empty string.
 
             Returns
             -------
@@ -1361,12 +1433,48 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             t0 = time.time()
             if self.recv != "" and not self.recv_flag:
                 self.recv = ""
+            # Format the input pattern with proper handling of empty timeout slot
             if "" == message:
-                print(
-                    f"__input_{input_type}:User input requested, see executing line for context.__"
+                base_message = "User input requested, see executing line for context"
+            else:
+                base_message = message
+
+            # Handle cases for timeout and default value:
+            # Construct the pattern based on input_type and provided parameters
+            if input_type == "string":
+                # Handle cases for timeout and default value for string input:
+                # 1. Both timeout and default_value: __input_type:message:timeout:default__
+                # 2. Only timeout: __input_type:message:timeout__
+                # 3. Only default_value: __input_type:message::default__
+                # 4. Neither: __input_type:message__
+                if timeout != float("inf") and default_value:
+                    pattern = f"__input_{input_type}:{base_message}:{timeout}:{default_value}__"
+                elif timeout != float("inf"):
+                    pattern = f"__input_{input_type}:{base_message}:{timeout}__"
+                elif default_value:
+                    pattern = f"__input_{input_type}:{base_message}::{default_value}__"
+                else:
+                    pattern = f"__input_{input_type}:{base_message}__"
+            elif input_type == "numerical":
+                # For numerical input, always include placeholders for min, max, step
+                # Pattern: __input_numerical:message:timeout:default_value:min_value:max_value:step:decimals__
+                pattern = (
+                    f"__input_numerical:{base_message}:{timeout}:{default_value}:"
+                    f"{min_value}:{max_value}:{step}:{decimals}__"
                 )
             else:
-                print(f"__input_{input_type}:{message}__")
+                # Default pattern for other types (e.g., bool, __end_script__)
+                if timeout != float("inf") and default_value:
+                    pattern = f"__input_{input_type}:{base_message}:{timeout}:{default_value}__"
+                elif timeout != float("inf"):
+                    pattern = f"__input_{input_type}:{base_message}:{timeout}__"
+                elif default_value:
+                    pattern = f"__input_{input_type}:{base_message}::{default_value}__"
+                else:
+                    pattern = f"__input_{input_type}:{base_message}__"
+
+            print(pattern)
+
             while (self.recv == "" or self.recv_flag is True):
                 time.sleep(0.1)
                 if (time.time() - t0) > 60:

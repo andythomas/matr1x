@@ -49,6 +49,7 @@ from PyQt6.QtCore import (
     QObject,
     QPoint,
     Qt,
+    QTimer,
     pyqtSignal,
 )
 from PyQt6.QtGui import (
@@ -2823,10 +2824,126 @@ class MetaDataDialog(QDialog):
         self.description.setEnabled(state)
         QDialog.setEnabled(self, state)
 
-class TextInputDialog(QDialog):
+
+class TimeoutDialogBase(QDialog):
+    """Base class for dialogs with timeout functionality."""
+
+    def __init__(
+        self,
+        query: str,
+        parent: Optional[QWidget] = None,
+        timeout: float = float("inf"),
+        default_value: Any = "",
+    ):
+        """
+        Initialize the base dialog with timeout functionality.
+
+        Parameters
+        ----------
+        query : str
+            The text to display on the label above the input field.
+        parent : QWidget, optional
+            The parent widget of the dialog.
+        timeout : float, optional
+            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+        default_value : Any, optional
+            Default value to show in input field.
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Matrix-script input")
+
+        self.default_value = default_value
+        self.timeout_value = timeout
+
+        self.label = QLabel(query, self)
+
+        # This will be created by subclasses
+        self.input_widget = None
+
+        self.timer_label = QLabel("", self)
+        self.timer_label.setVisible(timeout != float("inf"))
+
+        self.ok_button = QPushButton("Send input", self)
+        self.abort_button = QPushButton("Abort script", self)
+
+        self.ok_button.clicked.connect(self.accept)
+        self.abort_button.clicked.connect(self.reject)
+
+        # Ensure the dialog stays on top of the main window
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+
+        # Set up timer if timeout is finite
+        if timeout != float("inf"):
+            self.remaining_time = timeout
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.update_timer)
+            self.timer.start(1000)  # Update every second
+            self.update_timer()  # Initialize timer display
+
+    def update_timer(self):
+        """Update the timer display and handle timeout."""
+        self.remaining_time -= 1
+
+        if self.remaining_time <= 0:
+            self.accept()
+            return
+
+        # Format the time display
+        if self.remaining_time < 100:
+            # Show seconds for short timeouts
+            self.timer_label.setText(
+                f"Time remaining: {int(self.remaining_time)} seconds"
+            )
+        else:
+            # Show hours:minutes format for longer timeouts
+            hours = int(self.remaining_time / 3600)
+            minutes = int((self.remaining_time % 3600) / 60)
+            seconds = int(self.remaining_time % 60)
+            if hours > 0:
+                self.timer_label.setText(
+                    f"Time remaining: {hours}h {minutes}m {seconds}s"
+                )
+            else:
+                self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
+
+    def setup_layout(self):
+        """Set up the dialog layout."""
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.ok_button)
+        button_layout.addWidget(self.abort_button)
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.label)
+        if self.input_widget:
+            main_layout.addWidget(self.input_widget)
+        main_layout.addWidget(self.timer_label)
+        main_layout.addLayout(button_layout)
+
+        self.setLayout(main_layout)
+
+    def accept(self):
+        """Handle dialog acceptance."""
+        if hasattr(self, "timer") and self.timer.isActive():
+            self.timer.stop()
+        super().accept()
+
+    def reject(self):
+        """Handle dialog rejection."""
+        if hasattr(self, "timer") and self.timer.isActive():
+            self.timer.stop()
+        super().reject()
+
+
+class TextInputDialog(TimeoutDialogBase):
     """Modal dialog for text input for matrix-script."""
 
-    def __init__(self, query: str, parent=None):
+    def __init__(
+        self,
+        query: str,
+        parent: Optional[QWidget] = None,
+        timeout: float = float("inf"),
+        default_value: str = "",
+    ):
         """
         Initialize the text input dialog with a its GUI elements.
 
@@ -2836,39 +2953,114 @@ class TextInputDialog(QDialog):
             The text to display on the label above the input field.
         parent : QWidget, optional
             The parent widget of the dialog.
+        timeout : float, optional
+            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+        default_value : str, optional
+            Default value to show in input field.
         """
-        super().__init__(parent)
-        self.setWindowTitle("Matrix-script input")
+        super().__init__(query, parent, timeout, default_value)
 
-        self.label = QLabel(query, self)
+        # Create the input widget
         self.input = QLineEdit(self)
         self.input.setPlaceholderText("input to send to script")
+        self.input.setText(default_value)
+        self.input_widget = self.input
 
-        self.ok_button = QPushButton("Send input", self)
-        self.abort_button = QPushButton("Abort script", self)
+        # Set up the layout
+        self.setup_layout()
 
-        self.ok_button.clicked.connect(self.accept)
-        self.abort_button.clicked.connect(self.reject)
+    def get_input_text(self):
+        """
+        Get the text entered by the user.
 
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.ok_button)
-        button_layout.addWidget(self.abort_button)
+        Returns
+        -------
+        str
+            The user input.
+        """
+        return self.input.text()
 
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(self.label)
-        main_layout.addWidget(self.input)
-        main_layout.addLayout(button_layout)
 
-        self.setLayout(main_layout)
+class NumericalInputDialog(TimeoutDialogBase):
+    """Modal dialog for numerical input for matrix-script."""
 
-        # Ensure the dialog stays on top of the main window
-        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+    def __init__(
+        self,
+        query: str,
+        parent: Optional[QWidget] = None,
+        timeout: float = float("inf"),
+        default_value: float = 0.0,
+        min_value: float = -100e9,
+        max_value: float = 100e9,
+        step: float = 1.0,
+        decimals: int = 2,
+    ):
+        """
+        Initialize the numerical input dialog with its GUI elements.
+
+        Parameters
+        ----------
+        query : str
+            The text to display on the label above the input field.
+        parent : QWidget, optional
+            The parent widget of the dialog.
+        timeout : float, optional
+            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+        default_value : float, optional
+            Default value to show in input field.
+        min_value : float, optional
+            Minimum value for the QDoubleSpinbox. Default is -100e9.
+        max_value : float, optional
+            Maximum value for the QDoubleSpinbox. Default is 100e9.
+        step : float, optional
+            Step size for the QDoubleSpinbox. Default is 1.0.
+        decimals : int, optional
+            Number of decimal places. Default is 2.
+        """
+        super().__init__(query, parent, timeout, default_value)
+
+        # Create the spinbox
+        self.input_spinbox = QDoubleSpinBox(self)
+        if min_value is not None:
+            self.input_spinbox.setMinimum(min_value)
+        if max_value is not None:
+            self.input_spinbox.setMaximum(max_value)
+        if step is not None:
+            self.input_spinbox.setSingleStep(step)
+        if decimals is not None:
+            self.input_spinbox.setDecimals(decimals)
+        if default_value is not None:
+            self.input_spinbox.setValue(default_value)
+        self.input_spinbox.setToolTip(
+            f"Enter a numerical value (Range: {min_value} to {max_value})"
+        )
+        self.input_widget = self.input_spinbox
+
+        # Set up the layout
+        self.setup_layout()
+
+    def get_input_value(self):
+        """
+        Get the value from the spinbox.
+
+        Returns
+        -------
+        float
+        The user input value.
+        """
+        return self.input_spinbox.value()
 
 
 class YesNoAbortDialog(QMessageBox):
     """Modal dialog for boolean input for matrix-script."""
 
-    def __init__(self, question: str, parent=None):
+    def __init__(
+        self,
+        question: str,
+        parent: Optional[QWidget] = None,
+        timeout: float = float("inf"),
+        default_value: str = "yes",
+    ):
         """
         Initialize the yes/no dialog with a question and buttons.
 
@@ -2878,16 +3070,98 @@ class YesNoAbortDialog(QMessageBox):
             The question to display on the label.
         parent : QWidget, optional
             The parent widget of the dialog.
+        timeout : float, optional
+            Timeout in seconds before dialog automatically returns default_value.
+            Default is infinity (no timeout).
+        default_value : str, optional
+            Default value to return if timeout occurs. Should be "Yes", "No", or empty.
+            Default is True.
         """
         super().__init__(parent)
         self.setWindowTitle("Question")
         self.setText(question)
         self.setIcon(QMessageBox.Icon.Question)
 
-        # Add custom buttons
-        self.yes_button = self.addButton("Yes", QMessageBox.ButtonRole.AcceptRole)
-        self.no_button = self.addButton("No", QMessageBox.ButtonRole.RejectRole)
-        self.abort_button = self.addButton("Abort script", QMessageBox.ButtonRole.DestructiveRole)
+        # Normalize default value and ensure it's either "yes" or "no"
+        self.default_value = (
+            default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
+        )
+        self.timeout_occurred = False  # Required for YesNoAbortDialog functionality
+
+        # Add custom buttons with default button indication when timeout is set
+        button_text_yes = "Yes"
+        button_text_no = "No"
+
+        # If timeout is set, add visual indications to the default button
+        if timeout != float("inf"):
+            if self.default_value == "yes":
+                button_text_yes = "Yes (Default)"
+            else:
+                button_text_no = "No (Default)"
+
+        # Create buttons
+        self.yes_button = self.addButton(
+            button_text_yes, QMessageBox.ButtonRole.AcceptRole
+        )
+        self.no_button = self.addButton(
+            button_text_no, QMessageBox.ButtonRole.RejectRole
+        )
+        self.abort_button = self.addButton(
+            "Abort script", QMessageBox.ButtonRole.DestructiveRole
+        )
+
+        # Simple styling for default button if timeout is set
+        if timeout != float("inf"):
+
+            # Set bold font for the default button
+            default_button = (
+                self.yes_button if self.default_value == "yes" else self.no_button
+            )
+            font = default_button.font()
+            font.setBold(True)
+            default_button.setFont(font)
+
+            # Make this the default button (responds to Enter key)
+            self.setDefaultButton(default_button)
+
+            # Set up timer and label
+            self.timer_label = QLabel(f"Time remaining: {int(timeout)} seconds", self)
+            self.layout().addWidget(self.timer_label, 1, 1, 1, 3)
+
+            self.remaining_time = timeout
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.update_timer)
+            self.timer.start(1000)  # Update every second
+            self.update_timer()  # Initialize timer display
+
+    def update_timer(self):
+        """Update the timer display and handle timeout."""
+        self.remaining_time -= 1
+
+        if self.remaining_time <= 0:
+            self.timeout_occurred = True
+            self.timer.stop()
+            self.close()
+            return
+
+        # Format the time display
+        if self.remaining_time < 100:
+            # Show seconds for short timeouts
+            self.timer_label.setText(
+                f"Time remaining: {int(self.remaining_time)} seconds"
+            )
+
+        else:
+            # Show hours:minutes format for longer timeouts
+            hours = int(self.remaining_time / 3600)
+            minutes = int((self.remaining_time % 3600) / 60)
+            seconds = int(self.remaining_time % 60)
+            if hours > 0:
+                self.timer_label.setText(
+                    f"Time remaining: {hours}h {minutes}m {seconds}s"
+                )
+            else:
+                self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
 
     def exec_and_get_response(self):
         """
@@ -2896,9 +3170,19 @@ class YesNoAbortDialog(QMessageBox):
         Returns
         -------
         str
-            The response based on the button clicked ("Yes", "No", or "Abort").
+            The response based on the button clicked ("yes", "no", or "abort").
+            If timeout occurred, returns the default_value.
         """
         self.exec()
+
+        if self.timeout_occurred:
+            print(
+                f"Dialog timeout occurred - automatically selected: {self.default_value}"
+            )
+            if self.default_value in ["yes", "no"]:
+                return self.default_value
+            # If default_value is not valid, return "yes" as a default
+            return "yes"
 
         if self.clickedButton() == self.yes_button:
             return "yes"
