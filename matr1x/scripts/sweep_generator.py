@@ -733,7 +733,8 @@ class MainWindow(QMainWindow):
             self.system = MergedSystem.from_files(filenames)
         except Exception as e:
             if isinstance(e, ModuleNotFoundError):
-                error_text = '<p style="color:red">Please check the path to the system files and whether all required dependencies are present.</p>'
+                error_text = '<p style="color:red">Please check the path to the system files and whether all '
+                error_text += "required dependencies are present.</p>"
             else:
                 error_text = "The following error was raised during system "
                 error_text += "import, please check the system for errors.\n\n"
@@ -1467,6 +1468,7 @@ class MainWindow(QMainWindow):
         self.grid_widgets[0]["start"].setFocus()
         self.last_filename = ""
         self.update_window_title(dirty=False)
+
 
 def main():
     """Set the basic GUI parameters and run."""

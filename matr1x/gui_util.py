@@ -2123,7 +2123,6 @@ class SimplePlotWidget(QGroupBox):
                     # Handle shape mismatch errors
                     self._raise_error(f"Plot error: {str(e)}")
 
-
     def __init__(self, cb_error, cb_index, parent=None):
         super().__init__("", parent)
 
@@ -2769,7 +2768,6 @@ class MetaDataDialog(QDialog):
         form_layout.addRow("Creator/User:", self.creator)
         form_layout.addRow("Identifier/Sample:", self.identifier)
         form_layout.addRow("Relation:", self.relation)
-
 
         # Add the form layout to the main layout
         layout.addLayout(form_layout)
@@ -3489,6 +3487,7 @@ def _set_palette(instance):
         )
 
     instance.setPalette(palette)
+
 
 def detect_shortcut(event, shortcut):
     """

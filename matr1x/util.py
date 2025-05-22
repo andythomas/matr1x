@@ -80,6 +80,7 @@ def open_and_error(filename, mode="r"):
         finally:
             f.close()
 
+
 # default separator
 default_separator = "\t"
 

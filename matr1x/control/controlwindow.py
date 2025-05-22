@@ -722,7 +722,6 @@ class ControlWindow(QMainWindow):
             content = guidict.create_GUI()
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
 
-
     @pyqtSlot()
     def needToAdjustSize(self) -> None:
         """Adjust the size of the main window."""

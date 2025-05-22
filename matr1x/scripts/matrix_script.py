@@ -1026,6 +1026,7 @@ class CompleterPython(QObject):
         return (self.editor.currentStyle() ==
                 QsciLexerPython.TripleSingleQuotedString)
 
+
 class QScintillaCustom(QsciScintilla, DroppableWidget):
     # adapted from https://hg.die-offenbachs.homelinux.org/eric/file/eric7/src/eric7/QScintilla/QsciScintillaCompat.py
     # with commenting functionality from https://github.com/matkuki/qscintilla_docs/blob/master/examples/commenting.py
@@ -1595,7 +1596,8 @@ class ExecThread(QThread):
         # Format: __input_type:message:timeout:default:min:max:step:decimals__ (trailing parameters are optional)
         # Regex to capture type, message, timeout, default, min, max, step, decimals
         # Handles empty optional fields correctly (e.g., :: means empty field)
-        pattern_input = r"__input_(?P<type>[^:]+):(?P<strlabel>[^:]+)(?::(?P<timeout>[^:]*))?(?::(?P<default>[^:]*))?(?::(?P<min>[^:]*))?(?::(?P<max>[^:]*))?(?::(?P<step>[^:]*))?(?::(?P<decimals>[^:]*))?__"
+        pattern_input = r"__input_(?P<type>[^:]+):(?P<strlabel>[^:]+)(?::(?P<timeout>[^:]*))?(?::(?P<default>[^:]*))?"
+        pattern_input += r"(?::(?P<min>[^:]*))?(?::(?P<max>[^:]*))?(?::(?P<step>[^:]*))?(?::(?P<decimals>[^:]*))?__"
         lines = inp.split(os.linesep)
         for i, line in enumerate(lines[:-1]):
             # add \"\\n\" to all but the last element in split
@@ -1836,7 +1838,8 @@ class MainWindow(QMainWindow):
             code = 'input_bool(question="", timeout=float("inf"), default_value="")\n'
             code += "# waits for user to answer a yes/no question or continues with the default reply after timeout.\n"
         elif function == "input_numerical":
-            code = 'input_numerical(query="", timeout=float("inf"), default_value=0.0, min_value=-100e9, max_value=100e9, step=1.0, decimals=2)\n'
+            code = 'input_numerical(query="", timeout=float("inf"), default_value=0.0, '
+            code += "min_value=-100e9, max_value=100e9, step=1.0, decimals=2)\n"
             code += "# waits for user to input a number or continues with the default after timeout.\n"
         elif function == "set_value":
             code = "set_value(column, value)\n"
@@ -3355,6 +3358,7 @@ class MainWindow(QMainWindow):
         self.last_filename = ""
         self.script_edit.clear()
         self.script_edit.setModified(False)
+
 
 def main():
     """Set the basic GUI parameters and run."""
