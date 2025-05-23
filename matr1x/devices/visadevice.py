@@ -1,4 +1,4 @@
-# This file is part of a software collection for data aquisition (matr1x).
+# This file is part of a software collection for data acquisition (matr1x).
 # Copyright (C) 2006-2025 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,6 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
+Base class for all device drivers in this package.
+
 In this module the base class for all device drivers in this package is
 defined. It is itself based on the pyvisa library which handles all the low
 level communication.
@@ -36,8 +38,9 @@ logger = logging.getLogger(__name__)
 
 def output_name_on_error(func):
     """
-    decorator to log and print the class instance 'name' attribute in case of
-    an raised Exception. This decorator can be only used with class methods.
+    Log and print the class instance 'name' attribute when exceptions occur.
+
+    This decorator can be only used with class methods.
     """
     @wraps(func)
     def wrapper(self, *args, **kwargs):
@@ -62,34 +65,39 @@ class VisaDevice:
     The connection is closed by the `close` method after which the device can be
     reinitialized even within the same Python process.
 
+    Devices derived from this class should be placed in a folder named after the
+    vendor of the device and the class name should contain the vendor and model
+    name. Note that we follow the SnakeCase naming convention for class names.
+
     Parameters
     ----------
     interface : str
-      The used interface as VISA address.
-      e.g. 'TCPIP::192.98.143.1::5025::SOCKET'
+        The used interface as VISA address.
+        e.g. 'TCPIP::192.98.143.1::5025::SOCKET'
     cmdpers : int, optional
-      The maxiumum amount of commands to be send per second.
-      If None (default), no limit is imposed.
+        The maxiumum amount of commands to be send per second.
+        If None (default), no limit is imposed.
     **kwargs : dict, optional
-      Keyword arguments, e.g. a='b'. Used keywords are:
-       * pts : bool
-         'Print to screen'. If True, read and written strings are printerd to
-         the console.  Usefull  for debuging.
-       * visadebug : bool
-         If True, enables the output of debugging information
-         from the pyVISA library.
-       * All other kwargs are passed to the VISA resource connection and can
-         serve to configure the interface. Most common are:
+        Keyword arguments, e.g. a='b'. Used keywords are:
 
-         * write_termination : str
-         * read_termination : str
-         * timeout : float
-         * query_delay : float
-         * baud_rate : int
-         * data_bits : int
-         * stop_bits : int
-         * parity : int
-         * flow_control : int
+        * pts : bool
+            'Print to screen'. If True, read and written strings are printerd to
+            the console. Usefull for debuging.
+        * visadebug : bool
+            If True, enables the output of debugging information
+            from the pyVISA library.
+        * All other kwargs are passed to the VISA resource connection and can
+            serve to configure the interface. Most common are:
+
+            * write_termination : str
+            * read_termination : str
+            * timeout : float
+            * query_delay : float
+            * baud_rate : int
+            * data_bits : int
+            * stop_bits : int
+            * parity : int
+            * flow_control : int
 
     Attributes
     ----------
@@ -100,14 +108,16 @@ class VisaDevice:
         Usually only important if new features are to be implemented.
         Please refer to the pyVISA documentation for more information.
     """
+
     config_params = {}
     """
     Parameters provided in dictionary need to be one of:
+
       * an attribute or method name (if callable without arguments)
-      of the device object
+        of the device object
       * a query string for the device
       * a list of the following scheme
-      [method_name : str, args : tuple, kwargs : dict]
+        [method_name : str, args : tuple, kwargs : dict]
     """
 
     @output_name_on_error
@@ -144,8 +154,10 @@ class VisaDevice:
 
     def open(self):
         """
-        open device communication port from parameters given to the constructor
-        method.
+        Open device communication port from parameters given to the constructor.
+
+        Opens the device communication port using the parameters provided to the
+        constructor method.
         """
         if not self._opened:
             # copy kwargs dictionary to modify in this function
@@ -177,8 +189,10 @@ class VisaDevice:
 
     def close(self):
         """
-        Close device connection in a way which allows to reopen it later in the
-        same Python process
+        Close device connection.
+
+        Closes the device connection in a way which allows to reopen it later in the
+        same Python process.
         """
         if self._opened:
             self.connection.close()
@@ -187,7 +201,14 @@ class VisaDevice:
     @synchronized
     @output_name_on_error
     def read_very_eager(self):
-        """read from device without blocking IO (timeout=0)"""
+        """
+        Read from device without blocking IO (timeout=0).
+
+        Returns
+        -------
+        str
+            Data read from the device.
+        """
         t = self.connection.timeout
         if isinstance(self.connection, pyvisa.resources.GPIBInstrument):
             # GPIB instruments need a finite timeout here since messages are
@@ -209,19 +230,19 @@ class VisaDevice:
     def read(self, nbytes=None):
         """
         Read data from the device.
+
         If nbytes is set, only so many bytes are read.
         If not, bytes are read until terminated by the specified character.
 
         Parameters
         ----------
-        nbytes : int
-             (Default = None)
-            The number of bytes to be read.
+        nbytes : int, optional
+            The number of bytes to be read. Default is None.
 
         Returns
         -------
         readout : str or bytes
-            The recived information.
+            The received information.
         """
         if nbytes is None:
             readout = self.connection.read()
@@ -235,9 +256,7 @@ class VisaDevice:
         return readout
 
     def _write_delay(self):
-        """
-        Wait to not exceed the communication speed the device can handle.
-        """
+        """Wait to not exceed the communication speed the device can handle."""
         if self.timedelay is not None:
             # make sure that enough time has passed so that a new command
             # can be sent
@@ -260,7 +279,7 @@ class VisaDevice:
             encoded before being sent to the devices.
             If bytes are passed, this function falls back to visa's write_raw
             function, which does not modify the commend but just transmits the
-            the bytes to the device (no terminator is appended!).
+            bytes to the device (no terminator is appended!).
         """
         logger.debug("%s: Write: %s", self.name, command)
         if self.pts:
@@ -285,7 +304,7 @@ class VisaDevice:
         Returns
         -------
         readout : str
-            The recieved information.
+            The received information.
         """
         logger.debug("%s: Query: %s", self.name, command)
 
@@ -300,12 +319,14 @@ class VisaDevice:
 
     def id(self):
         r"""
+        Send an IDN query to the device.
+
         Sends a '\*IDN?' command to the device, which should
-        answer with a self-identifing string.
+        answer with a self-identifying string.
 
         Returns
         -------
         idstr : str
-            The recieved string.
+            The received string.
         """
         return self.query('*IDN?')

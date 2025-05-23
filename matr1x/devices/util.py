@@ -1,4 +1,4 @@
-# This file is part of a software collection for data aquisition (matr1x).
+# This file is part of a software collection for data acquisition (matr1x).
 # Copyright (C) 2006-2025 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
@@ -13,18 +13,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Utility functions for matr1x devices."""
+
 
 def listToStr(floatList):
-    """
-    converts a list of numeric values to a comma separated string
-    """
+    """Convert a list of numeric values to a comma separated string."""
     return ",".join(str(r) for r in floatList)
 
 
 def strToList(string, dtype=float):
     """
-    converts a comma separated string of values into a list with of
-    values corresponding cast to dtype
+    Convert a comma separated string of values into a list.
+
+    The datatype of the values is cast to dtype.
     """
     string = string.strip("[")
     string = string.strip("]")

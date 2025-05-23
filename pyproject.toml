@@ -53,7 +53,6 @@ matrix-script = "matr1x.scripts.matrix_script:main"
 matrix-preview = "matr1x.scripts.matrix_preview:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
-
 [project.urls]
 homepage = "https://github.com/andythomas/IFW_software"
 

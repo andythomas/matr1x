@@ -1,4 +1,4 @@
-# This file is part of a software collection for data aquisition (matr1x).
+# This file is part of a software collection for data acquisition (matr1x).
 # Copyright (C) 2006-2025 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
@@ -444,7 +444,7 @@ class System:
 
         Parameters
         ----------
-        filename : str
+        filename : str or Path
             Path to file (can include '.py' extension).
 
         Returns
@@ -452,7 +452,7 @@ class System:
         System
             System as defined in the file.
         """
-        normfilename = filename.strip()
+        normfilename = str(filename).strip()
         if isfile(normfilename):
             # create module from path, automatically reloads module
             mod = module_from_path(normfilename)

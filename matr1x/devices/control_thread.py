@@ -1,4 +1,4 @@
-# This file is part of a software collection for data aquisition (matr1x).
+# This file is part of a software collection for data acquisition (matr1x).
 # Copyright (C) 2006-2025 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
@@ -13,25 +13,49 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+Matr1x data acquisition control module.
+
+This module provides control thread classes for PID control.
+"""
 
 import threading
 import time
+import warnings
 
 import numpy as np
 
 
-class ControlThread (threading.Thread):
+class ControlThread(threading.Thread):
     """
     Control thread class, needs to be reimplemented to function properly.
 
-    reimplement the _initializeReadout() and _initalizeOutput() functions for
+    This class provides a framework for implementing control threads with PID control.
+    Child classes should reimplement specific methods to customize functionality.
+
+    Notes
+    -----
+    Reimplement the _initializeReadout() and _initializeOutput() functions for
     initialization of output devices. Make sure to set outLimit, bipolar,
-    outdim and maxOut in these functions
-    reimplement _getReading() for readout value
-    reimplement _setOutput() for setting of output values
+    outdim and maxOut in these functions.
+
+    Reimplement _getReading() for readout value and _setOutput() for setting
+    of output values.
 
     Internally uses the PIDcontroller class for the PID control.
+
+    Attributes
+    ----------
+    outLimit : float
+        Current maximum output value.
+    bipolar : bool
+        Whether output range is bipolar (True) or unipolar (False).
+    maxOut : float
+        Absolute maximum output value allowed.
+    rateLimit : float or None
+        Maximum rate of change for control values (control units/s).
     """
+
     outLimit = None
     bipolar = None
     maxOut = None
@@ -39,6 +63,24 @@ class ControlThread (threading.Thread):
     rateLimit = None
 
     def __init__(self, parent=None, lock=None, ndim=1):
+        """
+        Initialize the control thread.
+
+        Parameters
+        ----------
+        parent : object, optional
+            Parent class for accessing functions
+        lock : threading.Lock, optional
+            Multithreading lock, by default None which creates a new lock
+        ndim : int, optional
+            Number of dimensions for control, by default 1
+        """
+        warnings.warn(
+            "The class ControlThread is deprecated and will be removed in a future release. "
+            "Please use https://simple-pid.readthedocs.io/.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
         threading.Thread.__init__(self)
         # parent class necessary if functions should be acessed
         self.parent = parent
@@ -70,44 +112,73 @@ class ControlThread (threading.Thread):
     # device specific driver functions
     def _initializeReadout(self):
         """
-        initializes the readout stage of the PID controller
-        reimplement if necessary
+        Initialize the readout stage of the PID controller.
+
+        This method should be reimplemented by child classes if necessary.
         """
+        pass
 
     def _initializeOutput(self):
         """
-        initializes the output stage of the PID controller, needs to be
-        reimplemented for other devices than the Waveshare DAC
+        Initialize the output stage of the PID controller.
 
-        make sure to set:
-            self.maxOut (absolut maximum output value)
+        This method needs to be reimplemented for other devices than the Waveshare DAC.
+
+        Notes
+        -----
+        Make sure to set:
+            self.maxOut (absolute maximum output value)
             self.outLimit (current maximum output value) in this function!
-            self.bipolar (bool determining bipolar or unipolar output
+            self.bipolar (bool determining bipolar or unipolar output)
         """
+        pass
 
     def _getReading(self):
         """
-        function for obtaining the readout value, should return a vector of
-        length ndim
-        reimplement if necessary
+        Get the readout value from the device.
+
+        This method should be reimplemented by child classes if necessary.
+
+        Returns
+        -------
+        numpy.ndarray
+            Vector of length ndim with current readings
         """
+        pass
 
     def _setOutput(self, output):
         """
-        function for writing the output value to the respective device
-        reimplement if necessary
-        should take a vector of length ndim, if output dimension
+        Write the output value to the respective device.
+
+        This method should be reimplemented by child classes if necessary.
+
+        Parameters
+        ----------
+        output : numpy.ndarray
+            Vector of length ndim with output values
+
+        Notes
+        -----
+        Should take a vector of length ndim. If output dimension
         is different, handle this in this function (i.e. read dimension is
-        three and output dimension only 2)
-        important sidenote:
-            for proper function of the rate limiting, self.currentOutput has to
-            be set here, so the current output values can be compared
+        three and output dimension only 2).
+
+        Important: For proper function of the rate limiting, self.currentOutput has to
+        be set here, so the current output values can be compared.
         """
+        pass
 
     # driver functions
     def setOutput(self, output, ax=0):
         """
-        Sets the analog output voltage
+        Set the analog output voltage.
+
+        Parameters
+        ----------
+        output : float or numpy.ndarray
+            Output value(s) to set
+        ax : int, optional
+            Axis to set output for, by default 0. Use -1 for all axes.
         """
         if ax > self.ndim or ax < -1:
             return
@@ -129,7 +200,17 @@ class ControlThread (threading.Thread):
 
     def getOutput(self, ax=0):
         """
-        returns the current analog output value
+        Get the current analog output value.
+
+        Parameters
+        ----------
+        ax : int, optional
+            Axis to get output for, by default 0. Use -1 for all axes.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Current output value(s)
         """
         if ax > self.ndim or ax < -1:
             return
@@ -139,6 +220,14 @@ class ControlThread (threading.Thread):
             return self.currentOutput[ax]
 
     def setMode(self, mode):
+        """
+        Set the control mode.
+
+        Parameters
+        ----------
+        mode : int
+            Control mode (0: inactive, 1: PID control, 2: manual)
+        """
         if mode > 2:
             return
         elif mode < 0:
@@ -146,12 +235,24 @@ class ControlThread (threading.Thread):
         self.controlMode = int(mode)
 
     def getMode(self):
+        """
+        Get the current control mode.
+
+        Returns
+        -------
+        int
+            Current control mode (0: inactive, 1: PID control, 2: manual)
+        """
         return self.controlMode
 
     def setParameter(self, param):
         """
-        sets the controlling parameter of the pid
-        param must be a tuple of length three with p,i,d-parameter
+        Set the controlling parameters of the PID controller.
+
+        Parameters
+        ----------
+        param : tuple
+            Tuple of length three with p, i, d parameters
         """
         if len(param) != 3:
             return
@@ -159,14 +260,23 @@ class ControlThread (threading.Thread):
 
     def getParameters(self):
         """
-        returns the current controlling parameter
+        Get the current controlling parameters.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with current [P, I, D] parameters
         """
         return self.pidController.parameters
 
     def setSetPoint(self, setpoint):
         """
-        sets the the controlling setpoint
-        setpoint must be a tuple of length ndim with Bx,By,Bz
+        Set the controlling setpoint.
+
+        Parameters
+        ----------
+        setpoint : tuple or list
+            Setpoint values of length ndim (e.g., with Bx, By, Bz for 3D)
         """
         if self.ndim != len(setpoint):
             return
@@ -174,26 +284,45 @@ class ControlThread (threading.Thread):
 
     def getSetPoint(self):
         """
-        returns the current controlling setpoint
+        Get the current controlling setpoint.
+
+        Returns
+        -------
+        list
+            Current setpoint values
         """
         return list(self.pidController.setpoint)
 
     def setRateLimit(self, limit):
         """
-        sets the rate limit for maximumum control change (control unit/s)
+        Set the rate limit for maximum control change.
+
+        Parameters
+        ----------
+        limit : float
+            Maximum rate of change in control units/s
         """
         self.rateLimit = abs(float(limit))
 
     def getRateLimit(self):
         """
-        returns the rate limit for maximumum control change
+        Get the rate limit for maximum control change.
+
+        Returns
+        -------
+        float
+            Current rate limit in control units/s
         """
         return self.rateLimit
 
     def setOutLimit(self, limit):
         """
-        sets the maximum output value
-        limit must be positive and is set also for negative values
+        Set the maximum output value.
+
+        Parameters
+        ----------
+        limit : float
+            Maximum output value (must be positive, applied to both positive and negative)
         """
         if np.absolute(limit) > self.maxOut:
             limit = self.maxOut
@@ -202,14 +331,21 @@ class ControlThread (threading.Thread):
 
     def getOutLimit(self):
         """
-        returns the current maximum output voltage
+        Get the current maximum output voltage.
+
+        Returns
+        -------
+        float
+            Current maximum output value
         """
         return self.outLimit
 
     def run(self):
         """
-        probably needs to be reimplemented for different devices
-        control function that really handles the control
+        Execute the control loop.
+
+        This method handles the control based on the selected mode. May need to be
+        reimplemented for different devices.
         """
         outp = np.zeros(self.ndim)
         lastcontrol = time.time()
@@ -249,38 +385,50 @@ class ControlThread (threading.Thread):
 
     def stop(self):
         """
-        request the controlling thread to determinate
+        Request the controlling thread to terminate.
+
+        Sets the terminate flag to stop the control loop.
         """
         self.terminate = True
 
 
-class PIDcontroller():
+class PIDcontroller:
     """
-    PID controller class
+    PID controller class.
 
-    Access setpoint etc. by accessing class attributes
+    This class implements a Proportional-Integral-Derivative controller
+    for multiple dimensions.
 
     Attributes
-    ----
-    setpoint : array of length ndim
-      setpoint of PID controller
+    ----------
+    setpoint : numpy.ndarray
+        Setpoint of PID controller, array of length ndim
     outLimit : float
-      the maximum allowed output value, this is in particular used for
-      controlling integral windup
-    parameters : array of length three
-      contains the [KP, KI, KD] parameters
+        The maximum allowed output value, used for controlling integral windup
+    parameters : numpy.ndarray
+        Contains the [KP, KI, KD] parameters
     bipolar : bool
-      determines whether output is bipolar (True) or unipolar, this is only
-      used for output limiting (between +-max or 0-max)
+        Determines whether output is bipolar (True) or unipolar, this is only
+        used for output limiting (between +-max or 0-max)
 
-    The other parameters should not be accessed
+    Notes
+    -----
+    The other parameters should not be accessed directly.
     """
 
     def __init__(self, ndim):
         """
-        initializes PID controller class with ndim dimensions
-        make sure outFunc and readFunc take/return np.arrays of correct
-        dimension
+        Initialize PID controller class with ndim dimensions.
+
+        Parameters
+        ----------
+        ndim : int
+            Number of dimensions for the controller
+
+        Notes
+        -----
+        Make sure outFunc and readFunc take/return np.arrays of correct
+        dimension.
         """
         self.parameters = np.zeros(3)
         self.outLimit = 0
@@ -295,7 +443,17 @@ class PIDcontroller():
 
     def control(self, reading):
         """
-        Runs one step of the PID control for the given reading
+        Run one step of the PID control for the given reading.
+
+        Parameters
+        ----------
+        reading : numpy.ndarray
+            Current reading values, array of length ndim
+
+        Returns
+        -------
+        numpy.ndarray
+            Output values after PID control calculation
         """
         t = time.time()
         dt = t - self._lasttime

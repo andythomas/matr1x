@@ -1,4 +1,4 @@
-# This file is part of a software collection for data aquisition (matr1x).
+# This file is part of a software collection for data acquisition (matr1x).
 # Copyright (C) 2006-2025 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify

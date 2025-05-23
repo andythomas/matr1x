@@ -1,4 +1,4 @@
-# This file is part of a software collection for data aquisition (matr1x).
+# This file is part of a software collection for data acquisition (matr1x).
 # Copyright (C) 2006-2025 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
@@ -13,6 +13,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+Module for dynamically creating SCPI device interfaces using pymeasure.
+
+This module provides functionality to generate instrument classes
+for SCPI (Standard Commands for Programmable Instruments) compatible devices.
+"""
 
 import ast
 import pickle
@@ -27,16 +33,25 @@ from matr1x.util import Get, normalize_cmds
 
 def makeSCPIdevice(*cmds, system=True):
     """
-    dynamically generate a pymeasure device which can be used in systems to
-    connect to the SCPI commands
+    Dynamically generate a pymeasure device for SCPI commands.
+
+    Creates a new device class that can interface with instruments using
+    the SCPI command set. The generated class handles command formatting,
+    data type conversion, and polling operations.
 
     Parameters
     ----------
-    cmds: dict
-      multiple dictionaries with commands. Those will be merged internally and
-      therefore must only contain unique keys.
-    system: bool
-      flag to decide if config_params shall be defined on the device
+    cmds : dict
+        Multiple dictionaries with commands. Those will be merged internally and
+        therefore must only contain unique keys.
+    system : bool, optional
+        Flag to decide if config_params shall be defined on the device.
+        Default is True.
+
+    Returns
+    -------
+    type
+        A dynamically created class derived from pymeasure.Instrument
     """
     typeplaceholder = {int: "%d", float: "%g", bool: "%d",
                        str: "%s", None: ""}
@@ -48,7 +63,19 @@ def makeSCPIdevice(*cmds, system=True):
         cmd_list.update(entry)
 
     def make_identifier(s):
-        """create valid Python identifier by omitting invalid characters"""
+        """
+        Create valid Python identifier by omitting invalid characters.
+
+        Parameters
+        ----------
+        s : str
+            Input string to convert to a valid identifier
+
+        Returns
+        -------
+        str
+            A valid Python identifier
+        """
         # Remove invalid characters
         s = re.sub('[^0-9a-zA-Z_]', '', s)
         # Remove leading characters until we find a letter or underscore
@@ -56,13 +83,47 @@ def makeSCPIdevice(*cmds, system=True):
         return s
 
     def strict_length(value, values):
-        """pymeasure validator to enforce array length"""
+        """
+        Pymeasure validator to enforce array length.
+
+        Parameters
+        ----------
+        value : list, tuple
+            The collection to validate
+        values : int
+            Expected length of the collection
+
+        Returns
+        -------
+        list, tuple
+            The original value if validation passed
+
+        Raises
+        ------
+        ValueError
+            If length of value does not match expected length
+        """
         if len(value) != values:
             raise ValueError(
                 f"Value {value} does not have an appropriate length of {values}")
         return value
 
     def list2str(value, dtype):
+        """
+        Convert a list of values to a comma-separated string.
+
+        Parameters
+        ----------
+        value : list
+            List of values to convert
+        dtype : list
+            List of data types corresponding to each value
+
+        Returns
+        -------
+        str
+            Comma-separated string of formatted values
+        """
         ret = []
         for v, dt in zip(value, dtype):
             if dt is bool:
@@ -72,6 +133,21 @@ def makeSCPIdevice(*cmds, system=True):
         return ",".join(ret)
 
     def castlist(values, dtype):
+        """
+        Convert a list of string values to their appropriate data types.
+
+        Parameters
+        ----------
+        values : list
+            List of string values to convert
+        dtype : list
+            List of data types to convert each value to
+
+        Returns
+        -------
+        list
+            List of values converted to their specified data types
+        """
         ret = []
         for v, t in zip(values, dtype):
             if t is bool:
@@ -87,17 +163,53 @@ def makeSCPIdevice(*cmds, system=True):
         return ret
 
     def constructor(self, adapter, name='clientdevice', **kwargs):
-        """constructor for an object derived from pymeasure Instrument"""
+        """
+        Initialize the SCPI device instance.
+
+        Parameters
+        ----------
+        adapter : Adapter
+            Communication adapter for the instrument
+        name : str, optional
+            Name of the device. Default is 'clientdevice'
+        **kwargs : dict
+            Additional keyword arguments passed to the Instrument constructor
+        """
         kwargs.update(read_termination='\n',
                       write_termination='\n',
                       includeSCPI=False)
         Instrument.__init__(self, adapter, name, **kwargs)
 
     def query(self, cmd):
-        """query function, needs to be present to work with system"""
+        """
+        Query function, needs to be present to work with system.
+
+        Parameters
+        ----------
+        cmd : str
+            Command to query
+
+        Returns
+        -------
+        str
+            Response from the instrument
+        """
         return self.ask(cmd)
 
     def check_set_errors(self):
+        """
+        Check for error responses after setting a value.
+
+        Returns
+        -------
+        list
+            Empty list if no errors
+
+        Raises
+        ------
+        ValueError
+            If the device responds with an error
+        """
         reply = self.read()
         if reply != '\x06':
             raise ValueError(
@@ -105,25 +217,76 @@ def makeSCPIdevice(*cmds, system=True):
         return []
 
     def create_setnwait(attr, pollattr):
-        """return a set and wait method which can be used in system files"""
+        """
+        Return a set and wait method which can be used in system files.
+
+        Parameters
+        ----------
+        attr : str
+            Attribute name to set
+        pollattr : str
+            Attribute name to poll for completion
+
+        Returns
+        -------
+        function
+            A function that sets a value and waits for completion
+        """
 
         def setnwait(self, value):
+            """
+            Set a value and wait for the operation to complete.
+
+            Parameters
+            ----------
+            value : any
+                Value to set
+            """
             setattr(self, attr, value)
             while not getattr(self, pollattr):
                 time.sleep(0.1)
         return setnwait
 
     def create_parameterless(cmd):
-        """return a parameterless function, which triggers the corresponding
-        set"""
+        """
+        Return a parameterless function that triggers a command.
+
+        Creates a function that sends a command to the instrument
+        without parameters (e.g., for trigger commands).
+
+        Parameters
+        ----------
+        cmd : str
+            Command to send
+
+        Returns
+        -------
+        function
+            Function that sends the specified command
+        """
 
         def parameterless(self, cmd=cmd):
+            """
+            Execute a parameterless command.
+
+            Parameters
+            ----------
+            cmd : str
+                Command to execute
+            """
             Instrument.write(self, cmd)
             check_set_errors(self)
         return parameterless
 
     def id(self):  # noqa: A001  # use pymeasure Instrument.id
-        """Get the identification of the Instrument."""
+        """
+        Get the identification of the Instrument.
+
+        Returns
+        -------
+        str
+            Instrument identification string
+        """
         return self.idn
 
     attributes = dict()
@@ -147,6 +310,7 @@ def makeSCPIdevice(*cmds, system=True):
     for name, cmd in cmd_list.items():
         # create an pymeasure attribute for every command
         att = make_identifier(name)
+        stringplaceholder = ""  # Initialize to prevent unbound variable
         try:
             stringplaceholder = typeplaceholder[cmd.dtype]
         except (KeyError, TypeError):
