@@ -224,52 +224,83 @@ class guiObject(IntEnum):
         Generate a label with text "Example":
         >>> getWidget("Property", "Example")
         """
+        widget_creation_methods = {
+            str: lambda wType: cls._create_label_widget(wType),
+            guiObject.labeltext: lambda init: cls._create_labeltext_widget(init),
+            guiObject.button: lambda init: QPushButton(init if init else label),
+            guiObject.lineedit: lambda init: QLineEdit(init if init else None),
+            guiObject.checkbox: lambda init=None: QCheckBox(),
+            guiObject.progressbar: lambda init: cls._create_progressbar_widget(init),
+            guiObject.combobox: lambda init: cls._create_combobox_widget(init),
+            guiObject.togglebutton: lambda init: ToggleButton(init if init else label),
+            guiObject.spinbox: lambda init: cls._create_spinbox_widget(init),
+            guiObject.doublespinbox: lambda init: cls._create_doublespinbox_widget(
+                init
+            ),
+            guiObject.hline: lambda init: cls._create_hline_widget(init),
+        }
+
         if isinstance(wType, str):
-            qlab = QLabel(wType)
-            qlab.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            return qlab
-        if cls.labeltext == wType:
-            label = QLabel(init if init else None)
-            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            return label
-        if cls.button == wType:
-            return QPushButton(init if init else label)
-        if cls.lineedit == wType:
-            return QLineEdit(init if init else None)
-        if cls.checkbox == wType:
-            return QCheckBox()
-        if cls.progressbar == wType:
-            pbar = matr1xProgressBar()
-            if init:
-                pbar.setValue(init)
-            return pbar
-        if cls.combobox == wType:
-            qcombo = QComboBox()
-            if init is not None:
-                qcombo.insertItems(0, init)
-            return qcombo
-        if cls.togglebutton == wType:
-            return ToggleButton(init if init else label)
-        if cls.spinbox == wType:
-            sb = QSpinBox()
-            if init is not None:
-                sb.setRange(*init)
-            return sb
-        if cls.doublespinbox == wType:
-            sb = QDoubleSpinBox()
-            if init is not None:
-                sb.setRange(*init)
-            return sb
-        if cls.hline == wType:
-            line = QFrame()
-            line.setFrameShape(QFrame.Shape.HLine)
-            line.setFrameShadow(QFrame.Shadow.Sunken)
-            line.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            if init is not None:
-                line.setFixedWidth(init)
-            line.setMinimumHeight(2)
-            return line
+            widget_type = str
+        else:
+            widget_type = wType if not isinstance(wType, int) else guiObject(wType)
+
+        creation_method = widget_creation_methods.get(widget_type)
+
+        if creation_method:
+            return creation_method(init)
         return None
+
+    @classmethod
+    def _create_label_widget(cls, wType):
+        qlab = QLabel(wType)
+        qlab.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        return qlab
+
+    @classmethod
+    def _create_labeltext_widget(cls, init):
+        label = QLabel(init if init else None)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        return label
+
+    @classmethod
+    def _create_progressbar_widget(cls, init):
+        pbar = matr1xProgressBar()
+        if init:
+            pbar.setValue(init)
+        return pbar
+
+    @classmethod
+    def _create_combobox_widget(cls, init):
+        qcombo = QComboBox()
+        if init is not None:
+            qcombo.insertItems(0, init)
+        return qcombo
+
+    @classmethod
+    def _create_spinbox_widget(cls, init):
+        sb = QSpinBox()
+        if init is not None:
+            sb.setRange(*init)
+        return sb
+
+    @classmethod
+    def _create_doublespinbox_widget(cls, init):
+        sb = QDoubleSpinBox()
+        if init is not None:
+            sb.setRange(*init)
+        return sb
+
+    @classmethod
+    def _create_hline_widget(cls, init):
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        line.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        if init is not None:
+            line.setFixedWidth(init)
+        line.setMinimumHeight(2)
+        return line
 
 
 class var(QObject):
@@ -1082,51 +1113,78 @@ class GuiDict(UserDict, ABC):
         """
         setargs = []
         setfunc = None
-        # obtain set function
+
         if callable(cmd.setfunc):
-            setfunc = cmd.setfunc
-            setargs = cmd.setargs
+            setfunc, setargs = self._handle_callable_setfunc(cmd)
         elif cmd.setfunc is None:
             setfunc = None
         elif isinstance(cmd.setfunc, str):
-            if hasattr(self, cmd.setfunc):  # if GuiDict method or property
-                attr = attrgetter(cmd.setfunc)(self)
-                if callable(attr):
-                    setfunc = attr
-                    setargs = cmd.setargs
-                else:
-
-                    def setfunc(value, c=self, a=cmd.setfunc):
-                        setattr(c, a, value)
-            elif cmd.setfunc in self:  # if GuiDict.data entry
-
-                def setfunc(value, c=self.data[cmd.setfunc]):
-                    setattr(c, "value", value)
-            elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
-                attr = attrgetter(cmd.setfunc)(window_obj)
-                if callable(attr):
-                    setfunc = attr
-                else:
-
-                    def setfunc(value, c=window_obj, a=cmd.setfunc):
-                        setattr(c, a, value)
+            setfunc, setargs = self._handle_string_setfunc(name, cmd, window_obj)
         elif isinstance(cmd.setfunc, (tuple, list)):
-            # system device name and method
-            if system is None:
-                raise ValueError(
-                    "System must be specified as 'system' keyword argument"
-                )
-            devname, funcname = cmd.setfunc
-            attr = attrgetter(funcname)(system.devs[devname])
+            setfunc, setargs = self._handle_tuple_setfunc(name, cmd, system)
+        else:
+            raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
+        return setfunc, setargs
+
+    def _handle_callable_setfunc(self, cmd):
+        """Handle the case where setfunc is a callable."""
+        setfunc = cmd.setfunc
+        setargs = cmd.setargs
+        return setfunc, setargs
+
+    def _handle_string_setfunc(self, name, cmd, window_obj):
+        """Handle the case where setfunc is a string."""
+        if hasattr(self, cmd.setfunc):  # if GuiDict method or property
+            attr = attrgetter(cmd.setfunc)(self)
             if callable(attr):
                 setfunc = attr
                 setargs = cmd.setargs
             else:
 
-                def setfunc(value, c=system.devs[devname], a=funcname):
+                def setfunc(value, c=self, a=cmd.setfunc):
                     setattr(c, a, value)
+
+                setfunc = setfunc
+                setargs = []
+        elif cmd.setfunc in self:  # if GuiDict.data entry
+
+            def setfunc(value, c=self.data[cmd.setfunc]):
+                setattr(c, "value", value)
+
+            setfunc = setfunc
+            setargs = []
+        elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
+            attr = attrgetter(cmd.setfunc)(window_obj)
+            if callable(attr):
+                setfunc = attr
+                setargs = []
+            else:
+
+                def setfunc(value, c=window_obj, a=cmd.setfunc):
+                    setattr(c, a, value)
+
+                setfunc = setfunc
+                setargs = []
         else:
             raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
+        return setfunc, setargs
+
+    def _handle_tuple_setfunc(self, name, cmd, system):
+        """Handle the case where setfunc is a tuple or list (system device)."""
+        if system is None:
+            raise ValueError("System must be specified as 'system' keyword argument")
+        devname, funcname = cmd.setfunc
+        attr = attrgetter(funcname)(system.devs[devname])
+        if callable(attr):
+            setfunc = attr
+            setargs = cmd.setargs
+        else:
+
+            def setfunc(value, c=system.devs[devname], a=funcname):
+                setattr(c, a, value)
+
+            setfunc = setfunc
+            setargs = []
         return setfunc, setargs
 
     def _create_getfunc(self, name, cmd, window_obj=None, system=None):
@@ -1138,56 +1196,83 @@ class GuiDict(UserDict, ABC):
         """
         getargs = []
         getfunc = None
-        # obtain get function
+
         if callable(cmd.getfunc):
-            getfunc = cmd.getfunc
-            getargs = cmd.getargs
+            getfunc, getargs = self._handle_callable_getfunc(cmd)
         elif cmd.getfunc is None:
             getfunc = None
         elif isinstance(cmd.getfunc, str):
-            if hasattr(self, cmd.getfunc):  # if GuiDict method or property
-                attr = attrgetter(cmd.getfunc)(self)
-                if callable(attr):
-                    getfunc = attr
-                    getargs = cmd.getargs
-                else:
-                    getfunc = self.__getattribute__
-                    getargs = [
-                        cmd.getfunc,
-                    ]
-            elif cmd.getfunc in self:  # if GuiDict.data entry
-
-                def getfunc(c=self.data[cmd.getfunc]):
-                    return getattr(c, "value")
-            elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
-                attr = attrgetter(cmd.getfunc)(window_obj)
-                if callable(attr):
-                    getfunc = attr
-                else:
-
-                    def getfunc(c=window_obj, a=cmd.getfunc):
-                        return getattr(c, a)
-            elif cmd.dtype == str and not cmd.getargs:
-
-                def getfunc(v=cmd.getfunc):
-                    return cmd.dtype(v)
+            getfunc, getargs = self._handle_string_getfunc(
+                name, cmd, window_obj, system
+            )
         elif isinstance(cmd.getfunc, (tuple, list)):
-            # system device name and method
-            if system is None:
-                raise ValueError(
-                    "System must be specified as 'system' keyword argument"
-                )
-            devname, funcname = cmd.getfunc
-            attr = attrgetter(funcname)(system.devs[devname])
+            getfunc, getargs = self._handle_tuple_getfunc(name, cmd, system)
+        else:
+            raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
+        return getfunc, getargs
+
+    def _handle_callable_getfunc(self, cmd):
+        """Handle the case where getfunc is a callable."""
+        getfunc = cmd.getfunc
+        getargs = cmd.getargs
+        return getfunc, getargs
+
+    def _handle_string_getfunc(self, name, cmd, window_obj, system):
+        """Handle the case where getfunc is a string."""
+        getargs = []
+        if hasattr(self, cmd.getfunc):  # if GuiDict method or property
+            attr = attrgetter(cmd.getfunc)(self)
             if callable(attr):
                 getfunc = attr
                 getargs = cmd.getargs
             else:
 
-                def getfunc(c=system.devs[devname], a=funcname):
+                def getfunc(c=self, a=cmd.getfunc):
                     return getattr(c, a)
+
+                getfunc = getfunc
+        elif cmd.getfunc in self:  # if GuiDict.data entry
+
+            def getfunc(c=self.data[cmd.getfunc]):
+                return getattr(c, "value")
+
+            getfunc = getfunc
+        elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
+            attr = attrgetter(cmd.getfunc)(window_obj)
+            if callable(attr):
+                getfunc = attr
+            else:
+
+                def getfunc(c=window_obj, a=cmd.getfunc):
+                    return getattr(c, a)
+
+                getfunc = getfunc
+        elif cmd.dtype == str and not cmd.getargs:
+
+            def getfunc(v=cmd.getfunc):
+                return cmd.dtype(v)
+
+            getfunc = getfunc
         else:
             raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
+
+        return getfunc, getargs
+
+    def _handle_tuple_getfunc(self, name, cmd, system):
+        """Handle the case where getfunc is a tuple or list (system device)."""
+        if system is None:
+            raise ValueError("System must be specified as 'system' keyword argument")
+        devname, funcname = cmd.getfunc
+        attr = attrgetter(funcname)(system.devs[devname])
+        getargs = []
+        if callable(attr):
+            getfunc = attr
+            getargs = cmd.getargs
+        else:
+
+            def getfunc(c=system.devs[devname], a=funcname):
+                return getattr(c, a)
+
         return getfunc, getargs
 
     def panic(self):

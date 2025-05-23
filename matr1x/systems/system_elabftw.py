@@ -504,9 +504,10 @@ class ElabSystem(System):
         """
         if not self.config["enable_elab"]:
             return
-        # create content for uploading experiment
+
         title = self._render_template(self.config["title_template"])
         body = self._render_template(self.config["body_template"])
+
         if self.merged_system.dcdata["description"]:
             additional_tags = self._parse_tags_from_line(
                 self.merged_system.dcdata["description"].splitlines()[0]
@@ -515,82 +516,92 @@ class ElabSystem(System):
                 for tag in additional_tags:
                     self.add_tag(tag)
 
-        experimentsApi = elabapi_python.ExperimentsApi(self.api_client)
+        experiments_api = elabapi_python.ExperimentsApi(self.api_client)
 
-        # check if an experiment with the given title already exists
-        try:
-            # make the title into a string to avoid symbols being misinterpreted
-            # as search logic or search keys.
-            api_response = experimentsApi.read_experiments(q=f"'{title}'")
-        except ApiException as e:
-            print("Exception when calling ExperimentsApi->readExperiments: %s\n" % e)
-        # if some exist prepend a number
-        if len(api_response) != 0:
-            # check which of them matches the title:
-            n = 0
-            titles = [entry.title for entry in api_response]
-            for existing_title in titles:
-                if existing_title.endswith(title):
-                    n += 1
-            if n > 0:
-                newtitle = f"{n:03d}: {title}"
-                # check if newtitle is not already used
-                while newtitle in titles:
-                    n += 1
-                    newtitle = f"{n:03d}: {title}"
-                title = newtitle
+        title = self._handle_existing_title(experiments_api, title)
 
         params = {
             "title": title,
             "body": body,
         }
-        # find suitable user id
-        try:
-            userid = self._determine_userid()
-            if userid:
-                params["userid"] = userid
-        except ValueError:
-            pass
-        # find category id
+
+        userid = self._determine_userid()
+        if userid:
+            params["userid"] = userid
+
         catid = self._determine_category()
         if catid:
             params["category"] = catid
-        # find status id
+
         status_id = self._determine_status(status)
         if status_id is not None:
             params["status"] = status_id
+
         try:
-            create_body = {
-                "tags": self._tags,
-            }  # create a new experiment
+            create_body = {"tags": self._tags}
             response_body, status_code, response_headers = (
-                experimentsApi.post_experiment_with_http_info(body=create_body)
+                experiments_api.post_experiment_with_http_info(body=create_body)
             )
+
             if reset_tags:
-                # reset tags if parameter is set
                 self._tags = []
+
             experiment_id = response_headers["Location"].split("/")[-1]
 
-            experimentsApi.patch_experiment(id=experiment_id, body=params)
+            experiments_api.patch_experiment(id=experiment_id, body=params)
 
-            if self._attachments:
-                uploadsApi = elabapi_python.UploadsApi(self.api_client)
-                for file, comment in self._attachments.items():
-                    uploadsApi.post_upload(
-                        "experiments", experiment_id, file=file, comment=comment
-                    )
-                # clear uploaded attachments
-                self._attachments = {}
+            self._upload_attachments(experiment_id)
+            self._link_resources(experiment_id)
 
-            # link resources
-            if self._resources:
-                for resource_id in self._resources.values():
-                    linksApi = elabapi_python.LinksToItemsApi(self.api_client)
-                    linksApi.post_entity_items_links(
-                        "experiments", experiment_id, resource_id
-                    )
         except ApiException as e:
             print(f"Exception with post or patch experiment: {e}\n")
+
+    def _handle_existing_title(self, experiments_api, title):
+        """Handle title when experiment with the same title already exists."""
+        try:
+            api_response = experiments_api.read_experiments(q=f"'{title}'")
+        except ApiException as e:
+            print("Exception when calling ExperimentsApi->readExperiments: %s\n" % e)
+            return title
+
+        if not isinstance(api_response, list) or len(api_response) == 0:
+            return title
+
+        n = 0
+        titles = [entry.title for entry in api_response]
+        for existing_title in titles:
+            if existing_title.endswith(title):
+                n += 1
+
+        if n == 0:
+            return title
+
+        newtitle = f"{n:03d}: {title}"
+        while newtitle in titles:
+            n += 1
+            newtitle = f"{n:03d}: {title}"
+        return newtitle
+
+    def _upload_attachments(self, experiment_id: str) -> None:
+        """Upload attachments to the specified experiment."""
+        if not self._attachments:
+            return
+
+        uploads_api = elabapi_python.UploadsApi(self.api_client)
+        for file, comment in self._attachments.items():
+            uploads_api.post_upload(
+                "experiments", experiment_id, file=file, comment=comment
+            )
+        self._attachments = {}
+
+    def _link_resources(self, experiment_id: str) -> None:
+        """Link resources to the specified experiment."""
+        if not self._resources:
+            return
+
+        links_api = elabapi_python.LinksToItemsApi(self.api_client)
+        for resource_id in self._resources.values():
+            links_api.post_entity_items_links("experiments", experiment_id, resource_id)
 
     def _backup_info(self, status: str) -> None:
         """

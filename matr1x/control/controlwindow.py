@@ -261,6 +261,67 @@ class ControlWindow(QMainWindow):
                 self.guidicts = [guidicts]
         else:
             self.guidicts = []
+        self._harmonize_guidicts()
+        # initialize GUI
+        self.initUI()
+        self._restore_gui_settings()
+        # enable saving of geometry by Ctrl+S
+        self.saveStateSc = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.saveStateSc.activated.connect(self.saveCurrentState)
+        for g in self.guidicts:
+            self.saveStateSc.activated.connect(g.dock.saveCurrentState)
+        # set outputStream as stdout (i.e. all output is written to status)
+        self.output_stream = EmittingStream()
+        self.output_stream.text_written.connect(self.output_written)
+        sys.stdout = self.output_stream
+
+        # merge the guidicts Systems
+        if not hasattr(self, "S"):
+            self.S = system.MergedSystem([g.S for g in self.guidicts])
+        # store commands
+        self.cmd_list = {
+            ":conf": Get(
+                lambda b: pickle.loads(ast.literal_eval(b)).decode(),
+                lambda: pickle.dumps(self.S.query(), protocol=0),
+            )
+        }
+        if extra_cmds:
+            self.cmd_list.update(extra_cmds)
+
+        # add the menu bar
+        self.create_menu()
+
+        # show the GUI
+        self.show()
+
+        # connect signals so that at least one dock remains visible! (needs to be done after show!)
+        for g in self.guidicts:
+            g.dock.topLevelChanged.connect(self.needToAdjustSize)
+
+        # enable logging if requested by arguments
+        self._run_log_on_start = False
+        if logging:
+            self._run_log_on_start = True
+            if not isinstance(logging, bool) and isinstance(logging, numbers.Number):
+                self.interval.setValue(logging)
+
+    def _harmonize_guidicts(self):
+        """
+        Harmonize the GuiDict entries to a consistent format.
+
+        Performs two main operations:
+        1. Converts dictionary entries to 'var' objects if they aren't already
+        2. Ensures all guidicts are of GuiDict type, wrapping plain dictionaries
+           in a compatible GuiDict class if necessary
+
+        This method enables backwards compatibility with older code where guidicts
+        might be simple dictionaries rather than GuiDict objects.
+
+        Notes
+        -----
+        This method also sets parent references on all guidicts and connects their
+        error signals to the main error handler.
+        """
         # harmonize guidict entries to 'var'-objects
         for guidict in self.guidicts:
             for key, entry in guidict.items():
@@ -303,8 +364,26 @@ class ControlWindow(QMainWindow):
         # set parent reference on guidicts
         for g in self.guidicts:
             g.parent = self
-        # initialize GUI
-        self.initUI()
+
+    def _restore_gui_settings(self):
+        """
+        Restore previously saved GUI settings from persistent storage.
+
+        This method restores various GUI elements to their previous states,
+        including:
+        - GuiDict state and features
+        - Window geometry (size, position)
+        - Window state (layout of docks and toolbars)
+        - Visibility of the status box
+
+        The settings are loaded from QSettings storage that was initialized
+        during the class construction.
+
+        Notes
+        -----
+        This method is called during initialization of the ControlWindow
+        and should not be called directly.
+        """
         # restore settings of GuiDicts
         for g in self.guidicts:
             g.dock.restoreState()
@@ -322,46 +401,6 @@ class ControlWindow(QMainWindow):
         self.status_box.toggle_button.setChecked(
             self.settings.value("status_visible", False, type=bool)
         )
-
-        # enable saving of geometry by Ctrl+S
-        self.saveStateSc = QShortcut(QKeySequence("Ctrl+S"), self)
-        self.saveStateSc.activated.connect(self.saveCurrentState)
-        for g in self.guidicts:
-            self.saveStateSc.activated.connect(g.dock.saveCurrentState)
-        # set outputStream as stdout (i.e. all output is written to status)
-        self.output_stream = EmittingStream()
-        self.output_stream.text_written.connect(self.output_written)
-        sys.stdout = self.output_stream
-
-        # merge the guidicts Systems
-        if not hasattr(self, "S"):
-            self.S = system.MergedSystem([g.S for g in self.guidicts])
-        # store commands
-        self.cmd_list = {
-            ":conf": Get(
-                lambda b: pickle.loads(ast.literal_eval(b)).decode(),
-                lambda: pickle.dumps(self.S.query(), protocol=0),
-            )
-        }
-        if extra_cmds:
-            self.cmd_list.update(extra_cmds)
-
-        # add the menu bar
-        self.create_menu()
-
-        # show the GUI
-        self.show()
-
-        # connect signals so that at least one dock remains visible! (needs to be done after show!)
-        for g in self.guidicts:
-            g.dock.topLevelChanged.connect(self.needToAdjustSize)
-
-        # enable logging if requested by arguments
-        self._run_log_on_start = False
-        if logging:
-            self._run_log_on_start = True
-            if not isinstance(logging, bool) and isinstance(logging, numbers.Number):
-                self.interval.setValue(logging)
 
     # GUI functions
     def initUI(self) -> None:
