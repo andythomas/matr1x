@@ -17,6 +17,7 @@
 """Allow to write measurement scripts in Python."""
 
 import ast
+import json
 import logging
 import os
 import re
@@ -1987,6 +1988,13 @@ class MainWindow(QMainWindow):
         self.settings.setValue("size", self.config_editor.size())
         self.settings.endGroup()
 
+        # Only save help dialog size and position if it has been shown at least once
+        if hasattr(self, "_help_dialog_shown") and self._help_dialog_shown:
+            self.settings.beginGroup("system_command_help")
+            self.settings.setValue("size", self.system_command_help.size())
+            self.settings.setValue("position", self.system_command_help.pos())
+            self.settings.endGroup()
+
     def restoreState(self) -> None:
         """
         Restore application configuration to look similar to the previous use.
@@ -2537,6 +2545,8 @@ class MainWindow(QMainWindow):
         title = "Selected systems information"
         self.system_command_help.setWindowTitle(title)
         self.system_command_help.setWindowModality(Qt.WindowModality.NonModal)
+        # Initialize the help text
+        self.update_system_commands()
         self.update_ui()
         self.update_window_title()
 
@@ -2871,68 +2881,227 @@ class MainWindow(QMainWindow):
             The names of the columns.
         """
         info = subprocess.run(
-            [sys.executable, '-c',
-             "from matr1x.system import MergedSystem;"
-             f"print(MergedSystem.from_files({self.systems})."
-             "grab_information())"
-             ],
-            capture_output=True)
+            [
+                sys.executable,
+                "-c",
+                "import json; from matr1x.system import MergedSystem;"
+                f"print(json.dumps(MergedSystem.from_files({self.systems})."
+                "grab_information()))",
+            ],
+            capture_output=True,
+        )
+
         if info.returncode != 0:
-            error_box = QMessageBox(self)
-            text = "<b>Error while trying to import system file(s)!</b>\n"
-            text += "<pre>" + (info.stderr).decode() + "</pre>"
-            error_box.setInformativeText(text)
-            error_box.exec()
+            return self._handle_subprocess_error(info.stderr)
+
+        output_str = (info.stdout).decode()
+        json_data = self._extract_json_from_output(output_str)
+        if json_data is None:
             return (None, None, None)
-        else:
-            output = (info.stdout).decode()
-            matches = re.findall(r"(\d+?) (<[yn]>) ([^\r\n]*)", output)
-            indexes = []
-            settables = []
-            columns = []
-            if matches:
-                for match in matches:
-                    indexes.append(match[0])
-                    if match[1] == "<y>":
-                        settables.append(True)
-                    else:
-                        settables.append(False)
-                    columns.append(match[2])
-            return (indexes, settables, columns)
+
+        return self._process_system_data(json_data)
+
+    def _handle_subprocess_error(self, stderr):
+        """Handle subprocess execution errors."""
+        error_box = QMessageBox(self)
+        text = "<b>Error while trying to import system file(s)!</b>\n"
+        text += "<pre>" + stderr.decode() + "</pre>"
+        error_box.setInformativeText(text)
+        error_box.exec()
+        return (None, None, None)
+
+    def _extract_json_from_output(self, output_str):
+        """Extract and parse JSON from subprocess output."""
+        # Handle case where there might be log messages before the JSON
+        # Find the first occurrence of '{' which marks the start of the JSON
+        json_start = output_str.find("{")
+        if json_start < 0:
+            self._show_json_parse_error(
+                "Could not find JSON data in output:\n" + output_str[:200]
+            )
+            return None
+
+        # Extract only the JSON part of the output
+        json_str = output_str[json_start:]
+
+        try:
+            return json.loads(json_str)
+        except Exception as e:
+            self._show_json_parse_error(str(e))
+            return None
+
+    def _show_json_parse_error(self, error_detail):
+        """Show JSON parsing error dialog."""
+        error_box = QMessageBox(self)
+        text = "<b>Error while parsing system file(s)!</b>\n"
+        text += "<pre>" + error_detail + "</pre>"
+        text += "<p>This may be caused by unexpected output or invalid JSON from the system file.</p>"
+        error_box.setInformativeText(text)
+        error_box.exec()
+
+    def _extract_parameter_index(self, key, data):
+        """Extract index from parameter key or description."""
+        if key.startswith("param_"):
+            try:
+                return key.split("_")[1]
+            except IndexError:
+                return ""
+        elif "at index" in data.get("description", ""):
+            try:
+                return data["description"].split("at index ")[1]
+            except IndexError:
+                return ""
+        return ""
+
+    def _process_system_data(self, output):
+        """Process the parsed JSON data and extract system information."""
+        indexes = []
+        settables = []
+        columns = []
+
+        # Process parameters section (indexed items)
+        if "parameters" in output:
+            for key, data in output["parameters"].items():
+                index = self._extract_parameter_index(key, data)
+                indexes.append(index)
+                settables.append(data.get("description", ""))
+                columns.append(data.get("name", ""))
+
+        # Process devices section (no indices)
+        if "devices" in output:
+            for dev_id, data in output["devices"].items():
+                indexes.append("")
+                settables.append(data.get("description", ""))
+                columns.append(data.get("name", ""))
+
+        # Process methods section (no indices)
+        if "methods" in output:
+            for method_id, data in output["methods"].items():
+                indexes.append("")
+                settables.append(data.get("description", ""))
+                columns.append(data.get("name", ""))
+
+        return (indexes, settables, columns)
 
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
         if len(self.systems) == 0:
-            text = "No system file selected!"
+            text = "<p style='margin: 20px;'><b>No system file selected!</b></p>"
+            text += "<p style='margin: 20px;'>Please add a system file using the 'Add System' button or File menu.</p>"
+            text += "<p style='margin: 20px;'>Once a system is loaded, this dialog will show information about:</p>"
+            text += "<ul style='margin-left: 40px;'>"
+            text += "<li>Available parameters that can be set or read</li>"
+            text += "<li>Connected devices and their configurations</li>"
+            text += "<li>System methods and variables</li>"
+            text += "</ul>"
         else:
             indexes, settables, columns = self.get_settables()
             if indexes and settables and columns:
                 text = "The following systems were selected:<br><b>"
                 for system in self.systems:
                     text = text + system + "<br>"
-                text += "<br></b>These systems provide the following<br>"
-                text += "parameters. <b>Bold parameters</b> can be<br>"
-                text += "set as well and the others only read:<br><br>"
-                text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left;">'
-                text += '<tr style="background-color: #f0f0f0;">'
-                text += "<th>Index</th><th>Settable</th><th>Name</th></tr>"
-                for i, settable in enumerate(settables):
-                    if settable:
-                        text = f"{text}<tr><td><b>{indexes[i]}</b></td><td><b>yes</b></td><td><b>{columns[i]}</b></tr></tr>"
+                text += "<br></b>These systems provide the following:<br><br>"
+
+                # Group parameters, devices, and methods
+                parameters = []
+                devices = []
+                methods = []
+
+                for i in range(len(indexes)):
+                    desc_str = str(settables[i]) if settables[i] is not None else ""
+                    if "parameter" in desc_str.lower():
+                        # Check if parameter is settable
+                        is_settable = "settable" in desc_str.lower()
+                        parameters.append(
+                            (indexes[i], columns[i], settables[i], is_settable)
+                        )
+                    elif "device" in desc_str.lower():
+                        devices.append((indexes[i], columns[i], settables[i]))
+                    elif "method" in desc_str.lower() or "variable" in desc_str.lower():
+                        methods.append((indexes[i], columns[i], settables[i]))
                     else:
-                        text = f"{text}<tr><td>{indexes[i]}</td><td>no</td><td>{columns[i]}</tr></tr>"
-                text += "</table><br><br>"
+                        # Fallback - anything not categorized goes to parameters
+                        parameters.append((indexes[i], columns[i], settables[i], False))
+
+                # Display parameters table
+                if parameters:
+                    text += "<h3>Parameters</h3>"
+                    text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+                    text += '<tr style="background-color: #f0f0f0; text-align: left;">'
+                    text += '<th style="text-align: left;">Index</th><th style="text-align: left;">Name</th><th style="text-align: left;">Description</th></tr>'
+                    # Sort parameters by index for correct display order
+                    parameters.sort(
+                        key=lambda x: int(x[0]) if x[0] and x[0].isdigit() else 999
+                    )
+                    for idx, col, desc, is_settable in parameters:
+                        if is_settable:
+                            text += f"<tr><td>{idx}</td><td><b>{col}</b></td><td>{desc}</td></tr>"
+                        else:
+                            text += (
+                                f"<tr><td>{idx}</td><td>{col}</td><td>{desc}</td></tr>"
+                            )
+                    text += "</table>"
+
+                # Display devices table
+                if devices:
+                    text += "<h3>Devices</h3>"
+                    text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+                    text += '<tr style="background-color: #f0f0f0; text-align: left;">'
+                    text += '<th style="text-align: left;">Name</th><th style="text-align: left;">Description</th></tr>'
+                    for idx, col, desc in devices:
+                        text += f"<tr><td><b>{col}</b></td><td>{desc}</td></tr>"
+                    text += "</table>"
+
+                # Display methods table
+                if methods:
+                    text += "<h3>System Methods and Variables</h3>"
+                    text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+                    text += '<tr style="background-color: #f0f0f0; text-align: left;">'
+                    text += '<th style="text-align: left;">Name</th><th style="text-align: left;">Description</th></tr>'
+                    for idx, col, desc in methods:
+                        text += f"<tr><td><b>{col}</b></td><td>{desc}</td></tr>"
+                    text += "</table>"
+
+                text += "<br>"
             else:
                 text = "Could not parse the system file(s)!"
         self.system_command_text_edit.setText(text)
 
     def show_system_commands(self) -> None:
         """Print information about current system(s) in a help window."""
+        # Store current geometry if dialog is already visible
+        current_geometry = None
+        if self.system_command_help.isVisible():
+            current_geometry = self.system_command_help.geometry()
+
+        # Ensure the help text is updated
+        self.update_system_commands()
+
+        # Set minimum size to sizeHint
+        self.system_command_help.setMinimumSize(self.system_command_help.sizeHint())
+
+        # Load size and position from settings (only if not already visible)
+        if not self.system_command_help.isVisible():
+            self.settings.beginGroup("system_command_help")
+            saved_size = self.settings.value(
+                "size", self.system_command_help.sizeHint()
+            )
+            saved_position = self.settings.value(
+                "position", self.system_command_help.pos()
+            )
+            self.settings.endGroup()
+            self.system_command_help.resize(saved_size)
+            self.system_command_help.move(saved_position)
+
         self.system_command_help.show()
         self.system_command_help.raise_()
-        self.system_command_help.setMinimumWidth(
-            self.system_command_help.sizeHint().width()
-        )
+
+        # Restore previous geometry if available (this will override the saved settings if dialog was already visible)
+        if current_geometry:
+            self.system_command_help.setGeometry(current_geometry)
+
+        # Mark that the help dialog has been shown at least once
+        self._help_dialog_shown = True
 
     def output_written(self, text):
         """

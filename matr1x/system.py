@@ -21,6 +21,7 @@ data acquisition and instrument control.
 """
 import collections
 import importlib
+import inspect
 import os
 import re
 import sys
@@ -1300,6 +1301,79 @@ class System:
                     flattened_settable_units.append(units)
         return (settables, flattened_settable_names, flattened_settable_units)
 
+    def _add_method_info_to_dict(self, obj, info_dict, prefix="System"):
+        """
+        Add methods and variables from an object to a dictionary.
+
+        Parameters
+        ----------
+        obj : object
+            The object to extract methods and variables from
+        info_dict : dict
+            Dictionary to add the methods/variables information to
+        prefix : str, optional
+            Prefix to use in the description (default: "System")
+
+        Returns
+        -------
+        None
+            Updates the info_dict in place
+        """
+        # Find methods used as parameter getters/setters
+        parameter_methods = set()
+        if hasattr(obj, "parameters"):
+            for param in obj.parameters:
+                # Check if setter/getter is a string (method name) and add to exclusion list
+                if isinstance(param.setter, str):
+                    parameter_methods.add(param.setter)
+                if isinstance(param.getter, str):
+                    parameter_methods.add(param.getter)
+
+        for key in dir(obj):
+            if (
+                key not in dir(System())
+                and not key.startswith("_")
+                and key not in parameter_methods
+            ):
+                method = getattr(obj, key)
+                if callable(method):
+                    # Get method signature if possible
+                    signature = ""
+                    doc_summary = ""
+                    try:
+                        signature = str(inspect.signature(method))
+                        if method.__doc__:
+                            doc_lines = method.__doc__.strip().split("\n")
+                            if doc_lines:
+                                doc_summary = doc_lines[0].strip()
+                    except Exception:
+                        pass
+
+                    description = f"{prefix} method"
+                    if signature:
+                        description += f" - {key}{signature}"
+                    if doc_summary:
+                        description += f" - {doc_summary}"
+
+                    info_dict["methods"][key] = {
+                        "name": key,
+                        "description": description,
+                    }
+                else:
+                    # Get variable value summary if possible
+                    value_str = ""
+                    try:
+                        value = getattr(obj, key)
+                        value_type = type(value).__name__
+                        value_str = f" ({value_type})"
+                    except Exception:
+                        pass
+
+                    info_dict["methods"][key] = {
+                        "name": key,
+                        "description": f"{prefix} variable{value_str}",
+                    }
+
     def grab_information(self, settables=False):
         """
         Obtain meta information from the system.
@@ -1320,8 +1394,8 @@ class System:
 
         Returns
         -------
-        system_descriptor : str or tuple
-            If settables is False, returns a string with the list of devices
+        system_descriptor : dict or tuple
+            If settables is False, returns a dictionary with the list of devices
             and parameters available in the system (name + index) as well as
             custom-defined system methods and variables (if any).
             If settables is True, returns a tuple containing information about
@@ -1331,34 +1405,66 @@ class System:
             # return only settables
             return self.settable_columns()
 
-        # generate string from devices, iterates over subsystems
-        dev_list = []
-        for dev, devtype in self.devs.items():
-            dev_list.append(f"{dev} <> {devtype}\n")
-        dev_string = "device <> device type\n----------\n" + \
-            "".join(dev_list)
-        # generate string from setable parameters
-        par_list = []
-        for index, param in enumerate(self.parameters):
-            if param.setter is not None:
-                par_list.append(f"{index} <y> {param.name}\n")
+        # generate dictionary from devices, parameters and methods
+        info = {"devices": {}, "parameters": {}, "methods": {}}
+
+        # Add devices
+        for dev, device_entry in self.devs.items():
+            # Extract device class name from the device entry
+            # Device class is the first element in the device_entry list
+            device_class = device_entry[0]
+            if hasattr(device_class, "__name__"):
+                class_name = device_class.__name__
             else:
-                par_list.append(f"{index} <n> {param.name}\n")
-        par_string = ("index <settable> parameter\n----------\n" +
-                      "".join(par_list))
-        # base methods of System should not be added to the output.
-        # Same is true if the class is derived from MergedSystem.
+                class_name = str(device_class).split()[0].strip("'<>")
+
+            # Extract arguments and keyword arguments
+            args_str = ""
+            if len(device_entry) > 1:
+                args = device_entry[1]
+                if args and len(args) > 0:
+                    args_str = f", args={str(args)}"
+
+            kwargs_str = ""
+            if len(device_entry) > 2:
+                kwargs = device_entry[2]
+                if kwargs and len(kwargs) > 0:
+                    kwargs_str = f", kwargs={str(kwargs)}"
+
+            # Format the device information
+            info["devices"][dev] = {
+                "name": dev,
+                "description": f"Device of class {class_name}{args_str}{kwargs_str}",
+            }
+
+        # Add parameters
+        for index, param in enumerate(self.parameters):
+            # Store the parameter name (either as string or joined list)
+            name = param.name
+            if isinstance(name, list):
+                # For list parameters, join the names with comma
+                display_name = ", ".join(name)
+            else:
+                display_name = name
+
+            # Create an entry with the index as key (use string prefix to avoid numeric parsing issues)
+            param_key = f"param_{index}"
+            if param.setter is not None:
+                info["parameters"][param_key] = {
+                    "name": display_name,
+                    "description": f"Settable parameter at index {index}",
+                }
+            else:
+                info["parameters"][param_key] = {
+                    "name": display_name,
+                    "description": f"Read-only parameter at index {index}",
+                }
+
+        # Add custom methods and variables
         if self.__class__ != MergedSystem:
-            fun_list = []
-            for key in dir(self):
-                if key not in dir(System()) and not key.startswith("_"):
-                    fun_list.append(key)
-            if len(fun_list) > 0:
-                fun_string = ("system methods and parameters\n----------\n" +
-                              "\n".join(fun_list))
-                return "----------\n".join((dev_string, par_string,
-                                            fun_string))
-        return "----------\n".join((dev_string, par_string))
+            self._add_method_info_to_dict(self, info)
+
+        return info
 
     def init_datafile(self, inputfile, output_filename=None):
         """
@@ -1767,21 +1873,47 @@ class MergedSystem(System):
             self.hdf5 = self.hdf5 or subsys.hdf5
 
     def grab_information(self, settables=False):
-        """Reimplement System method to return subsystem information."""
-        ret_string = super().grab_information(settables)
-        if settables is False:
-            fun_list = []
-            for subsys in self.subsys:
-                for key in dir(subsys):
-                    if key not in dir(System()) and not key.startswith("_"):
-                        fun_list.append(key)
-            if len(fun_list) > 0:
-                # if system functions are present, also add them to return
-                # string
-                fun_string = ("system methods and parameters\n----------\n" +
-                              "\n".join(fun_list))
-                return "----------\n".join((ret_string, fun_string))
-        return ret_string
+        """
+        Obtain meta information from the merged system.
+
+        Returns system information, methods and parameters from all subsystems.
+
+        Parameters
+        ----------
+        settables : bool, optional
+            Controls whether to return the settable columns of the system (if
+            True) or the dictionary with information (if False). Default is False.
+
+        Returns
+        -------
+        system_descriptor : dict or tuple
+            If settables is False, returns a dictionary with methods and parameters.
+            If settables is True, returns a tuple containing information about
+            the settable columns of the system.
+        """
+        if settables is True:
+            # return only settables
+            return self.settable_columns()
+
+        # Dictionary to store all information
+        info = {"devices": {}, "parameters": {}, "methods": {}}
+
+        # Add information from the base System class
+        base_info = super().grab_information(settables)
+        if isinstance(base_info, dict):
+            # Merge the categorized dictionaries
+            if "devices" in base_info:
+                info["devices"].update(base_info["devices"])
+            if "parameters" in base_info:
+                info["parameters"].update(base_info["parameters"])
+            if "methods" in base_info:
+                info["methods"].update(base_info["methods"])
+
+        # Add methods from all subsystems
+        for subsys in self.subsys:
+            self._add_method_info_to_dict(subsys, info, prefix="Subsystem")
+
+        return info
 
     def set(self, *args, **kwargs):
         """
