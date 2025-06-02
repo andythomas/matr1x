@@ -2189,8 +2189,14 @@ class SimplePlotWidget(QGroupBox):
         )
 
         # add the first empty plot with
-        self.plots = [self.PlotObject(self.gl, self.cb_error, self.l_slider,
-                                      False, 0, [0, 0, 0]), ]
+        initial_plot = self.PlotObject(
+            self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0]
+        )
+        self.plots = [initial_plot]
+
+        # Connect X-axis linking signal for automatic linking
+        if hasattr(initial_plot, "vb") and initial_plot.vb is not None:
+            initial_plot.vb.sigRangeChanged.connect(self._on_range_changed)
 
         self.w_plots = QComboBox()
         self.w_plots.addItem("p0 -  vs")
@@ -2227,9 +2233,21 @@ class SimplePlotWidget(QGroupBox):
         Ensures that the new plot is always appended to the end.
         """
         index = max([plot.index for plot in self.plots]) + 1
-        self.plots.append(self.PlotObject(self.gl, self.cb_error, self.l_slider,
-                                          False, index, [0, 0, 0],
-                                          pen=self.w_line.isChecked()))
+        new_plot = self.PlotObject(
+            self.gl,
+            self.cb_error,
+            self.l_slider,
+            False,
+            index,
+            [0, 0, 0],
+            pen=self.w_line.isChecked(),
+        )
+        self.plots.append(new_plot)
+
+        # Connect X-axis linking signal for automatic linking
+        if hasattr(new_plot, "vb") and new_plot.vb is not None:
+            new_plot.vb.sigRangeChanged.connect(self._on_range_changed)
+
         self.w_plots.setItemText(len(self.plots)-1, f"p{index} -  vs ")
         self.w_plots.addItem("add plot")
 
@@ -2419,6 +2437,50 @@ class SimplePlotWidget(QGroupBox):
                 if plot.plot2d is False:
                     plot.plt.setPen(None)
 
+    def _on_range_changed(self, view_box, ranges):
+        """Handle range change event to synchronize X-axis across plots with same X-column."""
+        # Find which plot triggered the range change
+        source_plot = None
+        for plot in self.plots:
+            if hasattr(plot, "vb") and plot.vb == view_box:
+                source_plot = plot
+                break
+
+        if source_plot is None:
+            return
+
+        # Get the X-axis label/column of the source plot
+        source_x_label = (
+            getattr(source_plot, "labels", [None, None])[1]
+            if hasattr(source_plot, "labels")
+            else None
+        )
+        if source_x_label is None:
+            return
+
+        # Get the X range from the changed viewbox
+        x_range = ranges[0]  # X range is the first element
+
+        # Update all other viewboxes that have the same X-axis column
+        for plot in self.plots:
+            if (
+                hasattr(plot, "vb")
+                and plot.vb is not None
+                and plot.vb != view_box
+                and hasattr(plot, "labels")
+                and len(plot.labels) > 1
+                and plot.labels[1] == source_x_label
+            ):
+
+                # Temporarily disconnect to avoid recursive calls
+                try:
+                    plot.vb.sigRangeChanged.disconnect(self._on_range_changed)
+                    plot.vb.setXRange(x_range[0], x_range[1], padding=0)
+                    plot.vb.sigRangeChanged.connect(self._on_range_changed)
+                except TypeError:
+                    # Signal was not connected, just set the range
+                    plot.vb.setXRange(x_range[0], x_range[1], padding=0)
+
     def _plot2d_changed(self, index, new_state):
         """
         Handle a change of the plot type by replacing the PlotObject in place.
@@ -2436,10 +2498,20 @@ class SimplePlotWidget(QGroupBox):
         plt = self.plots.pop(index)
         plt.remove_plot()
         del plt
-        self.plots.insert(index, self.PlotObject(self.gl, self.cb_error,
-                                                 self.l_slider, new_state,
-                                                 plotindex, [0, 0, 0],
-                                                 pen=self.w_line.isChecked()))
+        new_plot = self.PlotObject(
+            self.gl,
+            self.cb_error,
+            self.l_slider,
+            new_state,
+            plotindex,
+            [0, 0, 0],
+            pen=self.w_line.isChecked(),
+        )
+        self.plots.insert(index, new_plot)
+
+        # Connect X-axis linking signal for automatic linking
+        if hasattr(new_plot, "vb") and new_plot.vb is not None:
+            new_plot.vb.sigRangeChanged.connect(self._on_range_changed)
         # reset global plot2d flag
         if any([plot.plot2d for plot in self.plots]) is True:
             self._toggle_plot2d(True)
@@ -2497,8 +2569,15 @@ class SimplePlotWidget(QGroupBox):
         for plot in self.plots:
             plot.remove_plot()
         del self.plots
-        self.plots = [self.PlotObject(self.gl, self.cb_error, self.l_slider,
-                                      False, 0, [0, 0, 0]), ]
+        initial_plot = self.PlotObject(
+            self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0]
+        )
+        self.plots = [initial_plot]
+
+        # Connect X-axis linking signal for automatic linking
+        if hasattr(initial_plot, "vb") and initial_plot.vb is not None:
+            initial_plot.vb.sigRangeChanged.connect(self._on_range_changed)
+
         self.w_plots.setCurrentIndex(0)
         self.w_plots.clear()
         self.w_plots.addItem("p0 -  vs")
