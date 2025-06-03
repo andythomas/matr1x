@@ -1927,6 +1927,9 @@ def construct_query_string(query_dict, depth=2):
                 # ignore carriage returns (would break the datafile!)
                 v = v.replace("\r", "\n")
                 v = v.replace("\n", "\n" + "#" * (depth + 1) + " ")
+                v = v.replace(
+                    "\\n", "\n" + "#" * (depth + 1) + " "
+                )  # make newlines appear as extra lines
                 v = v.replace('"', r"\"")
                 ret += "#" * depth + f' {k} : "{v}"\n'
             else:

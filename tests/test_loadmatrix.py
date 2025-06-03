@@ -74,7 +74,7 @@ def test_loadmatrix_ma8():
     assert isinstance(h["system query"], dict)
     assert len(h["system query"]) == 3
     assert h["system query"]["dev1"]["p4"] == [5.0, 3.0, 2.0, 1.0]
-    assert len(h["system query"]["user script"]) == 397
+    assert len(h["system query"]["user script"]) == 381
     assert d["dev1 p3a"].shape == (100,)  # check shape of dataset
     assert d["timeUTC"].shape == (100,)  # check shape of dataset
     assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.393633  # check specific data value

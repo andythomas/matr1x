@@ -115,7 +115,8 @@ def _parse_query_string(query: str):
     Parse a System query string into a structured dictionary.
 
     This function takes a multi-line query string and parses it into a nested dictionary
-    structure. It handles device entries, key-value pairs, and multi-line values.
+    structure. It handles device entries, key-value pairs, multi-line values, and
+    arbitrary nesting levels indicated by # prefixes.
 
     Parameters
     ----------
@@ -125,100 +126,153 @@ def _parse_query_string(query: str):
     Returns
     -------
     dict
-        A nested dictionary containing the parsed data. The top-level keys are device names,
-        and their values are dictionaries of key-value pairs for each device.
+        A nested dictionary containing the parsed data. The structure follows the
+        hierarchical levels indicated by #, ##, ###, etc.
     """
+
+    def get_nested_dict(data, path):
+        """Navigate to nested dictionary location, creating intermediate dicts as needed."""
+        current = data
+        for key in path:
+            if key not in current:
+                current[key] = {}
+            current = current[key]
+        return current
+
+    def parse_value(value):
+        """Parse a string value into appropriate Python type."""
+        if value.startswith('"') and value.endswith('"'):
+            return value.strip('"').replace("\\n", "\n")
+        try:
+            return ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            return value
+
+    def is_multiline_start(value):
+        """Check if value starts a multiline string."""
+        return value.startswith('"') and not value.endswith('"')
+
+    def store_multiline_value(parsed_data, path_stack, current_key, multiline_value):
+        """Store completed multiline value in the appropriate location."""
+        value = "\n".join(multiline_value).rstrip('"')
+        if path_stack:
+            target_dict = get_nested_dict(parsed_data, path_stack)
+            target_dict[current_key] = value
+        else:
+            parsed_data[current_key] = value
+
+    def handle_multiline_continuation(line, path_stack, multiline_value, current_level):
+        """Handle continuation of multiline values."""
+        if line.startswith("#"):
+            hash_count = len(line) - len(line.lstrip("#"))
+            # Only continue multiline if hash count is greater than the level where multiline started
+            content = line[hash_count:].strip()
+            if hash_count > current_level:
+                multiline_value.append(content)
+                return True
+        return False
+
+    def process_key_value_pair(content, path_stack, parsed_data):
+        """Process a key-value pair line."""
+        key, value = content.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+
+        # If value is empty, treat as section header instead of key-value pair
+        if not value:
+            path_stack.append(key)
+            get_nested_dict(parsed_data, path_stack)
+            return None, [], False
+
+        if is_multiline_start(value):
+            return key, [value.strip('"')], True
+        else:
+            parsed_value = parse_value(value)
+            target_dict = get_nested_dict(parsed_data, path_stack)
+            target_dict[key] = parsed_value
+            return None, [], False
+
+    def process_top_level_key_value(line, parsed_data):
+        """Process a top-level key-value pair."""
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if is_multiline_start(value):
+            return key, [value.strip('"')], True
+        else:
+            parsed_value = parse_value(value)
+            parsed_data[key] = parsed_value
+            return None, [], False
+
+    # Main parsing logic
     parsed_data = {}
+    path_stack = []
     current_key = None
-    current_device = None
     multiline_value = []
     in_multiline = False
-    in_device = False  # Track whether we're inside a device
+    multiline_level = 0
 
     for line in query.splitlines():
-        line = line.rstrip(
-            "\n"
-        )  # Only remove the newline character, keep all spaces intact
+        line = line.rstrip("\n")
 
         if not line:
             continue
 
         # Handle multiline value continuation
         if in_multiline:
-            if line.startswith("# "):  # Continuation of a multiline value
-                multiline_value.append(line[2:])  # Remove leading "# "
-            else:
-                # End of multiline entry, store it
-                if in_device:
-                    parsed_data[current_device][current_key] = "\n".join(
-                        multiline_value
-                    ).rstrip('"')
-                else:
-                    parsed_data[current_key] = "\n".join(multiline_value).rstrip('"')
-
-                in_multiline = False
-                multiline_value = []
-                # Process the new line (e.g., new device or entry)
-                if not line.startswith("#"):
-                    current_device = line
-                    parsed_data[current_device] = {}
-                    in_device = True
-
-        # Detect new device or global entry start
-        if not line.startswith("#") and ":" not in line:  # New device (without ':')
-            current_device = line.strip()
-            parsed_data[current_device] = {}
-            in_device = True
-
-        elif ":" in line and not in_multiline:
-            # Process key-value pair
-            key, value = line.split(":", 1)  # Split only on the first ":"
-            key = key.strip()
-            value = value.strip()
-
-            # Handle if this is a top-level key (like 'User script')
-            if current_device is None or (
-                not line.startswith("#") and current_device is not None
+            if handle_multiline_continuation(
+                line, path_stack, multiline_value, multiline_level
             ):
-                # We assume this is a global entry, not a device-related one
-                in_device = False
-                current_device = None
+                continue
 
-            # Handle multiline string (still enclosed in quotes)
-            if value.startswith('"') and not value.endswith(
-                '"'
-            ):  # Multiline entry starts here
-                current_key = key
-                multiline_value.append(value.strip('"'))  # Remove the opening quote
-                in_multiline = True
-                in_device = current_device is not None
+            # End of multiline entry, store it
+            store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
+            in_multiline = False
+            multiline_value = []
+            multiline_level = 0
+            # Fall through to process the current line
+
+        # Count hash prefixes to determine nesting level
+        hash_count = len(line) - len(line.lstrip("#"))
+
+        if hash_count > 0:
+            # This is a nested entry
+            content = line[hash_count:].strip()
+
+            if ":" in content:
+                # This is a key-value pair
+                path_stack = path_stack[: hash_count - 1]
+                current_key, multiline_value, in_multiline = process_key_value_pair(
+                    content, path_stack, parsed_data
+                )
+                if in_multiline:
+                    multiline_level = hash_count
             else:
-                # Handle quoted strings or other evaluable types
-                if value.startswith('"') and value.endswith('"'):
-                    parsed_value = value.strip('"')
-                else:
-                    # Use ast.literal_eval() to parse any non-string value (lists, ints, floats, etc.)
-                    try:
-                        parsed_value = ast.literal_eval(value)
-                    except (ValueError, SyntaxError):
-                        parsed_value = value  # If not evaluable, store as string
+                # This is a section header
+                path_stack = path_stack[: hash_count - 1]
+                path_stack.append(content)
+                get_nested_dict(parsed_data, path_stack)
 
-                # Place the parsed key-value in the right dictionary (global or device)
-                if in_device:
-                    # Remove leading "# " from the key if it's in a device dictionary
-                    key = key.lstrip("# ").strip()
-                    parsed_data[current_device][key] = parsed_value
-                else:
-                    parsed_data[key] = parsed_value
+        elif ":" in line:
+            # Top-level key-value pair
+            path_stack = []
+            current_key, multiline_value, in_multiline = process_top_level_key_value(
+                line, parsed_data
+            )
+            if current_key and not in_multiline and multiline_value == []:
+                # This was a section header with empty value
+                path_stack = [current_key]
+            elif in_multiline:
+                multiline_level = 0
+        elif not line.startswith("#"):
+            # Top-level section without colons
+            path_stack = [line.strip()]
+            get_nested_dict(parsed_data, path_stack)
 
     # Handle any remaining multiline entry at the end
     if in_multiline:
-        if in_device:
-            parsed_data[current_device][current_key] = "\n".join(
-                multiline_value
-            ).rstrip('"')
-        else:
-            parsed_data[current_key] = "\n".join(multiline_value).rstrip('"')
+        store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
 
     return parsed_data
 
@@ -372,16 +426,24 @@ def loadmatrix(filename, structured=True, print_header=False,
                 # parse header from lines that start with hashtag
                 if "#" == line[0]:
                     if line[1] == "#":  # multiline entry
-                        # strip header format characters
-                        if sys.version_info.minor > 8:
-                            # removeprefix/suffix introduced with python 3.9
-                            strippedline = line.removesuffix("\n")[2:]
+                        # For system query, preserve hash prefixes for proper nesting
+                        if key == "system query":
+                            if sys.version_info.minor > 8:
+                                strippedline = line.removesuffix("\n")
+                            else:
+                                strippedline = line.rstrip("\n")
+                            val += f"\n{strippedline}"
                         else:
-                            # to be removed when python 3.8 is deprecated
-                            strippedline = line.rstrip("\n")[2:]
-                        if strippedline[0] == " ":
-                            strippedline = strippedline[1:]
-                        val += f"\n{strippedline}"
+                            # strip header format characters for other entries
+                            if sys.version_info.minor > 8:
+                                # removeprefix/suffix introduced with python 3.9
+                                strippedline = line.removesuffix("\n")[2:]
+                            else:
+                                # to be removed when python 3.8 is deprecated
+                                strippedline = line.rstrip("\n")[2:]
+                            if strippedline[0] == " ":
+                                strippedline = strippedline[1:]
+                            val += f"\n{strippedline}"
                         header[key] = val
                     else:
                         if sys.version_info.minor > 8:
@@ -401,6 +463,7 @@ def loadmatrix(filename, structured=True, print_header=False,
                             val = None
                         else:
                             val = val[1:]  # remove initial space
+
                         header[key] = val
                 else:
                     if headerlines == 0:
@@ -454,9 +517,11 @@ def loadmatrix(filename, structured=True, print_header=False,
                 lastdpoint = dpoint
         # separate System query entry into hierachical dictionary
         if extension.endswith("8"):
+            # Reconstruct proper structure by adding the header line
+            system_query_content = f"# system query :{header['system query']}"
             header["system query"] = _parse_query_string(
-                header["system query"].replace(r"\"", '"')
-            )
+                system_query_content.replace(r"\"", '"')
+            )["system query"]
         for key, val in header.items():
             if isinstance(val, str):
                 val = val.strip('"')  # strip " from header strings
