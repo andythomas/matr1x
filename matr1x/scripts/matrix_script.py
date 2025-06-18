@@ -1613,6 +1613,8 @@ class ExecThread(QThread):
             if match := re.search(pattern_input, line):
                 input_type = match.group("type")
                 strlabel = match.group("strlabel")
+                # convert back %0A to newline (URL-encoding)
+                strlabel = strlabel.replace("%0A", "\n")
 
                 default_value = ""  # Default for string/bool
                 timeout = float("inf")

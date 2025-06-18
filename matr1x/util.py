@@ -1438,7 +1438,8 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             if "" == message:
                 base_message = "User input requested, see executing line for context"
             else:
-                base_message = message
+                # replace newline characters with placeholders (URL-encoding)
+                base_message = message.replace("\n", "%0A")
 
             # Handle cases for timeout and default value:
             # Construct the pattern based on input_type and provided parameters
