@@ -42,6 +42,7 @@ dependencies = [
 elab = ["elabapi_python", "jinja2"]
 spi = ["spidev", "RPi"]
 standa = ["PyUSMC", "pyximc"]
+modbus = ["minimalmodbus"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
