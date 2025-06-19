@@ -3483,6 +3483,8 @@ class MainWindow(QMainWindow):
         self.systems_dirty = False
         self.last_filename = filename
         self.update_window_title()
+        if self.system_list.count() > 0:
+            self.remove_system_action.setEnabled(True)
 
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""
@@ -3506,7 +3508,6 @@ class MainWindow(QMainWindow):
         )
         filename = filename[0]
         self.load_from_filename(filename)
-        self.remove_system_action.setEnabled(True)
 
     def new_file(self) -> None:
         """
