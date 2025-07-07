@@ -342,7 +342,7 @@ class var(QObject):
     def __init__(
         self,
         dtype: Union[type, tuple[type, type], None] = (float, str),
-        outType: type = str,
+        outType: type = None,
         columns: Optional[Union[list, str, int, guiObject]] = None,
         unit: str = "",
         log: Optional[bool | None] = False,
@@ -355,7 +355,7 @@ class var(QObject):
             self.outType = dtype[1]
         else:
             self.variableType = dtype
-            self.outType = outType
+            self.outType = outType if outType is not None else dtype
 
         self._value = None
         self._unit = unit
@@ -457,11 +457,11 @@ class var(QObject):
 
         Examples
         --------
-        >>> var((int, int), columns=[guiObject.lineedit, guiObject.checkbox])
+        >>> var(int, columns=[guiObject.lineedit, guiObject.checkbox])
         # will result in a (visible) layout as follows:
         # QLabel(label) - QLineEdit - QCheckBox
 
-        >>> var((int, int),
+        >>> var(int,
         ...     columns=[guiObject.combobox, guiObject.combobox],
         ...     init=("a", "b"))
         # results in:
@@ -582,16 +582,59 @@ class var(QObject):
         """Connect the valueChanged signal to the corresponding widget."""
         if len(self.widgets) >= 2 and self.variableType is not None:
             if isinstance(self.widgets[1], (QLineEdit, QLabel)):
-                self.valueChanged[str].connect(self.widgets[1].setText)
+                # Handle automatic string conversion for text widgets
+                if self.outType is str:
+                    self.valueChanged[str].connect(self.widgets[1].setText)
+                else:
+                    # Create wrapper to convert non-string types to string
+                    def string_wrapper(value):
+                        self.widgets[1].setText(str(value))
+
+                    self.valueChanged[self.outType].connect(string_wrapper)
             elif isinstance(self.widgets[1], (QSpinBox, QProgressBar)):
-                self.valueChanged[int].connect(self.widgets[1].setValue)
+                # Handle automatic int conversion for spinboxes and progress bars
+                if self.outType is int:
+                    self.valueChanged[int].connect(self.widgets[1].setValue)
+                else:
+                    # Create wrapper to convert non-int types to int
+                    def int_wrapper(value):
+                        try:
+                            self.widgets[1].setValue(int(value))
+                        except (ValueError, TypeError):
+                            pass
+
+                    self.valueChanged[self.outType].connect(int_wrapper)
             elif isinstance(self.widgets[1], QDoubleSpinBox):
-                self.valueChanged[float].connect(self.widgets[1].setValue)
+                # Handle automatic float conversion for double spinboxes
+                if self.outType is float:
+                    self.valueChanged[float].connect(self.widgets[1].setValue)
+                else:
+                    # Create wrapper to convert non-float types to float
+                    def float_wrapper(value):
+                        try:
+                            self.widgets[1].setValue(float(value))
+                        except (ValueError, TypeError):
+                            pass
+
+                    self.valueChanged[self.outType].connect(float_wrapper)
             elif isinstance(self.widgets[1], QComboBox):
+                # Always connect both int and str signals like the original code
+                # This allows combo boxes to be updated by either index or text regardless of outType
                 self.valueChanged[int].connect(self.widgets[1].setCurrentIndex)
                 self.valueChanged[str].connect(self.widgets[1].setCurrentText)
             elif isinstance(self.widgets[1], QCheckBox):
-                self.valueChanged[bool].connect(self.widgets[1].setChecked)
+                # Handle automatic bool conversion for checkboxes
+                if self.outType is bool:
+                    self.valueChanged[bool].connect(self.widgets[1].setChecked)
+                else:
+                    # Create wrapper to convert non-bool types to bool
+                    def bool_wrapper(value):
+                        try:
+                            self.widgets[1].setChecked(bool(value))
+                        except (ValueError, TypeError):
+                            pass
+
+                    self.valueChanged[self.outType].connect(bool_wrapper)
             if isinstance(self.widgets[0], QLabel):
                 self.unitChanged[str].connect(self.updateLabel)
 
@@ -729,7 +772,7 @@ class GuiDict(UserDict, ABC):
         GUI dictionary elements.
         e.g.
         data = {"Example": var(None, columns=["Readout", "Setpoint"]),
-                "V1": var((int, int), columns=[go.combobox, go.combobox],
+                "V1": var(int, columns=[go.combobox, go.combobox],
                           log=True, init=("i1", "i2")),
                 "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
                 "Set": var(None, columns=[go.button, go.button],

@@ -79,7 +79,6 @@ class exampleDict(GuiDict):
         "V2": var(float, columns=[go.labeltext, go.lineedit], unit="mT"),
         "V3": var(
             dtype=float,
-            outType=int,
             columns=[go.progressbar, go.doublespinbox],
             log=False,
             unit="%",
@@ -88,13 +87,11 @@ class exampleDict(GuiDict):
         ),
         "V4": var(
             dtype=bool,
-            outType=bool,
             columns=[go.checkbox, go.checkbox],
             log=True,
         ),
         "toggle": var(
             dtype=bool,
-            outType=bool,
             columns=[go.checkbox, go.togglebutton],
             init=[None, ("Slow", "Error")],
             log=None,
