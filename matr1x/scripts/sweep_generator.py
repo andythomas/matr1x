@@ -39,13 +39,13 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMenu,
     QMessageBox,
     QPushButton,
-    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -542,25 +542,17 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.main_widget)
 
         # generate sweep grid labels and layout
-        self.currentCol = QLabel("Start - Stop - Points")
-        self.sweepGrid = QGridLayout()
-
-        # set layout and box containing sweep grid, required for
-        # straightforward deletion/reinitialization
-        self.baseBox = QVBoxLayout()
-        self.baseBox.addLayout(self.sweepGrid)
-        self.baseBox.addStretch(1)
-
-        baseArea = QWidget(self)
-        baseArea.setLayout(self.baseBox)
-
-        scrollArea = QScrollArea(self)
-        scrollArea.setWidget(baseArea)
-        scrollArea.setWidgetResizable(True)
-
-        self.sweepBox = QVBoxLayout()
-        self.sweepBox.addWidget(self.currentCol)
-        self.sweepBox.addWidget(scrollArea)
+        self.sweep_table = QTableWidget()
+        self.sweep_table.setColumnCount(4)
+        self.sweep_table.setHorizontalHeaderLabels(
+            ["Start", "Stop", "Points", "Delete"]
+        )
+        header = self.sweep_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.sweep_table.verticalHeader().hide()
 
         self.sweep_preview = QTableWidget()
         self.sweep_preview.setColumnCount(1)
@@ -578,7 +570,7 @@ class MainWindow(QMainWindow):
 
         central_view = QHBoxLayout()
         central_view.addWidget(self.sweep_preview)
-        central_view.addLayout(self.sweepBox)
+        central_view.addWidget(self.sweep_table)
 
         self.utility_layout.addLayout(central_view)
 
@@ -693,7 +685,7 @@ class MainWindow(QMainWindow):
             self.sweep_params = []
             self.flat_col = []
             self.clear_layout(self.grid)
-            self.clear_layout(self.sweepGrid)
+            self.sweep_table.setRowCount(0)
             self.sweep_preview.setRowCount(0)
 
     def filename_changed(self) -> bool:
@@ -1188,7 +1180,7 @@ class MainWindow(QMainWindow):
 
     def append_sweep_col(self, column: int) -> None:
         """
-        Add defined sweep parameters to self.sweep_params and populate sweepGrid.
+        Add defined sweep parameters to self.sweep_params and populate sweep table.
 
         Take care that whenever adressing the list (i.e. sweep_params) that
         those are shifted by 1 (layout starts at col 1, lists at 0).
@@ -1204,13 +1196,6 @@ class MainWindow(QMainWindow):
         # update the sweep grid for the active column (should now display
         # the new parameter set)
         self.populate_sweep_grid(column)
-
-    def remove_sweep_param(self, col):
-        """Remove a set of linspace parameters from sweep_params at the correct position."""
-        row = self.sweepGrid.getItemPosition(
-            self.sweepGrid.indexOf(self.sender()))[0]
-        del self.sweep_params[col-1][row]
-        self.populate_sweep_grid(col)
 
     def populate_sweep_grid(self, actual_column: int) -> None:
         """
@@ -1235,11 +1220,9 @@ class MainWindow(QMainWindow):
             else:
                 col_sign_label.setFrameStyle(QLabel.Shape.NoFrame)
                 flat_col_nameunit.setFrameStyle(QLabel.Shape.NoFrame)
-        # Clear Widget
-        self.clear_layout(self.sweepGrid)
+        self.sweep_table.setRowCount(len(self.sweep_params[actual_column - 1]))
 
-        row = 0
-        for param_set in self.sweep_params[actual_column - 1]:
+        for row, param_set in enumerate(self.sweep_params[actual_column - 1]):
             for i in range(3):
                 line_edit = QLineEdit(self)
                 line_edit.setText(str(param_set[i]))
@@ -1248,26 +1231,58 @@ class MainWindow(QMainWindow):
                 else:
                     line_edit.setValidator(validator[float])
                 line_edit.editingFinished.connect(
-                    lambda: self.change_sweep_param(actual_column)
+                    lambda actual_column=actual_column, row=row, i=i: self.change_sweep_param(
+                        actual_column, row, i
+                    )
                 )
                 line_edit.textChanged.connect(
                     lambda: self.update_window_title(dirty=True)
                 )
-                self.sweepGrid.addWidget(line_edit, row, i)
+                line_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
+                self.sweep_table.setCellWidget(row, i, line_edit)
             delete_button = QPushButton("-")
             delete_button.clicked.connect(
-                lambda: self.remove_sweep_param(actual_column)
+                lambda _, actual_column=actual_column, row=row: self.remove_sweep_param(
+                    actual_column, row
+                )
             )
             delete_button.clicked.connect(lambda: self.update_window_title(dirty=True))
-            self.sweepGrid.addWidget(delete_button, row, 3)
-            row += 1
+            wrapper = QWidget()
+            layout = QHBoxLayout(wrapper)
+            layout.addWidget(delete_button)
+            layout.setContentsMargins(5, 5, 5, 5)
+            layout.setAlignment(delete_button, Qt.AlignmentFlag.AlignCenter)
+            self.sweep_table.setCellWidget(row, 3, wrapper)
 
-    def change_sweep_param(self, col):
-        """Change the sweep param if it is manipulated within the sweepGrid."""
+    def remove_sweep_param(self, col: int, row: int) -> None:
+        """
+        Remove a set of linspace parameters from sweep_params at the correct position.
+
+        Parameters
+        ----------
+        col : int
+            The currently selected matrix column, e.g. a/field.
+        row : int
+            The row of the table to be deleted.
+        """
+        del self.sweep_params[col - 1][row]
+        self.populate_sweep_grid(col)
+
+    def change_sweep_param(self, col: int, row: int, field) -> None:
+        """
+        Change the sweep param if it is manipulated within the sweep table.
+
+        Parameters
+        ----------
+        col : int
+            The currently selected matrix column, e.g., a/field.
+        row : int
+            The row that of the table that is edited.
+        field : int
+            The text field that is edited, i.e. the column of the table.
+        """
         text = self.sender().text()
-        position = self.sweepGrid.getItemPosition(
-            self.sweepGrid.indexOf(self.sender()))
-        self.sweep_params[col-1][position[0]][position[1]] = text
+        self.sweep_params[col - 1][row][field] = text
 
     def clear_layout(self, layout):
         """Clear all child widgets from layout."""
