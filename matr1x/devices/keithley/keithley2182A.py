@@ -132,6 +132,9 @@ class Keithley2182A(VisaDevice):
         if reset is True:
             self.write("*RST")
             self.query("*OPC?")
+        else:
+            # make sure the device is in the idle state
+            self.query(":ABOR")
 
         # we want to measure volts
         cmdList.append(':SENS:FUNC "VOLT"')
