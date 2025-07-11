@@ -84,6 +84,7 @@ from PyQt6.QtWidgets import (
     QLayout,
     QLineEdit,
     QListWidget,
+    QMainWindow,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -91,6 +92,7 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QStyle,
     QStyledItemDelegate,
+    QSystemTrayIcon,
     QTextEdit,
     QToolButton,
     QTreeView,
@@ -3625,6 +3627,28 @@ def save_messagebox(instance) -> int:
     # Is this the best default button?
     msg.setDefaultButton(QMessageBox.StandardButton.Save)
     return msg.exec()
+
+
+def create_tray_notification(title: str, message: str, instance) -> None:
+    """
+    Show a platform independent desktop notification.
+
+    Parameters
+    ----------
+    title : str
+        The title of the notification.
+    message : str
+        The message of the notification.
+    """
+    instance._tray_icon = QSystemTrayIcon()
+    main_window = instance.window()
+    if isinstance(main_window, QMainWindow):
+        icon = main_window.windowIcon()
+    else:
+        icon = QIcon()
+    instance._tray_icon.setIcon(icon)
+    instance._tray_icon.show()
+    instance._tray_icon.showMessage(title, message, QSystemTrayIcon.MessageIcon.Warning)
 
 
 class MLineEdit(QLineEdit):

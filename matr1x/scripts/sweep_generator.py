@@ -65,6 +65,7 @@ from matr1x.gui_util import (
     MApplication,
     MIcon,
     SystemListWidget,
+    create_tray_notification,
     save_messagebox,
     validator,
 )
@@ -358,7 +359,7 @@ class MainWindow(QMainWindow):
         self.loop_over = []
         self.up_down = []
         self.repeat = []
-        self.sweepParams = []
+        self.sweep_params = []
         self.systemFilename = ""
 
         # gui variables
@@ -697,8 +698,13 @@ class MainWindow(QMainWindow):
         bool
             True on success and False on error during import.
         """
-        filenames = [self.systemList.item(j).text()
-                     for j in range(self.systemList.count())]
+        if any(sublist for sublist in self.sweep_params):
+            create_tray_notification(
+                "Sweep reset", "All previous sweep parameters have been cleared.", self
+            )
+        filenames = [
+            self.systemList.item(j).text() for j in range(self.systemList.count())
+        ]
         if 0 == len(filenames):
             self.reset_layout()
             self.new_file_action.setEnabled(False)
