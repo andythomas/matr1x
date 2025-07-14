@@ -134,7 +134,7 @@ class Keithley2182A(VisaDevice):
             self.query("*OPC?")
         else:
             # make sure the device is in the idle state
-            self.query(":ABOR")
+            self.write(":ABOR")
 
         # we want to measure volts
         cmdList.append(':SENS:FUNC "VOLT"')
