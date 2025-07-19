@@ -345,7 +345,7 @@ class var(QObject):
         outType: type = None,
         columns: Optional[Union[list, str, int, guiObject]] = None,
         unit: str = "",
-        log: Optional[bool | None] = False,
+        log: Optional[bool] = False,
         init: Optional[list] = None,
         hide: bool = False,
     ):

@@ -9,6 +9,7 @@ import difflib
 import logging
 import os
 import re
+from typing import Optional
 
 import elabapi_python
 from elabapi_python.rest import ApiException
@@ -254,7 +255,7 @@ class ElabSystem(System):
             query=self.merged_system.query_dict,
         )
 
-    def _determine_userid(self) -> int | None:
+    def _determine_userid(self) -> Optional[int]:
         """
         Fetch the elabFTW userid from the user given in metadata.
 
@@ -302,7 +303,7 @@ class ElabSystem(System):
             most_likely_match = closest_matches[0] if closest_matches else None
         return response[names.index(most_likely_match)].userid
 
-    def _determine_category(self) -> int | None:
+    def _determine_category(self) -> Optional[int]:
         """
         Determine Experiment Category ID to use.
 
@@ -330,7 +331,7 @@ class ElabSystem(System):
         )
         return result_id
 
-    def _determine_status(self, status: str) -> int | None:
+    def _determine_status(self, status: str) -> Optional[int]:
         """
         Determine status id for the measurement status.
 
@@ -357,7 +358,7 @@ class ElabSystem(System):
             return None
         return next((item.id for item in response if item.title == status), None)
 
-    def _determine_resource_category(self) -> int | None:
+    def _determine_resource_category(self) -> Optional[int]:
         """
         Determine resource category id from the name.
 
@@ -381,7 +382,7 @@ class ElabSystem(System):
         # find id for search category
         return next((item.id for item in response if item.title == category_name), None)
 
-    def _create_resource(self, name: str) -> int | None:
+    def _create_resource(self, name: str) -> Optional[int]:
         """
         Create a new resource in elabFTW.
 
@@ -432,7 +433,7 @@ class ElabSystem(System):
             raise ValueError("Failed to create resource - itemId is None")
         return item_id
 
-    def _search_resource(self, resource: str) -> int | None:
+    def _search_resource(self, resource: str) -> Optional[int]:
         """
         Search resource id corresponding to the resource name.
 
@@ -464,7 +465,7 @@ class ElabSystem(System):
             )
         return None
 
-    def _parse_tags_from_line(self, line: str) -> list | None:
+    def _parse_tags_from_line(self, line: str) -> Optional[int]:
         """
         Parse tags from line, tags are marked with #.
 

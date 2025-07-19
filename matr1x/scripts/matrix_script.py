@@ -28,7 +28,7 @@ import tempfile
 import textwrap
 import time
 from os.path import basename, dirname
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import autopep8
 import pyflakes.checker
@@ -2750,10 +2750,10 @@ class MainWindow(QMainWindow):
         input_type: str,
         timeout: float = float("inf"),
         default_value: str = "",
-        min_value: float | None = None,
-        max_value: float | None = None,
-        step: float | None = None,
-        decimals: int | None = None,
+        min_value: Optional[float] = None,
+        max_value: Optional[float] = None,
+        step: Optional[float] = None,
+        decimals: Optional[int] = None,
     ):
         """
         Open a dialog and forward input to the script.
