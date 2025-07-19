@@ -203,18 +203,7 @@ class FSW8(VisaDevice):
                     )
                 )
             time.sleep(0.5)
-            if detector == "rms":
-                # Calculates the root mean square of all samples contained in a sweep point.
-                self.write("DETector RMS")
-            elif detector == "average":
-                # Calculates the linear average of all samples contained in a sweep point
-                self.write("DETector AVER")
-            else:
-                print(
-                    "Please choose a valid detector type! Your input was:{}".format(
-                        avgType
-                    )
-                )
+
             self.write("AVER:STAT ON")
             self.write(f"AVER:COUN {average}")
             self.maxAverage = max(average, self.maxAverage)
@@ -255,6 +244,22 @@ class FSW8(VisaDevice):
         else:
             print(f"Please choose a valid sweep type! Your input was:{avgType}")
         time.sleep(0.5)
+
+        if detector == "rms":
+            # Calculates the root mean square of all samples contained in a sweep point.
+            self.write("DETector RMS")
+        elif detector == "ape":
+            # use auto peak as detector
+            self.write("DETector APE")
+        elif detector == "average":
+            # Calculates the linear average of all samples contained in a sweep point
+            self.write("DETector AVER")
+        else:
+            print(
+                "Please choose a valid detector type! Your input was:{}".format(
+                    detector
+                )
+            )
 
         # Set optimization parameters in FFT mode
         # options: dynamic/speed/auto

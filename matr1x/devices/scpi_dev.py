@@ -213,7 +213,9 @@ def makeSCPIdevice(*cmds, system=True):
         reply = self.read()
         if reply != '\x06':
             raise ValueError(
-                "Wrong reply received when there should be an acknowledge.")
+                "Wrong reply received when there should be an acknowledge. "
+                f"Instead received {reply}"
+            )
         return []
 
     def create_setnwait(attr, pollattr):
@@ -347,6 +349,8 @@ def makeSCPIdevice(*cmds, system=True):
                 methods[f'{att}'] = create_parameterless(name)
             else:
                 kwargs['check_set_errors'] = True
+                # cast not valid kwarg for Instrument.setting
+                del kwargs["cast"]
                 attributes[att] = Instrument.setting(
                     name + f' {stringplaceholder}', f"set {att}", **kwargs)
         else:  # here both setfunc and getfunc are real
