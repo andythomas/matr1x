@@ -100,9 +100,16 @@ def start_control_dummy():
     # Find the 'control-dummy' GUI script entry point
     eps = entry_points()
     try:
-        ep = next(
-            ep for ep in eps.select(group="gui_scripts") if ep.name == "control-dummy"
-        )
+        if sys.version_info >= (3, 10):
+            ep = next(
+                ep
+                for ep in eps.select(group="gui_scripts")
+                if ep.name == "control-dummy"
+            )
+        else:
+            ep = next(
+                ep for ep in eps.get("gui_scripts", []) if ep.name == "control-dummy"
+            )
     except StopIteration:
         raise RuntimeError("Entry point 'control-dummy' not found in gui_scripts")
 
