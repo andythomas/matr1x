@@ -1048,29 +1048,21 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
 
     def keyPressEvent(self, event):
         """Check for shortcuts such as linting."""
-        # Check pressed key information
         key = event.key()
-        # key_modifiers = event.modifiers()
-
         if detect_shortcut(event, "Ctrl+/"):
             self.toggle_commenting()
+            return
         if detect_shortcut(event, "Ctrl+Shift+7"):
             self.toggle_commenting()
-        if detect_shortcut(event, "Ctrl+8"):
-            self.run_autopep8()
-        if detect_shortcut(event, "Ctrl+7"):
-            self.run_linter()
+            return
         if key == Qt.Key.Key_QuoteDbl:
-            # check that something is selected
             if bool(self.SendScintilla(self.SCI_GETSELECTIONEMPTY)) is False:
-                self.add_block_commenting('"')
+                self.add_quotes('"')
                 return
         if key == Qt.Key.Key_Apostrophe:
-            # check that something is selected
             if bool(self.SendScintilla(self.SCI_GETSELECTIONEMPTY)) is False:
-                self.add_block_commenting("'")
+                self.add_quotes("'")
                 return
-        # Execute the superclasses event
         super().keyPressEvent(event)
 
     def run_autopep8(self):
@@ -1181,8 +1173,8 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         # move the cursor to the position of the last error
         self.setCursorPosition(line, col)
 
-    def add_block_commenting(self, char):
-        """Handle the block commenting."""
+    def add_quotes(self, char):
+        """Handle adding single or double quotes."""
         selections = self.get_selections()
         if selections is None:
             return
@@ -1363,6 +1355,8 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         )
         # Get the selected text and split it into lines
         selected_text = self.selectedText()
+        if selected_text == "":
+            return
         selected_list = selected_text.splitlines()
         # Find the smallest indent level
         indent_levels = []
@@ -2317,113 +2311,6 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(11, 4, 11, 11)
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        # Actions
-        self.about_action = QAction("About", self)
-        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
-        self.about_action.triggered.connect(self.info_box)
-        self.config_editor = ConfigEditWidget()
-        self.config_editor.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
-        self.config_editor.setFloating(True)
-        self.config_editor.close()
-        self.config_action = QAction(MIcon("CHAR_≡"), "Preferences", self)
-        self.config_action.setToolTip(
-            "Show the application preferences/ configuration."
-        )
-        self.config_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.config_action.setShortcut(QKeySequence.StandardKey.Preferences)
-        self.config_action.setCheckable(True)
-        self.config_action.toggled.connect(self.toggle_preferences)
-        self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
-        self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
-        self.new_file_action.triggered.connect(self.new_file)
-        self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
-        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
-        self.load_action.setToolTip("Open a script file.")
-        self.load_action.triggered.connect(self.load_from_file)
-        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
-        self.save_action.setToolTip("Save the under the current filename.")
-        self.save_action.triggered.connect(self.save_file)
-        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
-        self.save_as_action.triggered.connect(self.save_file_as)
-        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        self.save_button = QToolButton()
-        self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
-        self.save_button.setText("Save")
-        self.save_button.setDefaultAction(self.save_action)
-        self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        save_pulldown = QMenu(self)
-        save_pulldown.addAction(self.save_as_action)
-        self.save_button.setMenu(save_pulldown)
-        self.add_system_action = QAction(MIcon("CHAR_+"), "Add System", self)
-        self.add_system_action.setToolTip("Add a matrix system file.")
-        self.add_system_action.triggered.connect(self.add_system)
-        self.remove_system_action = QAction(MIcon("CHAR_-"), "Remove System", self)
-        self.remove_system_action.setEnabled(False)
-        self.remove_system_action.setToolTip(
-            "Remove the selected or last matrix system file."
-        )
-        self.remove_system_action.triggered.connect(self.delete_selected_system)
-        self.quit_action = QAction("Quit", self)
-        if os.name == "nt":
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        self.quit_action.triggered.connect(self.close)
-        self.undo_action = self.standard_action("Undo")
-        self.redo_action = self.standard_action("Redo")
-        self.cut_action = self.standard_action("Cut")
-        self.copy_action = self.standard_action("Copy")
-        self.paste_action = self.standard_action("Paste")
-        self.zoom_in_action = self.standard_action("ZoomIn", "Zoom in")
-        self.zoom_out_action = self.standard_action("ZoomOut", "Zoom Out")
-        self.print_action = QAction("Print", self)
-        self.print_action.setShortcut(QKeySequence.StandardKey.Print)
-        self.print_action.triggered.connect(self.print_document)
-        self.find_action = QAction("Find", self)
-        self.find_action.setShortcut(QKeySequence.StandardKey.Find)
-        self.find_action.triggered.connect(self.find)
-        self.find_next_action = QAction("Find Next", self)
-        self.find_next_action.setShortcut(QKeySequence.StandardKey.FindNext)
-        self.find_next_action.triggered.connect(self.find_next)
-        self.start_pause_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
-        self.start_pause_action.setToolTip("Execute the script.")
-        self.start_pause_action.triggered.connect(self.start_process)
-        self.start_pause_action.setCheckable(True)
-        self.stop_action = QAction(MIcon("CUSTOM_Stop"), "Stop", self)
-        self.stop_action.setToolTip("Stop the script and query status.")
-        self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
-        self.stop_action.setEnabled(False)
-        self.abort_action = QAction(MIcon("CUSTOM_Stop"), "Abort", self)
-        self.abort_action.triggered.connect(lambda: self.abort_thread("a"))
-        self.abort_action.setEnabled(False)
-        self.finish_action = QAction(MIcon("CUSTOM_Stop"), "Finish", self)
-        self.finish_action.triggered.connect(lambda: self.abort_thread("f"))
-        self.finish_action.setEnabled(False)
-        self.stop_button = QToolButton()
-        self.stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.stop_button.setIcon(MIcon("CUSTOM_Stop"))
-        self.stop_button.setText("Abort")
-        self.stop_button.setDefaultAction(self.stop_action)
-        self.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        stop_pulldown = QMenu(self)
-        stop_pulldown.addAction(self.abort_action)
-        stop_pulldown.addAction(self.finish_action)
-        self.stop_button.setMenu(stop_pulldown)
-        self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
-        self.kill_action.triggered.connect(self.kill_thread)
-        self.kill_action.setEnabled(False)
-        self.preview_action = QAction(
-            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
-        )
-        self.preview_action.triggered.connect(self.preview_data)
-        self.preview_action.setEnabled(False)
         self.dockable_metadata = QDockWidget("Metadata", self)
         self.metadata = MetaDataDialog()
         self.dockable_metadata.setAllowedAreas(
@@ -2497,13 +2384,7 @@ class MainWindow(QMainWindow):
             QsciScintilla.AnnotationDisplay.AnnotationBoxed
         )
         self.script_edit.fileDropped.connect(self.load_from_filename)
-        # The next two actions need script edit to exist first
-        self.lint_action = QAction("Lint with Pyflakes", self)
-        self.lint_action.triggered.connect(self.script_edit.run_linter)
-        self.lint_action.setShortcut(QKeySequence("Ctrl+7"))
-        self.pep8_action = QAction("Format with autopep8", self)
-        self.pep8_action.triggered.connect(self.script_edit.run_autopep8)
-        self.pep8_action.setShortcut(QKeySequence("Ctrl+8"))
+        self.create_actions()
         # initialize widgets in layout
         self.splitter = QSplitter(self)
         self.splitter.addWidget(self.script_edit)
@@ -2551,6 +2432,131 @@ class MainWindow(QMainWindow):
         self.update_system_commands()
         self.update_ui()
         self.update_window_title()
+
+    def create_actions(self) -> None:
+        """Create all required actions and toolbar buttons."""
+        self.about_action = QAction("About", self)
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.about_action.triggered.connect(self.info_box)
+        self.config_editor = ConfigEditWidget()
+        self.config_editor.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
+        self.config_editor.setFloating(True)
+        self.config_editor.close()
+        self.config_action = QAction(MIcon("CHAR_≡"), "Preferences", self)
+        self.config_action.setToolTip(
+            "Show the application preferences/ configuration."
+        )
+        self.config_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.config_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.config_action.setCheckable(True)
+        self.config_action.toggled.connect(self.toggle_preferences)
+        self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
+        self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
+        self.new_file_action.triggered.connect(self.new_file)
+        self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
+        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action.setToolTip("Open a script file.")
+        self.load_action.triggered.connect(self.load_from_file)
+        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
+        self.save_action.setToolTip("Save the under the current filename.")
+        self.save_action.triggered.connect(self.save_file)
+        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
+        self.save_as_action.triggered.connect(self.save_file_as)
+        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+        self.save_button = QToolButton()
+        self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
+        self.save_button.setText("Save")
+        self.save_button.setDefaultAction(self.save_action)
+        self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        save_pulldown = QMenu(self)
+        save_pulldown.addAction(self.save_as_action)
+        self.save_button.setMenu(save_pulldown)
+        self.add_system_action = QAction(MIcon("CHAR_+"), "Add System", self)
+        self.add_system_action.setToolTip("Add a matrix system file.")
+        self.add_system_action.triggered.connect(self.add_system)
+        self.remove_system_action = QAction(MIcon("CHAR_-"), "Remove System", self)
+        self.remove_system_action.setEnabled(False)
+        self.remove_system_action.setToolTip(
+            "Remove the selected or last matrix system file."
+        )
+        self.remove_system_action.triggered.connect(self.delete_selected_system)
+        self.quit_action = QAction("Quit", self)
+        if os.name == "nt":
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
+        self.undo_action = self.standard_action("Undo")
+        self.redo_action = self.standard_action("Redo")
+        self.cut_action = self.standard_action("Cut")
+        self.copy_action = self.standard_action("Copy")
+        self.paste_action = self.standard_action("Paste")
+        self.single_quotes_action = QAction("Add Single Quotes", self)
+        self.single_quotes_action.triggered.connect(
+            lambda: self.script_edit.add_quotes(chr(39))
+        )
+        self.double_quotes_action = QAction("Add Double Quotes", self)
+        self.double_quotes_action.triggered.connect(
+            lambda: self.script_edit.add_quotes(chr(34))
+        )
+        self.line_comment_action = QAction("Toggle Line Comment", self)
+        self.line_comment_action.triggered.connect(self.script_edit.toggle_commenting)
+        self.zoom_in_action = self.standard_action("ZoomIn", "Zoom in")
+        self.zoom_out_action = self.standard_action("ZoomOut", "Zoom Out")
+        self.print_action = QAction("Print", self)
+        self.print_action.setShortcut(QKeySequence.StandardKey.Print)
+        self.print_action.triggered.connect(self.print_document)
+        self.find_action = QAction("Find", self)
+        self.find_action.setShortcut(QKeySequence.StandardKey.Find)
+        self.find_action.triggered.connect(self.find)
+        self.find_next_action = QAction("Find Next", self)
+        self.find_next_action.setShortcut(QKeySequence.StandardKey.FindNext)
+        self.find_next_action.triggered.connect(self.find_next)
+        self.start_pause_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
+        self.start_pause_action.setToolTip("Execute the script.")
+        self.start_pause_action.triggered.connect(self.start_process)
+        self.start_pause_action.setCheckable(True)
+        self.stop_action = QAction(MIcon("CUSTOM_Stop"), "Stop", self)
+        self.stop_action.setToolTip("Stop the script and query status.")
+        self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
+        self.stop_action.setEnabled(False)
+        self.abort_action = QAction(MIcon("CUSTOM_Stop"), "Abort", self)
+        self.abort_action.triggered.connect(lambda: self.abort_thread("a"))
+        self.abort_action.setEnabled(False)
+        self.finish_action = QAction(MIcon("CUSTOM_Stop"), "Finish", self)
+        self.finish_action.triggered.connect(lambda: self.abort_thread("f"))
+        self.finish_action.setEnabled(False)
+        self.stop_button = QToolButton()
+        self.stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.stop_button.setIcon(MIcon("CUSTOM_Stop"))
+        self.stop_button.setText("Abort")
+        self.stop_button.setDefaultAction(self.stop_action)
+        self.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        stop_pulldown = QMenu(self)
+        stop_pulldown.addAction(self.abort_action)
+        stop_pulldown.addAction(self.finish_action)
+        self.stop_button.setMenu(stop_pulldown)
+        self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
+        self.kill_action.triggered.connect(self.kill_thread)
+        self.kill_action.setEnabled(False)
+        self.preview_action = QAction(
+            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
+        )
+        self.preview_action.triggered.connect(self.preview_data)
+        self.preview_action.setEnabled(False)
+        self.lint_action = QAction("Lint with Pyflakes", self)
+        self.lint_action.triggered.connect(self.script_edit.run_linter)
+        self.lint_action.setShortcut(QKeySequence("Ctrl+7"))
+        self.pep8_action = QAction("Format with autopep8", self)
+        self.pep8_action.triggered.connect(self.script_edit.run_autopep8)
+        self.pep8_action.setShortcut(QKeySequence("Ctrl+8"))
 
     def create_toolbar(self) -> None:
         """Create the toolbar."""
@@ -2616,13 +2622,9 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.find_action)
         edit_menu.addAction(self.find_next_action)
         edit_menu.addSeparator()
-        block_comment = QAction("Block comment", self)
-        shortcut = chr(39)
-        block_comment.setShortcut(shortcut)
-        block_comment.triggered.connect(
-            lambda: self.script_edit.add_block_commenting(shortcut)
-        )
-        edit_menu.addAction(block_comment)
+        edit_menu.addAction(self.single_quotes_action)
+        edit_menu.addAction(self.double_quotes_action)
+        edit_menu.addAction(self.line_comment_action)
         edit_menu.addSeparator()
         edit_menu.addAction(self.lint_action)
         edit_menu.addAction(self.pep8_action)
