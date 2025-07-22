@@ -3038,6 +3038,7 @@ class TimeoutDialogBase(QDialog):
 
         self.default_value = default_value
         self.timeout_value = timeout
+        self.user_responded = False  # Track if user clicked a button
 
         self.label = QLabel(query, self)
 
@@ -3050,7 +3051,9 @@ class TimeoutDialogBase(QDialog):
         self.ok_button = QPushButton("Send input", self)
         self.abort_button = QPushButton("Abort script", self)
 
+        self.ok_button.clicked.connect(self._button_clicked)
         self.ok_button.clicked.connect(self.accept)
+        self.abort_button.clicked.connect(self._button_clicked)
         self.abort_button.clicked.connect(self.reject)
 
         # Ensure the dialog stays on top of the main window
@@ -3058,31 +3061,42 @@ class TimeoutDialogBase(QDialog):
 
         # Set up timer if timeout is finite
         if timeout != float("inf"):
-            self.remaining_time = timeout
+            self.remaining_time = timeout * 1000  # Convert to milliseconds
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.update_timer)
-            self.timer.start(1000)  # Update every second
-            self.update_timer()  # Initialize timer display
+            self.timer.start(100)  # Update every 100ms for better precision
+
+    def _button_clicked(self):
+        """Mark that user has responded to prevent timeout override."""
+        self.user_responded = True
 
     def update_timer(self):
         """Update the timer display and handle timeout."""
-        self.remaining_time -= 1
-
-        if self.remaining_time <= 0:
-            self.accept()
+        if self.user_responded:
             return
 
+        self.remaining_time -= 100  # Decrement by 100ms
+
+        if self.remaining_time <= 0:
+            if not self.user_responded:
+                self.timer.stop()
+                self.accept()
+            return
+
+        # Convert milliseconds back to seconds for display
+        remaining_seconds = self.remaining_time / 1000
+
         # Format the time display
-        if self.remaining_time < 100:
+        if remaining_seconds < 100:
             # Show seconds for short timeouts
             self.timer_label.setText(
-                f"Time remaining: {int(self.remaining_time)} seconds"
+                f"Time remaining: {int(remaining_seconds)} seconds"
             )
         else:
             # Show hours:minutes format for longer timeouts
-            hours = int(self.remaining_time / 3600)
-            minutes = int((self.remaining_time % 3600) / 60)
-            seconds = int(self.remaining_time % 60)
+            hours = int(remaining_seconds / 3600)
+            minutes = int((remaining_seconds % 3600) / 60)
+            seconds = int(remaining_seconds % 60)
             if hours > 0:
                 self.timer_label.setText(
                     f"Time remaining: {hours}h {minutes}m {seconds}s"
@@ -3271,6 +3285,7 @@ class YesNoAbortDialog(QMessageBox):
             default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
         )
         self.timeout_occurred = False  # Required for YesNoAbortDialog functionality
+        self.user_responded = False  # Track if user clicked a button
 
         # Add custom buttons with default button indication when timeout is set
         button_text_yes = "Yes"
@@ -3294,6 +3309,11 @@ class YesNoAbortDialog(QMessageBox):
             "Abort script", QMessageBox.ButtonRole.DestructiveRole
         )
 
+        # Connect button signals to track user response
+        self.yes_button.clicked.connect(self._button_clicked)
+        self.no_button.clicked.connect(self._button_clicked)
+        self.abort_button.clicked.connect(self._button_clicked)
+
         # Simple styling for default button if timeout is set
         if timeout != float("inf"):
 
@@ -3308,38 +3328,52 @@ class YesNoAbortDialog(QMessageBox):
             # Make this the default button (responds to Enter key)
             self.setDefaultButton(default_button)
 
-            # Set up timer and label
+            # Set up timer and label - use milliseconds for better precision
             self.timer_label = QLabel(f"Time remaining: {int(timeout)} seconds", self)
             self.layout().addWidget(self.timer_label, 1, 1, 1, 3)
 
-            self.remaining_time = timeout
+            self.remaining_time = timeout * 1000  # Convert to milliseconds
+            self.original_timeout = timeout
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.update_timer)
-            self.timer.start(1000)  # Update every second
-            self.update_timer()  # Initialize timer display
+            self.timer.start(100)  # Update every 100ms for better precision
+
+    def _button_clicked(self):
+        """Mark that user has responded to prevent timeout override."""
+        self.user_responded = True
+        if hasattr(self, "timer"):
+            self.timer.stop()
 
     def update_timer(self):
         """Update the timer display and handle timeout."""
-        self.remaining_time -= 1
-
-        if self.remaining_time <= 0:
-            self.timeout_occurred = True
-            self.timer.stop()
-            self.close()
+        # Don't process timeout if user already responded
+        if self.user_responded:
             return
 
+        self.remaining_time -= 100  # Decrement by 100ms
+
+        if self.remaining_time <= 0:
+            # Give a small grace period for button clicks
+            if not self.user_responded:
+                self.timeout_occurred = True
+                self.timer.stop()
+                self.close()
+                return
+
+        # Convert milliseconds back to seconds for display
+        remaining_seconds = self.remaining_time / 1000
+
         # Format the time display
-        if self.remaining_time < 100:
+        if remaining_seconds < 100:
             # Show seconds for short timeouts
             self.timer_label.setText(
-                f"Time remaining: {int(self.remaining_time)} seconds"
+                f"Time remaining: {int(remaining_seconds)} seconds"
             )
-
         else:
             # Show hours:minutes format for longer timeouts
-            hours = int(self.remaining_time / 3600)
-            minutes = int((self.remaining_time % 3600) / 60)
-            seconds = int(self.remaining_time % 60)
+            hours = int(remaining_seconds / 3600)
+            minutes = int((remaining_seconds % 3600) / 60)
+            seconds = int(remaining_seconds % 60)
             if hours > 0:
                 self.timer_label.setText(
                     f"Time remaining: {hours}h {minutes}m {seconds}s"
@@ -3359,7 +3393,8 @@ class YesNoAbortDialog(QMessageBox):
         """
         self.exec()
 
-        if self.timeout_occurred:
+        # Check timeout first, but only if user didn't respond
+        if self.timeout_occurred and not self.user_responded:
             print(
                 f"Dialog timeout occurred - automatically selected: {self.default_value}"
             )
@@ -3368,6 +3403,7 @@ class YesNoAbortDialog(QMessageBox):
             # If default_value is not valid, return "yes" as a default
             return "yes"
 
+        # User responded - return their choice
         if self.clickedButton() == self.yes_button:
             return "yes"
         elif self.clickedButton() == self.no_button:
