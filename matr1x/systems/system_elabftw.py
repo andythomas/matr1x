@@ -40,14 +40,20 @@ class ElabSystem(System):
             self.dcdata[key] = ""
         # load API key and host from config file
         # In ~/.matrix.toml or in a local file matrix.toml there must be
-        # [ifwlib.systems.system_elabftw]
+        # [matr1x.systems.system_elabftw]
         # host = "HOST"  # without api/v2 end, only URL (with port)
         # api_key = "API_KEY"
+        # teamid = 0  # optional team ID
+        #
+        # Sensitive information (host, api_key, teamid) will be stored in
+        # sensitive_config and will NOT appear in file headers.
         #
         # additional config entries are optional.
-        # These inlcude "debug", "upload_datafile", "category", "body_template", "title_template",
-        # "teamid", "create_resource", "resource_category"
+        # These include "debug", "upload_datafile", "category", "body_template", "title_template",
+        # "create_resource", "resource_category"
         # see the code for their use and meaning.
+
+        # Non-sensitive configuration
         self.config = {
             "debug": False,
             "enable_elab": True,  # boolean flag to decide about entry creation
@@ -89,8 +95,25 @@ class ElabSystem(System):
                 </table>
             """,  # the template strings can also refer to filenames.
         }
-        self.config.update(get_config_dict("matr1x.systems.system_elabftw"))
-        self._team_id = self.config.get("teamid", 0)
+
+        # Sensitive configuration (will not be stored in file headers)
+        self.sensitive_config = {
+            "host": None,
+            "api_key": None,
+            "teamid": 0,
+        }
+
+        # Load configuration from files
+        config_data = get_config_dict("matr1x.systems.system_elabftw")
+
+        # Separate sensitive from non-sensitive config
+        for key, value in config_data.items():
+            if key in self.sensitive_config.keys():
+                self.sensitive_config[key] = value
+            else:
+                self.config[key] = value
+
+        self._team_id = self.sensitive_config.get("teamid", 0)
 
         # predefine api client
         self.api_client = None
@@ -110,9 +133,9 @@ class ElabSystem(System):
             return
         configuration = elabapi_python.Configuration()
         try:
-            configuration.api_key["api_key"] = self.config["api_key"]
+            configuration.api_key["api_key"] = self.sensitive_config["api_key"]
             configuration.api_key_prefix["api_key"] = "Authorization"
-            configuration.host = self.config["host"] + "/api/v2"
+            configuration.host = self.sensitive_config["host"] + "/api/v2"
             configuration.debug = self.config["debug"]
         except KeyError:
             print(
@@ -129,7 +152,7 @@ class ElabSystem(System):
         self.api_client = elabapi_python.ApiClient(configuration)
         # fix issue with Authorization header not being proberly set by the generated lib
         self.api_client.set_default_header(
-            header_name="Authorization", header_value=self.config["api_key"]
+            header_name="Authorization", header_value=self.sensitive_config["api_key"]
         )
         # test server connection by a harmless read-only query
         try:

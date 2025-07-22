@@ -25,10 +25,12 @@ control-guis.
 """
 
 import datetime
+import json
 import os
 import platform
 import subprocess
 import sys
+import tempfile
 import time
 from importlib.metadata import version as package_version
 from os.path import dirname, expanduser, join, normpath
@@ -68,6 +70,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QAbstractSpinBox,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -103,7 +106,6 @@ from PyQt6.QtWidgets import (
 from . import (
     datetimefmt,
     get_config_dict,
-    load_config,
     logfolder,
     merge_dicts,
     reload_config,
@@ -441,6 +443,7 @@ class MetaViewerWidget(QDockWidget):
                     # raise error?
                     editor.setRange(-int(1e9), int(1e9))
                 editor.setStyleSheet("QSpinBox { border: none; padding: 0px; }")
+                editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
             elif cast_type[0] is float:
                 editor = QDoubleSpinBox(parent)
                 if cast_type[1]:
@@ -463,6 +466,7 @@ class MetaViewerWidget(QDockWidget):
                     # raise error?
                     editor.setRange(-1e9, 1e9)
                 editor.setStyleSheet("QDoubleSpinBox { border: none; padding: 0px; }")
+                editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
             elif cast_type[0] is str and cast_spec in ["file", "folder"]:
 
                 def cb(value):
@@ -1183,6 +1187,8 @@ class ConfigEditWidget(MetaViewerWidget):
     def __init__(self):
         super().__init__({}, heading="Preferences", editable=True)
         self.system_file = None
+        self.system_info = {}
+        self.full_system_list = []
 
         widget = QWidget()
         # Create a QVBoxLayout instance
@@ -1190,16 +1196,11 @@ class ConfigEditWidget(MetaViewerWidget):
         button_layout = QHBoxLayout()
 
         # Dublin Core Elements
-        self.w_write_config = QPushButton("Write config")
-        self.w_write_config.setEnabled(False)
-        self.w_write_config.clicked.connect(self.write_config)
-
-        self.w_update_config = QPushButton("Update config")
+        self.w_update_config = QPushButton("Reload config")
         self.w_update_config.setEnabled(False)
-        self.w_update_config.clicked.connect(self.update_data)
+        self.w_update_config.clicked.connect(self.reload_and_update_data)
 
         # Add the form layout to the main layout
-        button_layout.addWidget(self.w_write_config)
         button_layout.addWidget(self.w_update_config)
         layout.addLayout(button_layout)
         layout.addWidget(self.tree_view)
@@ -1244,16 +1245,97 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         self.systemfile = systemfile
 
+    def set_system_info(self, system_info):
+        """
+        Set system information from subprocess for config editor.
+
+        Parameters
+        ----------
+        system_info : dict
+            Dictionary containing system information including config.
+        """
+        self.system_info = system_info or {}
+
+    def set_full_system_list(self, full_system_list):
+        """
+        Set the full system list for reloading system information.
+
+        Parameters
+        ----------
+        full_system_list : list
+            List of all system names (both configurable and non-configurable).
+        """
+        self.full_system_list = full_system_list
+
+    def reload_and_update_data(self):
+        """Reload system information and update data - wrapper for button action."""
+        # Reload system information if full system list is available
+        if hasattr(self, "full_system_list") and self.full_system_list:
+            try:
+                self.system_info = get_system_info(self.full_system_list)
+                if not self.system_info:
+                    print("Warning: Could not reload system info")
+                    self.system_info = {}
+            except Exception as e:
+                print(f"Warning: Could not reload system info: {e}")
+                self.system_info = {}
+
+        # Call the original update_data method
+        self.update_data()
+
     def update_data(self):
-        """Update data stored in the model with system configuration."""
-        if self.systemfile is None:
-            return
+        """Update the configuration data in the widget."""
         syst_dict = {}
-        # update global config from file system
         reload_config()
+
+        # Check if we have a merged system by looking for comma-separated system names
+        is_merged_system = (
+            self.system_info
+            and "config" in self.system_info
+            and any(
+                "," in system_name for system_name in self.system_info["config"].keys()
+            )
+        )
+
         # parse config of systems specified in self.systemfile
-        for syst in self.systemfile:
-            syst_dict[syst.strip()] = get_config_dict(syst.strip())
+        # Skip individual system configs if we have a merged system to avoid duplicates
+        if self.systemfile is not None and not is_merged_system:
+            for syst in self.systemfile:
+                syst_dict[syst.strip()] = get_config_dict(syst.strip())
+
+        # parse config from system info (from subprocess)
+        if self.system_info and "config" in self.system_info:
+            for system_name, config_info in self.system_info["config"].items():
+                if system_name not in syst_dict:
+                    syst_dict[system_name] = {}
+                # Add runtime config from system info
+                for key, value_info in config_info.items():
+                    if isinstance(value_info, dict):
+                        if "value" in value_info:
+                            # Extract just the value from the nested structure
+                            syst_dict[system_name][key] = value_info["value"]
+                        else:
+                            # If it's a dict but doesn't have 'value' key,
+                            # it might be the nested structure itself, skip it
+                            continue
+                    else:
+                        syst_dict[system_name][key] = value_info
+
+        # Try to get type information from config system for all systems with config
+        if self.system_info and "config" in self.system_info:
+            for system_name, config_info in self.system_info["config"].items():
+                if system_name in syst_dict:
+                    try:
+                        system_config_with_types = get_config_dict(system_name)
+                        if "_types" in system_config_with_types:
+                            if "_types" not in syst_dict[system_name]:
+                                syst_dict[system_name]["_types"] = {}
+                            syst_dict[system_name]["_types"].update(
+                                system_config_with_types["_types"]
+                            )
+                    except Exception:
+                        # If we can't get type info, continue without it
+                        pass
 
         def parse_dict_and_types(d, dv, dt):
             for key, item in d.items():
@@ -1273,7 +1355,6 @@ class ConfigEditWidget(MetaViewerWidget):
         parse_dict_and_types(syst_dict, self.value_dict, self.types_dict)
 
         super().update_data(self.value_dict, self.types_dict)
-        self.w_write_config.setEnabled(True)
         self.w_update_config.setEnabled(True)
 
     def parse_item(self, item):
@@ -1294,16 +1375,33 @@ class ConfigEditWidget(MetaViewerWidget):
         config = {}
         if item.child_count() > 0:
             for child_item in item.child_items:
-                config[child_item.data(0)] = self.parse_item(child_item)
+                config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(
+                    child_item
+                )
         else:
             if item.type(1)[0][0] is bool:
-                return item.data(1).lower() == "true"
-            return item.type(1)[0][0](item.data(1))
+                return item.data(1, Qt.ItemDataRole.EditRole).lower() == "true"
+            try:
+                return item.type(1)[0][0](item.data(1, Qt.ItemDataRole.EditRole))
+            except ValueError:
+                return item.data(
+                    1, Qt.ItemDataRole.EditRole
+                )  # Return original data if conversion fails
         return config
 
     def write_config(self):
-        """Write the current configuration to file."""
+        """
+        Write config data to a temporary file using matr1x.write_config.
 
+        The configuration data is normalized and written to a named temporary
+        file. This file persists after the function returns and can be used
+        as an optional configuration file.
+
+        Returns
+        -------
+        str
+            The name of the temporary file containing the written configuration.
+        """
         def create_nested_dict(keys, item):
             """Create a nested dictioinary from QItemView."""
             if len(keys) == 1:
@@ -1369,18 +1467,25 @@ class ConfigEditWidget(MetaViewerWidget):
                     input_dict[key] = normalize_value(value)
             return input_dict
 
-        config = {}
+        config_dict = {}
         for item in self.tree_view.model().root_item.child_items:
             if item.child_count() == 0:
                 # system has no configurable options
                 continue
-            sys_key = item.data(0)
+            sys_key = item.key
             key_parts = sys_key.split(".")
-            merge_dicts(config, create_nested_dict(key_parts, item))
-        # load full config and replace modified entries
-        full_config = normalize_dict(load_config())
-        full_config = merge_dicts(full_config, normalize_dict(config))
-        write_config(full_config)
+            merge_dicts(config_dict, create_nested_dict(key_parts, item))
+
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(
+            mode="wb", delete=False, suffix=".toml"
+        ) as tmpfile:
+            temp_file_name = tmpfile.name
+            write_config(
+                normalize_dict(config_dict), tmpfile.name
+            )  # Use matr1x's write_config
+
+        return temp_file_name
 
 
 class SimplePlotWidget(QGroupBox):
@@ -3737,3 +3842,67 @@ class MApplication(QApplication):
         )
         intermediate = int((small + standard) / 2)
         return intermediate
+
+
+# Common system information functions for matrix scripts
+def get_system_info(systems):
+    """Get system information using subprocess."""
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import json; from matr1x.system import MergedSystem;"
+                f"print(json.dumps(MergedSystem.from_files({systems})."
+                "grab_information()))",
+            ],
+            capture_output=True,
+            timeout=30,
+        )
+
+        if result.returncode == 0:
+            output_str = result.stdout.decode()
+            json_data = extract_json_from_output(output_str)
+            if json_data is not None:
+                return json_data
+            else:
+                print("Warning: Could not parse JSON from subprocess output")
+                return {}
+        else:
+            stderr_output = result.stderr.decode()
+            print(f"Error getting system info: {stderr_output}")
+            # If subprocess failed due to missing dependencies, return empty dict
+            if "ModuleNotFoundError" in stderr_output:
+                print(
+                    "Note: System config will not be available due to missing dependencies"
+                )
+            return {}
+    except (subprocess.TimeoutExpired, Exception) as e:
+        print(f"Error getting system info: {e}")
+        return {}
+
+
+def extract_json_from_output(output_str):
+    """Extract JSON from subprocess output."""
+    try:
+        # Try to parse the entire output as JSON first
+        return json.loads(output_str.strip())
+    except json.JSONDecodeError:
+        # If that fails, try to find JSON in the output
+        lines = output_str.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if line.startswith("{") and line.endswith("}"):
+                try:
+                    return json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+        return None
+
+
+def show_json_parse_error(output_str):
+    """Show JSON parse error with output details."""
+    error_msg = "Failed to parse system information from subprocess output."
+    if output_str:
+        error_msg += f"\nOutput received: {output_str[:200]}..."
+    print(error_msg)

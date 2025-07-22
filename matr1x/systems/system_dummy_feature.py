@@ -49,7 +49,7 @@ class MeasSystem(System):
         # define default parameters for configurable settings
         self.config = {
             "setting1": "VOLT",
-            "setting2": 6,
+            "setting2": True,
             "setting3": 3.3215,
             "setting4": "~/.matr1x.toml",
         }
@@ -107,7 +107,8 @@ class MeasSystem(System):
         self.devs["dev2"].configure(
             setting1=self.config["setting1"], setting2=self.config["setting2"]
         )
-        # make a comment when set is finished
+        # add a comment when set is finished
+        # this might not be required (i.e. added automatically) depending on your device
         self.dcdata["description"] = f"configuring dev2 to '{self.config['setting1']}'"
 
     def reset(self, *args, **kwargs):

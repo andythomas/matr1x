@@ -36,6 +36,7 @@ import traceback
 
 import urwid
 
+from matr1x import reload_config
 from matr1x.system import MergedSystem
 from matr1x.util import (
     flatten,
@@ -335,19 +336,34 @@ def main():
     """Read the command line and perform measurement accordingly."""
     # define the possible command line parameters
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--inputfile",
-                        help="tuple input filename", required=True)
-    parser.add_argument("-s", "--systemfile", nargs='*',
-                        help="specifies system(s)")
-    parser.add_argument("-o", "--outputfile", default=None,
-                        help="Output filename")
-    parser.add_argument("-af", "--append", action='store_true',
-                        help="instead of appending a continuous number " +
-                        "to the output file, append to output file.")
-    parser.add_argument("-p", "--plain", action='store_true',
-                        help="use plain output instead of the urwid library")
-    parser.add_argument("-q", "--quiet", action='store_true',
-                        help="produce reduced output (no measurement data)")
+    parser.add_argument("-i", "--inputfile", help="tuple input filename", required=True)
+    parser.add_argument("-s", "--systemfile", nargs="*", help="specifies system(s)")
+    parser.add_argument("-o", "--outputfile", default=None, help="Output filename")
+    parser.add_argument(
+        "-c",
+        "--optional-config",
+        help="Path to an optional TOML configuration file to override settings.",
+        default=None,
+    )
+    parser.add_argument(
+        "-af",
+        "--append",
+        action="store_true",
+        help="instead of appending a continuous number "
+        + "to the output file, append to output file.",
+    )
+    parser.add_argument(
+        "-p",
+        "--plain",
+        action="store_true",
+        help="use plain output instead of the urwid library",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="produce reduced output (no measurement data)",
+    )
 
     # add keys to allow transmitting meta data
     for key in VALID_META_KEYS.keys():
@@ -360,6 +376,10 @@ def main():
 
     # parse the command line
     options = parser.parse_args()
+
+    # Reload configuration with optional config file
+    if options.optional_config:
+        reload_config(options.optional_config)
 
     # flush input buffer to avoid old inputs to mess with a new measurement
     flush_input()

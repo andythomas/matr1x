@@ -37,6 +37,8 @@ import sys
 import tempfile
 from datetime import date
 from os.path import abspath, dirname, exists, expanduser, isdir, join, normpath
+from pathlib import Path
+from typing import Optional, Union
 
 import tomli_w
 
@@ -52,25 +54,51 @@ else:
 output_extension = ".ma8"
 
 
-def load_config():
-    """Load configuration file from default config, user config and local config."""
+def load_config(optional_config_path: Optional[Union[str, Path]] = None):
+    """Load configuration file from default config, user config, local config, and an optional config.
+
+    The configuration files are loaded in the following order, with later files
+    overriding settings from earlier ones:
+    1. Default configuration
+    2. User configuration (~/.matr1x.toml)
+    3. Local configuration (./matrix.toml)
+    4. Optional configuration (if provided e.g. in GUI)
+
+    Parameters
+    ----------
+    optional_config_path : str or pathlib.Path, optional
+        Path to an optional TOML configuration file.  If provided, settings
+        in this file will override those in the default, user, and local
+        configuration files.
+    """
     # Load default configuration
-    with open(join(dirname(__file__), "default_matr1x.toml"), "rb") as f:
+    default_config_path = Path(__file__).parent / "default_matr1x.toml"
+    with open(default_config_path, "rb") as f:
         config = tomllib.load(f)
 
     # Override with user configuration if available
-    user_config_path = expanduser(join("~", ".matr1x.toml"))
-    if exists(user_config_path):
+    user_config_path = Path(expanduser("~/.matr1x.toml"))
+    if user_config_path.exists():
         with open(user_config_path, "rb") as f:
             user_config = tomllib.load(f)
             config = merge_dicts(config, user_config)
 
     # Override with local configuration if available
-    local_config_path = "./matrix.toml"
-    if exists(local_config_path):
+    local_config_path = Path("./matrix.toml")
+    if local_config_path.exists():
         with open(local_config_path, "rb") as f:
             local_config = tomllib.load(f)
             config = merge_dicts(config, local_config)
+
+    # Override with optional configuration if available
+    if optional_config_path:
+        optional_config_path = Path(optional_config_path)
+        if optional_config_path.exists():
+            with open(optional_config_path, "rb") as f:
+                optional_config = tomllib.load(f)
+                config = merge_dicts(config, optional_config)
+        else:
+            print(f"Warning: Optional config file not found: {optional_config_path}")
 
     return config
 
@@ -105,71 +133,106 @@ def get_config_dict(section: str):
     return ret
 
 
-def write_config(config_dict):
-    """Write non-default config options to the user config."""
+def write_config(config_dict, optional_config_path: Optional[Union[str, Path]] = None):
+    """Write non-default config options to the user config or optional config.
 
-    def find_differences(default_dict, current_dict):
-        """
-        Recursively compares two dictionaries and finds differences.
+    Writes the differences between the current configuration and the default
+    configuration to the user configuration file (~/.matr1x.toml) or the
+    specified optional configuration file. If an optional configuration file
+    is specified, the differences are written to that file instead of the
+    user configuration file, and no comparison with the default settings
+    is performed.
 
-        This function compares a dictionary representing default settings with
-        a dictionary representing current settings. It returns a new
-        dictionary containing only the keys and values that differ from the
-        default settings.
+    Parameters
+    ----------
+    config_dict : dict
+        Dictionary containing the current configuration settings.
+    optional_config_path : str or pathlib.Path, optional
+        Path to an optional TOML configuration file.  If provided, settings
+        in this file will be written without comparing to the default
+        configuration.
+    """
+    if optional_config_path:
+        optional_config_path = Path(optional_config_path)
+        with open(optional_config_path, "wb") as toml_file:
+            tomli_w.dump(config_dict, toml_file)
+    else:
 
-        Parameters
-        ----------
-        default_dict : dict
-            The dictionary representing the default settings.
-        current_dict : dict
-            The dictionary representing the current settings.
+        def find_differences(default_dict, current_dict):
+            """
+            Recursively compares two dictionaries and finds differences.
 
-        Returns
-        -------
-        differences : dict
-            A dictionary containing only the settings that differ from the
-            default settings. If no differences are found, an empty dictionary
-            is returned.
-        """
-        differences = {}
-        for key, default_value in default_dict.items():
-            if isinstance(default_value, str):
-                if "~" in default_value:
-                    default_value = normpath(expanduser(default_value))
-            if key not in current_dict:
-                continue  # Key is missing in the current settings
-            current_value = current_dict[key]
+            This function compares a dictionary representing default settings with
+            a dictionary representing current settings. It returns a new
+            dictionary containing only the keys and values that differ from the
+            default settings.
 
-            # If both are dictionaries, compare recursively
-            if isinstance(default_value, dict) and isinstance(current_value, dict):
-                sub_diff = find_differences(default_value, current_value)
-                if sub_diff:  # Only add non-empty differences
-                    differences[key] = sub_diff
-            elif default_value != current_value:  # Value differs
-                differences[key] = current_value
+            Parameters
+            ----------
+            default_dict : dict
+                The dictionary representing the default settings.
+            current_dict : dict
+                The dictionary representing the current settings.
 
-        # Add keys that are in current_dict but not in default_dict
-        for key in current_dict:
-            if key not in default_dict:
-                differences[key] = current_dict[key]
+            Returns
+            -------
+            differences : dict
+                A dictionary containing only the settings that differ from the
+                default settings. If no differences are found, an empty dictionary
+                is returned.
+            """
+            differences = {}
+            for key, default_value in default_dict.items():
+                if isinstance(default_value, str):
+                    if "~" in default_value:
+                        default_value = normpath(expanduser(default_value))
+                if key not in current_dict:
+                    continue  # Key is missing in the current settings
+                current_value = current_dict[key]
 
-        return differences
+                # If both are dictionaries, compare recursively
+                if isinstance(default_value, dict) and isinstance(current_value, dict):
+                    sub_diff = find_differences(default_value, current_value)
+                    if sub_diff:  # Only add non-empty differences
+                        differences[key] = sub_diff
+                elif default_value != current_value:  # Value differs
+                    differences[key] = current_value
 
-    # load default settings
-    with open(join(dirname(__file__), "default_matr1x.toml"), "rb") as f:
-        default_settings = tomllib.load(f)
-    # Dictionary to store new TOML data
-    user_config = find_differences(default_settings, config_dict)
+            # Add keys that are in current_dict but not in default_dict
+            for key in current_dict:
+                if key not in default_dict:
+                    differences[key] = current_value
 
-    if user_config:
-        with open(expanduser("~/.matr1x.toml"), "wb") as toml_file:
-            tomli_w.dump(user_config, toml_file)
+            return differences
+
+        # load default settings
+        default_config_path = Path(__file__).parent / "default_matr1x.toml"
+        with open(default_config_path, "rb") as f:
+            default_settings = tomllib.load(f)
+        # Dictionary to store new TOML data
+        user_config = find_differences(default_settings, config_dict)
+
+        user_config_path = Path(expanduser("~/.matr1x.toml"))
+        if user_config:
+            with open(user_config_path, "wb") as toml_file:
+                tomli_w.dump(user_config, toml_file)
 
 
-def reload_config():
-    """Reload the configuration dictionary."""
+def reload_config(optional_config_path: Optional[Union[str, Path]] = None):
+    """Reload the configuration dictionary.
+
+    Reloads the configuration dictionary by calling the `load_config` function
+    with the specified optional configuration path.
+
+    Parameters
+    ----------
+    optional_config_path : str or pathlib.Path, optional
+        Path to an optional TOML configuration file.  If provided, settings
+        in this file will override those in the default, user, and local
+        configuration files.
+    """
     global config
-    config = load_config()
+    config = load_config(optional_config_path)
 
 
 # load config and combine values from multiple sources

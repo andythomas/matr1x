@@ -17,7 +17,6 @@
 """Allow to write measurement scripts in Python."""
 
 import ast
-import json
 import logging
 import os
 import re
@@ -96,6 +95,7 @@ from matr1x.gui_util import (
     TextInputDialog,
     YesNoAbortDialog,
     detect_shortcut,
+    get_system_info,
     save_messagebox,
 )
 from matr1x.scripts import matrix_preview
@@ -1504,7 +1504,7 @@ class ExecThread(QThread):
     # signal to report the filename of the file that is written by the process
     filename_signal = pyqtSignal(str)
 
-    def __init__(self, meta_data, script, fallbackname):
+    def __init__(self, meta_data, script, fallbackname, temp_config):
         """
         Initialize thread that handles script execution.
 
@@ -1518,6 +1518,8 @@ class ExecThread(QThread):
                 filename used to initialize the data file if not specified
                 in the script. Its directory path will be used as execution
                 directory.
+            temp_config : str
+                temporary configuration file path
         """
         super().__init__()
         self.proc = None
@@ -1525,6 +1527,7 @@ class ExecThread(QThread):
         self.meta_data = meta_data
         self.script = script
         self.datafilefallback = fallbackname
+        self.temp_config = temp_config
 
     def pass_input(self, inp):
         """Communicate user input to the subprocess."""
@@ -1723,7 +1726,9 @@ class ExecThread(QThread):
             # piped so that we can read them
             # pass the script that we want to execute and generate correct
             # parameters to pass to matr1x/utils.py:matrix_script_process
-            cmd = f"""import matr1x.util as mu
+            cmd = f"""import matr1x
+import matr1x.util as mu
+matr1x.reload_config({repr(self.temp_config)})
 mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
                          {repr(self.datafilefallback)}, {repr(port)})"""
 
@@ -1747,6 +1752,8 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
                 except OSError:
                     print("OS error in thread communication")
             self.conn.close()
+            # clean up temporary config
+            os.remove(self.temp_config)
 
 
 class MainWindow(QMainWindow):
@@ -2127,7 +2134,7 @@ class MainWindow(QMainWindow):
 
         if self.systems_dirty and "" != self.scriptname:
             # if no file is given, nothing is saved
-            self.update_systems()
+            self.update_systems(update_config=False)
             newscript = self.generate_save_content()
             with open(self.scriptname, "r") as f:
                 saved_text = f.read()
@@ -2720,7 +2727,6 @@ class MainWindow(QMainWindow):
         self.update_window_title()
         # update systems to use list for config editor
         self.update_systems()
-        self.update_system_commands()
         if self.system_command_help.isVisible():
             self.show_system_commands()
 
@@ -2741,7 +2747,6 @@ class MainWindow(QMainWindow):
         self.systems_dirty = True
         self.update_window_title()
         self.update_systems()
-        self.update_system_commands()
         if self.system_command_help.isVisible():
             self.show_system_commands()
 
@@ -2884,64 +2889,15 @@ class MainWindow(QMainWindow):
         columns : list[str] or None
             The names of the columns.
         """
-        info = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "import json; from matr1x.system import MergedSystem;"
-                f"print(json.dumps(MergedSystem.from_files({self.systems})."
-                "grab_information()))",
-            ],
-            capture_output=True,
-        )
+        # Use cached system info if available
+        if hasattr(self, "_cached_system_info") and self._cached_system_info:
+            return self._process_system_data(self._cached_system_info)
 
-        if info.returncode != 0:
-            return self._handle_subprocess_error(info.stderr)
-
-        output_str = (info.stdout).decode()
-        json_data = self._extract_json_from_output(output_str)
+        json_data = get_system_info(self.systems)
         if json_data is None:
             return (None, None, None)
 
         return self._process_system_data(json_data)
-
-    def _handle_subprocess_error(self, stderr):
-        """Handle subprocess execution errors."""
-        error_box = QMessageBox(self)
-        text = "<b>Error while trying to import system file(s)!</b>\n"
-        text += "<pre>" + stderr.decode() + "</pre>"
-        error_box.setInformativeText(text)
-        error_box.exec()
-        return (None, None, None)
-
-    def _extract_json_from_output(self, output_str):
-        """Extract and parse JSON from subprocess output."""
-        # Handle case where there might be log messages before the JSON
-        # Find the first occurrence of '{' which marks the start of the JSON
-        json_start = output_str.find("{")
-        if json_start < 0:
-            self._show_json_parse_error(
-                "Could not find JSON data in output:\n" + output_str[:200]
-            )
-            return None
-
-        # Extract only the JSON part of the output
-        json_str = output_str[json_start:]
-
-        try:
-            return json.loads(json_str)
-        except Exception as e:
-            self._show_json_parse_error(str(e))
-            return None
-
-    def _show_json_parse_error(self, error_detail):
-        """Show JSON parsing error dialog."""
-        error_box = QMessageBox(self)
-        text = "<b>Error while parsing system file(s)!</b>\n"
-        text += "<pre>" + error_detail + "</pre>"
-        text += "<p>This may be caused by unexpected output or invalid JSON from the system file.</p>"
-        error_box.setInformativeText(text)
-        error_box.exec()
 
     def _extract_parameter_index(self, key, data):
         """Extract index from parameter key or description."""
@@ -2987,8 +2943,16 @@ class MainWindow(QMainWindow):
 
         return (indexes, settables, columns)
 
-    def update_system_commands(self) -> None:
-        """Update the help info about the current system(s)."""
+    def update_system_commands(self, cached_info: dict = None) -> None:
+        """Update the help info about the current system(s).
+
+        Parameters
+        ----------
+        cached_info : dict, optional
+            Dictionary containing cached system information.
+            If provided, this will be used instead of calling
+            :meth:`get_settables`.  By default, None
+        """
         if len(self.systems) == 0:
             text = "<p style='margin: 20px;'><b>No system file selected!</b></p>"
             text += "<p style='margin: 20px;'>Please add a system file using the 'Add System' button or File menu.</p>"
@@ -2999,7 +2963,15 @@ class MainWindow(QMainWindow):
             text += "<li>System methods and variables</li>"
             text += "</ul>"
         else:
-            indexes, settables, columns = self.get_settables()
+            if cached_info is not None:
+                # Use cached information
+                indexes = cached_info.get("indexes")
+                settables = cached_info.get("settables")
+                columns = cached_info.get("columns")
+            else:
+                # Fall back to getting settables normally
+                indexes, settables, columns = self.get_settables()
+
             if indexes and settables and columns:
                 text = "The following systems were selected:<br><b>"
                 for system in self.systems:
@@ -3250,7 +3222,6 @@ class MainWindow(QMainWindow):
         Disable/enable buttons to reflect run state and get selected systems.
         Then runs the script defined in the edit.
         """
-        self.update_systems()
         if 0 == len(self.systems):
             self.start_pause_action.setChecked(False)
             self.print_colored("No system selected")
@@ -3282,7 +3253,8 @@ class MainWindow(QMainWindow):
         user_script = self.script_edit.text()
         script = generate_script(self.systems, user_script)
         meta_data = self.metadata.get_metadata()
-        self.thread = ExecThread(meta_data, script, self.scriptname)
+        temp_config = self.config_editor.write_config()
+        self.thread = ExecThread(meta_data, script, self.scriptname, temp_config)
         self.thread.lineno_signal.connect(self.highlight)
         self.thread.input_signal.connect(self.get_script_input)
         self.thread.filename_signal.connect(self.update_filename)
@@ -3291,30 +3263,106 @@ class MainWindow(QMainWindow):
         self.thread.start()
         self.enable_buttons(True)
 
-    def update_systems(self):
-        """Update the systems list and config editor."""
-        self.systems = [os.path.normpath(self.system_list.item(j).text())
-                        for j in range(self.system_list.count())]
-        # only systems that are part of matrix or ifwlib can be configured
+    def update_systems(self, update_config=True):
+        """Update the systems list and config editor.
+
+        Parameters
+        ----------
+        update_config (bool): Whether to update the config editor.
+        """
+        new_systems = [
+            os.path.normpath(self.system_list.item(j).text())
+            for j in range(self.system_list.count())
+        ]
+
+        # Clear cache if systems changed
+        if not hasattr(self, "systems") or self.systems != new_systems:
+            self._cached_system_info = None
+
+        self.systems = new_systems
+
+        # Get system information using subprocess (cache for reuse)
+        if self._cached_system_info is None and self.systems:
+            try:
+                self._cached_system_info = get_system_info(self.systems)
+                if not self._cached_system_info:
+                    print("Warning: subprocess returned empty system info")
+                    self._cached_system_info = {}
+            except Exception as e:
+                print(f"Warning: Could not get system info for config editor: {e}")
+                self._cached_system_info = {}
+
+        # only systems that are part of matrix or ifwlib can be configured via files
         configurable = [system for system in self.systems if not os.path.exists(system)]
         matr1x.reload_config()
-        self.config_editor.set_systemfile(configurable)
-        self.config_editor.update_data()
+        if update_config:
+            self.config_editor.set_systemfile(configurable)
+            self.config_editor.set_full_system_list(self.systems)
+            self.config_editor.set_system_info(self._cached_system_info or {})
+            self.config_editor.update_data()
+
+        # Update system commands with cached info
+        self.update_system_commands(self._cached_system_info)
 
     def get_settable_info(self):
         """Verify that the systems match the ones from the loaded script."""
+        # Use cached system info if available
+        if hasattr(self, "_cached_system_info") and self._cached_system_info:
+            try:
+                return self._extract_settable_info(self._cached_system_info)
+            except Exception:
+                pass
+
+        # Fallback to fresh system info
         try:
-            settable_info = subprocess.run(
-                [sys.executable, '-c',
-                 "from matr1x.system import MergedSystem;"
-                 f"print(MergedSystem.from_files({self.systems})."
-                 "grab_information(settables=True))"
-                 ],
-                capture_output=True)
-            return ast.literal_eval(
-                settable_info.stdout.decode().splitlines()[-1])
+            system_info = get_system_info(self.systems)
+            if system_info:
+                self._cached_system_info = system_info
+                return self._extract_settable_info(system_info)
         except Exception:
+            pass
+
+        return None
+
+    def _extract_settable_info(self, system_info):
+        """Extract settable information from system info."""
+        if not system_info or "parameters" not in system_info:
             return None
+
+        indexes = []
+        columns = []
+        units = []
+
+        for param_key, param_info in system_info["parameters"].items():
+            if isinstance(param_info, dict) and "name" in param_info:
+                # Extract index from param_key (e.g., "param_0" -> 0)
+                try:
+                    index = int(param_key.split("_")[1])
+                    param_name = param_info["name"]
+                    param_unit = param_info.get("unit", "")
+
+                    # Handle compound columns (names/units joined with ", ")
+                    if ", " in param_name:
+                        # Split compound columns back into individual columns
+                        name_parts = [name.strip() for name in param_name.split(", ")]
+                        unit_parts = [unit.strip() for unit in param_unit.split(", ")]
+
+                        # Ensure we have the same number of names and units
+                        if len(unit_parts) != len(name_parts):
+                            unit_parts = [""] * len(name_parts)
+
+                        for name, unit in zip(name_parts, unit_parts):
+                            indexes.append(index)
+                            columns.append(name)
+                            units.append(unit)
+                    else:
+                        indexes.append(index)
+                        columns.append(param_name)
+                        units.append(param_unit)
+                except (ValueError, IndexError):
+                    continue
+
+        return (indexes, columns, units)
 
     def save_file_as(self):
         """Ask for the filename and calls write_file()."""
@@ -3351,7 +3399,7 @@ class MainWindow(QMainWindow):
             self.print_colored("File cannot be opened")
             return -1
         self.scriptname = filename
-        self.update_systems()
+        self.update_systems(update_config=False)
         # set new script in editor and save it to the file
         newscript = self.generate_save_content()
         self.script_edit.setText(newscript)
@@ -3373,20 +3421,39 @@ class MainWindow(QMainWindow):
                 # (columns/units)
                 settable_info = self.get_settable_info()
 
-                # write matrix file header
-                header += (
-                    "# system def : "
-                    + ",".join(repr(s).strip("'") for s in self.systems)
-                    + "\n"
-                )
-                header += "# system names : " + ",".join(settable_info[1]) + "\n"
-                header += "# system units : " + ",".join(settable_info[2]) + "\n"
-                header += "# file v8, time stamp : " + time.strftime(
-                    f"{matr1x.datetimefmt}\n", time.localtime()
-                )
-            except Exception:
+                if settable_info is not None and len(settable_info) >= 3:
+                    # write matrix file header
+                    header += (
+                        "# system def : "
+                        + ",".join(repr(s).strip("'") for s in self.systems)
+                        + "\n"
+                    )
+
+                    # Extract column names and units from settable_info
+                    # settable_info = (indexes, columns, units)
+                    column_names = [str(col).strip() for col in settable_info[1]]
+                    units = [str(unit).strip() for unit in settable_info[2]]
+
+                    header += "# system names : " + ",".join(column_names) + "\n"
+                    header += "# system units : " + ",".join(units) + "\n"
+                    header += "# file v8, time stamp : " + time.strftime(
+                        f"{matr1x.datetimefmt}\n", time.localtime()
+                    )
+                else:
+                    self.print_colored(
+                        "warning: settable_info is incomplete, creating basic header"
+                    )
+                    header += (
+                        "# system def : "
+                        + ",".join(repr(s).strip("'") for s in self.systems)
+                        + "\n"
+                    )
+                    header += "# file v8, time stamp : " + time.strftime(
+                        f"{matr1x.datetimefmt}\n", time.localtime()
+                    )
+            except Exception as e:
                 self.print_colored(
-                    "error in generating settable_info from file, telemetry "
+                    f"error in generating settable_info from file: {e}, telemetry "
                     "header could not be generated"
                 )
         # take out script and remove trailling newlines
@@ -3446,10 +3513,20 @@ class MainWindow(QMainWindow):
             elif 1 == i and not sys_err:
                 # make sure that system column definition agrees with
                 # current system
-                if "# system names : " in line and settable_info is not None:
-                    system_names = line.strip().replace("# system names : ",
-                                                        "")
-                    if settable_info[1] != system_names.split(","):
+                if (
+                    "# system names : " in line
+                    and settable_info is not None
+                    and len(settable_info) >= 2
+                ):
+                    system_names = line.strip().replace("# system names : ", "")
+                    current_columns = [str(col).strip() for col in settable_info[1]]
+                    # Handle both "," and ", " as separators since compound columns use ", "
+                    loaded_columns = []
+                    for col in system_names.split(","):
+                        col = col.strip()
+                        if col:
+                            loaded_columns.append(col)
+                    if current_columns != loaded_columns:
                         self.print_colored(
                             "Column names have changed between generation "
                             "of script and now, please make sure that "
@@ -3464,10 +3541,20 @@ class MainWindow(QMainWindow):
             elif 2 == i and not sys_err:
                 # make sure that system unit definition agrees with
                 # current system
-                if "# system units : " in line and settable_info is not None:
-                    system_units = line.strip().replace("# system units : ",
-                                                        "")
-                    if settable_info[2] != system_units.split(","):
+                if (
+                    "# system units : " in line
+                    and settable_info is not None
+                    and len(settable_info) >= 3
+                ):
+                    system_units = line.strip().replace("# system units : ", "")
+                    current_units = [str(unit).strip() for unit in settable_info[2]]
+                    # Handle both "," and ", " as separators since compound columns use ", "
+                    loaded_units = []
+                    for unit in system_units.split(","):
+                        unit = unit.strip()
+                        if unit:
+                            loaded_units.append(unit)
+                    if current_units != loaded_units:
                         self.print_colored(
                             "Column units have changed between generation "
                             "of script and now, please make sure that "

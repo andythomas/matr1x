@@ -795,7 +795,7 @@ def generate_script_prefix_suffix(systems):
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_system.units))
         # report file to matrix_script
-        _report_path(filename)
+        _report_path(_os.path.abspath(filename))
 
 
     # wrap system.trigger and system.take_measurement_point into measure_system

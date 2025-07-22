@@ -421,6 +421,13 @@ class System:
         self._file_mode = "w"
         self._datafile_initialized = False
 
+        # initialize empty config dictionary for system-specific configuration
+        self.config = {}
+
+        # initialize empty sensitive_config dictionary for sensitive information
+        # This dictionary will NOT be included in query results or file headers
+        self.sensitive_config = {}
+
         # Dublin Core metadata default entries
         self.dcdata = DcDict(
             self,
@@ -1225,6 +1232,15 @@ class System:
                 retquery[key] = obj()
             else:
                 retquery[key] = obj
+
+        # Add all system-wide configuration options from self.config organized by system name
+        if self.config:
+            retquery["system_config"] = {}
+            for key, value in self.config.items():
+                if key.startswith("_"):
+                    continue
+                retquery["system_config"][key] = value
+
         return retquery
 
     def reset(self, *args, **kwargs):
@@ -1405,8 +1421,8 @@ class System:
             # return only settables
             return self.settable_columns()
 
-        # generate dictionary from devices, parameters and methods
-        info = {"devices": {}, "parameters": {}, "methods": {}}
+        # generate dictionary from devices, parameters, methods and config
+        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}}
 
         # Add devices
         for dev, device_entry in self.devs.items():
@@ -1447,22 +1463,40 @@ class System:
             else:
                 display_name = name
 
+            # Store the parameter unit (either as string or joined list)
+            unit = param.unit
+            if isinstance(unit, list):
+                # For list parameters, join the units with comma
+                display_unit = ", ".join(unit)
+            else:
+                display_unit = unit
+
             # Create an entry with the index as key (use string prefix to avoid numeric parsing issues)
             param_key = f"param_{index}"
             if param.setter is not None:
                 info["parameters"][param_key] = {
                     "name": display_name,
+                    "unit": display_unit,
                     "description": f"Settable parameter at index {index}",
                 }
             else:
                 info["parameters"][param_key] = {
                     "name": display_name,
+                    "unit": display_unit,
                     "description": f"Read-only parameter at index {index}",
                 }
 
         # Add custom methods and variables
         if self.__class__ != MergedSystem:
             self._add_method_info_to_dict(self, info)
+
+        # Add config options organized by system name (excluding sensitive_config)
+        if self.config:
+            system_name = self.__name__
+            info["config"][system_name] = self.config
+
+        # Note: sensitive_config is intentionally NOT included in the query results
+        # to prevent sensitive information from being stored in file headers
 
         return info
 
@@ -1720,13 +1754,15 @@ class MergedSystem(System):
         # define __name__
         self.__name__ = ",".join([subsys.__name__ for subsys in
                                   self.subsys])
-        # merge devices, config_dicts and parameters
+        # merge devices, config_dicts, config and parameters
         for subsys in self.subsys:
             self.devs = {**self.devs, **subsys.devs}
             self.system_config_params = {
                 **self.system_config_params,
                 **subsys.system_config_params,
             }
+            self.config = {**self.config, **subsys.config}
+            self.sensitive_config = {**self.sensitive_config, **subsys.sensitive_config}
             self.parameters += subsys.parameters
             subsys.merged_system = self
         self._merge_dcdata()
@@ -1896,7 +1932,7 @@ class MergedSystem(System):
             return self.settable_columns()
 
         # Dictionary to store all information
-        info = {"devices": {}, "parameters": {}, "methods": {}}
+        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}}
 
         # Add information from the base System class
         base_info = super().grab_information(settables)
@@ -1908,10 +1944,19 @@ class MergedSystem(System):
                 info["parameters"].update(base_info["parameters"])
             if "methods" in base_info:
                 info["methods"].update(base_info["methods"])
+            # Skip config from base class to avoid duplication - we'll add individual subsystem configs below
 
-        # Add methods from all subsystems
+        # Add information from all subsystems
         for subsys in self.subsys:
             self._add_method_info_to_dict(subsys, info, prefix="Subsystem")
+
+            # Add config information from each subsystem
+            subsys_config = subsys.config
+            if subsys_config:
+                subsys_name = getattr(
+                    subsys, "__name__", str(subsys.__class__.__name__)
+                )
+                info["config"][subsys_name] = subsys_config
 
         return info
 

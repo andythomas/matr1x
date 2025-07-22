@@ -53,6 +53,7 @@ from matr1x.gui_util import (
     MIcon,
     MLineEdit,
     detect_shortcut,
+    get_system_info,
 )
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
@@ -89,11 +90,12 @@ class ExecThread(QThread):
         """Initialize the thread."""
         QThread.__init__(self)
 
-    def set_param(self, inputFile, outputFile, meta_data):
+    def set_param(self, inputFile, outputFile, meta_data, tmp_config_file):
         """Set mearument parameters and meta-data."""
         self.inputFile = inputFile
         self.outputFile = outputFile
         self.meta_data = meta_data
+        self.tmp_config_file = tmp_config_file
 
     def receive_filename(self):
         """Receive filename from command line.
@@ -130,9 +132,13 @@ class ExecThread(QThread):
                     # only pass on allowed (editable) meta keys and only if
                     # data is not None
                     cmd += [f"--dc_{key.lower()}", val]
+        if hasattr(self, "tmp_config_file"):
+            cmd += ["--optional-config", self.tmp_config_file]
         print(subprocess.list2cmdline(cmd))
         ret = self.run_as_fg_process(cmd)
         print(f"matrix ended with returncode: {ret}")
+        if hasattr(self, "tmp_config_file"):
+            os.remove(self.tmp_config_file)
 
     def run_as_fg_process(self, *args, **kwargs):
         # Code of this function was adapted from
@@ -256,6 +262,9 @@ class MainWindow(QMainWindow):
         # Enable dragging and dropping onto the widget
         self.setAcceptDrops(True)
 
+        # Initialize cache for system information
+        self._cached_system_info = None
+
     def is_valid_extension(self, file_path):
         """Return True if extension is valid."""
         pattern = re.compile(r"\.\d+t$")
@@ -305,6 +314,9 @@ class MainWindow(QMainWindow):
         # close sweep generator as well
         if self.sg is not None:
             self.sg.close()
+        # clean up temporary config files
+        while self.meas_list.count() > 0:
+            self.removeMeasurement()
         self.saveCurrentState()
         event.accept()
 
@@ -652,6 +664,8 @@ class MainWindow(QMainWindow):
                     self, "Input file error!", f"Input file cannot be parsed: {err}."
                 )
             else:
+                # Type assertion to help type checker
+                assert f is not None
                 for line in f:
                     system_pattern = r"^# [Ss]ystem filename : (.+)"
                     if match := re.match(system_pattern, line.strip()):
@@ -665,7 +679,18 @@ class MainWindow(QMainWindow):
                             "No system specified in input file.",
                         )
                         return
+
+                # Check if systemfile was found
+                if systemfile is None:
+                    QMessageBox.warning(
+                        self,
+                        "System file error!",
+                        "No system specified in input file.",
+                    )
+                    return
         try:
+            # Type assertion to help type checker
+            assert systemfile is not None
             system = MergedSystem.from_files(systemfile)
         except ModuleNotFoundError:
             QMessageBox.warning(
@@ -679,12 +704,29 @@ class MainWindow(QMainWindow):
             return
 
         self.sys_meta_data = system.dcdata
+
         configurable = [
             system for system in systemfile if not os.path.exists(system.strip())
         ]
+
+        # Get system information using subprocess (cache for reuse)
+        self._cached_system_info = None
+        if systemfile:
+            try:
+                self._cached_system_info = get_system_info(systemfile)
+                if not self._cached_system_info:
+                    print("Warning: subprocess returned empty system info")
+                    self._cached_system_info = {}
+            except Exception as e:
+                print(f"Warning: Could not get system info for config editor: {e}")
+                self._cached_system_info = {}
+
         matr1x.reload_config()
         self.config_editor.set_systemfile(configurable)
-        self.config_editor.update_data()
+        if systemfile != self.config_editor.full_system_list:
+            self.config_editor.set_full_system_list(systemfile)
+            self.config_editor.set_system_info(self._cached_system_info or {})
+            self.config_editor.update_data()
 
     def queueMeasurement(self):
         """Queue a measurement into the measurement menu."""
@@ -703,11 +745,14 @@ class MainWindow(QMainWindow):
         for key in metadata.keys():
             self.sys_meta_data[key] = metadata[key]
         # create parameter set for measurement, make sure to copy the meta data
-        param = (inputFile, outputFile, self.sys_meta_data.copy())
+        tmp_config_file_path = self.config_editor.write_config()
+        param = (inputFile, outputFile, self.sys_meta_data.copy(), tmp_config_file_path)
         index = len(self.meas_queue)
         self.meas_queue[index] = param
-        self.meas_list.addItem(f"{index} - {os.path.basename(inputFile)} - "
-                               f"{os.path.basename(outputFile)} -")
+        self.meas_list.addItem(
+            f"{index} - {os.path.basename(inputFile)} - "
+            f"{os.path.basename(outputFile)} - {tmp_config_file_path}"
+        )
         if self.meas_list.count() > 0:
             last_item = self.meas_list.item(self.meas_list.count() - 1)
             self.meas_list.scrollToItem(last_item)
@@ -740,9 +785,19 @@ class MainWindow(QMainWindow):
         """Remove selected or last item from meas_list."""
         selected = self.meas_list.selectedItems()
         if len(selected) > 0:
-            self.meas_list.takeItem(self.meas_list.row(selected[0]))
+            row = self.meas_list.row(selected[0])
+            item = int(self.meas_list.takeItem(row).text().split("-")[0])
         elif 0 < self.meas_list.count():  # remove last item
-            self.meas_list.takeItem(self.meas_list.count()-1)
+            item = int(
+                self.meas_list.takeItem(self.meas_list.count() - 1).text().split("-")[0]
+            )
+        else:
+            return
+
+        if item in self.meas_queue:
+            _, _, _, tmp_config_file = self.meas_queue.pop(item)
+            if os.path.exists(tmp_config_file):
+                os.remove(tmp_config_file)
 
     def runNextMeasurement(self):
         """Run the next queued measurement."""
@@ -782,6 +837,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "Preview error!", f"File does not exist ({output})"
             )
+            return
         elif not exists(output):
             QMessageBox.warning(
                 self, "Preview error!", f"File does not exist ({output})"
