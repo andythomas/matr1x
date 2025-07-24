@@ -22,6 +22,7 @@ import socket
 import subprocess
 import sys
 from os.path import exists
+from typing import Optional
 
 from PyQt6.QtCore import QByteArray, QSettings, QSize, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
@@ -53,6 +54,7 @@ from matr1x.gui_util import (
     MIcon,
     MLineEdit,
     detect_shortcut,
+    get_application_instance,
     get_system_info,
 )
 from matr1x.scripts import (
@@ -250,9 +252,9 @@ class MainWindow(QMainWindow):
         self.running = False
         self.meas_queue = {}
         self.sys_meta_data = {}
-        self.thread = ExecThread()
-        self.thread.filename_received.connect(self.outputEdit.setText)
-        self.thread.finished.connect(self.processFinished)
+        self.measurement_thread = ExecThread()
+        self.measurement_thread.filename_received.connect(self.outputEdit.setText)
+        self.measurement_thread.finished.connect(self.processFinished)
 
         # allow to store the settings
         self.settings = QSettings("matr1x", "gui")
@@ -276,49 +278,57 @@ class MainWindow(QMainWindow):
         else:
             return False
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, a0):
         """Enable drag and drop (1)."""
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
+        if a0 is not None:
+            mimedata = a0.mimeData()
+            if mimedata is not None:
+                if mimedata.hasUrls():
+                    a0.acceptProposedAction()
+                else:
+                    a0.ignore()
 
-    def dropEvent(self, event):
+    def dropEvent(self, a0):
         """Enable drag and drop(2)."""
-        urls = event.mimeData().urls()
-        if len(urls) == 1:
-            file_path = urls[0].toLocalFile()
-            if self.is_valid_extension(file_path):
-                self.inputEdit.setText(file_path)
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Invalid File",
-                    "Only files with extensions matching .<number>t are supported.")
-        else:
-            QMessageBox.warning(self, "Multiple Files",
-                                "Please drop only a single file.")
+        if a0 is not None:
+            mimedata = a0.mimeData()
+            if mimedata is not None:
+                urls = mimedata.urls()
+                if len(urls) == 1:
+                    file_path = urls[0].toLocalFile()
+                    if self.is_valid_extension(file_path):
+                        self.inputEdit.setText(file_path)
+                    else:
+                        QMessageBox.warning(
+                            self,
+                            "Invalid File",
+                            "Only files with extensions matching .<number>t are supported.",
+                        )
+                else:
+                    QMessageBox.warning(
+                        self, "Multiple Files", "Please drop only a single file."
+                    )
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         """Close app properly."""
-        # only close if no measurement is running.
-        if self.running:
-            QMessageBox.critical(
-                QWidget(),
-                "Measurement running!",
-                """Please wait for the measurement to finish. Alternatively,
-                stop the measurement in the terminal before exiting 'Matrix GUI'!""",
-            )
-            event.ignore()
-            return
-        # close sweep generator as well
-        if self.sg is not None:
-            self.sg.close()
-        # clean up temporary config files
-        while self.meas_list.count() > 0:
-            self.removeMeasurement()
-        self.saveCurrentState()
-        event.accept()
+        if a0 is not None:
+            if self.running:
+                QMessageBox.critical(
+                    QWidget(),
+                    "Measurement running!",
+                    """Please wait for the measurement to finish. Alternatively,
+                    stop the measurement in the terminal before exiting 'Matrix GUI'!""",
+                )
+                a0.ignore()
+                return
+            # close sweep generator as well
+            if self.sg is not None:
+                self.sg.close()
+            # clean up temporary config files
+            while self.meas_list.count() > 0:
+                self.removeMeasurement()
+            self.save_window_state()
+            a0.accept()
 
     def info_box(self):
         """Display an 'about this app' widget."""
@@ -328,7 +338,7 @@ class MainWindow(QMainWindow):
         box.exec()
         return
 
-    def saveCurrentState(self) -> None:
+    def save_window_state(self) -> None:
         """
         Save application configuration until next startup.
 
@@ -341,7 +351,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("config_position", self.config_editor.pos())
         self.settings.setValue("config_size", self.config_editor.size())
 
-    def restoreState(self) -> None:
+    def restore_window_state(self) -> None:
         """
         Restore application configuration to look similar to the previous use.
 
@@ -534,7 +544,7 @@ class MainWindow(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.toolbar.setFloatable(False)
-        icon_size = MApplication.instance().toolbar_icon_size()
+        icon_size = get_application_instance().toolbar_icon_size()
         empty = QWidget()
         empty.setFixedWidth(icon_size)
         empty2 = QWidget()
@@ -559,8 +569,10 @@ class MainWindow(QMainWindow):
     def create_menu(self) -> None:
         """Create the menu."""
         menu = self.menuBar()
+        assert menu is not None
         # Populate the actions
         file_menu = menu.addMenu("&File")
+        assert file_menu is not None
         file_menu.addAction(self.load_action)
         file_menu.addAction(self.sweep_action)
         file_menu.addSeparator()
@@ -572,15 +584,18 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
         #
         control_menu = menu.addMenu("&Control")
+        assert control_menu is not None
         control_menu.addAction(self.start_action)
         control_menu.addSeparator()
         control_menu.addAction(self.preview_action)
         #
         view_menu = menu.addMenu("&View")
+        assert view_menu is not None
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.config_action)
         #
         help_menu = menu.addMenu("&Help")
+        assert help_menu is not None
         help_menu.addAction(self.about_action)
 
     def updateAutoGenFilename(self, state):
@@ -664,7 +679,6 @@ class MainWindow(QMainWindow):
                     self, "Input file error!", f"Input file cannot be parsed: {err}."
                 )
             else:
-                # Type assertion to help type checker
                 assert f is not None
                 for line in f:
                     system_pattern = r"^# [Ss]ystem filename : (.+)"
@@ -772,14 +786,14 @@ class MainWindow(QMainWindow):
         self.start_action.setText("Queue")
         self.runNextMeasurement()
 
-    def keyPressEvent(self, event: QKeyEvent):
+    def keyPressEvent(self, a0: Optional[QKeyEvent]):
         """Allow to modify systems list with keyboard shortcuts."""
         if self.meas_list.hasFocus():
-            if detect_shortcut(event, QKeySequence(QKeySequence.StandardKey.Delete)):
+            if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)):
                 self.removeMeasurement()
-            if detect_shortcut(event, QKeySequence(Qt.Key.Key_Backspace)):
+            if detect_shortcut(a0, QKeySequence(Qt.Key.Key_Backspace)):
                 self.removeMeasurement()
-        super().keyPressEvent(event)
+        super().keyPressEvent(a0)
 
     def removeMeasurement(self):
         """Remove selected or last item from meas_list."""
@@ -802,8 +816,8 @@ class MainWindow(QMainWindow):
     def runNextMeasurement(self):
         """Run the next queued measurement."""
         item = int(self.meas_list.takeItem(0).text().split("-")[0])
-        self.thread.set_param(*self.meas_queue[item])
-        self.thread.start()
+        self.measurement_thread.set_param(*self.meas_queue[item])
+        self.measurement_thread.start()
 
     def processFinished(self):
         """Properly finish a mesurement.
@@ -842,8 +856,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "Preview error!", f"File does not exist ({output})"
             )
-        a = matrix_preview.SweepPreview(self, output)
-        a.show()
+        else:
+            a = matrix_preview.SweepPreview(self, output)
+            a.show()
 
 
 def main():
@@ -862,6 +877,6 @@ def main():
     with QtGracefulKiller():
         ex = MainWindow()
         ex.show()
-        ex.restoreState()
+        ex.restore_window_state()
         ret = app.exec()
     sys.exit(ret)

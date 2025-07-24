@@ -212,7 +212,7 @@ def test_matrix_script_dummy_merged():
         assert ret.returncode == 0
         files = glob.glob(os.path.join(path, f"epische_messdatei{output_extension}"))
         assert len(files) >= 1
-        h, d = matr1x.eval.loadmatrix(files[-1], structured=None)
+        h, d = matr1x.eval.loadmatrix(files[-1], structured=False)
         assert len(h["columns"]) == 10
         assert d.shape == (22, 10)
 

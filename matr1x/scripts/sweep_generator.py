@@ -66,6 +66,7 @@ from matr1x.gui_util import (
     MIcon,
     SystemListWidget,
     create_tray_notification,
+    get_application_instance,
     save_messagebox,
     validator,
 )
@@ -150,34 +151,24 @@ class QLabelWithColor(QLabel):
             self.setStyleSheet(self.stylesheet_bright)
         self.updating_stylesheet = False
 
-    def changeEvent(self, event: QEvent):
-        """
-        Detect palette changes such as dark and bright mode desktops.
+    def changeEvent(self, a0):
+        """Detect palette changes such as dark and bright mode desktops."""
+        if a0 is not None:
+            if a0.type() == QEvent.Type.PaletteChange and not self.updating_stylesheet:
+                self._update_colors()
+        return super().changeEvent(a0)
 
-        Parameters
-        ----------
-        event : QEvent
-            The event that causes the call.
-        """
-        if event.type() == QEvent.Type.PaletteChange and not self.updating_stylesheet:
-            self._update_colors()
-        return super().changeEvent(event)
-
-    def mousePressEvent(self, event: QEvent):
+    def mousePressEvent(self, ev):
         """
         Detect mouse-click for proper column highlighting.
 
         The column of the click is emitted as a pyqtSignal.
-
-        Parameters
-        ----------
-        event : QEvent
-            The event that causes the call.
         """
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit(event)
-            MApplication.activeWindow().setFocus()
-        return super().mousePressEvent(event)
+        if ev is not None:
+            if ev.button() == Qt.MouseButton.LeftButton:
+                self.clicked.emit(ev)
+                MApplication.activeWindow().setFocus()
+        return super().mousePressEvent(ev)
 
     def setColors(self, color_bright: str, color_dark: str) -> None:
         """
@@ -388,31 +379,27 @@ class MainWindow(QMainWindow):
                 self.open_file(filename)
                 self.last_filename = filename
 
-    def closeEvent(self, event: QEvent) -> None:
+    def closeEvent(self, a0):
         """
         Store settings before closing app.
 
         If the script was modified without saving, a dialog asks how to proceed.
-
-        Parameters
-        ----------
-        event : QEvent
-            The received 'close event'
         """
-        if self.dirty:
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
-                event.ignore()
-                return
-            if ret == QMessageBox.StandardButton.Save:
-                if not self.save_file():
-                    # if save fails, ignore message
-                    event.ignore()
+        if a0 is not None:
+            if self.dirty:
+                ret = save_messagebox(self)
+                if ret == QMessageBox.StandardButton.Cancel:
+                    a0.ignore()
                     return
-        self.saveCurrentState()
-        event.accept()
+                if ret == QMessageBox.StandardButton.Save:
+                    if not self.save_file():
+                        # if save fails, ignore message
+                        a0.ignore()
+                        return
+            self.save_window_state()
+            a0.accept()
 
-    def saveCurrentState(self) -> None:
+    def save_window_state(self) -> None:
         """
         Save application configuration until next startup.
 
@@ -422,7 +409,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
 
-    def restoreState(self) -> None:
+    def restore_window_state(self) -> None:
         """
         Restore application configuration to look similar to the previous use.
 
@@ -585,7 +572,7 @@ class MainWindow(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = MApplication.instance().toolbar_icon_size()
+        icon_size = get_application_instance().toolbar_icon_size()
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
@@ -594,7 +581,6 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.load_action)
         self.toolbar.addWidget(self.save_button)
         self.toolbar.addAction(self.sweep_action)
-        icon_size = MApplication.instance().toolbar_icon_size()
         empty = QWidget()
         empty.setFixedWidth(icon_size)
         empty2 = QWidget()
@@ -612,7 +598,9 @@ class MainWindow(QMainWindow):
     def create_menu(self) -> None:
         """Create the main menu."""
         menu = self.menuBar()
+        assert menu is not None
         file_menu = menu.addMenu("&File")
+        assert file_menu is not None
         file_menu.addAction(self.new_file_action)
         file_menu.addAction(self.load_action)
         file_menu.addSeparator()
@@ -626,12 +614,15 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
         #
         control_menu = menu.addMenu("&Control")
+        assert control_menu is not None
         control_menu.addAction(self.sweep_action)
         #
         view_menu = menu.addMenu("&View")
+        assert view_menu is not None
         view_menu.addAction(self.toggle_toolbar_action)
         #
         help_menu = menu.addMenu("&Help")
+        assert help_menu is not None
         help_menu.addAction(self.about_action)
 
     def info_box(self) -> None:
@@ -1113,11 +1104,7 @@ class MainWindow(QMainWindow):
         bool
             Saved (True) or cancelled (False)
         """
-        if self.last_filename == "":
-            dialog = True
-        else:
-            filename = self.last_filename
-        if dialog:
+        if dialog or self.last_filename == "":
             prefilled_file = (
                 self.last_filename if self.last_filename != "" else usersfolder
             )
@@ -1140,6 +1127,8 @@ class MainWindow(QMainWindow):
                 filename = filename[0]
             else:
                 return False
+        else:
+            filename = self.last_filename
         self.print_sweep_to_preview()
         if filename[-len(self.extension) :] != self.extension:
             filename += self.extension
@@ -1439,6 +1428,7 @@ class MainWindow(QMainWindow):
             (self.sweep_params, self.loop_over, self.up_down, self.repeat) = (
                 params.values()
             )
+            functions = None
         if functions:
             for function in functions:
                 if function != "None":
@@ -1505,6 +1495,6 @@ def main():
         else:
             mw = MainWindow(filename=sys.argv[1])
         mw.show()
-        mw.restoreState()
+        mw.restore_window_state()
         ret = app.exec()
     sys.exit(ret)

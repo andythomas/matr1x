@@ -174,6 +174,6 @@ def test_matrix_script_control_dummy(start_control_dummy):
         assert ret.returncode == 0
         files = glob.glob(os.path.join(path, f"epische_messdatei{output_extension}"))
         assert len(files) >= 1
-        h, d = matr1x.eval.loadmatrix(files[-1], structured=None)
+        h, d = matr1x.eval.loadmatrix(files[-1], structured=False)
         assert len(h["columns"]) == 6
         assert d.shape == (11, 6)

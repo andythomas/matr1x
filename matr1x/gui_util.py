@@ -35,7 +35,7 @@ import time
 from importlib.metadata import version as package_version
 from os.path import dirname, expanduser, join, normpath
 from types import TracebackType
-from typing import Any, Dict, Optional, Sequence, TextIO, Type
+from typing import Any, Dict, Optional, Sequence, TextIO, Type, Union
 
 import numpy as np
 import pygit2
@@ -3550,7 +3550,12 @@ class AboutBox(QMessageBox):
 class MIcon(QIcon):
     """Generate either Qt built-in icons, letters or Matrix specific QIcons."""
 
-    def __new__(cls, name, color="default", pencolor=QColor("white")) -> QIcon:
+    def __new__(
+        cls,
+        name: str,
+        color: Union[str, QColor] = "default",
+        pencolor: QColor = QColor("white"),
+    ) -> QIcon:
         """
         Look up 'name' and get corresponding QIcon back.
 
@@ -3879,6 +3884,21 @@ class MApplication(QApplication):
         intermediate = int((small + standard) / 2)
         return intermediate
 
+
+def get_application_instance() -> MApplication:
+    """
+    Return the MApplication instance.
+
+    This simplifies pyright static type checking.
+
+    Returns
+    -------
+    MApplication
+        The instance that cannot be None.
+    """
+    app = MApplication.instance()
+    assert isinstance(app, MApplication)
+    return app
 
 # Common system information functions for matrix scripts
 def get_system_info(systems):

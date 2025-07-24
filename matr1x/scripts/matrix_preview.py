@@ -27,7 +27,7 @@ import numpy as np
 import pyqtgraph
 import pyqtgraph.exporters
 from PyQt6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QKeySequence
+from PyQt6.QtGui import QAction, QColor, QFileOpenEvent, QKeySequence
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -47,7 +47,7 @@ import matr1x
 from matr1x import gui_util
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
-from matr1x.gui_util import AboutBox, MApplication, MIcon
+from matr1x.gui_util import AboutBox, MApplication, MIcon, get_application_instance
 from matr1x.util import set_correct_mac_appname
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -66,12 +66,13 @@ class Matr1xApplication(MApplication):
 
     openfile = pyqtSignal(str)
 
-    def event(self, event):
+    def event(self, a0):
         """Catch file open on a Mac."""
-        if event.type() == QEvent.Type.FileOpen:
-            filename = event.file()
-            self.openfile.emit(filename)
-        return MApplication.event(self, event)
+        if a0 is not None:
+            if a0.type() == QEvent.Type.FileOpen and isinstance(a0, QFileOpenEvent):
+                filename = a0.file()
+                self.openfile.emit(filename)
+        return MApplication.event(self, a0)
 
 
 class UpdateThread(QThread):
@@ -124,7 +125,7 @@ class SweepPreview(QMainWindow):
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
         if hasattr(MApplication.instance(), "openfile"):
-            MApplication.instance().openfile.connect(self.open_file)
+            get_application_instance().openfile.connect(self.open_file)
         # initialize filename if available
         if filename:
             self.open_file(filename)
@@ -138,33 +139,41 @@ class SweepPreview(QMainWindow):
         """Return True if extension is valid."""
         return file_path.endswith(self.allowed_extensions)
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, a0):
         """Enable drag and drop (1)."""
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
+        if a0 is not None:
+            mimedata = a0.mimeData()
+            if mimedata is not None:
+                if mimedata.hasUrls():
+                    a0.acceptProposedAction()
+                else:
+                    a0.ignore()
 
-    def dropEvent(self, event):
-        """Enable drag and drop (2)."""
-        urls = event.mimeData().urls()
-        if len(urls) == 1:
-            file_path = urls[0].toLocalFile()
-            if self.is_valid_extension(file_path):
-                self.open_file(file_path)
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Invalid File",
-                    f"Only files with extensions {', '.join(self.allowed_extensions)} are supported.")
-        else:
-            QMessageBox.warning(self, "Multiple Files",
-                                "Please drop only a single file.")
+    def dropEvent(self, a0):
+        """Enable drag and drop(2)."""
+        if a0 is not None:
+            mimedata = a0.mimeData()
+            if mimedata is not None:
+                urls = mimedata.urls()
+                if len(urls) == 1:
+                    file_path = urls[0].toLocalFile()
+                    if self.is_valid_extension(file_path):
+                        self.open_file(file_path)
+                    else:
+                        QMessageBox.warning(
+                            self,
+                            "Invalid File",
+                            f"Only files with extensions {', '.join(self.allowed_extensions)} are supported.",
+                        )
+                else:
+                    QMessageBox.warning(
+                        self, "Multiple Files", "Please drop only a single file."
+                    )
 
     def _get_maximum_screen_width(self):
         """Determine width of the biggest available screen."""
         width = 0
-        for screen in MApplication.instance().screens():
+        for screen in get_application_instance().screens():
             width = max(width, screen.geometry().width())
         return width
 
@@ -187,10 +196,10 @@ class SweepPreview(QMainWindow):
         if not self.filename:
             self.openfile_dialog.emit()
 
-    def eventFilter(self, f_object, f_event):
+    def eventFilter(self, a0, a1):
         """Update the file view if required."""
-        if f_object == self.w_file:
-            if f_event.type() == QEvent.Type.MouseButtonPress:
+        if a0 == self.w_file:
+            if a1 is not None and a1.type() == QEvent.Type.MouseButtonPress:
                 self.update_file_combo()
             return False
         return False
@@ -248,15 +257,16 @@ class SweepPreview(QMainWindow):
         # self.file_index, problem?
         self.w_file.currentIndexChanged.connect(self.file_index_changed)
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         """Store toolbar position on close."""
-        if self.closing_allowed:
-            self.saveCurrentState()
-            event.accept()
-        else:
-            event.ignore()
+        if a0 is not None:
+            if self.closing_allowed:
+                self.save_window_state()
+                a0.accept()
+            else:
+                a0.ignore()
 
-    def saveCurrentState(self) -> None:
+    def save_window_state(self) -> None:
         """
         Save application configuration until next startup.
 
@@ -273,7 +283,7 @@ class SweepPreview(QMainWindow):
             self.settings.setValue("meta_position", self.w_meta_view.pos())
             self.settings.setValue("meta_size", self.w_meta_view.size())
 
-    def restoreState(self) -> None:
+    def restore_window_state(self) -> None:
         """
         Restore application configuration to look similar to the previous use.
 
@@ -410,7 +420,7 @@ class SweepPreview(QMainWindow):
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = MApplication.instance().toolbar_icon_size()
+        icon_size = get_application_instance().toolbar_icon_size()
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
@@ -440,29 +450,34 @@ class SweepPreview(QMainWindow):
     def create_menu(self) -> None:
         """Create the main menu."""
         menu = self.menuBar()
+        assert menu is not None
         #
-        self.file_menu = menu.addMenu("&File")
-        self.file_menu.addAction(self.load_action)
-        self.file_menu.addAction(self.quit_action)
-        self.file_menu.addAction(self.export_png_action)
-        self.file_menu.addAction(self.export_data_action)
-        self.file_menu.addSeparator()
-        self.file_menu.addAction(self.update_action)
-        self.file_menu.addAction(self.auto_update_action)
+        file_menu = menu.addMenu("&File")
+        assert file_menu is not None
+        file_menu.addAction(self.load_action)
+        file_menu.addAction(self.quit_action)
+        file_menu.addAction(self.export_png_action)
+        file_menu.addAction(self.export_data_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.update_action)
+        file_menu.addAction(self.auto_update_action)
         if sys.platform != "darwin":
-            self.file_menu.addSeparator()
-            self.file_menu.addAction(self.quit_action)
+            file_menu.addSeparator()
+            file_menu.addAction(self.quit_action)
         #
-        self.control_menu = menu.addMenu("&Control")
-        self.control_menu.addAction(self.previous_action)
-        self.control_menu.addAction(self.next_action)
+        control_menu = menu.addMenu("&Control")
+        assert control_menu is not None
+        control_menu.addAction(self.previous_action)
+        control_menu.addAction(self.next_action)
         #
-        self.view_menu = menu.addMenu("&View")
-        self.view_menu.addAction(self.toggle_toolbar_action)
-        self.view_menu.addAction(self.meta_action)
+        view_menu = menu.addMenu("&View")
+        assert view_menu is not None
+        view_menu.addAction(self.toggle_toolbar_action)
+        view_menu.addAction(self.meta_action)
         #
-        self.help_menu = menu.addMenu("&Help")
-        self.help_menu.addAction(self.about_action)
+        help_menu = menu.addMenu("&Help")
+        assert help_menu is not None
+        help_menu.addAction(self.about_action)
 
     def init_ui(self):
         """Initialize GUI for popup."""
@@ -1169,6 +1184,6 @@ def main():
         else:
             ex = SweepPreview(None, sys.argv[1])
         ex.show()
-        ex.restoreState()
+        ex.restore_window_state()
         ret = app.exec()
     sys.exit(ret)

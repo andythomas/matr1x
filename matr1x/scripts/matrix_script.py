@@ -95,6 +95,7 @@ from matr1x.gui_util import (
     TextInputDialog,
     YesNoAbortDialog,
     detect_shortcut,
+    get_application_instance,
     get_system_info,
     save_messagebox,
 )
@@ -1776,7 +1777,7 @@ class MainWindow(QMainWindow):
         self.output_stream = EmittingStream()
         self.output_stream.text_written.connect(self.output_written)
 
-        self.color_palette = MApplication.instance().palette()
+        self.color_palette = get_application_instance().palette()
         self.init_ui()
         # set outputStream as stdout (i.e. all output is written to status
         # preview
@@ -1945,7 +1946,7 @@ class MainWindow(QMainWindow):
         self.script_edit.SendScintilla(QsciScintilla.SCI_SETSELECTIONEND, end)
         del text_edit
 
-    def saveCurrentState(self) -> None:
+    def save_window_state(self) -> None:
         """
         Save application configuration until next startup.
 
@@ -1998,7 +1999,7 @@ class MainWindow(QMainWindow):
             self.settings.setValue("position", self.system_command_help.pos())
             self.settings.endGroup()
 
-    def restoreState(self) -> None:
+    def restore_window_state(self) -> None:
         """
         Restore application configuration to look similar to the previous use.
 
@@ -2106,7 +2107,7 @@ class MainWindow(QMainWindow):
     def changeEvent(self, event: QEvent):
         """Detect palette changes such as dark and bright mode desktops."""
         if event.type() == QEvent.Type.PaletteChange:
-            self.color_palette = MApplication.instance().palette()
+            self.color_palette = get_application_instance().palette()
             self.update_ui()
 
     def closeEvent(self, event: QEvent) -> None:
@@ -2144,7 +2145,7 @@ class MainWindow(QMainWindow):
         if (
             self.script_edit.isModified() or self.systems_dirty
         ) and self.script_edit.text() != "":
-            qApp = MApplication.instance()
+            qApp = get_application_instance()
             qApp.processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
@@ -2156,7 +2157,7 @@ class MainWindow(QMainWindow):
                     # if save fails, ignore message
                     event.ignore()
                     return
-        self.saveCurrentState()
+        self.save_window_state()
         event.accept()
 
     def standard_action(self, name, display_name=None) -> QAction:
@@ -2574,7 +2575,7 @@ class MainWindow(QMainWindow):
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
         )
-        icon_size = MApplication.instance().toolbar_icon_size()
+        icon_size = get_application_instance().toolbar_icon_size()
         empty = QWidget()
         empty.setFixedWidth(icon_size)
         empty2 = QWidget()
@@ -2603,8 +2604,10 @@ class MainWindow(QMainWindow):
     def create_menu(self) -> None:
         """Create the main menu."""
         menu = self.menuBar()
+        assert menu is not None
         # Populate the actions
         file_menu = menu.addMenu("&File")
+        assert file_menu is not None
         file_menu.addAction(self.new_file_action)
         file_menu.addAction(self.load_action)
         file_menu.addSeparator()
@@ -2619,6 +2622,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
         #
         edit_menu = menu.addMenu("&Edit")
+        assert edit_menu is not None
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
         edit_menu.addSeparator()
@@ -2637,6 +2641,7 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.pep8_action)
         #
         code_menu = menu.addMenu("&Code")
+        assert code_menu is not None
         functions = (
             "init_datafile",
             "measure_system",
@@ -2661,6 +2666,7 @@ class MainWindow(QMainWindow):
                 code_menu.addAction(action)
         #
         control_menu = menu.addMenu("&Control")
+        assert control_menu is not None
         control_menu.addAction(self.start_pause_action)
         control_menu.addAction(self.abort_action)
         control_menu.addAction(self.finish_action)
@@ -2669,6 +2675,7 @@ class MainWindow(QMainWindow):
         control_menu.addAction(self.preview_action)
         #
         view_menu = menu.addMenu("&View")
+        assert view_menu is not None
         view_menu.addAction(self.zoom_in_action)
         view_menu.addAction(self.zoom_out_action)
         view_menu.addSeparator()
@@ -2677,6 +2684,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.config_action)
         #
         help_menu = menu.addMenu("&Help")
+        assert help_menu is not None
         help_menu.addAction(self.help_system_action)
         help_menu.addAction(self.about_action)  # This is auto-moved on a Mac
 
@@ -2831,11 +2839,11 @@ class MainWindow(QMainWindow):
             ret = dialog.get_selection()
         else:
             ret = ""
-        self.thread.pass_input(ret)
+        self.measurement_thread.pass_input(ret)
 
     def pause_thread(self):
         """Pause thread execution."""
-        self.thread.pause()
+        self.measurement_thread.pause()
 
     def abort_thread(self, char="q"):
         """
@@ -2851,11 +2859,11 @@ class MainWindow(QMainWindow):
         """
         if self.start_pause_action.isChecked():
             self.start_pause_action.setChecked(False)
-        self.thread.abort(char)
+        self.measurement_thread.abort(char)
 
     def kill_thread(self):
         """Kill the thread."""
-        self.thread.kill()
+        self.measurement_thread.kill()
         self.print_colored(
             "Script terminated by user - " + "file integrity might be compromised"
         )
@@ -3213,7 +3221,7 @@ class MainWindow(QMainWindow):
         """
         self.enable_buttons(False)
         self.print_colored("\nExecution finished")
-        del self.thread
+        del self.measurement_thread
 
     def start_process(self):
         """
@@ -3234,7 +3242,7 @@ class MainWindow(QMainWindow):
         # run linter to make sure there are no errors
         if -1 == self.script_edit.run_linter():
             self.print_colored("Script execution was halted because of linter errors")
-            qApp = MApplication.instance()
+            qApp = get_application_instance()
             qApp.processEvents()
             # open a popup window to inform about the error
             a = QMessageBox(parent=self)
@@ -3254,13 +3262,15 @@ class MainWindow(QMainWindow):
         script = generate_script(self.systems, user_script)
         meta_data = self.metadata.get_metadata()
         temp_config = self.config_editor.write_config()
-        self.thread = ExecThread(meta_data, script, self.scriptname, temp_config)
-        self.thread.lineno_signal.connect(self.highlight)
-        self.thread.input_signal.connect(self.get_script_input)
-        self.thread.filename_signal.connect(self.update_filename)
-        self.thread.finished.connect(self.process_finished)
+        self.measurement_thread = ExecThread(
+            meta_data, script, self.scriptname, temp_config
+        )
+        self.measurement_thread.lineno_signal.connect(self.highlight)
+        self.measurement_thread.input_signal.connect(self.get_script_input)
+        self.measurement_thread.filename_signal.connect(self.update_filename)
+        self.measurement_thread.finished.connect(self.process_finished)
         logger.info("The following user script was run:\n%s", user_script)
-        self.thread.start()
+        self.measurement_thread.start()
         self.enable_buttons(True)
 
     def update_systems(self, update_config=True):
@@ -3579,7 +3589,7 @@ class MainWindow(QMainWindow):
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
         if self.script_edit.isModified() or self.systems_dirty:
-            qApp = MApplication.instance()
+            qApp = get_application_instance()
             qApp.processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
@@ -3606,7 +3616,7 @@ class MainWindow(QMainWindow):
         'system dirty' flag and forget last filename.
         """
         if self.script_edit.isModified() or self.systems_dirty:
-            qApp = MApplication.instance()
+            qApp = get_application_instance()
             qApp.processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
@@ -3639,7 +3649,7 @@ def main():
                 sys.stderr, prefix=appname, fallbackname="stderr"
             )
         ex.show()
-        ex.restoreState()
+        ex.restore_window_state()
         ret = app.exec()
     if config["duplicate_output_to_logfile"]:
         sys.stdout.close()
