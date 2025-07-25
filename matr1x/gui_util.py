@@ -44,7 +44,6 @@ from PyQt6.QtCore import (
     PYQT_VERSION_STR,
     QT_VERSION_STR,
     QAbstractItemModel,
-    QEvent,
     QLibraryInfo,
     QLocale,
     QModelIndex,
@@ -64,7 +63,6 @@ from PyQt6.QtGui import (
     QIntValidator,
     QKeySequence,
     QPainter,
-    QPalette,
     QPixmap,
     QPolygon,
 )
@@ -1389,18 +1387,14 @@ class ConfigEditWidget(MetaViewerWidget):
                 )  # Return original data if conversion fails
         return config
 
-    def write_config(self):
+    def get_config_dict(self):
         """
-        Write config data to a temporary file using matr1x.write_config.
-
-        The configuration data is normalized and written to a named temporary
-        file. This file persists after the function returns and can be used
-        as an optional configuration file.
+        Extract and normalize configuration data from the tree view.
 
         Returns
         -------
-        str
-            The name of the temporary file containing the written configuration.
+        dict
+            The normalized configuration dictionary.
         """
         def create_nested_dict(keys, item):
             """Create a nested dictioinary from QItemView."""
@@ -1476,14 +1470,36 @@ class ConfigEditWidget(MetaViewerWidget):
             key_parts = sys_key.split(".")
             merge_dicts(config_dict, create_nested_dict(key_parts, item))
 
+        return normalize_dict(config_dict)
+
+    def write_config(self, config_dict=None):
+        """
+        Write config data to a temporary file using matr1x.write_config.
+
+        The configuration data is normalized and written to a named temporary
+        file. This file persists after the function returns and can be used
+        as an optional configuration file.
+
+        Parameters
+        ----------
+        config_dict : dict, optional
+            Configuration dictionary to write. If None, extracts configuration
+            from the tree view using get_config_dict().
+
+        Returns
+        -------
+        str
+            The name of the temporary file containing the written configuration.
+        """
+        if config_dict is None:
+            config_dict = self.get_config_dict()
+
         # Create a temporary file
         with tempfile.NamedTemporaryFile(
             mode="wb", delete=False, suffix=".toml"
         ) as tmpfile:
             temp_file_name = tmpfile.name
-            write_config(
-                normalize_dict(config_dict), tmpfile.name
-            )  # Use matr1x's write_config
+            write_config(config_dict, tmpfile.name)  # Use matr1x's write_config
 
         return temp_file_name
 
@@ -3683,39 +3699,6 @@ class MIcon(QIcon):
         painter.end()
         return QIcon(pixmap)
 
-
-def _set_palette(instance):
-    """Set the base and text color according to the enabled state."""
-    palette = instance.palette()
-    # use QTextEdit as an example to determine the palette
-    text_edit = QTextEdit()
-    unchanged_palette = text_edit.palette()
-    text_edit.setEnabled(False)
-    changed_palette = text_edit.palette()
-    if instance.isEnabled():
-        palette.setColor(
-            QPalette.ColorRole.Text,
-            QColor(unchanged_palette.color(QPalette.ColorRole.Text)),
-        )
-    else:
-        palette.setColor(
-            QPalette.ColorRole.Text,
-            QColor(changed_palette.color(QPalette.ColorRole.Text)),
-        )
-    if not instance.isEnabled() or instance.isReadOnly():
-        palette.setColor(
-            QPalette.ColorRole.Base,
-            QColor(changed_palette.color(QPalette.ColorRole.Base)),
-        )
-    else:
-        palette.setColor(
-            QPalette.ColorRole.Base,
-            QColor(unchanged_palette.color(QPalette.ColorRole.Base)),
-        )
-
-    instance.setPalette(palette)
-
-
 def detect_shortcut(event, shortcut):
     """
     Compare a combination of keys in a string to a keypress event.
@@ -3746,7 +3729,6 @@ def detect_shortcut(event, shortcut):
         return True
     else:
         return False
-
 
 def save_messagebox(instance) -> int:
     """
@@ -3795,33 +3777,6 @@ def create_tray_notification(title: str, message: str, instance) -> None:
     instance._tray_icon.setIcon(icon)
     instance._tray_icon.show()
     instance._tray_icon.showMessage(title, message, QSystemTrayIcon.MessageIcon.Warning)
-
-
-class MLineEdit(QLineEdit):
-    """Provide QLineEdit with visual cues for non-editable."""
-
-    def __init__(self):
-        """Call init of QLineEdit()."""
-        super().__init__()
-
-    def changeEvent(self, event: QEvent):
-        """
-        Detect palette and read-only changes.
-
-        This method implements visual cues that work when the palette changes,
-        for example if the desktop changes from dark to bright mode.
-
-        Parameters
-        ----------
-        event : QEvent
-            The event that triggered the change.
-        """
-        if (
-            event.type() == QEvent.Type.PaletteChange
-            or event.type() == QEvent.Type.ReadOnlyChange
-        ):
-            _set_palette(self)
-            super().changeEvent(event)
 
 
 class MApplication(QApplication):

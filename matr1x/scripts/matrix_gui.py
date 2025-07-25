@@ -15,6 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Provide a graphical user interface for matrix measurements."""
+import hashlib
+import json
 import os
 import re
 import signal
@@ -22,21 +24,21 @@ import socket
 import subprocess
 import sys
 from os.path import exists
-from typing import Optional
+from typing import Optional, Tuple
 
 from PyQt6.QtCore import QByteArray, QSettings, QSize, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QSizePolicy,
-    QSpacerItem,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -52,7 +54,6 @@ from matr1x.gui_util import (
     MApplication,
     MetaDataDialog,
     MIcon,
-    MLineEdit,
     detect_shortcut,
     get_application_instance,
     get_system_info,
@@ -83,6 +84,103 @@ if os.name == 'nt':
         pass
 
 
+class LabelWithSignal(QLabel):
+    """A QLabel that emits a signal if the text changes."""
+
+    textChanged = pyqtSignal(str)
+
+    def setText(self, a0):
+        """
+        Set label text and emit signal.
+
+        Parameters
+        ----------
+        a0 : str
+            The new label text.
+        """
+        super().setText(a0)
+        self.textChanged.emit(a0)
+
+
+class QueueListWidget(QListWidget):
+    """
+    A list widget that stores a dictionary for each row.
+
+    This list of dict is used to handle the measurement queue and store the
+    line to show in the list view.
+    """
+
+    def __init__(self):
+        """Initialize the list widget with an empty list."""
+        super().__init__()
+        self.data_list = []
+        self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self.setAlternatingRowColors(True)
+        model = self.model()
+        assert model is not None
+        model.rowsMoved.connect(self.update_data_order)
+
+    def add_parameters(self, parameters: tuple) -> None:
+        """
+        Add a set of parameters.
+
+        Parameters
+        ----------
+        parameters : tuple
+            The tuple to be added: (inputFile, outputFile, metadata_dict, config_dict).
+        """
+        output = os.path.basename(parameters[1])
+        if output == "":
+            output = "<use input>"
+        dict_str = (
+            parameters[0]
+            + parameters[1]
+            + json.dumps(parameters[2], sort_keys=True)
+            + json.dumps(parameters[3], sort_keys=True)
+        )
+        hash_value = hashlib.sha256(dict_str.encode()).hexdigest()[:6]
+        list_entry = f"Input: {os.path.basename(parameters[0])} - Output: {output} - Id: {hash_value}"
+        param_dict = {"parameters": parameters, "listview": list_entry}
+        self.data_list.append(param_dict)
+        list_item = QListWidgetItem(param_dict["listview"])
+        super().addItem(list_item)
+
+    def takeItem(self, row: int):
+        """
+        Delete the item.
+
+        Parameters
+        ----------
+        row : int
+            The row to be deleted.
+        """
+        self.data_list.pop(row)
+        super().takeItem(row)
+
+    def update_data_order(self):
+        """Update the list of dicts based on the list widget."""
+        new_order = []
+        for i in range(self.count()):
+            item = self.item(i)
+            assert item is not None
+            new_order.append(item.text())
+        self.data_list.sort(key=lambda x: new_order.index(x["listview"]))
+
+    def parameters(self, row: int) -> Tuple:
+        """
+        Get the parameters for a matrix run.
+
+        Parameters
+        ----------
+        row : int
+            The row to query.
+
+        Returns
+        -------
+        The input parameters for the thread.
+        """
+        return self.data_list[row]["parameters"]
+
 class ExecThread(QThread):
     """execute the measurement thread."""
 
@@ -92,15 +190,14 @@ class ExecThread(QThread):
         """Initialize the thread."""
         QThread.__init__(self)
 
-    def set_param(self, inputFile, outputFile, meta_data, tmp_config_file):
-        """Set mearument parameters and meta-data."""
-        self.inputFile = inputFile
-        self.outputFile = outputFile
-        self.meta_data = meta_data
-        self.tmp_config_file = tmp_config_file
+    def set_param(self, params, config_editor):
+        """Set measurement parameters and meta-data from a parameter tuple."""
+        self.inputFile, self.outputFile, self.meta_data, self.config_dict = params
+        self.config_editor = config_editor
 
     def receive_filename(self):
-        """Receive filename from command line.
+        """
+        Receive filename from command line.
 
         Matrix checks if the file already exists and subsequently changes its name.
         This way, no existing measurement can be accidently overwritten. The name
@@ -123,24 +220,33 @@ class ExecThread(QThread):
         conn.close()
         self.filename_received.emit(data)
 
-    def run(self):
+    def run(self) -> None:
         """Start the command line process."""
-        cmd = [get_matrix_binary(), "-i", self.inputFile]
-        if self.outputFile != "":
-            cmd += ["-o", self.outputFile]
-        for key, val in self.meta_data.items():
-            if key in matr1x.VALID_META_KEYS.keys() and val:
-                if matr1x.VALID_META_KEYS[key]:
-                    # only pass on allowed (editable) meta keys and only if
-                    # data is not None
-                    cmd += [f"--dc_{key.lower()}", val]
-        if hasattr(self, "tmp_config_file"):
-            cmd += ["--optional-config", self.tmp_config_file]
-        print(subprocess.list2cmdline(cmd))
-        ret = self.run_as_fg_process(cmd)
-        print(f"matrix ended with returncode: {ret}")
-        if hasattr(self, "tmp_config_file"):
-            os.remove(self.tmp_config_file)
+        # Create temporary config file from dictionary
+        tmp_config_file = None
+        if hasattr(self, "config_dict") and self.config_dict:
+            # Use ConfigEditWidget's write_config method to write the dictionary
+            tmp_config_file = self.config_editor.write_config(self.config_dict)
+
+        try:
+            cmd = [get_matrix_binary(), "-i", self.inputFile]
+            if self.outputFile != "":
+                cmd += ["-o", self.outputFile]
+            for key, val in self.meta_data.items():
+                if key in matr1x.VALID_META_KEYS.keys() and val:
+                    if matr1x.VALID_META_KEYS[key]:
+                        # only pass on allowed (editable) meta keys and only if
+                        # data is not None
+                        cmd += [f"--dc_{key.lower()}", val]
+            if tmp_config_file:
+                cmd += ["--optional-config", tmp_config_file]
+            print(subprocess.list2cmdline(cmd))
+            ret = self.run_as_fg_process(cmd)
+            print(f"matrix ended with returncode: {ret}")
+        finally:
+            # Clean up temporary config file
+            if tmp_config_file and os.path.exists(tmp_config_file):
+                os.remove(tmp_config_file)
 
     def run_as_fg_process(self, *args, **kwargs):
         # Code of this function was adapted from
@@ -250,10 +356,9 @@ class MainWindow(QMainWindow):
         self.initUI()
         self.sg = None
         self.running = False
-        self.meas_queue = {}
         self.sys_meta_data = {}
         self.measurement_thread = ExecThread()
-        self.measurement_thread.filename_received.connect(self.outputEdit.setText)
+        self.measurement_thread.filename_received.connect(self.current_file.setText)
         self.measurement_thread.finished.connect(self.processFinished)
 
         # allow to store the settings
@@ -297,7 +402,7 @@ class MainWindow(QMainWindow):
                 if len(urls) == 1:
                     file_path = urls[0].toLocalFile()
                     if self.is_valid_extension(file_path):
-                        self.inputEdit.setText(file_path)
+                        self.input_file.setText(file_path)
                     else:
                         QMessageBox.warning(
                             self,
@@ -324,7 +429,7 @@ class MainWindow(QMainWindow):
             # close sweep generator as well
             if self.sg is not None:
                 self.sg.close()
-            # clean up temporary config files
+            # clean up measurement list
             while self.meas_list.count() > 0:
                 self.removeMeasurement()
             self.save_window_state()
@@ -401,9 +506,6 @@ class MainWindow(QMainWindow):
         """Initialize the basic GUI for the graphical version of matrix."""
         self.setWindowTitle("Matrix GUI")
         self.setWindowIcon(MIcon("matr1x-matrix-gui.png"))
-        self.inputEdit = MLineEdit()
-        self.inputEdit.setReadOnly(True)
-        self.inputEdit.textChanged.connect(self.parseSystemFromInputFile)
         # About
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
@@ -435,19 +537,16 @@ class MainWindow(QMainWindow):
         )
         self.sweep_action.triggered.connect(self.startSweepGenerator)
         # File: Autosave
-        self.outputEdit = MLineEdit()
-        self.outputEdit.setReadOnly(True)
-        self.outputAutoGen = QAction(MIcon("SP_DriveHDIcon"), "Autosave", self)
-        self.outputAutoGen.setCheckable(True)
-        autogen = True
-        self.outputAutoGen.setChecked(autogen)
-        self.outputAutoGen.setText("Auto-filename")
+        self.auto_filename_action = QAction(
+            MIcon("SP_DriveHDIcon"), "Auto-filename", self
+        )
+        self.auto_filename_action.setCheckable(True)
+        self.auto_filename_action.toggled.connect(self.updateAutoGenFilename)
         # File: Save as...
         self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_as_action.triggered.connect(self.showOutputDialog)
-        self.outputAutoGen.toggled.connect(self.updateAutoGenFilename)
-        self.updateAutoGenFilename(autogen)
+        self.outputEdit = QLineEdit()
         # Quit
         self.quit_action = QAction("Quit", self)
         if os.name == "nt":
@@ -455,9 +554,14 @@ class MainWindow(QMainWindow):
         else:
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
+        # Control: Queue
+        self.queue_action = QAction(MIcon("CHAR_+"), "Queue", self)
+        self.queue_action.triggered.connect(self.queueMeasurement)
+        self.queue_action.setEnabled(False)
         # Control: Start
         self.start_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
-        self.start_action.triggered.connect(self.queueMeasurement)
+        self.start_action.triggered.connect(self.runMatrix)
+        self.start_action.setEnabled(False)
 
         self.w_dockable_metadata = QDockWidget("Metadata", self)
         self.w_meta_view = MetaDataDialog()
@@ -479,12 +583,7 @@ class MainWindow(QMainWindow):
         inner_measurement_layout = QHBoxLayout()
         inner_measurement_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.meas_list = QListWidget()
-        self.meas_list.setSelectionMode(
-            QListWidget.SelectionMode.SingleSelection)
-        self.meas_list.setDragDropMode(
-            QAbstractItemView.DragDropMode.InternalMove)
-        self.meas_list.itemClicked.connect(self.selectionChanged)
+        self.meas_list = QueueListWidget()
 
         self.remove_button = QToolButton()
         self.remove_button.setStyleSheet(
@@ -514,24 +613,28 @@ class MainWindow(QMainWindow):
 
         self.create_menu()
         self.create_toolbar()
-
-        # Build the main elements
-        fGrid = QVBoxLayout()
-        fGrid.addWidget(QLabel("Input"))
-        fGrid.addWidget(self.inputEdit)
-        fGrid.addWidget(QLabel("Queue"))
-        fGrid.addWidget(self.measurements_container)
-        fGrid.addWidget(QLabel("Output"))
-        fGrid.addWidget(self.outputEdit)
-
-        vBox = QVBoxLayout()
-        vBox.addLayout(fGrid)
-        vertical_stretch = QSpacerItem(
-            1, 1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding
-        )
-        vBox.addItem(vertical_stretch)
+        central_layout = QVBoxLayout()
+        self.input_file = LabelWithSignal()
+        self.input_file.textChanged.connect(self.parseSystemFromInputFile)
+        input_line = QHBoxLayout()
+        input_line.addWidget(QLabel("<b>Input: </b>"))
+        input_line.addWidget(self.input_file)
+        input_line.addStretch()
+        central_layout.addLayout(input_line)
+        output_line = QHBoxLayout()
+        output_line.addWidget(QLabel("<b>Output: </b>"))
+        output_line.addWidget(self.outputEdit)
+        central_layout.addLayout(output_line)
+        central_layout.addWidget(QLabel("Queue"))
+        central_layout.addWidget(self.measurements_container)
+        current_line = QHBoxLayout()
+        current_line.addWidget(QLabel("<b>Current: </b>"))
+        self.current_file = QLabel()
+        current_line.addWidget(self.current_file)
+        current_line.addStretch()
+        central_layout.addLayout(current_line)
         self.widget = QWidget()
-        self.widget.setLayout(vBox)
+        self.widget.setLayout(central_layout)
         self.setCentralWidget(self.widget)
 
         self.addDockWidget(
@@ -553,10 +656,11 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.load_action)
         self.toolbar.addAction(self.sweep_action)
         self.toolbar.addSeparator()
-        self.toolbar.addAction(self.outputAutoGen)
+        self.toolbar.addAction(self.auto_filename_action)
         self.toolbar.addAction(self.save_as_action)
         self.toolbar.addWidget(empty)
         self.toolbar.addAction(self.start_action)
+        self.toolbar.addAction(self.queue_action)
         self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
         self.toolbar.addWidget(empty2)
         self.toolbar.addAction(self.preview_action)
@@ -576,7 +680,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.load_action)
         file_menu.addAction(self.sweep_action)
         file_menu.addSeparator()
-        file_menu.addAction(self.outputAutoGen)
+        file_menu.addAction(self.auto_filename_action)
         file_menu.addAction(self.save_as_action)
         file_menu.addSeparator()
         file_menu.addAction(self.remove_action)
@@ -586,6 +690,7 @@ class MainWindow(QMainWindow):
         control_menu = menu.addMenu("&Control")
         assert control_menu is not None
         control_menu.addAction(self.start_action)
+        control_menu.addAction(self.queue_action)
         control_menu.addSeparator()
         control_menu.addAction(self.preview_action)
         #
@@ -599,22 +704,14 @@ class MainWindow(QMainWindow):
         help_menu.addAction(self.about_action)
 
     def updateAutoGenFilename(self, state):
-        """Disable output filename field while running."""
+        """Fill in output filename if required."""
         if state is True:
-            # disable output filename fields
-            self.outputEdit.setEnabled(False)
-            self.save_as_action.setEnabled(False)
-        if state is False:
-            self.outputEdit.setEnabled(True)
-            self.save_as_action.setEnabled(True)
-        if self.outputAutoGen.isChecked():
-            self.outputEdit.setReadOnly(True)
-        else:
-            self.outputEdit.setReadOnly(False)
+            filename, extension = os.path.splitext(self.input_file.text())
+            self.outputEdit.setText(filename)
 
     def showInputDialog(self):
         """Open a QFileDialog with filter for input files."""
-        folder = self.inputEdit.text()
+        folder = self.input_file.text()
         if "" == folder:
             folder = self.outputEdit.text()
             if "" == folder:
@@ -624,13 +721,16 @@ class MainWindow(QMainWindow):
             self, "Select input file", folder, "Sweep 8 files (*.sw8);;t files (*.*t)"
         )
         if "" != filename[0]:
-            self.inputEdit.setText(filename[0])
+            self.input_file.setText(filename[0])
+            if self.auto_filename_action.isChecked():
+                filename, extension = os.path.splitext(self.input_file.text())
+                self.outputEdit.setText(filename)
 
     def showOutputDialog(self):
         """Open a QFileDialog with filter for output files."""
         folder = self.outputEdit.text()
         if "" == folder:
-            folder = self.inputEdit.text()
+            folder = self.input_file.text()
             if "" == folder:
                 folder = matr1x.usersfolder
         filename = QFileDialog.getSaveFileName(
@@ -644,7 +744,7 @@ class MainWindow(QMainWindow):
         """Run sweep Generator already initialized with system."""
         if self.sg is None:
             self.sg = sweep_generator.MainWindow(
-                filename=self.inputEdit.text(), inputcb=self.sGsetInputFile
+                filename=self.input_file.text(), inputcb=self.input_file.setText
             )
             self.sg.show()
         elif self.sg.isVisible() is False:
@@ -653,19 +753,6 @@ class MainWindow(QMainWindow):
             self.sg.showNormal()
         else:
             self.sg.raise_()
-
-    def sGsetInputFile(self, filename):
-        """Can be called externally for setting the input file."""
-        self.inputEdit.setText(filename)
-
-    def selectionChanged(self, item):
-        """Display correct information from measurement queue."""
-        item_index = int(item.text().split("-")[0])
-        elem = self.meas_queue[item_index]
-        self.inputEdit.setText(elem[0])
-        if elem[1] != "":
-            self.outputEdit.setText(elem[1])
-        self.w_meta_view.load_initial_values(elem[2])
 
     def parseSystemFromInputFile(self, text):
         """Parse the system from an input file."""
@@ -741,17 +828,12 @@ class MainWindow(QMainWindow):
             self.config_editor.set_full_system_list(systemfile)
             self.config_editor.set_system_info(self._cached_system_info or {})
             self.config_editor.update_data()
+        self.queue_action.setEnabled(True)
 
     def queueMeasurement(self):
         """Queue a measurement into the measurement menu."""
-        inputFile = self.inputEdit.text()
-        if self.outputAutoGen.isChecked():
-            outputFile = ""
-        else:
-            outputFile = self.outputEdit.text()
-        if "" == inputFile:
-            QMessageBox.warning(self, "Input file error!", "No input file specified.")
-            return
+        inputFile = self.input_file.text()
+        outputFile = self.outputEdit.text()
         if not exists(inputFile):
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
             return
@@ -759,31 +841,19 @@ class MainWindow(QMainWindow):
         for key in metadata.keys():
             self.sys_meta_data[key] = metadata[key]
         # create parameter set for measurement, make sure to copy the meta data
-        tmp_config_file_path = self.config_editor.write_config()
-        param = (inputFile, outputFile, self.sys_meta_data.copy(), tmp_config_file_path)
-        index = len(self.meas_queue)
-        self.meas_queue[index] = param
-        self.meas_list.addItem(
-            f"{index} - {os.path.basename(inputFile)} - "
-            f"{os.path.basename(outputFile)} - {tmp_config_file_path}"
+        config_dict = self.config_editor.get_config_dict()
+        parameters = (
+            inputFile,
+            outputFile,
+            self.sys_meta_data.copy(),
+            config_dict,
         )
-        if self.meas_list.count() > 0:
-            last_item = self.meas_list.item(self.meas_list.count() - 1)
-            self.meas_list.scrollToItem(last_item)
-        if self.running is True:
-            pass
-        else:
-            self.runMatrix()
-
-    def stopQueue(self):
-        """Reset the queue button and reconnects to running functionality."""
-        self.running = False
+        self.meas_list.add_parameters(parameters)
+        self.start_action.setEnabled(True)
 
     def runMatrix(self):
         """Start running the queued measurements."""
         self.running = True
-        self.start_action.setIcon(MIcon("CHAR_+"))
-        self.start_action.setText("Queue")
         self.runNextMeasurement()
 
     def keyPressEvent(self, a0: Optional[QKeyEvent]):
@@ -796,51 +866,40 @@ class MainWindow(QMainWindow):
         super().keyPressEvent(a0)
 
     def removeMeasurement(self):
-        """Remove selected or last item from meas_list."""
+        """Remove selected or last item from measurement list."""
         selected = self.meas_list.selectedItems()
         if len(selected) > 0:
-            row = self.meas_list.row(selected[0])
-            item = int(self.meas_list.takeItem(row).text().split("-")[0])
+            self.meas_list.takeItem(self.meas_list.row(selected[0]))
         elif 0 < self.meas_list.count():  # remove last item
-            item = int(
-                self.meas_list.takeItem(self.meas_list.count() - 1).text().split("-")[0]
-            )
-        else:
-            return
-
-        if item in self.meas_queue:
-            _, _, _, tmp_config_file = self.meas_queue.pop(item)
-            if os.path.exists(tmp_config_file):
-                os.remove(tmp_config_file)
+            self.meas_list.takeItem(self.meas_list.count() - 1)
+            self.start_action.setEnabled(False)
 
     def runNextMeasurement(self):
         """Run the next queued measurement."""
-        item = int(self.meas_list.takeItem(0).text().split("-")[0])
-        self.measurement_thread.set_param(*self.meas_queue[item])
+        self.measurement_thread.set_param(
+            self.meas_list.parameters(0), self.config_editor
+        )
         self.measurement_thread.start()
 
     def processFinished(self):
-        """Properly finish a mesurement.
+        """
+        Properly finish a mesurement.
 
         Called when the current measurement is finished, checks whether
-        there are further measurements in the queue and runs them in case
-        After all measurements have been run, resets the queue.
+        there are further measurements in the queue and runs them in case.
         """
+        self.meas_list.takeItem(0)
         if self.meas_list.count() > 0 and self.running is True:
             self.runNextMeasurement()
         else:
-            self.start_action.setIcon(MIcon("CUSTOM_Play"))
-            self.start_action.setText("Start")
+            self.start_action.setEnabled(False)
             self.running = False
-        # if all measurements were run, reset the measurement counter
-        if self.meas_list.count() == 0:
-            self.meas_queue = {}
 
     def openPreview(self):
         """Open a window and preview the (running) measurement."""
-        output = self.outputEdit.text()
+        output = self.current_file.text()
         if "" == output:  # try to obtain last filename from input file
-            infile = self.inputEdit.text()
+            infile = self.input_file.text()
             if "" == infile:
                 QMessageBox.warning(
                     self, "Preview error!", "Please specify a filename."
