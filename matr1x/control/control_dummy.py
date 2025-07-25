@@ -16,6 +16,7 @@
 """Provides an example and test implementation of a control GUI."""
 
 import collections
+import threading
 import time
 
 import numpy
@@ -106,6 +107,10 @@ class exampleDict(GuiDict):
         kwargs={"p1": "i1", "p2": 0, "p5": 5.5, "p6": True},
     )
 
+    def __init__(self):
+        super().__init__()
+        self.lock = threading.Lock()
+
     def create_GUI(self):
         """Build the actual GUI.
 
@@ -149,12 +154,13 @@ class exampleDict(GuiDict):
         count : int
             The current iteration count.
         """
-        self["V1"].value = self.S.devs["dummy"].p1
-        self["V2"].value = self.S.devs["dummy"].p2
-        self["V4"].value = self.S.devs["dummy"].p6
-        self["toggle"].value = self.S.devs["dummy"].p7
-        # update hidable items also when not shown
-        self["V3"].value = self.S.devs["dummy"].p5
+        with self.lock:
+            self["V1"].value = self.S.devs["dummy"].p1
+            self["V2"].value = self.S.devs["dummy"].p2
+            self["V4"].value = self.S.devs["dummy"].p6
+            self["toggle"].value = self.S.devs["dummy"].p7
+            # update hidable items also when not shown
+            self["V3"].value = self.S.devs["dummy"].p5
 
         if self["V4"].value is False:
             # emit panic signel
@@ -163,9 +169,10 @@ class exampleDict(GuiDict):
     def write(self):
         """Set values in the hardware."""
         self.setV1(self["V1"].getGUIvalue())
-        self.S.devs["dummy"].p2 = self["V2"].getGUIvalue()
-        self.S.devs["dummy"].p5 = self["V3"].getGUIvalue()
-        self.S.devs["dummy"].p6 = self["V4"].getGUIvalue()
+        with self.lock:
+            self.S.devs["dummy"].p2 = self["V2"].getGUIvalue()
+            self.S.devs["dummy"].p5 = self["V3"].getGUIvalue()
+            self.S.devs["dummy"].p6 = self["V4"].getGUIvalue()
 
     @catchEmitError
     def set_toggle(self, state):
@@ -179,11 +186,13 @@ class exampleDict(GuiDict):
         # if it is checked
         if state:
             # here should go code to set the feature in the hardware
-            self.S.devs["dummy"].p7 = True
+            with self.lock:
+                self.S.devs["dummy"].p7 = True
         # if it is unchecked
         else:
             # here should go code to unset the feature in the hardware
-            self.S.devs["dummy"].p7 = False
+            with self.lock:
+                self.S.devs["dummy"].p7 = False
             raise AttributeError("Test error inside a set function")
 
     # example functions
@@ -195,7 +204,8 @@ class exampleDict(GuiDict):
         val : str
             The value to set.
         """
-        self.S.devs["dummy"].p1 = val
+        with self.lock:
+            self.S.devs["dummy"].p1 = val
 
     def setV2V3(self, val, digits=None):
         """Provide example function 2.
@@ -207,8 +217,9 @@ class exampleDict(GuiDict):
         digits : int, optional
             The number of digits to round to.
         """
-        self.S.devs["dummy"].p2 = round(val[0], digits)
-        self.S.devs["dummy"].p5 = round(val[1], digits)
+        with self.lock:
+            self.S.devs["dummy"].p2 = round(val[0], digits)
+            self.S.devs["dummy"].p5 = round(val[1], digits)
 
     def getV2V3(self):
         """Get V2 and V3 values.
@@ -228,7 +239,8 @@ class exampleDict(GuiDict):
         bool
             True if V2 is equal to device value, False otherwise.
         """
-        return self["V2"].value == self.S.devs["dummy"].p2
+        with self.lock:
+            return self["V2"].value == self.S.devs["dummy"].p2
 
     def panic(self):
         """
