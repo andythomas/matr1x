@@ -42,7 +42,12 @@ system.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
 #   Otherwise the import would block any other use of the devices
 #   Make sure to adhere to this or errors will occur!
 # ========================================================================
-system.add_dev("gui", control_dummy.clientdevice, ("TCPIP::localhost::8897::SOCKET",))
+system.add_dev(
+    "gui",
+    control_dummy.clientdevice,
+    ("TCPIP::localhost::8897::SOCKET",),
+    kwargs={"name": "control-dummy"},
+)
 # ============================
 # define columns for measurement
 # ============================

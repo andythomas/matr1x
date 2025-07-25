@@ -105,7 +105,7 @@ def device_query(device_handle, config_params):
             else:
                 devid = device_handle.__class__.__name__
             if hasattr(device_handle, "adapter"):  # it's a pymeasure Instrument
-                devid += device_handle.connection.resource_name
+                devid += f" {device_handle.adapter.connection.resource_name}"
             print(f"exception during config query of {devid}")
             raise
         retquery[k] = line
