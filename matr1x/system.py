@@ -552,7 +552,7 @@ class System:
         """
         Add a parameter to the list of parameters.
 
-        For definition of the passed parameters, see :ref:`Parameter class<parameter>`.
+        For definition of the passed parameters, see class :class:`Parameter`.
         """
         self.parameters.append(Parameter(name, unit,
                                          setter=setter,
