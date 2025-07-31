@@ -20,6 +20,8 @@ This module implements full control of the Keithley 2611A SMU, including
 voltage/current sourcing and measurement, range control, and various sensing
 configurations.
 """
+from typing import Optional, Union
+
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
@@ -71,21 +73,16 @@ class Keithley2611A(VisaDevice):
         and output state.
         """
         if "write_termination" not in kwargs:
-            kwargs["write_termination"] = "\n\r"
+            kwargs["write_termination"] = "\n"
         if "read_termination" not in kwargs:
-            kwargs["read_termination"] = "\n\r"
+            kwargs["read_termination"] = "\n"
         super().__init__(interface, **kwargs)
-        # ignore telnet commands sent by the instrument
-        try:
-            self.read(9)
-        except Exception:
-            pass
         # after initialization get the source function to determine
         # whether voltage or current is the sourced
         # get the sourceMode 0 -> OUTPUT_DCAMPS (sourceCurrent)
         # 1 -> OUTPUT_DCAMPS (sourceVoltage)
         self.write("print(smua.source.func)")
-        # can't directly pars the value to int
+        # python cannot directly parse float-string to int
         self.sourceModeInt = int(float(self.read()))
         # get fourWire 0 -> senseMode local (2wire)
         # 1 -> senseMode remote (4wire)
@@ -93,7 +90,7 @@ class Keithley2611A(VisaDevice):
         # can't directly pars the output to bool
         self.fourWire = bool(float(self.read()))
         # get output status
-        self.write("print(smua.source.func)")
+        self.write("print(smua.source.output)")
         # can't directly pars the value to int
         self.outputState = int(float(self.read()))
 
@@ -101,18 +98,18 @@ class Keithley2611A(VisaDevice):
     @synchronized
     def configure(
         self,
-        sourceMode=None,
-        senseMode=None,
-        fourWire=None,
-        senseAutoRange=None,
-        senseRange=None,
-        sourceAutoRange=None,
-        sourceRange=None,
-        senseLimit=None,
-        output=None,
-        delayAuto=None,
-        delay=None,
-        reset=False,
+        sourceMode: Optional[str] = None,
+        senseMode: Optional[str] = None,
+        fourWire: Optional[bool] = None,
+        senseAutoRange: Optional[bool] = None,
+        senseRange: Optional[float] = None,
+        sourceAutoRange: Optional[bool] = None,
+        sourceRange: Optional[float] = None,
+        senseLimit: Optional[float] = None,
+        output: bool = False,
+        delayAuto: bool = False,
+        delay: Optional[Union[bool, float]] = None,
+        reset: bool = False,
     ):
         """
         Configure the Keithley 2611A to source and sense parameters.
@@ -135,9 +132,9 @@ class Keithley2611A(VisaDevice):
             Manual range for sourcing, device selects next inclusive range
         senseLimit : float, optional
             Voltage or current limit for the sense circuit
-        output : bool, optional
+        output : bool, default False
             Whether to enable the output after configuration
-        delayAuto : bool, optional
+        delayAuto : bool, default False
             Whether to automatically set the stabilization delay
         delay : float or bool, optional
             Manual delay in seconds for output stabilization, or False to disable
