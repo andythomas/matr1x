@@ -949,9 +949,13 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
     None
     """
     # import required dependencies
+    import logging
     import socket
     import threading
     import traceback
+
+    logger = logging.getLogger("matrix_script_process")
+
 
     # define killable thread to execute the script
     class ExecThread(threading.Thread):
@@ -1475,7 +1479,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 else:
                     pattern = f"__input_{input_type}:{base_message}__"
 
-            print(pattern)
+            print(pattern, end="")
 
             while (self.recv == "" or self.recv_flag is True):
                 time.sleep(0.1)
@@ -1486,7 +1490,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             # remove trailling line feed
             ret = self.recv.strip()
             # print output
-            print(f"User input received: {ret}")
+            logger.info(f"User input received: {ret}")
             self.recv = ""
             return ret
 

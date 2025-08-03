@@ -26,6 +26,7 @@ control-guis.
 
 import datetime
 import json
+import logging
 import os
 import platform
 import subprocess
@@ -3046,6 +3047,7 @@ class TimeoutDialogBase(QDialog):
             The parent widget of the dialog.
         timeout : float, optional
             Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+            0 is interpreted as infinity.
         default_value : Any, optional
             Default value to show in input field.
         """
@@ -3053,8 +3055,8 @@ class TimeoutDialogBase(QDialog):
         self.setWindowTitle("Matrix-script input")
 
         self.default_value = default_value
-        self.timeout_value = timeout
         self.user_responded = False  # Track if user clicked a button
+        self.timeout = timeout if timeout else float("inf")
 
         self.label = QLabel(query, self)
 
@@ -3062,7 +3064,7 @@ class TimeoutDialogBase(QDialog):
         self.input_widget = None
 
         self.timer_label = QLabel("", self)
-        self.timer_label.setVisible(timeout != float("inf"))
+        self.timer_label.setVisible(self.timeout != float("inf"))
 
         self.ok_button = QPushButton("Send input", self)
         self.abort_button = QPushButton("Abort script", self)
@@ -3076,8 +3078,8 @@ class TimeoutDialogBase(QDialog):
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
 
         # Set up timer if timeout is finite
-        if timeout != float("inf"):
-            self.remaining_time = timeout * 1000  # Convert to milliseconds
+        if self.timeout != float("inf"):
+            self.remaining_time = self.timeout * 1000  # Convert to milliseconds
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.update_timer)
             self.timer.start(100)  # Update every 100ms for better precision
@@ -3169,6 +3171,7 @@ class TextInputDialog(TimeoutDialogBase):
             The parent widget of the dialog.
         timeout : float, optional
             Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+            0 is interpreted as infinity.
         default_value : str, optional
             Default value to show in input field.
         """
@@ -3220,6 +3223,7 @@ class NumericalInputDialog(TimeoutDialogBase):
             The parent widget of the dialog.
         timeout : float, optional
             Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+            0 is interpreted as infinity.
         default_value : float, optional
             Default value to show in input field.
         min_value : float, optional
@@ -3286,7 +3290,7 @@ class YesNoAbortDialog(QMessageBox):
             The parent widget of the dialog.
         timeout : float, optional
             Timeout in seconds before dialog automatically returns default_value.
-            Default is infinity (no timeout).
+            Default is infinity (no timeout). 0 is interpreted as infinity.
         default_value : str, optional
             Default value to return if timeout occurs. Should be "Yes", "No", or empty.
             Default is True.
@@ -3296,19 +3300,22 @@ class YesNoAbortDialog(QMessageBox):
         self.setText(question)
         self.setIcon(QMessageBox.Icon.Question)
 
+        self.logger = logging.getLogger("YesNoAbortDialog")
+
         # Normalize default value and ensure it's either "yes" or "no"
         self.default_value = (
             default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
         )
         self.timeout_occurred = False  # Required for YesNoAbortDialog functionality
         self.user_responded = False  # Track if user clicked a button
+        self.timeout = timeout if timeout else float("inf")
 
         # Add custom buttons with default button indication when timeout is set
         button_text_yes = "Yes"
         button_text_no = "No"
 
         # If timeout is set, add visual indications to the default button
-        if timeout != float("inf"):
+        if self.timeout != float("inf"):
             if self.default_value == "yes":
                 button_text_yes = "Yes (Default)"
             else:
@@ -3331,7 +3338,7 @@ class YesNoAbortDialog(QMessageBox):
         self.abort_button.clicked.connect(self._button_clicked)
 
         # Simple styling for default button if timeout is set
-        if timeout != float("inf"):
+        if self.timeout != float("inf"):
 
             # Set bold font for the default button
             default_button = (
@@ -3345,11 +3352,12 @@ class YesNoAbortDialog(QMessageBox):
             self.setDefaultButton(default_button)
 
             # Set up timer and label - use milliseconds for better precision
-            self.timer_label = QLabel(f"Time remaining: {int(timeout)} seconds", self)
+            self.timer_label = QLabel(
+                f"Time remaining: {int(self.timeout)} seconds", self
+            )
             self.layout().addWidget(self.timer_label, 1, 1, 1, 3)
 
-            self.remaining_time = timeout * 1000  # Convert to milliseconds
-            self.original_timeout = timeout
+            self.remaining_time = self.timeout * 1000  # Convert to milliseconds
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.update_timer)
             self.timer.start(100)  # Update every 100ms for better precision
@@ -3411,7 +3419,7 @@ class YesNoAbortDialog(QMessageBox):
 
         # Check timeout first, but only if user didn't respond
         if self.timeout_occurred and not self.user_responded:
-            print(
+            self.logger.info(
                 f"Dialog timeout occurred - automatically selected: {self.default_value}"
             )
             if self.default_value in ["yes", "no"]:

@@ -1466,10 +1466,8 @@ class CustomQsciAPI(QsciAPIs):
         "input(query: str = '', timeout: float = float('inf'), default_value: str = '')",
         "input_bool(query: str = '', timeout: float = float('inf'), default_value: str = 'yes')",
         "input_numerical(query: str = '', timeout: float = float('inf'), default_value: float = 0.0, min_value: float=-100e9, max_value: float=100e9, step: float=1.0, decimals: int=2)",
-        "init_datafile(filename: str, comment: str = '', append: bool = False, ",
-        "print_header: bool = True, ntot: int = None)",
-        "measure_system(print_setpoint: bool = True, print_data: bool = True, "
-        "print_telemetry: bool = True)",
+        "init_datafile(filename: str, comment: str = '', append: bool = False, print_header: bool = True, ntot: int = None)",
+        "measure_system(print_setpoint: bool = True, print_data: bool = True, print_telemetry: bool = True)",
         "set_value(value_index: int, value)",
         "set_value(name: str, value)",
         "read_value(value_index: int)",
@@ -1673,7 +1671,7 @@ class ExecThread(QThread):
                             )
                             decimals = None  # Use default (None) on error
 
-                print(
+                logger.info(
                     f"Requesting input type: {input_type}, Query: {strlabel}, "
                     f"Timeout: {timeout}, Default: {default_value}, Min: {min_value}, Max: {max_value}, Step: {step}"
                 )
