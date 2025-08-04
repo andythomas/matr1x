@@ -90,9 +90,9 @@ class gitDevice:
             A text representation of the changes in the repository.
         """
         diff = self.repo.diff()  # Get the diff object
-        diff_text = ''
+        diff_text = ""
         for patch in diff:
-            diff_text += f'Diff for {patch.delta.new_file.path}:\n'
+            diff_text += f"Diff for {patch.delta.new_file.path}:\n"
             if patch.text is not None:
                 diff_text += patch.text + "\n"
         return diff_text
@@ -132,32 +132,32 @@ class gitDevice:
         """
         status = self.repo.status()
         status_output = {
-            'staged': [],
-            'modified': [],
-            'untracked': [],
-            'deleted': [],
-            'renamed': [],
-            'copied': [],
-            'typechanged': [],
-            'ignored': [],
-            'unmodified': []
+            "staged": [],
+            "modified": [],
+            "untracked": [],
+            "deleted": [],
+            "renamed": [],
+            "copied": [],
+            "typechanged": [],
+            "ignored": [],
+            "unmodified": [],
         }
 
         for filepath, flags in status.items():
             if flags & pygit2.GIT_STATUS_INDEX_NEW:
-                status_output['staged'].append(filepath)
+                status_output["staged"].append(filepath)
             elif flags & pygit2.GIT_STATUS_INDEX_MODIFIED:
-                status_output['staged'].append(filepath)
+                status_output["staged"].append(filepath)
             elif flags & pygit2.GIT_STATUS_INDEX_DELETED:
-                status_output['staged'].append(filepath)
+                status_output["staged"].append(filepath)
             elif flags & pygit2.GIT_STATUS_WT_MODIFIED:
-                status_output['modified'].append(filepath)
+                status_output["modified"].append(filepath)
             elif flags & pygit2.GIT_STATUS_WT_NEW:
-                status_output['untracked'].append(filepath)
+                status_output["untracked"].append(filepath)
             elif flags & pygit2.GIT_STATUS_WT_DELETED:
-                status_output['deleted'].append(filepath)
+                status_output["deleted"].append(filepath)
             elif flags & pygit2.GIT_STATUS_INDEX_RENAMED:
-                status_output['renamed'].append(filepath)
+                status_output["renamed"].append(filepath)
             # Check if the attribute exists before using it
             elif (
                 hasattr(pygit2, "GIT_STATUS_INDEX_COPIED")
@@ -165,14 +165,11 @@ class gitDevice:
             ):
                 status_output["copied"].append(filepath)
             # Check if the attribute exists before usinsg it
-            elif (
-                hasattr(pygit2, "GIT_STATUS_TYPECHANGE")
-                and flags & pygit2.GIT_STATUS_TYPECHANGE
-            ):
+            elif hasattr(pygit2, "GIT_STATUS_TYPECHANGE") and flags & pygit2.GIT_STATUS_TYPECHANGE:
                 status_output["typechanged"].append(filepath)
             elif flags & pygit2.GIT_STATUS_IGNORED:
-                status_output['ignored'].append(filepath)
+                status_output["ignored"].append(filepath)
             elif flags & pygit2.GIT_STATUS_CURRENT:
-                status_output['unmodified'].append(filepath)
+                status_output["unmodified"].append(filepath)
 
         return status_output

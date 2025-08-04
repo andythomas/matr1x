@@ -434,9 +434,7 @@ class PNA5225b(VisaDevice):
             data_bit = data[i * byte_width : (i + 1) * byte_width]
             values.append(unpack(precdict[precision][2], data_bit))
         # add ravel to remove unnecessary dimensions of the array
-        return (
-            np.array(values, dtype=precdict[precision][3]).reshape((-1, 2)).transpose()
-        )
+        return np.array(values, dtype=precdict[precision][3]).reshape((-1, 2)).transpose()
 
     @synchronized
     def getSweepData(self, channel):

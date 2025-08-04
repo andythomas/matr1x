@@ -73,9 +73,11 @@ class NanotecPD4(VisaDevice):
         )
         self.steps_per_deg = steps_per_deg
         self.zero_offset = zero_offset
-        # lower limit defines the step number with the smallest distance to the reference point (e.g. the reference point)
+        # lower limit defines the step number with the smallest
+        # distance to the reference point (e.g. the reference point)
         self.steps_lower_limit = steps_lower_limit
-        # upper limit defines the step number with the greatest distance to the reference point
+        # upper limit defines the step number with the greatest
+        # distance to the reference point
         self.steps_upper_limit = steps_upper_limit
         self.pos_mode = pos_mode
 
@@ -272,9 +274,7 @@ class NanotecPD4(VisaDevice):
             # status will be returned on ending, so always block or
             # communication will be confused.
             self.moving = True
-            self.connection.timeout = int(
-                1.5 * abs(1e3 * (int(moves) - position) / speed) + 1e3
-            )
+            self.connection.timeout = int(1.5 * abs(1e3 * (int(moves) - position) / speed) + 1e3)
             while self.moving:
                 try:
                     returnStatement = self.read()
@@ -336,9 +336,7 @@ class NanotecPD4(VisaDevice):
         position = self.readMoves()
         self.readInitSpeed()
         if unit == "deg":
-            moves = int(
-                float(self.zero_offset) + float(pos) * float(self.steps_per_deg)
-            )
+            moves = int(float(self.zero_offset) + float(pos) * float(self.steps_per_deg))
         else:
             moves = int(pos)
         mode = self.pos_mode
@@ -352,9 +350,7 @@ class NanotecPD4(VisaDevice):
             moves = int(abs(moves))
             self.setRotDir(rotDir)
         else:
-            moves = clip(
-                moves, int(self.steps_upper_limit), int(self.steps_lower_limit)
-            )
+            moves = clip(moves, int(self.steps_upper_limit), int(self.steps_lower_limit))
         self.query("#1s" + str(int(moves)))  # sets moves
         self.startRecord()
 

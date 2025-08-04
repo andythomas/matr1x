@@ -182,8 +182,7 @@ class QRangeWidget(QGroupBox):
             self.slider.setValue(val)
 
     def _update_text(self):
-        self.label.setText(
-            f"{self.base_title} - {self.value()} ({self.maximum()+1})")
+        self.label.setText(f"{self.base_title} - {self.value()} ({self.maximum() + 1})")
 
     def _value_changed(self, val):
         self._update_text()
@@ -275,9 +274,7 @@ class FileLineEdit(QLineEdit):
         self.spec = spec
         # Create the QLineEdit and QPushBottn
         self.dialog_button = QToolButton(self)
-        self.dialog_button.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
-        )
+        self.dialog_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon))
         self.dialog_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.dialog_button.setToolTip("Open file dialog")
 
@@ -643,9 +640,7 @@ class MetaViewerWidget(QDockWidget):
                     return (cast_type, [i for i in map(cast_type[0], cast_split[2:])])
                 except TypeError:
                     raise TypeError("Wrong value specified for range config setting")
-            if cast_type[0] is str and (
-                cast_split[1] == "folder" or cast_split[1] == "file"
-            ):
+            if cast_type[0] is str and (cast_split[1] == "folder" or cast_split[1] == "file"):
                 # file/folder path
                 return (cast_type, cast_split[1])
             # something went wrong with parsing the settings, use default
@@ -672,9 +667,7 @@ class MetaViewerWidget(QDockWidget):
                         if self._type:
                             cast_type = self._type
                     self.child_items.append(
-                        MetaViewerWidget.TreeItem(
-                            child_key, child_value, cast_type, self
-                        )
+                        MetaViewerWidget.TreeItem(child_key, child_value, cast_type, self)
                     )
             elif isinstance(self.value, (tuple, list, np.ndarray)):
                 # for lists with finite length also use nest view
@@ -689,9 +682,7 @@ class MetaViewerWidget(QDockWidget):
                 if len(self.value) > 1:
                     for i, child_value in enumerate(self.value):
                         self.child_items.append(
-                            MetaViewerWidget.TreeItem(
-                                f"{i}", child_value, cast_type, parent=self
-                            )
+                            MetaViewerWidget.TreeItem(f"{i}", child_value, cast_type, parent=self)
                         )
                 elif len(self.value) == 1:
                     # only list with length one, use that element only
@@ -1091,9 +1082,7 @@ class MetaViewerWidget(QDockWidget):
             """
             return 2
 
-    def __init__(
-        self, metadata, heading="Metadata Viewer", editable=False, parent=None
-    ):
+    def __init__(self, metadata, heading="Metadata Viewer", editable=False, parent=None):
         super().__init__(heading, parent)
 
         self.editable = editable
@@ -1108,12 +1097,8 @@ class MetaViewerWidget(QDockWidget):
 
         # make widget expanding
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.tree_view.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
-        self.tree_view.setVerticalScrollMode(
-            QAbstractItemView.ScrollMode.ScrollPerPixel
-        )
+        self.tree_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.tree_view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.setWidget(self.tree_view)
 
         # Set the custom editable delegate
@@ -1291,9 +1276,7 @@ class ConfigEditWidget(MetaViewerWidget):
         is_merged_system = (
             self.system_info
             and "config" in self.system_info
-            and any(
-                "," in system_name for system_name in self.system_info["config"].keys()
-            )
+            and any("," in system_name for system_name in self.system_info["config"].keys())
         )
 
         # parse config of systems specified in self.systemfile
@@ -1374,9 +1357,7 @@ class ConfigEditWidget(MetaViewerWidget):
         config = {}
         if item.child_count() > 0:
             for child_item in item.child_items:
-                config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(
-                    child_item
-                )
+                config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(child_item)
         else:
             if item.type(1)[0][0] is bool:
                 return item.data(1, Qt.ItemDataRole.EditRole).lower() == "true"
@@ -1397,6 +1378,7 @@ class ConfigEditWidget(MetaViewerWidget):
         dict
             The normalized configuration dictionary.
         """
+
         def create_nested_dict(keys, item):
             """Create a nested dictioinary from QItemView."""
             if len(keys) == 1:
@@ -1496,9 +1478,7 @@ class ConfigEditWidget(MetaViewerWidget):
             config_dict = self.get_config_dict()
 
         # Create a temporary file
-        with tempfile.NamedTemporaryFile(
-            mode="wb", delete=False, suffix=".toml"
-        ) as tmpfile:
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".toml") as tmpfile:
             temp_file_name = tmpfile.name
             write_config(config_dict, tmpfile.name)  # Use matr1x's write_config
 
@@ -1521,7 +1501,7 @@ class SimplePlotWidget(QGroupBox):
         latter changes.
     """
 
-    class PlotObject():
+    class PlotObject:
         """
         Object that contains the plot, data corresponding identifiers and widgets.
 
@@ -1549,12 +1529,22 @@ class SimplePlotWidget(QGroupBox):
 
         # exposed functions that can be used by the custom math eval
         # expression stored in math_texts.
-        exposed_functions = {"np": np, "sqrt": np.sqrt, "e": np.e,
-                             "pi": np.pi, "power": np.power, "log10": np.log10,
-                             "cos": np.cos, "sin": np.sin, "tan": np.tan,
-                             "arccos": np.arccos, "arcsin": np.arcsin,
-                             "arctan": np.arctan, "log": np.log, "exp": np.exp,
-                             }
+        exposed_functions = {
+            "np": np,
+            "sqrt": np.sqrt,
+            "e": np.e,
+            "pi": np.pi,
+            "power": np.power,
+            "log10": np.log10,
+            "cos": np.cos,
+            "sin": np.sin,
+            "tan": np.tan,
+            "arccos": np.arccos,
+            "arcsin": np.arcsin,
+            "arctan": np.arctan,
+            "log": np.log,
+            "exp": np.exp,
+        }
 
         # default math operations can be added here if required
         # the key should correspond to the value of math_mode for this to
@@ -1562,10 +1552,9 @@ class SimplePlotWidget(QGroupBox):
         # value, respectively
         default_math = {
             "no math": [lambda xf: xf, lambda yf: yf],
-            "delta-": [lambda xf: delta(xf)[0],
-                       lambda yf: delta(yf)[1]],
-            "delta+": [lambda xf: delta(xf)[0],
-                       lambda yf: delta(yf)[0]]}
+            "delta-": [lambda xf: delta(xf)[0], lambda yf: delta(yf)[1]],
+            "delta+": [lambda xf: delta(xf)[0], lambda yf: delta(yf)[0]],
+        }
 
         class CustomDateAxisItem(pyqtgraph.DateAxisItem):
             # This text is included pursuant to the obligations of this upstream licence
@@ -1713,8 +1702,7 @@ class SimplePlotWidget(QGroupBox):
                 # Convert timestamps to formatted date strings
                 if spacing >= 5:
                     return [
-                        datetime.datetime.fromtimestamp(value).strftime(fmt)
-                        for value in values
+                        datetime.datetime.fromtimestamp(value).strftime(fmt) for value in values
                     ]
                 return [
                     datetime.datetime.fromtimestamp(value).strftime(fmt).rstrip("0")
@@ -1826,13 +1814,13 @@ class SimplePlotWidget(QGroupBox):
             self.vb = CustomViewBox()
             if self.plot2d is True:
                 self.plt = pyqtgraph.ImageView(view=self.vb)
-                self.pw = self.l_plot.addPlot(row=self.index, col=0,
-                                              viewBox=self.vb,
-                                              title=f"p{index}")
+                self.pw = self.l_plot.addPlot(
+                    row=self.index, col=0, viewBox=self.vb, title=f"p{index}"
+                )
             else:
-                self.pw = self.l_plot.addPlot(row=self.index, col=0,
-                                              viewBox=self.vb,
-                                              title=f"p{index}")
+                self.pw = self.l_plot.addPlot(
+                    row=self.index, col=0, viewBox=self.vb, title=f"p{index}"
+                )
                 self.plt = self.pw.plot([])
                 if pen is True:
                     self.plt.setPen((0, 0, 153), width=3)
@@ -1851,8 +1839,10 @@ class SimplePlotWidget(QGroupBox):
                 "left": self.CategoricalAxis(orientation="left"),
             }
 
-            self.ordinary_axis = {"bottom": self.pw.getAxis("bottom"),
-                                  "left": self.pw.getAxis("left")}
+            self.ordinary_axis = {
+                "bottom": self.pw.getAxis("bottom"),
+                "left": self.pw.getAxis("left"),
+            }
 
             # initialize storage variables
             self.labels = ["", "", ""]
@@ -1901,10 +1891,7 @@ class SimplePlotWidget(QGroupBox):
                 # Create mapping
                 mapping = {idx: val for idx, val in enumerate(unique_values)}
                 numeric_data = np.array(
-                    [
-                        list(mapping.keys())[list(mapping.values()).index(str(x))]
-                        for x in data
-                    ]
+                    [list(mapping.keys())[list(mapping.values()).index(str(x))] for x in data]
                 )
 
                 # Store mapping for axis
@@ -1979,36 +1966,33 @@ class SimplePlotWidget(QGroupBox):
                     # define function based on the string stored in
                     # math_texts[1]
                     def fx(xf, yf):
-                        return eval(self.math_texts[1],
-                                    ({"x": xf, "y": yf} |
-                                     self.exposed_functions))
+                        return eval(
+                            self.math_texts[1], ({"x": xf, "y": yf} | self.exposed_functions)
+                        )
+
                     xc = fx(x, y)
                 except Exception as e:
-                    self._raise_error(
-                        "error in math function (x): " + str(e))
+                    self._raise_error("error in math function (x): " + str(e))
 
                 try:
                     # define function based on the string stored in
                     # math_texts[0]
                     def fy(yf, xf):
-                        return eval(self.math_texts[0],
-                                    ({"y": yf, "x": xf} |
-                                     self.exposed_functions))
+                        return eval(
+                            self.math_texts[0], ({"y": yf, "x": xf} | self.exposed_functions)
+                        )
+
                     yc = fy(y, x)
                 except Exception as e:
-                    self._raise_error(
-                        "error in math function (y): " + str(e))
+                    self._raise_error("error in math function (y): " + str(e))
 
                 if yc is not None and xc is not None:
                     if len(yc) != len(xc):
-                        self._raise_error(
-                            "error in math: arrays have different length")
+                        self._raise_error("error in math: arrays have different length")
                     elif len(yc.shape) > 1 and all(np.array(yc.shape) > 1):
-                        self._raise_error(
-                            "error in math: y array has too high dimension")
+                        self._raise_error("error in math: y array has too high dimension")
                     elif len(xc.shape) > 1 and all(np.array(xc.shape) > 1):
-                        self._raise_error(
-                            "error in math: y array has too high dimension")
+                        self._raise_error("error in math: y array has too high dimension")
                     else:
                         y, x = yc, xc
             return y, x
@@ -2016,22 +2000,21 @@ class SimplePlotWidget(QGroupBox):
         def _handle_multidim_and_sliders(self):
             """Handle slider visibility according to data dimensions."""
             self.md = False
-            for slider, dshape in zip([self.w_zslider, self.w_xslider],
-                                      [self.zdata.shape, self.xdata.shape]):
+            for slider, dshape in zip(
+                [self.w_zslider, self.w_xslider], [self.zdata.shape, self.xdata.shape]
+            ):
                 slider.setVisible(False)
                 if len(dshape) > 2:
                     # data is 3D, so show sliders
                     self.md = True
                     slider.setVisible(True)
-                    slider.set_range(0, dshape[0]-1)
-                elif ((len(dshape) > 1 and dshape[1] > 1) and
-                      self.plot2d is False):
+                    slider.set_range(0, dshape[0] - 1)
+                elif (len(dshape) > 1 and dshape[1] > 1) and self.plot2d is False:
                     # array is 2d and second dimension is longer than 1
                     self.md = True
                     slider.setVisible(True)
-                    slider.set_range(0, dshape[1]-1)
-                elif ((len(dshape) > 1 and dshape[1] == 1) and
-                      self.plot2d is False):
+                    slider.set_range(0, dshape[1] - 1)
+                elif (len(dshape) > 1 and dshape[1] == 1) and self.plot2d is False:
                     # array is 2d and second dimension is exactly 1
                     # do not show sliders in this case (only one element)
                     self.md = True
@@ -2080,8 +2063,9 @@ class SimplePlotWidget(QGroupBox):
                 # for 2d plot, select index of current data element
                 self._handle_multidim_data()
                 self.plt.setCurrentIndex(val)
-                self.pw.setTitle(f"p{self.index} at {self.labels[1]} "
-                                 f"= {self.x[val]} {self.units[1]}")
+                self.pw.setTitle(
+                    f"p{self.index} at {self.labels[1]} = {self.x[val]} {self.units[1]}"
+                )
             else:
                 # for curve, handle the data and replot
                 self._handle_multidim_data()
@@ -2195,9 +2179,13 @@ class SimplePlotWidget(QGroupBox):
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
                     # 3d plotting
-                    self.plt.setImage(self.z, pos=[0, 0], scale=[1, 1],
-                                      xvals=self.x,
-                                      axes={"t": 0, "x": 1, "y": 2})
+                    self.plt.setImage(
+                        self.z,
+                        pos=[0, 0],
+                        scale=[1, 1],
+                        xvals=self.x,
+                        axes={"t": 0, "x": 1, "y": 2},
+                    )
                     # make sure top and right axis are hidden
                     for i, ax in zip(range(2), ["right", "top"]):
                         self.pw.hideAxis(ax)
@@ -2208,9 +2196,9 @@ class SimplePlotWidget(QGroupBox):
                 else:
                     # 2d data follows different dimensioning scheme
                     x0, x1 = self.x[0], self.x[-1]
-                    xscale = (x1-x0)/self.z.shape[0]
+                    xscale = (x1 - x0) / self.z.shape[0]
                     y0, y1 = self.y[0], self.y[-1]
-                    yscale = (y1-y0)/self.z.shape[1]
+                    yscale = (y1 - y0) / self.z.shape[1]
                     pos = [x0, y0]
                     scale = [xscale, yscale]
                     self.plt.setImage(self.z, pos=pos, scale=scale)
@@ -2270,8 +2258,7 @@ class SimplePlotWidget(QGroupBox):
         # in the PlotObject, add "custom" for custom math.
         self.w_calc = QComboBox()
         self.w_calc.setToolTip("math operation")
-        self.w_calc.addItems(list(self.PlotObject.default_math.keys()) +
-                             ["custom"])
+        self.w_calc.addItems(list(self.PlotObject.default_math.keys()) + ["custom"])
         self.w_calc.currentIndexChanged.connect(self._calc_or_data_changed)
 
         self.w_math = [QLineEdit("y"), QLineEdit("x")]
@@ -2284,7 +2271,8 @@ class SimplePlotWidget(QGroupBox):
                 "their inverse functions, pi and e.\n"
                 "For more complex math, numpy is additionally defined as np.\n"
                 "The dimensions on y and x need to be equal after any "
-                "operation and have to remain in a single dimension.")
+                "operation and have to remain in a single dimension."
+            )
 
         # hide custom math layouts by default
         for widget in self.w_math + self.w_lmath:
@@ -2298,8 +2286,7 @@ class SimplePlotWidget(QGroupBox):
 
         # Add GraphicsLayout and make most prominent widget
         self.gl = pyqtgraph.GraphicsLayoutWidget()
-        self.gl.setSizePolicy(QSizePolicy.Policy.Expanding,
-                              QSizePolicy.Policy.Expanding)
+        self.gl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # have proxy that connects the position of the mouse on the
         # GraphicsLayout to display the x/y position on the current
@@ -2313,9 +2300,7 @@ class SimplePlotWidget(QGroupBox):
         )
 
         # add the first empty plot with
-        initial_plot = self.PlotObject(
-            self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0]
-        )
+        initial_plot = self.PlotObject(self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0])
         self.plots = [initial_plot]
 
         # Connect X-axis linking signal for automatic linking
@@ -2372,7 +2357,7 @@ class SimplePlotWidget(QGroupBox):
         if hasattr(new_plot, "vb") and new_plot.vb is not None:
             new_plot.vb.sigRangeChanged.connect(self._on_range_changed)
 
-        self.w_plots.setItemText(len(self.plots)-1, f"p{index} -  vs ")
+        self.w_plots.setItemText(len(self.plots) - 1, f"p{index} -  vs ")
         self.w_plots.addItem("add plot")
 
     def _remove_plot(self):
@@ -2388,7 +2373,7 @@ class SimplePlotWidget(QGroupBox):
         del plot
         # change index to previous plot and remove the deleted one
         if index != 0:
-            self.w_plots.setCurrentIndex(index-1)
+            self.w_plots.setCurrentIndex(index - 1)
         self.w_plots.removeItem(index)
         if self.w_plots.count() == 2:
             # nothing else to be deleted, hide button
@@ -2404,7 +2389,7 @@ class SimplePlotWidget(QGroupBox):
             Index of the newly selected plot in self.w_plots.
         """
         cnt = self.w_plots.count()
-        if index == cnt-1 and cnt > 1:
+        if index == cnt - 1 and cnt > 1:
             # selecting last index (add plot) leads to plot being added
             self._add_plot()
             cnt += 1
@@ -2460,8 +2445,7 @@ class SimplePlotWidget(QGroupBox):
 
         # Check if current plot has categorical data
         has_categorical = (
-            self.plots[current_plot].x_is_categorical
-            or self.plots[current_plot].z_is_categorical
+            self.plots[current_plot].x_is_categorical or self.plots[current_plot].z_is_categorical
         )
 
         # Enable/disable math combo box based on categorical data
@@ -2476,17 +2460,14 @@ class SimplePlotWidget(QGroupBox):
         # update the labels of the plot combo box
         for i, plot in enumerate(self.plots):
             if plot.plot2d is True:
-                name = (f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]} "
-                        f"and {plot.labels[2]}")
+                name = f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]} and {plot.labels[2]}"
             else:
-                name = (
-                    f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}")
+                name = f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}"
             self.w_plots.setItemText(i, name)
         # reset error
         self.cb_error("")
 
-        self.plots[current_plot].set_math_mode(
-            math_mode, [math.text() for math in self.w_math])
+        self.plots[current_plot].set_math_mode(math_mode, [math.text() for math in self.w_math])
         self.plots[current_plot].plot(symbol="o")
 
     def _mouse_moved(self, ev):
@@ -2507,15 +2488,13 @@ class SimplePlotWidget(QGroupBox):
             # get coordinate transform for top left of viewbox to identify
             # in which of the viewboxes the mouse currently resides
             pos = vb.mapRectFromView(vb.borderRect.rect()).topLeft()
-            if vb.boundingRect().contains(ev[0]+pos):
+            if vb.boundingRect().contains(ev[0] + pos):
                 vb_mouse = vb
                 # stop once we have found the correct viewbox
                 continue
         if vb_mouse is not None:
             mousePoint = vb_mouse.mapSceneToView(ev[0])
-            self.w_pos.setText(
-                "x: {:.5e}\ny: {:.5e}".format(mousePoint.x(),
-                                              mousePoint.y()))
+            self.w_pos.setText("x: {:.5e}\ny: {:.5e}".format(mousePoint.x(), mousePoint.y()))
 
     def _mouse_clicked(self, ev):
         """
@@ -2595,7 +2574,6 @@ class SimplePlotWidget(QGroupBox):
                 and len(plot.labels) > 1
                 and plot.labels[1] == source_x_label
             ):
-
                 # Temporarily disconnect to avoid recursive calls
                 try:
                     plot.vb.sigRangeChanged.disconnect(self._on_range_changed)
@@ -2693,9 +2671,7 @@ class SimplePlotWidget(QGroupBox):
         for plot in self.plots:
             plot.remove_plot()
         del self.plots
-        initial_plot = self.PlotObject(
-            self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0]
-        )
+        initial_plot = self.PlotObject(self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0])
         self.plots = [initial_plot]
 
         # Connect X-axis linking signal for automatic linking
@@ -3107,18 +3083,14 @@ class TimeoutDialogBase(QDialog):
         # Format the time display
         if remaining_seconds < 100:
             # Show seconds for short timeouts
-            self.timer_label.setText(
-                f"Time remaining: {int(remaining_seconds)} seconds"
-            )
+            self.timer_label.setText(f"Time remaining: {int(remaining_seconds)} seconds")
         else:
             # Show hours:minutes format for longer timeouts
             hours = int(remaining_seconds / 3600)
             minutes = int((remaining_seconds % 3600) / 60)
             seconds = int(remaining_seconds % 60)
             if hours > 0:
-                self.timer_label.setText(
-                    f"Time remaining: {hours}h {minutes}m {seconds}s"
-                )
+                self.timer_label.setText(f"Time remaining: {hours}h {minutes}m {seconds}s")
             else:
                 self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
 
@@ -3322,15 +3294,9 @@ class YesNoAbortDialog(QMessageBox):
                 button_text_no = "No (Default)"
 
         # Create buttons
-        self.yes_button = self.addButton(
-            button_text_yes, QMessageBox.ButtonRole.AcceptRole
-        )
-        self.no_button = self.addButton(
-            button_text_no, QMessageBox.ButtonRole.RejectRole
-        )
-        self.abort_button = self.addButton(
-            "Abort script", QMessageBox.ButtonRole.DestructiveRole
-        )
+        self.yes_button = self.addButton(button_text_yes, QMessageBox.ButtonRole.AcceptRole)
+        self.no_button = self.addButton(button_text_no, QMessageBox.ButtonRole.RejectRole)
+        self.abort_button = self.addButton("Abort script", QMessageBox.ButtonRole.DestructiveRole)
 
         # Connect button signals to track user response
         self.yes_button.clicked.connect(self._button_clicked)
@@ -3339,11 +3305,8 @@ class YesNoAbortDialog(QMessageBox):
 
         # Simple styling for default button if timeout is set
         if self.timeout != float("inf"):
-
             # Set bold font for the default button
-            default_button = (
-                self.yes_button if self.default_value == "yes" else self.no_button
-            )
+            default_button = self.yes_button if self.default_value == "yes" else self.no_button
             font = default_button.font()
             font.setBold(True)
             default_button.setFont(font)
@@ -3352,9 +3315,7 @@ class YesNoAbortDialog(QMessageBox):
             self.setDefaultButton(default_button)
 
             # Set up timer and label - use milliseconds for better precision
-            self.timer_label = QLabel(
-                f"Time remaining: {int(self.timeout)} seconds", self
-            )
+            self.timer_label = QLabel(f"Time remaining: {int(self.timeout)} seconds", self)
             self.layout().addWidget(self.timer_label, 1, 1, 1, 3)
 
             self.remaining_time = self.timeout * 1000  # Convert to milliseconds
@@ -3390,18 +3351,14 @@ class YesNoAbortDialog(QMessageBox):
         # Format the time display
         if remaining_seconds < 100:
             # Show seconds for short timeouts
-            self.timer_label.setText(
-                f"Time remaining: {int(remaining_seconds)} seconds"
-            )
+            self.timer_label.setText(f"Time remaining: {int(remaining_seconds)} seconds")
         else:
             # Show hours:minutes format for longer timeouts
             hours = int(remaining_seconds / 3600)
             minutes = int((remaining_seconds % 3600) / 60)
             seconds = int(remaining_seconds % 60)
             if hours > 0:
-                self.timer_label.setText(
-                    f"Time remaining: {hours}h {minutes}m {seconds}s"
-                )
+                self.timer_label.setText(f"Time remaining: {hours}h {minutes}m {seconds}s")
             else:
                 self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
 
@@ -3462,9 +3419,7 @@ class TerminationDialog(QMessageBox):
 
         # Add buttons
         self.abort_button = self.addButton("Aborted", QMessageBox.ButtonRole.RejectRole)
-        self.finish_button = self.addButton(
-            "Finished", QMessageBox.ButtonRole.AcceptRole
-        )
+        self.finish_button = self.addButton("Finished", QMessageBox.ButtonRole.AcceptRole)
 
     def get_selection(self):
         """
@@ -3504,9 +3459,7 @@ class AboutBox(QMessageBox):
         """
         super().__init__(parent)
         # The rich text (html) messes with the sizes
-        icon_size = QApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_MessageBoxIconSize
-        )
+        icon_size = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_MessageBoxIconSize)
         pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
         self.setWindowTitle(title)
@@ -3560,9 +3513,7 @@ class AboutBox(QMessageBox):
                 # Attempt to find the remote branch
                 for ref_name in repo.references:
                     ref = repo.lookup_reference(ref_name)
-                    if ref.target == repo.head.target and ref_name.startswith(
-                        "refs/remotes/"
-                    ):
+                    if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
                         commit_branch = ref.shorthand
                         break
         except pygit2.GitError:
@@ -3605,9 +3556,7 @@ class MIcon(QIcon):
         """
         # Get the included Qt icon
         if name.startswith("SP_"):
-            icon = QApplication.style().standardIcon(
-                getattr(QStyle.StandardPixmap, name)
-            )
+            icon = QApplication.style().standardIcon(getattr(QStyle.StandardPixmap, name))
             return icon
         # Use the original matrix icons
         elif name.startswith("matr1x-"):
@@ -3691,9 +3640,7 @@ class MIcon(QIcon):
                 spacing = size * 0.1
                 x_offset = (size - 2 * bar_width - spacing) / 2
                 y_offset = (size - bar_height) / 2
-                painter.drawRect(
-                    int(x_offset), int(y_offset), int(bar_width), int(bar_height)
-                )
+                painter.drawRect(int(x_offset), int(y_offset), int(bar_width), int(bar_height))
                 painter.drawRect(
                     int(x_offset + bar_width + spacing),
                     int(y_offset),
@@ -3706,6 +3653,7 @@ class MIcon(QIcon):
             raise ValueError(f"MIcon: Unknown icon type {name}.")
         painter.end()
         return QIcon(pixmap)
+
 
 def detect_shortcut(event, shortcut):
     """
@@ -3737,6 +3685,7 @@ def detect_shortcut(event, shortcut):
         return True
     else:
         return False
+
 
 def save_messagebox(instance) -> int:
     """
@@ -3808,9 +3757,7 @@ class MApplication(QApplication):
                 for f in os.listdir(platforms_path)
                 if os.path.isfile(os.path.join(platforms_path, f))
             ]
-            platforms = [
-                os.path.splitext(plugin)[0].replace("libq", "") for plugin in plugins
-            ]
+            platforms = [os.path.splitext(plugin)[0].replace("libq", "") for plugin in plugins]
             return platforms
         else:
             return []
@@ -3841,9 +3788,7 @@ class MApplication(QApplication):
             size of the icon
         """
         small = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = MApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_ToolBarIconSize
-        )
+        standard = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize)
         intermediate = int((small + standard) / 2)
         return intermediate
 
@@ -3862,6 +3807,7 @@ def get_application_instance() -> MApplication:
     app = MApplication.instance()
     assert isinstance(app, MApplication)
     return app
+
 
 # Common system information functions for matrix scripts
 def get_system_info(systems):
@@ -3892,9 +3838,7 @@ def get_system_info(systems):
             print(f"Error getting system info: {stderr_output}")
             # If subprocess failed due to missing dependencies, return empty dict
             if "ModuleNotFoundError" in stderr_output:
-                print(
-                    "Note: System config will not be available due to missing dependencies"
-                )
+                print("Note: System config will not be available due to missing dependencies")
             return {}
     except (subprocess.TimeoutExpired, Exception) as e:
         print(f"Error getting system info: {e}")

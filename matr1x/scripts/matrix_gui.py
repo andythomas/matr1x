@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Provide a graphical user interface for matrix measurements."""
+
 import hashlib
 import json
 import os
@@ -75,10 +76,11 @@ def signal_handler(signal, frame):
 # Connect keyboard interrupt with above signal handler
 signal.signal(signal.SIGINT, signal_handler)
 
-if os.name == 'nt':
+if os.name == "nt":
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.matrix-gui.version'
+
+        myappid = "python.matr1x.matrix-gui.version"
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -139,7 +141,9 @@ class QueueListWidget(QListWidget):
             + json.dumps(parameters[3], sort_keys=True)
         )
         hash_value = hashlib.sha256(dict_str.encode()).hexdigest()[:6]
-        list_entry = f"Input: {os.path.basename(parameters[0])} - Output: {output} - Id: {hash_value}"
+        list_entry = (
+            f"Input: {os.path.basename(parameters[0])} - Output: {output} - Id: {hash_value}"
+        )
         param_dict = {"parameters": parameters, "listview": list_entry}
         self.data_list.append(param_dict)
         list_item = QListWidgetItem(param_dict["listview"])
@@ -181,6 +185,7 @@ class QueueListWidget(QListWidget):
         """
         return self.data_list[row]["parameters"]
 
+
 class ExecThread(QThread):
     """execute the measurement thread."""
 
@@ -205,7 +210,7 @@ class ExecThread(QThread):
         """
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('127.0.0.1', MATRIX_GUI_PORT))
+        s.bind(("127.0.0.1", MATRIX_GUI_PORT))
         s.listen(1)
         conn, address = s.accept()  # will block until a new client connects
 
@@ -270,7 +275,7 @@ class ExecThread(QThread):
         fun fact: this function took a whole night
                   to be figured out.
         """
-        if os.name == 'nt':
+        if os.name == "nt":
             # fork the child
             child = subprocess.Popen(*args, **kwargs)
             # get filename back
@@ -307,8 +312,7 @@ class ExecThread(QThread):
 
             try:
                 # fork the child
-                child = subprocess.Popen(*args, preexec_fn=new_pgid,
-                                         **kwargs)
+                child = subprocess.Popen(*args, preexec_fn=new_pgid, **kwargs)
 
                 # we can't set the process group id from the parent since the
                 # child will already have exec'd. and we can't SIGSTOP it before
@@ -342,8 +346,7 @@ class ExecThread(QThread):
                 # now restore the handler
                 # signal.signal(signal.SIGTTOU, hdlr)
                 # restore terminal attributes
-                termios.tcsetattr(sys.stdin.fileno(),
-                                  termios.TCSADRAIN, old_attr)
+                termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_attr)
 
         return ret
 
@@ -365,7 +368,7 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("matr1x", "gui")
 
         # Define the allowed extension pattern
-        self.allowed_extension_pattern = re.compile(r'\.\d+t$')
+        self.allowed_extension_pattern = re.compile(r"\.\d+t$")
         # Enable dragging and dropping onto the widget
         self.setAcceptDrops(True)
 
@@ -410,9 +413,7 @@ class MainWindow(QMainWindow):
                             "Only files with extensions matching .<number>t are supported.",
                         )
                 else:
-                    QMessageBox.warning(
-                        self, "Multiple Files", "Please drop only a single file."
-                    )
+                    QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
 
     def closeEvent(self, a0):
         """Close app properly."""
@@ -437,9 +438,7 @@ class MainWindow(QMainWindow):
 
     def info_box(self):
         """Display an 'about this app' widget."""
-        box = AboutBox(
-            "Matrix GUI", MIcon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
-        )
+        box = AboutBox("Matrix GUI", MIcon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt)
         box.exec()
         return
 
@@ -472,19 +471,11 @@ class MainWindow(QMainWindow):
         self.restoreGeometry(self.settings.value("geometry", QByteArray()))
         self.resizeDocks(
             [self.w_dockable_metadata],
-            [
-                self.settings.value(
-                    "metadata_size", self.w_dockable_metadata.size()
-                ).width()
-            ],
+            [self.settings.value("metadata_size", self.w_dockable_metadata.size()).width()],
             Qt.Orientation.Horizontal,
         )
-        self.config_editor.move(
-            self.settings.value("config_position", self.config_editor.pos())
-        )
-        self.config_editor.resize(
-            self.settings.value("config_size", self.config_editor.size())
-        )
+        self.config_editor.move(self.settings.value("config_position", self.config_editor.pos()))
+        self.config_editor.resize(self.settings.value("config_size", self.config_editor.size()))
 
     def toggle_preferences(self, checked):
         """Open the preferences pane."""
@@ -537,9 +528,7 @@ class MainWindow(QMainWindow):
         )
         self.sweep_action.triggered.connect(self.startSweepGenerator)
         # File: Autosave
-        self.auto_filename_action = QAction(
-            MIcon("SP_DriveHDIcon"), "Auto-filename", self
-        )
+        self.auto_filename_action = QAction(MIcon("SP_DriveHDIcon"), "Auto-filename", self)
         self.auto_filename_action.setCheckable(True)
         self.auto_filename_action.toggled.connect(self.updateAutoGenFilename)
         # File: Save as...
@@ -568,9 +557,7 @@ class MainWindow(QMainWindow):
         self.w_dockable_metadata.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
-        self.w_dockable_metadata.setFeatures(
-            QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
-        )
+        self.w_dockable_metadata.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.w_dockable_metadata.setWidget(self.w_meta_view)
         # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
@@ -594,9 +581,7 @@ class MainWindow(QMainWindow):
                     }
                 """
         )
-        self.remove_button.setToolButtonStyle(
-            Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        )
+        self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.remove_action = QAction(MIcon("CHAR_-"), "Remove", self)
         self.remove_action.triggered.connect(self.removeMeasurement)
         self.remove_button.setDefaultAction(self.remove_action)
@@ -637,9 +622,7 @@ class MainWindow(QMainWindow):
         self.widget.setLayout(central_layout)
         self.setCentralWidget(self.widget)
 
-        self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.w_dockable_metadata
-        )
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_dockable_metadata)
 
     def create_toolbar(self) -> None:
         """Create the Toolbar."""
@@ -734,9 +717,12 @@ class MainWindow(QMainWindow):
             if "" == folder:
                 folder = matr1x.usersfolder
         filename = QFileDialog.getSaveFileName(
-            self, 'Select ma file', folder,
+            self,
+            "Select ma file",
+            folder,
             "Output files (*.ma8);; Old output files (*.ma7 *.ma6)",
-            options=QFileDialog.Option.DontConfirmOverwrite)
+            options=QFileDialog.Option.DontConfirmOverwrite,
+        )
         if "" != filename[0]:
             self.outputEdit.setText(filename[0])
 
@@ -794,9 +780,7 @@ class MainWindow(QMainWindow):
             assert systemfile is not None
             system = MergedSystem.from_files(systemfile)
         except ModuleNotFoundError:
-            QMessageBox.warning(
-                self, "System file error!", "System file does not exist."
-            )
+            QMessageBox.warning(self, "System file error!", "System file does not exist.")
             return
         except PermissionError:
             QMessageBox.warning(
@@ -806,9 +790,7 @@ class MainWindow(QMainWindow):
 
         self.sys_meta_data = system.dcdata
 
-        configurable = [
-            system for system in systemfile if not os.path.exists(system.strip())
-        ]
+        configurable = [system for system in systemfile if not os.path.exists(system.strip())]
 
         # Get system information using subprocess (cache for reuse)
         self._cached_system_info = None
@@ -876,9 +858,7 @@ class MainWindow(QMainWindow):
 
     def runNextMeasurement(self):
         """Run the next queued measurement."""
-        self.measurement_thread.set_param(
-            self.meas_list.parameters(0), self.config_editor
-        )
+        self.measurement_thread.set_param(self.meas_list.parameters(0), self.config_editor)
         self.measurement_thread.start()
 
     def processFinished(self):
@@ -901,20 +881,14 @@ class MainWindow(QMainWindow):
         if "" == output:  # try to obtain last filename from input file
             infile = self.input_file.text()
             if "" == infile:
-                QMessageBox.warning(
-                    self, "Preview error!", "Please specify a filename."
-                )
+                QMessageBox.warning(self, "Preview error!", "Please specify a filename.")
                 return
             output = get_latest_datafile(basename=infile)
         if output is None:
-            QMessageBox.warning(
-                self, "Preview error!", f"File does not exist ({output})"
-            )
+            QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
             return
         elif not exists(output):
-            QMessageBox.warning(
-                self, "Preview error!", f"File does not exist ({output})"
-            )
+            QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
         else:
             a = matrix_preview.SweepPreview(self, output)
             a.show()
@@ -923,15 +897,15 @@ class MainWindow(QMainWindow):
 def main():
     """Set the basic GUI parameters and run."""
     app = MApplication(sys.argv)
-    if os.name == 'nt':
+    if os.name == "nt":
         # enable modern mode on windows which allows for darkmode
-        app.setStyle('fusion')
+        app.setStyle("fusion")
     elif sys.platform == "darwin":
         set_correct_mac_appname("Matrix GUI")
     app.setDesktopFileName("matrix-gui")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
-    if 'SIGTTOU' in dir(signal):  # signal only on POSIX compliant systems
+    if "SIGTTOU" in dir(signal):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     with QtGracefulKiller():
         ex = MainWindow()

@@ -49,9 +49,7 @@ def test_loadmatrix_hdf5_ma8():
     assert len(h["comments"]) == 6  # check number of comments
     assert d["timeUTC"].shape == (74,)  # check shape of dataset
     assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.392225  # check specific data value
-    assert (
-        pytest.approx(d["timeUTC"][1], 1e-9) == 1726870220.4
-    )  # check specific data value
+    assert pytest.approx(d["timeUTC"][1], 1e-9) == 1726870220.4  # check specific data value
 
 
 def test_loadmatrix_ma8():
@@ -78,9 +76,7 @@ def test_loadmatrix_ma8():
     assert d["dev1 p3a"].shape == (100,)  # check shape of dataset
     assert d["timeUTC"].shape == (100,)  # check shape of dataset
     assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.393633  # check specific data value
-    assert (
-        pytest.approx(d["timeUTC"][1], 1e-9) == 1726870139.20
-    )  # check specific data value
+    assert pytest.approx(d["timeUTC"][1], 1e-9) == 1726870139.20  # check specific data value
 
 
 def test_loadmatrix_hdf5_ma7():
@@ -100,12 +96,8 @@ def test_loadmatrix_hdf5_ma7():
     assert len(h["Device query"]) == 570
     assert d["FSW8 f"].shape == (1, 2001)  # check shape of dataset
     assert d["timeUTC"].shape == (1,)  # check shape of dataset
-    assert (
-        pytest.approx(d["FSW8 f"][0, 501], 1e-6) == 2.9555e9
-    )  # check specific data value
-    assert (
-        pytest.approx(d["timeUTC"][0], 1e-9) == 1701194065
-    )  # check specific data value
+    assert pytest.approx(d["FSW8 f"][0, 501], 1e-6) == 2.9555e9  # check specific data value
+    assert pytest.approx(d["timeUTC"][0], 1e-9) == 1701194065  # check specific data value
 
 
 def test_loadmatrix_ma7():
@@ -128,9 +120,7 @@ def test_loadmatrix_ma7():
     assert (
         pytest.approx(d["y field"][17], 1e-6) == -0.6770565868263473
     )  # check specific data value
-    assert (
-        pytest.approx(d["timeUTC"][0], 1e-10) == 1713015567.56
-    )  # check specific data value
+    assert pytest.approx(d["timeUTC"][0], 1e-10) == 1713015567.56  # check specific data value
 
 
 def test_loadmatrix_hdf5_ma6():
@@ -148,12 +138,8 @@ def test_loadmatrix_hdf5_ma6():
     assert h["units"][2] == "V"  # check specific unit entry
     assert d["k6621-v"].shape == (5000,)  # check shape of dataset
     assert d["timeUTC"].shape == (50,)  # check shape of dataset
-    assert (
-        pytest.approx(d["k6621-v"][2003], 1e-12) == 3.4997413e-06
-    )  # check specific data value
-    assert (
-        pytest.approx(d["timeUTC"][45], 1e-9) == 1599555123.1
-    )  # check specific data value
+    assert pytest.approx(d["k6621-v"][2003], 1e-12) == 3.4997413e-06  # check specific data value
+    assert pytest.approx(d["timeUTC"][45], 1e-9) == 1599555123.1  # check specific data value
 
 
 def test_loadmatrix_ma6():
@@ -175,9 +161,5 @@ def test_loadmatrix_ma6():
     assert h["units"][3] == "s"  # check specific unit entry
     assert d["Vnvm07"].shape == (2196,)  # check shape of dataset
     assert d["timeUTC"].shape == (2196,)  # check shape of dataset
-    assert (
-        pytest.approx(d["Vnvm07"][14], 1e-12) == 1.80986751e-06
-    )  # check specific data value
-    assert (
-        pytest.approx(d["timeUTC"][-1], 1e-10) == 1557380107.327
-    )  # check specific data value
+    assert pytest.approx(d["Vnvm07"][14], 1e-12) == 1.80986751e-06  # check specific data value
+    assert pytest.approx(d["timeUTC"][-1], 1e-10) == 1557380107.327  # check specific data value

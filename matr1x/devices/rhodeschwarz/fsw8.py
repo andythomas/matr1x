@@ -197,11 +197,7 @@ class FSW8(VisaDevice):
                 # power averaging mode for correct power measurements in FFT
                 # sweep mode
             else:
-                print(
-                    "Please choose a valid average type! Your input was:{}".format(
-                        avgType
-                    )
-                )
+                print("Please choose a valid average type! Your input was:{}".format(avgType))
             time.sleep(0.5)
 
             self.write("AVER:STAT ON")
@@ -255,11 +251,7 @@ class FSW8(VisaDevice):
             # Calculates the linear average of all samples contained in a sweep point
             self.write("DETector AVER")
         else:
-            print(
-                "Please choose a valid detector type! Your input was:{}".format(
-                    detector
-                )
-            )
+            print("Please choose a valid detector type! Your input was:{}".format(detector))
 
         # Set optimization parameters in FFT mode
         # options: dynamic/speed/auto

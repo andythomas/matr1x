@@ -32,6 +32,7 @@ The module also sets up important global variables and constants used throughout
 the matr1x software, such as output file extensions, datetime formats, and
 system directories.
 """
+
 import logging
 import sys
 import tempfile
@@ -258,9 +259,7 @@ VALID_META_KEYS = {  # valid key and item defines whether it is editable
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
 # is however not recommended in production environments.
 logfolder = expanduser(config["matr1x"]["logging_directory"])
-kwargs = dict(
-    level=logging.INFO, format=config["matr1x"]["logging_format"], datefmt=datetimefmt
-)
+kwargs = dict(level=logging.INFO, format=config["matr1x"]["logging_format"], datefmt=datetimefmt)
 handlers = []
 if not exists(logfolder):
     logfolder = tempfile.gettempdir()  # set logfolder to temp directory
@@ -271,12 +270,11 @@ if not exists(logfolder):
 today = date.today().isocalendar()
 if sys.version_info.major == 3 and sys.version_info.minor < 9:
     from collections import namedtuple
+
     datetuple = namedtuple("Isocalendar", ["year", "week", "weekday"])
     today = datetuple(*today)
 handlers.append(
-    logging.FileHandler(
-        join(logfolder, f"matr1x_{today.year}{today.week:02d}.log"), mode="a"
-    )
+    logging.FileHandler(join(logfolder, f"matr1x_{today.year}{today.week:02d}.log"), mode="a")
 )
 
 kwargs["handlers"] = handlers
@@ -300,8 +298,12 @@ if not isdir(_systems_directory):
     # use fallback option
     _systems_directory = join(dirname(abspath(__file__)), "systems")
 
-system_names = ['matr1x-systems', ]
-system_directories = [_systems_directory, ]
+system_names = [
+    "matr1x-systems",
+]
+system_directories = [
+    _systems_directory,
+]
 for section in config:
     if section != "matr1x":
         if "systems_directory" in config[section]:
@@ -312,9 +314,7 @@ for section in config:
                 if package_path is not None:
                     sysdir = join(package_path, sysdir.replace("<pkgroot>/", ""))
                 else:
-                    raise ModuleNotFoundError(
-                        f"Optional matr1x module '{section}' not found"
-                    )
+                    raise ModuleNotFoundError(f"Optional matr1x module '{section}' not found")
             # expand eventual home
             sysdir = expanduser(sysdir)
             if isdir(sysdir):
@@ -322,6 +322,5 @@ for section in config:
                 system_directories.append(sysdir)
             else:
                 print(
-                    f"matrix.conf: option {section}/systems_directory has "
-                    f"invalid value '{sysdir}'"
+                    f"matrix.conf: option {section}/systems_directory has invalid value '{sysdir}'"
                 )

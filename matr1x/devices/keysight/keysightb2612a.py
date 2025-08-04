@@ -121,11 +121,7 @@ class KeysightB2961(VisaDevice):
             return
         # assert source and sense mode are correct
         assert (sourceMode == "VOLT") or (sourceMode == "CURR"), (
-            'source ("'
-            + sourceMode
-            + '") and/or sense ("'
-            + senseMode
-            + '") mode are incorrect'
+            'source ("' + sourceMode + '") and/or sense ("' + senseMode + '") mode are incorrect'
         )
         # add get output here to reset the device to the previous state
         self.output(False)
@@ -142,9 +138,7 @@ class KeysightB2961(VisaDevice):
             cmdlist.append(':SENS:FUNC "{}"'.format(self.senseMode))
 
         if senseLimit is not None:
-            cmdlist.append(
-                ":SOUR:{}:PROT {}".format(self.sourceMode, float(senseLimit))
-            )
+            cmdlist.append(":SOUR:{}:PROT {}".format(self.sourceMode, float(senseLimit)))
 
         if nplc is not None:
             cmdlist.append(":SENS:{}:NPLC {}".format(self.sourceMode, float(nplc)))
@@ -162,9 +156,7 @@ class KeysightB2961(VisaDevice):
             cmdlist.append(":SOUR:{}:RANG:AUTO ON".format(self.sourceMode))
         elif sourceRange is not None:
             cmdlist.append(":SOUR:{}:RANG:AUTO OFF".format(self.sourceMode))
-            cmdlist.append(
-                ":SOUR:{}:RANG {}".format(self.sourceMode, float(sourceRange))
-            )
+            cmdlist.append(":SOUR:{}:RANG {}".format(self.sourceMode, float(sourceRange)))
 
         cmdlist.append(":FORM:ELEM:SENS VOLT,CURR,SOUR")
 
@@ -310,15 +302,9 @@ class KeysightB2961(VisaDevice):
             # set sin mode
             cmdlist.append(":SOUR:{}:MODE ARB".format(self.sourceMode))
             cmdlist.append(":SOUR:ARB:FUNC SIN")
-            cmdlist.append(
-                ":SOUR:ARB:{}:SIN:AMPL {}".format(self.sourceMode, float(amp))
-            )
-            cmdlist.append(
-                ":SOUR:ARB:{}:SIN:FREQ {}".format(self.sourceMode, float(freq))
-            )
-            cmdlist.append(
-                ":SOUR:ARB:{}:SIN:OFFS {}".format(self.sourceMode, float(offset))
-            )
+            cmdlist.append(":SOUR:ARB:{}:SIN:AMPL {}".format(self.sourceMode, float(amp)))
+            cmdlist.append(":SOUR:ARB:{}:SIN:FREQ {}".format(self.sourceMode, float(freq)))
+            cmdlist.append(":SOUR:ARB:{}:SIN:OFFS {}".format(self.sourceMode, float(offset)))
             # set number of repetitions
             cmdlist.append(":SOUR:ARB:COUN {}".format(count))
             # set phase marker (trigger/sync) output

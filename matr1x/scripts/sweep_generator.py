@@ -19,6 +19,7 @@ Generate sweeps for matrix via a straightforward GUI.
 
 It heavily relies on numpy.linspace for the creation of the sweep segments.
 """
+
 import os
 import re
 import sys
@@ -79,10 +80,11 @@ from matr1x.util import (
     set_correct_mac_appname,
 )
 
-if os.name == 'nt':
+if os.name == "nt":
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.sweep-generator.version'
+
+        myappid = "python.matr1x.sweep-generator.version"
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -239,14 +241,13 @@ class SweepPreviewPopup(QDialog):
         pg.setConfigOption("background", "w")
         pg.setConfigOption("foreground", "k")
         self.vb = CustomViewBox()
-        self.pw = pg.PlotWidget(viewBox=self.vb, name="plot1",
-                                enableMenu=False)
+        self.pw = pg.PlotWidget(viewBox=self.vb, name="plot1", enableMenu=False)
         self.plt = self.pw.plot()
         self.plt.setPen((0, 0, 153), width=3)
 
-        self.proxy = pg.SignalProxy(self.pw.scene().sigMouseMoved,
-                                    rateLimit=30,
-                                    slot=self.mouseMoved)
+        self.proxy = pg.SignalProxy(
+            self.pw.scene().sigMouseMoved, rateLimit=30, slot=self.mouseMoved
+        )
 
         self.plotListRangeX(index)
         self.update_data_table(index)
@@ -283,31 +284,27 @@ class SweepPreviewPopup(QDialog):
             The index of the sweep to be displayed.
         """
         self.data_table.setRowCount(len(self.sweep[index]))
-        for index, item in zip(range(len(self.sweep[index])),
-                               self.sweep[index]):
+        for index, item in zip(range(len(self.sweep[index])), self.sweep[index]):
             value = QTableWidgetItem(str(item))
-            value.setTextAlignment(
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-            )
+            value.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.data_table.setItem(index, 0, value)
         self.data_table.update()
 
     def mouseMoved(self, ev):
         """Implement event to update cursor position while pointer is in plot."""
         mousePoint = self.vb.mapSceneToView(ev[0])
-        self.posLabel.setText("x: {:e}\ny: {:e}".format(mousePoint.x(),
-                                                        mousePoint.y()))
+        self.posLabel.setText("x: {:e}\ny: {:e}".format(mousePoint.x(), mousePoint.y()))
 
     def plotListRangeX(self, index):
         """Update the plot to show sweep[index] against its range."""
         self.pw.getAxis("left").textWidth = 0
         length = len(self.sweep[index])
-        self.plt.setData(x=linspace(0, length, length),
-                         y=self.sweep[index], symbol="o")
+        self.plt.setData(x=linspace(0, length, length), y=self.sweep[index], symbol="o")
 
         self.pw.setLabel("bottom", "index")
-        self.pw.setLabel("left", (self.cols[index].strip() + " [" +
-                                  self.units[index].strip() + "]"))
+        self.pw.setLabel(
+            "left", (self.cols[index].strip() + " [" + self.units[index].strip() + "]")
+        )
 
 
 class MainWindow(QMainWindow):
@@ -447,9 +444,7 @@ class MainWindow(QMainWindow):
         self.load_action.triggered.connect(self.gui_from_sweep)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
         # Add System
-        self.add_system_action = QAction(
-            MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self
-        )
+        self.add_system_action = QAction(MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self)
         self.add_system_action.triggered.connect(self.add_system)
         # Remove System
         self.remove_system_action = QAction(
@@ -475,12 +470,8 @@ class MainWindow(QMainWindow):
         self.append_action = QAction(MIcon("SP_DialogSaveButton"), "Append", self)
         self.append_action.triggered.connect(lambda: self.save_file(append=True))
         # Append to
-        self.append_to_action = QAction(
-            MIcon("SP_DialogSaveButton"), "Append To...", self
-        )
-        self.append_to_action.triggered.connect(
-            lambda: self.save_file(append=True, dialog=True)
-        )
+        self.append_to_action = QAction(MIcon("SP_DialogSaveButton"), "Append To...", self)
+        self.append_to_action.triggered.connect(lambda: self.save_file(append=True, dialog=True))
         # Generate Pulldown
         self.save_button = QToolButton()
         self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -532,9 +523,7 @@ class MainWindow(QMainWindow):
         # generate sweep grid labels and layout
         self.sweep_table = QTableWidget()
         self.sweep_table.setColumnCount(4)
-        self.sweep_table.setHorizontalHeaderLabels(
-            ["Start", "Stop", "Points", "Delete"]
-        )
+        self.sweep_table.setHorizontalHeaderLabels(["Start", "Stop", "Points", "Delete"])
         header = self.sweep_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -544,13 +533,9 @@ class MainWindow(QMainWindow):
 
         self.sweep_preview = QTableWidget()
         self.sweep_preview.setColumnCount(1)
-        self.sweep_preview.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
+        self.sweep_preview.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.sweep_preview.setAlternatingRowColors(True)
-        self.sweep_preview.setHorizontalHeaderLabels(
-            ["Preview of the generated sweep-parameters"]
-        )
+        self.sweep_preview.setHorizontalHeaderLabels(["Preview of the generated sweep-parameters"])
         header = self.sweep_preview.horizontalHeader()
         header.setSectionResizeMode(0, header.ResizeMode.Stretch)
         table_width = self.sweep_preview.viewport().width()
@@ -668,8 +653,7 @@ class MainWindow(QMainWindow):
                     f"Only files with extensions matching .<number>t or {self.extension} are supported.",
                 )
         else:
-            QMessageBox.warning(self, "Multiple Files",
-                                "Please drop only a single file.")
+            QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
 
     def reset_layout(self) -> None:
         """Reset layout to clean state."""
@@ -693,9 +677,7 @@ class MainWindow(QMainWindow):
             create_tray_notification(
                 "Sweep reset", "All previous sweep parameters have been cleared.", self
             )
-        filenames = [
-            self.systemList.item(j).text() for j in range(self.systemList.count())
-        ]
+        filenames = [self.systemList.item(j).text() for j in range(self.systemList.count())]
         if 0 == len(filenames):
             self.reset_layout()
             self.new_file_action.setEnabled(False)
@@ -850,9 +832,7 @@ class MainWindow(QMainWindow):
                 columns.append(self.flat_col[i].strip())
             widget.addItems(columns)
             widget.activated.connect(lambda: self.populate_sweep_grid(column))
-            widget.currentIndexChanged.connect(
-                lambda: self.update_window_title(dirty=True)
-            )
+            widget.currentIndexChanged.connect(lambda: self.update_window_title(dirty=True))
         else:
             raise ValueError(f"Unknown widget {name}.")
         return widget
@@ -865,13 +845,9 @@ class MainWindow(QMainWindow):
         for column in range(self.nParmsUsed):
             sweep_widgets = {}
             for label in self.labels:
-                sweep_widgets[label[0]] = self.get_custom_widget(
-                    label[0], column=column + 1
-                )
+                sweep_widgets[label[0]] = self.get_custom_widget(label[0], column=column + 1)
             sweep_widgets["column"].setText(self.col_sign[column])
-            nameunit = (
-                f"{self.flat_col[column].strip()} ({self.flat_unit[column].strip()})"
-            )
+            nameunit = f"{self.flat_col[column].strip()} ({self.flat_unit[column].strip()})"
             sweep_widgets["nameunit"].setText(nameunit)
             # alternate the column label colors
             letter = self.col_sign[column][0]
@@ -910,12 +886,8 @@ class MainWindow(QMainWindow):
             if column >= column_fit:
                 row = ((column - column_fit) // (column_fit + 1) + 1) * 5
             grid_column = (column + 1) % (column_fit + 1)
-            self.grid.addWidget(
-                self.grid_widgets[column]["column"], 0 + row, grid_column
-            )
-            self.grid.addWidget(
-                self.grid_widgets[column]["nameunit"], 1 + row, grid_column
-            )
+            self.grid.addWidget(self.grid_widgets[column]["column"], 0 + row, grid_column)
+            self.grid.addWidget(self.grid_widgets[column]["nameunit"], 1 + row, grid_column)
             parameters = QVBoxLayout()
             parameters.setSpacing(3)
             parameters.addWidget(self.grid_widgets[column]["start"])
@@ -1007,17 +979,15 @@ class MainWindow(QMainWindow):
         for i in range(len(sweep)):
             # make sure that values that belong to the same parameter have the
             # same length
-            if self.col_sign[i] == self.col_sign[i - 1] and len(sweep[i]) != len(
-                sweep[i - 1]
-            ):
-                error_text = (
-                    "Not all parameters for that instrument have the same length."
-                )
-                error_text += f"Please correct your sweep parameters in instrument {self.col_sign[i]} "
+            if self.col_sign[i] == self.col_sign[i - 1] and len(sweep[i]) != len(sweep[i - 1]):
+                error_text = "Not all parameters for that instrument have the same length."
                 error_text += (
-                    f" -> {self.flat_col[i]}. If a parameter accepts multiple "
+                    f"Please correct your sweep parameters in instrument {self.col_sign[i]} "
                 )
-                error_text += "values, the different values for that parameter must have the same length."
+                error_text += f" -> {self.flat_col[i]}. If a parameter accepts multiple "
+                error_text += (
+                    "values, the different values for that parameter must have the same length."
+                )
                 QMessageBox.warning(self, "Parameter error!", error_text)
                 return
             maxLen.append(len(sweep[i]))
@@ -1032,12 +1002,14 @@ class MainWindow(QMainWindow):
             if [] == sweep[i]:
                 mult.append(0)
             elif maxLen % len(sweep[i]):
-                error_text = "Sweep_parameters seem unsuitable for measurements, lengths not multiples. "
+                error_text = (
+                    "Sweep_parameters seem unsuitable for measurements, lengths not multiples. "
+                )
                 error_text += "Check that loops are set correctly."
                 QMessageBox.warning(self, "Sweep parameters incompatible!", error_text)
                 return
             else:
-                mult.append(maxLen/len(sweep[i]))
+                mult.append(maxLen / len(sweep[i]))
 
         # initialize outputList, here the strings for the lines will be input
         # this is equivalent to what goes into the file
@@ -1049,14 +1021,12 @@ class MainWindow(QMainWindow):
                 if 0 != mult[j] and not i % mult[j]:
                     # here the values are stretched to the correct "length" if
                     # the loop_over parameter is considered
-                    if self.col_sign[j] == self.col_sign[j-1] and len(sweep) > 1:
+                    if self.col_sign[j] == self.col_sign[j - 1] and len(sweep) > 1:
                         # Parameter has multiple values
-                        string.append(str(swp[floor(i/mult[j])]))
+                        string.append(str(swp[floor(i / mult[j])]))
                     else:
                         # Parameter has single value
-                        string.append(
-                            "-" + self.col_sign[j] +
-                            " " + str(swp[floor(i/mult[j])]))
+                        string.append("-" + self.col_sign[j] + " " + str(swp[floor(i / mult[j])]))
                 string.append("   ")
             # add everything into a single string
             string = "".join(string)
@@ -1105,9 +1075,7 @@ class MainWindow(QMainWindow):
             Saved (True) or cancelled (False)
         """
         if dialog or self.last_filename == "":
-            prefilled_file = (
-                self.last_filename if self.last_filename != "" else usersfolder
-            )
+            prefilled_file = self.last_filename if self.last_filename != "" else usersfolder
             if append:
                 filename = QFileDialog.getOpenFileName(
                     self,
@@ -1208,9 +1176,7 @@ class MainWindow(QMainWindow):
             if column == actual_column:
                 col_sign_label.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
                 col_sign_label.setLineWidth(2)
-                flat_col_nameunit.setFrameStyle(
-                    QLabel.Shape.Panel | QLabel.Shadow.Sunken
-                )
+                flat_col_nameunit.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
                 flat_col_nameunit.setLineWidth(2)
             else:
                 col_sign_label.setFrameStyle(QLabel.Shape.NoFrame)
@@ -1230,9 +1196,7 @@ class MainWindow(QMainWindow):
                         actual_column, row, i
                     )
                 )
-                line_edit.textChanged.connect(
-                    lambda: self.update_window_title(dirty=True)
-                )
+                line_edit.textChanged.connect(lambda: self.update_window_title(dirty=True))
                 line_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
                 self.sweep_table.setCellWidget(row, i, line_edit)
             delete_button = QPushButton("-")
@@ -1298,16 +1262,15 @@ class MainWindow(QMainWindow):
         """
         directory = system_directories[-1]
         if not self.shortcut_dir and len(system_names) > 1:
-            self.shortcut_dir = create_temp_dir_with_symlinks(
-                system_names, system_directories)
+            self.shortcut_dir = create_temp_dir_with_symlinks(system_names, system_directories)
         if self.shortcut_dir:
             directory = os.path.join(self.shortcut_dir.name, system_names[-1])
         if self.last_loaded_system:
             directory = os.path.dirname(self.last_loaded_system)
         # get filenames from dialog
         filenames = QFileDialog.getOpenFileNames(
-            self, 'Select system file', directory,
-            "system files (system*.py)")[0]
+            self, "Select system file", directory, "system files (system*.py)"
+        )[0]
         if filenames == []:
             return
         for filename in filenames:
@@ -1331,7 +1294,7 @@ class MainWindow(QMainWindow):
         if len(selected) > 0:
             self.systemList.takeItem(self.systemList.row(selected[0]))
         elif 0 < self.systemList.count():
-            self.systemList.takeItem(self.systemList.count()-1)
+            self.systemList.takeItem(self.systemList.count() - 1)
         else:
             return
         if self.systemList.count() == 0:
@@ -1397,9 +1360,13 @@ class MainWindow(QMainWindow):
         filename : str
             Sweep file to open.
         """
-        params = {"# params : ": None, "# loop_over : ": None,
-                  "# functions : ": None, "# up_down : ": None,
-                  "# repeat : ": None}
+        params = {
+            "# params : ": None,
+            "# loop_over : ": None,
+            "# functions : ": None,
+            "# up_down : ": None,
+            "# repeat : ": None,
+        }
         self.systemList.clear()
         with open(filename, "r") as infile:
             for line in infile:
@@ -1425,9 +1392,7 @@ class MainWindow(QMainWindow):
                 self.repeat,
             ) = params.values()
         else:
-            (self.sweep_params, self.loop_over, self.up_down, self.repeat) = (
-                params.values()
-            )
+            (self.sweep_params, self.loop_over, self.up_down, self.repeat) = params.values()
             functions = None
         if functions:
             for function in functions:
@@ -1441,9 +1406,7 @@ class MainWindow(QMainWindow):
         # initialize layout with values specified in file
         for col in range(self.nParmsUsed):
             self.grid_widgets[col]["loopover"].setCurrentIndex(self.loop_over[col] + 1)
-            self.grid_widgets[col]["updown"].setCheckState(
-                Qt.CheckState(self.up_down[col])
-            )
+            self.grid_widgets[col]["updown"].setCheckState(Qt.CheckState(self.up_down[col]))
             self.grid_widgets[col]["repeat"].setValue(self.repeat[col])
         self.last_filename = filename
         self.update_window_title()
@@ -1484,9 +1447,9 @@ class MainWindow(QMainWindow):
 def main():
     """Set the basic GUI parameters and run."""
     app = MApplication(sys.argv)
-    if os.name == 'nt':
+    if os.name == "nt":
         # enable modern mode on windows which allows for darkmode
-        app.setStyle('fusion')
+        app.setStyle("fusion")
     elif sys.platform == "darwin":
         set_correct_mac_appname("Sweep Generator")
     with QtGracefulKiller():

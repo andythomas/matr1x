@@ -179,9 +179,7 @@ class PicoVNA(VisaDevice):
 
         self.write(f"CALC:DATA {param},POLAR")
         data = self.read(2 * n_points * byte_width)
-        data = array(
-            list(iter_unpack(">d", data)), dtype=precdict[precision][3]
-        ).ravel()
+        data = array(list(iter_unpack(">d", data)), dtype=precdict[precision][3]).ravel()
         self.read()  # clear EOL character
         return data.reshape((-1, 2)).transpose()
 

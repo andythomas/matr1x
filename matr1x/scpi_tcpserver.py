@@ -20,6 +20,7 @@ Contains a class for creating a (mostly) SCPI compatible measurement device.
 The device listens on an ethernet interface and can be fully defined from
 a dictionary with Command entries.
 """
+
 import logging
 import socketserver
 import threading
@@ -67,8 +68,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         """
         super().setup()
         self.terminate = False
-        self.normkeys = [self._normalize_cmd(cmd) for cmd in
-                         self.server.cmd_list]
+        self.normkeys = [self._normalize_cmd(cmd) for cmd in self.server.cmd_list]
         self.cmdvalues = list(self.server.cmd_list.values())
 
     def parse(self, data):
@@ -98,8 +98,10 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 try:
                     idx = self.normkeys.index(normcmd)
                 except ValueError:
-                    print(f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
-                          f"sent from {self.client_address}")
+                    print(
+                        f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
+                        f"sent from {self.client_address}"
+                    )
                     # prepare a response since a response will be expected
                     response.append(cmd + " not recognized")
                 else:
@@ -118,8 +120,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                         continue
                     if callable(c.getfunc):
                         if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
-                            response.append(",".join(
-                                str(r) for r in c.getfunc(*c.getargs)))
+                            response.append(",".join(str(r) for r in c.getfunc(*c.getargs)))
                         elif c.dtype is bytes:
                             response.append(c.getfunc(*c.getargs))
                         else:
@@ -144,8 +145,10 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 try:
                     idx = self.normkeys.index(normcmd)
                 except ValueError:
-                    print(f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
-                          f"sent from {self.client_address}")
+                    print(
+                        f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
+                        f"sent from {self.client_address}"
+                    )
                 else:
                     # get command specifications
                     c = self.cmdvalues[idx]
@@ -184,7 +187,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                                 # this is crucial on Linux where the
                                 # request/reply pattern has to be strictly
                                 # obeyed, otherwise some ~40ms delay is caused.
-                                response.append('\x06')
+                                response.append("\x06")
                         except (IndexError, TypeError, ValueError):
                             # in case of incorrectly sent command do nothing
                             pass
@@ -192,7 +195,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                         logger.debug("'None' setter for command: %s", cmd)
                         # return "acknowledgement" anyways to allow to continue
                         # also see comment few lines above why this is in addition needed.
-                        response.append('\x06')
+                        response.append("\x06")
         return response
 
     def handle(self):
@@ -205,7 +208,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         while not self.terminate:
             response = None
             # read until \n and decode to utf-8
-            data = str(self.rfile.readline(), 'utf-8').strip().lower()
+            data = str(self.rfile.readline(), "utf-8").strip().lower()
             if "" == data:
                 # empty string was passed, connection was closed
                 break
@@ -220,7 +223,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 response = response.replace("\n", "\\n")
                 if not isinstance(response, bytes):
                     response = response.encode()
-                self.request.sendall(response + b'\n')
+                self.request.sendall(response + b"\n")
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -310,8 +313,7 @@ class SCPI_TCP_Server:
         # accessible also from the internet if PC is accessible from there and
         # the host is not set to localhost!
         self.running = False
-        self.server = ThreadedTCPServer((host, port),
-                                        ThreadedTCPRequestHandler)
+        self.server = ThreadedTCPServer((host, port), ThreadedTCPRequestHandler)
         self.server.cmd_list = cmd_list
 
     def start(self):

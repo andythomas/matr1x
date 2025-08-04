@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Display data and allow simple data manipulation."""
+
 import logging
 import os
 import signal
@@ -52,10 +53,11 @@ from matr1x.util import set_correct_mac_appname
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
 
-if os.name == 'nt':
+if os.name == "nt":
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.matrix-preview.version'
+
+        myappid = "python.matr1x.matrix-preview.version"
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -130,8 +132,7 @@ class SweepPreview(QMainWindow):
         if filename:
             self.open_file(filename)
         else:
-            self.file_open_thread = threading.Thread(
-                target=self._delayed_file_load_attempt)
+            self.file_open_thread = threading.Thread(target=self._delayed_file_load_attempt)
             logger.info("start delayed")
             self.file_open_thread.start()
 
@@ -166,9 +167,7 @@ class SweepPreview(QMainWindow):
                             f"Only files with extensions {', '.join(self.allowed_extensions)} are supported.",
                         )
                 else:
-                    QMessageBox.warning(
-                        self, "Multiple Files", "Please drop only a single file."
-                    )
+                    QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
 
     def _get_maximum_screen_width(self):
         """Determine width of the biggest available screen."""
@@ -276,9 +275,7 @@ class SweepPreview(QMainWindow):
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
         if self.w_meta_view:
-            self.settings.setValue(
-                "meta_placement", self.dockWidgetArea(self.w_meta_view)
-            )
+            self.settings.setValue("meta_placement", self.dockWidgetArea(self.w_meta_view))
             self.settings.setValue("meta_floating", self.w_meta_view.isFloating())
             self.settings.setValue("meta_position", self.w_meta_view.pos())
             self.settings.setValue("meta_size", self.w_meta_view.size())
@@ -333,17 +330,13 @@ class SweepPreview(QMainWindow):
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
         # Previous
         self.previous_action = QAction(MIcon("SP_ArrowLeft"), "Previous", self)
-        cmd_left_shortcut = QKeySequence(
-            Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Left
-        )
+        cmd_left_shortcut = QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Left)
         self.previous_action.setShortcut(cmd_left_shortcut)
         self.previous_action.setEnabled(False)
         self.previous_action.triggered.connect(self.previous_file)
         # Next
         self.next_action = QAction(MIcon("SP_ArrowRight"), "Next", self)
-        cmd_right_shortcut = QKeySequence(
-            Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Right
-        )
+        cmd_right_shortcut = QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Right)
         self.next_action.setShortcut(cmd_right_shortcut)
         self.next_action.setEnabled(False)
         self.next_action.triggered.connect(self.next_file)
@@ -353,21 +346,15 @@ class SweepPreview(QMainWindow):
         self.export_png_action.setShortcut(QKeySequence.StandardKey.Save)
         self.export_png_action.triggered.connect(self.save_plot)
         # Save data as as text file
-        self.export_data_action = QAction(
-            MIcon("SP_FileDialogDetailedView"), "Save txt", self
-        )
+        self.export_data_action = QAction(MIcon("SP_FileDialogDetailedView"), "Save txt", self)
         self.export_data_action.setEnabled(False)
         self.export_data_action.triggered.connect(self.save_data)
         # Update
-        self.auto_update_action = QAction(
-            MIcon("SP_BrowserReload"), "Auto Update", self
-        )
+        self.auto_update_action = QAction(MIcon("SP_BrowserReload"), "Auto Update", self)
         self.auto_update_action.setEnabled(False)
         self.auto_update_action.setCheckable(True)
         self.auto_update_action.toggled.connect(self.updatethread)
-        self.update_action = QAction(
-            MIcon("CHAR_U", QColor("RoyalBlue")), "Update", self
-        )
+        self.update_action = QAction(MIcon("CHAR_U", QColor("RoyalBlue")), "Update", self)
         self.update_action.setEnabled(False)
         self.update_action.triggered.connect(lambda: self.conditional_fetch_data(True))
         # Quit
@@ -494,28 +481,19 @@ class SweepPreview(QMainWindow):
                 | QDockWidget.DockWidgetFeature.DockWidgetMovable
             )
             self.w_meta_view.setAllowedAreas(
-                Qt.DockWidgetArea.LeftDockWidgetArea
-                | Qt.DockWidgetArea.RightDockWidgetArea
+                Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
             )
             self.w_meta_view.setVisible(False)
             self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_meta_view)
             # restore settings
             self.addDockWidget(
-                self.settings.value(
-                    "meta_placement", Qt.DockWidgetArea.RightDockWidgetArea
-                ),
+                self.settings.value("meta_placement", Qt.DockWidgetArea.RightDockWidgetArea),
                 self.w_meta_view,
             )
-            self.w_meta_view.setFloating(
-                self.settings.value("meta_floating", False, type=bool)
-            )
+            self.w_meta_view.setFloating(self.settings.value("meta_floating", False, type=bool))
             if self.w_meta_view.isFloating():
-                self.w_meta_view.move(
-                    self.settings.value("meta_position", self.w_meta_view.pos())
-                )
-                self.w_meta_view.resize(
-                    self.settings.value("meta_size", self.w_meta_view.size())
-                )
+                self.w_meta_view.move(self.settings.value("meta_position", self.w_meta_view.pos()))
+                self.w_meta_view.resize(self.settings.value("meta_size", self.w_meta_view.size()))
             else:
                 self.resizeDocks(
                     [self.w_meta_view],
@@ -541,8 +519,9 @@ class SweepPreview(QMainWindow):
         self.w_index[2].setVisible(False)
 
         self.column_items = [
-            f"{name} ({unit}), shape: {shape}" for name, unit, shape
-            in zip(self.names, self.units, self.shapes)]
+            f"{name} ({unit}), shape: {shape}"
+            for name, unit, shape in zip(self.names, self.units, self.shapes)
+        ]
 
         for i in range(3):
             self.w_index[i].addItems([""] + self.column_items)
@@ -567,8 +546,8 @@ class SweepPreview(QMainWindow):
 
         self.grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
         for i in range(3):
-            self.grid.addWidget(self.w_l[i], i+1, 0)
-            self.grid.addWidget(self.w_index[i], i+1, 1)
+            self.grid.addWidget(self.w_l[i], i + 1, 0)
+            self.grid.addWidget(self.w_index[i], i + 1, 1)
         self.grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
         self.grid.addWidget(self.w_transpose, 2, 2, 1, 1)
         self.grid.addWidget(self.spw, 4, 0, 1, -1)
@@ -657,13 +636,13 @@ class SweepPreview(QMainWindow):
         """Determine the previous file."""
         self.update_file_combo()
         if self.file_index > 0:
-            self.w_file.setCurrentIndex(self.file_index-1)
+            self.w_file.setCurrentIndex(self.file_index - 1)
 
     def next_file(self):
         """Determine the next file."""
         self.update_file_combo()
         if self.file_index < len(self.data_files) - 1:
-            self.w_file.setCurrentIndex(self.file_index+1)
+            self.w_file.setCurrentIndex(self.file_index + 1)
 
     def file_index_changed(self, index):
         """Update info when index changes."""
@@ -672,14 +651,15 @@ class SweepPreview(QMainWindow):
         check = self.conditional_fetch_data(True, check=True)
         if 0 != check:
             self.column_items = [
-                f"{name} ({unit}), shape: {shape}" for name, unit, shape
-                in zip(self.names, self.units, self.shapes)]
+                f"{name} ({unit}), shape: {shape}"
+                for name, unit, shape in zip(self.names, self.units, self.shapes)
+            ]
             if -2 == check:
                 # file has same columns but different shapes, only change
                 # names to reflect the dimensions
                 for i in range(3):
                     for j, item in enumerate(self.column_items):
-                        self.w_index[i].setItemText(j+1, item)
+                        self.w_index[i].setItemText(j + 1, item)
             elif -1 == check:
                 # file has different columns
                 # reload interface
@@ -690,7 +670,7 @@ class SweepPreview(QMainWindow):
                 self.spw.reset()
         else:
             ci = self.spw.w_plots.currentIndex()
-            for i in range(self.spw.w_plots.count()-1):
+            for i in range(self.spw.w_plots.count() - 1):
                 if i == ci:
                     # skip plot that will remain selected
                     continue
@@ -711,9 +691,8 @@ class SweepPreview(QMainWindow):
 
     def transpose_toggled(self, check_state):
         """Transpose has been toggled, reload data."""
-        if (self.w_plot2d.isChecked() is True and
-                self.w_plot2d_comp.isChecked() is False):
-            if len(self.shapes[self.w_index[0].currentIndex()-1]) < 3:
+        if self.w_plot2d.isChecked() is True and self.w_plot2d_comp.isChecked() is False:
+            if len(self.shapes[self.w_index[0].currentIndex() - 1]) < 3:
                 # toggle index for 2d data, since x and y invert role
                 dummy = self.w_index[2].currentIndex()
                 self.w_index[2].blockSignals(True)
@@ -818,17 +797,18 @@ class SweepPreview(QMainWindow):
     def refresh_columns_size(self):
         """Refresh size of all columns."""
         self.column_items = [
-            f"{name} ({unit}), shape: {shape}" for name, unit, shape
-            in zip(self.names, self.units, self.shapes)]
+            f"{name} ({unit}), shape: {shape}"
+            for name, unit, shape in zip(self.names, self.units, self.shapes)
+        ]
         # change names to reflect the dimensions
         for i in range(3):
             for j, item in enumerate(self.column_items):
-                self.w_index[i].setItemText(j+1, item)
+                self.w_index[i].setItemText(j + 1, item)
 
     def refresh_all_plots(self):
         """Refresh all subplots by selecting each individually."""
         ci = self.spw.w_plots.currentIndex()
-        for i in range(self.spw.w_plots.count()-1):
+        for i in range(self.spw.w_plots.count() - 1):
             if ci == i:
                 # skip current index as this one will be done last
                 pass
@@ -849,8 +829,7 @@ class SweepPreview(QMainWindow):
         """Handle the data operations."""
         try:
             ret = 0
-            self.header, self.data = loadmatrix(self.filename,
-                                                replace_None=True)
+            self.header, self.data = loadmatrix(self.filename, replace_None=True)
             names = self.header["columns"]
             units = self.header["units"]
             shapes = [self.data[col].shape for col in names]
@@ -873,11 +852,13 @@ class SweepPreview(QMainWindow):
             # file could not be opened
             exc_type, exc_value, exc_traceback = sys.exc_info()
             _ = QMessageBox.critical(
-                self, "Error when opening file",
+                self,
+                "Error when opening file",
                 f"""
 The following error was raised when opening the file:
 {repr(exc_value)}
-Please investigate the error and eventually restart matrix-preview""")
+Please investigate the error and eventually restart matrix-preview""",
+            )
             sys.exit(-1)
 
         # update timer
@@ -886,8 +867,7 @@ Please investigate the error and eventually restart matrix-preview""")
 
     def reload_data(self):
         """Wrap the 1d and 2d plotting functions and decide which one is appropriate from the state of the gui."""
-        if (self.w_plot2d.isChecked() is True or
-                self.w_plot2d_comp.isChecked() is True):
+        if self.w_plot2d.isChecked() is True or self.w_plot2d_comp.isChecked() is True:
             ret = self.reload_data_2d()
         else:
             ret = self.reload_data_curve()
@@ -900,45 +880,35 @@ Please investigate the error and eventually restart matrix-preview""")
             if ret == -3:
                 self.raise_error("no data selected")
             elif ret == -2:
-                self.raise_error(
-                    "data has too high dimension for 1d slicing")
+                self.raise_error("data has too high dimension for 1d slicing")
             elif ret == -1:
-                self.raise_error(
-                    "data axis cannot be reshaped, lengths not multiples")
+                self.raise_error("data axis cannot be reshaped, lengths not multiples")
             elif ret == -4:
-                self.raise_error(
-                    "data shapes complicated, do not know what to do")
+                self.raise_error("data shapes complicated, do not know what to do")
             elif ret == -5:
-                self.raise_error(
-                    "data has too low or too high dimension for 2d plot")
+                self.raise_error("data has too low or too high dimension for 2d plot")
             elif ret == -6:
-                self.raise_error(
-                    "data has too high dimension for 2d slicing")
+                self.raise_error("data has too high dimension for 2d slicing")
             elif ret == -7:
-                self.raise_error(
-                    "data in x does not have correct dimension")
+                self.raise_error("data in x does not have correct dimension")
             elif ret == -8:
-                self.raise_error(
-                    "data in y does not have correct dimension")
+                self.raise_error("data in y does not have correct dimension")
             elif ret == -9:
-                self.raise_error(
-                    "data array with zero length dimension is present")
+                self.raise_error("data array with zero length dimension is present")
         elif self.error is True:
             self.error = False
             self.w_status.setVisible(False)
 
     def reload_data_2d(self):
         """Reload the data in the 2d case."""
-        indexZ, indexX, indexY = [
-            self.w_index[i].currentIndex() - 1 for i in range(3)]
+        indexZ, indexX, indexY = [self.w_index[i].currentIndex() - 1 for i in range(3)]
         x = {}
         y = {}
         z = {}
         if indexZ == -1:
             # empty index selected
             return -3
-        for i, (index, dat) in enumerate(zip([indexZ, indexX, indexY],
-                                             [z, x, y])):
+        for i, (index, dat) in enumerate(zip([indexZ, indexX, indexY], [z, x, y])):
             if index == -1:
                 dat["data"] = False
                 continue
@@ -946,7 +916,7 @@ Please investigate the error and eventually restart matrix-preview""")
                 dim = len(self.shapes[index])
                 name = self.names[index]
                 dat["label"] = name
-                dat["desig"] = index+1
+                dat["desig"] = index + 1
                 dat["unit"] = self.units[index]
                 data = self.data[name]
                 if data.size > 0:
@@ -991,9 +961,14 @@ Please investigate the error and eventually restart matrix-preview""")
                 z["data"] = z["data"].T
         z["shape"] = z["data"].shape
         if x["data"] is False:
-            x = dict(label="array index", unit="", dim=1,
-                     data=np.arange(z["shape"][0]), desig=0,
-                     shape=(z["shape"][0],))
+            x = dict(
+                label="array index",
+                unit="",
+                dim=1,
+                data=np.arange(z["shape"][0]),
+                desig=0,
+                shape=(z["shape"][0],),
+            )
         else:
             index = 1 if (transpose is True and x["dim"] > 1) else 0
             lenx = x["shape"][index]
@@ -1004,20 +979,21 @@ Please investigate the error and eventually restart matrix-preview""")
                 x["data"] = np.linspace(x["data"][0], x["data"][-1], lenx)
             else:
                 if transpose is False:
-                    x["data"] = np.linspace(x["data"][0, 0],
-                                            x["data"][-1, 0],
-                                            lenx)
+                    x["data"] = np.linspace(x["data"][0, 0], x["data"][-1, 0], lenx)
                 else:
-                    x["data"] = np.linspace(x["data"][0, 0],
-                                            x["data"][0, -1],
-                                            lenx)
+                    x["data"] = np.linspace(x["data"][0, 0], x["data"][0, -1], lenx)
             x["shape"] = lenx
             x["dim"] = 1
 
         if y["data"] is False:
-            y = dict(label="array index", unit="", dim=1,
-                     data=np.arange(z["shape"][1]), desig=0,
-                     shape=(z["shape"][1],))
+            y = dict(
+                label="array index",
+                unit="",
+                dim=1,
+                data=np.arange(z["shape"][1]),
+                desig=0,
+                shape=(z["shape"][1],),
+            )
         else:
             index = 1 if transpose is False and y["dim"] > 1 else 0
             leny = y["shape"][index]
@@ -1028,13 +1004,9 @@ Please investigate the error and eventually restart matrix-preview""")
                 y["data"] = np.linspace(y["data"][0], y["data"][-1], leny)
             else:
                 if transpose is False:
-                    y["data"] = np.linspace(y["data"][0, 0],
-                                            y["data"][0, -1],
-                                            leny)
+                    y["data"] = np.linspace(y["data"][0, 0], y["data"][0, -1], leny)
                 else:
-                    y["data"] = np.linspace(y["data"][0, 0],
-                                            y["data"][-1, 0],
-                                            leny)
+                    y["data"] = np.linspace(y["data"][0, 0], y["data"][-1, 0], leny)
             y["shape"] = leny
             y["dim"] = 1
 
@@ -1049,8 +1021,7 @@ Please investigate the error and eventually restart matrix-preview""")
             self.iv.getHistogramWidget().axis.setLabel(z["label"])
 
         else:
-            self.spw.plot(z, x, y,
-                          plot2d=self.w_plot2d.isChecked())
+            self.spw.plot(z, x, y, plot2d=self.w_plot2d.isChecked())
         return 0
 
     def reload_data_curve(self):
@@ -1083,11 +1054,16 @@ Please investigate the error and eventually restart matrix-preview""")
                 else:
                     y["data"] = self.data[yname]
                 y["shape"] = y["data"].shape
-                x = dict(label="array index", unit="", dim=1,
-                         data=np.arange(y["shape"][0]), desig=0,
-                         shape=(y["shape"][0],))
+                x = dict(
+                    label="array index",
+                    unit="",
+                    dim=1,
+                    data=np.arange(y["shape"][0]),
+                    desig=0,
+                    shape=(y["shape"][0],),
+                )
                 y["label"] = yname
-                y["desig"] = indexY+1
+                y["desig"] = indexY + 1
                 y["unit"] = self.units[indexY]
                 y["dim"] = dim
             else:
@@ -1095,13 +1071,23 @@ Please investigate the error and eventually restart matrix-preview""")
         else:
             # both axes are define, set up x and y dictionary
             yname = self.names[indexY]
-            y = dict(label=yname, desig=indexY+1, unit=self.units[indexY],
-                     data=self.data[yname], shape=self.shapes[indexY],
-                     dim=len(self.shapes[indexY]))
+            y = dict(
+                label=yname,
+                desig=indexY + 1,
+                unit=self.units[indexY],
+                data=self.data[yname],
+                shape=self.shapes[indexY],
+                dim=len(self.shapes[indexY]),
+            )
             xname = self.names[indexX]
-            x = dict(label=xname, desig=indexX+1, unit=self.units[indexX],
-                     data=self.data[xname], shape=self.shapes[indexX],
-                     dim=len(self.shapes[indexX]))
+            x = dict(
+                label=xname,
+                desig=indexX + 1,
+                unit=self.units[indexX],
+                data=self.data[xname],
+                shape=self.shapes[indexX],
+                dim=len(self.shapes[indexX]),
+            )
 
         if y["data"].size == 0 or x["data"].size == 0:
             return -9
@@ -1168,15 +1154,15 @@ Please investigate the error and eventually restart matrix-preview""")
 def main():
     """Set the basic GUI parameters and run."""
     app = Matr1xApplication(sys.argv)
-    if os.name == 'nt':
+    if os.name == "nt":
         # enable modern mode on windows which allows for darkmode
-        app.setStyle('fusion')
+        app.setStyle("fusion")
     elif sys.platform == "darwin":
         set_correct_mac_appname("Matrix Preview")
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
-    if 'SIGTTOU' in dir(signal):  # signal only on POSIX compliant systems
+    if "SIGTTOU" in dir(signal):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     with QtGracefulKiller():
         if len(sys.argv) < 2:

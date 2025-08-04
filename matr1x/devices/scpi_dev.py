@@ -53,8 +53,7 @@ def makeSCPIdevice(*cmds, system=True):
     type
         A dynamically created class derived from pymeasure.Instrument
     """
-    typeplaceholder = {int: "%d", float: "%g", bool: "%d",
-                       str: "%s", None: ""}
+    typeplaceholder = {int: "%d", float: "%g", bool: "%d", str: "%s", None: ""}
 
     cmd_list = {}
     # merge commands in arguments
@@ -77,9 +76,9 @@ def makeSCPIdevice(*cmds, system=True):
             A valid Python identifier
         """
         # Remove invalid characters
-        s = re.sub('[^0-9a-zA-Z_]', '', s)
+        s = re.sub("[^0-9a-zA-Z_]", "", s)
         # Remove leading characters until we find a letter or underscore
-        s = re.sub('^[^a-zA-Z_]+', '', s)
+        s = re.sub("^[^a-zA-Z_]+", "", s)
         return s
 
     def strict_length(value, values):
@@ -104,8 +103,7 @@ def makeSCPIdevice(*cmds, system=True):
             If length of value does not match expected length
         """
         if len(value) != values:
-            raise ValueError(
-                f"Value {value} does not have an appropriate length of {values}")
+            raise ValueError(f"Value {value} does not have an appropriate length of {values}")
         return value
 
     def list2str(value, dtype):
@@ -151,9 +149,9 @@ def makeSCPIdevice(*cmds, system=True):
         ret = []
         for v, t in zip(values, dtype):
             if t is bool:
-                if v == 'False':
+                if v == "False":
                     castval = False
-                elif v == 'True':
+                elif v == "True":
                     castval = True
                 else:
                     castval = None
@@ -162,7 +160,7 @@ def makeSCPIdevice(*cmds, system=True):
             ret.append(castval)
         return ret
 
-    def constructor(self, adapter, name='clientdevice', **kwargs):
+    def constructor(self, adapter, name="clientdevice", **kwargs):
         """
         Initialize the SCPI device instance.
 
@@ -175,9 +173,7 @@ def makeSCPIdevice(*cmds, system=True):
         **kwargs : dict
             Additional keyword arguments passed to the Instrument constructor
         """
-        kwargs.update(read_termination='\n',
-                      write_termination='\n',
-                      includeSCPI=False)
+        kwargs.update(read_termination="\n", write_termination="\n", includeSCPI=False)
         Instrument.__init__(self, adapter, name, **kwargs)
 
     def query(self, cmd):
@@ -211,7 +207,7 @@ def makeSCPIdevice(*cmds, system=True):
             If the device responds with an error
         """
         reply = self.read()
-        if reply != '\x06':
+        if reply != "\x06":
             raise ValueError(
                 "Wrong reply received when there should be an acknowledge. "
                 f"Instead received {reply}"
@@ -247,6 +243,7 @@ def makeSCPIdevice(*cmds, system=True):
             setattr(self, attr, value)
             while not getattr(self, pollattr):
                 time.sleep(0.1)
+
         return setnwait
 
     def create_parameterless(cmd):
@@ -278,6 +275,7 @@ def makeSCPIdevice(*cmds, system=True):
             """
             Instrument.write(self, cmd)
             check_set_errors(self)
+
         return parameterless
 
     def id(self):  # noqa: A001  # use pymeasure Instrument.id
@@ -292,11 +290,12 @@ def makeSCPIdevice(*cmds, system=True):
         return self.idn
 
     attributes = dict()
-    methods = {"__init__": constructor,
-               "query": query,
-               "id": id,
-               "check_set_errors": check_set_errors,
-               }
+    methods = {
+        "__init__": constructor,
+        "query": query,
+        "id": id,
+        "check_set_errors": check_set_errors,
+    }
 
     # make id standard config parameter
     attributes["config_params"] = {"id": "idn"}
@@ -304,10 +303,7 @@ def makeSCPIdevice(*cmds, system=True):
     # add system query to config_params
     if system and ":conf" not in cmd_list:
         attributes["config_params"]["SCPIdevconf"] = "conf"
-        cmd_list[":conf"] = Get(
-            lambda b: pickle.loads(ast.literal_eval(b)),
-            True
-        )
+        cmd_list[":conf"] = Get(lambda b: pickle.loads(ast.literal_eval(b)), True)
 
     for name, cmd in cmd_list.items():
         # create an pymeasure attribute for every command
@@ -317,52 +313,58 @@ def makeSCPIdevice(*cmds, system=True):
             stringplaceholder = typeplaceholder[cmd.dtype]
         except (KeyError, TypeError):
             if isinstance(cmd.dtype, (tuple, list)):
-                stringplaceholder = '%s'
+                stringplaceholder = "%s"
             elif cmd.setfunc is not None:
                 raise
 
         kwargs = {}
         if isinstance(cmd.dtype, (tuple, list)):
-            kwargs['cast'] = lambda x: x  # noop, handled in get_process
-            kwargs['validator'] = strict_length
-            kwargs['values'] = len(cmd.dtype)
-            kwargs['set_process'] = lambda v, t=cmd.dtype: list2str(v, t)
-            kwargs['get_process'] = lambda v, t=cmd.dtype: castlist(v, t)
+            kwargs["cast"] = lambda x: x  # noop, handled in get_process
+            kwargs["validator"] = strict_length
+            kwargs["values"] = len(cmd.dtype)
+            kwargs["set_process"] = lambda v, t=cmd.dtype: list2str(v, t)
+            kwargs["get_process"] = lambda v, t=cmd.dtype: castlist(v, t)
         elif cmd.dtype == bool:
-            kwargs['validator'] = strict_discrete_set
-            kwargs['values'] = [True, False, None]
-            kwargs['get_process'] = lambda s: castlist([s, ], [bool, ])[0]
-            kwargs['set_process'] = int
+            kwargs["validator"] = strict_discrete_set
+            kwargs["values"] = [True, False, None]
+            kwargs["get_process"] = lambda s: castlist(
+                [
+                    s,
+                ],
+                [
+                    bool,
+                ],
+            )[0]
+            kwargs["set_process"] = int
         else:
-            kwargs['cast'] = cmd.dtype
+            kwargs["cast"] = cmd.dtype
 
         if cmd.setfunc is None:
             if "validator" in kwargs:
                 # for pure get property some kwargs are not allowed
                 del kwargs["validator"]
                 del kwargs["set_process"]
-            attributes[att] = Instrument.measurement(
-                name + '?', f"get {att}", **kwargs)
+            attributes[att] = Instrument.measurement(name + "?", f"get {att}", **kwargs)
         elif cmd.getfunc is None:
             if cmd.dtype is None:
                 # create parameterless functions (e.g. trigger)
-                methods[f'{att}'] = create_parameterless(name)
+                methods[f"{att}"] = create_parameterless(name)
             else:
-                kwargs['check_set_errors'] = True
+                kwargs["check_set_errors"] = True
                 # cast not valid kwarg for Instrument.setting
                 del kwargs["cast"]
                 attributes[att] = Instrument.setting(
-                    name + f' {stringplaceholder}', f"set {att}", **kwargs)
+                    name + f" {stringplaceholder}", f"set {att}", **kwargs
+                )
         else:  # here both setfunc and getfunc are real
-            kwargs['check_set_errors'] = True
+            kwargs["check_set_errors"] = True
             attributes[att] = Instrument.control(
-                name + '?', name + f' {stringplaceholder}',
-                f"get/set {att}", **kwargs)
+                name + "?", name + f" {stringplaceholder}", f"get/set {att}", **kwargs
+            )
         # create set and wait/poll method in case this is asked for
         if cmd.polling_cmd is not None:
-            methods[f'set_{att}'] = create_setnwait(
-                att, make_identifier(cmd.polling_cmd))
+            methods[f"set_{att}"] = create_setnwait(att, make_identifier(cmd.polling_cmd))
 
     methods.update(attributes)
 
-    return type("SCPIdevice", (Instrument, ), methods)
+    return type("SCPIdevice", (Instrument,), methods)

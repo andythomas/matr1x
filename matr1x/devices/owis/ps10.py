@@ -143,9 +143,7 @@ class Ps10(VisaDevice):
         try:
             return int(ret)
         except ValueError:
-            logger.info(
-                f"{self.name}.query_int: integer conversion error ('{msg}', {ret})"
-            )
+            logger.info(f"{self.name}.query_int: integer conversion error ('{msg}', {ret})")
             # retry query
             return self.query_int(msg, depth + 1)
 

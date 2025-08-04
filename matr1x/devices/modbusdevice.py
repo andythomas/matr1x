@@ -21,6 +21,7 @@ In this module the base class for all Modbus based device drivers in this packag
 defined. It is itself based on the minimalmodbus library which handles all the low
 level communication.
 """
+
 import minimalmodbus
 import serial
 from wrapt import synchronized

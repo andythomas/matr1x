@@ -238,9 +238,7 @@ class ElabSystem(System):
             ):
                 self.add_attachment(self.filename, "Data file")
             else:
-                print(
-                    f"File size ({file_size_mb:.2f} MB) exceeds the limit. Not uploading."
-                )
+                print(f"File size ({file_size_mb:.2f} MB) exceeds the limit. Not uploading.")
 
     def _render_template(self, template: str) -> str:
         """
@@ -310,19 +308,13 @@ class ElabSystem(System):
             pass
 
         # Step 2: try to find exact substring matches
-        substring_matches = [
-            name for name in names if search_string.lower() in name.lower()
-        ]
+        substring_matches = [name for name in names if search_string.lower() in name.lower()]
 
         # Step 3: If no exact substring matches, find the closest match
         if substring_matches:
-            most_likely_match = substring_matches[
-                0
-            ]  # Assuming the first match is the most likely
+            most_likely_match = substring_matches[0]  # Assuming the first match is the most likely
         else:
-            closest_matches = difflib.get_close_matches(
-                search_string, names, n=1, cutoff=0.6
-            )
+            closest_matches = difflib.get_close_matches(search_string, names, n=1, cutoff=0.6)
             most_likely_match = closest_matches[0] if closest_matches else None
         return response[names.index(most_likely_match)].userid
 
@@ -349,9 +341,7 @@ class ElabSystem(System):
                 % e
             )
         # find id for search category
-        result_id = next(
-            (item.id for item in response if item.title == category_name), None
-        )
+        result_id = next((item.id for item in response if item.title == category_name), None)
         return result_id
 
     def _determine_status(self, status: str) -> Optional[int]:
@@ -375,8 +365,7 @@ class ElabSystem(System):
             response = expstatusApi.read_team_experiments_status(self._team_id)
         except ApiException as e:
             print(
-                "Exception when calling ExperimentsStatusApi->readTeamExperimentsStatus: %s\n"
-                % e
+                "Exception when calling ExperimentsStatusApi->readTeamExperimentsStatus: %s\n" % e
             )
             return None
         return next((item.id for item in response if item.title == status), None)
@@ -436,9 +425,7 @@ class ElabSystem(System):
             return None
         resource_cat = self._determine_resource_category()
         if not resource_cat:
-            raise ValueError(
-                "Valid resource category could not be found, but is needed."
-            )
+            raise ValueError("Valid resource category could not be found, but is needed.")
         # create an instance of the API class
         itemsApi = elabapi_python.ItemsApi(self.api_client)
         body = {"category_id": resource_cat}
@@ -478,14 +465,10 @@ class ElabSystem(System):
         except ApiException as e:
             print("Exception when calling ItemsApi->readItems: %s\n" % e)
             return None
-        if item_id := next(
-            (item.id for item in response if item.title == resource), None
-        ):
+        if item_id := next((item.id for item in response if item.title == resource), None):
             return item_id
         else:
-            print(
-                f"Could not identify ElabFTW resource corresponding to the name {resource}"
-            )
+            print(f"Could not identify ElabFTW resource corresponding to the name {resource}")
         return None
 
     def _parse_tags_from_line(self, line: str) -> Optional[int]:
@@ -613,9 +596,7 @@ class ElabSystem(System):
 
         uploads_api = elabapi_python.UploadsApi(self.api_client)
         for file, comment in self._attachments.items():
-            uploads_api.post_upload(
-                "experiments", experiment_id, file=file, comment=comment
-            )
+            uploads_api.post_upload("experiments", experiment_id, file=file, comment=comment)
         self._attachments = {}
 
     def _link_resources(self, experiment_id: str) -> None:

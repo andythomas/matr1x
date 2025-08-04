@@ -80,9 +80,7 @@ class TIC500(VisaDevice):
         try:
             return float(ret)
         except ValueError:
-            logger.info(
-                f"{self.name}.query_float: float conversion error ('{msg}', {ret})"
-            )
+            logger.info(f"{self.name}.query_float: float conversion error ('{msg}', {ret})")
 
     # High level functions
     def get_temp(self, channel):

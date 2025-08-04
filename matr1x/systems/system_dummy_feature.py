@@ -83,7 +83,7 @@ class MeasSystem(System):
         In order to use a method as a getter it should must have no required
         arguments.
         """
-        return self.devs['dev2'].p1
+        return self.devs["dev2"].p1
 
     def set_dev2_p1(self, value):
         """Test function for using in parameter setter.
@@ -91,7 +91,7 @@ class MeasSystem(System):
         In order to use a method as setter it must have exactly one argument,
         which corresponds to the value to which the parameter should be set.
         """
-        self.devs['dev2'].p1 = value
+        self.devs["dev2"].p1 = value
 
     def set(self, *args, **kwargs):
         """Initialize and configure the measurement.
@@ -175,12 +175,10 @@ system.add_dev(
 # (=length of readout array, used only for HDF5 systems), and a default value
 # to be used when setting the device (used if no value is specified
 # in the sweep file)
+system.add_param(["dev1 p3a", "dev1 p3b"], ["cnta", "cntb"], ["dev1", "p3"], ["dev1", "p3"])
 system.add_param(
-    ["dev1 p3a", "dev1 p3b"], ["cnta", "cntb"],
-    ["dev1", "p3"],
-    ["dev1", "p3"])
-system.add_param(
-    "dev1 p2", "cnt",
+    "dev1 p2",
+    "cnt",
     setter=["dev1", "p2"],
     getter=["dev1", "p2"],
     trigger=["dev1", "trg"],

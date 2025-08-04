@@ -21,6 +21,7 @@ from Magnet Physik via VISA communication protocols. It enables control and
 reading of magnetic field measurements, temperature readings, and various
 device settings such as range, filter, and operation mode.
 """
+
 import time
 
 from pyvisa import VisaIOError
@@ -142,9 +143,7 @@ class FH55(VisaDevice):
         elif filter_status == "OFF":
             self.query("#FILTER 0")
         else:
-            print(
-                f"Please choose a valid filter status (ON/OFF)! Your input was: {filter_status}"
-            )
+            print(f"Please choose a valid filter status (ON/OFF)! Your input was: {filter_status}")
 
     def getMode(self):
         """Return the AC/DC mode."""

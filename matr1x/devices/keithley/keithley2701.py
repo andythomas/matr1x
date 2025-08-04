@@ -19,6 +19,7 @@ Module for Keithley 2701 multimeter control.
 This module provides an interface to the Keithley 2701 multimeter for precise measurements
 of resistance, voltage, and other electrical parameters through VISA communication.
 """
+
 import time
 
 from wrapt import synchronized

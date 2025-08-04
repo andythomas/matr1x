@@ -31,6 +31,7 @@ Register map:
     register 8: reserved
     register 9: reserved
 """
+
 import subprocess
 
 import numpy as np

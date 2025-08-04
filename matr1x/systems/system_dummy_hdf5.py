@@ -24,6 +24,7 @@ to stick to the ascii format.
 In case you are interested in the overhead for chunked data storage in hdf5 see
 https://davis.lbl.gov/Manuals/HDF5-1.8.7/Advanced/Chunking/index.html
 """
+
 # ============================
 # Custom import area
 # ============================
@@ -69,6 +70,8 @@ class MeasSystem(System):
             The reshaped p4 parameter array.
         """
         return numpy.asarray(self.devs["devhdf"].p4).reshape(shape)
+
+
 # ============================
 
 
@@ -97,15 +100,19 @@ system.add_param(
     ["cnta", "cntb"],
     ["devhdf", "p3"],
     ["devhdf", "p3"],
-    chunks=[1, 1], dtype=["i8", "i8"])
+    chunks=[1, 1],
+    dtype=["i8", "i8"],
+)
 system.add_param(
-    "devhdfp4_2d", "cnt",
-    getter='get_p4',
-    getter_kwargs={"shape": (2, 2)},
-    chunks=(2, 2))
+    "devhdfp4_2d", "cnt", getter="get_p4", getter_kwargs={"shape": (2, 2)}, chunks=(2, 2)
+)
 system.add_param(
-    ["rand2d_1", "rand2d_2"], ["cnt", "cnt"],
+    ["rand2d_1", "rand2d_2"],
+    ["cnt", "cnt"],
     getter=numpy.random.random,
-    getter_args=[(2, 4, 4), ],
-    chunks=[(4, 4), (4, 4)])
+    getter_args=[
+        (2, 4, 4),
+    ],
+    chunks=[(4, 4), (4, 4)],
+)
 # ============================

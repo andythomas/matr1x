@@ -19,7 +19,6 @@
 # Custom import area
 # ============================
 
-
 from matr1x.control import control_dummy
 from matr1x.system import System
 
@@ -52,9 +51,7 @@ system.add_dev(
 # define columns for measurement
 # ============================
 system.add_param("guiv1", "int", ["gui", "v1"], ["gui", "v1"])
-system.add_param(
-    ["guiv2", "guiv3"], ["float", "float"], ["gui", "v2v3"], ["gui", "v2v3"]
-)
+system.add_param(["guiv2", "guiv3"], ["float", "float"], ["gui", "v2v3"], ["gui", "v2v3"])
 system.add_param("guiv4", "bool", ["gui", "v4"], ["gui", "v4"])
 system.add_param("guiv5", "float", None, ["gui", "v5"])
 

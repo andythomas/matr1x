@@ -266,8 +266,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
                             error_text,
                         )
                     elif (
-                        not self.settables[self.columns.index(value)]
-                        and func_name == "set_value"
+                        not self.settables[self.columns.index(value)] and func_name == "set_value"
                     ):
                         # make sure column is settable in set_value function
                         self.errors += 1
@@ -287,8 +286,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
                 # elif isinstance(col_name, ast.Name):...
                 else:
                     error_text = (
-                        f"Cannot statically check arg in {func_name}"
-                        f" in line {col_name.lineno}"
+                        f"Cannot statically check arg in {func_name} in line {col_name.lineno}"
                     )
                     self.parent.reporter.syntaxError(
                         scriptname, "warning", SCRIPT_OFFSET + lineno, 0, error_text, 0
@@ -339,10 +337,10 @@ class DroppableWidget(QWidget):
                 QMessageBox.warning(
                     self,
                     "Invalid Action",
-                    f"Only files with {MainWindow.extension} extension can be dropped.")
+                    f"Only files with {MainWindow.extension} extension can be dropped.",
+                )
         else:
-            QMessageBox.warning(self, "Multiple Files",
-                                "Please drop only a single file.")
+            QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
 
 
 class TerminalOutput(QTextEdit):
@@ -405,9 +403,13 @@ class CustomReporter(pyflakes.reporter.Reporter):
         style = 0
         if message.__class__.__name__ in LINTER_ERRORS:
             style = 1
-        self.linter_hook(message.lineno-SCRIPT_OFFSET, message.col-4,
-                         message.message % message.message_args,
-                         message.message_args, style)
+        self.linter_hook(
+            message.lineno - SCRIPT_OFFSET,
+            message.col - 4,
+            message.message % message.message_args,
+            message.message_args,
+            style,
+        )
 
     def syntaxError(self, filename, msg, lineno, offset, text, style=1):
         """
@@ -420,7 +422,7 @@ class CustomReporter(pyflakes.reporter.Reporter):
         else:
             line = text.splitlines()[-1]
 
-        m = re.search(r'line (\d+)', msg)
+        m = re.search(r"line (\d+)", msg)
         if m is not None:
             lineno = int(m.groups(0)[0])
             line = None
@@ -431,7 +433,7 @@ class CustomReporter(pyflakes.reporter.Reporter):
 
         lineno -= SCRIPT_OFFSET
 
-        msg = re.sub(r'line (\d+)', f"line {lineno+1}", msg)
+        msg = re.sub(r"line (\d+)", f"line {lineno + 1}", msg)
 
         if offset is not None:
             if offset >= 4:
@@ -498,8 +500,7 @@ class CompleterPython(QObject):
         self.editor = editor
         self.enabled = False
 
-        self.__defRX = re.compile(
-            r"^[ \t]*(async[ \t]+)?(def|cdef|cpdef) \w+\(")
+        self.__defRX = re.compile(r"^[ \t]*(async[ \t]+)?(def|cdef|cpdef) \w+\(")
         self.__defSelfRX = re.compile(
             r"^[ \t]*(async[ \t]+)?(def|cdef|cpdef) \w+\([ \t]*self[ \t]*[,)]"
         )
@@ -527,8 +528,8 @@ class CompleterPython(QObject):
 
         self.__trailingBlankRe = re.compile(r"(?:,)(\s*)\r?\n")
 
-        self.__openBrackets = ('(', '[', '{')
-        self.__closeBrackets = (')', ']', '}')
+        self.__openBrackets = ("(", "[", "{")
+        self.__closeBrackets = (")", "]", "}")
 
         # configure completer, see eric7 documentation for behavior
         self.__insertClosingBrace = False
@@ -582,8 +583,7 @@ class CompleterPython(QObject):
             value of the character entered
         """
         char = chr(charNumber)
-        if char not in ["(", ")", "{", "}", "[", "]", " ", ",", "'",
-                        '"', "\n", ":"]:
+        if char not in ["(", ")", "{", "}", "[", "]", " ", ",", "'", '"', "\n", ":"]:
             return  # take the short route
 
         line, col = self.editor.getCursorPosition()
@@ -614,8 +614,7 @@ class CompleterPython(QObject):
                     self.editor.setCursorPosition(line, col + 4)
             if self.__insertClosingBrace:
                 if self.__defRX.fullmatch(txt) is not None or (
-                    self.__classRX.fullmatch(
-                        txt) is not None and txt.endswith("(")
+                    self.__classRX.fullmatch(txt) is not None and txt.endswith("(")
                 ):
                     self.editor.insert("):")
                 else:
@@ -706,9 +705,7 @@ class CompleterPython(QObject):
                     if startBlanks != -1 and startBlanks != endBlanks:
                         # previous line ends with whitespace, e.g. caused by
                         # blank insertion above
-                        self.editor.setSelection(
-                            line - 1, startBlanks, line - 1, endBlanks
-                        )
+                        self.editor.setSelection(line - 1, startBlanks, line - 1, endBlanks)
                         self.editor.removeSelectedText()
                         # get the line again for next check
                         txt = self.editor.text(line - 1)
@@ -740,8 +737,7 @@ class CompleterPython(QObject):
                             index -= 1
                         if openCount > closeCount and lastOpenIndex > col:
                             self.editor.insert(" " * (lastOpenIndex - col + 1))
-                            self.editor.setCursorPosition(line,
-                                                          lastOpenIndex + 1)
+                            self.editor.setCursorPosition(line, lastOpenIndex + 1)
                 self.editor.endUndoAction()
 
     def __dedentToIf(self):
@@ -759,8 +755,7 @@ class CompleterPython(QObject):
             if rxIndex(self.__elseRX, txt) == 0 and edInd <= indentation:
                 indentation = edInd - 1
             elif (
-                rxIndex(self.__ifRX, txt) == 0 or rxIndex(
-                    self.__elifRX, txt) == 0
+                rxIndex(self.__ifRX, txt) == 0 or rxIndex(self.__elifRX, txt) == 0
             ) and edInd <= indentation:
                 self.editor.cancelList()
                 self.editor.setIndentation(line, edInd)
@@ -783,9 +778,7 @@ class CompleterPython(QObject):
             txt = self.editor.text(ifLine)
             edInd = self.editor.indentation(ifLine)
             if (rxIndex(self.__elseRX, txt) == 0 and edInd <= indentation) or (
-                rxIndex(self.__elifRX, txt) == 0
-                and edInd == indentation
-                and edInd == prevInd
+                rxIndex(self.__elifRX, txt) == 0 and edInd == indentation and edInd == prevInd
             ):
                 indentation = edInd - 1
             elif (
@@ -813,13 +806,11 @@ class CompleterPython(QObject):
             txt = self.editor.text(tryLine)
             edInd = self.editor.indentation(tryLine)
             if (
-                rxIndex(self.__exceptcRX, txt) == 0
-                or rxIndex(self.__finallyRX, txt) == 0
+                rxIndex(self.__exceptcRX, txt) == 0 or rxIndex(self.__finallyRX, txt) == 0
             ) and edInd <= indentation:
                 indentation = edInd - 1
             elif (
-                rxIndex(self.__exceptRX, txt) == 0 or rxIndex(
-                    self.__tryRX, txt) == 0
+                rxIndex(self.__exceptRX, txt) == 0 or rxIndex(self.__tryRX, txt) == 0
             ) and edInd <= indentation:
                 self.editor.cancelList()
                 self.editor.setIndentation(line, edInd)
@@ -871,10 +862,7 @@ class CompleterPython(QObject):
                 if rxIndex(self.__defRX, txt) == 0 and edInd < indentation:
                     newInd = edInd
                 elif rxIndex(self.__classRX, txt) == 0 and edInd < indentation:
-                    newInd = edInd + (
-                        self.editor.indentationWidth() or
-                        self.editor.tabWidth()
-                    )
+                    newInd = edInd + (self.editor.indentationWidth() or self.editor.tabWidth())
                 if newInd >= 0:
                     self.editor.cancelList()
                     self.editor.setIndentation(line, newInd)
@@ -900,10 +888,7 @@ class CompleterPython(QObject):
                 inMultiLineString = not inMultiLineString
             if not inMultiLineString:
                 if (
-                    (
-                        rxIndex(self.__defSelfRX, txt) == 0
-                        or rxIndex(self.__defClsRX, txt) == 0
-                    )
+                    (rxIndex(self.__defSelfRX, txt) == 0 or rxIndex(self.__defClsRX, txt) == 0)
                     and self.editor.indentation(curLine) == indentation
                 ) or (
                     rxIndex(self.__classRX, txt) == 0
@@ -1001,8 +986,7 @@ class CompleterPython(QObject):
         flag : bool
             indicates if the cursor is inside a triple double quoted string
         """
-        return (self.editor.currentStyle() ==
-                QsciLexerPython.TripleDoubleQuotedString)
+        return self.editor.currentStyle() == QsciLexerPython.TripleDoubleQuotedString
 
     def __inSingleQuotedString(self):
         """
@@ -1025,8 +1009,7 @@ class CompleterPython(QObject):
             indicates, if the cursor is inside a triple single quoted
             string (boolean)
         """
-        return (self.editor.currentStyle() ==
-                QsciLexerPython.TripleSingleQuotedString)
+        return self.editor.currentStyle() == QsciLexerPython.TripleSingleQuotedString
 
 
 class QScintillaCustom(QsciScintilla, DroppableWidget):
@@ -1043,8 +1026,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         super().__init__(parent=parent)
         self.parent = parent
         self.output_stream = stream
-        self.reporter = CustomReporter(self.output_stream,
-                                       self.handle_linter)
+        self.reporter = CustomReporter(self.output_stream, self.handle_linter)
         self.parent = parent
 
     def keyPressEvent(self, event):
@@ -1106,9 +1088,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             try:
                 tree = ast.parse(script, filename=scriptname)
             except SyntaxError as e:
-                self.reporter.syntaxError(
-                    scriptname, e.args[0], e.lineno, e.offset, e.text
-                )
+                self.reporter.syntaxError(scriptname, e.args[0], e.lineno, e.offset, e.text)
                 print("Linter found a syntax error.")
                 return -1
             except Exception as e:
@@ -1161,15 +1141,14 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             return
         # remove comment to add verbose output of linter to status_preview
         # print(f"Error in line {line+1} at position {col+1} : \n  {message}")
-        self.indicatorDefine(QsciScintilla.IndicatorStyle.FullBoxIndicator,
-                             style)
+        self.indicatorDefine(QsciScintilla.IndicatorStyle.FullBoxIndicator, style)
         offset = 0
         if len(message_args) > 0:
             # TODO: Look at all message_args and see which make sense to
             # include here
             if isinstance(message_args[0], (str, tuple, list)):
                 offset = len(message_args[0])
-        self.fillIndicatorRange(line, col, line, col+offset, style)
+        self.fillIndicatorRange(line, col, line, col + offset, style)
         self.annotate(line, message, style)
         # move the cursor to the position of the last error
         self.setCursorPosition(line, col)
@@ -1193,13 +1172,11 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
             # if beginning and end of selection are in the same line, two
             # symbols are added
             increment = 1 if sel[0] != sel[1] else 2
-            end_index = self.positionFromLineIndex(sel[1], sel[3]+increment)
+            end_index = self.positionFromLineIndex(sel[1], sel[3] + increment)
             if i == 0:
-                self.SendScintilla(
-                    self.SCI_SETSELECTION, start_index, end_index)
+                self.SendScintilla(self.SCI_SETSELECTION, start_index, end_index)
             else:
-                self.SendScintilla(
-                    self.SCI_ADDSELECTION, start_index, end_index)
+                self.SendScintilla(self.SCI_ADDSELECTION, start_index, end_index)
         # Set the end of the undo action
         self.endUndoAction()
 
@@ -1237,28 +1214,23 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
                 if not line_text.startswith(self.comment_string):
                     all_commented = False
             self.set_commenting(
-                sel[0], lmax-1,
-                self._uncomment if all_commented else self._comment)
+                sel[0], lmax - 1, self._uncomment if all_commented else self._comment
+            )
         # Select back the previously selected regions
         self.SendScintilla(self.SCI_CLEARSELECTIONS)
         # shift depending on the comment
         shift = -2 if all_commented else 2
         for i, sel in enumerate(selections):
             # shift the start index by the commenting string
-            start_index = self.positionFromLineIndex(sel[0],
-                                                     sel[2] + shift)
+            start_index = self.positionFromLineIndex(sel[0], sel[2] + shift)
             if sel[3] == 0:
-                end_index = self.positionFromLineIndex(
-                    sel[1], sel[3])
+                end_index = self.positionFromLineIndex(sel[1], sel[3])
             else:
-                end_index = self.positionFromLineIndex(
-                    sel[1], sel[3] + shift)
+                end_index = self.positionFromLineIndex(sel[1], sel[3] + shift)
             if i == 0:
-                self.SendScintilla(
-                    self.SCI_SETSELECTION, start_index, end_index)
+                self.SendScintilla(self.SCI_SETSELECTION, start_index, end_index)
             else:
-                self.SendScintilla(
-                    self.SCI_ADDSELECTION, start_index, end_index)
+                self.SendScintilla(self.SCI_ADDSELECTION, start_index, end_index)
         # Set the end of the undo action
         self.endUndoAction()
 
@@ -1269,7 +1241,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         for i in range(self.SendScintilla(self.SCI_GETSELECTIONS)):
             selection = (
                 self.SendScintilla(self.SCI_GETSELECTIONNSTART, i),
-                self.SendScintilla(self.SCI_GETSELECTIONNEND, i)
+                self.SendScintilla(self.SCI_GETSELECTIONNEND, i),
             )
             # Add selection to list
             from_line, from_index = self.lineIndexFromPosition(selection[0])
@@ -1283,7 +1255,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         """Test if merging of selections is needed."""
         for i in range(1, len(selections)):
             # Get the line numbers
-            previous_end_line = selections[i-1][1]
+            previous_end_line = selections[i - 1][1]
             current_start_line = selections[i][0]
             if previous_end_line == current_start_line:
                 return True
@@ -1299,38 +1271,29 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         skip_flag = False
         for i in range(1, len(selections)):
             # Get the line numbers
-            previous_start_line = selections[i-1][0]
-            previous_end_line = selections[i-1][1]
+            previous_start_line = selections[i - 1][0]
+            previous_end_line = selections[i - 1][1]
             current_start_line = selections[i][0]
             current_end_line = selections[i][1]
             # Test for merge
             if previous_end_line == current_start_line and skip_flag is False:
-                merged_selections.append(
-                    (previous_start_line, current_end_line)
-                )
+                merged_selections.append((previous_start_line, current_end_line))
                 skip_flag = True
             else:
                 if skip_flag is False:
-                    merged_selections.append(
-                        (previous_start_line, previous_end_line)
-                    )
+                    merged_selections.append((previous_start_line, previous_end_line))
                 skip_flag = False
                 # Add the last selection only if it was not merged
                 if i == (len(selections) - 1):
-                    merged_selections.append(
-                        (current_start_line, current_end_line)
-                    )
+                    merged_selections.append((current_start_line, current_end_line))
         # Return the merged selections
         return merged_selections
 
-    def set_block_commenting(self, from_line, to_line, from_index,
-                             to_index, char):
+    def set_block_commenting(self, from_line, to_line, from_index, to_index, char):
         """Set block commenting."""
         # Set the selection from the beginning of the cursor line
         # to the end of the last selection line
-        self.setSelection(
-            from_line, from_index, to_line, to_index
-        )
+        self.setSelection(from_line, from_index, to_line, to_index)
         # Get the selected text and split it into lines
         selected_text = self.selectedText()
         replace_text = char + selected_text + char
@@ -1348,12 +1311,10 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         if last_line == self.lines() - 1:
             to_index = len(self.text(to_line))
         else:
-            to_index = len(self.text(to_line))-1
+            to_index = len(self.text(to_line)) - 1
         # Set the selection from the beginning of the cursor line
         # to the end of the last selection line
-        self.setSelection(
-            from_line, 0, to_line, to_index
-        )
+        self.setSelection(from_line, 0, to_line, to_index)
         # Get the selected text and split it into lines
         selected_text = self.selectedText()
         if selected_text == "":
@@ -1374,8 +1335,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
 
     def _comment(self, line, indent_level):
         if line.strip() != "":
-            return (line[:indent_level] + self.comment_string +
-                    line[indent_level:])
+            return line[:indent_level] + self.comment_string + line[indent_level:]
         else:
             return line
 
@@ -1482,10 +1442,11 @@ class CustomQsciAPI(QsciAPIs):
             self.add(ac)
 
 
-if os.name == 'nt':
+if os.name == "nt":
     try:
         from ctypes import windll  # Only exists on Windows.
-        myappid = 'python.matr1x.matrix-script.version'
+
+        myappid = "python.matr1x.matrix-script.version"
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
@@ -1535,7 +1496,7 @@ class ExecThread(QThread):
         if len(inp) < 1 or inp[-1] != "\n":
             # input needs to have terminating character
             inp += "\n"
-        self.conn.send(("i"+inp).encode("utf-8"))
+        self.conn.send(("i" + inp).encode("utf-8"))
 
     def pause(self):
         """Communicate pause to the subprocess."""
@@ -1571,8 +1532,7 @@ class ExecThread(QThread):
             os.kill(pid, 0)
             self.proc.kill()
             print("force killed thread")
-            print("please verify all devices are operational before starting",
-                  "another script")
+            print("please verify all devices are operational before starting", "another script")
         except OSError:
             # this will likely not happen
             print("thread terminated gracefully")
@@ -1666,9 +1626,7 @@ class ExecThread(QThread):
                         try:
                             decimals = int(decimals_str)
                         except ValueError:
-                            print(
-                                f"Warning: Invalid decimals value received: {decimals_str}"
-                            )
+                            print(f"Warning: Invalid decimals value received: {decimals_str}")
                             decimals = None  # Use default (None) on error
 
                 logger.info(
@@ -1731,10 +1689,13 @@ matr1x.reload_config({repr(self.temp_config)})
 mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
                          {repr(self.datafilefallback)}, {repr(port)})"""
 
-            self.proc = subprocess.Popen([sys.executable, "-c", cmd],
-                                         stdin=subprocess.PIPE,
-                                         stdout=subprocess.PIPE,
-                                         stderr=subprocess.STDOUT, bufsize=0)
+            self.proc = subprocess.Popen(
+                [sys.executable, "-c", cmd],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                bufsize=0,
+            )
             # accept a connection from the subprocess
             # will block until a new client connects, might want to use select
             # here to make sure the subprocess actually connects?
@@ -1817,7 +1778,9 @@ class MainWindow(QMainWindow):
         """
         line, index = self.script_edit.getCursorPosition()
         if function == "init_datafile":
-            code = 'init_datafile(filename, comment="", append=False, print_header=True, ntot=None)\n'
+            code = (
+                'init_datafile(filename, comment="", append=False, print_header=True, ntot=None)\n'
+            )
             code += "# ntot is total number of points in a given measurement\n"
             code += "# and is used to calculate measurement duration\n"
         elif function == "measure_system":
@@ -1826,9 +1789,7 @@ class MainWindow(QMainWindow):
         elif function == "wait":
             code = 'wait(duration=None, until=None, message="", silent=10)\n'
             code += "# waits for either a duration or until a timestamp\n"
-            code += (
-                "# this also acts as a breakpoint to pause and abort the execution,\n"
-            )
+            code += "# this also acts as a breakpoint to pause and abort the execution,\n"
             code += "# for wait period > silent, prints message\n"
         elif function == "end_script":
             code = "end_script(finished=None)\n"
@@ -1843,7 +1804,9 @@ class MainWindow(QMainWindow):
         elif function == "input_numerical":
             code = 'input_numerical(query="", timeout=float("inf"), default_value=0.0, '
             code += "min_value=-100e9, max_value=100e9, step=1.0, decimals=2)\n"
-            code += "# waits for user to input a number or continues with the default after timeout.\n"
+            code += (
+                "# waits for user to input a number or continues with the default after timeout.\n"
+            )
         elif function == "set_value":
             code = "set_value(column, value)\n"
             code += "# column can be the index or the name.\n"
@@ -1923,9 +1886,7 @@ class MainWindow(QMainWindow):
         text_edit = QTextEdit()
         text_edit.setText(self.script_edit.text())
         cursor = text_edit.textCursor()
-        current_position = self.script_edit.SendScintilla(
-            QsciScintilla.SCI_GETSELECTIONEND
-        )
+        current_position = self.script_edit.SendScintilla(QsciScintilla.SCI_GETSELECTIONEND)
         cursor.setPosition(current_position)
         text_edit.setTextCursor(cursor)
         if self.find_regex.isChecked():
@@ -1961,9 +1922,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("size", self.script_edit.size())
         self.settings.setValue(
             "zoom",
-            self.script_edit.SendScintilla(
-                QsciScintilla.SCI_GETZOOM, QsciScintilla.STYLE_DEFAULT
-            ),
+            self.script_edit.SendScintilla(QsciScintilla.SCI_GETZOOM, QsciScintilla.STYLE_DEFAULT),
         )
         self.settings.endGroup()
 
@@ -2009,10 +1968,7 @@ class MainWindow(QMainWindow):
         self.settings.beginGroup("MainWindow")
         self.restoreGeometry(self.settings.value("geometry", QByteArray()))
         self.splitter.setSizes(
-            [
-                int(size)
-                for size in self.settings.value("splitter", self.splitter.sizes())
-            ]
+            [int(size) for size in self.settings.value("splitter", self.splitter.sizes())]
         )
         self.settings.endGroup()
         # Check if there is a settings file. This improves the robustness
@@ -2021,24 +1977,18 @@ class MainWindow(QMainWindow):
         # settings are changed.
         if self.settings.contains("created"):
             self.settings.beginGroup("script_edit")
-            self.script_edit.resize(
-                self.settings.value("size", self.script_edit.size())
-            )
+            self.script_edit.resize(self.settings.value("size", self.script_edit.size()))
             self.script_edit.SendScintilla(
                 QsciScintilla.SCI_SETZOOM, self.settings.value("zoom", 1, type=int)
             )
             self.settings.endGroup()
 
             self.settings.beginGroup("status_preview")
-            self.status_preview.resize(
-                self.settings.value("size", self.status_preview.size())
-            )
+            self.status_preview.resize(self.settings.value("size", self.status_preview.size()))
             self.settings.endGroup()
 
             self.settings.beginGroup("Toolbars")
-            self.toolbar.setVisible(
-                self.settings.value("buttons_visible", True, type=bool)
-            )
+            self.toolbar.setVisible(self.settings.value("buttons_visible", True, type=bool))
             self.toggle_toolbar_action.setChecked(
                 self.settings.value("buttons_visible", True, type=bool)
             )
@@ -2049,19 +1999,13 @@ class MainWindow(QMainWindow):
             self.settings.endGroup()
 
             self.settings.beginGroup("dockable_metadata")
-            self.dockable_metadata.setVisible(
-                self.settings.value("visible", True, type=bool)
-            )
-            self.toggle_metadata_action.setChecked(
-                self.settings.value("visible", True, type=bool)
-            )
+            self.dockable_metadata.setVisible(self.settings.value("visible", True, type=bool))
+            self.toggle_metadata_action.setChecked(self.settings.value("visible", True, type=bool))
             self.addDockWidget(
                 self.settings.value("placement", Qt.DockWidgetArea.RightDockWidgetArea),
                 self.dockable_metadata,
             )
-            self.dockable_metadata.setFloating(
-                self.settings.value("floating", False, type=bool)
-            )
+            self.dockable_metadata.setFloating(self.settings.value("floating", False, type=bool))
             if self.dockable_metadata.isFloating():
                 self.dockable_metadata.move(
                     self.settings.value("position", self.dockable_metadata.pos())
@@ -2072,22 +2016,14 @@ class MainWindow(QMainWindow):
             else:
                 self.resizeDocks(
                     [self.dockable_metadata],
-                    [
-                        self.settings.value(
-                            "size", self.dockable_metadata.size()
-                        ).width()
-                    ],
+                    [self.settings.value("size", self.dockable_metadata.size()).width()],
                     Qt.Orientation.Horizontal,
                 )
             self.settings.endGroup()
 
             self.settings.beginGroup("config_editor")
-            self.config_editor.move(
-                self.settings.value("position", self.config_editor.pos())
-            )
-            self.config_editor.resize(
-                self.settings.value("size", self.config_editor.size())
-            )
+            self.config_editor.move(self.settings.value("position", self.config_editor.pos()))
+            self.config_editor.resize(self.settings.value("size", self.config_editor.size()))
             self.settings.endGroup()
 
     def keyPressEvent(self, event: QKeyEvent):
@@ -2140,9 +2076,7 @@ class MainWindow(QMainWindow):
                 if saved_text == newscript:
                     self.systems_dirty = False
 
-        if (
-            self.script_edit.isModified() or self.systems_dirty
-        ) and self.script_edit.text() != "":
+        if (self.script_edit.isModified() or self.systems_dirty) and self.script_edit.text() != "":
             qApp = get_application_instance()
             qApp.processEvents()
             ret = save_messagebox(self)
@@ -2182,9 +2116,7 @@ class MainWindow(QMainWindow):
         action = QAction(display_name, self)
         action.setShortcut(getattr(QKeySequence.StandardKey, name))
         method_name = name[:1].lower() + name[1:]
-        action.triggered.connect(
-            lambda checked, method=method_name: self.standard_method(method)
-        )
+        action.triggered.connect(lambda checked, method=method_name: self.standard_method(method))
         return action
 
     def standard_method(self, method_name: str) -> None:
@@ -2226,9 +2158,7 @@ class MainWindow(QMainWindow):
         base_color = QColor(self.color_palette.color(QPalette.ColorRole.Base))
         highlight_color = QColor(self.color_palette.color(QPalette.ColorRole.Highlight))
         button_color = QColor(self.color_palette.color(QPalette.ColorRole.Button))
-        button_text_color = QColor(
-            self.color_palette.color(QPalette.ColorRole.ButtonText)
-        )
+        button_text_color = QColor(self.color_palette.color(QPalette.ColorRole.ButtonText))
         unclosed_color = QColor("red")
         caret_color = QColor(self.color_palette.color(QPalette.ColorRole.AlternateBase))
         if palette.color(QPalette.ColorRole.Window).value() < 128:
@@ -2322,18 +2252,14 @@ class MainWindow(QMainWindow):
         self.dockable_metadata.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
-        self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.dockable_metadata
-        )
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dockable_metadata)
         self.dockable_metadata.setWidget(self.metadata)
         self.toggle_metadata_action = QAction("Show Metadata", self)
         self.toggle_metadata_action.setShortcut(QKeySequence("Ctrl+2"))
         self.toggle_metadata_action.setCheckable(True)
         self.toggle_metadata_action.setChecked(True)
         self.toggle_metadata_action.triggered.connect(self.toggle_metadata_view)
-        self.dockable_metadata.visibilityChanged.connect(
-            self.toggle_metadata_action.setChecked
-        )
+        self.dockable_metadata.visibilityChanged.connect(self.toggle_metadata_action.setChecked)
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
         self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
         self.toggle_toolbar_action.setCheckable(True)
@@ -2369,26 +2295,18 @@ class MainWindow(QMainWindow):
         self.script_edit.setBackspaceUnindents(True)
         self.script_edit.setWrapMode(QsciScintilla.WrapMode.WrapNone)
         self.script_edit.setScrollWidth(200)
-        self.script_edit.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
-        self.script_edit.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
+        self.script_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.script_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         # autocompletion, source is document and custom commands
         api = CustomQsciAPI(self.lexer)
         api.prepare()
         self.script_edit.setCallTipsVisible(3)
-        self.script_edit.setAutoCompletionSource(
-            QsciScintilla.AutoCompletionSource.AcsAll
-        )
+        self.script_edit.setAutoCompletionSource(QsciScintilla.AutoCompletionSource.AcsAll)
         self.script_edit.setAutoCompletionThreshold(1)
         self.script_edit.setAutoCompletionCaseSensitivity(True)
         self.script_edit.setAutoCompletionFillupsEnabled(True)
         self.script_edit.setBraceMatching(QsciScintilla.BraceMatch.SloppyBraceMatch)
-        self.script_edit.setAnnotationDisplay(
-            QsciScintilla.AnnotationDisplay.AnnotationBoxed
-        )
+        self.script_edit.setAnnotationDisplay(QsciScintilla.AnnotationDisplay.AnnotationBoxed)
         self.script_edit.fileDropped.connect(self.load_from_filename)
         self.create_actions()
         # initialize widgets in layout
@@ -2453,9 +2371,7 @@ class MainWindow(QMainWindow):
         self.config_editor.setFloating(True)
         self.config_editor.close()
         self.config_action = QAction(MIcon("CHAR_≡"), "Preferences", self)
-        self.config_action.setToolTip(
-            "Show the application preferences/ configuration."
-        )
+        self.config_action.setToolTip("Show the application preferences/ configuration.")
         self.config_action.setMenuRole(QAction.MenuRole.PreferencesRole)
         self.config_action.setShortcut(QKeySequence.StandardKey.Preferences)
         self.config_action.setCheckable(True)
@@ -2489,9 +2405,7 @@ class MainWindow(QMainWindow):
         self.add_system_action.triggered.connect(self.add_system)
         self.remove_system_action = QAction(MIcon("CHAR_-"), "Remove System", self)
         self.remove_system_action.setEnabled(False)
-        self.remove_system_action.setToolTip(
-            "Remove the selected or last matrix system file."
-        )
+        self.remove_system_action.setToolTip("Remove the selected or last matrix system file.")
         self.remove_system_action.triggered.connect(self.delete_selected_system)
         self.quit_action = QAction("Quit", self)
         if os.name == "nt":
@@ -2505,13 +2419,9 @@ class MainWindow(QMainWindow):
         self.copy_action = self.standard_action("Copy")
         self.paste_action = self.standard_action("Paste")
         self.single_quotes_action = QAction("Add Single Quotes", self)
-        self.single_quotes_action.triggered.connect(
-            lambda: self.script_edit.add_quotes(chr(39))
-        )
+        self.single_quotes_action.triggered.connect(lambda: self.script_edit.add_quotes(chr(39)))
         self.double_quotes_action = QAction("Add Double Quotes", self)
-        self.double_quotes_action.triggered.connect(
-            lambda: self.script_edit.add_quotes(chr(34))
-        )
+        self.double_quotes_action.triggered.connect(lambda: self.script_edit.add_quotes(chr(34)))
         self.line_comment_action = QAction("Toggle Line Comment", self)
         self.line_comment_action.triggered.connect(self.script_edit.toggle_commenting)
         self.zoom_in_action = self.standard_action("ZoomIn", "Zoom in")
@@ -2708,10 +2618,10 @@ class MainWindow(QMainWindow):
         directory = matr1x.system_directories[-1]
         if not self.shortcut_dir and len(matr1x.system_names) > 1:
             self.shortcut_dir = create_temp_dir_with_symlinks(
-                matr1x.system_names, matr1x.system_directories)
+                matr1x.system_names, matr1x.system_directories
+            )
         if self.shortcut_dir:
-            directory = os.path.join(self.shortcut_dir.name,
-                                     matr1x.system_names[-1])
+            directory = os.path.join(self.shortcut_dir.name, matr1x.system_names[-1])
         if self.last_loaded_file:
             directory = os.path.dirname(self.last_loaded_file)
         # get filenames from dialog
@@ -2747,7 +2657,7 @@ class MainWindow(QMainWindow):
         if len(selected) > 0:
             self.system_list.takeItem(self.system_list.row(selected[0]))
         elif 0 < self.system_list.count():
-            self.system_list.takeItem(self.system_list.count()-1)
+            self.system_list.takeItem(self.system_list.count() - 1)
         if self.system_list.count() == 0:
             self.remove_system_action.setEnabled(False)
         self.systems_dirty = True
@@ -2862,9 +2772,7 @@ class MainWindow(QMainWindow):
     def kill_thread(self):
         """Kill the thread."""
         self.measurement_thread.kill()
-        self.print_colored(
-            "Script terminated by user - " + "file integrity might be compromised"
-        )
+        self.print_colored("Script terminated by user - " + "file integrity might be compromised")
 
     def show_editor_commands(self):
         """Print shortcuts and editor functions."""
@@ -2994,9 +2902,7 @@ class MainWindow(QMainWindow):
                     if "parameter" in desc_str.lower():
                         # Check if parameter is settable
                         is_settable = "settable" in desc_str.lower()
-                        parameters.append(
-                            (indexes[i], columns[i], settables[i], is_settable)
-                        )
+                        parameters.append((indexes[i], columns[i], settables[i], is_settable))
                     elif "device" in desc_str.lower():
                         devices.append((indexes[i], columns[i], settables[i]))
                     elif "method" in desc_str.lower() or "variable" in desc_str.lower():
@@ -3012,16 +2918,12 @@ class MainWindow(QMainWindow):
                     text += '<tr style="background-color: #f0f0f0; text-align: left;">'
                     text += '<th style="text-align: left;">Index</th><th style="text-align: left;">Name</th><th style="text-align: left;">Description</th></tr>'
                     # Sort parameters by index for correct display order
-                    parameters.sort(
-                        key=lambda x: int(x[0]) if x[0] and x[0].isdigit() else 999
-                    )
+                    parameters.sort(key=lambda x: int(x[0]) if x[0] and x[0].isdigit() else 999)
                     for idx, col, desc, is_settable in parameters:
                         if is_settable:
                             text += f"<tr><td>{idx}</td><td><b>{col}</b></td><td>{desc}</td></tr>"
                         else:
-                            text += (
-                                f"<tr><td>{idx}</td><td>{col}</td><td>{desc}</td></tr>"
-                            )
+                            text += f"<tr><td>{idx}</td><td>{col}</td><td>{desc}</td></tr>"
                     text += "</table>"
 
                 # Display devices table
@@ -3065,12 +2967,8 @@ class MainWindow(QMainWindow):
         # Load size and position from settings (only if not already visible)
         if not self.system_command_help.isVisible():
             self.settings.beginGroup("system_command_help")
-            saved_size = self.settings.value(
-                "size", self.system_command_help.sizeHint()
-            )
-            saved_position = self.settings.value(
-                "position", self.system_command_help.pos()
-            )
+            saved_size = self.settings.value("size", self.system_command_help.sizeHint())
+            saved_position = self.settings.value("position", self.system_command_help.pos())
             self.settings.endGroup()
             self.system_command_help.resize(saved_size)
             self.system_command_help.move(saved_position)
@@ -3110,11 +3008,11 @@ class MainWindow(QMainWindow):
             cursor = self.status_preview.textCursor()
             # select the content of the last line and clear the text
             self.status_preview.moveCursor(
-                QTextCursor.MoveOperation.EndOfLine,
-                QTextCursor.MoveMode.MoveAnchor)
+                QTextCursor.MoveOperation.EndOfLine, QTextCursor.MoveMode.MoveAnchor
+            )
             self.status_preview.moveCursor(
-                QTextCursor.MoveOperation.StartOfLine,
-                QTextCursor.MoveMode.KeepAnchor)
+                QTextCursor.MoveOperation.StartOfLine, QTextCursor.MoveMode.KeepAnchor
+            )
             cursor.removeSelectedText()
             if "\r" in after:
                 # recursion for long strings
@@ -3155,9 +3053,7 @@ class MainWindow(QMainWindow):
         highlighter = QColor(red, green, blue, 64)
         self.script_edit.setIndicatorForegroundColor(highlighter)
         self.script_edit.setIndicatorOutlineColor(self.executed_line_color)
-        self.script_edit.indicatorDefine(
-            QsciScintilla.IndicatorStyle.FullBoxIndicator, 1
-        )
+        self.script_edit.indicatorDefine(QsciScintilla.IndicatorStyle.FullBoxIndicator, 1)
         self.script_edit.fillIndicatorRange(number, 0, number + 1, 0, 1)
 
     def clear_annotations(self):
@@ -3169,8 +3065,7 @@ class MainWindow(QMainWindow):
             len_last = len(code_lines[-1])
         else:
             len_last = 0
-        self.script_edit.clearIndicatorRange(
-            0, 0, last_line, len_last, 1)
+        self.script_edit.clearIndicatorRange(0, 0, last_line, len_last, 1)
 
     def enable_buttons(self, flag):
         """
@@ -3245,10 +3140,8 @@ class MainWindow(QMainWindow):
             # open a popup window to inform about the error
             a = QMessageBox(parent=self)
             a.setText("Linter error")
-            a.setInformativeText("Error found in script, "
-                                 "continue anyway?")
-            a.setStandardButtons(QMessageBox.StandardButton.Ok |
-                                 QMessageBox.StandardButton.Cancel)
+            a.setInformativeText("Error found in script, continue anyway?")
+            a.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
             a.setDefaultButton(QMessageBox.StandardButton.Ok)
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
@@ -3260,9 +3153,7 @@ class MainWindow(QMainWindow):
         script = generate_script(self.systems, user_script)
         meta_data = self.metadata.get_metadata()
         temp_config = self.config_editor.write_config()
-        self.measurement_thread = ExecThread(
-            meta_data, script, self.scriptname, temp_config
-        )
+        self.measurement_thread = ExecThread(meta_data, script, self.scriptname, temp_config)
         self.measurement_thread.lineno_signal.connect(self.highlight)
         self.measurement_thread.input_signal.connect(self.get_script_input)
         self.measurement_thread.filename_signal.connect(self.update_filename)
@@ -3402,7 +3293,7 @@ class MainWindow(QMainWindow):
         elif not filename.endswith(self.extension):
             filename += self.extension
         try:
-            output_file = open(filename, 'w')
+            output_file = open(filename, "w")
         except (OSError, IOError):
             self.print_colored("File cannot be opened")
             return -1
@@ -3487,7 +3378,7 @@ class MainWindow(QMainWindow):
             self.print_colored("Please specify file")
             return
         try:
-            input_file = open(filename, 'r')
+            input_file = open(filename, "r")
         except (OSError, IOError):
             self.print_colored("File cannot be opened")
             return
@@ -3500,8 +3391,7 @@ class MainWindow(QMainWindow):
             if 0 == i:
                 if "# system def : " in line:
                     # load system from definition in file
-                    system_line = line.replace(
-                        "# system def : ", "").strip()
+                    system_line = line.replace("# system def : ", "").strip()
                     for syst in system_line.split(","):
                         try:
                             self.system_list.addItem(syst)
@@ -3515,9 +3405,7 @@ class MainWindow(QMainWindow):
                                 " Please check .matrix.conf file."
                             )
                 else:
-                    self.print_colored(
-                        "No system defined in script, " + "please choose system(s)"
-                    )
+                    self.print_colored("No system defined in script, " + "please choose system(s)")
             elif 1 == i and not sys_err:
                 # make sure that system column definition agrees with
                 # current system
@@ -3632,9 +3520,9 @@ class MainWindow(QMainWindow):
 def main():
     """Set the basic GUI parameters and run."""
     app = Matr1xApplication(sys.argv)
-    if os.name == 'nt':
+    if os.name == "nt":
         # enable modern mode on windows which allows for darkmode
-        app.setStyle('fusion')
+        app.setStyle("fusion")
     elif sys.platform == "darwin":
         set_correct_mac_appname("Matrix Script")
     appname = "matrix-script"
@@ -3643,9 +3531,7 @@ def main():
         ex = MainWindow(filename=sys.argv[1] if len(sys.argv) >= 2 else None)
         if config["duplicate_output_to_logfile"]:
             sys.stdout = OutputDuplication(sys.stdout, prefix=appname)
-            sys.stderr = OutputDuplication(
-                sys.stderr, prefix=appname, fallbackname="stderr"
-            )
+            sys.stderr = OutputDuplication(sys.stderr, prefix=appname, fallbackname="stderr")
         ex.show()
         ex.restore_window_state()
         ret = app.exec()

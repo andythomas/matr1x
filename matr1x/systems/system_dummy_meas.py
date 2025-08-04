@@ -84,11 +84,11 @@ system.add_dev(
 # to be used when setting the device (if no value is specified in the sweep
 # file)
 system.add_param(
-    ["devmeas p3a", "devmeas p3b"], ["cnta", "cntb"],
-    ["devmeas", "p3"],
-    ["devmeas", "p3"])
+    ["devmeas p3a", "devmeas p3b"], ["cnta", "cntb"], ["devmeas", "p3"], ["devmeas", "p3"]
+)
 system.add_param(
-    "devmeas p2", "cnt",
+    "devmeas p2",
+    "cnt",
     setter=["devmeas", "p2"],
     getter=["devmeas", "p2"],
     trigger=["devmeas", "trg"],

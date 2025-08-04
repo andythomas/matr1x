@@ -35,9 +35,7 @@ class MPT200(VisaDevice):
         interface : str
             VISA resource name or interface identifier.
         """
-        super().__init__(
-            interface, write_termination="\r", read_termination="\r", timeout=0.5
-        )
+        super().__init__(interface, write_termination="\r", read_termination="\r", timeout=0.5)
 
     def query(self, msg: str) -> str:
         """

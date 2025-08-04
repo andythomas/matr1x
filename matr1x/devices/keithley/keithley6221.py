@@ -235,7 +235,7 @@ class Keithley6221(VisaDevice):
             if nappend > 1:
                 for i in range(1, nappend):
                     cmdlist.append(
-                        f"SOUR:WAVE:ARB:APP {','.join(points[i*100:(i+1)*100])}"
+                        f"SOUR:WAVE:ARB:APP {','.join(points[i * 100 : (i + 1) * 100])}"
                     )
             # allows to save the wave in the persistent memory
             # cmdlist.append("SOUR:WAVE:ARB:COPY 1")

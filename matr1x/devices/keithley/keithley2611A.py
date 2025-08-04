@@ -20,6 +20,7 @@ This module implements full control of the Keithley 2611A SMU, including
 voltage/current sourcing and measurement, range control, and various sensing
 configurations.
 """
+
 from typing import Optional, Union
 
 from wrapt import synchronized
@@ -276,9 +277,7 @@ class Keithley2611A(VisaDevice):
             configured sourceMode)
         """
         return float(
-            self.query(
-                f"print(smua.measure.{self.mode_char[self.sourceMode]}(smua.nvbuffer1))"
-            )
+            self.query(f"print(smua.measure.{self.mode_char[self.sourceMode]}(smua.nvbuffer1))")
         )
 
     def getSense(self):
@@ -292,7 +291,5 @@ class Keithley2611A(VisaDevice):
             configured senseMode)
         """
         return float(
-            self.query(
-                f"print(smua.measure.{self.mode_char[self.senseMode]}(smua.nvbuffer1))"
-            )
+            self.query(f"print(smua.measure.{self.mode_char[self.senseMode]}(smua.nvbuffer1))")
         )

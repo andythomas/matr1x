@@ -647,9 +647,7 @@ class MercuryIPS(VisaDevice):
         **kwargs : dict
             Additional arguments passed to the parent class
         """
-        super().__init__(
-            interface, write_termination="\n", read_termination="\n", **kwargs
-        )
+        super().__init__(interface, write_termination="\n", read_termination="\n", **kwargs)
         # determine status now
         self.queryAllDicts()
         self.logAllDicts()
@@ -738,9 +736,7 @@ class MercuryIPS(VisaDevice):
         """
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
         for key in self.workingDict:
-            dummy = (
-                self.query_merc(*self.workingDict[key][1:]).split(":")[-1].strip("\n")
-            )
+            dummy = self.query_merc(*self.workingDict[key][1:]).split(":")[-1].strip("\n")
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
@@ -896,9 +892,7 @@ class MercuryIPS(VisaDevice):
         xval, yval, zval = fields
         valid, (xv, yv, zv) = self.checkFields(xval, yval, zval)
         if valid is False:
-            logger.info(
-                "Magnetic field exceeding limits was set, " + "reduced amplitude"
-            )
+            logger.info("Magnetic field exceeding limits was set, " + "reduced amplitude")
         # check that values also do not exceed limits with current fields
         self.setVal(xv, *self.workingDict["xFSet"][1:])
         self.setVal(yv, *self.workingDict["yFSet"][1:])
@@ -1206,9 +1200,7 @@ class MercuryITC(VisaDevice):
     }
 
     def __init__(self, interface, **kwargs):
-        super().__init__(
-            interface, write_termination="\n", read_termination="\n", **kwargs
-        )
+        super().__init__(interface, write_termination="\n", read_termination="\n", **kwargs)
         self.queryAllDicts()
         self.logAllDicts()
 
@@ -1291,9 +1283,7 @@ class MercuryITC(VisaDevice):
         try:
             return float(dummy)
         except TypeError:
-            logger.debug(
-                "Type error during conversion of dict" + " value {}".format(dummy[0])
-            )
+            logger.debug("Type error during conversion of dict" + " value {}".format(dummy[0]))
             return None
 
     def queryDict(self, queryDict, address="", signal=False):
@@ -1318,9 +1308,7 @@ class MercuryITC(VisaDevice):
         Updates the values in the working dictionary with current device values.
         """
         for key in self.workingDict:
-            dummy = (
-                self.query_merc(*self.workingDict[key][1:]).split(":")[-1].strip("\n")
-            )
+            dummy = self.query_merc(*self.workingDict[key][1:]).split(":")[-1].strip("\n")
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]

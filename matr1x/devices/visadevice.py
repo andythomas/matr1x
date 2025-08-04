@@ -42,6 +42,7 @@ def output_name_on_error(func):
 
     This decorator can be only used with class methods.
     """
+
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         try:
@@ -51,6 +52,7 @@ def output_name_on_error(func):
                 print(f"Exception occured inside {self.name}")
             raise
         return ret
+
     return wrapper
 
 
@@ -143,7 +145,7 @@ class VisaDevice:
             if 0 == cmdpers:
                 # prevent division by 0
                 cmdpers = 1
-            self.timedelay = 1. / cmdpers
+            self.timedelay = 1.0 / cmdpers
             self.timer = time.time()
         else:
             self.timedelay = None
@@ -251,8 +253,7 @@ class VisaDevice:
 
         logger.debug(f"{self.name} read {str(readout)}")
         if self.pts:
-            print('R: %s' % ('(%i) %s' % (nbytes,
-                                          readout) if nbytes else readout))
+            print("R: %s" % ("(%i) %s" % (nbytes, readout) if nbytes else readout))
         return readout
 
     def _write_delay(self):
@@ -283,7 +284,7 @@ class VisaDevice:
         """
         logger.debug("%s: Write: %s", self.name, command)
         if self.pts:
-            print(f'W: {command}')
+            print(f"W: {command}")
         self._write_delay()
         if isinstance(command, bytes):
             self.connection.write_raw(command)
@@ -310,11 +311,11 @@ class VisaDevice:
 
         self._write_delay()
         if self.pts:
-            print(f'W: {command}')
+            print(f"W: {command}")
         resp = self.connection.query(command)
-        logger.debug('Answer: %s', str(resp))
+        logger.debug("Answer: %s", str(resp))
         if self.pts:
-            print(f'R: {resp}')
+            print(f"R: {resp}")
         return resp
 
     def id(self):
@@ -329,4 +330,4 @@ class VisaDevice:
         idstr : str
             The received string.
         """
-        return self.query('*IDN?')
+        return self.query("*IDN?")

@@ -135,9 +135,7 @@ class IsobusDevice(VisaDevice):
                 logger.info(f"{self.name}.query: empty reply, {msg}, {depth}")
                 ret = self.query(msg, depth + 1, max_depth=max_depth)
             elif msg[0] not in ret:
-                logger.info(
-                    f"{self.name}.query: wrong reply character, {msg}, {depth}, {ret}"
-                )
+                logger.info(f"{self.name}.query: wrong reply character, {msg}, {depth}, {ret}")
                 try:
                     self.read_very_eager()
                 except UnicodeDecodeError:
@@ -168,8 +166,6 @@ class IsobusDevice(VisaDevice):
             try:
                 return float(ret[1:])
             except ValueError:
-                logger.info(
-                    f"{self.name}.query_float: float conversion error ('{msg}', {ret})"
-                )
+                logger.info(f"{self.name}.query_float: float conversion error ('{msg}', {ret})")
                 # retry query
                 return self.query_float(msg, depth + 1)

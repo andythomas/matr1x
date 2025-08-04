@@ -53,7 +53,7 @@ def detect_hdf5(filename):
     """
     with open(filename, "rb") as file:
         first_bytes = file.read(4)
-    if first_bytes == b'\x89HDF':
+    if first_bytes == b"\x89HDF":
         return True
     return False
 
@@ -96,13 +96,12 @@ def get_latest_datafile(path=None, basename=None):
     filelist = filter(lambda f: isfile(join(usedpath, f)), allfiles)
     if basewoext:  # filter file list by file extension/basename
         files = natsorted(
-            [f for f in filelist if
-             re.search(fr'^({basewoext})(_\d+)?(\.h5)?\.ma\d$', f)]
+            [f for f in filelist if re.search(rf"^({basewoext})(_\d+)?(\.h5)?\.ma\d$", f)]
         )
     else:  # filter by file extension and sort by date
         files = sorted(
-            [f for f in filelist if re.search(r'(_\d+)?(\.h5)?\.ma\d$', f)],
-            key=lambda f: os.path.getctime(join(usedpath, f))
+            [f for f in filelist if re.search(r"(_\d+)?(\.h5)?\.ma\d$", f)],
+            key=lambda f: os.path.getctime(join(usedpath, f)),
         )
 
     if len(files) > 0:
@@ -221,9 +220,7 @@ def _parse_query_string(query: str):
 
         # Handle multiline value continuation
         if in_multiline:
-            if handle_multiline_continuation(
-                line, path_stack, multiline_value, multiline_level
-            ):
+            if handle_multiline_continuation(line, path_stack, multiline_value, multiline_level):
                 continue
 
             # End of multiline entry, store it
@@ -369,15 +366,15 @@ def loadmatrix(
     if detect_hdf5(filename):
         if not structured:
             raise NotImplementedError(
-                "The option structured=False is not supported for hdf5 files")
+                "The option structured=False is not supported for hdf5 files"
+            )
         h5f = None
         while tries < 10:
             # maximum number of tries to open the file is 10
             try:
                 # use swmr read mode, to avoid corrupting the data during the
                 # measurement (where it is written to by the matrix process)
-                h5f = h5py.File(filename, 'r', swmr=True, libver='latest',
-                                locking=False)
+                h5f = h5py.File(filename, "r", swmr=True, libver="latest", locking=False)
                 break
             except OSError:
                 # retry in case file is just written by the data acqusition
@@ -524,9 +521,9 @@ def loadmatrix(
         if extension.endswith("8"):
             # Reconstruct proper structure by adding the header line
             system_query_content = f"# system query :{header['system query']}"
-            header["system query"] = _parse_query_string(
-                system_query_content.replace(r"\"", '"')
-            )["system query"]
+            header["system query"] = _parse_query_string(system_query_content.replace(r"\"", '"'))[
+                "system query"
+            ]
         for key, val in header.items():
             if isinstance(val, str):
                 val = val.strip('"')  # strip " from header strings
@@ -542,7 +539,7 @@ def loadmatrix(
             "header": None,
         }
         if replace_None:
-            kwargs['na_values'] = 'None'
+            kwargs["na_values"] = "None"
         if structured is True:
             # generate a structured array with the column names as identifier
             kwargs["names"] = header["columns"]
@@ -555,25 +552,21 @@ def loadmatrix(
         if replace_None:
             # Define replacement values based on data types
             replacement_values = {
-                'bool': False,
-                'int': -1,
-                'float': np.nan,
-                'object': 'NaN',  # 'object' dtype is often used for strings in Pandas
+                "bool": False,
+                "int": -1,
+                "float": np.nan,
+                "object": "NaN",  # 'object' dtype is often used for strings in Pandas
             }
             # Replace missing values
             for column in data.columns:
                 if pd.api.types.is_bool_dtype(data[column]):
-                    data[column] = data[column].fillna(
-                        replacement_values['bool'])
+                    data[column] = data[column].fillna(replacement_values["bool"])
                 elif pd.api.types.is_integer_dtype(data[column]):
-                    data[column] = data[column].fillna(
-                        replacement_values['int'])
+                    data[column] = data[column].fillna(replacement_values["int"])
                 elif pd.api.types.is_float_dtype(data[column]):
-                    data[column] = data[column].fillna(
-                        replacement_values['float'])
+                    data[column] = data[column].fillna(replacement_values["float"])
                 elif pd.api.types.is_object_dtype(data[column]):
-                    data[column] = data[column].fillna(
-                        replacement_values['object'])
+                    data[column] = data[column].fillna(replacement_values["object"])
         if structured is True:
             data = data.to_records(index=False)
         else:
@@ -596,9 +589,9 @@ def loadh5matrix(filename, filehandle=False):
             """
             use h5py.File(filename, 'r', swmr=True, libver='latest') to open
             the datafile for reading if loadmatrix is not sufficient.
-            """)
-    warnings.warn(
-        "loadh5matrix will be removed soon. use loadmatrix instead")
+            """
+        )
+    warnings.warn("loadh5matrix will be removed soon. use loadmatrix instead")
     return loadmatrix(filename)
 
 
@@ -625,10 +618,8 @@ def delta(data):
       current
     """
     if len(data) % 2:
-        return (np.add(data[:-1:2], data[1::2])/2,
-                np.subtract(data[:-1:2], data[1::2])/2)
-    return (np.add(data[::2], data[1::2])/2,
-            np.subtract(data[::2], data[1::2])/2)
+        return (np.add(data[:-1:2], data[1::2]) / 2, np.subtract(data[:-1:2], data[1::2]) / 2)
+    return (np.add(data[::2], data[1::2]) / 2, np.subtract(data[::2], data[1::2]) / 2)
 
 
 def delta3p(data):
@@ -655,9 +646,11 @@ def delta3p(data):
     """
     off = len(data) % 3
     if 0 != off:
-        return (np.add(np.add(data[:-off:3], data[2:-off:3]),
-                       2*data[1:-off:3])/4,
-                np.subtract(np.add(data[:-off:3], data[2:-off:3]),
-                            2*data[1:-off:3])/4)
-    return (np.add(np.add(data[::3], data[2::3]), 2*data[1::3])/4,
-            np.subtract(np.add(data[::3], data[2::3]), 2*data[1::3])/4)
+        return (
+            np.add(np.add(data[:-off:3], data[2:-off:3]), 2 * data[1:-off:3]) / 4,
+            np.subtract(np.add(data[:-off:3], data[2:-off:3]), 2 * data[1:-off:3]) / 4,
+        )
+    return (
+        np.add(np.add(data[::3], data[2::3]), 2 * data[1::3]) / 4,
+        np.subtract(np.add(data[::3], data[2::3]), 2 * data[1::3]) / 4,
+    )

@@ -102,8 +102,7 @@ def test_matrix_dummy_merged():
     """
     inputfile = os.path.join(path, "sys_dummy_merged.8t")
     outputfile = os.path.join(path, f"test_merged{output_extension}")
-    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o",
-           outputfile, "--plain"]
+    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o", outputfile, "--plain"]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
@@ -113,7 +112,7 @@ def test_matrix_dummy_merged():
     assert len(files) >= 1
     h, d = matr1x.eval.loadmatrix(files[-1], structured=True)
     assert len(h["columns"]) == 10  # check number of data columns
-    assert d.shape == (11, )  # check shape of dataset
+    assert d.shape == (11,)  # check shape of dataset
 
 
 def test_matrix_dummy_hdf5():
@@ -132,8 +131,7 @@ def test_matrix_dummy_hdf5():
     """
     inputfile = os.path.join(path, "sys_dummy_hdf5_sweep.3t")
     outputfile = os.path.join(path, f"test_hdf5.h5{output_extension}")
-    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o",
-           outputfile, "--plain"]
+    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o", outputfile, "--plain"]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
@@ -143,12 +141,12 @@ def test_matrix_dummy_hdf5():
     assert len(files) >= 1
     h, d = matr1x.eval.loadmatrix(files[-1])
     assert len(h["columns"]) == 8  # check number of data columns
-    assert d["devhdfp4_flat"].shape == (10*4, )  # check shape of dataset
+    assert d["devhdfp4_flat"].shape == (10 * 4,)  # check shape of dataset
     assert d["devhdfp4_1d"].shape == (10, 4)  # check shape of dataset
     assert d["devhdfp4_2d"].shape == (10, 2, 2)  # check shape of dataset
     assert d["rand2d_1"].shape == (10, 4, 4)  # check shape of dataset
     assert d["rand2d_2"].shape == (10, 4, 4)  # check shape of dataset
-    assert d["timeUTC"].shape == (10, )  # check shape of dataset
+    assert d["timeUTC"].shape == (10,)  # check shape of dataset
 
 
 def test_matrix_script_pyflakes():
@@ -170,11 +168,11 @@ def test_matrix_script_pyflakes():
     script = "_interrupt=lambda x:x; _print=lambda x:x; _input=lambda x:x; "
     script += "_report_line=lambda x:x;_report_path=lambda x:x;_meta_data={}; "
     script += "_scriptname=''; _script=''; _status=''\n"
-    script += matr1x.util.generate_script(["system_dummy_feature",
-                                           "system_dummy_meas"],
-                                          user_script)
+    script += matr1x.util.generate_script(
+        ["system_dummy_feature", "system_dummy_meas"], user_script
+    )
     print(script)
-    ret = pyflakes.api.check(script, 'sc')
+    ret = pyflakes.api.check(script, "sc")
     assert ret == 0
 
 
@@ -197,16 +195,15 @@ def test_matrix_script_dummy_merged():
     inputfile = os.path.join(path, "test.matrix")
     with open(inputfile, "r") as f:
         user_script = f.read()
-    script = matr1x.util.generate_script(["system_dummy_feature",
-                                          "system_dummy_meas"],
-                                         user_script)
+    script = matr1x.util.generate_script(
+        ["system_dummy_feature", "system_dummy_meas"], user_script
+    )
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         for line in script:
             tf.write(line.encode())
         tf.flush()
         script = (
-            "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
+            "import matr1x.util as mu\n" + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
@@ -228,8 +225,7 @@ def test_empty_script():
     """
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         script = (
-            "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
+            "import matr1x.util as mu\n" + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

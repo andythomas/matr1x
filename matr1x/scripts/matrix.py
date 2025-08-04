@@ -24,6 +24,7 @@ that are to be applied are specified in the input file.
 For each line of the input file, all parameters are read out and saved into a
 file of ascii or hdf5 format, depending on the system specifications
 """
+
 import argparse
 import math
 import os
@@ -57,12 +58,14 @@ abortmap = {"q": 1, "a": 2, "f": 3}
 
 def parse_inputfile(inputfile, system):
     """Read the input file and provides point by point set values needed for the measurement."""
+
     # define sorting algorithm
     def sort(arg):
         # get key
         key = arg[0]
         # properly handles "aa", "ab", "ba" and also logpoint (last)
         return sum((ord(c) - 96) * 26**i for (i, c) in enumerate(key[::-1]))
+
     # define the line parser for the matrix inputfile
     # parses parameters as 0 = -a val(s), 1 = -b val(s), etc.
     pointparser = argparse.ArgumentParser(add_help=False)
@@ -70,13 +73,13 @@ def parse_inputfile(inputfile, system):
         letter = generate_col_index(i)
         short_option = "-" + letter
         long_option = "-" + letter + "_value"
-        pointparser.add_argument(short_option, long_option,
-                                 default=system.default_values[i], nargs="*",
-                                 type=float)
+        pointparser.add_argument(
+            short_option, long_option, default=system.default_values[i], nargs="*", type=float
+        )
     # allow point with and without measurements
     pointparser.add_argument("--logpoint", default=1, nargs="?", type=int)
     # start parsing the input file
-    with open(inputfile, 'r') as parameterfile:
+    with open(inputfile, "r") as parameterfile:
         for nr, line in enumerate(parameterfile):
             # jump over comments
             if line[0] != "#":
@@ -84,18 +87,17 @@ def parse_inputfile(inputfile, system):
                 # read the values into datapoint
                 parameterlist = shlex.split(line)
                 for i, arg in enumerate(parameterlist):
-                    if (arg[0] == '-') and arg[1].isdigit():
-                        parameterlist[i] = ' ' + arg
+                    if (arg[0] == "-") and arg[1].isdigit():
+                        parameterlist[i] = " " + arg
                 # raw_input is a list: [known_args, unknown_args]
                 raw_input = pointparser.parse_known_args(parameterlist)
                 if raw_input[1] != []:
                     raise ValueError(
-                        "Unrecognized argument in inputfile on "
-                        f"line {nr}: {raw_input[1]}")
+                        f"Unrecognized argument in inputfile on line {nr}: {raw_input[1]}"
+                    )
                 # get the list with parameters from the parser and sort so that
                 # order is maintained
-                datapoint = [value for key, value
-                             in sorted(vars(raw_input[0]).items(), key=sort)]
+                datapoint = [value for key, value in sorted(vars(raw_input[0]).items(), key=sort)]
                 # prepare values for system.set_value by casting to float
                 for i in range(len(system.columns)):
                     # branch executed for parsed values
@@ -112,19 +114,23 @@ def parse_inputfile(inputfile, system):
                 yield datapoint
 
 
-def measurementloop(inputfile, system,
-                    setvalcb=lambda s: None, readvalcb=lambda r: None,
-                    telemetrycb=lambda s: None, inputcb=lambda n: 0):
+def measurementloop(
+    inputfile,
+    system,
+    setvalcb=lambda s: None,
+    readvalcb=lambda r: None,
+    telemetrycb=lambda s: None,
+    inputcb=lambda n: 0,
+):
     """Measurement loops with callback functions for visualization of the measurement and its progress."""
     # count number of setpoints for telemetry information
     points = 0
-    with open(inputfile, 'r') as f:
+    with open(inputfile, "r") as f:
         for line in f:
             if line.startswith("#"):
                 continue
             points += 1
-    telemetrycb(telemetry_string.format(0, points, 0, math.nan,
-                                        math.nan, math.nan))
+    telemetrycb(telemetry_string.format(0, points, 0, math.nan, math.nan, math.nan))
     # read the required number of columns in the input/ output file
     # initialize timer and counter for telemetry
     starttime = time.time()
@@ -137,7 +143,12 @@ def measurementloop(inputfile, system,
         for i, col in enumerate(system.columns):
             setv = system.set_value(i, datapoint[i])
             if setv is None and isinstance(col, (list, tuple)):
-                setvalues.append([None, ]*len(col))
+                setvalues.append(
+                    [
+                        None,
+                    ]
+                    * len(col)
+                )
             else:
                 setvalues.append(setv)
         setvalcb(flatten(setvalues))
@@ -157,9 +168,14 @@ def measurementloop(inputfile, system,
         elapsed = time.time() - starttime
         telemetrycb(
             telemetry_string.format(
-                point_idx+1, points, elapsed/60,
-                (elapsed/(point_idx+1)*points-elapsed)/60, preread-preset,
-                time.time()-preread))
+                point_idx + 1,
+                points,
+                elapsed / 60,
+                (elapsed / (point_idx + 1) * points - elapsed) / 60,
+                preread - preset,
+                time.time() - preread,
+            )
+        )
         # handle input on the end of one measurement point
         ret_input = inputcb(point_idx + 1)
         if ret_input != 0:
@@ -180,11 +196,9 @@ def measure_plain(inputfile, system, quiet=False):
         key = nonblocking_getch()
         if key and key.lower() in ("q", "a", "f"):
             sys.stdout.write(f"Note: aborted with {key} after {n} points\n\n\n")
-            system.add_comment(
-                f"measurement aborted by keyboard input after {n} points"
-            )
+            system.add_comment(f"measurement aborted by keyboard input after {n} points")
             return abortmap[key.lower()]
-        if key in ('p', 'P'):
+        if key in ("p", "P"):
             sys.stdout.write("paused - continue with 'p'\n")
             system.add_comment("measurement paused by keyboard input")
             # wait for unpause with p
@@ -193,11 +207,9 @@ def measure_plain(inputfile, system, quiet=False):
                 key = nonblocking_getch()
                 if key and key.lower() in ("q", "a", "f"):
                     sys.stdout.write(f"Note: aborted with {key} after {n} points\n\n\n")
-                    system.add_comment(
-                        "measurement aborted by keyboard input " f"after {n} points"
-                    )
+                    system.add_comment(f"measurement aborted by keyboard input after {n} points")
                     return abortmap[key.lower()]
-                if key in ('p', 'P'):
+                if key in ("p", "P"):
                     break
         return 0
 
@@ -206,15 +218,18 @@ def measure_plain(inputfile, system, quiet=False):
         print_formatted_line(list(flatten(system.columns)))
         print_formatted_line(list(flatten(system.units)))
 
-        ret = measurementloop(inputfile, system,
-                              lambda s: print_formatted_line(s, "Set : "),
-                              lambda s: print_formatted_line(s, "Meas: "),
-                              print, inputcb)
+        ret = measurementloop(
+            inputfile,
+            system,
+            lambda s: print_formatted_line(s, "Set : "),
+            lambda s: print_formatted_line(s, "Meas: "),
+            print,
+            inputcb,
+        )
     else:
-        ret = measurementloop(inputfile, system,
-                              readvalcb=lambda s: print(
-                                  ".", end="", flush=True),
-                              inputcb=inputcb)
+        ret = measurementloop(
+            inputfile, system, readvalcb=lambda s: print(".", end="", flush=True), inputcb=inputcb
+        )
         print("")  # produce newline at end of measurement
 
     return ret
@@ -224,14 +239,10 @@ def measure_urwid(inputfile, systemfile, system):
     """Measurement loop with urwid based output to the terminal."""
     msg = ""
     # display some info
-    info = urwid.Text(
-        "Pause/Quit graciously with p/q after current cycle", align='center')
-    outf = urwid.Text(" output filename : " +
-                      system.filename + "\n", wrap='clip')
-    inpf = urwid.Text(" Input filename  : " +
-                      inputfile + "\n", wrap='clip')
-    systemf = urwid.Text(" systemfile      : " +
-                         ",".join(systemfile), wrap='clip')
+    info = urwid.Text("Pause/Quit graciously with p/q after current cycle", align="center")
+    outf = urwid.Text(" output filename : " + system.filename + "\n", wrap="clip")
+    inpf = urwid.Text(" Input filename  : " + inputfile + "\n", wrap="clip")
+    systemf = urwid.Text(" systemfile      : " + ",".join(systemfile), wrap="clip")
     telemetry = urwid.Text("")
     status = urwid.Text("")
     parname = urwid.Text("par-name")
@@ -245,10 +256,34 @@ def measure_urwid(inputfile, systemfile, system):
     setval = [urwid.Text("") for col in columns_flat]
     readval = [urwid.Text("") for col in columns_flat]
     units = [urwid.Text(u) for u in units_flat]
-    columns = urwid.Columns([urwid.Pile([parname, ] + params),
-                             urwid.Pile([setc, ] + setval),
-                             urwid.Pile([readc, ] + readval),
-                             urwid.Pile([unitn, ] + units)])
+    columns = urwid.Columns(
+        [
+            urwid.Pile(
+                [
+                    parname,
+                ]
+                + params
+            ),
+            urwid.Pile(
+                [
+                    setc,
+                ]
+                + setval
+            ),
+            urwid.Pile(
+                [
+                    readc,
+                ]
+                + readval
+            ),
+            urwid.Pile(
+                [
+                    unitn,
+                ]
+                + units
+            ),
+        ]
+    )
 
     cont = urwid.Pile([info, outf, inpf, systemf, telemetry, status, columns])
     filler = urwid.Filler(cont)
@@ -256,7 +291,7 @@ def measure_urwid(inputfile, systemfile, system):
     class UrwidContext(object):
         def __init__(self, topwidget):
             screen = None
-            if os.environ.get('CI') == "true":
+            if os.environ.get("CI") == "true":
                 screen = urwid.raw_display.Screen(input=None)
             self.loop = urwid.MainLoop(topwidget, screen=screen)
             self.loop.screen.set_input_timeouts(max_wait=0)
@@ -295,11 +330,9 @@ def measure_urwid(inputfile, systemfile, system):
                     continue
                 if key.lower() in ("q", "f", "a"):
                     msg += f"Note: aborted with {key} after {n} points"
-                    system.add_comment(
-                        "measurement aborted by keyboard input " f"after {n} points"
-                    )
+                    system.add_comment(f"measurement aborted by keyboard input after {n} points")
                     return abortmap[key.lower()]
-                if key in ('p', 'P'):
+                if key in ("p", "P"):
                     msg += f"paused at {time.time()} after {n} points\n"
                     status.set_text("paused - continue with 'p'")
                     system.add_comment("measurement paused by keyboard input")
@@ -312,22 +345,19 @@ def measure_urwid(inputfile, systemfile, system):
                             if key.lower() in ("q", "f", "a"):
                                 msg += f"Note: aborted with {key} after {n} points"
                                 system.add_comment(
-                                    "measurement aborted by "
-                                    f"keyboard input after {n} "
-                                    "points"
+                                    f"measurement aborted by keyboard input after {n} points"
                                 )
                                 return abortmap[key.lower()]
-                            if key in ('p', 'P'):
+                            if key in ("p", "P"):
                                 flag = False
                     status.set_text("")
                     loop.draw_screen()
-                elif key == 'window resize':
+                elif key == "window resize":
                     loop.screen_size = None
             loop.draw_screen()
             return 0
 
-        ret = measurementloop(inputfile, system, setvalcb,
-                              readvalcb, telemetrycb, inputcb)
+        ret = measurementloop(inputfile, system, setvalcb, readvalcb, telemetrycb, inputcb)
 
     return ret, msg
 
@@ -395,7 +425,7 @@ def main():
 
     # check input file header for system file information
     systemfile = None
-    with open_and_error(options.inputfile, 'r') as (f, err):
+    with open_and_error(options.inputfile, "r") as (f, err):
         if err:
             print("matrix: error:", err)
             sys.exit(1)
@@ -438,20 +468,22 @@ def main():
     _, settable_names, settable_units = system.settable_columns()
 
     # verify that input file has correct columns and units
-    if ((settable_names != settable_names_file or
-         settable_units != settable_units_file)):
+    if settable_names != settable_names_file or settable_units != settable_units_file:
         print(settable_names, settable_names_file)
         print(settable_units, settable_units_file)
-        print("System seems to have changed since the input file was generated."
-              " The input file might lead to unexpected values being set! "
-              "Are you sure you want to continue?\n")
+        print(
+            "System seems to have changed since the input file was generated."
+            " The input file might lead to unexpected values being set! "
+            "Are you sure you want to continue?\n"
+        )
         resp = input("Please enter (y/n): ").strip()
         if "y" != resp:
             sys.exit(0)
 
     # obtain output file name and mode used to open the file
     output_filename = system.generate_datafilename(
-        options.outputfile, options.inputfile, options.append)
+        options.outputfile, options.inputfile, options.append
+    )
 
     # report filename to GUI if GUI is active and close socket
     if client_socket is not None:
@@ -487,22 +519,23 @@ def main():
     # read the parameter input file
     try:
         # enforce plain interface on Windows because urwid would fail
-        if options.plain or options.quiet or os.name == 'nt':
+        if options.plain or options.quiet or os.name == "nt":
             control_string = "To pause or quit after next point, press p/q"
-            if os.name != 'nt':
+            if os.name != "nt":
                 control_string += " and enter"
             # print help string for pause in plain version
             print(control_string)
             ret = measure_plain(options.inputfile, system, quiet=options.quiet)
         else:
-            ret, msg = measure_urwid(
-                options.inputfile, options.systemfile, system)
+            ret, msg = measure_urwid(options.inputfile, options.systemfile, system)
             if msg:
                 print(msg)
     except KeyboardInterrupt as e:
-        print("Received keyboard interrupt, file may be corrupt!\n" +
-              "Some devices may be in unknown state. Check traceback!\n" +
-              "Traceback of error:\n")
+        print(
+            "Received keyboard interrupt, file may be corrupt!\n"
+            + "Some devices may be in unknown state. Check traceback!\n"
+            + "Traceback of error:\n"
+        )
         traceback.print_tb(e.__traceback__)
         ret = 1
     reset_kwargs = {
@@ -511,8 +544,7 @@ def main():
     }
     if ret == 1:
         x = input(
-            "Shall the termination of the sequence lead to marking the "
-            "datafile as aborted? (Y/n)"
+            "Shall the termination of the sequence lead to marking the datafile as aborted? (Y/n)"
         )
         if x.lower().startswith("y") or x == "":
             print("marking file as aborted")

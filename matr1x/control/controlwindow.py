@@ -101,9 +101,7 @@ class CollapsibleBox(QWidget):
         self.main_layout = QVBoxLayout()
 
         self.toggle_button.setStyleSheet("QToolButton {border: none;}")
-        self.toggle_button.setToolButtonStyle(
-            Qt.ToolButtonStyle.ToolButtonTextBesideIcon
-        )
+        self.toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
         self.toggle_button.setText(title)
         self.toggle_button.setCheckable(True)
@@ -348,9 +346,7 @@ class ControlWindow(QMainWindow):
         # harmonize the guidict data structure -> convert all to GuiDict
         for i, guidict in enumerate(self.guidicts):
             if not isinstance(guidict, GuiDict):
-                warnings.warn(
-                    "Consider rewriting the GUI using the GuiDict class.", FutureWarning
-                )
+                warnings.warn("Consider rewriting the GUI using the GuiDict class.", FutureWarning)
 
                 class _FakeGuiDict(GuiDict):
                     data = guidict
@@ -452,9 +448,7 @@ class ControlWindow(QMainWindow):
         if checked:
             self.guidicts[index].enable_switch.setChecked(True)
             self.guidicts[index].dock.show()
-            self.enable[index].setIcon(
-                MIcon("CUSTOM_Power", color=QColor("forestgreen"))
-            )
+            self.enable[index].setIcon(MIcon("CUSTOM_Power", color=QColor("forestgreen")))
         else:
             self.guidicts[index].enable_switch.setChecked(False)
             self.enable[index].setIcon(MIcon("CUSTOM_Power", color=QColor("gray")))
@@ -629,9 +623,9 @@ class ControlWindow(QMainWindow):
             if guidict.allow_disabling:
                 self.enable[i].setEnabled(True)
                 self.enable[i].triggered.connect(
-                    lambda checked=self.enable[
-                        i
-                    ].isChecked(), index=i: self.toggle_enable(checked, index)
+                    lambda checked=self.enable[i].isChecked(), index=i: self.toggle_enable(
+                        checked, index
+                    )
                 )
             guidict.toolbar.addAction(self.enable[i])
             self.enable_menu.addAction(self.enable[i])
@@ -641,9 +635,9 @@ class ControlWindow(QMainWindow):
             self.guidict_view[i].setCheckable(True)
             self.guidict_view[i].setChecked(True)
             self.guidict_view[i].triggered.connect(
-                lambda checked=self.guidict_view[
-                    i
-                ].isChecked(), index=i: self.toggle_visible(checked, index)
+                lambda checked=self.guidict_view[i].isChecked(), index=i: self.toggle_visible(
+                    checked, index
+                )
             )
             self.view_menu.addAction(self.guidict_view[i])
             # Full info toggles
@@ -661,17 +655,15 @@ class ControlWindow(QMainWindow):
             if has_hiding:
                 self.full_info[i].setEnabled(True)
                 self.full_info[i].triggered.connect(
-                    lambda checked=self.full_info[
-                        i
-                    ].isChecked(), index=i: self.toggle_full_info(checked, index)
+                    lambda checked=self.full_info[i].isChecked(), index=i: self.toggle_full_info(
+                        checked, index
+                    )
                 )
                 guidict.extend_switch.toggled.connect(self.full_info[i].setChecked)
             guidict.toolbar.addAction(self.full_info[i])
             self.fullinfo_menu.addAction(self.full_info[i])
             spacer = QWidget()
-            spacer.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-            )
+            spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             guidict.toolbar.addWidget(spacer)
             # Custom menu
             for action in guidict.menu_actions:
@@ -737,9 +729,7 @@ class ControlWindow(QMainWindow):
         icondir = os.path.join(os.path.dirname(__file__), "..", "scripts", "icons")
         self.setWindowIcon(QIcon(os.path.join(icondir, "matr1x-control.png")))
         self.widget = QWidget()
-        self.widget.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
-        )
+        self.widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         self.main_layout = QVBoxLayout()
 
         self.widget.setLayout(self.main_layout)
@@ -920,10 +910,7 @@ class ControlWindow(QMainWindow):
             Reason for panic mode, by default "Panic button"
         """
         if checked:
-            logger.info(
-                f"{time.strftime(datetimefmt)}: "
-                f"Panic mode activated due to '{reason}'"
-            )
+            logger.info(f"{time.strftime(datetimefmt)}: Panic mode activated due to '{reason}'")
             self.panicButton.setText(f"Panic mode activated due to '{reason}'")
             self.panicButton.setChecked(True)
             for g in self.guidicts:
@@ -1002,9 +989,7 @@ class ControlWindow(QMainWindow):
             for v in guidict.values():
                 # check that widget is not only a label, is not hidden
                 # and is actually a value that should be logged
-                if len(v.widgets) > 2 and (
-                    v.widgets[0].isHidden() is False and v.log is not None
-                ):
+                if len(v.widgets) > 2 and (v.widgets[0].isHidden() is False and v.log is not None):
                     v.widgets[-1].setVisible(checked)
 
     def toggleLog(self, checkstate: bool) -> None:
@@ -1216,9 +1201,7 @@ class ControlWindow(QMainWindow):
         This method initializes and starts a SCPI TCP server using the command list
         defined in the class.
         """
-        self._local_server = scpi_tcpserver.SCPI_TCP_Server(
-            self.cmd_list, port=self._port
-        )
+        self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list, port=self._port)
         self._local_server.start()
 
     def stopServer(self) -> None:
@@ -1243,9 +1226,7 @@ class ControlWindow(QMainWindow):
         idx : int
             The index of the activity indicator to change.
         """
-        self.activityIndicator[idx].setStyleSheet(
-            f"QLabel {{ background-color: {color}; }}"
-        )
+        self.activityIndicator[idx].setStyleSheet(f"QLabel {{ background-color: {color}; }}")
 
     @pyqtSlot(str)
     def change_color(self, color: str) -> None:
@@ -1306,9 +1287,7 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("size", self.size())
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
-        self.settings.setValue(
-            "status_visible", self.status_box.toggle_button.isChecked()
-        )
+        self.settings.setValue("status_visible", self.status_box.toggle_button.isChecked())
 
     @pyqtSlot(type, Exception, str)
     def handleError(self, exc_type, exc_value, pointer):

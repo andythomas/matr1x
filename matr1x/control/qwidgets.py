@@ -45,9 +45,9 @@ class matr1xProgressBar(QProgressBar):
         if value > self.maximum() or value < self.minimum():
             # change color
             self.reset()
-            self.setStyleSheet("QProgressBar" "{" "background-color : red;" "}")
+            self.setStyleSheet("QProgressBar{background-color : red;}")
         else:
-            self.setStyleSheet("QProgressBar" "{" "}")
+            self.setStyleSheet("QProgressBar{}")
 
         super().setValue(value)
 

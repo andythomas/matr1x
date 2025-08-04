@@ -234,9 +234,7 @@ class guiObject(IntEnum):
             guiObject.combobox: lambda init: cls._create_combobox_widget(init),
             guiObject.togglebutton: lambda init: ToggleButton(init if init else label),
             guiObject.spinbox: lambda init: cls._create_spinbox_widget(init),
-            guiObject.doublespinbox: lambda init: cls._create_doublespinbox_widget(
-                init
-            ),
+            guiObject.doublespinbox: lambda init: cls._create_doublespinbox_widget(init),
             guiObject.hline: lambda init: cls._create_hline_widget(init),
         }
 
@@ -491,9 +489,7 @@ class var(QObject):
         # set sensible default values and disable readout column
         if len(self.widgets) > 1:
             if not isinstance(self.widgets[1], QCheckBox):
-                self.widgets[1].sizeHint = lambda qsize=self.widgets[
-                    1
-                ].minimumSizeHint(): qsize
+                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(): qsize
             if isinstance(self.widgets[1], QLineEdit):
                 self.widgets[1].setReadOnly(True)
             elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
@@ -501,9 +497,7 @@ class var(QObject):
         # apply a validator
         if len(self.widgets) > 2:
             if not isinstance(self.widgets[2], QCheckBox):
-                self.widgets[1].sizeHint = lambda qsize=self.widgets[
-                    1
-                ].minimumSizeHint(): qsize
+                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(): qsize
             if isinstance(self.widgets[2], QLineEdit):
                 val = validator.get(self.variableType, None)
                 if val:
@@ -962,9 +956,7 @@ class GuiDict(UserDict, ABC):
         # add top controls (hiding/enable) to the content widget
         self.control_layout = QHBoxLayout()
         self.toolbar = QToolBar()
-        icon_size = MApplication.style().pixelMetric(
-            QStyle.PixelMetric.PM_SmallIconSize
-        )
+        icon_size = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.control_layout.addWidget(self.toolbar)
         self.extend_switch = QCheckBox()
@@ -1070,15 +1062,13 @@ class GuiDict(UserDict, ABC):
             self.container.setEnabled(True)
             if self.allow_disabling:
                 self.dock.setFeatures(
-                    self.dock.features()
-                    & ~QDockWidget.DockWidgetFeature.DockWidgetClosable
+                    self.dock.features() & ~QDockWidget.DockWidgetFeature.DockWidgetClosable
                 )
         else:
             self.container.setEnabled(False)
             if self.allow_disabling:
                 self.dock.setFeatures(
-                    self.dock.features()
-                    | QDockWidget.DockWidgetFeature.DockWidgetClosable
+                    self.dock.features() | QDockWidget.DockWidgetFeature.DockWidgetClosable
                 )
 
     def stop(self, wait: bool = True) -> None:
@@ -1245,9 +1235,7 @@ class GuiDict(UserDict, ABC):
         elif cmd.getfunc is None:
             getfunc = None
         elif isinstance(cmd.getfunc, str):
-            getfunc, getargs = self._handle_string_getfunc(
-                name, cmd, window_obj, system
-            )
+            getfunc, getargs = self._handle_string_getfunc(name, cmd, window_obj, system)
         elif isinstance(cmd.getfunc, (tuple, list)):
             getfunc, getargs = self._handle_tuple_getfunc(name, cmd, system)
         else:
@@ -1515,9 +1503,7 @@ def sendNotificationEmail(
                 logger = logging.getLogger(__name__)
                 logger.info("notification email {} sent to {}".format(msgtext, address))
             else:
-                print(
-                    "no email configuration found; see documentation on how to set it up"
-                )
+                print("no email configuration found; see documentation on how to set it up")
         except Exception as e:
             print("ignoring error during sending email: {}".format(e))
 
@@ -1675,10 +1661,7 @@ class TableModel(QtCore.QAbstractTableModel):
         Union[str, QVariant]
             The header data as a string if the conditions are met, QVariant() otherwise.
         """
-        if (
-            role == Qt.ItemDataRole.DisplayRole
-            and orientation == Qt.Orientation.Horizontal
-        ):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             if section == 0:
                 return "T (K)"
             elif section == 1:

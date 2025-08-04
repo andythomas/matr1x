@@ -144,9 +144,7 @@ class Lakeshore3xx(VisaDevice):
         try:
             return float(ret)
         except ValueError:
-            logger.info(
-                f"{self.name}.query_float: float conversion error ('{msg}', {ret})"
-            )
+            logger.info(f"{self.name}.query_float: float conversion error ('{msg}', {ret})")
             # retry query
             return self.query_float(msg, depth + 1)
 
@@ -171,9 +169,7 @@ class Lakeshore3xx(VisaDevice):
         try:
             return int(ret)
         except ValueError:
-            logger.info(
-                f"{self.name}.query_int: integer conversion error ('{msg}', {ret})"
-            )
+            logger.info(f"{self.name}.query_int: integer conversion error ('{msg}', {ret})")
             # retry query
             return self.query_int(msg, depth + 1)
 
@@ -468,9 +464,7 @@ class Lakeshore3xx(VisaDevice):
                 return
         except ValueError:
             return
-        self.write(
-            "INCRV " + str(channel if channel else self.channel) + "," + str(curve)
-        )
+        self.write("INCRV " + str(channel if channel else self.channel) + "," + str(curve))
         # wait to activate the change
         time.sleep(3)
 
@@ -509,7 +503,7 @@ class Lakeshore3xx(VisaDevice):
         self.write(f"CRVHDR {index},{name},{sn},4,{self.setlimit:.1f},1")
         time.sleep(0.1)
         for i, (res, temp) in enumerate(zip(rList, tList)):
-            self.write(f"CRVPT {index},{i+1},{math.log10(res):.5f},{temp:.5f},N")
+            self.write(f"CRVPT {index},{i + 1},{math.log10(res):.5f},{temp:.5f},N")
             time.sleep(0.1)
 
 
@@ -773,7 +767,7 @@ class Lakeshore340(Lakeshore3xx):
         self.write(f"CRVHDR {index},{name},{sn},3,{self.setlimit:.1f},1")
         time.sleep(0.3)
         for i, (res, temp) in enumerate(zip(rList, tList)):
-            self.write(f"CRVPT {index},{i+1},{res:.5f},{temp:.5f}")
+            self.write(f"CRVPT {index},{i + 1},{res:.5f},{temp:.5f}")
             time.sleep(0.3)
         self.write("CRVSAV")
 
@@ -817,8 +811,6 @@ class Lakeshore340(Lakeshore3xx):
             and len(plist) == len(rangelist)
         )
 
-        for j, (t, p, i, d, r) in enumerate(
-            zip(templist, plist, ilist, dlist, rangelist)
-        ):
-            self.write(f"ZONE {loop}, {j+1}, {t}, {p}, {i}, {d}, , {r}")
+        for j, (t, p, i, d, r) in enumerate(zip(templist, plist, ilist, dlist, rangelist)):
+            self.write(f"ZONE {loop}, {j + 1}, {t}, {p}, {i}, {d}, , {r}")
             time.sleep(0.3)

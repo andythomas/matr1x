@@ -158,9 +158,7 @@ class PSA_E4440A(VisaDevice):
                 self.write("AVERage:TYPE SCAL")
             else:
                 print(
-                    "Please choose a valid average type! Your input was: {}".format(
-                        str(avgType)
-                    )
+                    "Please choose a valid average type! Your input was: {}".format(str(avgType))
                 )
             self.write("AVER:STAT ON")
             self.write("AVERage:COUNt {}".format(average))
@@ -215,9 +213,7 @@ class PSA_E4440A(VisaDevice):
         sweep_time = float(self.query(":SWE:TIME?"))
 
         # estimate of sweep time by PSA + 1ms for frequency change
-        self.connection.timeout = (
-            self.maxAverage * (1e3 * sweep_time + n_points) + 120e3
-        )
+        self.connection.timeout = self.maxAverage * (1e3 * sweep_time + n_points) + 120e3
         self.write("INIT:IMM")
         self.query("*OPC?")
         # reset timeout to default

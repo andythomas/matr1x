@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for interfacing with a DAC8532 AD/DA Board."""
+
 import time
 
 import RPi.GPIO as GPIO
@@ -385,9 +386,7 @@ class ADS1256:
         self.waitDRDY()
         self.CS(False)
         # select channel
-        self.writeRegister(
-            self.REG_MUX, ((4 + channel * 2) << 4) | (5 + channel * 2), do_cs=False
-        )
+        self.writeRegister(self.REG_MUX, ((4 + channel * 2) << 4) | (5 + channel * 2), do_cs=False)
         # arbitrary DRDY
         self.write(self.CMD_SYNC)
         self.delayUS(self.WAIT_SYNC)
@@ -424,9 +423,7 @@ class ADS1256:
         t = time.time()
         self.CS(False)
         # select channel
-        self.writeRegister(
-            self.REG_MUX, ((4 + channel * 2) << 4) | (5 + channel * 2), do_cs=False
-        )
+        self.writeRegister(self.REG_MUX, ((4 + channel * 2) << 4) | (5 + channel * 2), do_cs=False)
         # arbitrary DRDY
         self.write(self.CMD_SYNC)
         self.delayUS(self.WAIT_SYNC)

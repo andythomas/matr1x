@@ -99,8 +99,7 @@ class ControlThread(threading.Thread):
         self._initializeReadout()
         self._initializeOutput()
 
-        assert (self.bipolar is not None and self.outLimit is not None and
-                self.maxOut is not None)
+        assert self.bipolar is not None and self.outLimit is not None and self.maxOut is not None
 
         self.pidController = PIDcontroller(ndim)
         self.pidController.outLimit = self.outLimit
@@ -187,13 +186,13 @@ class ControlThread(threading.Thread):
                 return
             for i in range(self.ndim):
                 if np.absolute(output[i]) > self.outLimit:
-                    output[i] = np.sign(output[i])*self.outLimit
+                    output[i] = np.sign(output[i]) * self.outLimit
                 elif self.bipolar is False and 0 > output[i]:
                     output[i] = 0
             self.analogOut = output
         else:
             if np.absolute(output) > self.outLimit:
-                output = np.sign(output)*self.outLimit
+                output = np.sign(output) * self.outLimit
             elif self.bipolar is False and 0 > output:
                 output = 0
             self.analogOut[ax] = output
@@ -357,8 +356,7 @@ class ControlThread(threading.Thread):
                 if self.controlMode == 1:
                     # get time for rate limiting
                     # do the PID control
-                    np.copyto(outp,
-                              self.pidController.control(self._getReading()))
+                    np.copyto(outp, self.pidController.control(self._getReading()))
                     # delay to limit speed
                     # best rate is limited by reading fresh rate, could be changed
                     time.sleep(0.02)
@@ -374,12 +372,13 @@ class ControlThread(threading.Thread):
                 if self.rateLimit is not None and 0 != self.rateLimit:
                     #
                     dt = lastcontrol - currentcontrol
-                    changeRate = (outp - self.currentOutput)/dt
+                    changeRate = (outp - self.currentOutput) / dt
                     mask = abs(changeRate) > self.rateLimit
                     if any(mask):
-                        outp[mask] = (self.currentOutput[mask] +
-                                      np.sign(changeRate[mask]) *
-                                      self.rateLimit*dt)
+                        outp[mask] = (
+                            self.currentOutput[mask]
+                            + np.sign(changeRate[mask]) * self.rateLimit * dt
+                        )
                 self._setOutput(outp)
             lastcontrol = currentcontrol
 
@@ -462,30 +461,27 @@ class PIDcontroller:
         error = self.setpoint - reading
         # calculate integral, weighting is done here to
         # allow for easy mitigation of windup
-        self._integral += self.parameters[1]*error*dt
+        self._integral += self.parameters[1] * error * dt
         # windup supression
         ol = self.outLimit < np.absolute(self._integral)
         if any(ol):
             # set all values that are above/below self.outLimit to +-
             # self.outlimit
-            self._integral[ol] = (self.ones[ol] *
-                                  self.outLimit * np.sign(self._integral[ol]))
+            self._integral[ol] = self.ones[ol] * self.outLimit * np.sign(self._integral[ol])
         if self.bipolar is False:
             ol = self._integral < 0
             if any(ol):
                 # set all values that are below 0 to 0
                 self._integral[ol] = self.ones[ol] * 0
         # calculate derivative and store previous error
-        derivative = (error - self._previous_error)/dt
+        derivative = (error - self._previous_error) / dt
         self._previous_error = error
         # calculate output from parameters
-        output = (self.parameters[0]*error +
-                  self._integral +
-                  self.parameters[2]*derivative)
+        output = self.parameters[0] * error + self._integral + self.parameters[2] * derivative
         # limit control
         for i, elem in enumerate(output):
             if np.absolute(elem) > self.outLimit:
-                output[i] = self.outLimit*np.sign(output[i])
+                output[i] = self.outLimit * np.sign(output[i])
             elif self.bipolar is False and elem < 0:
                 output[i] = 0
         # return the new setpoint

@@ -171,9 +171,7 @@ class PSG8257D(VisaDevice):
             self.write(":SOUR:AM:DEPT %g" % (ampDepth))
 
     @synchronized
-    def configurePulseMod(
-        self, PulseMod=True, pulseSource="INT", pulseInput="SQU", frequency=1e3
-    ):
+    def configurePulseMod(self, PulseMod=True, pulseSource="INT", pulseInput="SQU", frequency=1e3):
         """
         Configure the pulse modulation of the output signal.
 

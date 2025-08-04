@@ -367,10 +367,7 @@ class SMS(VisaDevice):
         float
             Current position in units defined by _steps_per_deg.
         """
-        return (
-            float(self.query(f"C{self._axes[ax]}").replace("CX", ""))
-            / self._steps_per_deg
-        )
+        return float(self.query(f"C{self._axes[ax]}").replace("CX", "")) / self._steps_per_deg
 
     def stop(self, ax=0):
         """

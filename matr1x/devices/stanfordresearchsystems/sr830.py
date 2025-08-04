@@ -108,9 +108,7 @@ class SR830(VisaDevice):
         elif refSource == "int":  # set internal reference source
             self.write("FMOD 1")
         else:
-            print(
-                f"Please choose a valid reference source! Your input was: {refSource}"
-            )
+            print(f"Please choose a valid reference source! Your input was: {refSource}")
 
         if refTrig == "sine":
             self.write("RSLP 0")  # sine zero crossing
@@ -162,27 +160,21 @@ class SR830(VisaDevice):
         elif inputSource == "100Mohm":
             self.write("ISRC 3")
         else:
-            print(
-                f"Please choose a valid input configuration! Your input was: {inputSource}"
-            )
+            print(f"Please choose a valid input configuration! Your input was: {inputSource}")
 
         if inputGround == "Float":
             self.write("IGND 0")
         elif inputGround == "Ground":
             self.write("IGND 1")
         else:
-            print(
-                f"Please choose a valid input shield grounding! Your input was: {inputGround}"
-            )
+            print(f"Please choose a valid input shield grounding! Your input was: {inputGround}")
 
         if inputCoupling == "AC":
             self.write("ICPL 0")
         elif inputCoupling == "DC":
             self.write("ICPL 1")
         else:
-            print(
-                f"Please choose a valid input coupling! Your input was: {inputCoupling}"
-            )
+            print(f"Please choose a valid input coupling! Your input was: {inputCoupling}")
 
     @synchronized
     def setFilters(self, inputFilter=None):

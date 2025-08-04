@@ -324,9 +324,7 @@ class exampleDict2(GuiDict):
             if slope is not None and std is not None:
                 self.qobject.tooltip.emit(
                     "V5",
-                    "last minute \n"
-                    f"slope: {slope/60:.3f}mbar/min\n"
-                    f"std: {std:.3f} mbar",
+                    f"last minute \nslope: {slope / 60:.3f}mbar/min\nstd: {std:.3f} mbar",
                 )
             self.v5 = round(30 * numpy.random.random(), 3)
 
@@ -347,9 +345,7 @@ class exampleDict2(GuiDict):
 # define clientdevice to be used by measurement systems interfacing with this
 # controlGUI. If no interfacing of a measurement system is intended this can be
 # removed.
-clientdevice = makeSCPIdevice(
-    exampleDict.cmds, exampleDict2.cmds, common_commands, system=True
-)
+clientdevice = makeSCPIdevice(exampleDict.cmds, exampleDict2.cmds, common_commands, system=True)
 
 
 def main():

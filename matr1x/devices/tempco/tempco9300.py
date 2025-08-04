@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for Tempco 9300 temperature controller."""
+
 import enum
 
 import serial

@@ -18,6 +18,7 @@
 This module includes functions for file handling, script generation, sweep calculations,
 and various helper functions for data processing and system configuration.
 """
+
 import datetime
 import importlib.util
 import os
@@ -85,8 +86,9 @@ def open_and_error(filename, mode="r"):
 default_separator = "\t"
 
 # telemetry string template
-telemetry_string = (" {:d}/{:d} - elapsed: {:.1f}m - remaining: " +
-                    "{:.1f}m - set/read: {:.1f}s/{:.1f}s")
+telemetry_string = (
+    " {:d}/{:d} - elapsed: {:.1f}m - remaining: " + "{:.1f}m - set/read: {:.1f}s/{:.1f}s"
+)
 
 
 def get_package_path(package_name):
@@ -131,9 +133,9 @@ def get_importable_module_name(filename):
 
     # Check if the file exists and is a Python file or
     # a directory with __init__.py
-    if filename.endswith('.py') and isfile(filename):
+    if filename.endswith(".py") and isfile(filename):
         module_path = filename[:-3]  # Remove the .py extension
-    elif isdir(filename) and isfile(join(filename, '__init__.py')):
+    elif isdir(filename) and isfile(join(filename, "__init__.py")):
         module_path = filename
     else:
         return False
@@ -193,9 +195,9 @@ def create_temp_dir_with_symlinks(names, targets):
         if not os.path.isdir(target):
             raise ValueError(f"The target {target} is not a directory.")
         link_name = os.path.join(temp_dir.name, name)
-        if os.name == 'nt':
+        if os.name == "nt":
             subprocess.check_call(
-                ['cmd', '/c', 'mklink', '/J', link_name, target],
+                ["cmd", "/c", "mklink", "/J", link_name, target],
                 stdout=subprocess.DEVNULL,
             )
         else:
@@ -222,15 +224,17 @@ def get_matrix_binary():
     FileNotFoundError
         If matrix executable could not be found.
     """
-    user_scripts_path = sysconfig.get_path('scripts', f'{os.name}_user')
-    system_scripts_path = sysconfig.get_path('scripts')
-    for matrixname in ("matrix",
-                       os.path.join(user_scripts_path, "matrix"),
-                       os.path.join(system_scripts_path, "matrix")):
+    user_scripts_path = sysconfig.get_path("scripts", f"{os.name}_user")
+    system_scripts_path = sysconfig.get_path("scripts")
+    for matrixname in (
+        "matrix",
+        os.path.join(user_scripts_path, "matrix"),
+        os.path.join(system_scripts_path, "matrix"),
+    ):
         try:
-            subprocess.check_call([matrixname, "--help"],
-                                  stdout=subprocess.DEVNULL,
-                                  stderr=subprocess.DEVNULL)
+            subprocess.check_call(
+                [matrixname, "--help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
             return matrixname
         except (FileNotFoundError, subprocess.CalledProcessError):
             continue
@@ -256,8 +260,7 @@ def module_from_path(filename):
         # get absolute path
         filename = abspath(filename)
     # create module specification from file and open
-    spec = importlib.util.spec_from_file_location("dummyname",
-                                                  filename)
+    spec = importlib.util.spec_from_file_location("dummyname", filename)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -956,7 +959,6 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
 
     logger = logging.getLogger("matrix_script_process")
 
-
     # define killable thread to execute the script
     class ExecThread(threading.Thread):
         """
@@ -1148,9 +1150,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             self.stop_status.finished = state
             self.interrupt_flag = True
 
-        def interrupt(
-            self, duration=None, until=None, message="", silent=10, system=None
-        ):
+        def interrupt(self, duration=None, until=None, message="", silent=10, system=None):
             """
             Pauses execution for a specified duration, until a specified timestamp, or for a relative time.
 
@@ -1272,15 +1272,11 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 raise ValueError("Either `duration` or `until` must be provided.")
 
             # Perform the wait with pause handling
-            self._execute_sleep(
-                sleep_time, end_time, duration is not None, silent, msg, system
-            )
+            self._execute_sleep(sleep_time, end_time, duration is not None, silent, msg, system)
             # Ensure interrupt and pause checks are called at least once, even if `sleep_time` is 0
             self.check_for_interrupt_and_pause(system)
 
-        def _execute_sleep(
-            self, sleep_time, end_time, is_duration, silent, message, system
-        ):
+        def _execute_sleep(self, sleep_time, end_time, is_duration, silent, message, system):
             """Handle sleeping with interrupt and pause checks.
 
             Parameters
@@ -1299,9 +1295,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 System object to log comments if a pause or interrupt occurs.
             """
             start_time = time.time()
-            pause_duration = (
-                0  # Tracks cumulative pause duration for duration-based waits
-            )
+            pause_duration = 0  # Tracks cumulative pause duration for duration-based waits
             initial_sleep_time = sleep_time  # Save the initial sleep time for reference
             print_func = system._print if system else print
 
@@ -1313,11 +1307,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 # Check for interruption or pause
                 pause_start = time.time()  # Record when the pause starts
                 if self.check_for_interrupt_and_pause(system):
-                    if (
-                        not is_duration
-                        and end_time
-                        and datetime.datetime.now() >= end_time
-                    ):
+                    if not is_duration and end_time and datetime.datetime.now() >= end_time:
                         print_func(
                             "\nThe target time passed during pause. Continuing immediately."
                         )
@@ -1328,23 +1318,16 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                         pause_duration += pause_end - pause_start
                         end_time = datetime.datetime.now() + datetime.timedelta(
                             seconds=(
-                                initial_sleep_time
-                                - (time.time() - start_time - pause_duration)
+                                initial_sleep_time - (time.time() - start_time - pause_duration)
                             )
                         )
 
                         # Recalculate sleep_time after adjusting for pause
-                        sleep_time = (
-                            end_time - datetime.datetime.now()
-                        ).total_seconds()
-                        print_func(
-                            f"\nResuming wait for {sleep_time:.0f} seconds{message}."
-                        )
+                        sleep_time = (end_time - datetime.datetime.now()).total_seconds()
+                        print_func(f"\nResuming wait for {sleep_time:.0f} seconds{message}.")
                     else:
                         # For "until" wait, recalculate based on the current end_time
-                        sleep_time = max(
-                            0, (end_time - datetime.datetime.now()).total_seconds()
-                        )
+                        sleep_time = max(0, (end_time - datetime.datetime.now()).total_seconds())
                         print_func(
                             f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                             f"({sleep_time:.0f} seconds remaining)."
@@ -1481,7 +1464,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
 
             print(pattern, end="")
 
-            while (self.recv == "" or self.recv_flag is True):
+            while self.recv == "" or self.recv_flag is True:
                 time.sleep(0.1)
                 if (time.time() - t0) > 60:
                     print("still waiting for user input")
@@ -1563,8 +1546,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             during execution, providing detailed error information.
             """
             try:
-                self.n_pref = len(
-                    generate_script_prefix_suffix("")[0].splitlines())
+                self.n_pref = len(generate_script_prefix_suffix("")[0].splitlines())
                 try:
                     _vars = {
                         "_interrupt": self.interrupt,
@@ -1587,13 +1569,13 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                     line = int(ms.group(1))
                     # replace line number to match the user defined script
                     # to that end, determine number of lines in prefix
-                    tbstr = re.sub(r"line (\d+)",
-                                   "line " + str(int(ms.group(1))-self.n_pref),
-                                   tbstr)
+                    tbstr = re.sub(
+                        r"line (\d+)", "line " + str(int(ms.group(1)) - self.n_pref), tbstr
+                    )
                     tbstr = tbstr.replace("<module>", "script")
-                    tbstr = tbstr.replace("File \"<string>\"",
-                                          "\"{}\"".format(
-                                              self.script.splitlines()[line-1]))
+                    tbstr = tbstr.replace(
+                        'File "<string>"', '"{}"'.format(self.script.splitlines()[line - 1])
+                    )
                     print(tbstr)
                     if line < 1:
                         print(" error during device initialization\n")
@@ -1601,9 +1583,10 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 print("script interrupted by user")
 
     # this might be required on windows, needs testing
-    if os.name == 'nt':
+    if os.name == "nt":
+
         def temp_opener(name, flag, mode=0o777):
-            return os.open(name, flag | os.O_TEMPORARY,  mode)
+            return os.open(name, flag | os.O_TEMPORARY, mode)
     else:
         temp_opener = None
 
@@ -1794,7 +1777,7 @@ def calculate_sweep(sweepParms, loopOver, upDown, repeat):
         # (i.e. don't loop col(a) over col(b) over col(a)!)
         return "Recursive loop, please check loop over"
     hCnt = max(hirarchy)
-    while (0 <= hCnt):
+    while 0 <= hCnt:
         for indexS in range(lenA):
             if indexS == loopOver[indexS]:
                 # looping a column over itself is not how it's done!
@@ -1805,7 +1788,7 @@ def calculate_sweep(sweepParms, loopOver, upDown, repeat):
                 col = loopOver[indexS]
                 tempSweep = sweeps[indexS].copy()
                 # copy the initial sweep to be looped
-                for j in range(len(sweeps[col])-1):
+                for j in range(len(sweeps[col]) - 1):
                     # for each element in the looped over column append the
                     # initial sweep
                     sweeps[indexS] += tempSweep
@@ -1861,10 +1844,10 @@ def check_dep(index, array, depth=0):
             for _ in range(cnt):
                 # follow all branches of the occurences to get the actual
                 # maximum hirarchy of the occurence
-                occ = array.index(index, occ+1)
-                d.append(check_dep(occ, array, depth+1))
+                occ = array.index(index, occ + 1)
+                d.append(check_dep(occ, array, depth + 1))
             return max(d)
-        return check_dep(array.index(index), array, depth+1)
+        return check_dep(array.index(index), array, depth + 1)
     # if no more occurence is in the array, then return the current depth
     return depth
 
@@ -1892,9 +1875,9 @@ def generate_col_index(index):
         If the index is out of range (>701).
     """
     if index < 26:
-        letter = chr(index+97)
+        letter = chr(index + 97)
     elif index < 702:
-        letter = chr(index//26+96) + chr(index % 26+97)
+        letter = chr(index // 26 + 96) + chr(index % 26 + 97)
     else:
         raise ValueError("index out of range, talk to the developer")
     return letter
@@ -1925,8 +1908,8 @@ def construct_query_string(query_dict, depth=2):
     ret = ""
     for k, v in query_dict.items():
         if isinstance(v, dict):
-            ret += "#"*depth + f" {k}\n"
-            ret += construct_query_string(v, depth+1)
+            ret += "#" * depth + f" {k}\n"
+            ret += construct_query_string(v, depth + 1)
         else:
             if isinstance(v, str):
                 # ignore carriage returns (would break the datafile!)
@@ -2023,6 +2006,7 @@ def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):
     """
     # lazy import of h5py to only load it when it is required
     import h5py
+
     data_grp = file_handle.create_group("data")
     dt = np.dtype(
         [
@@ -2034,13 +2018,18 @@ def init_hdf5_skel(file_handle, columns, units, dtypes, chunks):
     file_handle.create_dataset("comments", shape=(0,), maxshape=(None,), dtype=dt)
     for col, uni, chu, dtype in zip(columns, units, chunks, dtypes):
         if isinstance(chu, tuple):
-            data_grp.create_dataset(col, (0, *chu), maxshape=(None, *chu),
-                                    chunks=(1, *chu), dtype=dtype,
-                                    compression=True)
+            data_grp.create_dataset(
+                col,
+                (0, *chu),
+                maxshape=(None, *chu),
+                chunks=(1, *chu),
+                dtype=dtype,
+                compression=True,
+            )
         else:
-            data_grp.create_dataset(col, (0,), maxshape=(None,),
-                                    chunks=(chu,), dtype=dtype,
-                                    compression=True)
+            data_grp.create_dataset(
+                col, (0,), maxshape=(None,), chunks=(chu,), dtype=dtype, compression=True
+            )
         data_grp[col].attrs["unit"] = uni
 
 
@@ -2061,8 +2050,7 @@ def flatten(iterable, types=(tuple, list, np.ndarray)):
         Elements from the flattened iterable.
     """
     for el in iterable:
-        if ((isinstance(el, types) and not
-             isinstance(el, (str, bytes)))):
+        if isinstance(el, types) and not isinstance(el, (str, bytes)):
             yield from flatten(el, types=types)
         else:
             yield el
@@ -2086,7 +2074,7 @@ def get_pt100_temp(res):
     a = 3.9083e-3
     b = -5.775e-7
     r0 = 100
-    return (-a*r0+np.sqrt((a*r0)**2-4*b*r0*(r0 - res)))/(2*b*r0)
+    return (-a * r0 + np.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
 
 
 class Command:
@@ -2097,8 +2085,7 @@ class Command:
     setting and getting and their respective arguments.
     """
 
-    def __init__(self, dtype, setfunc, getfunc, setargs=None, getargs=None,
-                 polling_cmd=None):
+    def __init__(self, dtype, setfunc, getfunc, setargs=None, getargs=None, polling_cmd=None):
         """Initialize the Command object.
 
         Parameters
@@ -2189,14 +2176,14 @@ class Command:
         a Command object with the settings equivalent to dlist
         """
         if len(dlist) < 5 or len(dlist) > 6:
-            raise ValueError(
-                "command entries must be a list of lenth 5 or 6")
+            raise ValueError("command entries must be a list of lenth 5 or 6")
         if len(dlist) > 5:
             pcmd = dlist[5]
         else:
             pcmd = None
-        return cls(dlist[0], dlist[1], dlist[3], setargs=dlist[2],
-                   getargs=dlist[4], polling_cmd=pcmd)
+        return cls(
+            dlist[0], dlist[1], dlist[3], setargs=dlist[2], getargs=dlist[4], polling_cmd=pcmd
+        )
 
 
 class Get(Command):
@@ -2234,8 +2221,7 @@ class Set(Command):
         polling_cmd : str or None, optional
             Optional command to poll to check if the setpoint was reached.
         """
-        super().__init__(dtype, setfunc, getfunc=None, setargs=setargs,
-                         polling_cmd=polling_cmd)
+        super().__init__(dtype, setfunc, getfunc=None, setargs=setargs, polling_cmd=polling_cmd)
 
 
 def normalize_cmds(cmds):
@@ -2325,9 +2311,7 @@ class DcDict(dict):
                 # is meta key is non-editable, no append is allowed
                 super().__setitem__(key, value)
                 return
-            self._append_value(
-                key, value, ";@set:", ref=self.system_ref.merged_system.dcdata
-            )
+            self._append_value(key, value, ";@set:", ref=self.system_ref.merged_system.dcdata)
         elif self.append and self[key]:
             # read only mode is enabled, append values
             if key not in APP_META_KEY:

@@ -141,13 +141,7 @@ class Keithley2400(VisaDevice):
         # assert source and sense mode are correct
         assert (sourceMode == "VOLT" and senseMode == "CURR") or (
             sourceMode == "CURR" and senseMode == "VOLT"
-        ), (
-            'source ("'
-            + sourceMode
-            + '") and/or sense ("'
-            + senseMode
-            + '") mode are incorrect'
-        )
+        ), 'source ("' + sourceMode + '") and/or sense ("' + senseMode + '") mode are incorrect'
         # add get output here to reset the device to the previous state
         # if none is given
         # if self.outputState != bool(output):
@@ -359,13 +353,7 @@ class Keithley2450(VisaDevice):
         # assert source and sense mode are correct
         assert (sourceMode == "VOLT" and senseMode == "CURR") or (
             sourceMode == "CURR" and senseMode == "VOLT"
-        ), (
-            'source ("'
-            + sourceMode
-            + '") and/or sense ("'
-            + senseMode
-            + '") mode are incorrect'
-        )
+        ), 'source ("' + sourceMode + '") and/or sense ("' + senseMode + '") mode are incorrect'
         limDef = {"CURR": "I", "VOLT": "V"}
         # add get output here to reset the device to the previous state
         # if none is given
@@ -415,9 +403,7 @@ class Keithley2450(VisaDevice):
             cmdlist.append(":SOUR:{}:RANG:AUTO ON".format(self.sourceMode))
         elif sourceRange is not None:
             cmdlist.append(":SOUR:{}:RANG:AUTO OFF".format(self.sourceMode))
-            cmdlist.append(
-                ":SOUR:{}:RANG {}".format(self.sourceMode, float(sourceRange))
-            )
+            cmdlist.append(":SOUR:{}:RANG {}".format(self.sourceMode, float(sourceRange)))
 
         for cmd in cmdlist:
             self.write(cmd)

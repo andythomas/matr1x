@@ -203,9 +203,7 @@ class BSC103(VisaDevice):
             The equivalent distance in millimeters.
         """
         return usteps / (
-            self.uStepsPerStep
-            * self.drive_config["steps per rev"]
-            / self.drive_config["pitch"]
+            self.uStepsPerStep * self.drive_config["steps per rev"] / self.drive_config["pitch"]
         )
 
     def readPacket(self):
@@ -222,9 +220,7 @@ class BSC103(VisaDevice):
         packet = (
             self.message.fromBytes(header)
             if header[4] < 128
-            else self.message.fromBytes(
-                header + self.read(int.from_bytes(header[2:4], "little"))
-            )
+            else self.message.fromBytes(header + self.read(int.from_bytes(header[2:4], "little")))
         )
         self.printDebug(self.bytestostr(packet.getBytes()), "R")
         return packet
@@ -311,9 +307,9 @@ class BSC103(VisaDevice):
                 )
             if msg.msgID + 1 != resp.msgID and 0x0464 != resp.msgID:
                 self.printDebug(
-                    (
-                        "Warning!: msgID of response({:s}) does not match msgID of request"
-                    ).format(hex(resp.msgID)),
+                    ("Warning!: msgID of response({:s}) does not match msgID of request").format(
+                        hex(resp.msgID)
+                    ),
                     color="WARN",
                 )
         return resp
@@ -515,9 +511,7 @@ class BSC103(VisaDevice):
         dict
             Motor status information as specified in parseMotorStatusPckt.
         """
-        return self.parseMotorStatusPckt(
-            self.ReqResp(self.message(0x0480, (channel, 0x00), dst))
-        )
+        return self.parseMotorStatusPckt(self.ReqResp(self.message(0x0480, (channel, 0x00), dst)))
 
     def parseMotorStatusPckt(self, packet):
         """
@@ -553,9 +547,7 @@ class BSC103(VisaDevice):
             motorStatus = {}
 
             motorStatus["channel"] = int.from_bytes(data[0:2], "little")
-            motorStatus["position"] = self.uStepsto_mm(
-                int.from_bytes(data[2:6], "little")
-            )
+            motorStatus["position"] = self.uStepsto_mm(int.from_bytes(data[2:6], "little"))
             motorStatus["encCount"] = int.from_bytes(data[6:10], "little")
 
             statusbits = int.from_bytes(data[10:14], "little")
@@ -816,9 +808,7 @@ class BSC103(VisaDevice):
             self.message(
                 0x043A,
                 channel.to_bytes(2, "little")
-                + self.mmto_uSteps(self.drive_config["backlash dist"]).to_bytes(
-                    4, "little"
-                ),
+                + self.mmto_uSteps(self.drive_config["backlash dist"]).to_bytes(4, "little"),
                 dst,
             )
         )

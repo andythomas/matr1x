@@ -19,6 +19,7 @@ Module containing the System class definition and corresponding utility function
 This module provides the core System class and related utility functions for
 data acquisition and instrument control.
 """
+
 import collections
 import importlib
 import inspect
@@ -79,15 +80,14 @@ def device_query(device_handle, config_params):
     for k, q in config_params.items():
         try:
             if isinstance(q, (list, tuple)):
-                assert len(q) == 3, \
-                    f"config_params includes an invalid entry ({q})"
-                if hasattr(device_handle, q[0]) and callable(
-                        getattr(device_handle, q[0])):
+                assert len(q) == 3, f"config_params includes an invalid entry ({q})"
+                if hasattr(device_handle, q[0]) and callable(getattr(device_handle, q[0])):
                     method = getattr(device_handle, q[0])
                     line = str(method(*q[1], **q[2]))
                 else:
-                    raise ValueError("config_params: method of entry "
-                                     f"{q} not callable or non-existent")
+                    raise ValueError(
+                        f"config_params: method of entry {q} not callable or non-existent"
+                    )
             elif callable(q):
                 line = q()
             elif hasattr(device_handle, q):
@@ -112,7 +112,7 @@ def device_query(device_handle, config_params):
     return retquery
 
 
-class Parameter():
+class Parameter:
     """
     Define a measurement parameter.
 
@@ -207,15 +207,18 @@ class Parameter():
         label=None,
     ):
         # general error checking
-        if any([isinstance(name, (list, tuple)),
-                isinstance(unit, (list, tuple))]):
-            if not (isinstance(unit, (list, tuple)) and
-                    isinstance(name, (list, tuple)) and
-                    (dtypes is None or isinstance(dtypes, (list, type)))):
-                raise TypeError("Name, unit must be of the same type"
-                                " together with dtypes "
-                                "(i.e. all list or all string, "
-                                "dtypes can also be None)")
+        if any([isinstance(name, (list, tuple)), isinstance(unit, (list, tuple))]):
+            if not (
+                isinstance(unit, (list, tuple))
+                and isinstance(name, (list, tuple))
+                and (dtypes is None or isinstance(dtypes, (list, type)))
+            ):
+                raise TypeError(
+                    "Name, unit must be of the same type"
+                    " together with dtypes "
+                    "(i.e. all list or all string, "
+                    "dtypes can also be None)"
+                )
             if len(name) != len(unit):
                 raise ValueError("Name and unit have unequal length")
             if dtypes is not None:
@@ -226,8 +229,7 @@ class Parameter():
                     if not isinstance(val, (list, tuple)):
                         raise TypeError(f"{key} must be list if name is list")
                     if len(name) != len(val):
-                        raise ValueError(
-                            f"{key} must have same length as name")
+                        raise ValueError(f"{key} must have same length as name")
 
         # set functions
         self.setter = setter
@@ -250,7 +252,7 @@ class Parameter():
         if dtypes is None:
             # initialize dtypes to default value if unspecified
             if isinstance(self.unit, (list, tuple)):
-                self.dtypes = ["f8"]*len(self.unit)
+                self.dtypes = ["f8"] * len(self.unit)
             else:
                 self.dtypes = "f8"
         else:
@@ -349,8 +351,10 @@ class Parameter():
         else:
             if isinstance(param, cast):
                 return param
-        raise ValueError("At least one element is not of type "
-                         f"{cast.__name__ if not isinstance(cast, tuple) else cast}")
+        raise ValueError(
+            "At least one element is not of type "
+            f"{cast.__name__ if not isinstance(cast, tuple) else cast}"
+        )
 
 
 class System:
@@ -544,32 +548,48 @@ class System:
         else:
             self.dcdata["format"] = "text/plain; charset=UTF-8"
 
-    def add_param(self, name, unit, setter=None, getter=None,
-                  default=None, dtype=None, chunks=None, trigger=None,
-                  setter_args=None, setter_kwargs=None,
-                  getter_args=None, getter_kwargs=None,
-                  trigger_args=None, trigger_kwargs=None):
+    def add_param(
+        self,
+        name,
+        unit,
+        setter=None,
+        getter=None,
+        default=None,
+        dtype=None,
+        chunks=None,
+        trigger=None,
+        setter_args=None,
+        setter_kwargs=None,
+        getter_args=None,
+        getter_kwargs=None,
+        trigger_args=None,
+        trigger_kwargs=None,
+    ):
         """
         Add a parameter to the list of parameters.
 
         For definition of the passed parameters, see class :class:`Parameter`.
         """
-        self.parameters.append(Parameter(name, unit,
-                                         setter=setter,
-                                         getter=getter,
-                                         default=default,
-                                         dtypes=dtype,
-                                         trigger=trigger,
-                                         chunks=chunks,
-                                         setter_args=setter_args,
-                                         setter_kwargs=setter_kwargs,
-                                         getter_args=getter_args,
-                                         getter_kwargs=getter_kwargs,
-                                         trigger_args=trigger_args,
-                                         trigger_kwargs=trigger_kwargs))
+        self.parameters.append(
+            Parameter(
+                name,
+                unit,
+                setter=setter,
+                getter=getter,
+                default=default,
+                dtypes=dtype,
+                trigger=trigger,
+                chunks=chunks,
+                setter_args=setter_args,
+                setter_kwargs=setter_kwargs,
+                getter_args=getter_args,
+                getter_kwargs=getter_kwargs,
+                trigger_args=trigger_args,
+                trigger_kwargs=trigger_kwargs,
+            )
+        )
 
-    def add_dev(self, name, descriptor, args=None, kwargs=None,
-                config_params=None):
+    def add_dev(self, name, descriptor, args=None, kwargs=None, config_params=None):
         """
         Add a device to the device dictionary.
 
@@ -716,7 +736,7 @@ class System:
             file_extension = ".h5" + output_extension
         else:
             file_extension = output_extension
-        refileext = file_extension.replace('.', r'\.')
+        refileext = file_extension.replace(".", r"\.")
 
         if outputfile:
             datafile = expanduser(outputfile)
@@ -729,7 +749,7 @@ class System:
             if filename.endswith(".py"):
                 filename = filename[:-3]
             datafile = f"{timestamp}_{filename}"
-            if os.name == 'nt':
+            if os.name == "nt":
                 # Windows does not like : in filenames
                 datafile = datafile.replace(":", "")
         # check if file extension was provided
@@ -935,8 +955,7 @@ class System:
             if len(setter) == 3:  # optional arguments
                 self._set_by_func(attr, value, args or setter[2], kwargs)
             elif len(setter) == 4:  # optional arguments and kwargs
-                self._set_by_func(
-                    attr, value, args or setter[2], kwargs or setter[3])
+                self._set_by_func(attr, value, args or setter[2], kwargs or setter[3])
             else:
                 self._set_by_func(attr, value, args, kwargs)
         else:
@@ -971,8 +990,7 @@ class System:
                 elif isinstance(trigger, str):
                     self._call_attr(trigger, args, kwargs, needs_callable=True)
                 else:
-                    self._call_by_list(trigger, args, kwargs,
-                                       needs_callable=True)
+                    self._call_by_list(trigger, args, kwargs, needs_callable=True)
             except Exception:
                 self._inform_exception(i, trigger, "triggering")
                 raise
@@ -1081,8 +1099,7 @@ class System:
             if len(listdef) == 3:  # optional arguments
                 ret = self._call_func(attr, args or listdef[2], kwargs)
             elif len(listdef) == 4:  # optional arguments and kwargs
-                ret = self._call_func(
-                    attr, args or listdef[2], kwargs or listdef[3])
+                ret = self._call_func(attr, args or listdef[2], kwargs or listdef[3])
             else:
                 ret = self._call_func(attr, args, kwargs)
         elif needs_callable:
@@ -1205,16 +1222,14 @@ class System:
         for key, dev in self.devs.items():
             # get device
             try:
-                if key in self.system_config_params.keys() and hasattr(
-                        dev, "config_params"):
+                if key in self.system_config_params.keys() and hasattr(dev, "config_params"):
                     # device config_params are specified in system and device
                     retquery[key] = device_query(
-                        dev, {**self.system_config_params[key],
-                              **dev.config_params})
+                        dev, {**self.system_config_params[key], **dev.config_params}
+                    )
                 elif key in self.system_config_params.keys():
                     # device config query is specified in system
-                    retquery[key] = device_query(dev,
-                                                 self.system_config_params[key])
+                    retquery[key] = device_query(dev, self.system_config_params[key])
                 elif hasattr(dev, "config_params"):
                     # device has config query specified, should return dictionary
                     retquery[key] = device_query(dev, dev.config_params)
@@ -1222,8 +1237,7 @@ class System:
                     # no query details available
                     retquery[key] = {}
             except Exception as error:
-                print(
-                    f"system: error: could not access '{key}': {dev} {error}")
+                print(f"system: error: could not access '{key}': {dev} {error}")
                 raise
         # iterate over remaining keys in system_config_params
         for key in self.system_config_params.keys() - self.devs.keys():
@@ -1300,13 +1314,10 @@ class System:
         flattened_settable_units : list
             List of strings containing the units of the settable columns.
         """
-        settables = [(False if par.setter is None else True)
-                     for par in self.parameters]
+        settables = [(False if par.setter is None else True) for par in self.parameters]
         flattened_settable_names = []
         flattened_settable_units = []
-        for names, units, settable in zip(self.columns,
-                                          self.units,
-                                          settables):
+        for names, units, settable in zip(self.columns, self.units, settables):
             if settable is True:
                 if isinstance(names, (list, tuple)):
                     for name, unit in zip(names, units):
@@ -1529,14 +1540,13 @@ class System:
         # query info from the devices
         self.query_dict = self.query()
         # prepare file definitions (column header and units)
-        telemetry = [list(flatten(self.columns)),
-                     list(flatten(self.units))]
+        telemetry = [list(flatten(self.columns)), list(flatten(self.units))]
         # prepare datafile
         print(f"Creating new datafile: {self.filename}")
         if self.hdf5 is True:
             telemetry.append(list(flatten(self.dtypes)))
-            telemetry.append(list(flatten(self.chunks, types=(list, ))))
-            with h5py.File(self.filename, 'w', libver='latest') as data_file:
+            telemetry.append(list(flatten(self.chunks, types=(list,))))
+            with h5py.File(self.filename, "w", libver="latest") as data_file:
                 data_file.swmr_mode = True
                 assert data_file.swmr_mode
                 data_file.attrs["input filename"] = inputfile
@@ -1558,7 +1568,7 @@ class System:
                 init_hdf5_skel(data_file, *telemetry)
         else:
             telemetry += [default_separator]
-            with open(self.filename, 'w', encoding="utf-8") as data_file:
+            with open(self.filename, "w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
                     if dckey not in VALID_META_KEYS.keys():
                         # values that are not in the dc specifications are
@@ -1574,7 +1584,7 @@ class System:
                         data_file.write(f'# dcterms:{dckey} : "{dcentry}"\n')
                 data_file.write(f'# input filename : "{inputfile}"\n')
                 data_file.write("# system filename : ")
-                data_file.write("\"" + self.__name__ + "\"\n")
+                data_file.write('"' + self.__name__ + '"\n')
                 data_file.write("# system query : \n")
                 data_file.write(construct_query_string(self.query_dict))
 
@@ -1601,7 +1611,7 @@ class System:
 
             def h5save(h5d, val):
                 csize = h5d.chunks[0]
-                h5d.resize(h5d.shape[0]+csize, axis=0)
+                h5d.resize(h5d.shape[0] + csize, axis=0)
                 h5d[-csize:] = val
                 if csize > 1 or len(h5d.chunks) > 1:
                     return f"[{next(flatten(val))}, ...]"
@@ -1611,7 +1621,7 @@ class System:
         for i, col in enumerate(self.columns):
             value = self.read_value(i)
             if self.hdf5 is True:
-                with h5py.File(dfilename, "a", libver='latest') as datafile:
+                with h5py.File(dfilename, "a", libver="latest") as datafile:
                     datafile.swmr_mode = True
                     assert datafile.swmr_mode
                     if isinstance(col, (list, tuple)):
@@ -1631,8 +1641,7 @@ class System:
         if self.hdf5 is False:
             with open(dfilename, "a", encoding="utf-8") as datafile:
                 # write datapoint to file
-                datafile.write(default_separator.join(str(v)
-                               for v in return_list))
+                datafile.write(default_separator.join(str(v) for v in return_list))
                 datafile.write("\n")
 
         # return device readout as list
@@ -1665,7 +1674,6 @@ class System:
 
         timestamp = time.strftime(f"{datetimefmt}", time.localtime())
         if self.hdf5 is True:
-
             with h5py.File(dfilename, "a", libver="latest") as datafile:
                 datafile.swmr_mode = True
                 assert datafile.swmr_mode
@@ -1752,8 +1760,7 @@ class MergedSystem(System):
         # here self.subsys is already used when initializing the filename, so this needs to come here
         super().__init__()
         # define __name__
-        self.__name__ = ",".join([subsys.__name__ for subsys in
-                                  self.subsys])
+        self.__name__ = ",".join([subsys.__name__ for subsys in self.subsys])
         # merge devices, config_dicts, config and parameters
         for subsys in self.subsys:
             self.devs = {**self.devs, **subsys.devs}
@@ -1773,15 +1780,13 @@ class MergedSystem(System):
         self.parameters.reverse()
         for param in self.parameters:
             if self.parameters.count(param) > 1:
-                print(
-                    f"removing duplicated column {param.name} from merged system")
+                print(f"removing duplicated column {param.name} from merged system")
                 self.parameters.remove(param)
         self.parameters.reverse()
 
         # add timeUTC if not in system yet
         if "timeUTC" not in self.columns:
-            self.add_param("timeUTC", "s", default=None,
-                           setter=time.sleep, getter=time.time)
+            self.add_param("timeUTC", "s", default=None, setter=time.sleep, getter=time.time)
 
     @classmethod
     def from_files(cls, system_filenames):
@@ -1833,8 +1838,7 @@ class MergedSystem(System):
         for subsys in self.subsys:
             if hasattr(subsys, attr):
                 return getattr(subsys, attr)
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{attr}'")
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'")
 
     @property
     def filename(self):
@@ -1953,9 +1957,7 @@ class MergedSystem(System):
             # Add config information from each subsystem
             subsys_config = subsys.config
             if subsys_config:
-                subsys_name = getattr(
-                    subsys, "__name__", str(subsys.__class__.__name__)
-                )
+                subsys_name = getattr(subsys, "__name__", str(subsys.__class__.__name__))
                 info["config"][subsys_name] = subsys_config
 
         return info

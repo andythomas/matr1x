@@ -109,9 +109,7 @@ class Lakeshore475(VisaDevice):
         elif clear is True:
             self.write("ZCLEAR")
 
-    def configureAnalogOut(
-        self, voltlimit, lowfield, highfield, bipolar=2, mode=4, manualOut=0
-    ):
+    def configureAnalogOut(self, voltlimit, lowfield, highfield, bipolar=2, mode=4, manualOut=0):
         """
         Configure analog output of the LS475.
 
@@ -160,16 +158,11 @@ class Lakeshore475(VisaDevice):
         """
         if on is False:
             self.write("CMODE 0")
-        self.write(
-            f"CPARAM {str(pValue)}, {str(iValue)}, {str(rampRate)}, "
-            + f"{str(maxVSlope)}"
-        )
+        self.write(f"CPARAM {str(pValue)}, {str(iValue)}, {str(rampRate)}, " + f"{str(maxVSlope)}")
         if on is True:
             self.write("CMODE 1")
 
-    def configure(
-        self, reset=False, autoRange=True, range_val=None, dcRes=None, fUnit=None
-    ):
+    def configure(self, reset=False, autoRange=True, range_val=None, dcRes=None, fUnit=None):
         """
         Configure LS475 measurement parameters.
 
