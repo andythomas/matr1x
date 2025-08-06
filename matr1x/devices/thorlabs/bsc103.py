@@ -1069,6 +1069,5 @@ class BSC103(VisaDevice):
             The stop mode.
             Set to 0x01 to stop immediately, or to 0x02 to stop
             in a controlled (profiled) manner
-
         """
         self.ReqResp(self.message(0x0465, (channel, mode), dst, respLen=20))

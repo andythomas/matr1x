@@ -13,13 +13,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Base class for all device drivers in this package.
 
 In this module the base class for all device drivers in this package is
-defined. It is itself based on the pyvisa library which handles all the low
-level communication.
+defined. It is itself based on the pyvisa library which handles all the
+low level communication.
 """
 
 import copy
@@ -158,8 +157,8 @@ class VisaDevice:
         """
         Open device communication port from parameters given to the constructor.
 
-        Opens the device communication port using the parameters provided to the
-        constructor method.
+        Opens the device communication port using the parameters
+        provided to the constructor method.
         """
         if not self._opened:
             # copy kwargs dictionary to modify in this function
@@ -193,8 +192,8 @@ class VisaDevice:
         """
         Close device connection.
 
-        Closes the device connection in a way which allows to reopen it later in the
-        same Python process.
+        Closes the device connection in a way which allows to reopen it
+        later in the same Python process.
         """
         if self._opened:
             self.connection.close()

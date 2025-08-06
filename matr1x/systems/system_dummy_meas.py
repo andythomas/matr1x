@@ -13,12 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Defines a system for testing and demonstration purposes.
 
-This module provides a sample implementation to showcase how
-various systems can be merged together.
+This module provides a sample implementation to showcase how various
+systems can be merged together.
 """
 # ============================
 # Custom import area

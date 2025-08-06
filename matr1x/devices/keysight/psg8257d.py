@@ -330,9 +330,9 @@ class PSG8257D(VisaDevice):
         """
         Prepare the PSG for triggering a sweep.
 
-        The PSG activates the output, disables the continuous trigger and
-        therefore enables manual triggering.
-        Any currently running sweeps are aborted.
+        The PSG activates the output, disables the continuous trigger
+        and therefore enables manual triggering. Any currently running
+        sweeps are aborted.
         """
         self.output(True)
         # INITiate:CONTinuous <boolean> Trigger source to manual

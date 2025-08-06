@@ -283,7 +283,8 @@ class KeithleyDMM6500(VisaDevice):
         """
         Trigger a reading from the instrument.
 
-        Sets the triggered flag to True to indicate a measurement is pending.
+        Sets the triggered flag to True to indicate a measurement is
+        pending.
         """
         self.write("*TRG")
         self.triggered = True

@@ -322,8 +322,8 @@ class Keithley2000(VisaDevice):
         """
         Trigger a measurement reading on the device.
 
-        This method sends a trigger command to the device and sets
-        the triggered flag to True.
+        This method sends a trigger command to the device and sets the
+        triggered flag to True.
         """
         self.write("*TRG")
         self.triggered = True

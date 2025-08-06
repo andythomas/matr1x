@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Interface for Lakeshore 475 Gaussmeter."""
 
 from matr1x.devices.visadevice import VisaDevice
@@ -23,9 +22,9 @@ class Lakeshore475(VisaDevice):
     """
     Class for controlling the Lakeshore 475 Gaussmeter.
 
-    A class to interact with the Lakeshore 475 Gaussmeter, providing methods
-    to read field and temperature values, set control parameters, configure
-    analog outputs, and control probe settings.
+    A class to interact with the Lakeshore 475 Gaussmeter, providing
+    methods to read field and temperature values, set control
+    parameters, configure analog outputs, and control probe settings.
     """
 
     def __init__(self, interface, **kwargs):

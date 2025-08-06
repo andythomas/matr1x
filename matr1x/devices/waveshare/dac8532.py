@@ -56,8 +56,8 @@ class BCM8532:
         """
         Initialize the BCM8532 interface.
 
-        Sets up the GPIO pins for SPI communication and configures the SPI
-        interface with appropriate parameters.
+        Sets up the GPIO pins for SPI communication and configures the
+        SPI interface with appropriate parameters.
         """
         # Initialize the pin layout to BOARD (RPi 40 pin layout)
         GPIO.setmode(GPIO.BOARD)

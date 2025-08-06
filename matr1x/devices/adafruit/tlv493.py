@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 TLV493-A1B6 3D magnetic sensor interface.
 
@@ -120,7 +119,8 @@ class TLV493:
         Configure the sensor.
 
         Sets up sensor parameters including interrupt mode, power mode,
-        and other configuration options. Calculates and includes parity bit.
+        and other configuration options. Calculates and includes parity
+        bit.
         """
         interrupt = 1  # interrupt pin
         fast = 1  # fast mode

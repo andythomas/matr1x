@@ -13,9 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""TIC500 temperature controller interface module.
+"""
+TIC500 temperature controller interface module.
 
-This module provides an interface to control TIC500 temperature controllers.
+This module provides an interface to control TIC500 temperature
+controllers.
 """
 
 import logging
@@ -28,7 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 class TIC500(VisaDevice):
-    """TIC500 temperature controller interface.
+    """
+    TIC500 temperature controller interface.
 
     A class that provides an interface to communicate with and control
     TIC500 temperature controllers via VISA.
@@ -64,7 +67,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def query_float(self, msg):
-        """Query device and convert response to float.
+        """
+        Query device and convert response to float.
 
         Parameters
         ----------
@@ -84,7 +88,8 @@ class TIC500(VisaDevice):
 
     # High level functions
     def get_temp(self, channel):
-        """Get the temperature of a channel.
+        """
+        Get the temperature of a channel.
 
         Parameters
         ----------
@@ -100,7 +105,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def set_setpoint(self, setpoint, channel):
-        """Set the setpoint of a channel.
+        """
+        Set the setpoint of a channel.
 
         Parameters
         ----------
@@ -123,7 +129,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def get_setpoint(self, channel):
-        """Get the current internal setpoint of a channel.
+        """
+        Get the current internal setpoint of a channel.
 
         Parameters
         ----------
@@ -141,7 +148,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def get_power(self, channel):
-        """Get the power on a channel.
+        """
+        Get the power on a channel.
 
         Parameters
         ----------
@@ -157,7 +165,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def set_power(self, power, channel):
-        """Set the power on a channel.
+        """
+        Set the power on a channel.
 
         Parameters
         ----------
@@ -179,7 +188,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def get_pid(self, channel):
-        """Get the PID parameters for a channel.
+        """
+        Get the PID parameters for a channel.
 
         Parameters
         ----------
@@ -199,7 +209,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def set_pid(self, pid, channel):
-        """Set the PID parameters for a channel.
+        """
+        Set the PID parameters for a channel.
 
         Parameters
         ----------
@@ -219,7 +230,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def set_ramp(self, rate, channel):
-        """Set the ramp rate for a channel.
+        """
+        Set the ramp rate for a channel.
 
         Parameters
         ----------
@@ -237,7 +249,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def get_ramp(self, channel):
-        """Get the ramp rate for a channel.
+        """
+        Get the ramp rate for a channel.
 
         Parameters
         ----------
@@ -253,7 +266,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def get_state(self, channel):
-        """Get the state of the PID control for a channel.
+        """
+        Get the state of the PID control for a channel.
 
         Parameters
         ----------
@@ -270,7 +284,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def set_state(self, state, channel):
-        """Enable or disable the PID control for a channel.
+        """
+        Enable or disable the PID control for a channel.
 
         Parameters
         ----------
@@ -288,7 +303,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def set_output_enabled(self, state):
-        """Set the global output state.
+        """
+        Set the global output state.
 
         Parameters
         ----------
@@ -304,7 +320,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def get_output_enabled(self):
-        """Get the global output state.
+        """
+        Get the global output state.
 
         Returns
         -------
@@ -316,7 +333,8 @@ class TIC500(VisaDevice):
 
     @synchronized
     def disable_channel(self, channel):
-        """Turn off heater on a channel.
+        """
+        Turn off heater on a channel.
 
         Only works for output channels. The channel can be reenabled by
         turning on PID control using set_state.

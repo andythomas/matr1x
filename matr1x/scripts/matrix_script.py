@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Allow to write measurement scripts in Python."""
 
 import ast
@@ -478,7 +477,8 @@ def rxIndex(rx, txt):
 
 
 class CompleterPython(QObject):
-    # adapted from https://hg.die-offenbachs.homelinux.org/eric/file/eric7/src/eric7/QScintilla/TypingCompleters/CompleterPython.py
+    # adapted from
+    # https://hg.die-offenbachs.homelinux.org/eric/file/eric7/src/eric7/QScintilla/TypingCompleters/CompleterPython.py
     """Class implementing a python completer."""
 
     def __init__(self, editor, parent=None):
@@ -744,7 +744,8 @@ class CompleterPython(QObject):
         """
         Dedent the last line to match that of the last if statement, private.
 
-        Goes back to the last if statement with less (or equal) indentation.
+        Goes back to the last if statement with less (or equal)
+        indentation.
         """
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
@@ -796,8 +797,8 @@ class CompleterPython(QObject):
         """
         Dedents the line of an except statement, private.
 
-        Matches the indent of the last try statement with less
-        (or equal) indentation.
+        Matches the indent of the last try statement with less (or
+        equal) indentation.
         """
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
@@ -821,8 +822,8 @@ class CompleterPython(QObject):
         """
         Dedents the line of an finally statement, private.
 
-        Matches the indent of the last try statement with less
-        (or equal) indentation.
+        Matches the indent of the last try statement with less (or
+        equal) indentation.
         """
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
@@ -846,7 +847,8 @@ class CompleterPython(QObject):
         """
         Dedents the line of the def statement, private.
 
-        Matches the indent of a previous def statement or class statement.
+        Matches the indent of a previous def statement or class
+        statement.
         """
         line, col = self.editor.getCursorPosition()
         indentation = self.editor.indentation(line)
@@ -1058,9 +1060,9 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         Call the linter for the editor view.
 
         Convenience function to call the linter, generates the script
-        according to what matrix-script would do when one presses the run
-        button. Custom definitions for parameters that are passed by the
-        process are made here.
+        according to what matrix-script would do when one presses the
+        run button. Custom definitions for parameters that are passed by
+        the process are made here.
 
         Returns -1 if a syntax error was found
         """
@@ -1421,13 +1423,13 @@ class CustomQsciAPI(QsciAPIs):
         "meta_data['relation']",
         "meta_data['description']",
         "devs",
-        "wait(duration: float = None, until: str | datetime = None, message: str = '', silent: float = 10)",
+        "wait(duration: float = None, until: str | datetime = None, message: str = '', silent: float = 10)",  # noqa: E501
         "end_script(finished: bool = None)",
         "input(query: str = '', timeout: float = float('inf'), default_value: str = '')",
         "input_bool(query: str = '', timeout: float = float('inf'), default_value: str = 'yes')",
-        "input_numerical(query: str = '', timeout: float = float('inf'), default_value: float = 0.0, min_value: float=-100e9, max_value: float=100e9, step: float=1.0, decimals: int=2)",
-        "init_datafile(filename: str, comment: str = '', append: bool = False, print_header: bool = True, ntot: int = None)",
-        "measure_system(print_setpoint: bool = True, print_data: bool = True, print_telemetry: bool = True)",
+        "input_numerical(query: str = '', timeout: float = float('inf'), default_value: float = 0.0, min_value: float=-100e9, max_value: float=100e9, step: float=1.0, decimals: int=2)",  # noqa: E501
+        "init_datafile(filename: str, comment: str = '', append: bool = False, print_header: bool = True, ntot: int = None)",  # noqa: E501
+        "measure_system(print_setpoint: bool = True, print_data: bool = True, print_telemetry: bool = True)",  # noqa: E501
         "set_value(value_index: int, value)",
         "set_value(name: str, value)",
         "read_value(value_index: int)",
@@ -1456,8 +1458,14 @@ class ExecThread(QThread):
     """Control and the thread running the measurements."""
 
     # signal initiating user input from the GUI.
-    # Signature: query (str), input_type (str), timeout (float), default_value (str), min_value (object, float or None),
-    #            max_value (object, float or None), step (object, float or None), decimals (object, int or None)
+    # Signature: query (str),
+    #            input_type (str),
+    #            timeout (float),
+    #            default_value (str),
+    #            min_value (object, float or None),
+    #            max_value (object, float or None),
+    #            step (object, float or None),
+    #            decimals (object, int or None)
     input_signal = pyqtSignal(str, str, float, str, object, object, object, object)
     # signal to report the currently executing line number to the editor.
     lineno_signal = pyqtSignal(int)
@@ -1550,11 +1558,15 @@ class ExecThread(QThread):
         """
         pattern_lineno = r"__lineno(-?\d+)__"
         pattern_filename = r"__//(.*)//__"
-        # Format: __input_type:message:timeout:default:min:max:step:decimals__ (trailing parameters are optional)
-        # Regex to capture type, message, timeout, default, min, max, step, decimals
-        # Handles empty optional fields correctly (e.g., :: means empty field)
-        pattern_input = r"__input_(?P<type>[^:]+):(?P<strlabel>[^:]+)(?::(?P<timeout>[^:]*))?(?::(?P<default>[^:]*))?"
-        pattern_input += r"(?::(?P<min>[^:]*))?(?::(?P<max>[^:]*))?(?::(?P<step>[^:]*))?(?::(?P<decimals>[^:]*))?__"
+        # Format:
+        # __input_type:message:timeout:default:min:max:step:decimals__
+        # (trailing parameters are optional)
+        # Regex to capture
+        # type, message, timeout, default, min, max, step, decimals
+        # Handles empty optional fields correctly
+        # (e.g., :: means empty field)
+        pattern_input = r"__input_(?P<type>[^:]+):(?P<strlabel>[^:]+)(?::(?P<timeout>[^:]*))?(?::(?P<default>[^:]*))?"  # noqa: E501
+        pattern_input += r"(?::(?P<min>[^:]*))?(?::(?P<max>[^:]*))?(?::(?P<step>[^:]*))?(?::(?P<decimals>[^:]*))?__"  # noqa: E501
         lines = inp.split(os.linesep)
         for i, line in enumerate(lines[:-1]):
             # add \"\\n\" to all but the last element in split
@@ -1588,7 +1600,8 @@ class ExecThread(QThread):
                         print(f"Warning: Invalid timeout value received: {timeout_str}")
                         timeout = float("inf")  # Use default on error
 
-                # Parse default value (depends on input_type, handle as string initially)
+                # Parse default value (depends on input_type, handle
+                # as string initially)
                 default_str = match.group("default")
                 if (
                     default_str is not None
@@ -1631,7 +1644,8 @@ class ExecThread(QThread):
 
                 logger.info(
                     f"Requesting input type: {input_type}, Query: {strlabel}, "
-                    f"Timeout: {timeout}, Default: {default_value}, Min: {min_value}, Max: {max_value}, Step: {step}"
+                    f"Timeout: {timeout}, Default: {default_value}, Min: {min_value}, "
+                    f"Max: {max_value}, Step: {step}"
                 )
 
                 # Emit the signal with all parameters
@@ -1658,12 +1672,11 @@ class ExecThread(QThread):
         """
         Run the subprocess.
 
-        first writes the user script into a temporary file to make sure all
-        formating is conserved, then passes that file to the interpreter to
-        run the script
-        the purpose of using a subprocess is to keep the namespace clear of
-        all system files. That allows changes to the system while
-        matrix-script is running.
+        first writes the user script into a temporary file to make sure
+        all formating is conserved, then passes that file to the
+        interpreter to run the script the purpose of using a subprocess
+        is to keep the namespace clear of all system files. That allows
+        changes to the system while matrix-script is running.
         """
         with tempfile.NamedTemporaryFile(mode="w+b") as tf:
             for line in self.script:
@@ -1800,7 +1813,8 @@ class MainWindow(QMainWindow):
             code += "# waits for user text input or timeouts with a default reply.\n"
         elif function == "input_bool":
             code = 'input_bool(question="", timeout=float("inf"), default_value="")\n'
-            code += "# waits for user to answer a yes/no question or continues with the default reply after timeout.\n"
+            code += "# waits for user to answer a yes/no question"
+            code += "or continues with the default reply after timeout.\n"
         elif function == "input_numerical":
             code = 'input_numerical(query="", timeout=float("inf"), default_value=0.0, '
             code += "min_value=-100e9, max_value=100e9, step=1.0, decimals=2)\n"
@@ -1910,7 +1924,8 @@ class MainWindow(QMainWindow):
         Save application configuration until next startup.
 
         For convenience, main window geometry, the toolbar placement,
-        and the size and position of metadata and configuration pane are saved.
+        and the size and position of metadata and configuration pane are
+        saved.
         """
         self.settings.setValue("created", 1)
         self.settings.beginGroup("MainWindow")
@@ -2152,8 +2167,6 @@ class MainWindow(QMainWindow):
         palette = self.status_preview.palette()
         text_edit = QTextEdit()
         text_edit.setEnabled(False)
-        # self.script_edit.indicatorDefine(QsciScintilla.IndicatorStyle.DiagonalIndicator, 0)
-        # self.script_edit.setIndicatorOutlineColor(QColor(self.color_palette.color(QPalette.ColorRole.LinkVisited)))
         text_color = QColor(self.color_palette.color(QPalette.ColorRole.Text))
         base_color = QColor(self.color_palette.color(QPalette.ColorRole.Base))
         highlight_color = QColor(self.color_palette.color(QPalette.ColorRole.Highlight))
@@ -2613,7 +2626,8 @@ class MainWindow(QMainWindow):
         """
         Add a system file to the system list.
 
-        Opens a QFileDialog with filter system*.py. Update help if need be.
+        Opens a QFileDialog with filter system*.py. Update help if need
+        be.
         """
         directory = matr1x.system_directories[-1]
         if not self.shortcut_dir and len(matr1x.system_names) > 1:
@@ -2650,8 +2664,8 @@ class MainWindow(QMainWindow):
         """
         Remove selected system from system_list.
 
-        If no selection is active the last system will be removed. Update help
-        if need be.
+        If no selection is active the last system will be removed.
+        Update help if need be.
         """
         selected = self.system_list.selectedItems()
         if len(selected) > 0:
@@ -2722,7 +2736,8 @@ class MainWindow(QMainWindow):
                 numerical_default_value = float(default_value) if default_value else 0.0
             except ValueError:
                 print(
-                    f"Warning: Invalid default_value '{default_value}' for numerical input. Using 0.0"
+                    f"Warning: Invalid default_value '{default_value}' "
+                    "for numerical input. Using 0.0"
                 )
                 numerical_default_value = 0.0
 
@@ -2858,7 +2873,8 @@ class MainWindow(QMainWindow):
         return (indexes, settables, columns)
 
     def update_system_commands(self, cached_info: dict = None) -> None:
-        """Update the help info about the current system(s).
+        """
+        Update the help info about the current system(s).
 
         Parameters
         ----------
@@ -2869,8 +2885,10 @@ class MainWindow(QMainWindow):
         """
         if len(self.systems) == 0:
             text = "<p style='margin: 20px;'><b>No system file selected!</b></p>"
-            text += "<p style='margin: 20px;'>Please add a system file using the 'Add System' button or File menu.</p>"
-            text += "<p style='margin: 20px;'>Once a system is loaded, this dialog will show information about:</p>"
+            text += "<p style='margin: 20px;'>"
+            text += "Please add a system file using the 'Add System' button or File menu.</p>"
+            text += "<p style='margin: 20px;'>"
+            text += "Once a system is loaded, this dialog will show information about:</p>"
             text += "<ul style='margin-left: 40px;'>"
             text += "<li>Available parameters that can be set or read</li>"
             text += "<li>Connected devices and their configurations</li>"
@@ -2914,9 +2932,13 @@ class MainWindow(QMainWindow):
                 # Display parameters table
                 if parameters:
                     text += "<h3>Parameters</h3>"
-                    text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+                    text += '<table border="1" cellpadding="5" cellspacing="0" '
+                    text += 'style="border-collapse: collapse; text-align: left; '
+                    text += 'margin-bottom: 20px;">'
                     text += '<tr style="background-color: #f0f0f0; text-align: left;">'
-                    text += '<th style="text-align: left;">Index</th><th style="text-align: left;">Name</th><th style="text-align: left;">Description</th></tr>'
+                    text += '<th style="text-align: left;">Index</th>'
+                    text += '<th style="text-align: left;">Name</th>'
+                    text += '<th style="text-align: left;">Description</th></tr>'
                     # Sort parameters by index for correct display order
                     parameters.sort(key=lambda x: int(x[0]) if x[0] and x[0].isdigit() else 999)
                     for idx, col, desc, is_settable in parameters:
@@ -2929,9 +2951,12 @@ class MainWindow(QMainWindow):
                 # Display devices table
                 if devices:
                     text += "<h3>Devices</h3>"
-                    text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+                    text += '<table border="1" cellpadding="5" cellspacing="0" '
+                    text += 'style="border-collapse: collapse; text-align: left; '
+                    text += 'margin-bottom: 20px;">'
                     text += '<tr style="background-color: #f0f0f0; text-align: left;">'
-                    text += '<th style="text-align: left;">Name</th><th style="text-align: left;">Description</th></tr>'
+                    text += '<th style="text-align: left;">Name</th>'
+                    text += '<th style="text-align: left;">Description</th></tr>'
                     for idx, col, desc in devices:
                         text += f"<tr><td><b>{col}</b></td><td>{desc}</td></tr>"
                     text += "</table>"
@@ -2939,9 +2964,12 @@ class MainWindow(QMainWindow):
                 # Display methods table
                 if methods:
                     text += "<h3>System Methods and Variables</h3>"
-                    text += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+                    text += '<table border="1" cellpadding="5" cellspacing="0" '
+                    text += 'style="border-collapse: collapse; text-align: left; '
+                    text += 'margin-bottom: 20px;">'
                     text += '<tr style="background-color: #f0f0f0; text-align: left;">'
-                    text += '<th style="text-align: left;">Name</th><th style="text-align: left;">Description</th></tr>'
+                    text += '<th style="text-align: left;">Name</th>'
+                    text += '<th style="text-align: left;">Description</th></tr>'
                     for idx, col, desc in methods:
                         text += f"<tr><td><b>{col}</b></td><td>{desc}</td></tr>"
                     text += "</table>"
@@ -2976,7 +3004,8 @@ class MainWindow(QMainWindow):
         self.system_command_help.show()
         self.system_command_help.raise_()
 
-        # Restore previous geometry if available (this will override the saved settings if dialog was already visible)
+        # Restore previous geometry if available (this will override the
+        # saved settings if dialog was already visible)
         if current_geometry:
             self.system_command_help.setGeometry(current_geometry)
 
@@ -2987,9 +3016,9 @@ class MainWindow(QMainWindow):
         """
         Append most recent text to the end of the display, place cursor at end.
 
-        This function also tries to mimick the behavior of a carriage return
-        in the output text. At the position of a carriage return the current
-        line is deleted and replaced by the new text.
+        This function also tries to mimick the behavior of a carriage
+        return in the output text. At the position of a carriage return
+        the current line is deleted and replaced by the new text.
         """
         if len(text) > 20000:
             # if receiving very long print statements, limit display to 20k
@@ -3120,8 +3149,8 @@ class MainWindow(QMainWindow):
         """
         Start the matrix_script process.
 
-        Disable/enable buttons to reflect run state and get selected systems.
-        Then runs the script defined in the edit.
+        Disable/enable buttons to reflect run state and get selected
+        systems. Then runs the script defined in the edit.
         """
         if 0 == len(self.systems):
             self.start_pause_action.setChecked(False)
@@ -3163,7 +3192,8 @@ class MainWindow(QMainWindow):
         self.enable_buttons(True)
 
     def update_systems(self, update_config=True):
-        """Update the systems list and config editor.
+        """
+        Update the systems list and config editor.
 
         Parameters
         ----------
@@ -3369,8 +3399,8 @@ class MainWindow(QMainWindow):
         """
         Load the script from file denoted by filename.
 
-        Also, make sure that header information specified still
-        agree with the corresponding system.
+        Also, make sure that header information specified still agree
+        with the corresponding system.
         """
         if self.is_running:
             return

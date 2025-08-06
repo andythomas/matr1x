@@ -56,7 +56,8 @@ output_extension = ".ma8"
 
 
 def load_config(optional_config_path: Optional[Union[str, Path]] = None):
-    """Load configuration file from default config, user config, local config, and an optional config.
+    """
+    Load configuration file from default config, user config, local config, and an optional config.
 
     The configuration files are loaded in the following order, with later files
     overriding settings from earlier ones:
@@ -135,7 +136,8 @@ def get_config_dict(section: str):
 
 
 def write_config(config_dict, optional_config_path: Optional[Union[str, Path]] = None):
-    """Write non-default config options to the user config or optional config.
+    """
+    Write non-default config options to the user config or optional config.
 
     Writes the differences between the current configuration and the default
     configuration to the user configuration file (~/.matr1x.toml) or the
@@ -220,7 +222,8 @@ def write_config(config_dict, optional_config_path: Optional[Union[str, Path]] =
 
 
 def reload_config(optional_config_path: Optional[Union[str, Path]] = None):
-    """Reload the configuration dictionary.
+    """
+    Reload the configuration dictionary.
 
     Reloads the configuration dictionary by calling the `load_config` function
     with the specified optional configuration path.

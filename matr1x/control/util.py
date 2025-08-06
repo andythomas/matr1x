@@ -613,7 +613,8 @@ class var(QObject):
                     self.valueChanged[self.outType].connect(float_wrapper)
             elif isinstance(self.widgets[1], QComboBox):
                 # Always connect both int and str signals like the original code
-                # This allows combo boxes to be updated by either index or text regardless of outType
+                # This allows combo boxes to be updated by either index or text
+                # regardless of outType
                 self.valueChanged[int].connect(self.widgets[1].setCurrentIndex)
                 self.valueChanged[str].connect(self.widgets[1].setCurrentText)
             elif isinstance(self.widgets[1], QCheckBox):
@@ -981,9 +982,9 @@ class GuiDict(UserDict, ABC):
         """
         Create the real content of the GuiDict.
 
-        This function takes the variables from the GuiDict and generates the
-        respective GUI widgets. If a user overwrites this function it will need
-        to attach its output to self.container!
+        This function takes the variables from the GuiDict and generates
+        the respective GUI widgets. If a user overwrites this function
+        it will need to attach its output to self.container!
         """
         grid = QGridLayout(self.container)
         # create items of dictionary inside content
@@ -1097,9 +1098,11 @@ class GuiDict(UserDict, ABC):
             self.running = False
 
     def _reset(self):
-        """Reset all values and cmd functions to None.
+        """
+        Reset all values and cmd functions to None.
 
-        This is done to avoid logging or reporting something not updated.
+        This is done to avoid logging or reporting something not
+        updated.
         """
         for variable in self.data.values():
             variable.value = None
@@ -1122,8 +1125,9 @@ class GuiDict(UserDict, ABC):
         """
         Replace setter and getter functions by an instance of Command.
 
-        Depending on the setter and getter functions type either the respective class methods,
-        variables or device functions from the system are used.
+        Depending on the setter and getter functions type either the
+        respective class methods, variables or device functions from the
+        system are used.
         """
         # replace entries with executable functions
         for name, cmd in self._orig_cmds.items():
@@ -1141,8 +1145,8 @@ class GuiDict(UserDict, ABC):
         """
         Create the setter function from the command definition.
 
-        The function determines what the user intended by the specified cmd and
-        generates an appropriate function.
+        The function determines what the user intended by the specified
+        cmd and generates an appropriate function.
         """
         setargs = []
         setfunc = None
@@ -1224,8 +1228,8 @@ class GuiDict(UserDict, ABC):
         """
         Create the getter function from the command definition.
 
-        The function determines what the user intended by the specified cmd and
-        generates an appropriate function.
+        The function determines what the user intended by the specified
+        cmd and generates an appropriate function.
         """
         getargs = []
         getfunc = None
@@ -1327,12 +1331,12 @@ class GuiDict(UserDict, ABC):
 
         This method has to be implementated by every derived class.
 
-        It should contain code to refresh the GUI values a single time (no
-        endless loop). If some items should be updated infrequently it can be
-        done by performing a modulo operation on the 'count' argument. Also it
-        should never access the GUI elements directly but use the variable value
-        properties which trigger an update to the GUI correctly by emitting a
-        signal.
+        It should contain code to refresh the GUI values a single time
+        (no endless loop). If some items should be updated infrequently
+        it can be done by performing a modulo operation on the 'count'
+        argument. Also it should never access the GUI elements directly
+        but use the variable value properties which trigger an update to
+        the GUI correctly by emitting a signal.
         """
         # an example implementation
         # self["V2"].value = self.S["dev"].get_value_from_hardware_somehow()
@@ -1418,7 +1422,8 @@ def linear_trend(timestamps, data, interval=60):
 def sendNotificationEmail(
     address: str, subject: str, msgtext: str, attachments: list[str] = []
 ) -> None:
-    """Send messages to a list of email addresses.
+    """
+    Send messages to a list of email addresses.
 
     Utility function that uses the sendmail command line function which has to
     be configured to work as intended.
@@ -1434,7 +1439,6 @@ def sendNotificationEmail(
      (-> attach the image file)
     attachments: list
      list of file names of things to attach to the email.
-
     """
     # a check for valid email adresses should be added here!
     if address != "":
@@ -1562,8 +1566,8 @@ class SelectLakeshoreInput(QDialog):
         """
         Set the selected calibration curve for the Lakeshore temperature controller.
 
-        This method reads the selected curve from the QListWidget, sets it on the
-        Lakeshore device if possible, and closes the dialog.
+        This method reads the selected curve from the QListWidget, sets
+        it on the Lakeshore device if possible, and closes the dialog.
         """
         selectedcurve = int(self.curvesList.currentItem().text().split(":")[0])
         if hasattr(self._dev, "setCurveNumber"):
@@ -1645,7 +1649,10 @@ class TableModel(QtCore.QAbstractTableModel):
         self, section: int, orientation: Qt.Orientation, role: int
     ) -> Union[str, QVariant]:
         """
-        Return the header data for the given role and section in the header with the specified orientation.
+        Return the header data.
+
+        Do that for the given role and section in the header with the
+        specified orientation.
 
         Parameters
         ----------
@@ -1726,10 +1733,11 @@ class WriteLakeshoreZonePID(QDialog):
         """
         Load a PID table from a file and display it in the table view.
 
-        This method opens a file dialog for the user to select a PID table file,
-        loads the data from the file, creates a TableModel with the data,
-        and sets it as the model for the table view. If the loaded data has
-        the correct shape, it enables the write button.
+        This method opens a file dialog for the user to select a PID
+        table file, loads the data from the file, creates a TableModel
+        with the data, and sets it as the model for the table view. If
+        the loaded data has the correct shape, it enables the write
+        button.
         """
         filename = QFileDialog.getOpenFileName(
             self, "Select PID table file", usersfolder, "calibration file (*.*)"
@@ -1747,9 +1755,10 @@ class WriteLakeshoreZonePID(QDialog):
         """
         Write the loaded PID table to the Lakeshore device.
 
-        This method checks if the Lakeshore device has a 'writeZonePID' method.
-        If it does, it calls this method with the loaded PID data as arguments.
-        After writing the data (or if the method doesn't exist), it closes the dialog.
+        This method checks if the Lakeshore device has a 'writeZonePID'
+        method. If it does, it calls this method with the loaded PID
+        data as arguments. After writing the data (or if the method
+        doesn't exist), it closes the dialog.
         """
         if hasattr(self._dev, "writeZonePID"):
             self._dev.writeZonePID(*self.data)

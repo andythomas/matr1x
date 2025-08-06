@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Provide a graphical user interface for matrix measurements."""
 
 import hashlib
@@ -108,8 +107,8 @@ class QueueListWidget(QListWidget):
     """
     A list widget that stores a dictionary for each row.
 
-    This list of dict is used to handle the measurement queue and store the
-    line to show in the list view.
+    This list of dict is used to handle the measurement queue and store
+    the line to show in the list view.
     """
 
     def __init__(self):
@@ -187,7 +186,7 @@ class QueueListWidget(QListWidget):
 
 
 class ExecThread(QThread):
-    """execute the measurement thread."""
+    """Execute the measurement thread."""
 
     filename_received = pyqtSignal(str)
 
@@ -204,9 +203,9 @@ class ExecThread(QThread):
         """
         Receive filename from command line.
 
-        Matrix checks if the file already exists and subsequently changes its name.
-        This way, no existing measurement can be accidently overwritten. The name
-        is reported back to the GUI
+        Matrix checks if the file already exists and subsequently
+        changes its name. This way, no existing measurement can be
+        accidently overwritten. The name is reported back to the GUI
         """
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -259,7 +258,8 @@ class ExecThread(QThread):
         # it was published under CC BY-SA 4.0,
         # https://creativecommons.org/licenses/by-sa/4.0/
         # Modifications were made to use a primitive fallback on MS Windows.
-        """Catch signals correctly.
+        """
+        Catch signals correctly.
 
         The "correct" way of spawning a new subprocess:
         signals like C-c must only go
@@ -447,7 +447,8 @@ class MainWindow(QMainWindow):
         Save application configuration until next startup.
 
         For convenience, main window geometry, the toolbar placement,
-        and the size and position of metadata and configuration pane are saved.
+        and the size and position of metadata and configuration pane are
+        saved.
         """
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
@@ -866,7 +867,8 @@ class MainWindow(QMainWindow):
         Properly finish a mesurement.
 
         Called when the current measurement is finished, checks whether
-        there are further measurements in the queue and runs them in case.
+        there are further measurements in the queue and runs them in
+        case.
         """
         self.meas_list.takeItem(0)
         if self.meas_list.count() > 0 and self.running is True:

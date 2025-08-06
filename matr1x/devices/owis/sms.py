@@ -13,11 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 OWIS SMS motor controller interface module for stepper motor control.
 
-This module provides the SMS class which interfaces with OWIS motor controllers.
+This module provides the SMS class which interfaces with OWIS motor
+controllers.
 """
 
 import time
@@ -29,12 +29,14 @@ class SMS(VisaDevice):
     r"""
     OWIS SMS motor controller class for stepper motor control.
 
-    This class provides an interface to the SM INT controller with two SMK 02-Z stepper motor drivers.
-    By default, it is configured for a rotary stepper motor with 200 steps per motor revolution
-    and a 1400:1 gear ratio, converting steps to degrees for angular positioning.
+    This class provides an interface to the SM INT controller with two
+    SMK 02-Z stepper motor drivers. By default, it is configured for a
+    rotary stepper motor with 200 steps per motor revolution and a
+    1400:1 gear ratio, converting steps to degrees for angular
+    positioning.
 
-    The class allows control of up to 4 axes (X, Y, Z, R) and supports both absolute
-    and relative movement commands.
+    The class allows control of up to 4 axes (X, Y, Z, R) and supports
+    both absolute and relative movement commands.
 
     Parameters
     ----------

@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Defines a system for testing and demonstration purposes.
 
@@ -39,11 +38,12 @@ class MeasSystem(System):
     """Measurement system for dummy feature demonstration."""
 
     def __init__(self):
-        """Initialize the MeasSystem.
+        """
+        Initialize the MeasSystem.
 
-        This method initializes the measurement system by setting up default
-        configurations, updating them from user settings, and initializing
-        data collection attributes.
+        This method initializes the measurement system by setting up
+        default configurations, updating them from user settings, and
+        initializing data collection attributes.
         """
         super().__init__()
         # define default parameters for configurable settings
@@ -78,27 +78,31 @@ class MeasSystem(System):
         self.dcdata["publisher"] = "matr1x measurement suite"
 
     def get_dev2_p1(self):
-        """Test function for using in parameter getter.
+        """
+        Test function for using in parameter getter.
 
-        In order to use a method as a getter it should must have no required
-        arguments.
+        In order to use a method as a getter it should must have no
+        required arguments.
         """
         return self.devs["dev2"].p1
 
     def set_dev2_p1(self, value):
-        """Test function for using in parameter setter.
+        """
+        Test function for using in parameter setter.
 
-        In order to use a method as setter it must have exactly one argument,
-        which corresponds to the value to which the parameter should be set.
+        In order to use a method as setter it must have exactly one
+        argument, which corresponds to the value to which the parameter
+        should be set.
         """
         self.devs["dev2"].p1 = value
 
     def set(self, *args, **kwargs):
-        """Initialize and configure the measurement.
+        """
+        Initialize and configure the measurement.
 
         This function is called by matrix upon initialization of the
-        measurement. The devices in the devs dictionary are opened/initialized
-        and can be configured if necessary.
+        measurement. The devices in the devs dictionary are
+        opened/initialized and can be configured if necessary.
         """
         # wrap base system function for safe handling of opening
         super().set(*args, **kwargs)
@@ -112,7 +116,8 @@ class MeasSystem(System):
         self.dcdata["description"] = f"configuring dev2 to '{self.config['setting1']}'"
 
     def reset(self, *args, **kwargs):
-        """Deinitialize the measurement.
+        """
+        Deinitialize the measurement.
 
         This function is called by matrix upon deinitialization of the
         measurement.

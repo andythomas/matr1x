@@ -13,10 +13,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Utility functions for the matr1x data acquisition software.
+"""
+Utility functions for the matr1x data acquisition software.
 
-This module includes functions for file handling, script generation, sweep calculations,
-and various helper functions for data processing and system configuration.
+This module includes functions for file handling, script generation,
+sweep calculations, and various helper functions for data processing and
+system configuration.
 """
 
 import datetime
@@ -571,12 +573,13 @@ def generate_script_prefix_suffix(systems):
     @_lineno_decorator
     def wait(duration=None, until=None, message="", silent=10):
         '''
-        Pauses execution for a specified duration, until a specified timestamp, or for a relative time.
+        Pauses execution for a duration, until a timestamp, or for a relative time.
 
         Parameters
         ----------
         duration : float or int, optional
-            The number of seconds to sleep. If specified, the function will sleep for this duration.
+            The number of seconds to sleep.
+            If specified, the function will sleep for this duration.
             If paused during this duration the remaining wait time continue after unpausing.
             If a str or datetime object is used here it will be redirected to the until argument.
         until : str or datetime, optional
@@ -602,7 +605,8 @@ def generate_script_prefix_suffix(systems):
         Pauses execution for 2 hours from the current time.
 
         >>> wait(until="18:00")
-        Pauses execution until 18:00 today, or until the same time tomorrow if it has already passed today.
+        Pauses execution until 18:00 today,
+        or until the same time tomorrow if it has already passed today.
         '''
         if isinstance(duration, (str, _datetime.datetime)) and not until:
             until = duration
@@ -654,7 +658,13 @@ def generate_script_prefix_suffix(systems):
         bool
             True if the user answers yes, False otherwise.
         '''
-        ret = _input(query, system=_system, input_type="bool", timeout=timeout, default_value=default_value)
+        ret = _input(
+            query,
+            system=_system,
+            input_type="bool",
+            timeout=timeout,
+            default_value=default_value,
+        )
         if ret == "yes":
             return True
         return False
@@ -992,8 +1002,9 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             r"""
             Implements a wrapper on stdout to make sure data is passed on immediately.
 
-            This wrapper terminates messages with \0 to allow using \n and \r in print
-            conventionally without breaking the formatting.
+            This wrapper terminates messages with \0 to allow using \n
+            and \r in print conventionally without breaking the
+            formatting.
             """
 
             def __init__(self, stream):
@@ -1152,12 +1163,15 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
 
         def interrupt(self, duration=None, until=None, message="", silent=10, system=None):
             """
-            Pauses execution for a specified duration, until a specified timestamp, or for a relative time.
+            Pauses execution for a specified duration.
+
+            Do this until a specified timestamp, or for a relative time.
 
             Parameters
             ----------
             duration : float or int, optional
-                The number of seconds to sleep. If specified, the function will sleep for this duration.
+                The number of seconds to sleep. If specified, the
+                function will sleep for this duration.
 
             until : str or datetime, optional
                 A target time or relative time string. It can be:
@@ -1178,7 +1192,8 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             Raises
             ------
             ValueError
-                If neither `duration` nor `until` is provided, or if the `until` format is not recognized.
+                If neither `duration` nor `until` is provided,
+                or if the `until` format is not recognized.
 
             TypeError
                 If `until` is not a string or `datetime` object.
@@ -1193,9 +1208,11 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 sleep_time = duration
                 end_time = now + datetime.timedelta(seconds=sleep_time)
                 if sleep_time > silent or msg:
-                    print_func(
-                        f"Waiting {sleep_time:.0f} seconds{msg} until {end_time.strftime('%H:%M:%S')}"
+                    text = (
+                        f"Waiting {sleep_time:.0f} seconds{msg} "
+                        f"until {end_time.strftime('%H:%M:%S')}"
                     )
+                    print_func(text)
 
             elif until is not None:
                 if isinstance(until, str) and until.startswith("+"):
@@ -1252,8 +1269,8 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
 
                 if end_time < now:
                     print_func(
-                        f"Specified wait until time {end_time.strftime('%Y-%m-%d %H:%M:%S')} is in the past. "
-                        "Continuing immediately."
+                        f"Specified wait until time {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
+                        "is in the past. Continuing immediately."
                     )
                     self.check_for_interrupt_and_pause(system)
                     return
@@ -1265,7 +1282,8 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                     else:
                         sleeptstr = f"{sleep_time:.0f}"
                     print_func(
-                        f"Waiting until {end_time.strftime('%Y-%m-%d %H:%M:%S')} (in {sleeptstr} seconds){msg}"
+                        f"Waiting until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
+                        f"(in {sleeptstr} seconds){msg}"
                     )
 
             else:
@@ -1277,7 +1295,8 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             self.check_for_interrupt_and_pause(system)
 
         def _execute_sleep(self, sleep_time, end_time, is_duration, silent, message, system):
-            """Handle sleeping with interrupt and pause checks.
+            """
+            Handle sleeping with interrupt and pause checks.
 
             Parameters
             ----------
@@ -1348,7 +1367,8 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 print_func("\rWaiting done")
 
         def check_for_interrupt_and_pause(self, system):
-            """Check for interrupt and pause flags and take appropriate action.
+            """
+            Check for interrupt and pause flags and take appropriate action.
 
             Parameters
             ----------
@@ -1395,23 +1415,29 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             step: float = None,  # Optional: step size for numerical input
             decimals: int = None,  # Optional: number of decimals for numerical input
         ):
-            """Handle user input requests from the script.
+            """
+            Handle user input requests from the script.
 
-            This method manages the input request workflow, including displaying prompts,
-            waiting for user response, and handling timeouts and interrupts.
+            This method manages the input request workflow, including
+            displaying prompts, waiting for user response, and handling
+            timeouts and interrupts.
 
             Parameters
             ----------
             message : str, optional
-                Message to display to user requesting input. Default is empty string.
+                Message to display to user requesting input. Default is
+                empty string.
             system : object, optional
-                System object that can be interrupted/paused. Default is None.
+                System object that can be interrupted/paused. Default is
+                None.
             input_type : str, optional
                 Type of input expected. Default is "string".
             timeout : float, optional
-                Timeout in seconds. Will be handled by GUI layer. Default is infinity.
+                Timeout in seconds. Will be handled by GUI layer.
+                Default is infinity.
             default_value : str, optional
-                Default value if timeout occurs. Will be handled by GUI layer. Default is empty string.
+                Default value if timeout occurs. Will be handled by GUI
+                layer. Default is empty string.
 
             Returns
             -------
@@ -1445,8 +1471,11 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 else:
                     pattern = f"__input_{input_type}:{base_message}__"
             elif input_type == "numerical":
-                # For numerical input, always include placeholders for min, max, step
-                # Pattern: __input_numerical:message:timeout:default_value:min_value:max_value:step:decimals__
+                # For numerical input,
+                # always include placeholders for min, max, step
+                # Pattern:
+                # __input_numerical:message:timeout:default_value:
+                # min_value:max_value:step:decimals__
                 pattern = (
                     f"__input_numerical:{base_message}:{timeout}:{default_value}:"
                     f"{min_value}:{max_value}:{step}:{decimals}__"
@@ -1479,7 +1508,8 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
 
         # callback function that handles the input
         def handle_input(self, inp):
-            """Handle input that is passed to the thread.
+            """
+            Handle input that is passed to the thread.
 
             Parameters
             ----------
@@ -1540,10 +1570,12 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 print(f"__//{path}//__", end="")
 
         def run(self):
-            """Run the script and provide meaningful error information.
+            """
+            Run the script and provide meaningful error information.
 
-            This method executes the script and handles any errors that occur
-            during execution, providing detailed error information.
+            This method executes the script and handles any errors that
+            occur during execution, providing detailed error
+            information.
             """
             try:
                 self.n_pref = len(generate_script_prefix_suffix("")[0].splitlines())
@@ -2081,12 +2113,13 @@ class Command:
     """
     Class representing a command provided by a ControlGUI.
 
-    A command contains the data type of the connected variable and functions for
-    setting and getting and their respective arguments.
+    A command contains the data type of the connected variable and
+    functions for setting and getting and their respective arguments.
     """
 
     def __init__(self, dtype, setfunc, getfunc, setargs=None, getargs=None, polling_cmd=None):
-        """Initialize the Command object.
+        """
+        Initialize the Command object.
 
         Parameters
         ----------
@@ -2151,8 +2184,8 @@ class Command:
         """
         Reset the Command object's setter and getter functions and arguments to None.
 
-        This method sets the setter function, getter function, and their respective
-        arguments to None or empty lists.
+        This method sets the setter function, getter function, and their
+        respective arguments to None or empty lists.
         """
         self.setfunc = None
         self.getfunc = None
@@ -2190,7 +2223,8 @@ class Get(Command):
     """Class representing a Getter-command of a ControlGUI."""
 
     def __init__(self, dtype, getfunc, getargs=None):
-        """Initialize the Get command.
+        """
+        Initialize the Get command.
 
         Parameters
         ----------
@@ -2208,7 +2242,8 @@ class Set(Command):
     """Class representing a Setter-command of a ControlGUI."""
 
     def __init__(self, dtype, setfunc, setargs=None, polling_cmd=None):
-        """Initialize the Set command.
+        """
+        Initialize the Set command.
 
         Parameters
         ----------

@@ -17,8 +17,8 @@
 Provides a driver for the Keithley 2611A Source Measure Unit.
 
 This module implements full control of the Keithley 2611A SMU, including
-voltage/current sourcing and measurement, range control, and various sensing
-configurations.
+voltage/current sourcing and measurement, range control, and various
+sensing configurations.
 """
 
 from typing import Optional, Union

@@ -27,9 +27,9 @@ class Keithley6221(VisaDevice):
     """
     Keithley 6221 AC and DC Current Source interface.
 
-    This class provides methods to control the Keithley 6221 current source
-    for generating waveforms, arbitrary waveforms, constant currents, and
-    performing delta and pulse delta measurements.
+    This class provides methods to control the Keithley 6221 current
+    source for generating waveforms, arbitrary waveforms, constant
+    currents, and performing delta and pulse delta measurements.
     """
 
     config_params = {"Model-identifing": "*IDN?"}

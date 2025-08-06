@@ -13,6 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Electronics Measurement Inc. devices."""
+"""
+Module for Electronics Measurement Inc.
+
+devices.
+"""
 
 from .boss import BOSS

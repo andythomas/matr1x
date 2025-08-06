@@ -13,21 +13,22 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """CAEN ELS EasyDriver power supply interface module."""
 
 from matr1x.devices.visadevice import VisaDevice
 
 
 class CAENelsEasyDriver(VisaDevice):
-    """Interface class for CAEN ELS EasyDriver power supply.
+    """
+    Interface class for CAEN ELS EasyDriver power supply.
 
-    This class provides methods to control and monitor CAEN ELS EasyDriver
-    power supplies through a VISA interface.
+    This class provides methods to control and monitor CAEN ELS
+    EasyDriver power supplies through a VISA interface.
     """
 
     def __init__(self, interface, **kwargs):
-        """Initialize the CAEN ELS EasyDriver.
+        """
+        Initialize the CAEN ELS EasyDriver.
 
         Parameters
         ----------
@@ -44,7 +45,8 @@ class CAENelsEasyDriver(VisaDevice):
         )
 
     def setCurrent(self, current):
-        """Set the output current abruptly (no ramp).
+        """
+        Set the output current abruptly (no ramp).
 
         Parameters
         ----------
@@ -62,7 +64,8 @@ class CAENelsEasyDriver(VisaDevice):
         self.query("MON")
 
     def setOutput(self, output=None):
-        """Set the output current on or off.
+        """
+        Set the output current on or off.
 
         Parameters
         ----------
@@ -79,7 +82,8 @@ class CAENelsEasyDriver(VisaDevice):
         self.query("MRESET")
 
     def getCurrent(self):
-        """Get the current output current value.
+        """
+        Get the current output current value.
 
         Returns
         -------
@@ -90,7 +94,8 @@ class CAENelsEasyDriver(VisaDevice):
         return float(a[5:])
 
     def getID(self):
-        """Get the module ID.
+        """
+        Get the module ID.
 
         Returns
         -------
@@ -101,7 +106,8 @@ class CAENelsEasyDriver(VisaDevice):
         return a[6:]
 
     def setRampCurrent(self, current):
-        """Set the output current with a linear ramp to setpoint.
+        """
+        Set the output current with a linear ramp to setpoint.
 
         Parameters
         ----------
@@ -111,7 +117,8 @@ class CAENelsEasyDriver(VisaDevice):
         self.query("MRM:" + str(current))
 
     def getRampSlewRate(self):
-        """Get the configured ramp slew rate.
+        """
+        Get the configured ramp slew rate.
 
         Returns
         -------
@@ -122,7 +129,8 @@ class CAENelsEasyDriver(VisaDevice):
         return float(a[6:])
 
     def setRampSlewRate(self, slewrate):
-        """Set the ramp slew rate.
+        """
+        Set the ramp slew rate.
 
         Parameters
         ----------
@@ -132,7 +140,8 @@ class CAENelsEasyDriver(VisaDevice):
         self.query("MWSR:" + str(slewrate))
 
     def getDCVoltage(self):
-        """Get the bulk DC voltage.
+        """
+        Get the bulk DC voltage.
 
         Returns
         -------
@@ -143,7 +152,8 @@ class CAENelsEasyDriver(VisaDevice):
         return float(a[5:])
 
     def getVoltage(self):
-        """Get the output voltage.
+        """
+        Get the output voltage.
 
         Returns
         -------
@@ -154,7 +164,8 @@ class CAENelsEasyDriver(VisaDevice):
         return float(a[5:])
 
     def fetchStatus(self):
-        """Get the device status.
+        """
+        Get the device status.
 
         Returns
         -------
@@ -176,7 +187,8 @@ class CAENelsEasyDriver(VisaDevice):
         return bin(int(a[1], 16)), float(a[2])
 
     def getFault(self):
-        """Check if the module is in fault mode (short circuit).
+        """
+        Check if the module is in fault mode (short circuit).
 
         Returns
         -------
@@ -189,7 +201,8 @@ class CAENelsEasyDriver(VisaDevice):
         return bool(status_int & 0b10)
 
     def getOutputState(self):
-        """Check if the output is on or off.
+        """
+        Check if the output is on or off.
 
         Returns
         -------
@@ -202,7 +215,8 @@ class CAENelsEasyDriver(VisaDevice):
         return bool(status_int & 0b1)
 
     def getCurrentSetpoint(self):
-        """Get the current setpoint.
+        """
+        Get the current setpoint.
 
         Returns
         -------

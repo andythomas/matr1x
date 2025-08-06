@@ -28,8 +28,9 @@ class ADS1256:
     """
     Class for handling and setup of the ADS1256 of the Waveshare AD/DA board.
 
-    This class provides methods to initialize, configure, and communicate with
-    the ADS1256 analog-to-digital converter chip on the Waveshare AD/DA board.
+    This class provides methods to initialize, configure, and
+    communicate with the ADS1256 analog-to-digital converter chip on the
+    Waveshare AD/DA board.
     """
 
     # Definitions of pins used by the SPI
@@ -106,7 +107,8 @@ class ADS1256:
         """
         Initialize the ADS1256 interface.
 
-        Sets up GPIO pins, initializes SPI communication, and reads the chip ID.
+        Sets up GPIO pins, initializes SPI communication, and reads the
+        chip ID.
         """
         # Initialize the pin layout to BOARD (RPi 40 pin layout)
         GPIO.setmode(GPIO.BOARD)

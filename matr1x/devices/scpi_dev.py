@@ -16,8 +16,9 @@
 """
 Module for dynamically creating SCPI device interfaces using pymeasure.
 
-This module provides functionality to generate instrument classes
-for SCPI (Standard Commands for Programmable Instruments) compatible devices.
+This module provides functionality to generate instrument classes for
+SCPI (Standard Commands for Programmable Instruments) compatible
+devices.
 """
 
 import ast

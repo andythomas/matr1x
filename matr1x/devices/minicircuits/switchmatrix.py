@@ -26,7 +26,8 @@ class RC_2SPDT_A18(VisaDevice):
     """
 
     def __init__(self, interface, **kwargs):
-        """Initialize the RC_2SPDT_A18 device.
+        """
+        Initialize the RC_2SPDT_A18 device.
 
         Parameters
         ----------
@@ -34,7 +35,6 @@ class RC_2SPDT_A18(VisaDevice):
             Communication interface identifier.
         **kwargs : dict, optional
             Additional arguments to pass to the parent VisaDevice.
-
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\r\n"
@@ -46,7 +46,8 @@ class RC_2SPDT_A18(VisaDevice):
         self.read()
 
     def setSPDT(self, port=1):
-        """Set the SPDT switch position.
+        """
+        Set the SPDT switch position.
 
         Integer value of a byte that represents the switch states. Each
         bit in the byte represents the state of an individual switch
@@ -67,7 +68,6 @@ class RC_2SPDT_A18(VisaDevice):
         -------
         str
             Response from the device.
-
         """
         if port == 1:
             cmd = "SETP=00"

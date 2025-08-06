@@ -16,8 +16,8 @@
 """
 Interface for the Cryomagnetics CS04 magnet power supply.
 
-This module provides control functions for Cryomagnetics CS04 superconducting
-magnet power supplies over VISA interface.
+This module provides control functions for Cryomagnetics CS04
+superconducting magnet power supplies over VISA interface.
 """
 
 import time
@@ -68,8 +68,8 @@ class CS04(VisaDevice):
         """
         Reset the magnet to zero field.
 
-        Sets the upper and lower limits to zero and initiates a
-        slow sweep to zero field.
+        Sets the upper and lower limits to zero and initiates a slow
+        sweep to zero field.
         """
         self._setpoint = 0
         self.write("SWEEP PAUSE")

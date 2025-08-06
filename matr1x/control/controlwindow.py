@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Provides a base class for creating control GUIs for data acquisition systems.
 
@@ -403,8 +402,8 @@ class ControlWindow(QMainWindow):
         """
         Initialize GUI -> needs to be extended by subclasses.
 
-        This method sets up the basic structure of the GUI by calling other
-        methods to create different parts of the interface.
+        This method sets up the basic structure of the GUI by calling
+        other methods to create different parts of the interface.
         """
         layout = self.basicUI()
         self.guidictUI(layout)
@@ -967,8 +966,9 @@ class ControlWindow(QMainWindow):
         """
         Initialize device connections.
 
-        If this is overloaded its important that the self.devInit property is
-        set to True upon successful initialization of the devices.
+        If this is overloaded its important that the self.devInit
+        property is set to True upon successful initialization of the
+        devices.
         """
         if self.devInit is False:
             if self.S:
@@ -1093,11 +1093,11 @@ class ControlWindow(QMainWindow):
         Update the GUI fields in the main loop.
 
         The readout is conducted thread-safe. The main loop terminates
-        once self.terminate is set to True and sets self.terminated
-        once it's successfully finished.
+        once self.terminate is set to True and sets self.terminated once
+        it's successfully finished.
 
-        This method is typically decorated with an error handler to catch
-        and terminate upon an uncaught Python exception.
+        This method is typically decorated with an error handler to
+        catch and terminate upon an uncaught Python exception.
         """
         # start guidicts and get minimum/maximum period
         # minimal period used as check interval for the shutdown
@@ -1134,8 +1134,8 @@ class ControlWindow(QMainWindow):
         """
         Start refreshing the values in a separate thread and initialize devices.
 
-        This method checks that the devices are initialized and starts a thread
-        to continuously refresh the values in the GUI.
+        This method checks that the devices are initialized and starts a
+        thread to continuously refresh the values in the GUI.
         """
         # initialize devices
         print(f"{time.strftime(datetimefmt)}: initializing devices")
@@ -1173,9 +1173,10 @@ class ControlWindow(QMainWindow):
         """
         Stop the refreshDict function and close devices.
 
-        This method is called when exiting the context manager. It handles the
-        cleanup process, including stopping the server, terminating the refresh
-        thread, and stopping any ongoing logging.
+        This method is called when exiting the context manager. It
+        handles the cleanup process, including stopping the server,
+        terminating the refresh thread, and stopping any ongoing
+        logging.
         """
         if exc_type is not None:
             print(exc_type, exc_value, exc_traceback)
@@ -1198,8 +1199,8 @@ class ControlWindow(QMainWindow):
         """
         Start the local TCP server with the driver functions specified in cmds.
 
-        This method initializes and starts a SCPI TCP server using the command list
-        defined in the class.
+        This method initializes and starts a SCPI TCP server using the
+        command list defined in the class.
         """
         self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list, port=self._port)
         self._local_server.start()
@@ -1208,8 +1209,8 @@ class ControlWindow(QMainWindow):
         """
         Stop the local TCP server.
 
-        If a server instance exists, this method stops it and sets the server
-        attribute to None.
+        If a server instance exists, this method stops it and sets the
+        server attribute to None.
         """
         if self._local_server is not None:
             self._local_server.stop()

@@ -113,7 +113,8 @@ class ControlThread(threading.Thread):
         """
         Initialize the readout stage of the PID controller.
 
-        This method should be reimplemented by child classes if necessary.
+        This method should be reimplemented by child classes if
+        necessary.
         """
         pass
 
@@ -343,8 +344,8 @@ class ControlThread(threading.Thread):
         """
         Execute the control loop.
 
-        This method handles the control based on the selected mode. May need to be
-        reimplemented for different devices.
+        This method handles the control based on the selected mode. May
+        need to be reimplemented for different devices.
         """
         outp = np.zeros(self.ndim)
         lastcontrol = time.time()

@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Module for interfacing with Oxford ILM200 level meter instruments."""
 
 import logging
@@ -80,7 +79,8 @@ class ILM200(IsobusDevice):
         return self.query_float("R2") / 10
 
     def setRate(self, fast):
-        """Set the rate to fast or slow mode.
+        """
+        Set the rate to fast or slow mode.
 
         Parameters
         ----------

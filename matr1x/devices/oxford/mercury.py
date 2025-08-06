@@ -212,7 +212,8 @@ class MercurySingleAxisIPS(VisaDevice):
         """
         Query all entries in the working dictionary.
 
-        Updates the values in the working dictionary with current device values.
+        Updates the values in the working dictionary with current device
+        values.
         """
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
         for key in self.workingDict:
@@ -732,7 +733,8 @@ class MercuryIPS(VisaDevice):
         """
         Query all entries in the working dictionary.
 
-        Updates the values in the working dictionary with current device values.
+        Updates the values in the working dictionary with current device
+        values.
         """
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
         for key in self.workingDict:
@@ -880,7 +882,8 @@ class MercuryIPS(VisaDevice):
     # driver functions
     @synchronized
     def setMagneticFields(self, fields):
-        """Set the magnetic field on all three axes.
+        """
+        Set the magnetic field on all three axes.
 
         Parameters
         ----------
@@ -899,7 +902,8 @@ class MercuryIPS(VisaDevice):
         self.setVal(zv, *self.workingDict["zFSet"][1:])
 
     def getMagneticFields(self, setp=False):
-        """Get the current magnetic field values.
+        """
+        Get the current magnetic field values.
 
         Parameters
         ----------
@@ -930,7 +934,8 @@ class MercuryIPS(VisaDevice):
 
     @synchronized
     def setMagneticFieldRate(self, values):
-        """Set rates of change for all magnetic field axes.
+        """
+        Set rates of change for all magnetic field axes.
 
         Parameters
         ----------
@@ -953,7 +958,8 @@ class MercuryIPS(VisaDevice):
         self.setVal(values[2], *self.workingDict["zRSet"][1:])
 
     def getMagneticFieldRate(self, axis=-1, setp=False):
-        """Get rates of change for magnetic field axes.
+        """
+        Get rates of change for magnetic field axes.
 
         Parameters
         ----------
@@ -997,7 +1003,8 @@ class MercuryIPS(VisaDevice):
 
     @synchronized
     def setMagnetStatus(self, state, axis=-1):
-        """Set the status of the magnet(s).
+        """
+        Set the status of the magnet(s).
 
         Parameters
         ----------
@@ -1048,7 +1055,8 @@ class MercuryIPS(VisaDevice):
             self.setVal(status[state], *self.workingDict["zActn"][1:])
 
     def getMagnetStatus(self, axis=-1):
-        """Get the status of the magnet(s).
+        """
+        Get the status of the magnet(s).
 
         Parameters
         ----------
@@ -1079,7 +1087,8 @@ class MercuryIPS(VisaDevice):
             return self.getDictValue("zActn")
 
     def getLevels(self):
-        """Get the liquid nitrogen and helium levels.
+        """
+        Get the liquid nitrogen and helium levels.
 
         Returns
         -------
@@ -1089,7 +1098,8 @@ class MercuryIPS(VisaDevice):
         return (self.getDictValue("LN2"), self.getDictValue("LHe"))
 
     def setFastRate(self, slow=True):
-        """Set the helium level meter to fast or slow mode.
+        """
+        Set the helium level meter to fast or slow mode.
 
         Parameters
         ----------
@@ -1102,7 +1112,8 @@ class MercuryIPS(VisaDevice):
             self.setVal("OFF", *self.workingDict["Slow"][1:])
 
     def getFastRate(self):
-        """Get the helium level meter mode.
+        """
+        Get the helium level meter mode.
 
         Returns
         -------
@@ -1116,8 +1127,8 @@ class MercuryITC(VisaDevice):
     """
     Driver for Mercury ITC.
 
-    dataDict contains the commands (keys) and also the response from the ITC
-    (values)
+    dataDict contains the commands (keys) and also the response from the
+    ITC (values)
     """
 
     idITC = {"*IDN?": ""}
@@ -1206,7 +1217,8 @@ class MercuryITC(VisaDevice):
 
     # high level commands
     def query_merc(self, command, address="", signal=False):
-        """Query a value from the device.
+        """
+        Query a value from the device.
 
         Parameters
         ----------
@@ -1231,7 +1243,8 @@ class MercuryITC(VisaDevice):
 
     @synchronized
     def setVal(self, setpoint, command, address="", signal=False, integer=False):
-        """Set a value on the device.
+        """
+        Set a value on the device.
 
         Parameters
         ----------
@@ -1266,7 +1279,8 @@ class MercuryITC(VisaDevice):
 
     # utility functions
     def extractValueFromDict(self, entry):
-        """Extract a numeric value from a dictionary entry string.
+        """
+        Extract a numeric value from a dictionary entry string.
 
         Parameters
         ----------
@@ -1287,7 +1301,8 @@ class MercuryITC(VisaDevice):
             return None
 
     def queryDict(self, queryDict, address="", signal=False):
-        """Query all entries in a dictionary.
+        """
+        Query all entries in a dictionary.
 
         Parameters
         ----------
@@ -1303,9 +1318,11 @@ class MercuryITC(VisaDevice):
 
     @synchronized
     def queryWorkingDict(self):
-        """Query all entries in the working dictionary.
+        """
+        Query all entries in the working dictionary.
 
-        Updates the values in the working dictionary with current device values.
+        Updates the values in the working dictionary with current device
+        values.
         """
         for key in self.workingDict:
             dummy = self.query_merc(*self.workingDict[key][1:]).split(":")[-1].strip("\n")
@@ -1324,7 +1341,8 @@ class MercuryITC(VisaDevice):
                     logger.info("Non bool value at " + str(key) + " is " + dummy)
 
     def getDictValue(self, key):
-        """Get a value from the working dictionary.
+        """
+        Get a value from the working dictionary.
 
         Parameters
         ----------
@@ -1385,7 +1403,8 @@ class MercuryITC(VisaDevice):
 
     # driver functions
     def setTVTI(self, val):
-        """Set the temperature setpoint.
+        """
+        Set the temperature setpoint.
 
         Parameters
         ----------
@@ -1400,7 +1419,8 @@ class MercuryITC(VisaDevice):
         self.setVal(val, *self.workingDict["TSet"][1:])
 
     def getTVTI(self, setp=False):
-        """Get the current temperature.
+        """
+        Get the current temperature.
 
         Parameters
         ----------
@@ -1419,7 +1439,8 @@ class MercuryITC(VisaDevice):
             return val
 
     def setNV(self, val):
-        """Set the needle valve opening.
+        """
+        Set the needle valve opening.
 
         Parameters
         ----------
@@ -1434,7 +1455,8 @@ class MercuryITC(VisaDevice):
         self.setVal(val, *self.workingDict["FSet"][1:])
 
     def getNV(self):
-        """Get the needle valve opening.
+        """
+        Get the needle valve opening.
 
         Returns
         -------
@@ -1444,7 +1466,8 @@ class MercuryITC(VisaDevice):
         return self.getDictValue("FSet")
 
     def setAutoPID(self, val=True):
-        """Enable or disable automatic PID control.
+        """
+        Enable or disable automatic PID control.
 
         Parameters
         ----------
@@ -1457,7 +1480,8 @@ class MercuryITC(VisaDevice):
             self.setVal("OFF", *self.workingDict["APID"][1:])
 
     def getAutoPID(self):
-        """Get the automatic PID control state.
+        """
+        Get the automatic PID control state.
 
         Returns
         -------
@@ -1467,7 +1491,8 @@ class MercuryITC(VisaDevice):
         return self.getDictValue("APID")
 
     def setAutoHTR(self, val=True):
-        """Enable or disable automatic heater control.
+        """
+        Enable or disable automatic heater control.
 
         Parameters
         ----------
@@ -1480,7 +1505,8 @@ class MercuryITC(VisaDevice):
             self.setVal("OFF", *self.workingDict["AHTR"][1:])
 
     def getAutoHTR(self):
-        """Get the automatic heater control state.
+        """
+        Get the automatic heater control state.
 
         Returns
         -------
@@ -1490,7 +1516,8 @@ class MercuryITC(VisaDevice):
         return self.getDictValue("AHTR")
 
     def setPID(self, pid):
-        """Set PID control parameters.
+        """
+        Set PID control parameters.
 
         Parameters
         ----------
@@ -1506,7 +1533,8 @@ class MercuryITC(VisaDevice):
         self.setVal(pid[2], *self.workingDict["D"][1:])
 
     def getPID(self):
-        """Get the current PID control parameters.
+        """
+        Get the current PID control parameters.
 
         Returns
         -------
@@ -1516,7 +1544,8 @@ class MercuryITC(VisaDevice):
         return (self.getDictValue("P"), self.getDictValue("I"), self.getDictValue("D"))
 
     def setHeater(self, val):
-        """Set the heater output level.
+        """
+        Set the heater output level.
 
         Parameters
         ----------
@@ -1526,7 +1555,8 @@ class MercuryITC(VisaDevice):
         self.setVal(val, *self.workingDict["Heater"][1:])
 
     def getHeater(self):
-        """Get the current heater output level.
+        """
+        Get the current heater output level.
 
         Returns
         -------

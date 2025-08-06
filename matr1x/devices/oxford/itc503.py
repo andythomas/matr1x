@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Module for interfacing with Oxford Instruments ITC503 temperature controller."""
 
 import logging
@@ -288,7 +287,8 @@ class ITC503(IsobusDevice):
 
     @synchronized
     def getSweepTime(self):
-        """Get the sweep time in minutes.
+        """
+        Get the sweep time in minutes.
 
         Returns
         -------
@@ -304,7 +304,8 @@ class ITC503(IsobusDevice):
 
     @synchronized
     def setSweepTime(self, time):
-        """Set the sweep time in minutes.
+        """
+        Set the sweep time in minutes.
 
         Parameters
         ----------
@@ -319,7 +320,8 @@ class ITC503(IsobusDevice):
 
     @synchronized
     def setSweepTarget(self, temp):
-        """Set the target temperature for the sweep.
+        """
+        Set the target temperature for the sweep.
 
         Parameters
         ----------

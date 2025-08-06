@@ -1,8 +1,8 @@
 """
 Defines a system for automatically defining an elabFTW entry for a successful measurement.
 
-This module provides functionality to create and manage entries in the elabFTW
-electronic lab notebook system.
+This module provides functionality to create and manage entries in the
+elabFTW electronic lab notebook system.
 """
 
 import difflib
@@ -29,8 +29,8 @@ class ElabSystem(System):
     """
     System for interfacing with elabFTW electronic lab notebook.
 
-    This class provides functionality to create experiment entries, attach files,
-    add tags and link resources in an elabFTW instance.
+    This class provides functionality to create experiment entries,
+    attach files, add tags and link resources in an elabFTW instance.
     """
 
     def __init__(self):
@@ -56,11 +56,16 @@ class ElabSystem(System):
         # Non-sensitive configuration
         self.config = {
             "debug": False,
-            "enable_elab": True,  # boolean flag to decide about entry creation
-            "require_server": False,  # boolean to decide if server is required
-            "upload_datafile": False,  # boolean or maximal file size in MB
-            "create_resource": False,  # if sample Identifier can not be found a resource entry can be created
-            "resource_category": None,  # category for newly generated resources.
+            # boolean flag to decide about entry creation
+            "enable_elab": True,
+            # boolean to decide if server is required
+            "require_server": False,
+            # boolean or maximal file size in MB
+            "upload_datafile": False,
+            # if sample Identifier can not be found a resource entry can be created
+            "create_resource": False,
+            # category for newly generated resources.
+            "resource_category": None,
             "title_template": """
                 {%- set title_parts = [] %}
                 {%- if dcdata['identifier'] %}
@@ -126,7 +131,8 @@ class ElabSystem(System):
         """
         Initialize the server connection and resource and create if requested.
 
-        The resource will be linked to the experiment entry generated during reset.
+        The resource will be linked to the experiment entry generated
+        during reset.
         """
         super().set(*args, **kwargs)
         if not self.config["enable_elab"]:
@@ -337,7 +343,7 @@ class ElabSystem(System):
             response = catApi.read_team_experiments_categories(self._team_id)
         except ApiException as e:
             print(
-                "Exception when calling ExperimentsCategoriesApi->readTeamExperimentsCategories: %s\n"
+                "Exception during ExperimentsCategoriesApi->readTeamExperimentsCategories: %s\n"
                 % e
             )
         # find id for search category
@@ -644,8 +650,8 @@ class ElabSystem(System):
         """
         Handle deinitializiation of the measurement.
 
-        Called by matrix when measurement is complete. Creates elabFTW entry if
-        measurement was successful.
+        Called by matrix when measurement is complete. Creates elabFTW
+        entry if measurement was successful.
         """
         # if measurement was not unsuccessful a elab entry is generated
         if "status" not in kwargs or kwargs["status"] != "aborted":

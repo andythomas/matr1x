@@ -33,7 +33,8 @@ class HorstManualMode(enum.Enum):
 
 
 class HTMC11(ModbusDevice):
-    """Instrument class for the Horst HTMC11 bakeout controller.
+    """
+    Instrument class for the Horst HTMC11 bakeout controller.
 
     connection is made via a RS485 serial line which uses the Modbus RTU
     protocol.
@@ -41,7 +42,8 @@ class HTMC11(ModbusDevice):
 
     @output_name_on_error
     def __init__(self, portname, slaveaddress, baudrate=115200):
-        """Initialize Horst HTMC11 bakeout controller.
+        """
+        Initialize Horst HTMC11 bakeout controller.
 
         Parameters
         ----------
@@ -51,7 +53,6 @@ class HTMC11(ModbusDevice):
             Modbus slave address of the device
         baudrate : int, optional
             Serial communication speed in baud. Default is 115200
-
         """
         super().__init__(portname, slaveaddress, baudrate, parity=serial.PARITY_NONE)
         self._number_of_decimals = int(self.read_register(0x1D00)) + 1
@@ -59,7 +60,8 @@ class HTMC11(ModbusDevice):
     @synchronized
     @output_name_on_error
     def write_register(self, *args, **kwargs) -> None:
-        """Write to a Modbus register using functioncode 6.
+        """
+        Write to a Modbus register using functioncode 6.
 
         Parameters
         ----------
@@ -77,7 +79,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def temperature(self) -> float:
-        """Get the current temperature.
+        """
+        Get the current temperature.
 
         Returns
         -------
@@ -88,7 +91,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def temperature2(self) -> int:
-        """Get the second temperature reading.
+        """
+        Get the second temperature reading.
 
         Returns
         -------
@@ -99,7 +103,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def current_setpoint(self) -> int:
-        """Get the current setpoint.
+        """
+        Get the current setpoint.
 
         Returns
         -------
@@ -110,7 +115,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def heater_current(self) -> float:
-        """Get the heater current.
+        """
+        Get the heater current.
 
         Returns
         -------
@@ -121,7 +127,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def actual_output_ratio(self) -> int:
-        """Get the actual output ratio.
+        """
+        Get the actual output ratio.
 
         Returns
         -------
@@ -132,7 +139,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def setpoint1(self) -> int:
-        """Get the first setpoint.
+        """
+        Get the first setpoint.
 
         Returns
         -------
@@ -143,7 +151,8 @@ class HTMC11(ModbusDevice):
 
     @setpoint1.setter
     def setpoint1(self, value: int) -> None:
-        """Set the first setpoint.
+        """
+        Set the first setpoint.
 
         Parameters
         ----------
@@ -154,7 +163,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def manual_output_ratio(self) -> int:
-        """Get the manual output ratio.
+        """
+        Get the manual output ratio.
 
         Returns
         -------
@@ -165,7 +175,8 @@ class HTMC11(ModbusDevice):
 
     @manual_output_ratio.setter
     def manual_output_ratio(self, value: int) -> None:
-        """Set the manual output ratio.
+        """
+        Set the manual output ratio.
 
         Parameters
         ----------
@@ -177,7 +188,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def manual_mode(self) -> HorstManualMode:
-        """Get the manual mode.
+        """
+        Get the manual mode.
 
         Returns
         -------
@@ -189,7 +201,8 @@ class HTMC11(ModbusDevice):
 
     @manual_mode.setter
     def manual_mode(self, mode: HorstManualMode) -> None:
-        """Set the manual mode.
+        """
+        Set the manual mode.
 
         Parameters
         ----------
@@ -208,7 +221,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def proportional_band(self) -> float:
-        """Get the proportional band.
+        """
+        Get the proportional band.
 
         Returns
         -------
@@ -219,7 +233,8 @@ class HTMC11(ModbusDevice):
 
     @proportional_band.setter
     def proportional_band(self, value: int) -> None:
-        """Set the proportional band.
+        """
+        Set the proportional band.
 
         Parameters
         ----------
@@ -230,7 +245,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def integral_time(self) -> int:
-        """Get the integral time.
+        """
+        Get the integral time.
 
         Returns
         -------
@@ -241,7 +257,8 @@ class HTMC11(ModbusDevice):
 
     @integral_time.setter
     def integral_time(self, value: int) -> None:
-        """Set the integral time.
+        """
+        Set the integral time.
 
         Parameters
         ----------
@@ -252,7 +269,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def derivative_time(self) -> int:
-        """Get the derivative time.
+        """
+        Get the derivative time.
 
         Returns
         -------
@@ -263,7 +281,8 @@ class HTMC11(ModbusDevice):
 
     @derivative_time.setter
     def derivative_time(self, value: int) -> None:
-        """Set the derivative time.
+        """
+        Set the derivative time.
 
         Parameters
         ----------
@@ -274,7 +293,8 @@ class HTMC11(ModbusDevice):
 
     @property
     def cycle_time(self) -> float:
-        """Get the cycle time.
+        """
+        Get the cycle time.
 
         Returns
         -------
@@ -285,7 +305,8 @@ class HTMC11(ModbusDevice):
 
     @cycle_time.setter
     def cycle_time(self, value: int) -> None:
-        """Set the cycle time.
+        """
+        Set the cycle time.
 
         Parameters
         ----------

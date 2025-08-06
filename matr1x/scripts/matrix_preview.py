@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Display data and allow simple data manipulation."""
 
 import logging
@@ -164,7 +163,10 @@ class SweepPreview(QMainWindow):
                         QMessageBox.warning(
                             self,
                             "Invalid File",
-                            f"Only files with extensions {', '.join(self.allowed_extensions)} are supported.",
+                            (
+                                "Only files with extensions"
+                                f" {', '.join(self.allowed_extensions)} are supported."
+                            ),
                         )
                 else:
                     QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
@@ -180,8 +182,9 @@ class SweepPreview(QMainWindow):
         """
         Trigger opening the file open dialog.
 
-        On Linux/Windows the file open dialog opens immediately.
-        On MacOS only in case no FileOpen Event is generated in the meantime.
+        On Linux/Windows the file open dialog opens immediately. On
+        MacOS only in case no FileOpen Event is generated in the
+        meantime.
         """
         if sys.platform == "darwin":
             # the mac uses an openfile event to signal the filename
@@ -715,7 +718,12 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def plotting_complex(self, check_state):
-        """Turn on the more complex 2D plotting widget provided by pyqtgraph instead of using the SimplePlotWidget."""
+        """
+        Turn on the more complex 2D plotting widget.
+
+        This is provided by pyqtgraph instead of using the
+        SimplePlotWidget.
+        """
         if check_state is True:
             self.spw.setVisible(False)
             if self.iv is None:
@@ -733,7 +741,12 @@ class SweepPreview(QMainWindow):
         self.plotting_toggled(check_state or self.w_plot2d.isChecked())
 
     def raise_error(self, error):
-        """Raise the error flag, can be used as callback function to set errors from the SimplePlotWidget."""
+        """
+        Raise the error flag.
+
+        This can be used as callback function to set
+        errors from the SimplePlotWidget.
+        """
         if error != "":
             self.w_status.setVisible(True)
             self.w_status.setText(error)
@@ -743,7 +756,12 @@ class SweepPreview(QMainWindow):
             self.w_status.setVisible(False)
 
     def index_callback(self, plot_object):
-        """Handle a change of the ploted index via the plot selector of the SimplePlotWidget (callback)."""
+        """
+        Handle a change of the ploted index.
+
+        This is acieved via the plot selector of the
+        SimplePlotWidget (callback).
+        """
         self.w_plot2d.blockSignals(True)
         self.w_plot2d.setChecked(plot_object.plot2d)
         self.w_plot2d.blockSignals(False)
@@ -754,7 +772,11 @@ class SweepPreview(QMainWindow):
         self.reload_data()
 
     def updatethread(self, state):
-        """Run and terminate a thread that reloads the data from the file if the filename has changed."""
+        """
+        Run and terminate a thread that reloads the data from the file.
+
+        RUn if the filename has changed.
+        """
         if state is True:
             # start updatethread with 2s refresh time
             self.udthread = UpdateThread(2)
@@ -768,10 +790,10 @@ class SweepPreview(QMainWindow):
         """
         Fetch data from the file.
 
-        Fetches data from the file if force is True, or if the modification
-        time is past the time of the latest update (stored in self.lu_time).
-        If force is false, this function was called from the updatethread,
-        therefore make it update all windows.
+        Fetches data from the file if force is True, or if the
+        modification time is past the time of the latest update (stored
+        in self.lu_time). If force is false, this function was called
+        from the updatethread, therefore make it update all windows.
         """
         ret = 0
         if force is True:
@@ -866,7 +888,11 @@ Please investigate the error and eventually restart matrix-preview""",
         return ret
 
     def reload_data(self):
-        """Wrap the 1d and 2d plotting functions and decide which one is appropriate from the state of the gui."""
+        """
+        Wrap the 1d and 2d plotting functions.
+
+        Also, decide which one is appropriate from the state of the gui.
+        """
         if self.w_plot2d.isChecked() is True or self.w_plot2d_comp.isChecked() is True:
             ret = self.reload_data_2d()
         else:
@@ -1028,7 +1054,8 @@ Please investigate the error and eventually restart matrix-preview""",
         """
         Reload the data.
 
-        Try to make the dimensions suitable for a 1D curve plot by smart guessing from the data dimension.
+        Try to make the dimensions suitable for a 1D curve plot by smart
+        guessing from the data dimension.
         """
         indexY, indexX = [self.w_index[i].currentIndex() - 1 for i in range(2)]
         x = {}

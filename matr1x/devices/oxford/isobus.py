@@ -27,14 +27,16 @@ logger = logging.getLogger(__name__)
 
 
 class IsobusDevice(VisaDevice):
-    """Base class for Oxford Instruments devices using the ISOBUS protocol.
+    """
+    Base class for Oxford Instruments devices using the ISOBUS protocol.
 
-    This class extends VisaDevice to handle the specific communication requirements
-    of Oxford Instruments devices connected via ISOBUS.
+    This class extends VisaDevice to handle the specific communication
+    requirements of Oxford Instruments devices connected via ISOBUS.
     """
 
     def __init__(self, interface, **kwargs):
-        """Initialize an ISOBUS device.
+        """
+        Initialize an ISOBUS device.
 
         Parameters
         ----------
@@ -54,7 +56,8 @@ class IsobusDevice(VisaDevice):
         super().__init__(interface, **kwargs)
 
     def id(self):
-        """Get the device identification.
+        """
+        Get the device identification.
 
         Returns
         -------
@@ -65,7 +68,8 @@ class IsobusDevice(VisaDevice):
 
     @synchronized
     def write(self, msg):
-        """Write a message to the device with ISOBUS address prepended.
+        """
+        Write a message to the device with ISOBUS address prepended.
 
         Parameters
         ----------
@@ -83,7 +87,8 @@ class IsobusDevice(VisaDevice):
 
     @synchronized
     def query(self, msg, depth=0, max_depth=2):
-        """Send a query to the device and get the response with error handling.
+        """
+        Send a query to the device and get the response with error handling.
 
         Includes automatic retries with progressive delay for error recovery.
 
@@ -145,7 +150,8 @@ class IsobusDevice(VisaDevice):
 
     @synchronized
     def query_float(self, msg, depth=0, max_depth=4):
-        """Query a floating point value from the device with error handling.
+        """
+        Query a floating point value from the device with error handling.
 
         Parameters
         ----------

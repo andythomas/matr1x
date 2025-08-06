@@ -25,7 +25,8 @@ from matr1x.devices.visadevice import VisaDevice
 
 
 class SR830(VisaDevice):
-    """Device class for a Stanford Research Systems SR830 DSP Lock-In amplifier.
+    """
+    Device class for a Stanford Research Systems SR830 DSP Lock-In amplifier.
 
     Warning:
         The SR830 class will no longer receive updates or bug fixes.
@@ -125,9 +126,11 @@ class SR830(VisaDevice):
 
     @synchronized
     def configureExtTrigger(self):
-        """Configure the SR830 external trigger settings.
+        """
+        Configure the SR830 external trigger settings.
 
-        This method configures the external trigger settings for the SR830 DSP Lock-In amplifier.
+        This method configures the external trigger settings for the
+        SR830 DSP Lock-In amplifier.
         """
         self.write("REST")  # resets buffer
         self.write("SEND 0")  # end of buffer mode (0=shot)
@@ -198,9 +201,11 @@ class SR830(VisaDevice):
         elif inputFilter == "both":
             self.write("ILIN 3")
         else:
-            print(
-                f"Please choose a valid input line notch filter status! Your input was: {inputFilter}"
+            error = (
+                "Please choose a valid input line notch filter status!"
+                f"Your input was: {inputFilter}"
             )
+            print(error)
 
     @synchronized
     def setTimeConstant(self, timeConst=None):
@@ -264,7 +269,8 @@ class SR830(VisaDevice):
 
     @synchronized
     def getSingleParameterSet(self):
-        """Obtain key measurement values of the lock in amplifier.
+        """
+        Obtain key measurement values of the lock in amplifier.
 
         For the device query the SNAP? command is used.
         """

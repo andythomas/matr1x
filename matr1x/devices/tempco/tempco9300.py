@@ -24,7 +24,8 @@ from matr1x.devices.visadevice import output_name_on_error
 
 
 class TempcoMode(enum.Enum):
-    """Temperature controller operation modes.
+    """
+    Temperature controller operation modes.
 
     Parameters
     ----------
@@ -54,7 +55,8 @@ class TempcoMode(enum.Enum):
 
 
 class Tempco9300(ModbusDevice):
-    """Instrument class for the Tempco 9300 temperature controller.
+    """
+    Instrument class for the Tempco 9300 temperature controller.
 
     connection is made via a RS485 serial line which uses the Modbus RTU
     protocol.
@@ -62,7 +64,8 @@ class Tempco9300(ModbusDevice):
 
     @output_name_on_error
     def __init__(self, portname: str, slaveaddress: int, baudrate: int = 38400):
-        """Initialize Tempco 9300 temperature controller.
+        """
+        Initialize Tempco 9300 temperature controller.
 
         Parameters
         ----------
@@ -72,13 +75,13 @@ class Tempco9300(ModbusDevice):
             Modbus slave address of the device
         baudrate : int, optional
             Serial communication speed in baud. Default is 38400
-
         """
         super().__init__(portname, slaveaddress, baudrate, parity=serial.PARITY_EVEN)
 
     @staticmethod
     def value2int(temp: float) -> int:
-        """Convert floating-point value to integer representation.
+        """
+        Convert floating-point value to integer representation.
 
         Parameters
         ----------
@@ -94,7 +97,8 @@ class Tempco9300(ModbusDevice):
 
     @staticmethod
     def int2value(value: int) -> float:
-        """Convert integer representation to floating-point value.
+        """
+        Convert integer representation to floating-point value.
 
         Parameters
         ----------
@@ -110,7 +114,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def temperature(self) -> float:
-        """Get the current temperature.
+        """
+        Get the current temperature.
 
         Returns
         -------
@@ -121,7 +126,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def current_setpoint(self) -> float:
-        """Get the current setpoint.
+        """
+        Get the current setpoint.
 
         Returns
         -------
@@ -132,7 +138,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def target_setpoint(self) -> float:
-        """Get the target setpoint.
+        """
+        Get the target setpoint.
 
         Returns
         -------
@@ -143,7 +150,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def power(self) -> float:
-        """Get the current power output.
+        """
+        Get the current power output.
 
         Returns
         -------
@@ -154,7 +162,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def setpoint1(self) -> float:
-        """Get the first setpoint.
+        """
+        Get the first setpoint.
 
         Returns
         -------
@@ -165,7 +174,8 @@ class Tempco9300(ModbusDevice):
 
     @setpoint1.setter
     def setpoint1(self, value: float) -> None:
-        """Set the first setpoint.
+        """
+        Set the first setpoint.
 
         Parameters
         ----------
@@ -176,7 +186,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def ramp_rate(self) -> float:
-        """Get the ramp rate.
+        """
+        Get the ramp rate.
 
         Returns
         -------
@@ -187,7 +198,8 @@ class Tempco9300(ModbusDevice):
 
     @ramp_rate.setter
     def ramp_rate(self, value: float) -> None:
-        """Set the ramp rate.
+        """
+        Set the ramp rate.
 
         Parameters
         ----------
@@ -198,7 +210,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def manual_power(self) -> float:
-        """Get the manual power.
+        """
+        Get the manual power.
 
         Returns
         -------
@@ -209,7 +222,8 @@ class Tempco9300(ModbusDevice):
 
     @manual_power.setter
     def manual_power(self, value: float) -> None:
-        """Set the manual power.
+        """
+        Set the manual power.
 
         Parameters
         ----------
@@ -220,7 +234,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def control_mode(self) -> TempcoMode:
-        """Get the control mode.
+        """
+        Get the control mode.
 
         Returns
         -------
@@ -238,7 +253,8 @@ class Tempco9300(ModbusDevice):
 
     @control_mode.setter
     def control_mode(self, mode: TempcoMode) -> None:
-        """Set the control mode.
+        """
+        Set the control mode.
 
         Parameters
         ----------
@@ -266,7 +282,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def offset(self) -> float:
-        """Get the offset.
+        """
+        Get the offset.
 
         Returns
         -------
@@ -277,7 +294,8 @@ class Tempco9300(ModbusDevice):
 
     @offset.setter
     def offset(self, value: float) -> None:
-        """Set the offset.
+        """
+        Set the offset.
 
         Parameters
         ----------
@@ -288,7 +306,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def power_limit(self) -> int:
-        """Get the power limit.
+        """
+        Get the power limit.
 
         Returns
         -------
@@ -299,7 +318,8 @@ class Tempco9300(ModbusDevice):
 
     @power_limit.setter
     def power_limit(self, value: int) -> None:
-        """Set the power limit.
+        """
+        Set the power limit.
 
         Parameters
         ----------
@@ -310,7 +330,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def proportional_band1(self) -> float:
-        """Get the proportional band 1.
+        """
+        Get the proportional band 1.
 
         Returns
         -------
@@ -321,7 +342,8 @@ class Tempco9300(ModbusDevice):
 
     @proportional_band1.setter
     def proportional_band1(self, value: float) -> None:
-        """Set the proportional band 1.
+        """
+        Set the proportional band 1.
 
         Parameters
         ----------
@@ -332,7 +354,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def integral_time1(self) -> int:
-        """Get the integral time 1.
+        """
+        Get the integral time 1.
 
         Returns
         -------
@@ -343,7 +366,8 @@ class Tempco9300(ModbusDevice):
 
     @integral_time1.setter
     def integral_time1(self, value: int) -> None:
-        """Set the integral time 1.
+        """
+        Set the integral time 1.
 
         Parameters
         ----------
@@ -354,7 +378,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def derivative_time1(self) -> float:
-        """Get the derivative time 1.
+        """
+        Get the derivative time 1.
 
         Returns
         -------
@@ -365,7 +390,8 @@ class Tempco9300(ModbusDevice):
 
     @derivative_time1.setter
     def derivative_time1(self, value: float) -> None:
-        """Set the derivative time 1.
+        """
+        Set the derivative time 1.
 
         Parameters
         ----------
@@ -376,7 +402,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def proportional_band2(self) -> float:
-        """Get the proportional band 2.
+        """
+        Get the proportional band 2.
 
         Returns
         -------
@@ -387,7 +414,8 @@ class Tempco9300(ModbusDevice):
 
     @proportional_band2.setter
     def proportional_band2(self, value: float) -> None:
-        """Set the proportional band 2.
+        """
+        Set the proportional band 2.
 
         Parameters
         ----------
@@ -398,7 +426,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def integral_time2(self) -> int:
-        """Get the integral time 2.
+        """
+        Get the integral time 2.
 
         Returns
         -------
@@ -409,7 +438,8 @@ class Tempco9300(ModbusDevice):
 
     @integral_time2.setter
     def integral_time2(self, value: int) -> None:
-        """Set the integral time 2.
+        """
+        Set the integral time 2.
 
         Parameters
         ----------
@@ -420,7 +450,8 @@ class Tempco9300(ModbusDevice):
 
     @property
     def derivative_time2(self) -> float:
-        """Get the derivative time 2.
+        """
+        Get the derivative time 2.
 
         Returns
         -------
@@ -431,7 +462,8 @@ class Tempco9300(ModbusDevice):
 
     @derivative_time2.setter
     def derivative_time2(self, value: float) -> None:
-        """Set the derivative time 2.
+        """
+        Set the derivative time 2.
 
         Parameters
         ----------

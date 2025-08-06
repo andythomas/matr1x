@@ -13,12 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Interface implementation for Lakeshore temperature controllers.
 
-This module provides classes to interact with various Lakeshore temperature
-controllers of the 3xx series.
+This module provides classes to interact with various Lakeshore
+temperature controllers of the 3xx series.
 """
 
 import logging
@@ -511,8 +510,8 @@ class Lakeshore335(Lakeshore3xx):
     """
     Interface for Lakeshore 335 temperature controller.
 
-    This class extends the base Lakeshore3xx class with specific features
-    for the Lakeshore 335 model.
+    This class extends the base Lakeshore3xx class with specific
+    features for the Lakeshore 335 model.
     """
 
     def __init__(self, interface, **kwargs):
@@ -591,7 +590,8 @@ class Lakeshore335(Lakeshore3xx):
         Returns
         -------
         int
-            The control mode of the heater loop (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop,
+            The control mode of the heater loop
+            (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop,
             4 = Monitor out, 5 = Warmup Supply).
         """
         ret = self.query(f"OUTMODE? {loop}")
@@ -688,8 +688,8 @@ class Lakeshore340(Lakeshore3xx):
     """
     Interface for Lakeshore 340 temperature controller.
 
-    This class extends the base Lakeshore3xx class with specific features
-    for the Lakeshore 340 model.
+    This class extends the base Lakeshore3xx class with specific
+    features for the Lakeshore 340 model.
     """
 
     def __init__(self, interface, **kwargs):

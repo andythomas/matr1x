@@ -23,7 +23,8 @@ from matr1x.devices.visadevice import VisaDevice
 
 
 class PicoVNA(VisaDevice):
-    """Driver for PicoVNA Vector Network Analyzer instruments.
+    """
+    Driver for PicoVNA Vector Network Analyzer instruments.
 
     This class provides control and data acquisition capabilities for
     PicoVNA instruments using the VISA communication protocol.
@@ -33,7 +34,8 @@ class PicoVNA(VisaDevice):
     maxAverage = 1
 
     def __init__(self, interface, reset=False, **kwargs):
-        """Initialize the PicoVNA instrument.
+        """
+        Initialize the PicoVNA instrument.
 
         Parameters
         ----------
@@ -61,16 +63,18 @@ class PicoVNA(VisaDevice):
 
     # high level functions
     def reset(self):
-        r"""Reset the VNA using the SYST:FPRESET command.
+        r"""
+        Reset the VNA using the SYST:FPRESET command.
 
-        Note that this does not reset the data transfer format!
-        Use \*RST for this
+        Note that this does not reset the data transfer format! Use
+        \*RST for this
         """
         self.query("SYST:FPRESET")  # system:fpreset
         self.maxAverage = 1
 
     def configureSweep(self, fStart, fEnd, fPoints, if_bw, average=None):
-        """Change the sweep settings in the given channel.
+        """
+        Change the sweep settings in the given channel.
 
         Frequency units are in Hz.
         'MIN'/'MAX' arguments can be used insted of actual numbers,
@@ -114,7 +118,8 @@ class PicoVNA(VisaDevice):
         self.query(f"SENS:BAND {possible_bandwidths[ind]} Hz")
 
     def setSourcePower(self, power, channel=1):
-        """Configure the VNA output power (setpoint between +5 and -30dbm).
+        """
+        Configure the VNA output power (setpoint between +5 and -30dbm).
 
         Parameters
         ----------
@@ -126,7 +131,8 @@ class PicoVNA(VisaDevice):
         self.query(f"SENS:LEV {int(power):d}")
 
     def getSourcePower(self):
-        """Read the VNA output power.
+        """
+        Read the VNA output power.
 
         Returns
         -------
@@ -136,16 +142,18 @@ class PicoVNA(VisaDevice):
         return float(self.query("SENS:LEV?").replace(" dBm", ""))
 
     def startSweep(self):
-        """Activate the VNA output and enable manual triggering.
+        """
+        Activate the VNA output and enable manual triggering.
 
-        The VNA activates the output, disables the continuous trigger and
-        therefore enables manual triggering.
-        Any currently running sweeps are aborted.
+        The VNA activates the output, disables the continuous trigger
+        and therefore enables manual triggering. Any currently running
+        sweeps are aborted.
         """
         self.query("INIT")
 
     def getComplexData(self, param, precision="double"):
-        """Transfer mesurement data from the VNA.
+        """
+        Transfer mesurement data from the VNA.
 
         Parameters
         ----------
@@ -184,7 +192,8 @@ class PicoVNA(VisaDevice):
         return data.reshape((-1, 2)).transpose()
 
     def readSweepParams(self):
-        """Read the sweep parameters from the VNA.
+        """
+        Read the sweep parameters from the VNA.
 
         Frequencies are returned in Hz.
 

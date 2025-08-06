@@ -299,7 +299,8 @@ class Agilent8114A(VisaDevice):
         """
         Start pulsing operation.
 
-        Initiates the pulse generation according to the configured settings.
+        Initiates the pulse generation according to the configured
+        settings.
         """
         if self.local is True:
             self.control("loc")

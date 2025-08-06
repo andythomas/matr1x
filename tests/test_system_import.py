@@ -16,8 +16,9 @@
 """
 Tests for verifying import and instantiation of matr1x systems from system configuration files.
 
-This module discovers all system configuration files in the matr1x/systems directory and
-runs tests to ensure they can be imported as valid System objects.
+This module discovers all system configuration files in the
+matr1x/systems directory and runs tests to ensure they can be imported
+as valid System objects.
 """
 
 from pathlib import Path

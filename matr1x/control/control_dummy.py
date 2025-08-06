@@ -50,14 +50,15 @@ common_commands = {
 
 
 class exampleDict(GuiDict):
-    """Initialize dicts for GUI display as well as variable storage.
+    """
+    Initialize dicts for GUI display as well as variable storage.
 
-    Variables are stored in dict[key].value, GUI elements in dict[key].widgets
-    The GUI is initialized with the elements specified in dict[key].columns, where
-    key is label and entries should be of type guiObject.
-    A list means multiple widgets on one row
-    The unit of a variable can be set using the "unit" parameter and is then
-    shown in the label and included in the logging file. The logging
+    Variables are stored in dict[key].value, GUI elements in
+    dict[key].widgets The GUI is initialized with the elements specified
+    in dict[key].columns, where key is label and entries should be of
+    type guiObject. A list means multiple widgets on one row The unit of
+    a variable can be set using the "unit" parameter and is then shown
+    in the label and included in the logging file. The logging
     preference for the parameter is set by the boolean "log" parameter.
     """
 
@@ -112,7 +113,8 @@ class exampleDict(GuiDict):
         self.lock = threading.Lock()
 
     def create_GUI(self):
-        """Build the actual GUI.
+        """
+        Build the actual GUI.
 
         Returns
         -------
@@ -145,7 +147,8 @@ class exampleDict(GuiDict):
         print("Hello from a guidict.")
 
     def refresh(self, count):
-        """Read updated values from hardware (here fake).
+        """
+        Read updated values from hardware (here fake).
 
         Always set the value (never change GUI directly!!!).
 
@@ -176,7 +179,8 @@ class exampleDict(GuiDict):
 
     @catchEmitError
     def set_toggle(self, state):
-        """Set toggle button functionality in hardware.
+        """
+        Set toggle button functionality in hardware.
 
         Parameters
         ----------
@@ -197,7 +201,8 @@ class exampleDict(GuiDict):
 
     # example functions
     def setV1(self, val):
-        """Provide example function 1.
+        """
+        Provide example function 1.
 
         Parameters
         ----------
@@ -208,7 +213,8 @@ class exampleDict(GuiDict):
             self.S.devs["dummy"].p1 = val
 
     def setV2V3(self, val, digits=None):
-        """Provide example function 2.
+        """
+        Provide example function 2.
 
         Parameters
         ----------
@@ -222,7 +228,8 @@ class exampleDict(GuiDict):
             self.S.devs["dummy"].p5 = round(val[1], digits)
 
     def getV2V3(self):
-        """Get V2 and V3 values.
+        """
+        Get V2 and V3 values.
 
         Returns
         -------
@@ -232,7 +239,8 @@ class exampleDict(GuiDict):
         return [self["V2"].value, self["V3"].value]
 
     def v2ready(self):
-        """Check if V2 is ready.
+        """
+        Check if V2 is ready.
 
         Returns
         -------
@@ -258,7 +266,8 @@ class exampleDict(GuiDict):
 
 
 class exampleDict2(GuiDict):
-    """Initialize dicts for GUI display as well as variable storage.
+    """
+    Initialize dicts for GUI display as well as variable storage.
 
     Provide a second example to demonstrate, e.g. the dockable widgets
     and a fake pressure gauge.
@@ -288,10 +297,11 @@ class exampleDict2(GuiDict):
     v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
 
     class MyQObject(QtCore.QObject):
-        """Define pyqtSignals via QObjects.
+        """
+        Define pyqtSignals via QObjects.
 
-        We need an object derived from QObject here. In this example
-        it is used to set a tooltip string in a thread safe manner.
+        We need an object derived from QObject here. In this example it
+        is used to set a tooltip string in a thread safe manner.
         """
 
         tooltip = QtCore.pyqtSignal(str, str)
@@ -307,7 +317,8 @@ class exampleDict2(GuiDict):
         self.qobject.tooltip.connect(self.set_tooltip)
 
     def refresh(self, count):
-        """Refresh the (fake) read-out values.
+        """
+        Refresh the (fake) read-out values.
 
         Parameters
         ----------
@@ -329,7 +340,8 @@ class exampleDict2(GuiDict):
             self.v5 = round(30 * numpy.random.random(), 3)
 
     def set_tooltip(self, label, tooltip):
-        """Set tooltip thread safe on any widget in the first column.
+        """
+        Set tooltip thread safe on any widget in the first column.
 
         Parameters
         ----------

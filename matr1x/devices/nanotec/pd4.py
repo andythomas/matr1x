@@ -51,11 +51,14 @@ class NanotecPD4(VisaDevice):
         zero_offset : int, optional
             Internal zero offset in steps, by default -150
         steps_lower_limit : int, optional
-            Lower limit in steps, defined as the smallest distance to the reference point, by default -150
+            Lower limit in steps, defined as the smallest distance to
+            the reference point, by default -150
         steps_upper_limit : int, optional
-            Upper limit in steps, defined as the greatest distance to the reference point, by default -21900
+            Upper limit in steps, defined as the greatest distance to
+            the reference point, by default -21900
         pos_mode : str, optional
-            Initial positioning mode, either "abs" or "rel", by default "abs"
+            Initial positioning mode, either "abs" or "rel", by
+            default "abs"
         status_enable : bool, optional
             Enable status responses, by default False
         **kwargs

@@ -13,8 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-"""Git repository interface module for the matr1x data acquisition system.
+"""
+Git repository interface module for the matr1x data acquisition system.
 
 This module provides classes for interacting with Git repositories.
 """
@@ -23,7 +23,8 @@ import pygit2
 
 
 class gitDevice:
-    """Interface to Git repositories.
+    """
+    Interface to Git repositories.
 
     A class that provides methods to interact with a Git repository using
     the pygit2 library.
@@ -52,7 +53,8 @@ class gitDevice:
     }
 
     def __init__(self, repo_path):
-        """Initialize a gitDevice with the specified repository path.
+        """
+        Initialize a gitDevice with the specified repository path.
 
         Parameters
         ----------
@@ -72,7 +74,8 @@ class gitDevice:
             raise e
 
     def get_commit_hash(self):
-        """Get the hash of the current HEAD commit.
+        """
+        Get the hash of the current HEAD commit.
 
         Returns
         -------
@@ -82,7 +85,8 @@ class gitDevice:
         return self.repo.head.target
 
     def get_diff(self):
-        """Get a text representation of the current diff.
+        """
+        Get a text representation of the current diff.
 
         Returns
         -------
@@ -98,7 +102,8 @@ class gitDevice:
         return diff_text
 
     def get_remote_url(self):
-        """Get the URL of the first remote.
+        """
+        Get the URL of the first remote.
 
         Returns
         -------
@@ -112,7 +117,8 @@ class gitDevice:
             return None
 
     def get_branch_name(self):
-        """Get the name of the current branch.
+        """
+        Get the name of the current branch.
 
         Returns
         -------
@@ -122,7 +128,8 @@ class gitDevice:
         return self.repo.head.shorthand
 
     def get_status(self):
-        """Get the status of the repository.
+        """
+        Get the status of the repository.
 
         Returns
         -------

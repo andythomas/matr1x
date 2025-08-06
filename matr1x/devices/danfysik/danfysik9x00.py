@@ -13,12 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Driver module for Danfysik power supplies.
 
-This module provides classes to control and interact with Danfysik
-power supply models 9100 and 9700.
+This module provides classes to control and interact with Danfysik power
+supply models 9100 and 9700.
 """
 
 import time
@@ -308,8 +307,8 @@ class Danfysik9700(Danfysik9100):
     """
     Danfysik System 9700 power supply + polarity switch unit.
 
-    This class extends the Danfysik9100 driver with additional
-    functions for power supplies with polarity switch unit.
+    This class extends the Danfysik9100 driver with additional functions
+    for power supplies with polarity switch unit.
     """
 
     def getCurrent(self):

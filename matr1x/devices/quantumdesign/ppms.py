@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Device driver for the Quantum Design PPMS."""
 
 import time
@@ -334,7 +333,6 @@ class PPMS:
             The temperature setpoint in Kelvin.
         rate : float
             The temperature ramp rate in Kelvin per minute.
-
         """
         if not self.check_temperature(setpoint):
             return

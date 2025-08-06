@@ -16,8 +16,8 @@
 """
 Module containing the System class definition and corresponding utility functions.
 
-This module provides the core System class and related utility functions for
-data acquisition and instrument control.
+This module provides the core System class and related utility functions
+for data acquisition and instrument control.
 """
 
 import collections
@@ -296,7 +296,8 @@ class Parameter:
 
     @staticmethod
     def make_command_line_compatible(s):
-        """Convert input string(s) to command line argument format.
+        """
+        Convert input string(s) to command line argument format.
 
         Replaces non-alphanumeric characters with hyphens, converts to
         lowercase, and prepends with double dashes. If a list of strings is
@@ -316,7 +317,8 @@ class Parameter:
         if isinstance(s, (list, tuple)):
             s = s[0]
 
-        # Replace non-alphanumeric characters with hyphens, convert to lowercase, and strip extra hyphens
+        # Replace non-alphanumeric characters with hyphens,
+        # convert to lowercase, and strip extra hyphens
         s = re.sub(r"[^a-zA-Z0-9]", "-", s).strip("-").lower()
 
         # Handle empty string fallback
@@ -533,7 +535,8 @@ class System:
 
     @hdf5.setter
     def hdf5(self, value: bool) -> None:
-        """Set the HDF5 format flag and update the data format accordingly.
+        """
+        Set the HDF5 format flag and update the data format accordingly.
 
         Parameters
         ----------
@@ -622,7 +625,8 @@ class System:
 
     @property
     def columns(self) -> List[str]:
-        """Return a list of column names extracted from parameters.
+        """
+        Return a list of column names extracted from parameters.
 
         Returns
         -------
@@ -633,7 +637,8 @@ class System:
 
     @property
     def labels(self) -> List[str]:
-        """Return a list of labels extracted from parameters.
+        """
+        Return a list of labels extracted from parameters.
 
         Returns
         -------
@@ -644,7 +649,8 @@ class System:
 
     @property
     def units(self) -> List[str]:
-        """Return a list of units extracted from parameters.
+        """
+        Return a list of units extracted from parameters.
 
         Returns
         -------
@@ -655,7 +661,8 @@ class System:
 
     @property
     def default_values(self) -> List[Union[None, float, list, tuple]]:
-        """Return a list of default values extracted from parameters.
+        """
+        Return a list of default values extracted from parameters.
 
         Returns
         -------
@@ -666,7 +673,8 @@ class System:
 
     @property
     def chunks(self) -> List[Union[int, list, tuple]]:
-        """Return a list of chunks extracted from parameters.
+        """
+        Return a list of chunks extracted from parameters.
 
         Returns
         -------
@@ -677,7 +685,8 @@ class System:
 
     @property
     def dtypes(self) -> List[Union[str, list, tuple]]:
-        """Return a list of dtypes extracted from parameters.
+        """
+        Return a list of dtypes extracted from parameters.
 
         Returns
         -------
@@ -687,7 +696,8 @@ class System:
         return [parm.dtypes for parm in self.parameters]
 
     def _print(self, *args, **kwargs):
-        """Extend builtin print by optional adding the printout to the datafile.
+        """
+        Extend builtin print by optional adding the printout to the datafile.
 
         The behavior of this function depends on the config option
         matr1x.scripts.matrix-script.print_to_comment
@@ -823,7 +833,8 @@ class System:
     def set_value(
         self, i: Union[int, str], values: Union[float, List[float], None]
     ) -> Union[float, List[float], None]:
-        """Set a parameter i to values.
+        """
+        Set a parameter i to values.
 
         Takes the column name or index and sets the corresponding parameter as
         defined by the setter of the parameter, take care to send a correct
@@ -1286,8 +1297,8 @@ class System:
         """
         Close device connections and restore the virgin system.
 
-        After this function is called, the System can be reinitialized by
-        calling System.set().
+        After this function is called, the System can be reinitialized
+        by calling System.set().
         """
         for dev in self.devs.values():
             if hasattr(dev, "close"):  # VisaDevice and other custom devices
@@ -1482,7 +1493,8 @@ class System:
             else:
                 display_unit = unit
 
-            # Create an entry with the index as key (use string prefix to avoid numeric parsing issues)
+            # Create an entry with the index as key
+            # (use string prefix to avoid numeric parsing issues)
             param_key = f"param_{index}"
             if param.setter is not None:
                 info["parameters"][param_key] = {
@@ -1729,7 +1741,7 @@ class System:
 
 class MergedSystem(System):
     """
-    Defines a measurement setup/system containing multiple individual systems.
+    Defines a measurement setup/system of multiple individual systems.
 
     Gracefully combines the systems into one system instance, so that "mobile"
     parts of a system can be used together with multiple "stationary" systems.
@@ -1757,7 +1769,8 @@ class MergedSystem(System):
         # save subsystems into system
         self.subsys = systems
         # initialize superclass
-        # here self.subsys is already used when initializing the filename, so this needs to come here
+        # here self.subsys is already used when initializing the
+        # filename, so this needs to come here
         super().__init__()
         # define __name__
         self.__name__ = ",".join([subsys.__name__ for subsys in self.subsys])
@@ -1793,8 +1806,9 @@ class MergedSystem(System):
         """
         Merge multiple systems and return a MergedSystem instance.
 
-        Note that the order of the systems matters when setting/reading parameters during a measurement.
-        Typically the core system (e.g. Magnet-cryostat) comes first and measurement systems afterwards.
+        Note that the order of the systems matters when setting/reading
+        parameters during a measurement. Typically the core system (e.g.
+        Magnet-cryostat) comes first and measurement systems afterwards.
 
         Parameters
         ----------
@@ -1804,7 +1818,8 @@ class MergedSystem(System):
         Returns
         -------
         MergedSystem
-            MergedSystem instance that contains the description of all subsystems.
+            MergedSystem instance that contains the description of all
+            subsystems.
         """
         systems = []
         for filename in system_filenames:
@@ -1847,7 +1862,8 @@ class MergedSystem(System):
 
     @filename.setter
     def filename(self, value):
-        """Set the filename property.
+        """
+        Set the filename property.
 
         This method is needed to keep the filename on the subsystems in sync.
 
@@ -1867,7 +1883,8 @@ class MergedSystem(System):
 
     @_datafile_initialized.setter
     def _datafile_initialized(self, value):
-        """Set the datafile initialized property.
+        """
+        Set the datafile initialized property.
 
         This method is needed to keep the flag on the subsystems in sync.
 
@@ -1948,7 +1965,8 @@ class MergedSystem(System):
                 info["parameters"].update(base_info["parameters"])
             if "methods" in base_info:
                 info["methods"].update(base_info["methods"])
-            # Skip config from base class to avoid duplication - we'll add individual subsystem configs below
+            # Skip config from base class to avoid duplication -
+            # we'll add individual subsystem configs below
 
         # Add information from all subsystems
         for subsys in self.subsys:

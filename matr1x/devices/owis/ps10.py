@@ -182,8 +182,8 @@ class Ps10(VisaDevice):
         """
         Start the reference drive procedure.
 
-        Goes to the reference position and sets position counter to 0 using
-        reference mode 4.
+        Goes to the reference position and sets position counter to 0
+        using reference mode 4.
         """
         self.write("REF1=4")
 
@@ -248,7 +248,8 @@ class Ps10(VisaDevice):
         """
         Wait until the motor has stopped moving.
 
-        Polls the motor status and blocks until the movement is complete.
+        Polls the motor status and blocks until the movement is
+        complete.
         """
         while self.getMoving():
             time.sleep(0.05)

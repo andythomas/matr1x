@@ -13,11 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 HP3245A AC function generator interface module.
 
-This module provides a class for controlling the HP3245A AC function generator.
+This module provides a class for controlling the HP3245A AC function
+generator.
 """
 
 from matr1x.devices.visadevice import VisaDevice

@@ -26,7 +26,8 @@ class Standa8SMC4:
     config_params = {}
 
     def __init__(self):
-        """Initialize the Standa 8SMC4 motor controller.
+        """
+        Initialize the Standa 8SMC4 motor controller.
 
         Connects to the motor controller and prepares it for operation.
 
@@ -65,7 +66,8 @@ class Standa8SMC4:
         self._device_id = self.lib.open_device(open_name)
 
     def id(self):
-        """Return the motor identifier.
+        """
+        Return the motor identifier.
 
         Returns
         -------
@@ -75,7 +77,8 @@ class Standa8SMC4:
         return "StandaMotor"
 
     def query(self, msg):
-        """Not implemented, return call.
+        """
+        Not implemented, return call.
 
         Parameters
         ----------
@@ -91,7 +94,8 @@ class Standa8SMC4:
 
     # high level functions
     def getSpeed(self):
-        """Get the current motor speed.
+        """
+        Get the current motor speed.
 
         Returns
         -------
@@ -103,7 +107,8 @@ class Standa8SMC4:
         return mvst.Speed
 
     def setSpeed(self, speed):
-        """Set the motor speed.
+        """
+        Set the motor speed.
 
         Parameters
         ----------
@@ -112,7 +117,8 @@ class Standa8SMC4:
         """
 
     def getPosition(self, speed):
-        """Get the current position of the motor.
+        """
+        Get the current position of the motor.
 
         Parameters
         ----------
@@ -129,7 +135,8 @@ class Standa8SMC4:
         return float(x_pos.Position) + float(x_pos.uPosition) / 256.0
 
     def move(self, distance):
-        """Move the motor by the specified distance.
+        """
+        Move the motor by the specified distance.
 
         Parameters
         ----------
@@ -147,7 +154,8 @@ class Standa8SMC4:
         print(result)
 
     def waitForStop(self):
-        """Wait for the motor to stop moving.
+        """
+        Wait for the motor to stop moving.
 
         Returns
         -------
@@ -158,7 +166,8 @@ class Standa8SMC4:
         print(result)
 
     def getStatus(self):
-        """Get the current status of the motor.
+        """
+        Get the current status of the motor.
 
         Returns
         -------
@@ -176,7 +185,8 @@ class Standa8SMC1:
     config_params = {}
 
     def __init__(self):
-        """Initialize the Standa 8SMC1 motor controller.
+        """
+        Initialize the Standa 8SMC1 motor controller.
 
         Connects to the motor controller and prepares it for operation.
 
@@ -214,7 +224,8 @@ class Standa8SMC1:
         self._device_id.mode.PowerOn()
 
     def id(self):
-        """Return the motor identifier.
+        """
+        Return the motor identifier.
 
         Returns
         -------
@@ -224,7 +235,8 @@ class Standa8SMC1:
         return "StandaMotor-8SMC1"
 
     def query(self, msg):
-        """Not implemented, return call.
+        """
+        Not implemented, return call.
 
         Parameters
         ----------
@@ -240,7 +252,8 @@ class Standa8SMC1:
 
     # high level functions
     def getSpeed(self):
-        """Get the current motor speed.
+        """
+        Get the current motor speed.
 
         Returns
         -------
@@ -250,7 +263,8 @@ class Standa8SMC1:
         return self.speed
 
     def setSpeed(self, speed):
-        """Set the motor speed.
+        """
+        Set the motor speed.
 
         Parameters
         ----------
@@ -262,7 +276,8 @@ class Standa8SMC1:
             self.speed = speed
 
     def setMotorPower(self, state):
-        """Set the power state of the motor.
+        """
+        Set the power state of the motor.
 
         Parameters
         ----------
@@ -275,7 +290,8 @@ class Standa8SMC1:
             self._device_id.mode.PowerOff()
 
     def setPosition(self, position):
-        """Set the current position of the motor.
+        """
+        Set the current position of the motor.
 
         Parameters
         ----------
@@ -285,7 +301,8 @@ class Standa8SMC1:
         self._device_id.SetCurrentPosition(position)
 
     def getPosition(self):
-        """Get the current position of the motor.
+        """
+        Get the current position of the motor.
 
         Returns
         -------
@@ -296,7 +313,8 @@ class Standa8SMC1:
         return pos
 
     def move(self, position):
-        """Move the motor to the specified position.
+        """
+        Move the motor to the specified position.
 
         Parameters
         ----------
@@ -306,7 +324,8 @@ class Standa8SMC1:
         self._device_id.Start(position, self.speed)
 
     def waitForStop(self):
-        """Wait for the motor to stop moving.
+        """
+        Wait for the motor to stop moving.
 
         Blocks until the motor has stopped moving.
         """

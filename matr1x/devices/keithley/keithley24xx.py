@@ -24,8 +24,9 @@ class Keithley2400(VisaDevice):
     """
     Class for controlling Keithley 2400 SourceMeter.
 
-    This class provides methods to configure and control the Keithley 2400
-    source measurement unit for various sourcing and measurement operations.
+    This class provides methods to configure and control the Keithley
+    2400 source measurement unit for various sourcing and measurement
+    operations.
     """
 
     config_params = {"sourceMode": "sourceMode", "senseMode": "senseMode"}
@@ -248,8 +249,9 @@ class Keithley2450(VisaDevice):
     """
     Class for controlling Keithley 2450 SourceMeter.
 
-    This class provides methods to configure and control the Keithley 2450
-    source measurement unit for various sourcing and measurement operations.
+    This class provides methods to configure and control the Keithley
+    2450 source measurement unit for various sourcing and measurement
+    operations.
     """
 
     config_params = {"sourceMode": "sourceMode", "senseMode": "senseMode"}

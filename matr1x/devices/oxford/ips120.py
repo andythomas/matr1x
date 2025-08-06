@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Module for controlling Oxford Instruments IPS120 power supplies and related devices."""
 
 import logging
@@ -34,7 +33,8 @@ class IPS120(IsobusDevice):
     config_params = {"Rate": "getMagneticFieldRate", "MagnetStatus": "getMagnetStatus"}
 
     def __init__(self, interface, isobus_addr=None, field_lim=0, **kwargs):
-        """Initialize the IPS120 driver.
+        """
+        Initialize the IPS120 driver.
 
         Parameters
         ----------
@@ -65,7 +65,8 @@ class IPS120(IsobusDevice):
         self.query("C3")
 
     def setMagneticField(self, xval):
-        """Set the magnetic field to the specified value on the x axis.
+        """
+        Set the magnetic field to the specified value on the x axis.
 
         Parameters
         ----------
@@ -84,7 +85,8 @@ class IPS120(IsobusDevice):
         self.query("J{:.4f}".format(xval))
 
     def getMagneticFields(self, setp=False):
-        """Get the values of the magnetic field.
+        """
+        Get the values of the magnetic field.
 
         Parameters
         ----------
@@ -105,7 +107,8 @@ class IPS120(IsobusDevice):
             return [fval]
 
     def setMagneticFieldRate(self, rate, axis):
-        """Set rate of magnetic field change for the specified axis.
+        """
+        Set rate of magnetic field change for the specified axis.
 
         Parameters
         ----------
@@ -125,7 +128,8 @@ class IPS120(IsobusDevice):
             self.query("T{:.4f}".format(rate))
 
     def getMagneticFieldRate(self, axis, setp=False):
-        """Get rate of the magnetic field change for the specified axis.
+        """
+        Get rate of the magnetic field change for the specified axis.
 
         Parameters
         ----------
@@ -151,7 +155,8 @@ class IPS120(IsobusDevice):
         return val
 
     def setMagnetStatus(self, state, axis):
-        """Set operational state of the magnet for the specified axis.
+        """
+        Set operational state of the magnet for the specified axis.
 
         Parameters
         ----------
@@ -193,7 +198,8 @@ class IPS120(IsobusDevice):
             self.query("A{:d}".format(state))
 
     def getMagnetStatus(self, axis):
-        """Get operational state of the magnet.
+        """
+        Get operational state of the magnet.
 
         Parameters
         ----------
@@ -246,7 +252,8 @@ class IPS120_switchheater(IsobusDevice):
         switch_wait_time=5,
         **kwargs,
     ):
-        """Initialize the IPS120 switch heater driver.
+        """
+        Initialize the IPS120 switch heater driver.
 
         Parameters
         ----------
@@ -290,7 +297,8 @@ class IPS120_switchheater(IsobusDevice):
         self.persistentField = self.getPersistentField()
 
     def _update_sleep(self, sec, msg=None, interval=0.5):
-        """Wait for specified time while updating status message.
+        """
+        Wait for specified time while updating status message.
 
         Parameters
         ----------
@@ -315,7 +323,8 @@ class IPS120_switchheater(IsobusDevice):
             self.statusmsg = ""
 
     def setMagneticField(self, xval):
-        """Set the magnetic field to the specified value.
+        """
+        Set the magnetic field to the specified value.
 
         Parameters
         ----------
@@ -337,7 +346,8 @@ class IPS120_switchheater(IsobusDevice):
             self.query("J{:.4f}".format(xval))
 
     def getMagneticField(self, setp=False):
-        """Get the current magnetic field value.
+        """
+        Get the current magnetic field value.
 
         Parameters
         ----------
@@ -360,7 +370,8 @@ class IPS120_switchheater(IsobusDevice):
         return fval
 
     def getPersistentField(self):
-        """Get the persistent field value trapped in the magnet.
+        """
+        Get the persistent field value trapped in the magnet.
 
         Returns
         -------
@@ -381,7 +392,8 @@ class IPS120_switchheater(IsobusDevice):
 
     @synchronized
     def setMagneticFieldNonPersistent(self, field, block=False):
-        """Set the field in non-persistent mode (with switch heater on).
+        """
+        Set the field in non-persistent mode (with switch heater on).
 
         Parameters
         ----------
@@ -440,7 +452,8 @@ class IPS120_switchheater(IsobusDevice):
 
     @synchronized
     def setMagneticFieldPersistent(self, field):
-        """Set the field and switch to persistent mode.
+        """
+        Set the field and switch to persistent mode.
 
         Parameters
         ----------
@@ -463,7 +476,8 @@ class IPS120_switchheater(IsobusDevice):
         self.getPersistentField()
 
     def setMagneticFieldRate(self, rate):
-        """Set magnetic field ramp rate.
+        """
+        Set magnetic field ramp rate.
 
         Parameters
         ----------
@@ -480,7 +494,8 @@ class IPS120_switchheater(IsobusDevice):
             self.query("T{:.4f}".format(rate))
 
     def getMagneticFieldRate(self, setp=False):
-        """Get the magnetic field ramp rate.
+        """
+        Get the magnetic field ramp rate.
 
         Parameters
         ----------
@@ -503,7 +518,8 @@ class IPS120_switchheater(IsobusDevice):
         return val
 
     def getVersion(self):
-        """Get the controller firmware version.
+        """
+        Get the controller firmware version.
 
         Returns
         -------
@@ -513,7 +529,8 @@ class IPS120_switchheater(IsobusDevice):
         return self.query("V")
 
     def getVoltage(self):
-        """Get the power supply output voltage.
+        """
+        Get the power supply output voltage.
 
         Returns
         -------
@@ -527,7 +544,8 @@ class IPS120_switchheater(IsobusDevice):
 
     @synchronized
     def setMagnetStatus(self, state):
-        """Set operational state of the magnet.
+        """
+        Set operational state of the magnet.
 
         Parameters
         ----------
@@ -552,7 +570,8 @@ class IPS120_switchheater(IsobusDevice):
         self.statusmsg = f"Status {statedict.get(state, 'unknown')}"
 
     def getMagnetStatus(self):
-        """Get the operational state of the magnet.
+        """
+        Get the operational state of the magnet.
 
         Returns
         -------
@@ -576,7 +595,8 @@ class IPS120_switchheater(IsobusDevice):
         return state
 
     def setSwitchHeater(self, output):
-        """Control the switch heater state.
+        """
+        Control the switch heater state.
 
         Parameters
         ----------
@@ -597,7 +617,8 @@ class IPS120_switchheater(IsobusDevice):
             self._update_sleep(self.switch_wait_time, "cooling the switch ({:2.0f} s)")
 
     def getSwitchHeater(self):
-        """Get the state of the switch heater.
+        """
+        Get the state of the switch heater.
 
         Returns
         -------

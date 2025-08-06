@@ -13,12 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Twickenham Helium Depth Indicator (HDI) interface module.
 
-This module provides a class to interface with the Twickenham Helium Depth
-Indicator device through a VISA connection.
+This module provides a class to interface with the Twickenham Helium
+Depth Indicator device through a VISA connection.
 """
 
 from matr1x.devices.visadevice import VisaDevice

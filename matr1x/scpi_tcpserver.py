@@ -13,12 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Contains a class for creating a (mostly) SCPI compatible measurement device.
 
-The device listens on an ethernet interface and can be fully defined from
-a dictionary with Command entries.
+The device listens on an ethernet interface and can be fully defined
+from a dictionary with Command entries.
 """
 
 import logging
@@ -38,8 +37,8 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     """
     Handles the TCP connection and parses the commands specified in the server's cmd_list.
 
-    This class extends StreamRequestHandler to handle TCP connections and
-    parse commands specified in the server's command list.
+    This class extends StreamRequestHandler to handle TCP connections
+    and parse commands specified in the server's command list.
     """
 
     @staticmethod
@@ -63,8 +62,8 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         """
         Set up the server on initial startup.
 
-        This method parses the cmd_list to generate the (normalized) keys
-        and the command instructions.
+        This method parses the cmd_list to generate the (normalized)
+        keys and the command instructions.
         """
         super().setup()
         self.terminate = False
@@ -230,8 +229,8 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     """
     Reimplemented TCP server to provide proper default behavior.
 
-    This class combines ThreadingMixIn and TCPServer to create a threaded
-    TCP server with specific default behaviors.
+    This class combines ThreadingMixIn and TCPServer to create a
+    threaded TCP server with specific default behaviors.
     """
 
     daemon_threads = True

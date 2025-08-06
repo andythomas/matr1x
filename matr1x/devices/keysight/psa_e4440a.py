@@ -40,8 +40,8 @@ class PSA_E4440A(VisaDevice):
     """
     The maximum average setting of all configured channels.
 
-    The PSA will trigger that many sweeps, so the averaging
-    requirement for each channel is satisfied.
+    The PSA will trigger that many sweeps, so the averaging requirement
+    for each channel is satisfied.
     """
 
     def __init__(self, interface, reset=True, timeout=10e3, **kwargs):
@@ -77,8 +77,8 @@ class PSA_E4440A(VisaDevice):
         """
         Reset the PSA using the SYST:PRES command.
 
-        Note that this does not reset the data transfer format!
-        Use *RST for this.
+        Note that this does not reset the data transfer format! Use *RST
+        for this.
         """
         self.write("SYST:PRES:TYPE MODE")
         self.write("SYST:PRES")  # SYSTem:PRESet

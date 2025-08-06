@@ -20,8 +20,8 @@
 """
 Contains GUI related functions and class definitions.
 
-These are used by sweep-generator, matrix-gui, matrix-preview, matrix-script and
-control-guis.
+These are used by sweep-generator, matrix-gui, matrix-preview, matrix-
+script and control-guis.
 """
 
 import datetime
@@ -129,8 +129,8 @@ class QRangeWidget(QGroupBox):
     """
     Widget that displays a range slider with decrement/increment sliders.
 
-    This widget consists of a range slider with a decrement/increment slider
-    on either side and a label on the left.
+    This widget consists of a range slider with a decrement/increment
+    slider on either side and a label on the left.
     """
 
     value_changed = pyqtSignal(int)
@@ -263,8 +263,9 @@ class FileLineEdit(QLineEdit):
     """
     Widget that displays a LineEdit with a button that opens a QFileDialog.
 
-    This widget consists of a QLineEdit and a FileDialog. Upon return the
-    selected filename is passed to the callback function provided as argument
+    This widget consists of a QLineEdit and a FileDialog. Upon return
+    the selected filename is passed to the callback function provided as
+    argument
     """
 
     def __init__(self, callback, parent=None, spec="file"):
@@ -345,7 +346,8 @@ class SystemListWidget(QListWidget):
         self.orderChanged.emit()  # Emit the custom signal when the order changes
 
     def addItem(self, item) -> None:
-        """Add item but avoid duplicates.
+        """
+        Add item but avoid duplicates.
 
         Parameters
         ----------
@@ -364,7 +366,8 @@ class MetaViewerWidget(QDockWidget):
     """
     Viewer and editor for meta data stored in matrix data files.
 
-    Extensive meta data are only include in datafiles of version 7 or higher.
+    Extensive meta data are only include in datafiles of version 7 or
+    higher.
     """
 
     class EditableDelegate(QStyledItemDelegate):
@@ -1710,7 +1713,8 @@ class SimplePlotWidget(QGroupBox):
                 ]
 
         class CategoricalAxis(pyqtgraph.AxisItem):
-            """Custom axis item for displaying categorical data.
+            """
+            Custom axis item for displaying categorical data.
 
             This class extends pyqtgraph's AxisItem to properly display categorical
             data by mapping numeric indices to category labels.
@@ -1740,7 +1744,8 @@ class SimplePlotWidget(QGroupBox):
                 self.unique_ticks = set()
 
             def tickStrings(self, values, scale, spacing):
-                """Return the strings that should be placed next to ticks.
+                """
+                Return the strings that should be placed next to ticks.
 
                 For categorical data, shows all tick labels regardless of plot size.
 
@@ -1768,7 +1773,8 @@ class SimplePlotWidget(QGroupBox):
                 return strings
 
             def tickValues(self, minVal, maxVal, size):
-                """Return the values and spacing of ticks to draw.
+                """
+                Return the values and spacing of ticks to draw.
 
                 Parameters
                 ----------
@@ -2035,9 +2041,10 @@ class SimplePlotWidget(QGroupBox):
             """
             Handle data redimensioning and selection according to slider position.
 
-            This method adjusts the data dimensions and selects appropriate data
-            based on the current slider positions for multi-dimensional data sets.
-            It updates the x, y, and z data attributes of the object accordingly.
+            This method adjusts the data dimensions and selects
+            appropriate data based on the current slider positions for
+            multi-dimensional data sets. It updates the x, y, and z data
+            attributes of the object accordingly.
             """
             if self.md is True and self.plot2d is False:
                 self.x = self.xdata[:, self.w_xslider.value()]
@@ -2075,9 +2082,9 @@ class SimplePlotWidget(QGroupBox):
             """
             Remove the plot and the widgets that belong to the PlotObject.
 
-            This method removes the plot from the provided layouts, including
-            the horizontal line, x-slider, and z-slider widgets associated
-            with this PlotObject.
+            This method removes the plot from the provided layouts,
+            including the horizontal line, x-slider, and z-slider
+            widgets associated with this PlotObject.
             """
             self.l_plot.removeItem(self.l_plot.getItem(row=self.index, col=0))
             self.l_slider.removeWidget(self.w_hline)
@@ -2172,9 +2179,11 @@ class SimplePlotWidget(QGroupBox):
             Parameters
             ----------
             *args
-                Variable length argument list passed to the plot function if curve plotting is enabled.
+                Variable length argument list passed to the plot
+                function if curve plotting is enabled.
             **kwargs
-                Arbitrary keyword arguments passed to the plot function if curve plotting is enabled.
+                Arbitrary keyword arguments passed to the plot function
+                if curve plotting is enabled.
             """
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
@@ -2643,7 +2652,8 @@ class SimplePlotWidget(QGroupBox):
         return (y, x)
 
     def save_data(self, filename) -> None:
-        """Export the currently displayed plot into a text file.
+        """
+        Export the currently displayed plot into a text file.
 
         Parameters
         ----------
@@ -2818,7 +2828,8 @@ class EmittingStream(QObject):
         """
         Flush the stream.
 
-        This method is required for file-like objects but does nothing in this implementation.
+        This method is required for file-like objects but does nothing
+        in this implementation.
         """
         pass
 
@@ -3442,7 +3453,8 @@ class AboutBox(QMessageBox):
     """Provide an about box with install debug info."""
 
     def __init__(self, title, icon, package, date_format, parent=None):
-        """Initialize an about box dialog with installation information.
+        """
+        Initialize an about box dialog with installation information.
 
         Parameters
         ----------
@@ -3766,9 +3778,10 @@ class MApplication(QApplication):
         """
         Call init of QApplication, automatically select the xcb client.
 
-        If, for example, wayland is used as the default window manager, the lack of client side decorations
-        would lead to missing visual cues such as window shadows. To regain the visual aids, the client-side is
-        switched to xcb.
+        If, for example, wayland is used as the default window manager,
+        the lack of client side decorations would lead to missing visual
+        cues such as window shadows. To regain the visual aids, the
+        client-side is switched to xcb.
 
         args : list of str
             Arguments for QApplication

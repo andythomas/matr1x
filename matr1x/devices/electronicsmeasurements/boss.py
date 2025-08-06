@@ -13,7 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Electronics Measurement Inc. BOSS-20-5 power supply."""
+"""
+Module for Electronics Measurement Inc.
+
+BOSS-20-5 power supply.
+"""
 
 import logging
 import time
@@ -26,7 +30,11 @@ logger = logging.getLogger(__name__)
 
 
 class BOSS(VisaDevice):
-    """Class for controlling the Electronics Measurement Inc. BOSS-20-5 power supply."""
+    """
+    Class for controlling the Electronics Measurement Inc.
+
+    BOSS-20-5 power supply.
+    """
 
     def __init__(self, interface, **kwargs):
         """

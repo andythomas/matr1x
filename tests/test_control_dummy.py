@@ -13,13 +13,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Module for testing the matr1x data acquisition system.
 
-This module contains test fixtures and test functions to verify the functionality
-of the matr1x data acquisition system, particularly focusing on the control GUI
-and script execution capabilities.
+This module contains test fixtures and test functions to verify the
+functionality of the matr1x data acquisition system, particularly
+focusing on the control GUI and script execution capabilities.
 """
 
 import glob

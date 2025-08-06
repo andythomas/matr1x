@@ -13,16 +13,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Performs measurements utilizing several input files.
 
-matrix.py takes an input file, a system file (can be specified in the input
-file) and an output file as arguments to perform a measurement.
-The measurement setup itself is specified in the system, while the parameters
-that are to be applied are specified in the input file.
-For each line of the input file, all parameters are read out and saved into a
-file of ascii or hdf5 format, depending on the system specifications
+matrix.py takes an input file, a system file (can be specified in the
+input file) and an output file as arguments to perform a measurement.
+The measurement setup itself is specified in the system, while the
+parameters that are to be applied are specified in the input file. For
+each line of the input file, all parameters are read out and saved into
+a file of ascii or hdf5 format, depending on the system specifications
 """
 
 import argparse
@@ -122,7 +121,7 @@ def measurementloop(
     telemetrycb=lambda s: None,
     inputcb=lambda n: 0,
 ):
-    """Measurement loops with callback functions for visualization of the measurement and its progress."""
+    """Measurement loops with callback functions for visualization."""
     # count number of setpoints for telemetry information
     points = 0
     with open(inputfile, "r") as f:
@@ -187,9 +186,10 @@ def measure_plain(inputfile, system, quiet=False):
     """
     Measurement loop with reduced output.
 
-    Measurements can be with plain print output to the terminal or futhrer reduced
-    output when quiet is set to True. This measurement mode is mainly used for
-    continuous integration on Github actions and use on MS Windows.
+    Measurements can be with plain print output to the terminal or
+    futhrer reduced output when quiet is set to True. This measurement
+    mode is mainly used for continuous integration on Github actions and
+    use on MS Windows.
     """
 
     def inputcb(n):

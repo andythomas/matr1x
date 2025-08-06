@@ -13,11 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Generate sweeps for matrix via a straightforward GUI.
 
-It heavily relies on numpy.linspace for the creation of the sweep segments.
+It heavily relies on numpy.linspace for the creation of the sweep
+segments.
 """
 
 import os
@@ -380,7 +380,8 @@ class MainWindow(QMainWindow):
         """
         Store settings before closing app.
 
-        If the script was modified without saving, a dialog asks how to proceed.
+        If the script was modified without saving, a dialog asks how to
+        proceed.
         """
         if a0 is not None:
             if self.dirty:
@@ -400,8 +401,8 @@ class MainWindow(QMainWindow):
         """
         Save application configuration until next startup.
 
-        For convenience, main window geometry and toolbar
-        placement are saved.
+        For convenience, main window geometry and toolbar placement are
+        saved.
         """
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
@@ -646,11 +647,15 @@ class MainWindow(QMainWindow):
             if self.is_valid_extension(file_path):
                 self.open_file(file_path)
             else:
+                warning_text = (
+                    "Only files with extensions matching .<number>t "
+                    f"or {self.extension} are supported."
+                )
                 QMessageBox.warning(
                     self,
                     "Invalid File",
                     # remove old pattern with next major update
-                    f"Only files with extensions matching .<number>t or {self.extension} are supported.",
+                    warning_text,
                 )
         else:
             QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
@@ -704,8 +709,8 @@ class MainWindow(QMainWindow):
             self.system = MergedSystem.from_files(filenames)
         except Exception as e:
             if isinstance(e, ModuleNotFoundError):
-                error_text = '<p style="color:red">Please check the path to the system files and whether all '
-                error_text += "required dependencies are present.</p>"
+                error_text = '<p style="color:red">Please check the path to the system files and '
+                error_text += "whether all required dependencies are present.</p>"
             else:
                 error_text = "The following error was raised during system "
                 error_text += "import, please check the system for errors.\n\n"
@@ -727,7 +732,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Import error!",
-                "Lists with columns, units and settables are not of equal length, check system file.",
+                "Lists with columns, units and settables of unequal length, check system file.",
             )
             return
         self.reset_layout()
@@ -880,9 +885,10 @@ class MainWindow(QMainWindow):
         column_fit = screen_width // max_width - 1
         row = 0
         for column in range(self.nParmsUsed):
-            # Fit the calculated number of columns in the first row and one more in the subsequent ones.
-            # The grid requires 5 rows for every parameter set: column, nameunit, parameters, modifiers
-            # and combobox.
+            # Fit the calculated number of columns in the first row and
+            # one more in the subsequent ones.
+            # The grid requires 5 rows for every parameter set:
+            # column, nameunit, parameters, modifiers and combobox.
             if column >= column_fit:
                 row = ((column - column_fit) // (column_fit + 1) + 1) * 5
             grid_column = (column + 1) % (column_fit + 1)
@@ -1145,8 +1151,9 @@ class MainWindow(QMainWindow):
         """
         Add defined sweep parameters to self.sweep_params and populate sweep table.
 
-        Take care that whenever adressing the list (i.e. sweep_params) that
-        those are shifted by 1 (layout starts at col 1, lists at 0).
+        Take care that whenever adressing the list (i.e. sweep_params)
+        that those are shifted by 1 (layout starts at col 1, lists at
+        0).
         """
         param_set = []
         param_set.append(self.grid_widgets[column - 1]["start"].text())
@@ -1306,8 +1313,8 @@ class MainWindow(QMainWindow):
         """
         GUI functionality to populate all lists necessary for sweep generation.
 
-        After that generates the sweep from the parameters (still needs to be
-        stretched)
+        After that generates the sweep from the parameters (still needs
+        to be stretched)
         """
         self.loop_over = []
         self.up_down = []
@@ -1397,10 +1404,14 @@ class MainWindow(QMainWindow):
         if functions:
             for function in functions:
                 if function != "None":
+                    warning_text = (
+                        "This file uses the removed 'function' functionality."
+                        "Please use matrix-script. File did not load!"
+                    )
                     QMessageBox.warning(
                         self,
                         "Open file error.",
-                        "This file uses the removed 'function' functionality. Please use matrix-script. File did not load!",
+                        warning_text,
                     )
                     return
         # initialize layout with values specified in file
@@ -1416,9 +1427,9 @@ class MainWindow(QMainWindow):
         """
         Prepare a completely new sweep.
 
-        Delete all existing sweep parameters, update the sweep grid accordingly
-        and empty the sweep preview. Also reset all input fields to their
-        original states.
+        Delete all existing sweep parameters, update the sweep grid
+        accordingly and empty the sweep preview. Also reset all input
+        fields to their original states.
         """
         if self.dirty:
             ret = save_messagebox(self)

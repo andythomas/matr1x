@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """Module for controlling the Rohde & Schwarz FSW8 spectrum analyzer."""
 
 import time
@@ -53,10 +52,11 @@ class FSW8(VisaDevice):
     }
 
     maxAverage = 1
-    """The maximum average setting.
+    """
+    The maximum average setting.
 
-    The FSW8 will trigger that many sweeps, so the averaging
-    requirement is satisfied.
+    The FSW8 will trigger that many sweeps, so the averaging requirement
+    is satisfied.
     """
 
     def __init__(self, interface, reset=True, timeout=60e3, **kwargs):

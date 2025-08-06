@@ -21,14 +21,16 @@ from matr1x.devices.visadevice import VisaDevice
 
 
 class MercuryC663(VisaDevice):
-    """Driver for PI stepper motor @ Rote Zora.
+    """
+    Driver for PI stepper motor @ Rote Zora.
 
-    This class provides control for the PI stepper motor with ItemID of the
-    axis used for communication being 1.
+    This class provides control for the PI stepper motor with ItemID of
+    the axis used for communication being 1.
     """
 
     def __init__(self, interface, **kwargs):
-        """Initialize the Mercury C663 device.
+        """
+        Initialize the Mercury C663 device.
 
         Parameters
         ----------
@@ -53,7 +55,8 @@ class MercuryC663(VisaDevice):
 
     @synchronized
     def getMotorState(self):
-        """Get the motor state for the axis.
+        """
+        Get the motor state for the axis.
 
         Returns
         -------
@@ -64,7 +67,8 @@ class MercuryC663(VisaDevice):
         return int(self.read()[2])
 
     def setMotorON(self):
-        """Turn on the motor for the axis.
+        """
+        Turn on the motor for the axis.
 
         This needs to be done after connecting to the motor.
         """
@@ -76,7 +80,8 @@ class MercuryC663(VisaDevice):
 
     @synchronized
     def getReference(self):
-        """Check reference state of the motor.
+        """
+        Check reference state of the motor.
 
         Returns
         -------
@@ -87,21 +92,24 @@ class MercuryC663(VisaDevice):
         return int(self.read()[2])
 
     def setReference(self):
-        """Move the motor to reference position (6deg).
+        """
+        Move the motor to reference position (6deg).
 
         Note: Motor must be switched on!
         """
         self.write("FRF")
 
     def gotohome(self):
-        """Move the motor to home position (0deg).
+        """
+        Move the motor to home position (0deg).
 
         Note: Motor must be switched on!
         """
         self.write("GOH")
 
     def setAngleAbs(self, angle):
-        """Move to absolute angle defined from home position.
+        """
+        Move to absolute angle defined from home position.
 
         Parameters
         ----------
@@ -111,7 +119,8 @@ class MercuryC663(VisaDevice):
         self.write("MOV 1 {:f}".format(float(angle)))
 
     def setAngleRel(self, angle):
-        """Move to angle relative to current position.
+        """
+        Move to angle relative to current position.
 
         The sum of the provided angle and the last commanded target position
         is set as the new target position.
@@ -125,7 +134,8 @@ class MercuryC663(VisaDevice):
 
     @synchronized
     def getAngle(self):
-        """Read current target angle.
+        """
+        Read current target angle.
 
         Returns
         -------
@@ -137,7 +147,8 @@ class MercuryC663(VisaDevice):
 
     @synchronized
     def getOnTarget(self):
-        """Read on-target status of axis 1.
+        """
+        Read on-target status of axis 1.
 
         Returns
         -------

@@ -13,13 +13,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 Base class for Modbus based device drivers in this package.
 
-In this module the base class for all Modbus based device drivers in this package is
-defined. It is itself based on the minimalmodbus library which handles all the low
-level communication.
+In this module the base class for all Modbus based device drivers in
+this package is defined. It is itself based on the minimalmodbus library
+which handles all the low level communication.
 """
 
 import minimalmodbus
@@ -30,7 +29,8 @@ from matr1x.devices.visadevice import output_name_on_error
 
 
 class ModbusDevice(minimalmodbus.Instrument):
-    """A class for communicating with Modbus devices using the minimalmodbus library.
+    """
+    A class for communicating with Modbus devices using the minimalmodbus library.
 
     This class extends minimalmodbus.Instrument to provide thread-safe register read/write
     operations with error handling.
@@ -62,7 +62,8 @@ class ModbusDevice(minimalmodbus.Instrument):
     @synchronized
     @output_name_on_error
     def read_register(self, *args, **kwargs):
-        """Read a Modbus register.
+        """
+        Read a Modbus register.
 
         Thread-safe wrapper for minimalmodbus register read operation.
 
@@ -83,7 +84,8 @@ class ModbusDevice(minimalmodbus.Instrument):
     @synchronized
     @output_name_on_error
     def write_register(self, *args, **kwargs) -> None:
-        """Write to a Modbus register.
+        """
+        Write to a Modbus register.
 
         Thread-safe wrapper for minimalmodbus register write operation.
 

@@ -27,8 +27,8 @@ class PNA5225b(VisaDevice):
     """
     The device class for the Keysight VNA 5225b.
 
-    It can possibly be used with different models from
-    Keysight with little changes.
+    It can possibly be used with different models from Keysight with
+    little changes.
     """
 
     config_params = {
@@ -42,8 +42,8 @@ class PNA5225b(VisaDevice):
     """
     The maximum average setting of all configured channels.
 
-    The VNA will trigger that many sweeps, so the averaging
-    requirement for each channel is satisfied.
+    The VNA will trigger that many sweeps, so the averaging requirement
+    for each channel is satisfied.
     """
 
     def __init__(self, interface, reset=True, timeout=10e3, **kwargs):
@@ -83,8 +83,8 @@ class PNA5225b(VisaDevice):
         r"""
         Reset the VNA using the SYST:FPRESET command.
 
-        Note that this does not reset the data transfer format!
-        Use \*RST for this.
+        Note that this does not reset the data transfer format! Use
+        \*RST for this.
         """
         self.write("SYST:FPRESET")  # system:fpreset
         self.maxAverage = 1
@@ -281,9 +281,9 @@ class PNA5225b(VisaDevice):
         """
         Prepare the VNA for triggering a sweep.
 
-        The VNA activates the output, disables the continuous trigger and
-        therefore enables manual triggering.
-        Any currently running sweeps are aborted.
+        The VNA activates the output, disables the continuous trigger
+        and therefore enables manual triggering. Any currently running
+        sweeps are aborted.
         """
         # OUTPut[:STATe] <ON | OFF>
         self.write("OUTP ON")

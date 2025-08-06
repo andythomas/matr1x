@@ -37,7 +37,8 @@ dummy_dev = makeSCPIdevice(cmd_list)
 
 
 class dummy(dummy_dev):
-    """Dummy device for testing.
+    """
+    Dummy device for testing.
 
     Upon initialization the device starts a socket server which processes
     queries received via this network socket. Typically this will be done
@@ -96,7 +97,8 @@ class dummy(dummy_dev):
         super().__init__(adapter, name="Dummy device")
 
     def close(self):
-        """Close the device server.
+        """
+        Close the device server.
 
         Stops the local server and closes the adapter connection.
         """
@@ -105,14 +107,17 @@ class dummy(dummy_dev):
 
     # high level functions
     def trigger(self):
-        """Simulate device triggering.
+        """
+        Simulate device triggering.
 
-        Fake trigger function which allows to show the trigger functionality in
-        the dummy system files, but actually has no real impact on the device.
+        Fake trigger function which allows to show the trigger
+        functionality in the dummy system files, but actually has no
+        real impact on the device.
         """
 
     def configure(self, **kwargs):
-        """Configure the dummy device.
+        """
+        Configure the dummy device.
 
         Fake configure function to demonstrate configuration upon
         initialization.
