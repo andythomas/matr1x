@@ -342,7 +342,17 @@ class ControlWindow(QMainWindow):
                         kwargs["unit"] = entry[2]
                     guidict[key] = var(**kwargs)
                     guidict[key]._value = value
-        # harmonize the guidict data structure -> convert all to GuiDict
+
+        self._convert_to_guidict()
+
+        for guidict in self.guidicts:
+            guidict.refresh_worker.sig_error.connect(self.handleError)
+        # set parent reference on guidicts
+        for g in self.guidicts:
+            g.parent = self
+
+    def _convert_to_guidict(self):
+        """Harmonize the data structure -> convert all to GuiDict."""
         for i, guidict in enumerate(self.guidicts):
             if not isinstance(guidict, GuiDict):
                 warnings.warn("Consider rewriting the GUI using the GuiDict class.", FutureWarning)
@@ -354,11 +364,6 @@ class ControlWindow(QMainWindow):
                         pass
 
                 self.guidicts[i] = _FakeGuiDict()
-        for guidict in self.guidicts:
-            guidict.refresh_worker.sig_error.connect(self.handleError)
-        # set parent reference on guidicts
-        for g in self.guidicts:
-            g.parent = self
 
     def _restore_gui_settings(self):
         """

@@ -135,6 +135,54 @@ def get_config_dict(section: str):
     return ret
 
 
+def _find_differences(default_dict, current_dict):
+    """
+    Recursively compares two dictionaries and finds differences.
+
+    This function compares a dictionary representing default settings with
+    a dictionary representing current settings. It returns a new
+    dictionary containing only the keys and values that differ from the
+    default settings.
+
+    Parameters
+    ----------
+    default_dict : dict
+        The dictionary representing the default settings.
+    current_dict : dict
+        The dictionary representing the current settings.
+
+    Returns
+    -------
+    differences : dict
+        A dictionary containing only the settings that differ from the
+        default settings. If no differences are found, an empty dictionary
+        is returned.
+    """
+    differences = {}
+    for key, default_value in default_dict.items():
+        if isinstance(default_value, str):
+            if "~" in default_value:
+                default_value = normpath(expanduser(default_value))
+        if key not in current_dict:
+            continue  # Key is missing in the current settings
+        current_value = current_dict[key]
+
+        # If both are dictionaries, compare recursively
+        if isinstance(default_value, dict) and isinstance(current_value, dict):
+            sub_diff = _find_differences(default_value, current_value)
+            if sub_diff:  # Only add non-empty differences
+                differences[key] = sub_diff
+        elif default_value != current_value:  # Value differs
+            differences[key] = current_value
+
+    # Add keys that are in current_dict but not in default_dict
+    for key in current_dict:
+        if key not in default_dict:
+            differences[key] = current_value
+
+    return differences
+
+
 def write_config(config_dict, optional_config_path: Optional[Union[str, Path]] = None):
     """
     Write non-default config options to the user config or optional config.
@@ -160,60 +208,12 @@ def write_config(config_dict, optional_config_path: Optional[Union[str, Path]] =
         with open(optional_config_path, "wb") as toml_file:
             tomli_w.dump(config_dict, toml_file)
     else:
-
-        def find_differences(default_dict, current_dict):
-            """
-            Recursively compares two dictionaries and finds differences.
-
-            This function compares a dictionary representing default settings with
-            a dictionary representing current settings. It returns a new
-            dictionary containing only the keys and values that differ from the
-            default settings.
-
-            Parameters
-            ----------
-            default_dict : dict
-                The dictionary representing the default settings.
-            current_dict : dict
-                The dictionary representing the current settings.
-
-            Returns
-            -------
-            differences : dict
-                A dictionary containing only the settings that differ from the
-                default settings. If no differences are found, an empty dictionary
-                is returned.
-            """
-            differences = {}
-            for key, default_value in default_dict.items():
-                if isinstance(default_value, str):
-                    if "~" in default_value:
-                        default_value = normpath(expanduser(default_value))
-                if key not in current_dict:
-                    continue  # Key is missing in the current settings
-                current_value = current_dict[key]
-
-                # If both are dictionaries, compare recursively
-                if isinstance(default_value, dict) and isinstance(current_value, dict):
-                    sub_diff = find_differences(default_value, current_value)
-                    if sub_diff:  # Only add non-empty differences
-                        differences[key] = sub_diff
-                elif default_value != current_value:  # Value differs
-                    differences[key] = current_value
-
-            # Add keys that are in current_dict but not in default_dict
-            for key in current_dict:
-                if key not in default_dict:
-                    differences[key] = current_value
-
-            return differences
-
         # load default settings
         default_config_path = Path(__file__).parent / "default_matr1x.toml"
         with open(default_config_path, "rb") as f:
             default_settings = tomllib.load(f)
         # Dictionary to store new TOML data
-        user_config = find_differences(default_settings, config_dict)
+        user_config = _find_differences(default_settings, config_dict)
 
         user_config_path = Path(expanduser("~/.matr1x.toml"))
         if user_config:

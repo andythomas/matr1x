@@ -902,26 +902,25 @@ Please investigate the error and eventually restart matrix-preview""",
 
     def handle_error(self, ret):
         """Handle a possible dimension error of the reload_data function."""
-        if ret < 0:
-            if ret == -3:
-                self.raise_error("no data selected")
-            elif ret == -2:
-                self.raise_error("data has too high dimension for 1d slicing")
-            elif ret == -1:
-                self.raise_error("data axis cannot be reshaped, lengths not multiples")
-            elif ret == -4:
-                self.raise_error("data shapes complicated, do not know what to do")
-            elif ret == -5:
-                self.raise_error("data has too low or too high dimension for 2d plot")
-            elif ret == -6:
-                self.raise_error("data has too high dimension for 2d slicing")
-            elif ret == -7:
-                self.raise_error("data in x does not have correct dimension")
-            elif ret == -8:
-                self.raise_error("data in y does not have correct dimension")
-            elif ret == -9:
-                self.raise_error("data array with zero length dimension is present")
-        elif self.error is True:
+        if ret == -1:
+            self.raise_error("data axis cannot be reshaped, lengths not multiples")
+        elif ret == -2:
+            self.raise_error("data has too high dimension for 1d slicing")
+        elif ret == -3:
+            self.raise_error("no data selected")
+        elif ret == -4:
+            self.raise_error("data shapes complicated, do not know what to do")
+        elif ret == -5:
+            self.raise_error("data has too low or too high dimension for 2d plot")
+        elif ret == -6:
+            self.raise_error("data has too high dimension for 2d slicing")
+        elif ret == -7:
+            self.raise_error("data in x does not have correct dimension")
+        elif ret == -8:
+            self.raise_error("data in y does not have correct dimension")
+        elif ret == -9:
+            self.raise_error("data array with zero length dimension is present")
+        if ret > 0 and self.error is True:
             self.error = False
             self.w_status.setVisible(False)
 
@@ -1069,32 +1068,31 @@ Please investigate the error and eventually restart matrix-preview""",
             # set up axis labels and units according to index
             # only have y data, so make x array index
             dim = len(self.shapes[indexY])
-            if dim < 3:
-                # 1D or 2D data can be plotted without second data set
-                # against column index
-                yname = self.names[indexY]
-                if 2 == dim:
-                    # 2D data can be transposed
-                    self.w_transpose.setVisible(True)
-                if self.w_transpose.isChecked() is True and 2 == dim:
-                    y["data"] = self.data[yname].T
-                else:
-                    y["data"] = self.data[yname]
-                y["shape"] = y["data"].shape
-                x = dict(
-                    label="array index",
-                    unit="",
-                    dim=1,
-                    data=np.arange(y["shape"][0]),
-                    desig=0,
-                    shape=(y["shape"][0],),
-                )
-                y["label"] = yname
-                y["desig"] = indexY + 1
-                y["unit"] = self.units[indexY]
-                y["dim"] = dim
-            else:
+            if dim >= 3:
                 return -2
+            # 1D or 2D data can be plotted without second data set
+            # against column index
+            yname = self.names[indexY]
+            if 2 == dim:
+                # 2D data can be transposed
+                self.w_transpose.setVisible(True)
+            if self.w_transpose.isChecked() is True and 2 == dim:
+                y["data"] = self.data[yname].T
+            else:
+                y["data"] = self.data[yname]
+            y["shape"] = y["data"].shape
+            x = dict(
+                label="array index",
+                unit="",
+                dim=1,
+                data=np.arange(y["shape"][0]),
+                desig=0,
+                shape=(y["shape"][0],),
+            )
+            y["label"] = yname
+            y["desig"] = indexY + 1
+            y["unit"] = self.units[indexY]
+            y["dim"] = dim
         else:
             # both axes are define, set up x and y dictionary
             yname = self.names[indexY]

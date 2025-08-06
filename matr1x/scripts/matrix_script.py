@@ -1066,74 +1066,73 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
 
         Returns -1 if a syntax error was found
         """
-        if self.text().strip() != "" and len(self.text().strip().splitlines()) > 0:
-            # the second check is required to no crash the len_last
-
-            # remove potential annotations from previous linting run
-            self.clearAnnotations()
-            ret_err = 0
-            last_line = len(self.text().splitlines()) - 1
-            len_last = len(self.text().splitlines()[-1])
-            # remove potential indicators from previous linting run
-            for i in range(2):
-                self.clearIndicatorRange(0, 0, last_line, len_last, i)
-            # add initial definitions that are passed to the script
-            # externally to avoid linter errors, make sure not to add an
-            # additional line here
-            script = "_interrupt=lambda x, s:x;_print=lambda x:x;"
-            script += "_input=lambda x:x;_report_line=lambda x:x;"
-            script += "_report_path=lambda x:x; _status='';"
-            script += "_meta_data='';_scriptname='';_script='';"
-            script += generate_script("", self.text())
-            # reimplement the pyflakes.api.check function
-            scriptname = "sc"
-            try:
-                tree = ast.parse(script, filename=scriptname)
-            except SyntaxError as e:
-                self.reporter.syntaxError(scriptname, e.args[0], e.lineno, e.offset, e.text)
-                print("Linter found a syntax error.")
-                return -1
-            except Exception as e:
-                self.reporter.syntaxError(
-                    scriptname,
-                    "Problem decoding source",
-                    SCRIPT_OFFSET,
-                    0,
-                    "Error during linting.",
-                )
-                print(f"Linter found the following error:\n{e}.")
-                return -1
-            checker = Matr1xFunctionChecker(self, *self.parent.get_settables())
-            checker.visit(tree)
-            if checker.errors > 0:
-                print_str = f"Linter found {checker.errors} value error(s) "
+        # the second check is required to no crash the len_last
+        if self.text().strip() == "" or len(self.text().strip().splitlines()) <= 0:
+            print("Nothing to lint")
+            return 0
+        # remove potential annotations from previous linting run
+        self.clearAnnotations()
+        ret_err = 0
+        last_line = len(self.text().splitlines()) - 1
+        len_last = len(self.text().splitlines()[-1])
+        # remove potential indicators from previous linting run
+        for i in range(2):
+            self.clearIndicatorRange(0, 0, last_line, len_last, i)
+        # add initial definitions that are passed to the script
+        # externally to avoid linter errors, make sure not to add an
+        # additional line here
+        script = "_interrupt=lambda x, s:x;_print=lambda x:x;"
+        script += "_input=lambda x:x;_report_line=lambda x:x;"
+        script += "_report_path=lambda x:x; _status='';"
+        script += "_meta_data='';_scriptname='';_script='';"
+        script += generate_script("", self.text())
+        # reimplement the pyflakes.api.check function
+        scriptname = "sc"
+        try:
+            tree = ast.parse(script, filename=scriptname)
+        except SyntaxError as e:
+            self.reporter.syntaxError(scriptname, e.args[0], e.lineno, e.offset, e.text)
+            print("Linter found a syntax error.")
+            return -1
+        except Exception as e:
+            self.reporter.syntaxError(
+                scriptname,
+                "Problem decoding source",
+                SCRIPT_OFFSET,
+                0,
+                "Error during linting.",
+            )
+            print(f"Linter found the following error:\n{e}.")
+            return -1
+        checker = Matr1xFunctionChecker(self, *self.parent.get_settables())
+        checker.visit(tree)
+        if checker.errors > 0:
+            print_str = f"Linter found {checker.errors} value error(s) "
+            ret_err = -1
+        else:
+            print_str = "Linter found no value error "
+        w = pyflakes.checker.Checker(tree, filename=scriptname)
+        w.messages.sort(key=lambda m: m.lineno)
+        n_err = 0
+        for warning in w.messages:
+            self.reporter.flake(warning)
+            if warning.__class__.__name__ in LINTER_ERRORS:
                 ret_err = -1
-            else:
-                print_str = "Linter found no value error "
-            w = pyflakes.checker.Checker(tree, filename=scriptname)
-            w.messages.sort(key=lambda m: m.lineno)
-            n_err = 0
-            for warning in w.messages:
-                self.reporter.flake(warning)
-                if warning.__class__.__name__ in LINTER_ERRORS:
-                    ret_err = -1
-                    n_err += 1
-            n_msg = len(w.messages)
-            n_warn = n_msg - n_err
-            print_str += "and "
-            if n_msg == 0:
-                print_str += "no syntax errors."
-                print(print_str)
-            else:
-                if n_err > 0:
-                    print_str += f"{n_err} error{'s' if n_err > 1 else ''}"
-                    print_str += " and " if n_warn > 0 else "."
-                if n_warn > 0:
-                    print_str += f"{n_warn} warning{'s' if n_warn > 1 else ''}."
-                print(print_str)
+                n_err += 1
+        n_msg = len(w.messages)
+        n_warn = n_msg - n_err
+        print_str += "and "
+        if n_msg == 0:
+            print_str += "no syntax errors."
+            print(print_str)
             return ret_err
-        print("Nothing to lint")
-        return 0
+        if n_err > 0:
+            print_str += f"{n_err} error{'s' if n_err > 1 else ''}"
+            print_str += " and " if n_warn > 0 else "."
+        if n_warn > 0:
+            print_str += f"{n_warn} warning{'s' if n_warn > 1 else ''}."
+        print(print_str)
+        return ret_err
 
     def handle_linter(self, line, col, message, message_args, style):
         """Call back function that is passed to the reporter of the linter."""

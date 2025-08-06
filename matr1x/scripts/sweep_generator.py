@@ -770,8 +770,7 @@ class MainWindow(QMainWindow):
                 # otherwise, set empty list
                 self.sweep_params.append([])
         self.populate_layout()
-        if not self.populated:
-            self.populated = True
+        self.populated = True
 
     def get_custom_widget(self, name: str, column: int = 0) -> QWidget:
         """
@@ -1401,19 +1400,17 @@ class MainWindow(QMainWindow):
         else:
             (self.sweep_params, self.loop_over, self.up_down, self.repeat) = params.values()
             functions = None
-        if functions:
-            for function in functions:
-                if function != "None":
-                    warning_text = (
-                        "This file uses the removed 'function' functionality."
-                        "Please use matrix-script. File did not load!"
-                    )
-                    QMessageBox.warning(
-                        self,
-                        "Open file error.",
-                        warning_text,
-                    )
-                    return
+        if functions and any(function != "None" for function in functions):
+            warning_text = (
+                "This file uses the removed 'function' functionality."
+                "Please use matrix-script. File did not load!"
+            )
+            QMessageBox.warning(
+                self,
+                "Open file error.",
+                warning_text,
+            )
+            return
         # initialize layout with values specified in file
         for col in range(self.nParmsUsed):
             self.grid_widgets[col]["loopover"].setCurrentIndex(self.loop_over[col] + 1)

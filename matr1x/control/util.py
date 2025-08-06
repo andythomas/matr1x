@@ -648,11 +648,10 @@ class var(QObject):
             try:
                 if isinstance(self.widgets[2], (QLineEdit, QLabel)):
                     self.widgets[2].setText(str(self.value))
-                elif isinstance(self.widgets[2], QComboBox):
-                    if self.variableType is int:
-                        self.widgets[2].setCurrentIndex(self.value)
-                    if self.variableType is str:
-                        self.widgets[2].setCurrentText(self.value)
+                elif isinstance(self.widgets[2], QComboBox) and self.variableType is int:
+                    self.widgets[2].setCurrentIndex(self.value)
+                elif isinstance(self.widgets[2], QComboBox) and self.variableType is str:
+                    self.widgets[2].setCurrentText(self.value)
                 elif isinstance(self.widgets[2], QCheckBox):
                     self.widgets[2].setChecked(bool(self.value))
                 elif isinstance(self.widgets[2], QSpinBox):
@@ -1441,75 +1440,76 @@ def sendNotificationEmail(
      list of file names of things to attach to the email.
     """
     # a check for valid email adresses should be added here!
-    if address != "":
-        msg = MIMEMultipart()
-        msg["To"] = address
-        msg["Subject"] = subject
-        mimetxt = MIMEText(msgtext, "html")
-        msg.attach(mimetxt)
-        # add attachments (code adapted from
-        # https://docs.python.org/3.4/library/email-examples.html)
-        for fname in attachments:
-            if not os.path.isfile(fname):
-                continue
-            # Guess the content type based on the file's extension.  Encoding
-            # will be ignored, although we should check for simple things like
-            # gzip'd or compressed files.
-            ctype, encoding = mimetypes.guess_type(fname)
-            if ctype is None or encoding is not None:
-                # No guess could be made, or the file is encoded (compressed),
-                # so use a generic bag-of-bits type.
-                ctype = "application/octet-stream"
-            maintype, subtype = ctype.split("/", 1)
-            if maintype == "text":
-                with open(fname) as fp:
-                    # Note: we should handle calculating the charset
-                    att = MIMEText(fp.read(), _subtype=subtype)
-            elif maintype == "image":
-                with open(fname, "rb") as fp:
-                    att = MIMEImage(fp.read(), _subtype=subtype)
-                att.add_header("Content-ID", "<{}>".format(fname))
-            elif maintype == "audio":
-                with open(fname, "rb") as fp:
-                    att = MIMEAudio(fp.read(), _subtype=subtype)
-            else:
-                with open(fname, "rb") as fp:
-                    att = MIMEBase(maintype, subtype)
-                    att.set_payload(fp.read())
-                # Encode the payload using Base64
-                encoders.encode_base64(msg)
-            # Set the filename parameter
-            att.add_header("Content-Disposition", "attachment", filename=fname)
-            msg.attach(att)
-
-        # read email config
-        if "email" in config["matr1x"]:
-            conf = config["matr1x"]["email"]
-            (smtp_srv, smtp_user, frommail, passwd) = [
-                conf.get(field, None)
-                for field in ("smtp_server", "smtp_user", "fromemail", "password")
-            ]
-            port = conf.get("smtp_port", 465)
+    if address == "":
+        return
+    msg = MIMEMultipart()
+    msg["To"] = address
+    msg["Subject"] = subject
+    mimetxt = MIMEText(msgtext, "html")
+    msg.attach(mimetxt)
+    # add attachments (code adapted from
+    # https://docs.python.org/3.4/library/email-examples.html)
+    for fname in attachments:
+        if not os.path.isfile(fname):
+            continue
+        # Guess the content type based on the file's extension.  Encoding
+        # will be ignored, although we should check for simple things like
+        # gzip'd or compressed files.
+        ctype, encoding = mimetypes.guess_type(fname)
+        if ctype is None or encoding is not None:
+            # No guess could be made, or the file is encoded (compressed),
+            # so use a generic bag-of-bits type.
+            ctype = "application/octet-stream"
+        maintype, subtype = ctype.split("/", 1)
+        if maintype == "text":
+            with open(fname) as fp:
+                # Note: we should handle calculating the charset
+                att = MIMEText(fp.read(), _subtype=subtype)
+        elif maintype == "image":
+            with open(fname, "rb") as fp:
+                att = MIMEImage(fp.read(), _subtype=subtype)
+            att.add_header("Content-ID", "<{}>".format(fname))
+        elif maintype == "audio":
+            with open(fname, "rb") as fp:
+                att = MIMEAudio(fp.read(), _subtype=subtype)
         else:
-            (smtp_srv, smtp_user, frommail, passwd) = (None,) * 4
-            port = 465
-        context = ssl.create_default_context()
+            with open(fname, "rb") as fp:
+                att = MIMEBase(maintype, subtype)
+                att.set_payload(fp.read())
+            # Encode the payload using Base64
+            encoders.encode_base64(msg)
+        # Set the filename parameter
+        att.add_header("Content-Disposition", "attachment", filename=fname)
+        msg.attach(att)
 
-        try:
-            if all(var is not None for var in (smtp_srv, smtp_user, frommail, passwd)):
-                with smtplib.SMTP_SSL(smtp_srv, port, context=context) as server:
-                    server.login(smtp_user, passwd)
-                    server.send_message(msg, from_addr=frommail, to_addrs=address)
-            elif os.name == "posix":
-                p = Popen(["sendmail", "-t"], stdin=PIPE)
-                p.communicate(msg.as_bytes())
-                p.wait()
-                logger = logging.getLogger(__name__)
-                logger.info("notification email {} sent to {}".format(msgtext, address))
-            else:
-                print("no email configuration found; see documentation on how to set it up")
-        except Exception as e:
-            print("ignoring error during sending email: {}".format(e))
+    # read email config
+    if "email" in config["matr1x"]:
+        conf = config["matr1x"]["email"]
+        (smtp_srv, smtp_user, frommail, passwd) = [
+            conf.get(field, None)
+            for field in ("smtp_server", "smtp_user", "fromemail", "password")
+        ]
+        port = conf.get("smtp_port", 465)
+    else:
+        (smtp_srv, smtp_user, frommail, passwd) = (None,) * 4
+        port = 465
+    context = ssl.create_default_context()
+
+    try:
+        if all(var is not None for var in (smtp_srv, smtp_user, frommail, passwd)):
+            with smtplib.SMTP_SSL(smtp_srv, port, context=context) as server:
+                server.login(smtp_user, passwd)
+                server.send_message(msg, from_addr=frommail, to_addrs=address)
+        elif os.name == "posix":
+            p = Popen(["sendmail", "-t"], stdin=PIPE)
+            p.communicate(msg.as_bytes())
+            p.wait()
+            logger = logging.getLogger(__name__)
+            logger.info("notification email {} sent to {}".format(msgtext, address))
+        else:
+            print("no email configuration found; see documentation on how to set it up")
+    except Exception as e:
+        print("ignoring error during sending email: {}".format(e))
 
 
 class SelectLakeshoreInput(QDialog):
