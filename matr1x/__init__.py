@@ -63,7 +63,7 @@ def load_config(optional_config_path: Optional[Union[str, Path]] = None):
     overriding settings from earlier ones:
     1. Default configuration
     2. User configuration (~/.matr1x.toml)
-    3. Local configuration (./matrix.toml)
+    3. Local configuration (./matr1x.toml)
     4. Optional configuration (if provided e.g. in GUI)
 
     Parameters
@@ -86,7 +86,7 @@ def load_config(optional_config_path: Optional[Union[str, Path]] = None):
             config = merge_dicts(config, user_config)
 
     # Override with local configuration if available
-    local_config_path = Path("./matrix.toml")
+    local_config_path = Path("./matr1x.toml")
     if local_config_path.exists():
         with open(local_config_path, "rb") as f:
             local_config = tomllib.load(f)
