@@ -68,6 +68,7 @@ from matr1x.gui_util import (
     SystemListWidget,
     create_tray_notification,
     get_application_instance,
+    open_matrix_toml,
     save_messagebox,
     validator,
 )
@@ -431,84 +432,6 @@ class MainWindow(QMainWindow):
     def init_ui(self) -> None:
         """Generate the main GUI."""
         self.setWindowTitle("Sweep Generator")
-        # About
-        self.about_action = QAction("About", self)
-        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
-        self.about_action.triggered.connect(self.info_box)
-        # New
-        self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
-        self.new_file_action.triggered.connect(self.new_file)
-        self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
-        self.new_file_action.setEnabled(False)
-        # Open
-        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
-        self.load_action.triggered.connect(self.gui_from_sweep)
-        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        # Add System
-        self.add_system_action = QAction(MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self)
-        self.add_system_action.triggered.connect(self.add_system)
-        # Remove System
-        self.remove_system_action = QAction(
-            MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
-        )
-        self.remove_system_action.setEnabled(False)
-        self.remove_system_action.triggered.connect(self.delete_selected_system)
-        # System list
-        self.systemList = SystemListWidget(self)
-        self.systemList.orderChanged.connect(self.filename_changed)
-        self.systemList.setMinimumHeight(50)
-        self.systemList.setMaximumHeight(50)
-        # Save
-        self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
-        self.save_action.triggered.connect(self.save_file)
-        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-        self.save_action.setEnabled(False)
-        # Save As...
-        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
-        self.save_as_action.triggered.connect(lambda: self.save_file(dialog=True))
-        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        # Append
-        self.append_action = QAction(MIcon("SP_DialogSaveButton"), "Append", self)
-        self.append_action.triggered.connect(lambda: self.save_file(append=True))
-        # Append to
-        self.append_to_action = QAction(MIcon("SP_DialogSaveButton"), "Append To...", self)
-        self.append_to_action.triggered.connect(lambda: self.save_file(append=True, dialog=True))
-        # Generate Pulldown
-        self.save_button = QToolButton()
-        self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
-        self.save_button.setText("Save")
-        self.save_button.setDefaultAction(self.save_action)
-        self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        save_pulldown = QMenu(self)
-        save_pulldown.addAction(self.save_as_action)
-        save_pulldown.addAction(self.append_action)
-        save_pulldown.addAction(self.append_to_action)
-        self.save_button.setMenu(save_pulldown)
-        # Quit
-        self.quit_action = QAction("Quit", self)
-        if os.name == "nt":
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        self.quit_action.triggered.connect(self.close)
-        # Generate sweep
-        self.sweep_action = QAction(MIcon("SP_BrowserReload"), "Draft Sweep", self)
-        self.sweep_action.triggered.connect(self.print_sweep_to_preview)
-        self.sweep_action.setEnabled(False)
-        # View: Toolbar
-        self.toggle_toolbar_action = QAction("Show Toolbar", self)
-        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
-        self.toggle_toolbar_action.setCheckable(True)
-        self.toggle_toolbar_action.setChecked(True)
-        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-
-        # Preview
-        self.preview_action = QAction(
-            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
-        )
-        self.preview_action.triggered.connect(self.preview_sweep)
-        self.preview_action.setEnabled(False)
         # Start the layout
         self.grid = QGridLayout()
         self.grid.setVerticalSpacing(5)
@@ -520,7 +443,6 @@ class MainWindow(QMainWindow):
         self.main_widget = QWidget()
         self.main_widget.setLayout(main_layout)
         self.setCentralWidget(self.main_widget)
-
         # generate sweep grid labels and layout
         self.sweep_table = QTableWidget()
         self.sweep_table.setColumnCount(4)
@@ -531,7 +453,6 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.sweep_table.verticalHeader().hide()
-
         self.sweep_preview = QTableWidget()
         self.sweep_preview.setColumnCount(1)
         self.sweep_preview.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -541,16 +462,82 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(0, header.ResizeMode.Stretch)
         table_width = self.sweep_preview.viewport().width()
         self.sweep_preview.setColumnWidth(0, table_width)
-
         central_view = QHBoxLayout()
         central_view.addWidget(self.sweep_preview)
         central_view.addWidget(self.sweep_table)
-
         self.utility_layout.addLayout(central_view)
-
-        # Menu and toolbar
+        self.create_actions()
         self.create_toolbar()
         self.create_menu()
+
+    def create_actions(self) -> None:
+        """Create all QActions of this application."""
+        self.matrix_settings_action = QAction("Show matrix toml", self)
+        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.matrix_settings_action.triggered.connect(open_matrix_toml)
+        self.about_action = QAction("About", self)
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.about_action.triggered.connect(self.info_box)
+        self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
+        self.new_file_action.triggered.connect(self.new_file)
+        self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
+        self.new_file_action.setEnabled(False)
+        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action.triggered.connect(self.gui_from_sweep)
+        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.add_system_action = QAction(MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self)
+        self.add_system_action.triggered.connect(self.add_system)
+        self.remove_system_action = QAction(
+            MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
+        )
+        self.remove_system_action.setEnabled(False)
+        self.remove_system_action.triggered.connect(self.delete_selected_system)
+        self.systemList = SystemListWidget(self)
+        self.systemList.orderChanged.connect(self.filename_changed)
+        self.systemList.setMinimumHeight(50)
+        self.systemList.setMaximumHeight(50)
+        self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
+        self.save_action.triggered.connect(self.save_file)
+        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_action.setEnabled(False)
+        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
+        self.save_as_action.triggered.connect(lambda: self.save_file(dialog=True))
+        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+        self.append_action = QAction(MIcon("SP_DialogSaveButton"), "Append", self)
+        self.append_action.triggered.connect(lambda: self.save_file(append=True))
+        self.append_to_action = QAction(MIcon("SP_DialogSaveButton"), "Append To...", self)
+        self.append_to_action.triggered.connect(lambda: self.save_file(append=True, dialog=True))
+        self.save_button = QToolButton()
+        self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
+        self.save_button.setText("Save")
+        self.save_button.setDefaultAction(self.save_action)
+        self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        save_pulldown = QMenu(self)
+        save_pulldown.addAction(self.save_as_action)
+        save_pulldown.addAction(self.append_action)
+        save_pulldown.addAction(self.append_to_action)
+        self.save_button.setMenu(save_pulldown)
+        self.quit_action = QAction("Quit", self)
+        if os.name == "nt":
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
+        self.sweep_action = QAction(MIcon("SP_BrowserReload"), "Draft Sweep", self)
+        self.sweep_action.triggered.connect(self.print_sweep_to_preview)
+        self.sweep_action.setEnabled(False)
+        self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
+        self.toggle_toolbar_action.setCheckable(True)
+        self.toggle_toolbar_action.setChecked(True)
+        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
+        self.preview_action = QAction(
+            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
+        )
+        self.preview_action.triggered.connect(self.preview_sweep)
+        self.preview_action.setEnabled(False)
 
     def create_toolbar(self) -> None:
         """Create the Toolbar."""
@@ -606,6 +593,7 @@ class MainWindow(QMainWindow):
         view_menu = menu.addMenu("&View")
         assert view_menu is not None
         view_menu.addAction(self.toggle_toolbar_action)
+        view_menu.addAction(self.matrix_settings_action)
         #
         help_menu = menu.addMenu("&Help")
         assert help_menu is not None

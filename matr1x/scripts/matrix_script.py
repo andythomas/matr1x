@@ -96,6 +96,7 @@ from matr1x.gui_util import (
     detect_shortcut,
     get_application_instance,
     get_system_info,
+    open_matrix_toml,
     save_messagebox,
 )
 from matr1x.scripts import matrix_preview
@@ -2371,6 +2372,10 @@ class MainWindow(QMainWindow):
 
     def create_actions(self) -> None:
         """Create all required actions and toolbar buttons."""
+        self.matrix_settings_action = QAction("Show matrix toml", self)
+        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.matrix_settings_action.triggered.connect(open_matrix_toml)
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
@@ -2382,10 +2387,8 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
         self.config_editor.setFloating(True)
         self.config_editor.close()
-        self.config_action = QAction(MIcon("CHAR_≡"), "Preferences", self)
-        self.config_action.setToolTip("Show the application preferences/ configuration.")
-        self.config_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.config_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.config_action = QAction(MIcon("CHAR_≡"), "Device config", self)
+        self.config_action.setToolTip("Show the devices preferences/ configuration.")
         self.config_action.setCheckable(True)
         self.config_action.toggled.connect(self.toggle_preferences)
         self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
@@ -2601,6 +2604,7 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.toggle_metadata_action)
+        view_menu.addAction(self.matrix_settings_action)
         view_menu.addAction(self.config_action)
         #
         help_menu = menu.addMenu("&Help")

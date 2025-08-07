@@ -47,7 +47,13 @@ import matr1x
 from matr1x import gui_util
 from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
-from matr1x.gui_util import AboutBox, MApplication, MIcon, get_application_instance
+from matr1x.gui_util import (
+    AboutBox,
+    MApplication,
+    MIcon,
+    get_application_instance,
+    open_matrix_toml,
+)
 from matr1x.util import set_correct_mac_appname
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -319,40 +325,46 @@ class SweepPreview(QMainWindow):
         """Initialize basic GUI that works without chosen filename."""
         self.setWindowTitle("Matrix Preview")
         self.setWindowIcon(MIcon("matr1x-matrix-preview.png"))
-
         pyqtgraph.setConfigOption("background", "w")
         pyqtgraph.setConfigOption("foreground", "k")
-
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.grid = QGridLayout()
         self.widget = QWidget()
+        self.w_status = QLabel("")
+        self.w_status.setStyleSheet("QLabel { color : red; }")
+        self.grid.addWidget(self.w_status, 6, 0, 1, -1)
+        self.widget.setLayout(self.grid)
+        self.setCentralWidget(self.widget)
+        # Enable dragging and dropping onto the widget
+        self.setAcceptDrops(True)
+        self.create_actions()
+        self.create_toolbar()
+        self.create_menu()
+        self.ui_initialized = False
+        self.show()
 
-        # Open
+    def create_actions(self) -> None:
+        """Create all QActions of this application."""
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.load_button_pressed)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        # Previous
         self.previous_action = QAction(MIcon("SP_ArrowLeft"), "Previous", self)
         cmd_left_shortcut = QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Left)
         self.previous_action.setShortcut(cmd_left_shortcut)
         self.previous_action.setEnabled(False)
         self.previous_action.triggered.connect(self.previous_file)
-        # Next
         self.next_action = QAction(MIcon("SP_ArrowRight"), "Next", self)
         cmd_right_shortcut = QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Right)
         self.next_action.setShortcut(cmd_right_shortcut)
         self.next_action.setEnabled(False)
         self.next_action.triggered.connect(self.next_file)
-        # Export plot
         self.export_png_action = QAction(MIcon("SP_DialogSaveButton"), "Save png", self)
         self.export_png_action.setEnabled(False)
         self.export_png_action.setShortcut(QKeySequence.StandardKey.Save)
         self.export_png_action.triggered.connect(self.save_plot)
-        # Save data as as text file
         self.export_data_action = QAction(MIcon("SP_FileDialogDetailedView"), "Save txt", self)
         self.export_data_action.setEnabled(False)
         self.export_data_action.triggered.connect(self.save_data)
-        # Update
         self.auto_update_action = QAction(MIcon("SP_BrowserReload"), "Auto Update", self)
         self.auto_update_action.setEnabled(False)
         self.auto_update_action.setCheckable(True)
@@ -360,49 +372,32 @@ class SweepPreview(QMainWindow):
         self.update_action = QAction(MIcon("CHAR_U", QColor("RoyalBlue")), "Update", self)
         self.update_action.setEnabled(False)
         self.update_action.triggered.connect(lambda: self.conditional_fetch_data(True))
-        # Quit
         self.quit_action = QAction("Quit", self)
         if os.name == "nt":
             self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
         else:
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
-        # File List
         self.w_file = QComboBox()
         self.w_file.setEnabled(False)
         self.w_file.setMinimumContentsLength(50)
-        # About
+        self.matrix_settings_action = QAction("Show matrix toml", self)
+        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.matrix_settings_action.triggered.connect(open_matrix_toml)
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
-        # View: Toolbar
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
         self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        # Meta Data
         self.meta_action = QAction(MIcon("SP_FileDialogListView"), "Metadata", self)
         self.meta_action.setShortcut(QKeySequence("Ctrl+2"))
         self.meta_action.setEnabled(False)
         self.meta_action.setCheckable(True)
         self.meta_action.triggered.connect(self.toggle_meta)
-
-        self.w_status = QLabel("")
-        self.w_status.setStyleSheet("QLabel { color : red; }")
-
-        self.grid.addWidget(self.w_status, 6, 0, 1, -1)
-
-        self.widget.setLayout(self.grid)
-        self.setCentralWidget(self.widget)
-
-        # Enable dragging and dropping onto the widget
-        self.setAcceptDrops(True)
-        self.create_toolbar()
-        self.create_menu()
-
-        self.ui_initialized = False
-        self.show()
 
     def create_toolbar(self) -> None:
         """Create the toolbar."""
@@ -464,6 +459,7 @@ class SweepPreview(QMainWindow):
         assert view_menu is not None
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.meta_action)
+        view_menu.addAction(self.matrix_settings_action)
         #
         help_menu = menu.addMenu("&Help")
         assert help_menu is not None

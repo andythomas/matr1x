@@ -57,6 +57,7 @@ from matr1x.gui_util import (
     detect_shortcut,
     get_application_instance,
     get_system_info,
+    open_matrix_toml,
 )
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
@@ -498,105 +499,14 @@ class MainWindow(QMainWindow):
         """Initialize the basic GUI for the graphical version of matrix."""
         self.setWindowTitle("Matrix GUI")
         self.setWindowIcon(MIcon("matr1x-matrix-gui.png"))
-        # About
-        self.about_action = QAction("About", self)
-        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
-        self.about_action.triggered.connect(self.info_box)
-        # Preferences
-        self.config_editor = ConfigEditWidget()
-        self.config_editor.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
-        self.config_editor.setFloating(True)
-        self.config_editor.close()
-        self.config_action = QAction(MIcon("CHAR_≡"), "Preferences", self)
-        self.config_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.config_action.setShortcut(QKeySequence.StandardKey.Preferences)
-        self.config_action.setCheckable(True)
-        self.config_action.toggled.connect(self.toggle_preferences)
-        self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
-        # File: Load a recipe
-        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
-        self.load_action.triggered.connect(self.showInputDialog)
-        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        # File: Open sweep generator
-        self.sweep_action = QAction(
-            MIcon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
-            "Generator",
-            self,
-        )
-        self.sweep_action.triggered.connect(self.startSweepGenerator)
-        # File: Autosave
-        self.auto_filename_action = QAction(MIcon("SP_DriveHDIcon"), "Auto-filename", self)
-        self.auto_filename_action.setCheckable(True)
-        self.auto_filename_action.toggled.connect(self.updateAutoGenFilename)
-        # File: Save as...
-        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
-        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        self.save_as_action.triggered.connect(self.showOutputDialog)
-        self.outputEdit = QLineEdit()
-        # Quit
-        self.quit_action = QAction("Quit", self)
-        if os.name == "nt":
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        self.quit_action.triggered.connect(self.close)
-        # Control: Queue
-        self.queue_action = QAction(MIcon("CHAR_+"), "Queue", self)
-        self.queue_action.triggered.connect(self.queueMeasurement)
-        self.queue_action.setEnabled(False)
-        # Control: Start
-        self.start_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
-        self.start_action.triggered.connect(self.runMatrix)
-        self.start_action.setEnabled(False)
-
-        self.w_dockable_metadata = QDockWidget("Metadata", self)
-        self.w_meta_view = MetaDataDialog()
-        self.w_dockable_metadata.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
-        )
-        self.w_dockable_metadata.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-        self.w_dockable_metadata.setWidget(self.w_meta_view)
-        # View: Toolbar
-        self.toggle_toolbar_action = QAction("Show Toolbar", self)
-        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
-        self.toggle_toolbar_action.setCheckable(True)
-        self.toggle_toolbar_action.setChecked(True)
-        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-
         self.measurements_container = QWidget()
         inner_measurement_layout = QHBoxLayout()
         inner_measurement_layout.setContentsMargins(0, 0, 0, 0)
-
         self.meas_list = QueueListWidget()
-
-        self.remove_button = QToolButton()
-        self.remove_button.setStyleSheet(
-            """
-                    QToolButton {
-                        border: none;
-                        background: none;
-                    }
-                """
-        )
-        self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.remove_action = QAction(MIcon("CHAR_-"), "Remove", self)
-        self.remove_action.triggered.connect(self.removeMeasurement)
-        self.remove_button.setDefaultAction(self.remove_action)
-
+        self.create_actions()
         inner_measurement_layout.addWidget(self.meas_list)
         inner_measurement_layout.addWidget(self.remove_button)
-
         self.measurements_container.setLayout(inner_measurement_layout)
-
-        self.preview_action = QAction(
-            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
-        )
-        self.preview_action.triggered.connect(self.openPreview)
-
         self.create_menu()
         self.create_toolbar()
         central_layout = QVBoxLayout()
@@ -622,8 +532,86 @@ class MainWindow(QMainWindow):
         self.widget = QWidget()
         self.widget.setLayout(central_layout)
         self.setCentralWidget(self.widget)
-
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_dockable_metadata)
+
+    def create_actions(self) -> None:
+        """Create all QActions of this application."""
+        self.remove_button = QToolButton()
+        self.remove_button.setStyleSheet(
+            """
+                    QToolButton {
+                        border: none;
+                        background: none;
+                    }
+                """
+        )
+        self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.remove_action = QAction(MIcon("CHAR_-"), "Remove", self)
+        self.remove_action.triggered.connect(self.removeMeasurement)
+        self.remove_button.setDefaultAction(self.remove_action)
+        self.preview_action = QAction(
+            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
+        )
+        self.preview_action.triggered.connect(self.openPreview)
+        self.matrix_settings_action = QAction("Show matrix toml", self)
+        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.matrix_settings_action.triggered.connect(open_matrix_toml)
+        self.about_action = QAction("About", self)
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.about_action.triggered.connect(self.info_box)
+        self.config_editor = ConfigEditWidget()
+        self.config_editor.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
+        self.config_editor.setFloating(True)
+        self.config_editor.close()
+        self.config_action = QAction(MIcon("CHAR_≡"), "Device config", self)
+        self.config_action.setCheckable(True)
+        self.config_action.toggled.connect(self.toggle_preferences)
+        self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
+        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action.triggered.connect(self.showInputDialog)
+        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.sweep_action = QAction(
+            MIcon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
+            "Generator",
+            self,
+        )
+        self.sweep_action.triggered.connect(self.startSweepGenerator)
+        self.auto_filename_action = QAction(MIcon("SP_DriveHDIcon"), "Auto-filename", self)
+        self.auto_filename_action.setCheckable(True)
+        self.auto_filename_action.toggled.connect(self.updateAutoGenFilename)
+        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
+        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+        self.save_as_action.triggered.connect(self.showOutputDialog)
+        self.outputEdit = QLineEdit()
+        self.quit_action = QAction("Quit", self)
+        if os.name == "nt":
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
+        self.queue_action = QAction(MIcon("CHAR_+"), "Queue", self)
+        self.queue_action.triggered.connect(self.queueMeasurement)
+        self.queue_action.setEnabled(False)
+        self.start_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
+        self.start_action.triggered.connect(self.runMatrix)
+        self.start_action.setEnabled(False)
+        self.w_dockable_metadata = QDockWidget("Metadata", self)
+        self.w_meta_view = MetaDataDialog()
+        self.w_dockable_metadata.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.w_dockable_metadata.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.w_dockable_metadata.setWidget(self.w_meta_view)
+        self.toggle_toolbar_action = QAction("Show Toolbar", self)
+        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
+        self.toggle_toolbar_action.setCheckable(True)
+        self.toggle_toolbar_action.setChecked(True)
+        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
 
     def create_toolbar(self) -> None:
         """Create the Toolbar."""
@@ -681,6 +669,7 @@ class MainWindow(QMainWindow):
         view_menu = menu.addMenu("&View")
         assert view_menu is not None
         view_menu.addAction(self.toggle_toolbar_action)
+        view_menu.addAction(self.matrix_settings_action)
         view_menu.addAction(self.config_action)
         #
         help_menu = menu.addMenu("&Help")

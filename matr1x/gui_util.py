@@ -35,6 +35,7 @@ import tempfile
 import time
 from importlib.metadata import version as package_version
 from os.path import dirname, expanduser, join, normpath
+from pathlib import Path
 from types import TracebackType
 from typing import Any, Dict, Optional, Sequence, TextIO, Type, Union
 
@@ -1172,7 +1173,7 @@ class ConfigEditWidget(MetaViewerWidget):
     """
 
     def __init__(self):
-        super().__init__({}, heading="Preferences", editable=True)
+        super().__init__({}, heading="Device config", editable=True)
         self.system_file = None
         self.system_info = {}
         self.full_system_list = []
@@ -3882,3 +3883,21 @@ def show_json_parse_error(output_str):
     if output_str:
         error_msg += f"\nOutput received: {output_str[:200]}..."
     print(error_msg)
+
+
+def open_matrix_toml() -> None:
+    """Open a file browser with the matrix toml selected."""
+    toml_home = Path.home() / ".matr1x.toml"
+    if not toml_home.exists():
+        QMessageBox.warning(
+            None,
+            "Toml file does not exist!",
+            f"Please create a '.matr1x.toml' file at {Path.home()}.",
+        )
+        return
+    if os.name == "nt":
+        subprocess.run(["explorer", f"/select,{toml_home.resolve(strict=False)}"])
+    elif sys.platform == "darwin":
+        subprocess.run(["open", "-R", toml_home])
+    else:
+        subprocess.run(["xdg-open", toml_home])

@@ -60,7 +60,7 @@ from PyQt6.QtWidgets import (
 
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
-from matr1x.gui_util import EmittingStream, MApplication, MIcon
+from matr1x.gui_util import EmittingStream, MApplication, MIcon, open_matrix_toml
 from matr1x.util import Get
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -697,6 +697,11 @@ class ControlWindow(QMainWindow):
         self.toggle_toolbar_view(initial_toolbar_view)
         toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
 
+        self.matrix_settings_action = QAction("Show matrix toml", self)
+        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
+        self.matrix_settings_action.triggered.connect(open_matrix_toml)
+
         # Build the rest of the menu
         self.enable_menu.addSeparator()
         self.enable_menu.addAction(self.enable_all_action)
@@ -709,6 +714,7 @@ class ControlWindow(QMainWindow):
         self.view_menu.addSeparator()
         self.view_menu.addAction(toggle_toolbar_action)
         self.view_menu.addAction(toggle_activity)
+        self.view_menu.addAction(self.matrix_settings_action)
 
         self.check_enables()
         self.check_full_infos()
