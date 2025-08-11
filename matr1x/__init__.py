@@ -25,7 +25,7 @@ Key features:
 - Configuration loading from default, user, and local sources
 - Recursive dictionary merging for configuration overrides
 - Logging setup with configurable output locations
-- Definition of valid metadata keys
+- Re-export of metadata constants from the metadata module
 - Management of system directories for various matr1x modules
 
 The module also sets up important global variables and constants used throughout
@@ -43,6 +43,7 @@ from typing import Optional, Union
 
 import tomli_w
 
+from .metadata import VALID_META_KEYS
 from .util import get_package_path
 
 if sys.version_info >= (3, 11):
@@ -243,20 +244,6 @@ def reload_config(optional_config_path: Optional[Union[str, Path]] = None):
 config = load_config()
 
 datetimefmt = config["matr1x"]["datetime_format"]
-
-# define allowed dublin core meta keys
-VALID_META_KEYS = {  # valid key and item defines whether it is editable
-    "creator": True,
-    "date": False,
-    "identifier": True,
-    "relation": True,
-    "description": True,
-    "source": True,
-    "type": True,
-    "publisher": True,
-    "format": False,
-    "language": False,
-}
 
 # set up logging, mostly for debugging purposes.
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This

@@ -49,8 +49,7 @@ if sys.platform == "darwin":
     from AppKit import NSApplication
     from Foundation import NSBundle
 
-# appendable meta keys:
-APP_META_KEY = ["description"]
+from .metadata import APP_META_KEY
 
 # allow error handling while using with
 
