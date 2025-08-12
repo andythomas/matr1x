@@ -66,6 +66,7 @@ from matr1x.gui_util import (
     MApplication,
     MIcon,
     SystemListWidget,
+    check_config,
     create_tray_notification,
     get_application_instance,
     open_matrix_toml,
@@ -469,6 +470,7 @@ class MainWindow(QMainWindow):
         self.create_actions()
         self.create_toolbar()
         self.create_menu()
+        check_config(matr1x.config)
 
     def create_actions(self) -> None:
         """Create all QActions of this application."""

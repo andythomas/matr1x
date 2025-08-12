@@ -58,9 +58,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from matr1x import config as matrixconfig
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
-from matr1x.gui_util import EmittingStream, MApplication, MIcon, open_matrix_toml
+from matr1x.gui_util import EmittingStream, MApplication, MIcon, check_config, open_matrix_toml
 from matr1x.util import Get
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -414,6 +415,7 @@ class ControlWindow(QMainWindow):
         self.guidictUI(layout)
         self.extra_layout(layout)
         self.statusloggingUI(layout)
+        check_config(matrixconfig)
 
     def toggle_full_info(self, checked: bool, index: int) -> None:
         """

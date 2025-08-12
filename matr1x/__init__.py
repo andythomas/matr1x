@@ -42,6 +42,9 @@ from pathlib import Path
 from typing import Optional, Union
 
 import tomli_w
+from pydantic import ValidationError
+
+from matr1x.models import MainConfig, UserlibConfig, format_validation_error
 
 from .metadata import VALID_META_KEYS
 from .util import get_package_path
@@ -241,7 +244,27 @@ def reload_config(optional_config_path: Optional[Union[str, Path]] = None):
 
 
 # load config and combine values from multiple sources
+# validate the entries
 config = load_config()
+data = dict(config)
+msg = ""
+for key in list(data.keys()):  # validate everything but matr1x
+    if key != "matr1x":
+        try:
+            UserlibConfig(**data.pop(key))
+        except (ValidationError, TypeError, ValueError) as e:
+            msg = format_validation_error(e, key + ".")
+try:
+    MainConfig(**config)  # validate matr1x
+except (ValidationError, TypeError, ValueError) as e:
+    msg += format_validation_error(e)
+if msg != "":
+    msg = (
+        f"Please check your configuration file ({Path.home() / '.matr1x.toml'})! "
+        "Some settings will not work as intended. "
+        "The following error(s) occured:\n\n"
+    ) + msg
+print(msg)
 
 datetimefmt = config["matr1x"]["datetime_format"]
 

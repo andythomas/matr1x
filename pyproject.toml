@@ -18,6 +18,7 @@ classifiers = [
 dependencies = [
     "tomli ; python_version < '3.11'",               # imported in matr1x
     "tomli-w",                                       # imported in matr1x
+    "pydantic",                                      # imported in matr1x
     "h5py",                                          # imported via util
     "numpy",                                         # imported via util
     "pyobjc ; platform_system == 'Darwin'",          # imported via util

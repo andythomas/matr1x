@@ -51,6 +51,7 @@ from matr1x.gui_util import (
     AboutBox,
     MApplication,
     MIcon,
+    check_config,
     get_application_instance,
     open_matrix_toml,
 )
@@ -342,6 +343,7 @@ class SweepPreview(QMainWindow):
         self.create_menu()
         self.ui_initialized = False
         self.show()
+        check_config(matr1x.config)
 
     def create_actions(self) -> None:
         """Create all QActions of this application."""

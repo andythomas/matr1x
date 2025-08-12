@@ -54,6 +54,7 @@ from matr1x.gui_util import (
     MApplication,
     MetaDataDialog,
     MIcon,
+    check_config,
     detect_shortcut,
     get_application_instance,
     get_system_info,
@@ -533,6 +534,7 @@ class MainWindow(QMainWindow):
         self.widget.setLayout(central_layout)
         self.setCentralWidget(self.widget)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_dockable_metadata)
+        check_config(matr1x.config)
 
     def create_actions(self) -> None:
         """Create all QActions of this application."""

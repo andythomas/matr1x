@@ -93,6 +93,7 @@ from matr1x.gui_util import (
     TerminationDialog,
     TextInputDialog,
     YesNoAbortDialog,
+    check_config,
     detect_shortcut,
     get_application_instance,
     get_system_info,
@@ -2369,6 +2370,7 @@ class MainWindow(QMainWindow):
         self.update_system_commands()
         self.update_ui()
         self.update_window_title()
+        check_config(matr1x.config)
 
     def create_actions(self) -> None:
         """Create all required actions and toolbar buttons."""

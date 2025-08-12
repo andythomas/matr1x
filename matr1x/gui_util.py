@@ -42,6 +42,7 @@ from typing import Any, Dict, Optional, Sequence, TextIO, Type, Union
 import numpy as np
 import pygit2
 import pyqtgraph
+from pydantic import ValidationError
 from PyQt6.QtCore import (
     PYQT_VERSION_STR,
     QT_VERSION_STR,
@@ -102,6 +103,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from matr1x.models import MainConfig, UserlibConfig
 
 from . import (
     datetimefmt,
@@ -3857,6 +3860,66 @@ def get_system_info(systems):
     except (subprocess.TimeoutExpired, Exception) as e:
         print(f"Error getting system info: {e}")
         return {}
+
+
+def _format_validation_error(
+    e: Union[ValidationError, TypeError, ValueError], base: str = ""
+) -> str:
+    """
+    Format the error output of the toml validation in html.
+
+    Parameters
+    ----------
+    e: ValidationError or TypeError or ValueError
+        The errors with all information.
+    base: str
+        The prefix of the error location, e.g., 'ifwlib'.
+
+    Returns
+    -------
+    str
+        The html with the human readable errors.
+    """
+    html = ""
+    for err in e.errors():
+        location = base + ".".join(str(i) for i in err["loc"])
+        msg = err["msg"].replace(">", "&gt;").replace("<", "&lt;")
+        html += f"{location}: {msg}"
+        if "url" in err:
+            url = err["url"]
+            html += f' (<a href="{url}">More info</a>)'
+        html += "<br><br>"
+    return html
+
+
+def check_config(config: dict) -> None:
+    """
+    Validate the configuration tomls.
+
+    Parameters
+    ----------
+    config: dict
+        The configuration dictionary to validate.
+    """
+    html = ""
+    data = dict(config)
+    for key in list(data.keys()):  # validate everything but matr1x
+        if key != "matr1x":
+            try:
+                UserlibConfig(**data.pop(key))
+            except (ValidationError, TypeError, ValueError) as e:
+                html += _format_validation_error(e, key + ".")
+    try:
+        MainConfig(**config)  # validate matr1x
+    except (ValidationError, TypeError, ValueError) as e:
+        html += _format_validation_error(e)
+    if html != "":
+        html = (
+            f"Please check your configuration file ({Path.home() / '.matr1x.toml'})! "
+            "Some settings will not work as intended. "
+            "The following error(s) occured:<br><br>"
+        ) + html
+        QMessageBox.critical(None, "Validation error!", html)
 
 
 def extract_json_from_output(output_str):
