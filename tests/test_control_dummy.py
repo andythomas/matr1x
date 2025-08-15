@@ -121,7 +121,10 @@ def start_control_dummy():
         env=env,
     )
 
-    time.sleep(3)  # Give it time to start
+    # on a 2020 M1 Mac, this time needed to be 0.22s to reliably start
+    # the control gui. However, the runner on Github fails even at 1s
+    # from time to time -> set to 1.5s
+    time.sleep(1.5)
 
     yield  # Run the test now
 
