@@ -43,18 +43,10 @@ dependencies = [
 
 [project.optional-dependencies]
 elab = ["elabapi_python", "jinja2"] # for the electronic notebook
-standa = [
-    "PyUSMC ; platform_system == 'Windows'",
-    "libximc ; platform_system == 'Linux' or platform_system == 'Windows'",
-] # for matr1x/devices/standa/microstep
-spi = [
-    "spidev; platform_system == 'Linux' and (platform_machine == 'armv7l' or platform_machine == 'aarch64')",
-] # for matr1x/devices/waveshare/...
 ppms = [
     "MultiPyVu", # for matr1x/devices/quantumdesign/ppms,
-    "setuptools",  # fix missing setuptools of MUltiPyVu
+    "setuptools",  # fix missing setuptools of MultiPyVu
 ]
-
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
