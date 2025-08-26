@@ -25,6 +25,7 @@ import glob
 import os
 import platform
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -71,6 +72,42 @@ def clean_data_files():
     newfiles = set(files) - set(existingfiles)
     for f in newfiles:
         os.remove(f)
+
+
+def wait_for_tcp_port(
+    host: str, port: int, timeout: float = 30, poll_interval: float = 0.1
+) -> bool:
+    """
+    Wait for a TCP port to become available for connection.
+
+    Parameters
+    ----------
+    host : str
+        The hostname or IP address to check.
+    port : int
+        The port number to check.
+    timeout : float, optional
+        Maximum time to wait in seconds (default: 30).
+    poll_interval : float, optional
+        Time to wait between checks in seconds (default: 0.1).
+
+    Returns
+    -------
+    bool
+        True if port becomes available within timeout, False otherwise.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1)
+                result = sock.connect_ex((host, port))
+                if result == 0:
+                    return True
+        except (socket.gaierror, socket.timeout):
+            pass
+        time.sleep(poll_interval)
+    return False
 
 
 @pytest.fixture
@@ -121,10 +158,11 @@ def start_control_dummy():
         env=env,
     )
 
-    # on a 2020 M1 Mac, this time needed to be 0.22s to reliably start
-    # the control gui. However, the runner on Github fails even at 1.5s
-    # from time to time
-    time.sleep(2)
+    # Wait for the control GUI to start and be ready to accept connections
+
+    if not wait_for_tcp_port("localhost", 8897, timeout=30):
+        gui_proc.kill()
+        raise RuntimeError("Control-dummy GUI failed to start within 30 seconds")
 
     yield  # Run the test now
 
