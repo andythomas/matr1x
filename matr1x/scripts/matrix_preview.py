@@ -19,9 +19,8 @@ import logging
 import os
 import signal
 import sys
-import threading
 import time
-from os.path import abspath, getmtime, getsize
+from pathlib import Path
 
 import numpy as np
 import pyqtgraph
@@ -122,7 +121,7 @@ class SweepPreview(QMainWindow):
 
     def __init__(self, parent=None, filename=""):
         super().__init__(parent)
-        self.filename = ""
+        self.filename: Path = ""
         self.closing_allowed = True
         self.w_meta_view = None
         # initialize basic GUI
@@ -137,14 +136,10 @@ class SweepPreview(QMainWindow):
         # initialize filename if available
         if filename:
             self.open_file(filename)
-        else:
-            self.file_open_thread = threading.Thread(target=self._delayed_file_load_attempt)
-            logger.info("start delayed")
-            self.file_open_thread.start()
 
     def is_valid_extension(self, file_path):
         """Return True if extension is valid."""
-        return file_path.endswith(self.allowed_extensions)
+        return file_path.suffix in self.allowed_extensions
 
     def dragEnterEvent(self, a0):
         """Enable drag and drop (1)."""
@@ -185,26 +180,6 @@ class SweepPreview(QMainWindow):
             width = max(width, screen.geometry().width())
         return width
 
-    def _delayed_file_load_attempt(self):
-        """
-        Trigger opening the file open dialog.
-
-        On Linux/Windows the file open dialog opens immediately. On
-        MacOS only in case no FileOpen Event is generated in the
-        meantime.
-        """
-        if sys.platform == "darwin":
-            # the mac uses an openfile event to signal the filename
-            # a 2020 intel machine required 100ms, 300ms seems like a save
-            # margin
-            time.sleep(0.3)
-        if sys.platform == "linux":
-            # The sleep is needed to allow time to set up the GUI,
-            # otherwise the default window size determination fails
-            time.sleep(0.02)
-        if not self.filename:
-            self.openfile_dialog.emit()
-
     def eventFilter(self, a0, a1):
         """Update the file view if required."""
         if a0 == self.w_file:
@@ -222,19 +197,16 @@ class SweepPreview(QMainWindow):
         self.closing_allowed = True
         if filename:
             self.open_file(filename)
-        else:
-            if not self.filename:
-                self.w_status.setText("Please open a file")
 
     def open_file(self, filename):
         """Read the data from the file."""
         logger.info(f"opening {filename}")
-        self.filename = filename
+        self.filename = Path(filename)
         # get all files
-        self.file_dir = os.path.dirname(abspath(filename))
+        self.file_dir = Path(filename).absolute().parent
         self.setWindowTitle(f"Matrix Preview: {self.file_dir}")
         self.file_list_refresh()
-        self.file_index = self.data_files.index(os.path.basename(filename))
+        self.file_index = self.data_files.index(Path(filename).name)
         self.udthread = None
         self.lu_time = time.time()
         self.fetch_data()
@@ -246,8 +218,8 @@ class SweepPreview(QMainWindow):
 
     def file_list_refresh(self):
         """Refresh all files with the correct extension in the selected directory."""
-        files = os.listdir(self.file_dir)
-        self.data_files = [file for file in files if self.is_valid_extension(file)]
+        files = Path(self.file_dir).iterdir()
+        self.data_files = [file.name for file in files if self.is_valid_extension(file)]
         self.data_files = sorted(
             self.data_files,
             key=lambda t: os.stat(os.path.join(self.file_dir, t)).st_mtime,
@@ -257,7 +229,7 @@ class SweepPreview(QMainWindow):
         """Update the combo box that displays the file names."""
         self.file_list_refresh()
         ctext = self.w_file.currentText()
-        self.w_file.setToolTip(self.file_dir)
+        self.w_file.setToolTip(str(self.file_dir))
         self.w_file.currentIndexChanged.disconnect()
         self.w_file.clear()
         self.w_file.addItems(self.data_files)
@@ -347,6 +319,10 @@ class SweepPreview(QMainWindow):
 
     def create_actions(self) -> None:
         """Create all QActions of this application."""
+        self.new_action = QAction()
+        self.new_preview_action = QAction(MIcon("SP_FileIcon"), "New window", self)
+        self.new_preview_action.triggered.connect(lambda: SweepPreview().show())
+        self.new_preview_action.setShortcut(QKeySequence.StandardKey.New)
         self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.load_button_pressed)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
@@ -441,6 +417,8 @@ class SweepPreview(QMainWindow):
         #
         file_menu = menu.addMenu("&File")
         assert file_menu is not None
+        file_menu.addAction(self.new_preview_action)
+        file_menu.addSeparator()
         file_menu.addAction(self.load_action)
         file_menu.addAction(self.quit_action)
         file_menu.addAction(self.export_png_action)
@@ -595,8 +573,8 @@ class SweepPreview(QMainWindow):
     def get_filename_without_extension(self) -> str:
         """Return the actual filename without extension."""
         for extension in self.allowed_extensions:
-            if self.filename.endswith(extension):
-                return self.filename[: -len(extension)]
+            if self.filename.suffix == extension:
+                return self.filename.stem
         return self.filename
 
     def save_plot(self) -> None:
@@ -648,7 +626,7 @@ class SweepPreview(QMainWindow):
     def file_index_changed(self, index):
         """Update info when index changes."""
         self.file_index = index
-        self.filename = os.path.join(self.file_dir, self.data_files[self.file_index])
+        self.filename = Path(self.file_dir) / self.data_files[self.file_index]
         check = self.conditional_fetch_data(True, check=True)
         if 0 != check:
             self.column_items = [
@@ -801,11 +779,11 @@ class SweepPreview(QMainWindow):
             self.reload_data()
             self.refresh_all_plots()
             self.refresh_columns_size()
-        elif getsize(self.filename) > 300000 and time.time() - self.lu_time < 20:
+        elif self.filename.stat().st_size > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
             pass
-        elif self.lu_time < getmtime(self.filename):
+        elif self.lu_time < self.filename.stat().st_mtime:
             # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
@@ -849,7 +827,7 @@ class SweepPreview(QMainWindow):
         """Handle the data operations."""
         try:
             ret = 0
-            self.header, self.data = loadmatrix(self.filename, replace_None=True)
+            self.header, self.data = loadmatrix(str(self.filename), replace_None=True)
             names = self.header["columns"]
             units = self.header["units"]
             shapes = [self.data[col].shape for col in names]
