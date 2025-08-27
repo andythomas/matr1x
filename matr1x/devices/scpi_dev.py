@@ -179,12 +179,12 @@ def makeSCPIdevice(*cmds, system=True):
 
     def query(self, cmd):
         """
-        Query function, needs to be present to work with system.
+        Query the instrument with a command and return the response.
 
         Parameters
         ----------
         cmd : str
-            Command to query
+            Command to send to the instrument
 
         Returns
         -------
@@ -274,8 +274,8 @@ def makeSCPIdevice(*cmds, system=True):
             cmd : str
                 Command to execute
             """
-            Instrument.write(self, cmd)
-            check_set_errors(self)
+            self.write(cmd)
+            self.check_set_errors()
 
         return parameterless
 

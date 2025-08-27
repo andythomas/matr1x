@@ -46,6 +46,9 @@ from pydantic import ValidationError
 
 from matr1x.models import MainConfig, UserlibConfig, format_validation_error
 
+# Import pymeasure threading fix to apply monkey patch automatically
+# This must be imported early to ensure all pymeasure instruments are thread-safe
+from . import pymeasure_threading_fix
 from .metadata import VALID_META_KEYS
 from .util import get_package_path
 
