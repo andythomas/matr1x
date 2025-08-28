@@ -20,7 +20,6 @@ This module provides the core System class and related utility functions
 for data acquisition and instrument control.
 """
 
-import collections
 import importlib
 import inspect
 import os
@@ -28,6 +27,8 @@ import re
 import sys
 import time
 import warnings
+from collections import defaultdict
+from collections.abc import Iterable
 from operator import attrgetter
 from os.path import exists, expanduser, isfile, splitext
 from typing import List, Union
@@ -871,7 +872,7 @@ class System:
         if setter is None or values is None:
             return values
 
-        if isinstance(values, collections.abc.Iterable):
+        if isinstance(values, Iterable):
             # parameter list, verify values
             values = list(map(float, values))
         else:
@@ -1910,7 +1911,7 @@ class MergedSystem(System):
             def __iter__(self):
                 return iter(self.items)
 
-        tmpdcdata = collections.defaultdict(OrderedSetList)
+        tmpdcdata = defaultdict(OrderedSetList)
         for subsys in self.subsys:
             for key, value in subsys.dcdata.items():
                 if key == "date":
