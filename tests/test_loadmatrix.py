@@ -21,6 +21,7 @@ formats.
 """
 
 import os
+from pathlib import Path
 
 import matr1x.eval
 import pytest
@@ -176,3 +177,27 @@ def test_loadmatrix_ma6():
     assert d["timeUTC"].shape == (2196,)  # check shape of dataset
     assert pytest.approx(d["Vnvm07"][14], 1e-12) == 1.80986751e-06  # check specific data value
     assert pytest.approx(d["timeUTC"][-1], 1e-10) == 1557380107.327  # check specific data value
+
+
+def test_loadmatrix_pathlib_ma8():
+    """
+    Test loading of MA8 format files using pathlib.Path objects.
+
+    Verifies that pathlib.Path objects work identically to string paths
+    for MA8 format files.
+    """
+    # Test with pathlib.Path
+    datafile_path = Path(path) / "data" / "random_test.ma8"
+    h_path, d_path = matr1x.eval.loadmatrix(datafile_path)
+
+    # Test with string (for comparison)
+    datafile_str = os.path.join(path, "data", "random_test.ma8")
+    h_str, d_str = matr1x.eval.loadmatrix(datafile_str)
+
+    # Results should be identical
+    assert h_path["dcterms:identifier"] == h_str["dcterms:identifier"]
+    assert h_path["columns"] == h_str["columns"]
+    assert h_path["units"] == h_str["units"]
+    assert len(d_path) == len(d_str)
+    assert d_path["timeUTC"].shape == d_str["timeUTC"].shape
+    assert pytest.approx(d_path["dev1 p2"][3], 1e-5) == pytest.approx(d_str["dev1 p2"][3], 1e-5)

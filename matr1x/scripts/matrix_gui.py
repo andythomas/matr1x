@@ -24,6 +24,7 @@ import socket
 import subprocess
 import sys
 from os.path import exists
+from pathlib import Path
 from typing import Optional, Tuple
 
 from PyQt6.QtCore import QByteArray, QSettings, QSize, Qt, QThread, pyqtSignal
@@ -876,14 +877,14 @@ class MainWindow(QMainWindow):
             if "" == infile:
                 QMessageBox.warning(self, "Preview error!", "Please specify a filename.")
                 return
-            output = get_latest_datafile(basename=infile)
+            output = get_latest_datafile(basename=Path(infile))
         if output is None:
             QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
             return
-        elif not exists(output):
+        elif not output.exists():
             QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
         else:
-            a = matrix_preview.SweepPreview(self, output)
+            a = matrix_preview.SweepPreview(self, str(output))
             a.show()
 
 

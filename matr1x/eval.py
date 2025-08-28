@@ -21,10 +21,10 @@ package as well as functions for processing data in the preview.
 """
 
 import ast
-import os
 import re
 import warnings
-from os.path import isfile, join, split, splitext
+from pathlib import Path
+from typing import Optional, Union
 
 import h5py
 import numpy as np
@@ -41,7 +41,7 @@ def detect_hdf5(filename):
 
     Parameters
     ----------
-    filename : str
+    filename : str or pathlib.Path
         The path of the file to be inspected
 
     Returns
@@ -49,6 +49,7 @@ def detect_hdf5(filename):
     bool
         HDF5 yes (True) or no (False)
     """
+    filename = Path(filename)
     with open(filename, "rb") as file:
         first_bytes = file.read(4)
     if first_bytes == b"\x89HDF":
@@ -56,7 +57,9 @@ def detect_hdf5(filename):
     return False
 
 
-def get_latest_datafile(path=None, basename=None):
+def get_latest_datafile(
+    path: Optional[Path] = None, basename: Optional[Path] = None
+) -> Optional[Path]:
     """
     Automagically find latest datafile in 'path' which follows the pattern of 'basename'.
 
@@ -65,45 +68,48 @@ def get_latest_datafile(path=None, basename=None):
     is taken from 'basename'. 'basename' can be an
     input file name or a data file name which was given to matrix. If no
     basename is given the latest data file by creation date will be returned in
-    path. If both path and basename are None os.curdir will be used.
+    path. If both path and basename are None current directory will be used.
 
     Parameters
     ----------
-    path: str or None, optional
+    path: pathlib.Path, or None, optional
       path in which the latest datafile should be determined
-    basename: str or None, optional
+    basename: pathlib.Path, or None, optional
       an example filename or input filename used to filter files in path.
+
+    Returns
+    -------
+    pathlib.Path, optional
+        The latest datafile.
     """
     basepath = None
     basewoext = None
     if basename:
-        basepath, basefilename = split(basename)
-        basewoext = splitext(basefilename)[0]
+        basepath = basename.parent
+        basewoext = basename.stem
         basewoext = re.sub(r"(_\d+)$", "", basewoext)
 
     # determine used file path
-    if path:
-        usedpath = path
-    elif basepath:
+    if basepath:
         usedpath = basepath
     else:
-        usedpath = os.curdir
+        usedpath = Path(".")
 
     # obtain file list and filter it
-    allfiles = os.listdir(usedpath)
-    filelist = filter(lambda f: isfile(join(usedpath, f)), allfiles)
+    filelist = [f for f in usedpath.iterdir() if f.is_file()]
+    #
     if basewoext:  # filter file list by file extension/basename
         files = natsorted(
-            [f for f in filelist if re.search(rf"^({basewoext})(_\d+)?(\.h5)?\.ma\d$", f)]
+            [f for f in filelist if re.search(rf"^({basewoext})(_\d+)?(\.h5)?\.ma\d$", str(f))]
         )
     else:  # filter by file extension and sort by date
         files = sorted(
-            [f for f in filelist if re.search(r"(_\d+)?(\.h5)?\.ma\d$", f)],
-            key=lambda f: os.path.getctime(join(usedpath, f)),
+            [f for f in filelist if re.search(r"(_\d+)?(\.h5)?\.ma\d$", str(f))],
+            key=lambda f: (usedpath / f).stat().st_ctime,
         )
 
     if len(files) > 0:
-        return join(usedpath, files[-1])
+        return usedpath / files[-1]
     return None
 
 
@@ -329,7 +335,7 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
 
 
 def loadmatrix(
-    filename: str,
+    filename: Union[str, Path],
     structured: bool = True,
     print_header: bool = False,
     replace_None: bool = False,
@@ -343,7 +349,7 @@ def loadmatrix(
 
     Parameters
     ----------
-    filename : str
+    filename : str or pathlib.Path
       path to file
     structured: bool, optional
       controls whether a structured array or a plain numpy array is returned
@@ -362,7 +368,8 @@ def loadmatrix(
     """
     tries = 0
     header = {"columns": [], "units": []}
-    extension = os.path.splitext(filename)[-1]
+    filename = Path(filename)
+    extension = filename.suffix
     if detect_hdf5(filename) and not structured:
         raise NotImplementedError("The option structured=False is not supported for hdf5 files")
     if detect_hdf5(filename):
@@ -397,7 +404,7 @@ def loadmatrix(
             else:
                 header[key] = val
         # parse System query entry into hierachical dictionary
-        if extension.endswith("8"):
+        if extension == ".ma8":
             header["system query"] = _load_dict_from_hdf5(h5f, "system query")
         h5g = h5f["data"]
         try:
@@ -422,20 +429,32 @@ def loadmatrix(
     else:
         with open(filename, "r") as matrix_file:
             headerlines = 0
+            key = None
+            val = None
             for nheader, line in enumerate(matrix_file):
                 # parse header from lines that start with hashtag
                 if "#" == line[0]:
                     if line[1] == "#":  # multiline entry
+                        if key is None:
+                            raise ValueError(
+                                "Multiline entry found before any single-line entry in header"
+                            )
                         # For system query, preserve hash prefixes for proper nesting
                         if key == "system query":
                             strippedline = line.removesuffix("\n")
-                            val += f"\n{strippedline}"
+                            if val is None:
+                                val = strippedline
+                            else:
+                                val += f"\n{strippedline}"
                         else:
                             # strip header format characters for other entries
                             strippedline = line.removesuffix("\n")[2:]
                             if strippedline[0] == " ":
                                 strippedline = strippedline[1:]
-                            val += f"\n{strippedline}"
+                            if val is None:
+                                val = strippedline
+                            else:
+                                val += f"\n{strippedline}"
                         header[key] = val
                     else:
                         strippedline = line.removeprefix("# ").removesuffix("\n")
@@ -463,7 +482,7 @@ def loadmatrix(
                     if headerlines == 3:
                         break
                     # ma8 files have only two header lines without hash
-                    if extension.endswith("8") and headerlines == 2:
+                    if extension == ".ma8" and headerlines == 2:
                         break
             # Read further special lines in the file
             special_lines = [
@@ -493,7 +512,7 @@ def loadmatrix(
                         raise ValueError("Unknown special line in matrix datafile")
                 lastdpoint = dpoint
         # separate System query entry into hierachical dictionary
-        if extension.endswith("8"):
+        if extension == ".ma8":
             # Reconstruct proper structure by adding the header line
             system_query_content = f"# system query :{header['system query']}"
             header["system query"] = _parse_query_string(system_query_content.replace(r"\"", '"'))[
@@ -553,11 +572,18 @@ def loadmatrix(
     return header, data
 
 
-def loadh5matrix(filename, filehandle=False):
+def loadh5matrix(filename: Union[str, Path], filehandle=False):
     """
     Load matrix data is hdf5 format.
 
     Note: This utility function is deprecated and is replaced by loadmatrix(filename)!
+
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        path to file
+    filehandle : bool, optional
+        not implemented, raises NotImplementedError if True
     """
     if filehandle:
         raise NotImplementedError(

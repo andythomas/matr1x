@@ -19,11 +19,11 @@ dependencies = [
     "tomli ; python_version < '3.11'",               # imported in matr1x
     "tomli-w",                                       # imported in matr1x
     "pydantic",                                      # imported in matr1x
-    "h5py",                                          # imported via util
+    "h5py >= 2.7.0",                                 # imported via util,
     "numpy",                                         # imported via util
     "pyobjc ; platform_system == 'Darwin'",          # imported via util
     "natsort",                                       # imported via eval
-    "pandas",                                        # imported via eval
+    "pandas >= 1.0.0",                               # imported via eval,
     "psutil",                                        # imported via control/util
     "pyflakes",                                      # needed for GUI apps
     "autopep8",                                      # needed for GUI apps
