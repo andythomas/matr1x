@@ -1041,6 +1041,8 @@ class ControlWindow(QMainWindow):
             # initialize system
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
+            # update date to reflect logging start time instead of GUI start time
+            self.S_log.dcdata["date"] = time.strftime(datetimefmt, time.localtime())
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             self.S_log.init_datafile("matrix script generated")
@@ -1078,10 +1080,27 @@ class ControlWindow(QMainWindow):
         filename = QFileDialog.getSaveFileName(
             self, "Select log file", logfolder, f"data log files (*{output_extension})"
         )[0]
-        self.logfile = filename or self.logfile
+
+        # If no file was selected, keep the current logfile
+        if not filename:
+            return
+
+        # Check if logging is currently running
+        was_logging = self.logging
+
+        # If logging is running, stop it first
+        if was_logging:
+            self.toggleLog(False)
+
+        # Update the logfile
+        self.logfile = filename
         if not self.logfile.endswith(output_extension):
             self.logfile += output_extension
         self.loglabel.setText(os.path.basename(self.logfile))
+
+        # If logging was running, restart it with the new file
+        if was_logging:
+            self.toggleLog(True)
 
     @catchEmitError
     def loggingFunc(self) -> None:
