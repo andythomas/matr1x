@@ -48,7 +48,6 @@ from PyQt6.QtWidgets import (
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import get_latest_datafile
 from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
@@ -364,7 +363,7 @@ class MainWindow(QMainWindow):
         self.running = False
         self.sys_meta_data = {}
         self.measurement_thread = ExecThread()
-        self.measurement_thread.filename_received.connect(self.current_file.setText)
+        self.measurement_thread.filename_received.connect(self.handle_received_filename)
         self.measurement_thread.finished.connect(self.processFinished)
 
         # allow to store the settings
@@ -377,6 +376,18 @@ class MainWindow(QMainWindow):
 
         # Initialize cache for system information
         self._cached_system_info = None
+
+    def handle_received_filename(self, filename: str) -> None:
+        """
+        Handle the filename from the measurement thread.
+
+        Parameters
+        ----------
+        filename : str
+            The filename given to the measurement file.
+        """
+        self.current_file.setText(filename)
+        self.preview_action.setEnabled(True)
 
     def is_valid_extension(self, file_path):
         """Return True if extension is valid."""
@@ -556,6 +567,7 @@ class MainWindow(QMainWindow):
             MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.openPreview)
+        self.preview_action.setEnabled(False)
         self.matrix_settings_action = QAction("Show matrix toml", self)
         self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
         self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
@@ -824,11 +836,14 @@ class MainWindow(QMainWindow):
             config_dict,
         )
         self.meas_list.add_parameters(parameters)
-        self.start_action.setEnabled(True)
+        if not self.running:
+            self.start_action.setEnabled(True)
 
     def runMatrix(self):
         """Start running the queued measurements."""
         self.running = True
+        self.preview_action.setEnabled(False)
+        self.start_action.setEnabled(False)
         self.runNextMeasurement()
 
     def keyPressEvent(self, a0: Optional[QKeyEvent]):
@@ -872,16 +887,7 @@ class MainWindow(QMainWindow):
     def openPreview(self):
         """Open a window and preview the (running) measurement."""
         output = self.current_file.text()
-        if "" == output:  # try to obtain last filename from input file
-            infile = self.input_file.text()
-            if "" == infile:
-                QMessageBox.warning(self, "Preview error!", "Please specify a filename.")
-                return
-            output = get_latest_datafile(basename=Path(infile))
-        if output is None:
-            QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
-            return
-        elif not output.exists():
+        if not Path(output).exists():
             QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
         else:
             a = matrix_preview.SweepPreview(self, str(output))

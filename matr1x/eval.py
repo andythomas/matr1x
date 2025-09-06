@@ -24,12 +24,11 @@ import ast
 import re
 import warnings
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import h5py
 import numpy as np
 import pandas as pd
-from natsort import natsorted
 
 
 ######################
@@ -55,62 +54,6 @@ def detect_hdf5(filename):
     if first_bytes == b"\x89HDF":
         return True
     return False
-
-
-def get_latest_datafile(
-    path: Optional[Path] = None, basename: Optional[Path] = None
-) -> Optional[Path]:
-    """
-    Automagically find latest datafile in 'path' which follows the pattern of 'basename'.
-
-    Note that a trailing "_[integer]" is removed from basename to
-    find the latest file recorded with the same basename. If path is None the path
-    is taken from 'basename'. 'basename' can be an
-    input file name or a data file name which was given to matrix. If no
-    basename is given the latest data file by creation date will be returned in
-    path. If both path and basename are None current directory will be used.
-
-    Parameters
-    ----------
-    path: pathlib.Path, or None, optional
-      path in which the latest datafile should be determined
-    basename: pathlib.Path, or None, optional
-      an example filename or input filename used to filter files in path.
-
-    Returns
-    -------
-    pathlib.Path, optional
-        The latest datafile.
-    """
-    basepath = None
-    basewoext = None
-    if basename:
-        basepath = basename.parent
-        basewoext = basename.stem
-        basewoext = re.sub(r"(_\d+)$", "", basewoext)
-
-    # determine used file path
-    if basepath:
-        usedpath = basepath
-    else:
-        usedpath = Path(".")
-
-    # obtain file list and filter it
-    filelist = [f for f in usedpath.iterdir() if f.is_file()]
-    #
-    if basewoext:  # filter file list by file extension/basename
-        files = natsorted(
-            [f for f in filelist if re.search(rf"^({basewoext})(_\d+)?(\.h5)?\.ma\d$", str(f))]
-        )
-    else:  # filter by file extension and sort by date
-        files = sorted(
-            [f for f in filelist if re.search(r"(_\d+)?(\.h5)?\.ma\d$", str(f))],
-            key=lambda f: (usedpath / f).stat().st_ctime,
-        )
-
-    if len(files) > 0:
-        return usedpath / files[-1]
-    return None
 
 
 def _parse_query_string(query: str):
