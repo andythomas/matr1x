@@ -291,7 +291,7 @@ class exampleDict2(GuiDict):
     }
     # set a custom interval for the refresh function which updates the values
     # from the hardware
-    refresh_period = 0.3
+    refresh_period = 0.1
     # allow deactivating the GuiDict which also closes all device connections
     allow_disabling = True
     v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
@@ -337,7 +337,7 @@ class exampleDict2(GuiDict):
                     "V5",
                     f"last minute \nslope: {slope / 60:.3f}mbar/min\nstd: {std:.3f} mbar",
                 )
-            self.v5 = round(30 * numpy.random.random(), 3)
+        self.v5 = round(30 * numpy.random.random(), 3)
 
     def set_tooltip(self, label, tooltip):
         """

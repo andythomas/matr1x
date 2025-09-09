@@ -47,7 +47,7 @@ for field in fields:
     set_value(1, (field, field/fields.max()*100))
     system.devs["gui"].v2 = field  # test direct access and poll command
     measure_system()
-    wait(until="+0.5s")
+    wait(until="+0.1s")  # wait one refresh cycle of control-dummy
 """
 
 
