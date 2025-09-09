@@ -67,11 +67,15 @@ build-backend = "flit_core.buildapi"
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
+env = [
+  "QT_QPA_PLATFORM=offscreen",
+]
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.3.0",
     "pytest>=8.4.1",
+    "pytest-env>=1.1.5",
     "ruff>=0.12.8",
     "sphinx>=7.4.7",
 ]

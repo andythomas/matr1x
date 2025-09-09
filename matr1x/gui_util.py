@@ -3791,7 +3791,7 @@ class MApplication(QApplication):
             Arguments for QApplication
         """
         if sys.platform == "linux":
-            if "xcb" in self._list_platform_plugins():
+            if "QT_QPA_PLATFORM" not in os.environ and "xcb" in self._list_platform_plugins():
                 os.environ["QT_QPA_PLATFORM"] = "xcb"
         super().__init__(args)
 

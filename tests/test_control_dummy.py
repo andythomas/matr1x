@@ -174,6 +174,11 @@ def start_control_dummy():
         gui_proc.kill()
 
 
+def test_environment_variable_is_set():
+    """Check if the QT_QPA_PLATFORM environment variable is set to 'offscreen'."""
+    assert os.getenv("QT_QPA_PLATFORM") == "offscreen"
+
+
 def test_matrix_script_control_dummy(start_control_dummy):
     """
     Test the matrix script execution with the control dummy GUI.

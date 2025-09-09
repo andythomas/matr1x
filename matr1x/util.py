@@ -2298,9 +2298,12 @@ def set_correct_mac_appname(name: str) -> None:
         info_dict["CFBundleName"] = name
     # Correct the menu
     app = NSApplication.sharedApplication()
-    mainMenu = app.mainMenu()
+    main_menu = app.mainMenu()
+    if not main_menu:
+        # occurs when using offscreen mode during testing
+        return
     # Get left-most menu with app-specific items
-    app_menu = mainMenu.itemAtIndex_(0).submenu()
+    app_menu = main_menu.itemAtIndex_(0).submenu()
     for i in range(app_menu.numberOfItems()):
         item = app_menu.itemAtIndex_(i)
         item.setTitle_(item.title().replace("Python", name))
