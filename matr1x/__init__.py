@@ -62,7 +62,7 @@ else:
 output_extension = ".ma8"
 
 
-def load_config(optional_config_path: Optional[Union[str, Path]] = None):
+def load_config(optional_config_path: Optional[Path] = None):
     """
     Load configuration file from default config, user config, local config, and an optional config.
 
@@ -75,7 +75,7 @@ def load_config(optional_config_path: Optional[Union[str, Path]] = None):
 
     Parameters
     ----------
-    optional_config_path : str or pathlib.Path, optional
+    optional_config_path : pathlib.Path, optional
         Path to an optional TOML configuration file.  If provided, settings
         in this file will override those in the default, user, and local
         configuration files.
@@ -101,7 +101,6 @@ def load_config(optional_config_path: Optional[Union[str, Path]] = None):
 
     # Override with optional configuration if available
     if optional_config_path:
-        optional_config_path = Path(optional_config_path)
         if optional_config_path.exists():
             with open(optional_config_path, "rb") as f:
                 optional_config = tomllib.load(f)
@@ -190,7 +189,7 @@ def _find_differences(default_dict, current_dict):
     return differences
 
 
-def write_config(config_dict, optional_config_path: Optional[Union[str, Path]] = None):
+def write_config(config_dict, optional_config_path: Optional[Path] = None):
     """
     Write non-default config options to the user config or optional config.
 
@@ -205,13 +204,12 @@ def write_config(config_dict, optional_config_path: Optional[Union[str, Path]] =
     ----------
     config_dict : dict
         Dictionary containing the current configuration settings.
-    optional_config_path : str or pathlib.Path, optional
+    optional_config_path : pathlib.Path, optional
         Path to an optional TOML configuration file.  If provided, settings
         in this file will be written without comparing to the default
         configuration.
     """
     if optional_config_path:
-        optional_config_path = Path(optional_config_path)
         with open(optional_config_path, "wb") as toml_file:
             tomli_w.dump(config_dict, toml_file)
     else:
@@ -243,6 +241,8 @@ def reload_config(optional_config_path: Optional[Union[str, Path]] = None):
         configuration files.
     """
     global config
+    if isinstance(optional_config_path, str):
+        optional_config_path = Path(optional_config_path)
     config = load_config(optional_config_path)
 
 

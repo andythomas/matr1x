@@ -21,6 +21,7 @@ import signal
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pyqtgraph
@@ -56,7 +57,7 @@ from matr1x.gui_util import (
 )
 from matr1x.util import set_correct_mac_appname
 
-logger = logging.getLogger(os.path.split(__file__)[-1])
+logger = logging.getLogger(Path(__file__).name)
 
 if os.name == "nt":
     try:
@@ -110,7 +111,7 @@ class SweepPreview(QMainWindow):
 
     Parameters
     ----------
-    filename: str
+    filename: Path
       name of matrix file (.ma6, .ma7, .ma8)
     parent: widget or None
       parent widget
@@ -119,11 +120,44 @@ class SweepPreview(QMainWindow):
     openfile_dialog = pyqtSignal()
     allowed_extensions = (".ma6", ".ma7", ".ma8")
 
-    def __init__(self, parent=None, filename=""):
+    def __init__(self, parent: Optional[QWidget] = None, filename: Optional[Path] = None):
         super().__init__(parent)
-        self.filename: Path = ""
+
+        # File-related properties
+        self.filename: filename
+        self.file_dir: Path = Path()
+        self.file_index: int = 0
+        self.data_files: list[str] = []
+
+        # State properties
         self.closing_allowed = True
+        self.multidim = False
+        self.error = False
+        self.ui_initialized = False
+        self.lu_time = 0.0
+
+        # Thread and update properties
+        self.udthread = None
+
+        # Widget properties (initialized to None, created later)
         self.w_meta_view = None
+
+        # UI components that are recreated for each file in init_ui()
+        self.w_l: list = []  # Labels for axes
+        self.w_index: list = []  # Combo boxes for column selection
+        self.w_plot2d = None  # 2D plotting checkbox
+        self.w_plot2d_comp = None  # 2D complex plotting checkbox
+        self.w_transpose = None  # Transpose checkbox
+        self.spw = None  # Simple plot widget
+        self.iv = None  # Image view widget
+        self.column_items: list[str] = []  # Column descriptions for current file
+
+        # Data properties
+        self.names: list = []
+        self.units: list = []
+        self.shapes: list = []
+        self.header: dict = {}
+
         # initialize basic GUI
         self.init_basic_ui()
         # allow to store the settings
@@ -132,12 +166,12 @@ class SweepPreview(QMainWindow):
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
         if hasattr(MApplication.instance(), "openfile"):
-            get_application_instance().openfile.connect(self.open_file)
+            get_application_instance().openfile.connect(self._open_file_from_signal)
         # initialize filename if available
         if filename:
             self.open_file(filename)
 
-    def is_valid_extension(self, file_path):
+    def is_valid_extension(self, file_path: Path) -> bool:
         """Return True if extension is valid."""
         return file_path.suffix in self.allowed_extensions
 
@@ -158,7 +192,7 @@ class SweepPreview(QMainWindow):
             if mimedata is not None:
                 urls = mimedata.urls()
                 if len(urls) == 1:
-                    file_path = urls[0].toLocalFile()
+                    file_path = Path(urls[0].toLocalFile())
                     if self.is_valid_extension(file_path):
                         self.open_file(file_path)
                     else:
@@ -196,17 +230,24 @@ class SweepPreview(QMainWindow):
         )[0]
         self.closing_allowed = True
         if filename:
-            self.open_file(filename)
+            self.open_file(Path(filename))
 
-    def open_file(self, filename):
+    def _open_file_from_signal(self, filename: str):
+        """Convert string to Path for opening file.
+
+        This method is needed to handle file opening from signals on MacOS.
+        """
+        self.open_file(Path(filename))
+
+    def open_file(self, filename: Path):
         """Read the data from the file."""
         logger.info(f"opening {filename}")
-        self.filename = Path(filename)
+        self.filename = filename
         # get all files
-        self.file_dir = Path(filename).absolute().parent
+        self.file_dir = self.filename.absolute().parent
         self.setWindowTitle(f"Matrix Preview: {self.file_dir}")
         self.file_list_refresh()
-        self.file_index = self.data_files.index(Path(filename).name)
+        self.file_index = self.data_files.index(self.filename.name)
         self.udthread = None
         self.lu_time = time.time()
         self.fetch_data()
@@ -218,11 +259,11 @@ class SweepPreview(QMainWindow):
 
     def file_list_refresh(self):
         """Refresh all files with the correct extension in the selected directory."""
-        files = Path(self.file_dir).iterdir()
+        files = self.file_dir.iterdir()
         self.data_files = [file.name for file in files if self.is_valid_extension(file)]
         self.data_files = sorted(
             self.data_files,
-            key=lambda t: os.stat(os.path.join(self.file_dir, t)).st_mtime,
+            key=lambda t: (self.file_dir / t).stat().st_mtime,
         )
 
     def update_file_combo(self):
@@ -301,6 +342,8 @@ class SweepPreview(QMainWindow):
         pyqtgraph.setConfigOption("background", "w")
         pyqtgraph.setConfigOption("foreground", "k")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        # Enable dragging and dropping onto the widget
+        self.setAcceptDrops(True)
         self.grid = QGridLayout()
         self.widget = QWidget()
         self.w_status = QLabel("")
@@ -308,12 +351,10 @@ class SweepPreview(QMainWindow):
         self.grid.addWidget(self.w_status, 6, 0, 1, -1)
         self.widget.setLayout(self.grid)
         self.setCentralWidget(self.widget)
-        # Enable dragging and dropping onto the widget
-        self.setAcceptDrops(True)
+        # create Actions and Toolbar
         self.create_actions()
         self.create_toolbar()
         self.create_menu()
-        self.ui_initialized = False
         self.show()
         check_config(matr1x.config)
 
@@ -572,10 +613,9 @@ class SweepPreview(QMainWindow):
 
     def get_filename_without_extension(self) -> str:
         """Return the actual filename without extension."""
-        for extension in self.allowed_extensions:
-            if self.filename.suffix == extension:
-                return self.filename.stem
-        return self.filename
+        if self.filename.suffix in self.allowed_extensions:
+            return self.filename.stem
+        return str(self.filename)
 
     def save_plot(self) -> None:
         """Ask for filename and save the displayed data in a png file."""
@@ -586,13 +626,14 @@ class SweepPreview(QMainWindow):
             "png files (*.png)",
         )[0]
         if filename:
-            if ".png" != filename[-4:].lower():
-                filename += ".png"
+            filename_path = Path(filename)
+            if filename_path.suffix.lower() != ".png":
+                filename_path = filename_path.with_suffix(".png")
             if self.iv is not None:
                 exporter = pyqtgraph.exporters.ImageExporter(self.iv.view)
-                exporter.export(filename)
+                exporter.export(str(filename_path))
             else:
-                self.spw.save_plot(filename)
+                self.spw.save_plot(str(filename_path))
 
     def save_data(self) -> None:
         """Ask for filename and save the displayed data in an text file."""
@@ -607,9 +648,10 @@ class SweepPreview(QMainWindow):
             "text files (*.txt)",
         )[0]
         if filename:
-            if ".txt" != filename[-4:].lower():
-                filename += ".txt"
-            self.spw.save_data(filename)
+            filename_path = Path(filename)
+            if filename_path.suffix.lower() != ".txt":
+                filename_path = filename_path.with_suffix(".txt")
+            self.spw.save_data(str(filename_path))
 
     def previous_file(self):
         """Determine the previous file."""
@@ -626,7 +668,7 @@ class SweepPreview(QMainWindow):
     def file_index_changed(self, index):
         """Update info when index changes."""
         self.file_index = index
-        self.filename = Path(self.file_dir) / self.data_files[self.file_index]
+        self.filename = self.file_dir / self.data_files[self.file_index]
         check = self.conditional_fetch_data(True, check=True)
         if 0 != check:
             self.column_items = [
@@ -1167,9 +1209,9 @@ def main():
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     with QtGracefulKiller():
         if len(sys.argv) < 2:
-            ex = SweepPreview(None, "")
+            ex = SweepPreview(None, None)
         else:
-            ex = SweepPreview(None, sys.argv[1])
+            ex = SweepPreview(None, Path(sys.argv[1]))
         ex.show()
         ex.restore_window_state()
         ret = app.exec()

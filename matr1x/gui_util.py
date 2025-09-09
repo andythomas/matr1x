@@ -1462,7 +1462,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
         return normalize_dict(config_dict)
 
-    def write_config(self, config_dict=None):
+    def write_config(self, config_dict: Optional[Dict[str, Any]] = None) -> Path:
         """
         Write config data to a temporary file using matr1x.write_config.
 
@@ -1478,8 +1478,8 @@ class ConfigEditWidget(MetaViewerWidget):
 
         Returns
         -------
-        str
-            The name of the temporary file containing the written configuration.
+        Path
+            Path to the temporary file containing the written configuration.
         """
         if config_dict is None:
             config_dict = self.get_config_dict()
@@ -1489,7 +1489,7 @@ class ConfigEditWidget(MetaViewerWidget):
             temp_file_name = tmpfile.name
             write_config(config_dict, tmpfile.name)  # Use matr1x's write_config
 
-        return temp_file_name
+        return Path(temp_file_name)
 
 
 class SimplePlotWidget(QGroupBox):

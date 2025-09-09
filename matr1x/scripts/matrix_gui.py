@@ -23,7 +23,6 @@ import signal
 import socket
 import subprocess
 import sys
-from os.path import exists
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -132,7 +131,7 @@ class QueueListWidget(QListWidget):
         parameters : tuple
             The tuple to be added: (inputFile, outputFile, metadata_dict, config_dict).
         """
-        output = os.path.basename(parameters[1])
+        output = Path(parameters[1]).name if parameters[1] else ""
         if output == "":
             output = "<use input>"
         dict_str = (
@@ -142,9 +141,7 @@ class QueueListWidget(QListWidget):
             + json.dumps(parameters[3], sort_keys=True)
         )
         hash_value = hashlib.sha256(dict_str.encode()).hexdigest()[:6]
-        list_entry = (
-            f"Input: {os.path.basename(parameters[0])} - Output: {output} - Id: {hash_value}"
-        )
+        list_entry = f"Input: {Path(parameters[0]).name} - Output: {output} - Id: {hash_value}"
         param_dict = {"parameters": parameters, "listview": list_entry}
         self.data_list.append(param_dict)
         list_item = QListWidgetItem(param_dict["listview"])
@@ -245,14 +242,14 @@ class ExecThread(QThread):
                         # data is not None
                         cmd += [f"--dc_{key.lower()}", val]
             if tmp_config_file:
-                cmd += ["--optional-config", tmp_config_file]
+                cmd += ["--optional-config", str(tmp_config_file)]
             print(subprocess.list2cmdline(cmd))
             ret = self.run_as_fg_process(cmd)
             print(f"matrix ended with returncode: {ret}")
         finally:
             # Clean up temporary config file
-            if tmp_config_file and os.path.exists(tmp_config_file):
-                os.remove(tmp_config_file)
+            if tmp_config_file and tmp_config_file.exists():
+                tmp_config_file.unlink()
 
     def run_as_fg_process(self, *args, **kwargs):
         # Code of this function was adapted from
@@ -694,8 +691,8 @@ class MainWindow(QMainWindow):
     def updateAutoGenFilename(self, state):
         """Fill in output filename if required."""
         if state is True:
-            filename, extension = os.path.splitext(self.input_file.text())
-            self.outputEdit.setText(filename)
+            input_path = Path(self.input_file.text())
+            self.outputEdit.setText(str(input_path.with_suffix("")))
 
     def showInputDialog(self):
         """Open a QFileDialog with filter for input files."""
@@ -711,8 +708,8 @@ class MainWindow(QMainWindow):
         if "" != filename[0]:
             self.input_file.setText(filename[0])
             if self.auto_filename_action.isChecked():
-                filename, extension = os.path.splitext(self.input_file.text())
-                self.outputEdit.setText(filename)
+                input_path = Path(self.input_file.text())
+                self.outputEdit.setText(str(input_path.with_suffix("")))
 
     def showOutputDialog(self):
         """Open a QFileDialog with filter for output files."""
@@ -745,13 +742,14 @@ class MainWindow(QMainWindow):
         else:
             self.sg.raise_()
 
-    def parseSystemFromInputFile(self, text):
+    def parseSystemFromInputFile(self, input_file_path: str) -> None:
         """Parse the system from an input file."""
-        systemfile = None
-        if not os.path.exists(text):
+        systemfile: Optional[list[str]] = None
+        input_path = Path(input_file_path)
+        if not input_path.exists():
             # no file, ignore
             return
-        with open_and_error(text, "r") as (f, err):
+        with open_and_error(input_file_path, "r") as (f, err):
             if err:
                 QMessageBox.warning(
                     self, "Input file error!", f"Input file cannot be parsed: {err}."
@@ -795,7 +793,7 @@ class MainWindow(QMainWindow):
 
         self.sys_meta_data = system.dcdata
 
-        configurable = [system for system in systemfile if not os.path.exists(system.strip())]
+        configurable = [system for system in systemfile if not Path(system.strip()).exists()]
 
         # Get system information using subprocess (cache for reuse)
         self._cached_system_info = None
@@ -821,7 +819,7 @@ class MainWindow(QMainWindow):
         """Queue a measurement into the measurement menu."""
         inputFile = self.input_file.text()
         outputFile = self.outputEdit.text()
-        if not exists(inputFile):
+        if not Path(inputFile).exists():
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
             return
         metadata = self.w_meta_view.get_metadata()
@@ -886,11 +884,11 @@ class MainWindow(QMainWindow):
 
     def openPreview(self):
         """Open a window and preview the (running) measurement."""
-        output = self.current_file.text()
-        if not Path(output).exists():
+        output = Path(self.current_file.text())
+        if not output.exists():
             QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
         else:
-            a = matrix_preview.SweepPreview(self, str(output))
+            a = matrix_preview.SweepPreview(self, output)
             a.show()
 
 
