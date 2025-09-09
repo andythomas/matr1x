@@ -43,8 +43,7 @@ dependencies = [
 [project.optional-dependencies]
 elab = ["elabapi_python", "jinja2"] # for the electronic notebook
 ppms = [
-    "MultiPyVu", # for matr1x/devices/quantumdesign/ppms,
-    "setuptools",  # fix missing setuptools of MultiPyVu
+    "MultiPyVu >= 3.6.1", # for matr1x/devices/quantumdesign/ppms,
 ]
 
 [project.scripts]
