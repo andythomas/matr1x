@@ -28,6 +28,7 @@ import time
 from functools import wraps
 
 import pyvisa
+from pyvisa import errors, resources
 from wrapt import synchronized
 
 from .. import get_config_dict
@@ -165,7 +166,7 @@ class VisaDevice:
             kwargs = copy.copy(self._kwargs)
             # Open the connection to the device
             self.manager = pyvisa.ResourceManager(kwargs.pop("backend", ""))
-            if isinstance(self.interface, pyvisa.resources.Resource):
+            if isinstance(self.interface, resources.Resource):
                 self.connection = self.interface
                 return
             try:
@@ -211,7 +212,7 @@ class VisaDevice:
             Data read from the device.
         """
         t = self.connection.timeout
-        if isinstance(self.connection, pyvisa.resources.GPIBInstrument):
+        if isinstance(self.connection, resources.GPIBInstrument):
             # GPIB instruments need a finite timeout here since messages are
             # sent on demand? Please extensively test if you change this!
             self.connection.timeout = 10  # ms
@@ -221,7 +222,7 @@ class VisaDevice:
         try:
             while True:
                 ret += self.connection.read()
-        except pyvisa.errors.VisaIOError:
+        except errors.VisaIOError:
             pass
         self.connection.timeout = t
         return ret

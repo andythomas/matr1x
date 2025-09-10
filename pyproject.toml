@@ -30,7 +30,8 @@ dependencies = [
     "PyQt6",                                         # needed for GUI apps
     "PyQt6 >= 6.5.0 ; platform_system == 'Windows'", # needed for GUI apps
     "PyQt6-QScintilla",                              # needed for GUI apps
-    "pygit2",                                        # needed for GUI apps
+    "pygit2 >= 1.15.1",                              # needed for GUI apps
+    "types-pygit2 ; python_version < '3.10'",        # needed for GUI apps
     "wrapt",                                         # needed for GUI apps
     "urwid>2.0",                                     # needed for GUI apps
     "pymeasure",                                     # shared by several device drivers
@@ -45,6 +46,7 @@ elab = ["elabapi_python", "jinja2"] # for the electronic notebook
 ppms = [
     "MultiPyVu >= 3.6.1", # for matr1x/devices/quantumdesign/ppms,
 ]
+smbus = ["smbus3 >= 0.5.5"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
@@ -76,5 +78,6 @@ dev = [
     "pytest>=8.4.1",
     "pytest-env>=1.1.5",
     "ruff>=0.12.8",
+    "ty>=0.0.1-alpha.20",
     "sphinx>=7.4.7",
 ]

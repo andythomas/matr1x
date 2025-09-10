@@ -44,18 +44,17 @@ from typing import Optional, Union
 import tomli_w
 from pydantic import ValidationError
 
-from matr1x.models import MainConfig, UserlibConfig, format_validation_error
-
 # Import pymeasure threading fix to apply monkey patch automatically
 # This must be imported early to ensure all pymeasure instruments are thread-safe
 from . import pymeasure_threading_fix
 from .metadata import VALID_META_KEYS
+from .models import MainConfig, UserlibConfig, format_validation_error
 from .util import get_package_path
 
 if sys.version_info >= (3, 11):
     import tomllib
 else:
-    import tomli as tomllib
+    import tomli as tomllib  # ty: ignore [unresolved-import]
 
 
 # default datafile extension
@@ -258,7 +257,7 @@ for key in list(data.keys()):  # validate everything but matr1x
         except (ValidationError, TypeError, ValueError) as e:
             msg = format_validation_error(e, key + ".")
 try:
-    MainConfig(**config)  # validate matr1x
+    MainConfig(**config)  # ty: ignore [missing-argument] issue #247
 except (ValidationError, TypeError, ValueError) as e:
     msg += format_validation_error(e)
 if msg != "":

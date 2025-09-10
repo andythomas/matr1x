@@ -390,7 +390,7 @@ class Lakeshore3xx(VisaDevice):
         dummy = self.query("RAMP? " + str(loop)).split(",")
         return bool(int(dummy[0])), float(dummy[1])
 
-    def getCurveName(self, curve: int) -> str:
+    def getCurveName(self, curve: int) -> Optional[str]:
         """
         Get the name of the specified temperature calibration curve.
 

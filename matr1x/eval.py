@@ -448,9 +448,10 @@ def loadmatrix(
                     message = msg.removeprefix("# ").removesuffix("\n")
                     if message.startswith("comment ("):
                         m = re.search(r"\(([^)]+)\):\s(.*)", message)
-                        header["comments"].append(
-                            f"after {dpoint} points at {m.group(1)}: {m.group(2)}"
-                        )
+                        if m:
+                            header["comments"].append(
+                                f"after {dpoint} points at {m.group(1)}: {m.group(2)}"
+                            )
                     else:
                         raise ValueError("Unknown special line in matrix datafile")
                 lastdpoint = dpoint

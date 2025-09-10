@@ -103,6 +103,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from pyqtgraph.exporters import ImageExporter
 
 from matr1x.models import MainConfig, UserlibConfig
 
@@ -681,8 +682,8 @@ class MetaViewerWidget(QDockWidget):
                 # key is list index
                 cast_type = "str"
                 if isinstance(self._type, dict):
-                    if self._type[child_key]:
-                        cast_type = self._type[child_key]
+                    if self._type[child_key]:  # ty: ignore[unresolved-reference]
+                        cast_type = self._type[child_key]  # ty: ignore[unresolved-reference], fixed via IFW_software #1430
                 else:
                     if self._type:
                         cast_type = self._type
@@ -1977,7 +1978,8 @@ class SimplePlotWidget(QGroupBox):
                     # math_texts[1]
                     def fx(xf, yf):
                         return eval(
-                            self.math_texts[1], ({"x": xf, "y": yf} | self.exposed_functions)
+                            self.math_texts[1],
+                            ({"x": xf, "y": yf} | self.exposed_functions),
                         )
 
                     xc = fx(x, y)
@@ -1989,7 +1991,8 @@ class SimplePlotWidget(QGroupBox):
                     # math_texts[0]
                     def fy(yf, xf):
                         return eval(
-                            self.math_texts[0], ({"y": yf, "x": xf} | self.exposed_functions)
+                            self.math_texts[0],
+                            ({"y": yf, "x": xf} | self.exposed_functions),
                         )
 
                     yc = fy(y, x)
@@ -2669,7 +2672,7 @@ class SimplePlotWidget(QGroupBox):
         filename : str
             The path and name of the file where the PNG image will be saved.
         """
-        exporter = pyqtgraph.exporters.ImageExporter(self.gl.scene())
+        exporter = ImageExporter(self.gl.scene())
         exporter.export(filename)
 
     def get_columns(self) -> tuple[str, str]:
@@ -3218,10 +3221,10 @@ class NumericalInputDialog(TimeoutDialogBase):
         parent: Optional[QWidget] = None,
         timeout: float = float("inf"),
         default_value: float = 0.0,
-        min_value: float = -100e9,
-        max_value: float = 100e9,
-        step: float = 1.0,
-        decimals: int = 2,
+        min_value: Optional[float] = -100e9,
+        max_value: Optional[float] = 100e9,
+        step: Optional[float] = 1.0,
+        decimals: Optional[int] = 2,
     ):
         """
         Initialize the numerical input dialog with its GUI elements.
@@ -3499,7 +3502,9 @@ class AboutBox(QMessageBox):
         """
         super().__init__(parent)
         # The rich text (html) messes with the sizes
-        icon_size = QApplication.style().pixelMetric(QStyle.PixelMetric.PM_MessageBoxIconSize)
+        style = QApplication.style()
+        assert style is not None
+        icon_size = style.pixelMetric(QStyle.PixelMetric.PM_MessageBoxIconSize)
         pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
         self.setWindowTitle(title)
@@ -3547,7 +3552,7 @@ class AboutBox(QMessageBox):
             commit_branch = repo.head.shorthand
             last_commit = repo[repo.head.target]
             commit_short_sha = str(last_commit.id)[:7]
-            commit_time = last_commit.commit_time
+            commit_time = last_commit.author.time
 
             if commit_branch == "HEAD":
                 # Attempt to find the remote branch
@@ -3562,137 +3567,131 @@ class AboutBox(QMessageBox):
         return (installed_version, commit_branch, commit_short_sha, commit_time)
 
 
-class MIcon(QIcon):
-    """Generate either Qt built-in icons, letters or Matrix specific QIcons."""
+def get_matrix_icon(
+    name: str, color: Optional[QColor] = None, pencolor: QColor = QColor("white")
+) -> QIcon:
+    """
+    Look up 'name' and get corresponding QIcon back.
 
-    def __new__(
-        cls,
-        name: str,
-        color: Union[str, QColor] = "default",
-        pencolor: QColor = QColor("white"),
-    ) -> QIcon:
-        """
-        Look up 'name' and get corresponding QIcon back.
+    Icons from a theme such as QIcon.fromTheme("media-playback-start") are not available on all
+    platforms. Consequently, we fallback to the Qt icons, which are also repecting platform and
+    theme, at least to some extent. Additionally, icons can be generated or the Matrix
+    applications icons can be used.
 
-        Icons from a theme such as QIcon.fromTheme("media-playback-start") are not available on all
-        platforms. Consequently, we fallback to the Qt icons, which are also repecting platform and
-        theme, at least to some extent. Additionally, icons can be generated or the Matrix
-        applications icons can be used.
+    Parameters
+    ----------
+    name : str
+        The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
+        'CHAR_' will generate a circle with the letter in it, 'CUSTOM_' provides several
+        painted icons and 'matr1x-' will use the matrix application icons.
+    color : QColor or str
+        The color of the icon if applicable.
+    pencolor: QColor
+        The color of the painted items.
 
-        Parameters
-        ----------
-        name : str
-            The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
-            'CHAR_' will generate a circle with the letter in it, 'CUSTOM_' provides several
-            painted icons and 'matr1x-' will use the matrix application icons.
-        color : QColor or str
-            The color of the icon if applicable.
-        pencolor: QColor
-            The color of the painted items.
-
-        Returns
-        -------
-        QIcon
-        """
-        # Get the included Qt icon
-        if name.startswith("SP_"):
-            icon = QApplication.style().standardIcon(getattr(QStyle.StandardPixmap, name))
-            return icon
-        # Use the original matrix icons
-        elif name.startswith("matr1x-"):
-            icondir = join(dirname(__file__), "scripts", "icons")
-            pixmap = QPixmap(join(icondir, name))
-            # Change the color of the white icon if requested
-            # and remove the rest for better visibility in a GUI
-            if color != "default":
-                image = pixmap.toImage()
-                image = image.convertToFormat(QImage.Format.Format_ARGB32)
-                for x in range(image.width()):
-                    for y in range(image.height()):
-                        pixel_color = QColor(image.pixel(x, y))
-                        if pixel_color != QColor("white"):
-                            image.setPixelColor(x, y, QColor(0, 0, 0, 0))
-                        else:
-                            image.setPixelColor(x, y, color)
-                pixmap = QPixmap.fromImage(image)
-            pixmap = pixmap.copy(15, 15, 226, 226)
-            return QIcon(pixmap)
-        # Draw to shared circle part
-        if color == "default":
-            color = QColor("RoyalBlue")
-        size = 256
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(color)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(5, 5, size - 10, size - 10)
-        if name.startswith("CHAR_"):  # Draw an icon with a letter in the center
-            letter = name[5]
-            font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-            font.setPointSizeF(size * 0.8)
-            painter.setFont(font)
-            painter.setPen(pencolor)
-            painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
-        elif name.startswith("CUSTOM_"):
-            custom_name = name[7:]
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setBrush(pencolor)
-            painter.setPen(pencolor)
-            if custom_name == "Play":
-                triangle = QPolygon(
-                    [
-                        QPoint(int(size // 15 + size * 0.3), int(size * 0.2)),
-                        QPoint(int(size // 15 + size * 0.3), int(size * 0.8)),
-                        QPoint(int(size // 15 + size * 0.7), int(size * 0.5)),
-                    ]
-                )
-                painter.drawPolygon(triangle)
-            elif custom_name == "Updown":
-                up_arrow = QPolygon(
-                    [
-                        QPoint(int(size * 0.25), int(size * 0.2)),
-                        QPoint(int(size * 0.05), int(size * 0.8)),
-                        QPoint(int(size * 0.45), int(size * 0.8)),
-                    ]
-                )
-                down_arrow = QPolygon(
-                    [
-                        QPoint(int(size * 0.55), int(size * 0.2)),
-                        QPoint(int(size * 0.75), int(size * 0.8)),
-                        QPoint(int(size * 0.95), int(size * 0.2)),
-                    ]
-                )
-                painter.drawPolygon(up_arrow)
-                painter.drawPolygon(down_arrow)
-            elif custom_name == "Power":
-                width = size // 8
-                height = size // 2
-                painter.drawRect(size // 2 - width // 2, size // 4, width, height)
-            elif custom_name == "Stop":
-                painter.drawRect(
-                    int(size * 0.3), int(size * 0.3), int(size * 0.4), int(size * 0.4)
-                )
-            elif custom_name == "Pause":
-                bar_width = size * 0.15
-                bar_height = size * 0.4
-                spacing = size * 0.1
-                x_offset = (size - 2 * bar_width - spacing) / 2
-                y_offset = (size - bar_height) / 2
-                painter.drawRect(int(x_offset), int(y_offset), int(bar_width), int(bar_height))
-                painter.drawRect(
-                    int(x_offset + bar_width + spacing),
-                    int(y_offset),
-                    int(bar_width),
-                    int(bar_height),
-                )
-            else:
-                raise ValueError(f"MIcon: Unknown icon type {name}.")
-        else:
-            raise ValueError(f"MIcon: Unknown icon type {name}.")
-        painter.end()
+    Returns
+    -------
+    QIcon
+    """
+    # Get the included Qt icon
+    if name.startswith("SP_"):
+        style = QApplication.style()
+        assert style is not None
+        icon = style.standardIcon(getattr(QStyle.StandardPixmap, name))
+        return icon
+    # Use the original matrix icons
+    elif name.startswith("matr1x-"):
+        icondir = join(dirname(__file__), "scripts", "icons")
+        pixmap = QPixmap(join(icondir, name))
+        # Change the color of the white icon if requested
+        # and remove the rest for better visibility in a GUI
+        if color is not None:
+            image = pixmap.toImage()
+            image = image.convertToFormat(QImage.Format.Format_ARGB32)
+            for x in range(image.width()):
+                for y in range(image.height()):
+                    pixel_color = QColor(image.pixel(x, y))
+                    if pixel_color != QColor("white"):
+                        image.setPixelColor(x, y, QColor(0, 0, 0, 0))
+                    else:
+                        image.setPixelColor(x, y, color)
+            pixmap = QPixmap.fromImage(image)
+        pixmap = pixmap.copy(15, 15, 226, 226)
         return QIcon(pixmap)
+    # Draw to shared circle part
+    if color is None:
+        color = QColor("RoyalBlue")
+    size = 256
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setBrush(color)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.drawEllipse(5, 5, size - 10, size - 10)
+    if name.startswith("CHAR_"):  # Draw an icon with a letter in the center
+        letter = name[5]
+        font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        font.setPointSizeF(size * 0.8)
+        painter.setFont(font)
+        painter.setPen(pencolor)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
+    elif name.startswith("CUSTOM_"):
+        custom_name = name[7:]
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(pencolor)
+        painter.setPen(pencolor)
+        if custom_name == "Play":
+            triangle = QPolygon(
+                [
+                    QPoint(int(size // 15 + size * 0.3), int(size * 0.2)),
+                    QPoint(int(size // 15 + size * 0.3), int(size * 0.8)),
+                    QPoint(int(size // 15 + size * 0.7), int(size * 0.5)),
+                ]
+            )
+            painter.drawPolygon(triangle)
+        elif custom_name == "Updown":
+            up_arrow = QPolygon(
+                [
+                    QPoint(int(size * 0.25), int(size * 0.2)),
+                    QPoint(int(size * 0.05), int(size * 0.8)),
+                    QPoint(int(size * 0.45), int(size * 0.8)),
+                ]
+            )
+            down_arrow = QPolygon(
+                [
+                    QPoint(int(size * 0.55), int(size * 0.2)),
+                    QPoint(int(size * 0.75), int(size * 0.8)),
+                    QPoint(int(size * 0.95), int(size * 0.2)),
+                ]
+            )
+            painter.drawPolygon(up_arrow)
+            painter.drawPolygon(down_arrow)
+        elif custom_name == "Power":
+            width = size // 8
+            height = size // 2
+            painter.drawRect(size // 2 - width // 2, size // 4, width, height)
+        elif custom_name == "Stop":
+            painter.drawRect(int(size * 0.3), int(size * 0.3), int(size * 0.4), int(size * 0.4))
+        elif custom_name == "Pause":
+            bar_width = size * 0.15
+            bar_height = size * 0.4
+            spacing = size * 0.1
+            x_offset = (size - 2 * bar_width - spacing) / 2
+            y_offset = (size - bar_height) / 2
+            painter.drawRect(int(x_offset), int(y_offset), int(bar_width), int(bar_height))
+            painter.drawRect(
+                int(x_offset + bar_width + spacing),
+                int(y_offset),
+                int(bar_width),
+                int(bar_height),
+            )
+        else:
+            raise ValueError(f"Unknown icon type {name}.")
+    else:
+        raise ValueError(f"Unknown icon type {name}.")
+    painter.end()
+    return QIcon(pixmap)
 
 
 def detect_shortcut(event, shortcut):
@@ -3748,7 +3747,9 @@ def save_messagebox(instance) -> int:
         | QMessageBox.StandardButton.Discard
         | QMessageBox.StandardButton.Cancel
     )
-    msg.button(QMessageBox.StandardButton.Discard).setText("Don't Save")
+    discard = msg.button(QMessageBox.StandardButton.Discard)
+    assert discard is not None
+    discard.setText("Don't Save")
     # Is this the best default button?
     msg.setDefaultButton(QMessageBox.StandardButton.Save)
     return msg.exec()
@@ -3828,8 +3829,10 @@ class MApplication(QApplication):
         int
             size of the icon
         """
-        small = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize)
+        style = MApplication.style()
+        assert style is not None
+        small = style.pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = style.pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize)
         intermediate = int((small + standard) / 2)
         return intermediate
 
@@ -3905,14 +3908,19 @@ def _format_validation_error(
         The html with the human readable errors.
     """
     html = ""
-    for err in e.errors():
-        location = base + ".".join(str(i) for i in err["loc"])
-        msg = err["msg"].replace(">", "&gt;").replace("<", "&lt;")
-        html += f"{location}: {msg}"
-        if "url" in err:
-            url = err["url"]
-            html += f' (<a href="{url}">More info</a>)'
-        html += "<br><br>"
+    if isinstance(e, ValidationError):
+        for err in e.errors():
+            location = base + ".".join(str(i) for i in err["loc"])
+            msg = err["msg"].replace(">", "&gt;").replace("<", "&lt;")
+            html += f"{location}: {msg}"
+            if "url" in err:
+                url = err["url"]
+                html += f' (<a href="{url}">More info</a>)'
+            html += "<br><br>"
+    else:
+        # Handle TypeError and ValueError which don't have errors() method
+        msg = str(e).replace(">", "&gt;").replace("<", "&lt;")
+        html += f"{base}: {msg}<br><br>"
     return html
 
 
@@ -3934,7 +3942,7 @@ def check_config(config: dict) -> None:
             except (ValidationError, TypeError, ValueError) as e:
                 html += _format_validation_error(e, key + ".")
     try:
-        MainConfig(**config)  # validate matr1x
+        MainConfig(**config)  # ty: ignore [missing-argument] issue #247; validate matr1x
     except (ValidationError, TypeError, ValueError) as e:
         html += _format_validation_error(e)
     if html != "":

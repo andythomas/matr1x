@@ -21,12 +21,21 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple, TypedDict
 
 import numpy as np
 import pyqtgraph
 import pyqtgraph.exporters
-from PyQt6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import (
+    QByteArray,
+    QEvent,
+    QKeyCombination,
+    QSettings,
+    QSize,
+    Qt,
+    QThread,
+    pyqtSignal,
+)
 from PyQt6.QtGui import QAction, QColor, QFileOpenEvent, QKeySequence
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -50,23 +59,37 @@ from matr1x.eval import loadmatrix
 from matr1x.gui_util import (
     AboutBox,
     MApplication,
-    MIcon,
     check_config,
     get_application_instance,
+    get_matrix_icon,
     open_matrix_toml,
 )
 from matr1x.util import set_correct_mac_appname
 
 logger = logging.getLogger(Path(__file__).name)
 
-if os.name == "nt":
+if sys.platform == "win32":
     try:
-        from ctypes import windll  # Only exists on Windows.
+        from ctypes import windll
 
         myappid = "python.matr1x.matrix-preview.version"
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
+
+# A sentinel value for when there is no data
+NO_DATA = None
+
+
+class PlotData(TypedDict):
+    """Data structure for plotting with type information."""
+
+    label: str
+    desig: int
+    unit: str
+    data: Optional[np.ndarray]  # data can be an ndarray or None
+    shape: Tuple[int, ...]  # Specifies a tuple of integers
+    dim: int
 
 
 class Matr1xApplication(MApplication):
@@ -124,7 +147,7 @@ class SweepPreview(QMainWindow):
         super().__init__(parent)
 
         # File-related properties
-        self.filename: filename
+        self.filename = filename
         self.file_dir: Path = Path()
         self.file_index: int = 0
         self.data_files: list[str] = []
@@ -165,8 +188,9 @@ class SweepPreview(QMainWindow):
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
-        if hasattr(MApplication.instance(), "openfile"):
-            get_application_instance().openfile.connect(self._open_file_from_signal)
+        application = get_application_instance()
+        if isinstance(application, Matr1xApplication):
+            application.openfile.connect(self._open_file_from_signal)
         # initialize filename if available
         if filename:
             self.open_file(filename)
@@ -321,7 +345,7 @@ class SweepPreview(QMainWindow):
         """Display an 'about this app' widget."""
         box = AboutBox(
             "Matrix Preview",
-            MIcon("matr1x-matrix-preview.png"),
+            get_matrix_icon("matr1x-matrix-preview.png"),
             matr1x,
             matr1x.datetimefmt,
         )
@@ -338,7 +362,7 @@ class SweepPreview(QMainWindow):
     def init_basic_ui(self):
         """Initialize basic GUI that works without chosen filename."""
         self.setWindowTitle("Matrix Preview")
-        self.setWindowIcon(MIcon("matr1x-matrix-preview.png"))
+        self.setWindowIcon(get_matrix_icon("matr1x-matrix-preview.png"))
         pyqtgraph.setConfigOption("background", "w")
         pyqtgraph.setConfigOption("foreground", "k")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -361,34 +385,42 @@ class SweepPreview(QMainWindow):
     def create_actions(self) -> None:
         """Create all QActions of this application."""
         self.new_action = QAction()
-        self.new_preview_action = QAction(MIcon("SP_FileIcon"), "New window", self)
+        self.new_preview_action = QAction(get_matrix_icon("SP_FileIcon"), "New window", self)
         self.new_preview_action.triggered.connect(lambda: SweepPreview().show())
         self.new_preview_action.setShortcut(QKeySequence.StandardKey.New)
-        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.load_button_pressed)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.previous_action = QAction(MIcon("SP_ArrowLeft"), "Previous", self)
-        cmd_left_shortcut = QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Left)
+        self.previous_action = QAction(get_matrix_icon("SP_ArrowLeft"), "Previous", self)
+        cmd_left_shortcut = QKeySequence(
+            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Left)
+        )
         self.previous_action.setShortcut(cmd_left_shortcut)
         self.previous_action.setEnabled(False)
         self.previous_action.triggered.connect(self.previous_file)
-        self.next_action = QAction(MIcon("SP_ArrowRight"), "Next", self)
-        cmd_right_shortcut = QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Right)
+        self.next_action = QAction(get_matrix_icon("SP_ArrowRight"), "Next", self)
+        cmd_right_shortcut = QKeySequence(
+            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Right)
+        )
         self.next_action.setShortcut(cmd_right_shortcut)
         self.next_action.setEnabled(False)
         self.next_action.triggered.connect(self.next_file)
-        self.export_png_action = QAction(MIcon("SP_DialogSaveButton"), "Save png", self)
+        self.export_png_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save png", self)
         self.export_png_action.setEnabled(False)
         self.export_png_action.setShortcut(QKeySequence.StandardKey.Save)
         self.export_png_action.triggered.connect(self.save_plot)
-        self.export_data_action = QAction(MIcon("SP_FileDialogDetailedView"), "Save txt", self)
+        self.export_data_action = QAction(
+            get_matrix_icon("SP_FileDialogDetailedView"), "Save txt", self
+        )
         self.export_data_action.setEnabled(False)
         self.export_data_action.triggered.connect(self.save_data)
-        self.auto_update_action = QAction(MIcon("SP_BrowserReload"), "Auto Update", self)
+        self.auto_update_action = QAction(get_matrix_icon("SP_BrowserReload"), "Auto Update", self)
         self.auto_update_action.setEnabled(False)
         self.auto_update_action.setCheckable(True)
         self.auto_update_action.toggled.connect(self.updatethread)
-        self.update_action = QAction(MIcon("CHAR_U", QColor("RoyalBlue")), "Update", self)
+        self.update_action = QAction(
+            get_matrix_icon("CHAR_U", QColor("RoyalBlue")), "Update", self
+        )
         self.update_action.setEnabled(False)
         self.update_action.triggered.connect(lambda: self.conditional_fetch_data(True))
         self.quit_action = QAction("Quit", self)
@@ -412,7 +444,7 @@ class SweepPreview(QMainWindow):
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        self.meta_action = QAction(MIcon("SP_FileDialogListView"), "Metadata", self)
+        self.meta_action = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata", self)
         self.meta_action.setShortcut(QKeySequence("Ctrl+2"))
         self.meta_action.setEnabled(False)
         self.meta_action.setCheckable(True)
@@ -928,29 +960,45 @@ Please investigate the error and eventually restart matrix-preview""",
     def reload_data_2d(self):
         """Reload the data in the 2d case."""
         indexZ, indexX, indexY = [self.w_index[i].currentIndex() - 1 for i in range(3)]
-        x = {}
-        y = {}
-        z = {}
+
+        # Declare the dictionaries as Optional[PlotData]
+        x: Optional[PlotData] = None
+        y: Optional[PlotData] = None
+        z: Optional[PlotData] = None
+
         if indexZ == -1:
             # empty index selected
             return -3
-        for i, (index, dat) in enumerate(zip([indexZ, indexX, indexY], [z, x, y])):
+
+        data_vars = [z, x, y]
+        indices = [indexZ, indexX, indexY]
+
+        for i, index in enumerate(indices):
             if index == -1:
-                dat["data"] = False
-                continue
+                data_vars[i] = {
+                    "label": "",
+                    "desig": 0,
+                    "unit": "",
+                    "data": NO_DATA,
+                    "shape": (0,),
+                    "dim": 0,
+                }
             else:
                 dim = len(self.shapes[index])
                 name = self.names[index]
-                dat["label"] = name
-                dat["desig"] = index + 1
-                dat["unit"] = self.units[index]
                 data = self.data[name]
-                if data.size > 0:
-                    dat["data"] = data
-                else:
+
+                if data.size == 0:
                     return -9
-                dat["shape"] = dat["data"].shape
-                dat["dim"] = dim
+
+                data_vars[i] = {
+                    "label": name,
+                    "desig": index + 1,
+                    "unit": self.units[index],
+                    "data": data,
+                    "shape": data.shape,
+                    "dim": dim,
+                }
             if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is True:
                 self.w_index[1].setEnabled(True)
             elif i == 0 and self.w_plot2d_comp.isChecked() is True:
@@ -973,6 +1021,11 @@ Please investigate the error and eventually restart matrix-preview""",
                 # <1D or >3D data cannot be 2d plotted.
                 return -5
 
+        z, x, y = data_vars
+
+        # Check for the sentinel value
+        if z is None or z["data"] is NO_DATA:
+            return -9
         # data in a 2d plot can always be transposed
         self.w_transpose.setVisible(True)
 
@@ -986,7 +1039,7 @@ Please investigate the error and eventually restart matrix-preview""",
             else:
                 z["data"] = z["data"].T
         z["shape"] = z["data"].shape
-        if x["data"] is False:
+        if x["data"] is NO_DATA:
             x = dict(
                 label="array index",
                 unit="",
@@ -998,7 +1051,6 @@ Please investigate the error and eventually restart matrix-preview""",
         else:
             index = 1 if (transpose is True and x["dim"] > 1) else 0
             lenx = x["shape"][index]
-            # verify length matches dimension z
             if lenx != z["shape"][0]:
                 return -7
             if x["dim"] < 2:
@@ -1008,10 +1060,10 @@ Please investigate the error and eventually restart matrix-preview""",
                     x["data"] = np.linspace(x["data"][0, 0], x["data"][-1, 0], lenx)
                 else:
                     x["data"] = np.linspace(x["data"][0, 0], x["data"][0, -1], lenx)
-            x["shape"] = lenx
+            x["shape"] = (lenx,)
             x["dim"] = 1
 
-        if y["data"] is False:
+        if y["data"] is NO_DATA:
             y = dict(
                 label="array index",
                 unit="",
@@ -1023,7 +1075,6 @@ Please investigate the error and eventually restart matrix-preview""",
         else:
             index = 1 if transpose is False and y["dim"] > 1 else 0
             leny = y["shape"][index]
-            # verify length matches dimension z
             if leny != z["shape"][1]:
                 return -8
             if y["dim"] < 2:
@@ -1033,7 +1084,7 @@ Please investigate the error and eventually restart matrix-preview""",
                     y["data"] = np.linspace(y["data"][0, 0], y["data"][0, -1], leny)
                 else:
                     y["data"] = np.linspace(y["data"][0, 0], y["data"][-1, 0], leny)
-            y["shape"] = leny
+            y["shape"] = (leny,)
             y["dim"] = 1
 
         if self.w_plot2d_comp.isChecked() is True:
@@ -1045,7 +1096,6 @@ Please investigate the error and eventually restart matrix-preview""",
             self.iv.getView().invertY(False)
             self.iv.getView().setAspectLocked(False)
             self.iv.getHistogramWidget().axis.setLabel(z["label"])
-
         else:
             self.spw.plot(z, x, y, plot2d=self.w_plot2d.isChecked())
         return 0
@@ -1058,62 +1108,66 @@ Please investigate the error and eventually restart matrix-preview""",
         guessing from the data dimension.
         """
         indexY, indexX = [self.w_index[i].currentIndex() - 1 for i in range(2)]
-        x = {}
-        y = {}
+
         # disable transpose widget
         self.w_transpose.setVisible(False)
+
+        y: Optional[PlotData] = None
+        x: Optional[PlotData] = None
+
         if indexY == -1:
             # empty index selected
             return -3
         elif indexX == -1:
             # set up axis labels and units according to index
-            # only have y data, so make x array index
             dim = len(self.shapes[indexY])
             if dim >= 3:
                 return -2
-            # 1D or 2D data can be plotted without second data set
-            # against column index
+
             yname = self.names[indexY]
-            if 2 == dim:
-                # 2D data can be transposed
-                self.w_transpose.setVisible(True)
+
+            y_data = self.data[yname]
             if self.w_transpose.isChecked() is True and 2 == dim:
-                y["data"] = self.data[yname].T
-            else:
-                y["data"] = self.data[yname]
-            y["shape"] = y["data"].shape
-            x = dict(
-                label="array index",
-                unit="",
-                dim=1,
-                data=np.arange(y["shape"][0]),
-                desig=0,
-                shape=(y["shape"][0],),
-            )
-            y["label"] = yname
-            y["desig"] = indexY + 1
-            y["unit"] = self.units[indexY]
-            y["dim"] = dim
+                y_data = y_data.T
+
+            y = {
+                "label": yname,
+                "desig": indexY + 1,
+                "unit": self.units[indexY],
+                "data": y_data,
+                "shape": y_data.shape,
+                "dim": dim,
+            }
+
+            x_shape = (y["shape"][0],)
+            x = {
+                "label": "array index",
+                "unit": "",
+                "dim": 1,
+                "data": np.arange(y["shape"][0]),
+                "desig": 0,
+                "shape": x_shape,
+            }
         else:
-            # both axes are define, set up x and y dictionary
+            # both axes are defined, set up x and y dictionary
             yname = self.names[indexY]
-            y = dict(
-                label=yname,
-                desig=indexY + 1,
-                unit=self.units[indexY],
-                data=self.data[yname],
-                shape=self.shapes[indexY],
-                dim=len(self.shapes[indexY]),
-            )
+            y = {
+                "label": yname,
+                "desig": indexY + 1,
+                "unit": self.units[indexY],
+                "data": self.data[yname],
+                "shape": self.shapes[indexY],
+                "dim": len(self.shapes[indexY]),
+            }
             xname = self.names[indexX]
-            x = dict(
-                label=xname,
-                desig=indexX + 1,
-                unit=self.units[indexX],
-                data=self.data[xname],
-                shape=self.shapes[indexX],
-                dim=len(self.shapes[indexX]),
-            )
+            x = {
+                "label": xname,
+                "desig": indexX + 1,
+                "unit": self.units[indexX],
+                "data": self.data[xname],
+                "shape": self.shapes[indexX],
+                "dim": len(self.shapes[indexX]),
+            }
 
         if y["data"].size == 0 or x["data"].size == 0:
             return -9
@@ -1188,7 +1242,7 @@ def main():
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
-    if "SIGTTOU" in dir(signal):  # signal only on POSIX compliant systems
+    if hasattr(signal, "SIGTTOU"):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     with QtGracefulKiller():
         if len(sys.argv) < 2:

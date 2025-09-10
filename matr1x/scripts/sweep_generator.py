@@ -64,11 +64,11 @@ from matr1x.gui_util import (
     AboutBox,
     CustomViewBox,
     MApplication,
-    MIcon,
     SystemListWidget,
     check_config,
     create_tray_notification,
     get_application_instance,
+    get_matrix_icon,
     open_matrix_toml,
     save_messagebox,
     validator,
@@ -82,9 +82,9 @@ from matr1x.util import (
     set_correct_mac_appname,
 )
 
-if os.name == "nt":
+if sys.platform == "win32":
     try:
-        from ctypes import windll  # Only exists on Windows.
+        from ctypes import windll
 
         myappid = "python.matr1x.sweep-generator.version"
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -171,7 +171,9 @@ class QLabelWithColor(QLabel):
         if ev is not None:
             if ev.button() == Qt.MouseButton.LeftButton:
                 self.clicked.emit(ev)
-                MApplication.activeWindow().setFocus()
+                active_window = MApplication.activeWindow()
+                if active_window is not None:
+                    active_window.setFocus()
         return super().mousePressEvent(ev)
 
     def setColors(self, color_bright: str, color_dark: str) -> None:
@@ -327,7 +329,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, filename=None, system=None, inputcb=None):
         super().__init__()
-        self.setWindowIcon(MIcon("matr1x-sweep-generator.png"))
+        self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
 
         # file handling helpers
         self.system = system
@@ -481,17 +483,19 @@ class MainWindow(QMainWindow):
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
-        self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
+        self.new_file_action = QAction(get_matrix_icon("SP_FileIcon"), "New", self)
         self.new_file_action.triggered.connect(self.new_file)
         self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
         self.new_file_action.setEnabled(False)
-        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.gui_from_sweep)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.add_system_action = QAction(MIcon("CHAR_+", QColor("RoyalBlue")), "Add System", self)
+        self.add_system_action = QAction(
+            get_matrix_icon("CHAR_+", QColor("RoyalBlue")), "Add System", self
+        )
         self.add_system_action.triggered.connect(self.add_system)
         self.remove_system_action = QAction(
-            MIcon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
+            get_matrix_icon("CHAR_-", QColor("RoyalBlue")), "Remove System", self
         )
         self.remove_system_action.setEnabled(False)
         self.remove_system_action.triggered.connect(self.delete_selected_system)
@@ -499,20 +503,22 @@ class MainWindow(QMainWindow):
         self.systemList.orderChanged.connect(self.filename_changed)
         self.systemList.setMinimumHeight(50)
         self.systemList.setMaximumHeight(50)
-        self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
+        self.save_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save", self)
         self.save_action.triggered.connect(self.save_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.setEnabled(False)
-        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
+        self.save_as_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self)
         self.save_as_action.triggered.connect(lambda: self.save_file(dialog=True))
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        self.append_action = QAction(MIcon("SP_DialogSaveButton"), "Append", self)
+        self.append_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append", self)
         self.append_action.triggered.connect(lambda: self.save_file(append=True))
-        self.append_to_action = QAction(MIcon("SP_DialogSaveButton"), "Append To...", self)
+        self.append_to_action = QAction(
+            get_matrix_icon("SP_DialogSaveButton"), "Append To...", self
+        )
         self.append_to_action.triggered.connect(lambda: self.save_file(append=True, dialog=True))
         self.save_button = QToolButton()
         self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
+        self.save_button.setIcon(get_matrix_icon("SP_DialogSaveButton"))
         self.save_button.setText("Save")
         self.save_button.setDefaultAction(self.save_action)
         self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
@@ -527,7 +533,7 @@ class MainWindow(QMainWindow):
         else:
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
-        self.sweep_action = QAction(MIcon("SP_BrowserReload"), "Draft Sweep", self)
+        self.sweep_action = QAction(get_matrix_icon("SP_BrowserReload"), "Draft Sweep", self)
         self.sweep_action.triggered.connect(self.print_sweep_to_preview)
         self.sweep_action.setEnabled(False)
         self.toggle_toolbar_action = QAction("Show Toolbar", self)
@@ -536,7 +542,7 @@ class MainWindow(QMainWindow):
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
         self.preview_action = QAction(
-            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
+            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.preview_sweep)
         self.preview_action.setEnabled(False)
@@ -605,7 +611,7 @@ class MainWindow(QMainWindow):
         """Display an 'about this app' widget."""
         box = AboutBox(
             "Sweep Generator",
-            MIcon("matr1x-sweep-generator.png"),
+            get_matrix_icon("matr1x-sweep-generator.png"),
             matr1x,
             matr1x.datetimefmt,
         )
@@ -704,7 +710,7 @@ class MainWindow(QMainWindow):
             else:
                 error_text = "The following error was raised during system "
                 error_text += "import, please check the system for errors.\n\n"
-            tbinfo = traceback.format_exception(e)
+            tbinfo = traceback.format_exception(type(e), e, e.__traceback__)
             tbstr = "".join(tbinfo)
             error_text += "" + tbstr
             QMessageBox.warning(self, "Import error.", error_text.replace("\n", "<br>"))
@@ -788,7 +794,7 @@ class MainWindow(QMainWindow):
         elif name == "start" or name == "end" or name == "points":
             widget = LineEditFocus()
             widget.setAlignment(Qt.AlignmentFlag.AlignRight)
-            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))
+            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))  # ty: ignore [unresolved-attribute] issue #143
             widget.textChanged.connect(
                 lambda text, column=column - 1: self.update_append(text, column)
             )
@@ -800,7 +806,7 @@ class MainWindow(QMainWindow):
             widget = SpinBoxFocus()
             widget.setRange(1, 999)
             widget.setAlignment(Qt.AlignmentFlag.AlignRight)
-            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))
+            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))  # ty: ignore [unresolved-attribute] issue #143
             widget.valueChanged.connect(lambda: self.update_window_title(dirty=True))
         elif name == "append":
             widget = QPushButton("+")
@@ -813,7 +819,7 @@ class MainWindow(QMainWindow):
             widget.clicked.connect(lambda: self.update_window_title(dirty=True))
         elif name == "updown":
             widget = CheckBoxFocus(self)
-            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))
+            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))  # ty: ignore [unresolved-attribute] issue #143
             widget.stateChanged.connect(lambda: self.update_window_title(dirty=True))
         elif name == "loopover":
             widget = QComboBox(self)
@@ -900,7 +906,7 @@ class MainWindow(QMainWindow):
             temp_widget = QLineEdit(None)
             size = temp_widget.sizeHint().height()
             temp_widget.deleteLater()
-            arrow_icon = MIcon(
+            arrow_icon = get_matrix_icon(
                 "CUSTOM_Updown",
                 color=QColor("transparent"),
                 pencolor=QColor("darkgray"),

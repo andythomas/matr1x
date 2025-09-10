@@ -340,7 +340,7 @@ class var(QObject):
     def __init__(
         self,
         dtype: Union[type, tuple[type, type], None] = (float, str),
-        outType: type = None,
+        outType: Optional[type] = None,
         columns: Optional[Union[list, str, int, guiObject]] = None,
         unit: str = "",
         log: Optional[bool] = False,
@@ -956,7 +956,9 @@ class GuiDict(UserDict, ABC):
         # add top controls (hiding/enable) to the content widget
         self.control_layout = QHBoxLayout()
         self.toolbar = QToolBar()
-        icon_size = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        style = MApplication.style()
+        assert style is not None
+        icon_size = style.pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.control_layout.addWidget(self.toolbar)
         self.extend_switch = QCheckBox()
@@ -1496,7 +1498,12 @@ def sendNotificationEmail(
     context = ssl.create_default_context()
 
     try:
-        if all(var is not None for var in (smtp_srv, smtp_user, frommail, passwd)):
+        if (
+            smtp_srv is not None
+            and smtp_user is not None
+            and frommail is not None
+            and passwd is not None
+        ):
             with smtplib.SMTP_SSL(smtp_srv, port, context=context) as server:
                 server.login(smtp_user, passwd)
                 server.send_message(msg, from_addr=frommail, to_addrs=address)
@@ -1799,9 +1806,9 @@ def control_main(
     **kwargs : dict
         Keyword arguments which are forwarded to the window_class constructor.
     """
-    if os.name == "nt":
+    if sys.platform == "win32":
         try:
-            from ctypes import windll  # Only exists on Windows.
+            from ctypes import windll
 
             myappid = f"python.{package}.{name}.version"
             windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)

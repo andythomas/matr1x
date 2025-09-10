@@ -22,8 +22,6 @@ BOSS-20-5 power supply.
 import logging
 import time
 
-from pyvisa import VisaIOError
-
 from matr1x.devices.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)
@@ -96,7 +94,7 @@ class BOSS(VisaDevice):
 
         Raises
         ------
-        VisaIOError
+        IOError
             If too many attempts to read eagerly.
         """
         # ignore non-ascii characters in reply which sometimes seem to appear
@@ -105,7 +103,7 @@ class BOSS(VisaDevice):
         except UnicodeDecodeError:
             logger.info(f"repeating read_very_eager (attempts: {attempts})")
             if attempts > 4:
-                raise VisaIOError("too many attempts to read eagerly")
+                raise IOError("too many attempts to read eagerly")
             return self.read_very_eager(attempts=attempts + 1)
 
     def query(self, msg, attempts=0):
@@ -126,7 +124,7 @@ class BOSS(VisaDevice):
 
         Raises
         ------
-        VisaIOError
+        IOError
             If too many attempts to query.
         """
         try:
@@ -134,7 +132,7 @@ class BOSS(VisaDevice):
         except UnicodeDecodeError:
             logger.info(f"repeating query {msg} (attempts: {attempts})")
             if attempts > 4:
-                raise VisaIOError(-1073807298)
+                raise IOError("Query failed after too many attempts.")
             return self.query(msg, attempts=attempts + 1)
         ret = ret.replace("Command>", "")
         return ret

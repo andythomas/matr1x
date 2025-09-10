@@ -26,7 +26,7 @@ import tempfile
 import textwrap
 import time
 from os.path import basename, dirname
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import autopep8
 import pyflakes.checker
@@ -86,7 +86,6 @@ from matr1x.gui_util import (
     EmittingStream,
     MApplication,
     MetaDataDialog,
-    MIcon,
     NumericalInputDialog,
     OutputDuplication,
     SystemListWidget,
@@ -96,6 +95,7 @@ from matr1x.gui_util import (
     check_config,
     detect_shortcut,
     get_application_instance,
+    get_matrix_icon,
     get_system_info,
     open_matrix_toml,
     save_messagebox,
@@ -1445,9 +1445,9 @@ class CustomQsciAPI(QsciAPIs):
             self.add(ac)
 
 
-if os.name == "nt":
+if sys.platform == "win32":
     try:
-        from ctypes import windll  # Only exists on Windows.
+        from ctypes import windll
 
         myappid = "python.matr1x.matrix-script.version"
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -1863,9 +1863,10 @@ class MainWindow(QMainWindow):
         """
         for i in range(layout.count()):
             item = layout.itemAt(i)
-            widget = item.widget()
-            if widget:
-                widget.setVisible(visible)
+            if item is not None:
+                widget = item.widget()
+                if widget:
+                    widget.setVisible(visible)
 
     def find(self) -> None:
         """Show the find layout and focus in the line edit."""
@@ -2156,7 +2157,7 @@ class MainWindow(QMainWindow):
         """Display an 'about this app' widget."""
         box = AboutBox(
             "Matrix Script",
-            MIcon("matr1x-matrix-script.png"),
+            get_matrix_icon("matr1x-matrix-script.png"),
             matr1x,
             matr1x.datetimefmt,
         )
@@ -2252,7 +2253,7 @@ class MainWindow(QMainWindow):
 
     def init_ui(self) -> None:
         """Generate the main GUI."""
-        self.setWindowIcon(MIcon("matr1x-matrix-script.png"))
+        self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
         self.central_widget = DroppableWidget(self)
         self.central_widget.fileDropped.connect(self.load_from_filename)
         self.setCentralWidget(self.central_widget)
@@ -2338,7 +2339,7 @@ class MainWindow(QMainWindow):
         find_next = QPushButton("Find Next")
         find_next.clicked.connect(self.find_next)
         find_close = QPushButton()
-        find_close.setIcon(MIcon("SP_LineEditClearButton"))
+        find_close.setIcon(get_matrix_icon("SP_LineEditClearButton"))
         find_close.clicked.connect(lambda: self.show_layout(self.find_layout, False))
         self.find_layout.addWidget(self.find_line)
         self.find_layout.addWidget(self.find_count)
@@ -2389,38 +2390,38 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
         self.config_editor.setFloating(True)
         self.config_editor.close()
-        self.config_action = QAction(MIcon("CHAR_≡"), "Device config", self)
+        self.config_action = QAction(get_matrix_icon("CHAR_≡"), "Device config", self)
         self.config_action.setToolTip("Show the devices preferences/ configuration.")
         self.config_action.setCheckable(True)
         self.config_action.toggled.connect(self.toggle_preferences)
         self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
-        self.new_file_action = QAction(MIcon("SP_FileIcon"), "New", self)
+        self.new_file_action = QAction(get_matrix_icon("SP_FileIcon"), "New", self)
         self.new_file_action.triggered.connect(self.new_file)
         self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
-        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self)
         self.load_action.setToolTip("Open a script file.")
         self.load_action.triggered.connect(self.load_from_file)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.save_action = QAction(MIcon("SP_DialogSaveButton"), "Save", self)
+        self.save_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save", self)
         self.save_action.setToolTip("Save the under the current filename.")
         self.save_action.triggered.connect(self.save_file)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
+        self.save_as_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self)
         self.save_as_action.triggered.connect(self.save_file_as)
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_button = QToolButton()
         self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.save_button.setIcon(MIcon("SP_DialogSaveButton"))
+        self.save_button.setIcon(get_matrix_icon("SP_DialogSaveButton"))
         self.save_button.setText("Save")
         self.save_button.setDefaultAction(self.save_action)
         self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         save_pulldown = QMenu(self)
         save_pulldown.addAction(self.save_as_action)
         self.save_button.setMenu(save_pulldown)
-        self.add_system_action = QAction(MIcon("CHAR_+"), "Add System", self)
+        self.add_system_action = QAction(get_matrix_icon("CHAR_+"), "Add System", self)
         self.add_system_action.setToolTip("Add a matrix system file.")
         self.add_system_action.triggered.connect(self.add_system)
-        self.remove_system_action = QAction(MIcon("CHAR_-"), "Remove System", self)
+        self.remove_system_action = QAction(get_matrix_icon("CHAR_-"), "Remove System", self)
         self.remove_system_action.setEnabled(False)
         self.remove_system_action.setToolTip("Remove the selected or last matrix system file.")
         self.remove_system_action.triggered.connect(self.delete_selected_system)
@@ -2452,23 +2453,23 @@ class MainWindow(QMainWindow):
         self.find_next_action = QAction("Find Next", self)
         self.find_next_action.setShortcut(QKeySequence.StandardKey.FindNext)
         self.find_next_action.triggered.connect(self.find_next)
-        self.start_pause_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
+        self.start_pause_action = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self)
         self.start_pause_action.setToolTip("Execute the script.")
         self.start_pause_action.triggered.connect(self.start_process)
         self.start_pause_action.setCheckable(True)
-        self.stop_action = QAction(MIcon("CUSTOM_Stop"), "Stop", self)
+        self.stop_action = QAction(get_matrix_icon("CUSTOM_Stop"), "Stop", self)
         self.stop_action.setToolTip("Stop the script and query status.")
         self.stop_action.triggered.connect(lambda: self.abort_thread("q"))
         self.stop_action.setEnabled(False)
-        self.abort_action = QAction(MIcon("CUSTOM_Stop"), "Abort", self)
+        self.abort_action = QAction(get_matrix_icon("CUSTOM_Stop"), "Abort", self)
         self.abort_action.triggered.connect(lambda: self.abort_thread("a"))
         self.abort_action.setEnabled(False)
-        self.finish_action = QAction(MIcon("CUSTOM_Stop"), "Finish", self)
+        self.finish_action = QAction(get_matrix_icon("CUSTOM_Stop"), "Finish", self)
         self.finish_action.triggered.connect(lambda: self.abort_thread("f"))
         self.finish_action.setEnabled(False)
         self.stop_button = QToolButton()
         self.stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.stop_button.setIcon(MIcon("CUSTOM_Stop"))
+        self.stop_button.setIcon(get_matrix_icon("CUSTOM_Stop"))
         self.stop_button.setText("Abort")
         self.stop_button.setDefaultAction(self.stop_action)
         self.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
@@ -2476,11 +2477,11 @@ class MainWindow(QMainWindow):
         stop_pulldown.addAction(self.abort_action)
         stop_pulldown.addAction(self.finish_action)
         self.stop_button.setMenu(stop_pulldown)
-        self.kill_action = QAction(MIcon("SP_DialogCancelButton"), "Kill", self)
+        self.kill_action = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill", self)
         self.kill_action.triggered.connect(self.kill_thread)
         self.kill_action.setEnabled(False)
         self.preview_action = QAction(
-            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
+            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.preview_data)
         self.preview_action.setEnabled(False)
@@ -2807,7 +2808,7 @@ class MainWindow(QMainWindow):
 
     def get_settables(
         self,
-    ) -> Tuple[Union[List[int], None], Union[List[bool], None], Union[List[str], None]]:
+    ) -> Tuple[Optional[List[int]], Optional[List[bool]], Optional[List[str]]]:
         """
         Get the settables of the system files.
 
@@ -2877,7 +2878,7 @@ class MainWindow(QMainWindow):
 
         return (indexes, settables, columns)
 
-    def update_system_commands(self, cached_info: dict = None) -> None:
+    def update_system_commands(self, cached_info: Optional[dict] = None) -> None:
         """
         Update the help info about the current system(s).
 
@@ -3113,14 +3114,14 @@ class MainWindow(QMainWindow):
         self.is_running = flag
 
         if flag:
-            self.start_pause_action.setIcon(MIcon("CUSTOM_Pause"))
+            self.start_pause_action.setIcon(get_matrix_icon("CUSTOM_Pause"))
             self.start_pause_action.setText("Pause")
             self.start_pause_action.setToolTip("Pause the currently running script.")
             self.start_pause_action.triggered.disconnect(self.start_process)
             self.start_pause_action.triggered.connect(self.pause_thread)
         else:
             self.clear_annotations()
-            self.start_pause_action.setIcon(MIcon("CUSTOM_Play"))
+            self.start_pause_action.setIcon(get_matrix_icon("CUSTOM_Play"))
             self.start_pause_action.setText("Start")
             self.start_pause_action.setToolTip("Execute the script.")
             self.start_pause_action.triggered.disconnect(self.pause_thread)

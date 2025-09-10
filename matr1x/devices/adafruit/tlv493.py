@@ -34,7 +34,7 @@ Register map:
 import subprocess
 
 import numpy as np
-import smbus
+import smbus3
 
 
 class TLV493:
@@ -69,7 +69,7 @@ class TLV493:
             -1 if sensor address detection fails
         """
         # open bus
-        self.bys = smbus.SMBus(1)
+        self.bys = smbus3.SMBus(1)
 
         # look for adress
         addr = subprocess.check_output(["i2cdetect", "-y", "1"]).decode()
@@ -146,7 +146,7 @@ class TLV493:
         float
             Temperature in degrees Celsius
         """
-        regs = np.int8(self.bys.read_i2c_block_data(self.addr, 0))[0:7]
+        regs = np.int8(self.bys.read_i2c_block_data(self.addr, 0))[0:7]  # ty: ignore[non-subscriptable] issue #221
         t = regs[6] | ((regs[3] & 0xF0) << 4)
         t = t - 340
         t = t * 1.1
@@ -163,11 +163,11 @@ class TLV493:
         numpy.ndarray
             Magnetic field vector [Bx, By, Bz] in Tesla
         """
-        regs = np.int8(self.bys.read_i2c_block_data(self.addr, 0))[0:6]
+        regs = np.int8(self.bys.read_i2c_block_data(self.addr, 0))[0:6]  # ty: ignore[non-subscriptable] issue #221
         if regs[3] & 0b1100 == self.counter:
             self.reset()
             self.config()
-            regs = np.int8(self.bys.read_i2c_block_data(self.addr, 0))[0:6]
+            regs = np.int8(self.bys.read_i2c_block_data(self.addr, 0))[0:6]  # ty: ignore[non-subscriptable] issue #221
         self.counter = regs[3] & 0b1100
         bx = (regs[0] << 4) | ((regs[4] & 0xF0) >> 4)
         by = (regs[1] << 4) | (regs[4] & 0x0F)

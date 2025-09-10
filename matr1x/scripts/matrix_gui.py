@@ -52,10 +52,10 @@ from matr1x.gui_util import (
     ConfigEditWidget,
     MApplication,
     MetaDataDialog,
-    MIcon,
     check_config,
     detect_shortcut,
     get_application_instance,
+    get_matrix_icon,
     get_system_info,
     open_matrix_toml,
 )
@@ -76,9 +76,9 @@ def signal_handler(signal, frame):
 # Connect keyboard interrupt with above signal handler
 signal.signal(signal.SIGINT, signal_handler)
 
-if os.name == "nt":
+if sys.platform == "win32":
     try:
-        from ctypes import windll  # Only exists on Windows.
+        from ctypes import windll
 
         myappid = "python.matr1x.matrix-gui.version"
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -274,7 +274,7 @@ class ExecThread(QThread):
         fun fact: this function took a whole night
                   to be figured out.
         """
-        if os.name == "nt":
+        if sys.platform == "win32":
             # fork the child
             child = subprocess.Popen(*args, **kwargs)
             # get filename back
@@ -311,7 +311,7 @@ class ExecThread(QThread):
 
             try:
                 # fork the child
-                child = subprocess.Popen(*args, preexec_fn=new_pgid, **kwargs)
+                child = subprocess.Popen(*args, preexec_fn=new_pgid, **kwargs)  # ty: ignore [no-matching-overload] issue #247
 
                 # we can't set the process group id from the parent since the
                 # child will already have exec'd. and we can't SIGSTOP it before
@@ -449,7 +449,9 @@ class MainWindow(QMainWindow):
 
     def info_box(self):
         """Display an 'about this app' widget."""
-        box = AboutBox("Matrix GUI", MIcon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt)
+        box = AboutBox(
+            "Matrix GUI", get_matrix_icon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
+        )
         box.exec()
         return
 
@@ -508,7 +510,7 @@ class MainWindow(QMainWindow):
     def initUI(self):
         """Initialize the basic GUI for the graphical version of matrix."""
         self.setWindowTitle("Matrix GUI")
-        self.setWindowIcon(MIcon("matr1x-matrix-gui.png"))
+        self.setWindowIcon(get_matrix_icon("matr1x-matrix-gui.png"))
         self.measurements_container = QWidget()
         inner_measurement_layout = QHBoxLayout()
         inner_measurement_layout.setContentsMargins(0, 0, 0, 0)
@@ -557,11 +559,11 @@ class MainWindow(QMainWindow):
                 """
         )
         self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.remove_action = QAction(MIcon("CHAR_-"), "Remove", self)
+        self.remove_action = QAction(get_matrix_icon("CHAR_-"), "Remove", self)
         self.remove_action.triggered.connect(self.removeMeasurement)
         self.remove_button.setDefaultAction(self.remove_action)
         self.preview_action = QAction(
-            MIcon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
+            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
         )
         self.preview_action.triggered.connect(self.openPreview)
         self.preview_action.setEnabled(False)
@@ -580,23 +582,25 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
         self.config_editor.setFloating(True)
         self.config_editor.close()
-        self.config_action = QAction(MIcon("CHAR_≡"), "Device config", self)
+        self.config_action = QAction(get_matrix_icon("CHAR_≡"), "Device config", self)
         self.config_action.setCheckable(True)
         self.config_action.toggled.connect(self.toggle_preferences)
         self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
-        self.load_action = QAction(MIcon("SP_DialogOpenButton"), "Open", self)
+        self.load_action = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.showInputDialog)
         self.load_action.setShortcut(QKeySequence.StandardKey.Open)
         self.sweep_action = QAction(
-            MIcon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
+            get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
             "Generator",
             self,
         )
         self.sweep_action.triggered.connect(self.startSweepGenerator)
-        self.auto_filename_action = QAction(MIcon("SP_DriveHDIcon"), "Auto-filename", self)
+        self.auto_filename_action = QAction(
+            get_matrix_icon("SP_DriveHDIcon"), "Auto-filename", self
+        )
         self.auto_filename_action.setCheckable(True)
         self.auto_filename_action.toggled.connect(self.updateAutoGenFilename)
-        self.save_as_action = QAction(MIcon("SP_DialogSaveButton"), "Save As...", self)
+        self.save_as_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self)
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_as_action.triggered.connect(self.showOutputDialog)
         self.outputEdit = QLineEdit()
@@ -606,10 +610,10 @@ class MainWindow(QMainWindow):
         else:
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
-        self.queue_action = QAction(MIcon("CHAR_+"), "Queue", self)
+        self.queue_action = QAction(get_matrix_icon("CHAR_+"), "Queue", self)
         self.queue_action.triggered.connect(self.queueMeasurement)
         self.queue_action.setEnabled(False)
-        self.start_action = QAction(MIcon("CUSTOM_Play"), "Start", self)
+        self.start_action = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self)
         self.start_action.triggered.connect(self.runMatrix)
         self.start_action.setEnabled(False)
         self.w_dockable_metadata = QDockWidget("Metadata", self)
@@ -903,7 +907,7 @@ def main():
     app.setDesktopFileName("matrix-gui")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
-    if "SIGTTOU" in dir(signal):  # signal only on POSIX compliant systems
+    if hasattr(signal, "SIGTTOU"):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     with QtGracefulKiller():
         ex = MainWindow()

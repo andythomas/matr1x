@@ -72,7 +72,7 @@ class PPMS:
         if (now - self._start) > 30 * 60:
             if self._client is not None:
                 self._client.close_client()
-            client = mpv.Client(host=self.host, socket_timeout=2)
+            client = mpv.Client(host=self.host)
             client.open()
             self._start = now
             self._client = client

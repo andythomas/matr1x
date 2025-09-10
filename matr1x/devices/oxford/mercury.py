@@ -18,6 +18,7 @@
 import logging
 import math
 import re
+from collections.abc import Iterable
 
 from wrapt import synchronized
 
@@ -432,7 +433,7 @@ class MercurySingleAxisIPS(VisaDevice):
         except ValueError:
             return
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
-        if -1 == axis:
+        if -1 == axis and isinstance(state, Iterable):
             self.setVal(status[state[0]], *self.workingDict["zActn"][1:])
         elif 0 == axis:
             self.setVal(status[state], *self.workingDict["zActn"][1:])
@@ -1043,7 +1044,7 @@ class MercuryIPS(VisaDevice):
         except ValueError:
             return
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
-        if -1 == axis:
+        if -1 == axis and isinstance(state, Iterable):
             self.setVal(status[state[0]], *self.workingDict["xActn"][1:])
             self.setVal(status[state[1]], *self.workingDict["yActn"][1:])
             self.setVal(status[state[2]], *self.workingDict["zActn"][1:])

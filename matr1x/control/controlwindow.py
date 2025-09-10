@@ -37,6 +37,7 @@ import sys
 import threading
 import time
 import warnings
+from typing import Optional
 
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QColor, QIcon, QKeySequence, QShortcut, QTextCursor
@@ -61,7 +62,13 @@ from PyQt6.QtWidgets import (
 from matr1x import config as matrixconfig
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
-from matr1x.gui_util import EmittingStream, MApplication, MIcon, check_config, open_matrix_toml
+from matr1x.gui_util import (
+    EmittingStream,
+    check_config,
+    get_application_instance,
+    get_matrix_icon,
+    open_matrix_toml,
+)
 from matr1x.util import Get
 
 logger = logging.getLogger(os.path.split(__file__)[-1])
@@ -83,7 +90,7 @@ class CollapsibleBox(QWidget):
     # https://github.com/MichaelVoelkel/qt-collapsible-section/blob/master/Section.py
     redraw_activity = pyqtSignal(bool)
 
-    def __init__(self, title: str = "", parent: QWidget = None) -> None:
+    def __init__(self, title: str = "", parent: Optional[QWidget] = None) -> None:
         """
         Initialize the CollapsibleBox widget.
 
@@ -432,10 +439,10 @@ class ControlWindow(QMainWindow):
         """
         if checked:
             self.guidicts[index].extend_switch.setChecked(True)
-            self.full_info[index].setIcon(MIcon("CHAR_-"))
+            self.full_info[index].setIcon(get_matrix_icon("CHAR_-"))
         else:
             self.guidicts[index].extend_switch.setChecked(False)
-            self.full_info[index].setIcon(MIcon("CHAR_+"))
+            self.full_info[index].setIcon(get_matrix_icon("CHAR_+"))
         self.check_full_infos()
 
     def toggle_enable(self, checked: bool, index: int) -> None:
@@ -454,10 +461,12 @@ class ControlWindow(QMainWindow):
         if checked:
             self.guidicts[index].enable_switch.setChecked(True)
             self.guidicts[index].dock.show()
-            self.enable[index].setIcon(MIcon("CUSTOM_Power", color=QColor("forestgreen")))
+            self.enable[index].setIcon(
+                get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen"))
+            )
         else:
             self.guidicts[index].enable_switch.setChecked(False)
-            self.enable[index].setIcon(MIcon("CUSTOM_Power", color=QColor("gray")))
+            self.enable[index].setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
         self.check_enables()
 
     def toggle_visible(self, checked: bool, index: int) -> None:
@@ -615,7 +624,7 @@ class ControlWindow(QMainWindow):
             dict_name = list(guidict.keys())[0]
             # Enable/ Disable
             enable_action = QAction(
-                MIcon("CUSTOM_Power", color=QColor("forestgreen")), dict_name, self
+                get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")), dict_name, self
             )
             enable_action.setIconText("Enable")
             self.enable.append(enable_action)
@@ -623,7 +632,7 @@ class ControlWindow(QMainWindow):
             if guidict.enable_switch.isChecked():
                 self.enable[i].setChecked(True)
             else:
-                self.enable[i].setIcon(MIcon("CUSTOM_Power", color=QColor("gray")))
+                self.enable[i].setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
                 self.enable[i].setChecked(False)
             self.enable[i].setEnabled(False)
             if guidict.allow_disabling:
@@ -648,13 +657,13 @@ class ControlWindow(QMainWindow):
             self.view_menu.addAction(self.guidict_view[i])
             # Full info toggles
             has_hiding = any(variable.hide for variable in guidict.values())
-            full_info_action = QAction(MIcon("CHAR_+"), dict_name, self)
+            full_info_action = QAction(get_matrix_icon("CHAR_+"), dict_name, self)
             full_info_action.setIconText("Full info")
             self.full_info.append(full_info_action)
             self.full_info[i].setCheckable(True)
             if guidict.extend_switch.isChecked():
                 self.full_info[i].setChecked(True)
-                self.full_info[i].setIcon(MIcon("CHAR_-"))
+                self.full_info[i].setIcon(get_matrix_icon("CHAR_-"))
             else:
                 self.full_info[i].setChecked(False)
             self.full_info[i].setEnabled(False)
@@ -768,7 +777,7 @@ class ControlWindow(QMainWindow):
         """Adjust the size of the main window."""
         self.adjustSize()
 
-    def extra_layout(self, layout: QLayout) -> None:
+    def extra_layout(self, layout: QVBoxLayout) -> None:
         """
         Define extra fields needed for specific control GUIs.
 
@@ -777,7 +786,7 @@ class ControlWindow(QMainWindow):
 
         Parameters
         ----------
-        layout : QLayout
+        layout : QVBoxLayout
             The layout to which the extra elements will be added.
         """
         elayout = QHBoxLayout()
@@ -802,7 +811,7 @@ class ControlWindow(QMainWindow):
         """
         self.status_box = CollapsibleBox("Logging and Status", parent=self)
         self.status_box.redraw_activity.connect(self.readjustSize)
-        layout.addWidget(self.status_box, stretch=1)
+        layout.addWidget(self.status_box)
 
         # initialize common widgets
         self.status = QPlainTextEdit(self)
@@ -1351,7 +1360,7 @@ class ControlWindow(QMainWindow):
             self.terminated_log = True
         self.activity.emit("lightgray")
         self.deactivate.emit(True)
-        qApp = MApplication.instance()
+        qApp = get_application_instance()
         qApp.processEvents()
         # stop SCPI server to reflect that something is wrong instead of
         # returning the same reading over and over

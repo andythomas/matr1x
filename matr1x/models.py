@@ -40,12 +40,16 @@ def format_validation_error(
         The properly formatted string with the human readable errors.
     """
     msg = ""
-    for err in e.errors():
-        location = base + ".".join(str(i) for i in err["loc"])
-        msg += f"{location}: {err['msg']}"
-        if "url" in err:
-            msg += f". More info at {err['url']}"
-        msg += "\n"
+    if isinstance(e, ValidationError):
+        for err in e.errors():
+            location = base + ".".join(str(i) for i in err["loc"])
+            msg += f"{location}: {err['msg']}"
+            if "url" in err:
+                msg += f". More info at {err['url']}"
+            msg += "\n"
+    else:
+        # Handle TypeError and ValueError which don't have errors() method
+        msg += f"{base}: {str(e)}\n"
     return msg
 
 

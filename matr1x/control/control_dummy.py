@@ -35,7 +35,7 @@ from matr1x.control import (
 from matr1x.control import guiObject as go
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
-from matr1x.gui_util import MIcon
+from matr1x.gui_util import get_matrix_icon
 from matr1x.util import Command, Get
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
@@ -124,7 +124,7 @@ class exampleDict(GuiDict):
         content = super().create_GUI()
         # optional custom menu
         print_action = QAction("Print in logger")
-        print_action.setIcon(MIcon("CHAR_P"))
+        print_action.setIcon(get_matrix_icon("CHAR_P"))
         print_action.triggered.connect(self.print_function)
         # return all actions as a list to the controlwindow
         # Just one action in is case

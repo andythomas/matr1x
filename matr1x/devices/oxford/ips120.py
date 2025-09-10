@@ -123,7 +123,7 @@ class IPS120(IsobusDevice):
             rate = 0.5
         if -1 == axis:
             # For -1 axis, rate is expected to be a list/array
-            self.query("T{:.4f}".format(rate[0]))
+            self.query("T{:.4f}".format(rate[0]))  # ty: ignore[non-subscriptable], fixed via IFW_software #1465
         if 0 == axis:
             self.query("T{:.4f}".format(rate))
 
@@ -193,7 +193,7 @@ class IPS120(IsobusDevice):
         except ValueError:
             return
         if -1 == axis:
-            self.query("A{:d}".format(state[0]))
+            self.query("A{:d}".format(state[0]))  # ty: ignore[non-subscriptable], fixed via IFW_software #1465
         elif 0 == axis:
             self.query("A{:d}".format(state))
 

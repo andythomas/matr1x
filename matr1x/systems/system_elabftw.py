@@ -477,7 +477,7 @@ class ElabSystem(System):
             print(f"Could not identify ElabFTW resource corresponding to the name {resource}")
         return None
 
-    def _parse_tags_from_line(self, line: str) -> Optional[int]:
+    def _parse_tags_from_line(self, line: str) -> Optional[list]:
         """
         Parse tags from line, tags are marked with #.
 

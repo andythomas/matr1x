@@ -32,10 +32,15 @@ import tempfile
 import textwrap
 import time
 from contextlib import contextmanager
-from os.path import abspath, isabs, isdir, isfile, join, relpath
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional, Union
 
 import h5py
 import numpy as np
+
+# conditional import for type checkers
+if TYPE_CHECKING:
+    import types
 
 # conditional import for non-blocking io
 if os.name == "nt":
@@ -46,8 +51,8 @@ else:
 
 # conditional import for Mac: Required to correctly set the app name and left-most menu
 if sys.platform == "darwin":
-    from AppKit import NSApplication
-    from Foundation import NSBundle
+    from AppKit import NSApplication  # ty: ignore [unresolved-import], library not completey typed
+    from Foundation import NSBundle  # ty: ignore [unresolved-import], library not completey typed
 
 from .metadata import APP_META_KEY
 
@@ -112,7 +117,7 @@ def get_package_path(package_name):
     return None
 
 
-def get_importable_module_name(filename):
+def get_importable_module_name(filename_str: str) -> Union[str, bool]:
     """
     Get importable module name if filename point to an installed module.
 
@@ -130,13 +135,13 @@ def get_importable_module_name(filename):
         Module name if importable, False otherwise.
     """
     # Normalize the path
-    filename = abspath(filename)
+    filename = Path(filename_str).absolute()
 
     # Check if the file exists and is a Python file or
     # a directory with __init__.py
-    if filename.endswith(".py") and isfile(filename):
-        module_path = filename[:-3]  # Remove the .py extension
-    elif isdir(filename) and isfile(join(filename, "__init__.py")):
+    if filename.suffix == ".py" and filename.is_file():
+        module_path = filename.with_suffix("")
+    elif filename.is_dir() and (filename / "__init__.py").is_file():
         module_path = filename
     else:
         return False
@@ -147,15 +152,16 @@ def get_importable_module_name(filename):
     best_len = 0
 
     for base_path in sys.path:
-        base_path = abspath(base_path)
-        if module_path.startswith(base_path) and len(base_path) > best_len:
+        base_path = str(Path(base_path).absolute())
+
+        if str(module_path).startswith(base_path) and len(base_path) > best_len:
             best_match = base_path
             best_len = len(base_path)
 
     if best_match:
         # Remove the base_path from the module_path and convert to module name
-        relative_path = relpath(module_path, best_match)
-        module_name = relative_path.replace(os.sep, ".")
+        relative_path = module_path.relative_to(best_match)
+        module_name = str(relative_path).replace(os.sep, ".")
 
         # Check if the module is installed
         try:
@@ -242,7 +248,7 @@ def get_matrix_binary():
     raise FileNotFoundError("matrix executable could not be found")
 
 
-def module_from_path(filename):
+def module_from_path(filename_str: str) -> "types.ModuleType":
     """
     Create a module from a file path.
 
@@ -256,15 +262,17 @@ def module_from_path(filename):
     module
         Imported module.
     """
-    # module path was defined, check that file exists
-    if not isabs(filename):
-        # get absolute path
-        filename = abspath(filename)
+    filename = Path(filename_str).absolute()
     # create module specification from file and open
     spec = importlib.util.spec_from_file_location("dummyname", filename)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    if spec is None:
+        raise ImportError(f"Could not load spec for file '{filename}'")
+    module = importlib.util.module_from_spec(spec)
+    loader = spec.loader
+    if loader is None:
+        raise ImportError(f"Could not import {filename}.")
+    loader.exec_module(module)
+    return module
 
 
 def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
@@ -1198,7 +1206,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                 If `until` is not a string or `datetime` object.
             """
             now = datetime.datetime.now()
-            end_time = None
+            end_time = datetime.datetime.now()  # initialize; real end time determined below.
             sleep_time = None
             msg = "" if not message else f" ({message})"
             print_func = system._print if system else print
@@ -1409,10 +1417,10 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             input_type: str = "string",
             timeout: float = float("inf"),
             default_value: str = "",
-            min_value: float = None,  # Optional: minimum value for numerical input
-            max_value: float = None,  # Optional: maximum value for numerical input
-            step: float = None,  # Optional: step size for numerical input
-            decimals: int = None,  # Optional: number of decimals for numerical input
+            min_value: Optional[float] = None,  # Optional: minimum value for numerical input
+            max_value: Optional[float] = None,  # Optional: maximum value for numerical input
+            step: Optional[float] = None,  # Optional: step size for numerical input
+            decimals: Optional[int] = None,  # Optional: number of decimals for numerical input
         ):
             """
             Handle user input requests from the script.
@@ -1595,26 +1603,41 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                     # get traceback information and format accordingly
                     tbinfo = traceback.format_exception(*sys.exc_info())
                     tbstr = "".join(tbinfo[2:])
+                    tbstr = tbstr.replace("<module>", "script")
+
                     # get line information from traceback
                     ms = re.search(r"line (\d+)", tbstr)
-                    line = int(ms.group(1))
-                    # replace line number to match the user defined script
-                    # to that end, determine number of lines in prefix
-                    tbstr = re.sub(
-                        r"line (\d+)", "line " + str(int(ms.group(1)) - self.n_pref), tbstr
-                    )
-                    tbstr = tbstr.replace("<module>", "script")
-                    tbstr = tbstr.replace(
-                        'File "<string>"', '"{}"'.format(self.script.splitlines()[line - 1])
-                    )
-                    print(tbstr)
-                    if line < 1:
+                    if ms:
+                        line = int(ms.group(1))
+                        # replace line number to match the user defined script
+                        # to that end, determine number of lines in prefix
+                        adjusted_line = line - self.n_pref
+                        tbstr = re.sub(r"line (\d+)", "line " + str(adjusted_line), tbstr)
+
+                        # Fix file replacement - ensure we have valid indices
+                        script_lines = self.script.splitlines()
+                        if 1 <= line <= len(script_lines):
+                            tbstr = tbstr.replace(
+                                'File "<string>"', '"{}"'.format(script_lines[line - 1])
+                            )
+                        else:
+                            tbstr = tbstr.replace('File "<string>"', '"<unknown line>"')
+
+                        print(tbstr)
+
+                        # Check adjusted line instead of original line
+                        if adjusted_line < 1:
+                            print(" error during device initialization\n")
+                    else:
+                        # No line number found in traceback
+                        tbstr = tbstr.replace('File "<string>"', '"<script>"')
+                        print(tbstr)
                         print(" error during device initialization\n")
             except KeyboardInterrupt:
                 print("script interrupted by user")
 
     # this might be required on windows, needs testing
-    if os.name == "nt":
+    if sys.platform == "win32":
 
         def temp_opener(name, flag, mode=0o777):
             return os.open(name, flag | os.O_TEMPORARY, mode)
@@ -1694,7 +1717,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
 
 def flush_input():
     """Flush the input buffer to get only fresh input later on."""
-    if os.name == "nt":
+    if sys.platform == "win32":
         while msvcrt.kbhit():
             msvcrt.getch()
     else:
@@ -1722,7 +1745,7 @@ def nonblocking_getch(callback=None):
     c : str
       Key that has been pressed, only if callback is None
     """
-    if os.name == "nt":
+    if sys.platform == "win32":
         if msvcrt.kbhit():
             # key has been pressed
             c = msvcrt.getch().decode("utf-8")
