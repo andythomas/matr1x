@@ -690,14 +690,7 @@ class SweepPreview(QMainWindow):
                 self.reset()
                 self.spw.reset()
         else:
-            ci = self.spw.w_plots.currentIndex()
-            for i in range(self.spw.w_plots.count() - 1):
-                if i == ci:
-                    # skip plot that will remain selected
-                    continue
-                self.spw.w_plots.setCurrentIndex(i)
-            # reset active plot
-            self.spw.w_plots.setCurrentIndex(ci)
+            self.spw.refresh_all_plots()
         self.w_meta_view.update_data(self.header)
 
     def index_changed(self, newIndex):
@@ -819,7 +812,7 @@ class SweepPreview(QMainWindow):
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
             self.reload_data()
-            self.refresh_all_plots()
+            self.spw.refresh_all_plots()
             self.refresh_columns_size()
         elif self.filename.stat().st_size > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
@@ -830,7 +823,7 @@ class SweepPreview(QMainWindow):
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
             self.reload_data()
-            self.refresh_all_plots()
+            self.spw.refresh_all_plots()
             self.refresh_columns_size()
         return ret
 
@@ -844,16 +837,6 @@ class SweepPreview(QMainWindow):
         for i in range(3):
             for j, item in enumerate(self.column_items):
                 self.w_index[i].setItemText(j + 1, item)
-
-    def refresh_all_plots(self):
-        """Refresh all subplots by selecting each individually."""
-        ci = self.spw.w_plots.currentIndex()
-        for i in range(self.spw.w_plots.count() - 1):
-            if ci == i:
-                # skip current index as this one will be done last
-                pass
-            self.spw.w_plots.setCurrentIndex(i)
-        self.spw.w_plots.setCurrentIndex(ci)
 
     def reset(self):
         """Reset the actual data view."""

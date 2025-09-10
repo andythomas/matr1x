@@ -2248,12 +2248,19 @@ class SimplePlotWidget(QGroupBox):
                     # Handle shape mismatch errors
                     self._raise_error(f"Plot error: {str(e)}")
 
+            # After plotting, if autorange is enabled on any axis, recompute now.
+            x_auto, y_auto = self.vb.state["autoRange"]
+            if x_auto or y_auto:
+                # updateAutoRange respects which axes are enabled for auto
+                self.vb.updateAutoRange()
+
     def __init__(self, cb_error, cb_index, parent=None):
         super().__init__("", parent)
 
         self.cb_error = cb_error
         self.cb_index = cb_index
         self.plot2d = False
+        self._is_refreshing = False
 
         grid = QGridLayout()
 
@@ -2554,47 +2561,40 @@ class SimplePlotWidget(QGroupBox):
                     plot.plt.setPen(None)
 
     def _on_range_changed(self, view_box, ranges):
-        """Handle range change event to synchronize X-axis across plots with same X-column."""
-        # Find which plot triggered the range change
-        source_plot = None
-        for plot in self.plots:
-            if hasattr(plot, "vb") and plot.vb == view_box:
-                source_plot = plot
-                break
+        """Handle range change event to synchronize X-axis across plots with same X-column.
 
-        if source_plot is None:
+        Parameters
+        ----------
+        view_box : CustomViewBox
+            The `CustomViewBox` instance that emitted the `sigRangeChanged` signal.
+        ranges : tuple[tuple[float, float], tuple[float, float]]
+            A tuple containing two tuples, representing the new X and Y ranges
+            of the `view_box`. Each inner tuple is `(min_value, max_value)`.
+        """
+        # identify source
+        source_plot = next((p for p in self.plots if p.vb is view_box), None)
+        if source_plot is None or not source_plot.labels:
             return
 
-        # Get the X-axis label/column of the source plot
-        source_x_label = (
-            getattr(source_plot, "labels", [None, None])[1]
-            if hasattr(source_plot, "labels")
-            else None
-        )
-        if source_x_label is None:
-            return
+        source_x_label = source_plot.labels[1]
+        x_auto = bool(source_plot.vb.state["autoRange"][0])  # pyqtgraph keeps (xAuto, yAuto)
 
-        # Get the X range from the changed viewbox
-        x_range = ranges[0]  # X range is the first element
+        x_range = ranges[0]
 
-        # Update all other viewboxes that have the same X-axis column
         for plot in self.plots:
-            if (
-                hasattr(plot, "vb")
-                and plot.vb is not None
-                and plot.vb != view_box
-                and hasattr(plot, "labels")
-                and len(plot.labels) > 1
-                and plot.labels[1] == source_x_label
-            ):
-                # Temporarily disconnect to avoid recursive calls
-                try:
-                    plot.vb.sigRangeChanged.disconnect(self._on_range_changed)
-                    plot.vb.setXRange(x_range[0], x_range[1], padding=0)
-                    plot.vb.sigRangeChanged.connect(self._on_range_changed)
-                except TypeError:
-                    # Signal was not connected, just set the range
-                    plot.vb.setXRange(x_range[0], x_range[1], padding=0)
+            if plot is source_plot or not plot.labels:
+                continue
+            if plot.labels[1] != source_x_label:
+                continue
+
+            plot.vb.sigRangeChanged.disconnect(self._on_range_changed)
+            if x_auto:
+                plot.vb.enableAutoRange(axis=pyqtgraph.ViewBox.XAxis, enable=True)
+                plot.vb.updateAutoRange()
+            else:
+                plot.vb.enableAutoRange(axis=pyqtgraph.ViewBox.XAxis, enable=False)
+                plot.vb.setXRange(*x_range, padding=0)
+            plot.vb.sigRangeChanged.connect(self._on_range_changed)
 
     def _plot2d_changed(self, index, new_state):
         """
@@ -2632,6 +2632,30 @@ class SimplePlotWidget(QGroupBox):
             self._toggle_plot2d(True)
         else:
             self._toggle_plot2d(False)
+
+    def refresh_all_plots(self):
+        """
+        Refresh every existing plot by briefly activating each tab once.
+
+        Emit currentIndexChanged because that is how plots rebuild.
+        """
+        if self._is_refreshing:
+            return
+        self._is_refreshing = True
+        try:
+            combo = self.w_plots
+            current = combo.currentIndex()
+            # skip the 'add plot' entry if you keep it as the last tab
+            last_real = combo.count() - 1
+            if last_real <= 0:
+                return
+            for i in range(last_real):
+                if i == current:
+                    continue
+                combo.setCurrentIndex(i)
+            combo.setCurrentIndex(current)
+        finally:
+            self._is_refreshing = False
 
     def save_plot(self, filename):
         """
