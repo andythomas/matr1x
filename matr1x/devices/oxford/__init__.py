@@ -16,6 +16,6 @@
 """Module for interfacing with Oxford Instruments devices."""
 
 from .ilm200 import ILM200
-from .ips120 import IPS120, IPS120_switchheater
+from .ips120 import IPS120_switchheater
 from .itc503 import ITC503
 from .mercury import MercuryIPS, MercuryITC, MercurySingleAxisIPS
