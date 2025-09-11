@@ -2,7 +2,7 @@
 name = "matr1x"
 version = "8.1.0"
 description = "Python package for data acquisition and measurement control"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
 classifiers = [
     "Private :: Do Not Upload",
@@ -30,8 +30,7 @@ dependencies = [
     "PyQt6",                                         # needed for GUI apps
     "PyQt6 >= 6.5.0 ; platform_system == 'Windows'", # needed for GUI apps
     "PyQt6-QScintilla",                              # needed for GUI apps
-    "pygit2 >= 1.15.1",                              # needed for GUI apps
-    "types-pygit2 ; python_version < '3.10'",        # needed for GUI apps
+    "pygit2 >= 1.16",                                # needed for GUI apps
     "wrapt",                                         # needed for GUI apps
     "urwid>2.0",                                     # needed for GUI apps
     "pymeasure",                                     # shared by several device drivers
