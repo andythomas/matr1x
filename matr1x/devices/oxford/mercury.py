@@ -181,7 +181,7 @@ class MercurySingleAxisIPS(VisaDevice):
             Response from the device
         """
         try:
-            dummy = "{:.5f}".format(float(setpoint))
+            dummy = f"{float(setpoint):.5f}"
         except ValueError:
             dummy = str(setpoint)
         if signal is True:
@@ -703,7 +703,7 @@ class MercuryIPS(VisaDevice):
             Response from the device
         """
         try:
-            dummy = "{:.5f}".format(float(setpoint))
+            dummy = f"{float(setpoint):.5f}"
         except ValueError:
             dummy = str(setpoint)
         if signal is True:
@@ -1269,7 +1269,7 @@ class MercuryITC(VisaDevice):
             if integer is True:
                 dummy = str(int(setpoint))
             else:
-                dummy = "{:.10f}".format(float(setpoint))
+                dummy = f"{float(setpoint):.10f}"
         except ValueError:
             dummy = str(setpoint)
         if signal is True:
@@ -1298,7 +1298,7 @@ class MercuryITC(VisaDevice):
         try:
             return float(dummy)
         except TypeError:
-            logger.debug("Type error during conversion of dict" + " value {}".format(dummy[0]))
+            logger.debug("Type error during conversion of dict" + f" value {dummy[0]}")
             return None
 
     def queryDict(self, queryDict, address="", signal=False):

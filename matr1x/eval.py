@@ -24,7 +24,6 @@ import ast
 import re
 import warnings
 from pathlib import Path
-from typing import Union
 
 import h5py
 import numpy as np
@@ -278,7 +277,7 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
 
 
 def loadmatrix(
-    filename: Union[str, Path],
+    filename: str | Path,
     structured: bool = True,
     print_header: bool = False,
     replace_None: bool = False,
@@ -370,7 +369,7 @@ def loadmatrix(
         h5f.close()
 
     else:
-        with open(filename, "r") as matrix_file:
+        with open(filename) as matrix_file:
             headerlines = 0
             key = None
             val = None
@@ -516,7 +515,7 @@ def loadmatrix(
     return header, data
 
 
-def loadh5matrix(filename: Union[str, Path], filehandle=False):
+def loadh5matrix(filename: str | Path, filehandle=False):
     """
     Load matrix data is hdf5 format.
 

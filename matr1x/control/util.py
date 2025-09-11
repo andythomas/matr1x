@@ -48,7 +48,6 @@ from enum import IntEnum
 from functools import wraps
 from operator import attrgetter
 from subprocess import PIPE, Popen
-from typing import Optional, Union
 
 import numpy
 import psutil
@@ -316,7 +315,7 @@ class var(QObject):
     outType : type
         Type the emitted value should be cast into (only present for backward
         compatibility. should be set nowadays in the dtype argument).
-    columns : Union[list, str, int, guiObject], optional
+    columns : list | str | int | guiObject, optional
         GUI elements needed for this variable. Typically here are two
         entries to view the current value in the first element and be able to
         alter it in the second. The values should be enumerations from guiObject.
@@ -339,12 +338,12 @@ class var(QObject):
 
     def __init__(
         self,
-        dtype: Union[type, tuple[type, type], None] = (float, str),
-        outType: Optional[type] = None,
-        columns: Optional[Union[list, str, int, guiObject]] = None,
+        dtype: type | tuple[type, type] | None = (float, str),
+        outType: type | None = None,
+        columns: list | str | int | guiObject | None = None,
         unit: str = "",
-        log: Optional[bool] = False,
-        init: Optional[list] = None,
+        log: bool | None = False,
+        init: list | None = None,
         hide: bool = False,
     ):
         super().__init__()
@@ -1470,7 +1469,7 @@ def sendNotificationEmail(
         elif maintype == "image":
             with open(fname, "rb") as fp:
                 att = MIMEImage(fp.read(), _subtype=subtype)
-            att.add_header("Content-ID", "<{}>".format(fname))
+            att.add_header("Content-ID", f"<{fname}>")
         elif maintype == "audio":
             with open(fname, "rb") as fp:
                 att = MIMEAudio(fp.read(), _subtype=subtype)
@@ -1512,11 +1511,11 @@ def sendNotificationEmail(
             p.communicate(msg.as_bytes())
             p.wait()
             logger = logging.getLogger(__name__)
-            logger.info("notification email {} sent to {}".format(msgtext, address))
+            logger.info(f"notification email {msgtext} sent to {address}")
         else:
             print("no email configuration found; see documentation on how to set it up")
     except Exception as e:
-        print("ignoring error during sending email: {}".format(e))
+        print(f"ignoring error during sending email: {e}")
 
 
 class SelectLakeshoreInput(QDialog):
@@ -1596,10 +1595,10 @@ class TableModel(QtCore.QAbstractTableModel):
     """
 
     def __init__(self, data: numpy.ndarray) -> None:
-        super(TableModel, self).__init__()
+        super().__init__()
         self._data = data
 
-    def data(self, index: QtCore.QModelIndex, role: int) -> Union[str, None]:
+    def data(self, index: QtCore.QModelIndex, role: int) -> str | None:
         """
         Return the data stored under the given role for the item referred to by the index.
 
@@ -1652,9 +1651,7 @@ class TableModel(QtCore.QAbstractTableModel):
         """
         return self._data.shape[1]
 
-    def headerData(
-        self, section: int, orientation: Qt.Orientation, role: int
-    ) -> Union[str, QVariant]:
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int) -> str | QVariant:
         """
         Return the header data.
 
@@ -1827,7 +1824,7 @@ def control_main(
         lockfilename = os.path.join(logfolder, f"{package}_gui_{name}.lock")
         if os.path.exists(lockfilename):
             # check if process still running
-            with open(lockfilename, "r", encoding="utf-8") as lockf:
+            with open(lockfilename, encoding="utf-8") as lockf:
                 otherpid = int(lockf.read())
             try:
                 psutil.Process(otherpid)

@@ -108,5 +108,5 @@ class ILM200(IsobusDevice):
                 state = bool(int(ret[6], 16) & 0b10)
                 break
             except (ValueError, IndexError):
-                logger.debug("index 6 not convertible to int, {}".format(ret))
+                logger.debug(f"index 6 not convertible to int, {ret}")
         return state

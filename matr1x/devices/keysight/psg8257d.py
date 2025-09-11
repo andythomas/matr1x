@@ -118,8 +118,8 @@ class PSG8257D(VisaDevice):
             self.write(":SOUR:LFO:STAT OFF")
         else:
             self.write(":SOUR:LFO:STAT ON")
-            self.write(":SOUR:LFO:SOUR %s" % (source))
-            self.write(":SOUR:LFO:AMPL %g VP" % (amplitude))
+            self.write(f":SOUR:LFO:SOUR {source}")
+            self.write(f":SOUR:LFO:AMPL {amplitude:g} VP")
 
     @synchronized
     def configureAmpMod(
@@ -165,10 +165,10 @@ class PSG8257D(VisaDevice):
         else:
             self.write(":SOUR:AM:STAT ON")
             self.write(f":AM:MODE {amMode}")  # NORM or DEEP
-            self.write(":SOUR:AM:SOUR %s" % (ampSource))
-            self.write(":SOUR:AM:INT:FREQ %g" % (intFreq))
-            self.write(":SOUR:AM:INT:FUNC:SHAP %s" % (intShape))
-            self.write(":SOUR:AM:DEPT %g" % (ampDepth))
+            self.write(f":SOUR:AM:SOUR {ampSource}")
+            self.write(f":SOUR:AM:INT:FREQ {intFreq:g}")
+            self.write(f":SOUR:AM:INT:FUNC:SHAP {intShape}")
+            self.write(f":SOUR:AM:DEPT {ampDepth:g}")
 
     @synchronized
     def configurePulseMod(self, PulseMod=True, pulseSource="INT", pulseInput="SQU", frequency=1e3):
@@ -197,9 +197,9 @@ class PSG8257D(VisaDevice):
             self.write(":SOUR:PULM:STAT OFF")
         else:
             self.write(":SOUR:PULM:STAT ON")
-            self.write(":SOUR:PULM:SOUR %s" % (pulseSource))
-            self.write(":SOUR:PULM:SOUR:INT %s" % (pulseInput))
-            self.write(":SOUR:PULM:INT:FREQ %g" % (frequency))
+            self.write(f":SOUR:PULM:SOUR {pulseSource}")
+            self.write(f":SOUR:PULM:SOUR:INT {pulseInput}")
+            self.write(f":SOUR:PULM:INT:FREQ {frequency:g}")
 
     @synchronized
     def readFreq(self):

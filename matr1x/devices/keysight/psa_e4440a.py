@@ -157,28 +157,26 @@ class PSA_E4440A(VisaDevice):
             elif avgType == "scalar":
                 self.write("AVERage:TYPE SCAL")
             else:
-                print(
-                    "Please choose a valid average type! Your input was: {}".format(str(avgType))
-                )
+                print(f"Please choose a valid average type! Your input was: {str(avgType)}")
             self.write("AVER:STAT ON")
-            self.write("AVERage:COUNt {}".format(average))
+            self.write(f"AVERage:COUNt {average}")
             self.maxAverage = max(average, self.maxAverage)
         else:
             self.write("AVER:STAT OFF")
 
-        self.write("FREQ:CENT {} HZ".format(str(fCent)))
-        self.write("FREQ:SPAN {} HZ".format(str(fSpan)))
-        self.write("SWE:POIN {}".format(str(fPoints)))
-        self.write("BAND:VID {} Hz".format(str(vidBW)))
-        self.write("BAND {} Hz".format(str(resBW)))
-        self.write("DISP:WIND:TRAC:Y:RLEV {} dbm".format(str(refLev)))
+        self.write(f"FREQ:CENT {str(fCent)} HZ")
+        self.write(f"FREQ:SPAN {str(fSpan)} HZ")
+        self.write(f"SWE:POIN {str(fPoints)}")
+        self.write(f"BAND:VID {str(vidBW)} Hz")
+        self.write(f"BAND {str(resBW)} Hz")
+        self.write(f"DISP:WIND:TRAC:Y:RLEV {str(refLev)} dbm")
 
         if scale == "lin":
             self.write("DISP:WIND:TRAC:Y:SCAL:SPAC LIN")
         elif scale == "log":
             self.write("DISP:WIND:TRAC:Y:SCAL:SPAC LOG")
         else:
-            print("Please choose a valid scale! Your input was: {}".format(str(scale)))
+            print(f"Please choose a valid scale! Your input was: {str(scale)}")
 
         # selects the sweep type automatic mode
         self.write("SWEep:TYPE AUTO")
@@ -248,9 +246,9 @@ class PSA_E4440A(VisaDevice):
         }
 
         try:
-            self.write("FORM {}".format(precdict[precision][0]))
+            self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print("{} is not a valid precision".format(str(precision)))
+            print(f"{str(precision)} is not a valid precision")
             # return
         if precision == "ascii":
             data = self.query("TRAC:DATA? TRACE1")

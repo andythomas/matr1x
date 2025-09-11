@@ -374,17 +374,17 @@ class Keithley6221(VisaDevice):
             cmdList = ["*RST"]
         else:
             cmdList = []
-        cmdList.append("SOUR:PDEL:HIGH {}".format(ihigh))
-        cmdList.append("SOUR:PDEL:LOW {}".format(ilow))
-        cmdList.append("SOUR:PDEL:WIDT {}".format(width))
-        cmdList.append("SOUR:PDEL:SDEL {}".format(sdel))
-        cmdList.append("SOUR:PDEL:COUN {}".format(count))
-        cmdList.append("SOUR:PDEL:RANG {}".format(rang))
-        cmdList.append("SOUR:PDEL:INT {}".format(interval))
-        cmdList.append("SOUR:PDEL:SWE {}".format(sweep))
-        cmdList.append("SOUR:PDEL:LME {}".format(lme))
-        cmdList.append("SOUR:CURR:COMP {}".format(compliance))
-        cmdList.append("TRAC:POIN {}".format(count))
+        cmdList.append(f"SOUR:PDEL:HIGH {ihigh}")
+        cmdList.append(f"SOUR:PDEL:LOW {ilow}")
+        cmdList.append(f"SOUR:PDEL:WIDT {width}")
+        cmdList.append(f"SOUR:PDEL:SDEL {sdel}")
+        cmdList.append(f"SOUR:PDEL:COUN {count}")
+        cmdList.append(f"SOUR:PDEL:RANG {rang}")
+        cmdList.append(f"SOUR:PDEL:INT {interval}")
+        cmdList.append(f"SOUR:PDEL:SWE {sweep}")
+        cmdList.append(f"SOUR:PDEL:LME {lme}")
+        cmdList.append(f"SOUR:CURR:COMP {compliance}")
+        cmdList.append(f"TRAC:POIN {count}")
         for cmd in cmdList:
             self.write(cmd)
 
@@ -422,14 +422,14 @@ class Keithley6221(VisaDevice):
             cmdList = ["*RST"]
         else:
             cmdList = []
-        cmdList.append('SYST:COMM:SER:SEND "VOLT:RANG {}"'.format(rang))
-        cmdList.append('SYST:COMM:SER:SEND "VOLT:NPLC {}"'.format(nplc))
-        cmdList.append("SOUR:DELT:HIGH {}".format(i))
-        cmdList.append("SOUR:DELT:DEL {}".format(sdel))
-        cmdList.append("SOUR:DELT:COUN {}".format(count))
-        cmdList.append("SOUR:DELT:CAB {}".format("ON" if comp_abort else "OFF"))
-        cmdList.append("SOUR:CURR:COMP {}".format(compliance))
-        cmdList.append("TRAC:POIN {}".format(count))
+        cmdList.append(f'SYST:COMM:SER:SEND "VOLT:RANG {rang}"')
+        cmdList.append(f'SYST:COMM:SER:SEND "VOLT:NPLC {nplc}"')
+        cmdList.append(f"SOUR:DELT:HIGH {i}")
+        cmdList.append(f"SOUR:DELT:DEL {sdel}")
+        cmdList.append(f"SOUR:DELT:COUN {count}")
+        cmdList.append(f"SOUR:DELT:CAB {'ON' if comp_abort else 'OFF'}")
+        cmdList.append(f"SOUR:CURR:COMP {compliance}")
+        cmdList.append(f"TRAC:POIN {count}")
         for cmd in cmdList:
             self.write(cmd)
 

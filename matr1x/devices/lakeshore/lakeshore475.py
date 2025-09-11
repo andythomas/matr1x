@@ -80,7 +80,7 @@ class Lakeshore475(VisaDevice):
         setpoint : float
             The desired setpoint value
         """
-        self.write("CSETP " + "{:.5f}".format(float(setpoint)))
+        self.write(f"CSETP {float(setpoint):.5f}")
 
     def readSetpoint(self):
         """

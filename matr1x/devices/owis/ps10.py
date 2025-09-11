@@ -225,8 +225,7 @@ class Ps10(VisaDevice):
             Target position in steps
         """
         if -100000000 < int(steps) and 100000000 > int(steps):
-            dummy = "PSET1={:d}".format(int(steps))
-            self.write(dummy)
+            self.write(f"PSET1={int(steps):d}")
             # start movement
             self.write("PGO1")
 

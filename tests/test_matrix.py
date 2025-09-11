@@ -168,7 +168,7 @@ def test_matrix_script_pyflakes():
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
     inputfile = os.path.join(path, "test.matrix")
-    with open(inputfile, "r") as f:
+    with open(inputfile) as f:
         user_script = f.read()
     script = "_interrupt=lambda x:x; _print=lambda x:x; _input=lambda x:x; "
     script += "_report_line=lambda x:x;_report_path=lambda x:x;_meta_data={}; "
@@ -199,7 +199,7 @@ def test_matrix_script_dummy_merged():
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
     inputfile = os.path.join(path, "test.matrix")
-    with open(inputfile, "r") as f:
+    with open(inputfile) as f:
         user_script = f.read()
     script = matr1x.util.generate_script(
         ["system_dummy_feature", "system_dummy_meas"], user_script

@@ -31,7 +31,6 @@ from collections import defaultdict
 from collections.abc import Iterable
 from operator import attrgetter
 from os.path import exists, expanduser, isfile, splitext
-from typing import List, Union
 
 import h5py
 import numpy as np
@@ -625,7 +624,7 @@ class System:
             self.system_config_params[name] = config_params
 
     @property
-    def columns(self) -> List[str]:
+    def columns(self) -> list[str]:
         """
         Return a list of column names extracted from parameters.
 
@@ -637,7 +636,7 @@ class System:
         return [parm.name for parm in self.parameters]
 
     @property
-    def labels(self) -> List[str]:
+    def labels(self) -> list[str]:
         """
         Return a list of labels extracted from parameters.
 
@@ -649,7 +648,7 @@ class System:
         return [parm.label for parm in self.parameters]
 
     @property
-    def units(self) -> List[str]:
+    def units(self) -> list[str]:
         """
         Return a list of units extracted from parameters.
 
@@ -661,7 +660,7 @@ class System:
         return [parm.unit for parm in self.parameters]
 
     @property
-    def default_values(self) -> List[Union[None, float, list, tuple]]:
+    def default_values(self) -> list[None | float | list | tuple]:
         """
         Return a list of default values extracted from parameters.
 
@@ -673,7 +672,7 @@ class System:
         return [parm.default for parm in self.parameters]
 
     @property
-    def chunks(self) -> List[Union[int, list, tuple]]:
+    def chunks(self) -> list[int | list | tuple]:
         """
         Return a list of chunks extracted from parameters.
 
@@ -685,7 +684,7 @@ class System:
         return [parm.chunks for parm in self.parameters]
 
     @property
-    def dtypes(self) -> List[Union[str, list, tuple]]:
+    def dtypes(self) -> list[str | list | tuple]:
         """
         Return a list of dtypes extracted from parameters.
 
@@ -832,8 +831,8 @@ class System:
         print(info)
 
     def set_value(
-        self, i: Union[int, str], values: Union[float, List[float], None]
-    ) -> Union[float, List[float], None]:
+        self, i: int | str, values: float | list[float] | None
+    ) -> float | list[float] | None:
         """
         Set a parameter i to values.
 

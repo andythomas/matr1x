@@ -135,9 +135,9 @@ class IPS120_switchheater(IsobusDevice):
         elif self.fieldlimits[0] > xval:
             xval = self.fieldlimits[0]
         if self.legacy:
-            self.query("J{:d}".format(int(1000 * xval)))
+            self.query(f"J{int(1000 * xval):d}")
         else:
-            self.query("J{:.4f}".format(xval))
+            self.query(f"J{xval:.4f}")
 
     def getMagneticField(self, setp=False):
         """
@@ -283,9 +283,9 @@ class IPS120_switchheater(IsobusDevice):
         elif self.max_rate < rate:
             rate = self.max_rate
         if self.legacy:
-            self.query("T{:04d}".format(int(rate * 1000)))
+            self.query(f"T{int(rate * 1000):04d}")
         else:
-            self.query("T{:.4f}".format(rate))
+            self.query(f"T{rate:.4f}")
 
     def getMagneticFieldRate(self, setp=False):
         """
@@ -360,7 +360,7 @@ class IPS120_switchheater(IsobusDevice):
                 return
         except ValueError:
             return
-        self.query("A{:d}".format(state))
+        self.query(f"A{state:d}")
         self.statusmsg = f"Status {statedict.get(state, 'unknown')}"
 
     def getMagnetStatus(self):
@@ -385,7 +385,7 @@ class IPS120_switchheater(IsobusDevice):
                 state = int(ret[4])
                 break
             except (ValueError, IndexError):
-                logger.debug("index 4 not convertible to int, {}".format(ret))
+                logger.debug(f"index 4 not convertible to int, {ret}")
         return state
 
     def setSwitchHeater(self, output):
@@ -431,5 +431,5 @@ class IPS120_switchheater(IsobusDevice):
                 state = int(ret[8])
                 break
             except (ValueError, IndexError):
-                logger.debug("index 8 not convertible to int, {}".format(ret))
+                logger.debug(f"index 8 not convertible to int, {ret}")
         return state

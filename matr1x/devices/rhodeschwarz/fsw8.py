@@ -17,6 +17,7 @@
 
 import time
 from struct import unpack
+from typing import Literal
 
 import numpy as np
 from wrapt import synchronized
@@ -197,7 +198,7 @@ class FSW8(VisaDevice):
                 # power averaging mode for correct power measurements in FFT
                 # sweep mode
             else:
-                print("Please choose a valid average type! Your input was:{}".format(avgType))
+                print(f"Please choose a valid average type! Your input was:{avgType}")
             time.sleep(0.5)
 
             self.write("AVER:STAT ON")
@@ -251,7 +252,7 @@ class FSW8(VisaDevice):
             # Calculates the linear average of all samples contained in a sweep point
             self.write("DETector AVER")
         else:
-            print("Please choose a valid detector type! Your input was:{}".format(detector))
+            print(f"Please choose a valid detector type! Your input was:{detector}")
 
         # Set optimization parameters in FFT mode
         # options: dynamic/speed/auto
@@ -348,7 +349,7 @@ class FSW8(VisaDevice):
         self.write("*WAI")
 
     @synchronized
-    def getData(self, precision="single"):
+    def getData(self, precision: Literal["single", "double", "ascii"] = "single") -> np.ndarray:
         """
         Transfer measurement data from the VNA.
 
@@ -372,16 +373,18 @@ class FSW8(VisaDevice):
             "ascii": ("ASC,0", None, None),
         }
 
-        try:
-            self.write("FORM {}".format(precdict[precision][0]))
-        except KeyError:
-            print("{} is not a valid precision".format(str(precision)))
-            # return
-        if precision == "ascii":
-            data = self.query("TRAC:DATA? TRACE1")
-            return np.fromstring(data, sep=",").transpose()
+        p = str(precision).lower().strip()
+        if p not in precdict:
+            valid = ", ".join(sorted(precdict))
+            raise ValueError(f"Invalid precision {precision!r}. Expected one of: {valid}")
 
-        byte_width = precdict[precision][1]
+        self.write(f"FORM {precdict[p][0]}")
+
+        if p == "ascii":
+            txt = self.query("TRAC:DATA? TRACE1")
+            return np.fromstring(txt, sep=",").transpose()
+
+        byte_width = precdict[p][1]
         self.write("TRAC:DATA? TRACE1")
         header1 = self.read(2)
         n_header_bytes = int(chr(header1[1]))
@@ -394,10 +397,10 @@ class FSW8(VisaDevice):
 
         values = []
         for i in range(int(len(data) / byte_width)):
-            data_bit = data[i * byte_width : (i + 1) * byte_width]
-            values.append(unpack(precdict[precision][2], data_bit))
-        # add ravel to remove unnecessary dimensions of the array
-        return np.array(values, dtype=precdict[precision][3]).ravel()
+            chunk = data[i * byte_width : (i + 1) * byte_width]
+            values.append(unpack(precdict[p][2], chunk))
+
+        return np.array(values, dtype=precdict[p][3]).ravel()
 
     @synchronized
     def getSweepData(self, channel):

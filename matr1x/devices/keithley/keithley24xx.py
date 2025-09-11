@@ -368,44 +368,42 @@ class Keithley2450(VisaDevice):
         else:
             cmdlist = []
         # we want sourceIsenseV
-        cmdlist.append(":SOUR:FUNC {}".format(self.sourceMode))
-        cmdlist.append(':SENS:FUNC "{}"'.format(self.senseMode))
+        cmdlist.append(f":SOUR:FUNC {self.sourceMode}")
+        cmdlist.append(f':SENS:FUNC "{self.senseMode}"')
         # reset units to amp/volt to avoid unintentional reading of\
         # resistance
         if resetUnits:
             cmdlist.append(":SENS:CURR:UNIT AMP")
             cmdlist.append(":SENS:VOLT:UNIT VOLT")
         # turn on the readback so we get the actual value and not the setpoint
-        cmdlist.append(":SOUR:{}:READ:BACK ON".format(self.sourceMode))
+        cmdlist.append(f":SOUR:{self.sourceMode}:READ:BACK ON")
 
         if senseLimit is not None:
             cmdlist.append(
-                ":SOUR:{}:{}LIM {}".format(
-                    self.sourceMode, limDef[self.senseMode], float(senseLimit)
-                )
+                f":SOUR:{self.sourceMode}:{limDef[self.senseMode]}LIM {float(senseLimit)}"
             )
         if delayAuto is True:
-            cmdlist.append(":SOUR:{}:DEL:AUTO ON".format(self.sourceMode))
+            cmdlist.append(f":SOUR:{self.sourceMode}:DEL:AUTO ON")
         elif delay is not None:
-            cmdlist.append(":SOUR:{}:DEL:AUTO OFF".format(self.sourceMode))
-            cmdlist.append(":SOUR:{}:DEL {}".format(self.sourceMode, float(delay)))
+            cmdlist.append(f":SOUR:{self.sourceMode}:DEL:AUTO OFF")
+            cmdlist.append(f":SOUR:{self.sourceMode}:DEL {float(delay)}")
 
         if fourWire is True:
-            cmdlist.append(":SENS:{}:RSEN ON".format(self.senseMode))
+            cmdlist.append(f":SENS:{self.senseMode}:RSEN ON")
         elif fourWire is False:
-            cmdlist.append(":SENS:{}:RSEN OFF".format(self.senseMode))
+            cmdlist.append(f":SENS:{self.senseMode}:RSEN OFF")
 
         if senseAutoRange is True:
-            cmdlist.append(":SENS:{}:RANG:AUTO ON".format(self.senseMode))
+            cmdlist.append(f":SENS:{self.senseMode}:RANG:AUTO ON")
         elif senseRange is not None:
-            cmdlist.append(":SENS:{}:RANG:AUTO OFF".format(self.senseMode))
-            cmdlist.append(":SENS:{}:RANG {}".format(self.senseMode, float(senseRange)))
+            cmdlist.append(f":SENS:{self.senseMode}:RANG:AUTO OFF")
+            cmdlist.append(f":SENS:{self.senseMode}:RANG {float(senseRange)}")
 
         if sourceAutoRange is True:
-            cmdlist.append(":SOUR:{}:RANG:AUTO ON".format(self.sourceMode))
+            cmdlist.append(f":SOUR:{self.sourceMode}:RANG:AUTO ON")
         elif sourceRange is not None:
-            cmdlist.append(":SOUR:{}:RANG:AUTO OFF".format(self.sourceMode))
-            cmdlist.append(":SOUR:{}:RANG {}".format(self.sourceMode, float(sourceRange)))
+            cmdlist.append(f":SOUR:{self.sourceMode}:RANG:AUTO OFF")
+            cmdlist.append(f":SOUR:{self.sourceMode}:RANG {float(sourceRange)}")
 
         for cmd in cmdlist:
             self.write(cmd)

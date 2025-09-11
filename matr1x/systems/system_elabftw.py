@@ -9,7 +9,6 @@ import difflib
 import logging
 import os
 import re
-from typing import Optional
 
 import elabapi_python
 from elabapi_python.rest import ApiException
@@ -270,7 +269,7 @@ class ElabSystem(System):
         in its context.
         """
         if os.path.isfile(template):
-            with open(template, "r") as file:
+            with open(template) as file:
                 template_str = file.read()
         else:
             template_str = template
@@ -282,7 +281,7 @@ class ElabSystem(System):
             query=self.merged_system.query_dict,
         )
 
-    def _determine_userid(self) -> Optional[int]:
+    def _determine_userid(self) -> int | None:
         """
         Fetch the elabFTW userid from the user given in metadata.
 
@@ -297,7 +296,7 @@ class ElabSystem(System):
         try:
             response = userApi.read_users()
         except ApiException as e:
-            print("Exception when calling UsersApi->readUsers: %s\n" % e)
+            print(f"Exception when calling UsersApi->readUsers: {e}\n")
             return None
         names = [user.fullname for user in response]
         orgids = [user.orgid for user in response]
@@ -324,7 +323,7 @@ class ElabSystem(System):
             most_likely_match = closest_matches[0] if closest_matches else None
         return response[names.index(most_likely_match)].userid
 
-    def _determine_category(self) -> Optional[int]:
+    def _determine_category(self) -> int | None:
         """
         Determine Experiment Category ID to use.
 
@@ -343,14 +342,13 @@ class ElabSystem(System):
             response = catApi.read_team_experiments_categories(self._team_id)
         except ApiException as e:
             print(
-                "Exception during ExperimentsCategoriesApi->readTeamExperimentsCategories: %s\n"
-                % e
+                f"Exception during ExperimentsCategoriesApi->readTeamExperimentsCategories: {e}\n"
             )
         # find id for search category
         result_id = next((item.id for item in response if item.title == category_name), None)
         return result_id
 
-    def _determine_status(self, status: str) -> Optional[int]:
+    def _determine_status(self, status: str) -> int | None:
         """
         Determine status id for the measurement status.
 
@@ -370,13 +368,11 @@ class ElabSystem(System):
         try:
             response = expstatusApi.read_team_experiments_status(self._team_id)
         except ApiException as e:
-            print(
-                "Exception when calling ExperimentsStatusApi->readTeamExperimentsStatus: %s\n" % e
-            )
+            print(f"Exception when calling ExperimentsStatusApi->readTeamExperimentsStatus: {e}\n")
             return None
         return next((item.id for item in response if item.title == status), None)
 
-    def _determine_resource_category(self) -> Optional[int]:
+    def _determine_resource_category(self) -> int | None:
         """
         Determine resource category id from the name.
 
@@ -396,11 +392,11 @@ class ElabSystem(System):
             # Read all resources categories that are accessible.
             response = itemsTypesApi.read_items_types()
         except ApiException as e:
-            print("Exception when calling ItemsTypesApi->readItemsTypes: %s\n" % e)
+            print(f"Exception when calling ItemsTypesApi->readItemsTypes: {e}\n")
         # find id for search category
         return next((item.id for item in response if item.title == category_name), None)
 
-    def _create_resource(self, name: str) -> Optional[int]:
+    def _create_resource(self, name: str) -> int | None:
         """
         Create a new resource in elabFTW.
 
@@ -444,12 +440,12 @@ class ElabSystem(System):
             itemsApi.patch_item(item_id, body={"title": name})
             print(f"created ElabFTW resource with name {name}")
         except ApiException as e:
-            print("Exception when calling ItemsApi: %s\n" % e)
+            print(f"Exception when calling ItemsApi: {e}\n")
         if item_id is None:
             raise ValueError("Failed to create resource - itemId is None")
         return item_id
 
-    def _search_resource(self, resource: str) -> Optional[int]:
+    def _search_resource(self, resource: str) -> int | None:
         """
         Search resource id corresponding to the resource name.
 
@@ -469,7 +465,7 @@ class ElabSystem(System):
         try:
             response = itemsApi.read_items(q=f"'{resource}'")
         except ApiException as e:
-            print("Exception when calling ItemsApi->readItems: %s\n" % e)
+            print(f"Exception when calling ItemsApi->readItems: {e}\n")
             return None
         if item_id := next((item.id for item in response if item.title == resource), None):
             return item_id
@@ -477,7 +473,7 @@ class ElabSystem(System):
             print(f"Could not identify ElabFTW resource corresponding to the name {resource}")
         return None
 
-    def _parse_tags_from_line(self, line: str) -> Optional[list]:
+    def _parse_tags_from_line(self, line: str) -> list | None:
         """
         Parse tags from line, tags are marked with #.
 
@@ -574,7 +570,7 @@ class ElabSystem(System):
         try:
             api_response = experiments_api.read_experiments(q=f"'{title}'")
         except ApiException as e:
-            print("Exception when calling ExperimentsApi->readExperiments: %s\n" % e)
+            print(f"Exception when calling ExperimentsApi->readExperiments: {e}\n")
             return title
 
         if not isinstance(api_response, list) or len(api_response) == 0:

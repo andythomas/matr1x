@@ -116,7 +116,7 @@ class MercuryC663(VisaDevice):
         angle : float
             Target absolute angle in degrees
         """
-        self.write("MOV 1 {:f}".format(float(angle)))
+        self.write(f"MOV 1 {float(angle):f}")
 
     def setAngleRel(self, angle):
         """
@@ -130,7 +130,7 @@ class MercuryC663(VisaDevice):
         angle : float
             Relative angle change in degrees
         """
-        self.write("MVR 1 {:f}".format(float(angle)))
+        self.write(f"MVR 1 {float(angle):f}")
 
     @synchronized
     def getAngle(self):

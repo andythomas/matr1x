@@ -78,7 +78,7 @@ def parse_inputfile(inputfile, system):
     # allow point with and without measurements
     pointparser.add_argument("--logpoint", default=1, nargs="?", type=int)
     # start parsing the input file
-    with open(inputfile, "r") as parameterfile:
+    with open(inputfile) as parameterfile:
         for nr, line in enumerate(parameterfile):
             # jump over comments
             if line[0] != "#":
@@ -124,7 +124,7 @@ def measurementloop(
     """Measurement loops with callback functions for visualization."""
     # count number of setpoints for telemetry information
     points = 0
-    with open(inputfile, "r") as f:
+    with open(inputfile) as f:
         for line in f:
             if line.startswith("#"):
                 continue
@@ -288,7 +288,7 @@ def measure_urwid(inputfile, systemfile, system):
     cont = urwid.Pile([info, outf, inpf, systemf, telemetry, status, columns])
     filler = urwid.Filler(cont)
 
-    class UrwidContext(object):
+    class UrwidContext:
         def __init__(self, topwidget):
             screen = None
             if os.environ.get("CI") == "true":
@@ -507,7 +507,7 @@ def main():
     # initialize datefile and insert device query
     try:
         system.init_datafile(options.inputfile)
-    except IOError:
+    except OSError:
         print("matrix: error: cannot create output file")
         sys.exit(1)
     except Exception:

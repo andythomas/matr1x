@@ -140,7 +140,7 @@ class BSC103(VisaDevice):
                 logger.info(string)
 
         if self.debug & 0x02:
-            print(colors.get(color, "") + string + colors["ENDC"])
+            print(f"{colors.get(color, '')}{string}{colors['ENDC']}")
 
     def bytestostr(self, bytearr):
         """
@@ -300,16 +300,14 @@ class BSC103(VisaDevice):
         if self.debug:
             if msg.respLen != 0 and msg.respLen != resp.datalen + 6:
                 self.printDebug(
-                    ("Warning!: {:d} bytes received, {:d} bytes expected").format(
-                        resp.datalen + 6, msg.respLen
-                    ),
+                    f"Warning!: {resp.datalen + 6:d} bytes received, "
+                    f"{msg.respLen:d} bytes expected",
                     warning=True,
                 )
             if msg.msgID + 1 != resp.msgID and 0x0464 != resp.msgID:
                 self.printDebug(
-                    ("Warning!: msgID of response({:s}) does not match msgID of request").format(
-                        hex(resp.msgID)
-                    ),
+                    f"Warning!: msgID of response({hex(resp.msgID):s}) does not match "
+                    f"msgID of request",
                     color="WARN",
                 )
         return resp

@@ -33,11 +33,12 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from importlib.metadata import version as package_version
 from os.path import dirname, expanduser, join, normpath
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Dict, Optional, Sequence, TextIO, Type, Union
+from typing import Any, TextIO
 
 import numpy as np
 import pygit2
@@ -784,7 +785,7 @@ class MetaViewerWidget(QDockWidget):
                     return ""
                 if self.hidden and role == Qt.ItemDataRole.DisplayRole:
                     # editor is active, act like there is no value
-                    return str("")
+                    return ""
                 return str(self.value)  # Convert non-dict values to string
             return None
 
@@ -1463,7 +1464,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
         return normalize_dict(config_dict)
 
-    def write_config(self, config_dict: Optional[Dict[str, Any]] = None) -> Path:
+    def write_config(self, config_dict: dict[str, Any] | None = None) -> Path:
         """
         Write config data to a temporary file using matr1x.write_config.
 
@@ -2517,7 +2518,7 @@ class SimplePlotWidget(QGroupBox):
                 continue
         if vb_mouse is not None:
             mousePoint = vb_mouse.mapSceneToView(ev[0])
-            self.w_pos.setText("x: {:.5e}\ny: {:.5e}".format(mousePoint.x(), mousePoint.y()))
+            self.w_pos.setText(f"x: {mousePoint.x():.5e}\ny: {mousePoint.y():.5e}")
 
     def _mouse_clicked(self, ev):
         """
@@ -2882,14 +2883,14 @@ class OutputDuplication:
     """
 
     def __init__(
-        self, stream: Optional[TextIO], prefix: str = "control", fallbackname: str = ""
+        self, stream: TextIO | None, prefix: str = "control", fallbackname: str = ""
     ) -> None:
         """
         Initialize an object for output duplication into a file.
 
         Parameters
         ----------
-        stream : Optional[TextIO]
+        stream : TextIO | None
             The stream to duplicate output from. If None, only writes to the log file.
         prefix : str, optional
             Prefix for the log file name, by default 'control'.
@@ -2932,9 +2933,9 @@ class OutputDuplication:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         """
         Exit the context manager and close the log file.
@@ -2957,7 +2958,7 @@ class OutputDuplication:
 class MetaDataDialog(QDialog):
     """Create a dialog able to handle meta data input for file headers."""
 
-    def __init__(self, initial_values: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, initial_values: dict[str, Any] | None = None) -> None:
         """
         Initialize the meta data dialog with optional initial values.
 
@@ -2998,7 +2999,7 @@ class MetaDataDialog(QDialog):
         # Set the main layout for the dialog
         self.setLayout(layout)
 
-    def load_initial_values(self, values: Dict[str, Any]) -> None:
+    def load_initial_values(self, values: dict[str, Any]) -> None:
         """
         Load initial values into the dialog fields.
 
@@ -3012,7 +3013,7 @@ class MetaDataDialog(QDialog):
         self.relation.setText(values.get("relation", ""))
         self.description.setPlainText(values.get("description", ""))
 
-    def get_metadata(self) -> Dict[str, str]:
+    def get_metadata(self) -> dict[str, str]:
         """
         Get the metadata entered in the dialog.
 
@@ -3050,7 +3051,7 @@ class TimeoutDialogBase(QDialog):
     def __init__(
         self,
         query: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
         timeout: float = float("inf"),
         default_value: Any = "",
     ):
@@ -3170,7 +3171,7 @@ class TextInputDialog(TimeoutDialogBase):
     def __init__(
         self,
         query: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
         timeout: float = float("inf"),
         default_value: str = "",
     ):
@@ -3218,13 +3219,13 @@ class NumericalInputDialog(TimeoutDialogBase):
     def __init__(
         self,
         query: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
         timeout: float = float("inf"),
         default_value: float = 0.0,
-        min_value: Optional[float] = -100e9,
-        max_value: Optional[float] = 100e9,
-        step: Optional[float] = 1.0,
-        decimals: Optional[int] = 2,
+        min_value: float | None = -100e9,
+        max_value: float | None = 100e9,
+        step: float | None = 1.0,
+        decimals: int | None = 2,
     ):
         """
         Initialize the numerical input dialog with its GUI elements.
@@ -3289,7 +3290,7 @@ class YesNoAbortDialog(QMessageBox):
     def __init__(
         self,
         question: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
         timeout: float = float("inf"),
         default_value: str = "yes",
     ):
@@ -3568,7 +3569,7 @@ class AboutBox(QMessageBox):
 
 
 def get_matrix_icon(
-    name: str, color: Optional[QColor] = None, pencolor: QColor = QColor("white")
+    name: str, color: QColor | None = None, pencolor: QColor = QColor("white")
 ) -> QIcon:
     """
     Look up 'name' and get corresponding QIcon back.
@@ -3889,9 +3890,7 @@ def get_system_info(systems):
         return {}
 
 
-def _format_validation_error(
-    e: Union[ValidationError, TypeError, ValueError], base: str = ""
-) -> str:
+def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
     """
     Format the error output of the toml validation in html.
 

@@ -117,7 +117,7 @@ class Danfysik9100(VisaDevice):
         setpoint : float
             Current setpoint in Amperes
         """
-        self.write("DA 0 {:d}".format(int(1000 * setpoint)))
+        self.write(f"DA 0 {int(1000 * setpoint):d}")
 
     def getVoltageSetting(self):
         """
@@ -140,7 +140,7 @@ class Danfysik9100(VisaDevice):
         setpoint : int
             Voltage setpoint in parts per million
         """
-        self.write("DA 4 {:d}".format(setpoint))
+        self.write(f"DA 4 {setpoint:d}")
 
     def getRampStatus(self):
         """

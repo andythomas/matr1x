@@ -231,7 +231,7 @@ class SweepPreviewPopup(QDialog):
         header.setSectionResizeMode(0, header.ResizeMode.Stretch)
 
         # add label to show cursor position
-        self.posLabel = QLabel("x: {:e}\ny: {:e}".format(0, 0))
+        self.posLabel = QLabel(f"x: {0:e}\ny: {0:e}")
 
         # populate combo box with column names and identifiers
         comboBox = QComboBox()
@@ -297,7 +297,7 @@ class SweepPreviewPopup(QDialog):
     def mouseMoved(self, ev):
         """Implement event to update cursor position while pointer is in plot."""
         mousePoint = self.vb.mapSceneToView(ev[0])
-        self.posLabel.setText("x: {:e}\ny: {:e}".format(mousePoint.x(), mousePoint.y()))
+        self.posLabel.setText(f"x: {mousePoint.x():e}\ny: {mousePoint.y():e}")
 
     def plotListRangeX(self, index):
         """Update the plot to show sweep[index] against its range."""
@@ -1106,7 +1106,7 @@ class MainWindow(QMainWindow):
                 outputFile = open(filename, "a")
             else:
                 outputFile = open(filename, "w")
-        except (OSError, IOError):
+        except OSError:
             QMessageBox.warning(self, "Error!", "File can not be opened.")
             return False
         # get telemetry and append to file
@@ -1370,7 +1370,7 @@ class MainWindow(QMainWindow):
             "# repeat : ": None,
         }
         self.systemList.clear()
-        with open(filename, "r") as infile:
+        with open(filename) as infile:
             for line in infile:
                 regex = r"^# [Ss]ystem filename : (.+)"
                 if match := re.match(regex, line.strip()):

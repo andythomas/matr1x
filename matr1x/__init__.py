@@ -39,7 +39,6 @@ import tempfile
 from datetime import date
 from os.path import abspath, dirname, exists, expanduser, isdir, join, normpath
 from pathlib import Path
-from typing import Optional, Union
 
 import tomli_w
 from pydantic import ValidationError
@@ -61,7 +60,7 @@ else:
 output_extension = ".ma8"
 
 
-def load_config(optional_config_path: Optional[Path] = None):
+def load_config(optional_config_path: Path | None = None):
     """
     Load configuration file from default config, user config, local config, and an optional config.
 
@@ -188,7 +187,7 @@ def _find_differences(default_dict, current_dict):
     return differences
 
 
-def write_config(config_dict, optional_config_path: Optional[Path] = None):
+def write_config(config_dict, optional_config_path: Path | None = None):
     """
     Write non-default config options to the user config or optional config.
 
@@ -225,7 +224,7 @@ def write_config(config_dict, optional_config_path: Optional[Path] = None):
                 tomli_w.dump(user_config, toml_file)
 
 
-def reload_config(optional_config_path: Optional[Union[str, Path]] = None):
+def reload_config(optional_config_path: str | Path | None = None):
     """
     Reload the configuration dictionary.
 

@@ -76,7 +76,7 @@ dev = [
     "pre-commit>=4.3.0",
     "pytest>=8.4.1",
     "pytest-env>=1.1.5",
-    "ruff>=0.12.8",
+    "ruff>=0.13.0",
     "ty>=0.0.1-alpha.20",
     "sphinx>=7.4.7",
 ]

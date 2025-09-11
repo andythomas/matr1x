@@ -15,8 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module containing custom GUI widgets for the matr1x data acquisition software."""
 
-from typing import List, Tuple, Union
-
 from PyQt6.QtWidgets import QProgressBar, QPushButton
 
 
@@ -66,7 +64,7 @@ class ToggleButton(QPushButton):
         Keyword arguments to be passed to the QPushButton constructor.
     """
 
-    def __init__(self, *args: Union[str, List[str], Tuple[str, str]], **kwargs):
+    def __init__(self, *args: str | list[str] | tuple[str, str], **kwargs):
         if isinstance(args[0], (list, tuple)):
             label = args[0][0]
         else:

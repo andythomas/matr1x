@@ -104,7 +104,7 @@ def wait_for_tcp_port(
                 result = sock.connect_ex((host, port))
                 if result == 0:
                     return True
-        except (socket.gaierror, socket.timeout):
+        except (TimeoutError, socket.gaierror):
             pass
         time.sleep(poll_interval)
     return False
@@ -136,10 +136,7 @@ def start_control_dummy():
     # Find the 'control-dummy' GUI script entry point
     eps = entry_points()
     try:
-        if sys.version_info >= (3, 10):
-            ep = next(ep for ep in eps.select(group="gui_scripts") if ep.name == "control-dummy")
-        else:
-            ep = next(ep for ep in eps.get("gui_scripts", []) if ep.name == "control-dummy")
+        ep = next(ep for ep in eps.select(group="gui_scripts") if ep.name == "control-dummy")
     except StopIteration:
         raise RuntimeError("Entry point 'control-dummy' not found in gui_scripts")
 

@@ -23,7 +23,6 @@ temperature controllers of the 3xx series.
 import logging
 import math
 import time
-from typing import List, Optional, Tuple
 
 from pyvisa import constants
 from wrapt import synchronized
@@ -173,7 +172,7 @@ class Lakeshore3xx(VisaDevice):
             return self.query_int(msg, depth + 1)
 
     # High level functions
-    def getTemp(self, channel: Optional[str] = None) -> float:
+    def getTemp(self, channel: str | None = None) -> float:
         """
         Get the temperature reading from the specified channel.
 
@@ -189,7 +188,7 @@ class Lakeshore3xx(VisaDevice):
         """
         return float(self.query("KRDG? " + str(channel if channel else self.channel)))
 
-    def getRes(self, channel: Optional[str] = None) -> float:
+    def getRes(self, channel: str | None = None) -> float:
         """
         Get the resistance reading from the specified channel.
 
@@ -220,7 +219,7 @@ class Lakeshore3xx(VisaDevice):
             setpoint = float(setpoint)
             if 0 > setpoint or self.setlimit < setpoint:
                 return
-            self.write("SETP " + str(loop) + ",{:.5f}".format(setpoint))
+            self.write("SETP " + str(loop) + f",{setpoint:.5f}")
         except ValueError:
             return
 
@@ -239,7 +238,7 @@ class Lakeshore3xx(VisaDevice):
             setpoint = float(setpoint)
             if 0 > setpoint or 100 < setpoint:
                 return
-            self.write("MOUT " + str(loop) + ",{:.5f}".format(setpoint))
+            self.write("MOUT " + str(loop) + f",{setpoint:.5f}")
         except ValueError:
             return
 
@@ -326,7 +325,7 @@ class Lakeshore3xx(VisaDevice):
         except ValueError:
             return
 
-    def getPID(self, loop: int = 1) -> List[float]:
+    def getPID(self, loop: int = 1) -> list[float]:
         """
         Get the PID parameters for the specified loop.
 
@@ -343,7 +342,7 @@ class Lakeshore3xx(VisaDevice):
         dummy = self.query("PID? " + str(loop))
         return strToList(dummy)
 
-    def setPID(self, pid: List[float], loop: int = 1) -> None:
+    def setPID(self, pid: list[float], loop: int = 1) -> None:
         """
         Set the PID parameters for the specified loop.
 
@@ -357,7 +356,7 @@ class Lakeshore3xx(VisaDevice):
         pid = list(pid)
         self.write("PID " + str(loop) + "," + listToStr(pid))
 
-    def setRamp(self, args: Tuple[bool, float], loop: int = 1) -> None:
+    def setRamp(self, args: tuple[bool, float], loop: int = 1) -> None:
         """
         Set the temperature ramp parameters for the specified loop.
 
@@ -373,7 +372,7 @@ class Lakeshore3xx(VisaDevice):
         rate = float(rate)
         self.write(f"RAMP {loop:d},{state:d},{rate:.1f}")
 
-    def getRamp(self, loop: int = 1) -> Tuple[bool, float]:
+    def getRamp(self, loop: int = 1) -> tuple[bool, float]:
         """
         Get the temperature ramp parameters for the specified loop.
 
@@ -390,7 +389,7 @@ class Lakeshore3xx(VisaDevice):
         dummy = self.query("RAMP? " + str(loop)).split(",")
         return bool(int(dummy[0])), float(dummy[1])
 
-    def getCurveName(self, curve: int) -> Optional[str]:
+    def getCurveName(self, curve: int) -> str | None:
         """
         Get the name of the specified temperature calibration curve.
 
@@ -413,7 +412,7 @@ class Lakeshore3xx(VisaDevice):
         ret = self.query("CRVHDR? " + str(curve))
         return ret.split(",")[0]
 
-    def getCurveNumber(self, channel: Optional[str] = None) -> int:
+    def getCurveNumber(self, channel: str | None = None) -> int:
         """
         Get the currently active curve number for the specified channel.
 
@@ -429,7 +428,7 @@ class Lakeshore3xx(VisaDevice):
         """
         return self.query_int("INCRV? " + str(channel if channel else self.channel))
 
-    def getActiveCurveName(self, channel: Optional[str] = None) -> str:
+    def getActiveCurveName(self, channel: str | None = None) -> str:
         """
         Get the name of the currently active calibration curve for the specified channel.
 
@@ -446,7 +445,7 @@ class Lakeshore3xx(VisaDevice):
         return self.getCurveName(self.getCurveNumber(channel=channel))
 
     @synchronized
-    def setCurveNumber(self, curve: int, channel: Optional[str] = None) -> None:
+    def setCurveNumber(self, curve: int, channel: str | None = None) -> None:
         """
         Set the active calibration curve for the specified channel.
 
@@ -469,7 +468,7 @@ class Lakeshore3xx(VisaDevice):
 
     @synchronized
     def writeCurveToIndex(
-        self, index: int, name: str, sn: str, rList: List[float], tList: List[float]
+        self, index: int, name: str, sn: str, rList: list[float], tList: list[float]
     ) -> None:
         """
         Write a calibration curve to the device.
@@ -654,7 +653,7 @@ class Lakeshore335(Lakeshore3xx):
             return
         self.write(f"ATUNE {loop},{mode}")
 
-    def getTuningStatus(self) -> List[str]:
+    def getTuningStatus(self) -> list[str]:
         """
         Get the current autotune status.
 
@@ -739,7 +738,7 @@ class Lakeshore340(Lakeshore3xx):
 
     @synchronized
     def writeCurveToIndex(
-        self, index: int, name: str, sn: str, rList: List[float], tList: List[float]
+        self, index: int, name: str, sn: str, rList: list[float], tList: list[float]
     ) -> None:
         """
         Write a calibration curve to the device.
@@ -774,11 +773,11 @@ class Lakeshore340(Lakeshore3xx):
     @synchronized
     def writeZonePID(
         self,
-        templist: List[float],
-        plist: List[float],
-        ilist: List[float],
-        dlist: List[float],
-        rangelist: List[int],
+        templist: list[float],
+        plist: list[float],
+        ilist: list[float],
+        dlist: list[float],
+        rangelist: list[int],
         loop: int = 1,
     ) -> None:
         """

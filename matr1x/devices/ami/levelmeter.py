@@ -15,8 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """AMI level meter AMI1700 module."""
 
-from typing import Tuple
-
 from matr1x.devices.visadevice import VisaDevice
 
 
@@ -37,7 +35,7 @@ class AMI1700(VisaDevice):
             kwargs["read_termination"] = "\r\n"
         super().__init__(interface, **kwargs)
 
-    def get_helium_level(self) -> Tuple[float, str]:
+    def get_helium_level(self) -> tuple[float, str]:
         """Read liquid helium level.
 
         Returns
@@ -51,7 +49,7 @@ class AMI1700(VisaDevice):
         level = self.query("MEAS:HE:LEV?")
         return level, unit
 
-    def get_nitrogen_level(self) -> Tuple[float, str]:
+    def get_nitrogen_level(self) -> tuple[float, str]:
         """
         Read liquid nitrogen level.
 

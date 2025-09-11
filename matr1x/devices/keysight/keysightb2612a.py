@@ -132,31 +132,31 @@ class KeysightB2961(VisaDevice):
         else:
             cmdlist = []
         # we want sourceIsenseV
-        cmdlist.append(":SOUR:FUNC:MODE {}".format(self.sourceMode))
+        cmdlist.append(f":SOUR:FUNC:MODE {self.sourceMode}")
         if senseMode is not None:
             self.senseMode = senseMode
-            cmdlist.append(':SENS:FUNC "{}"'.format(self.senseMode))
+            cmdlist.append(f':SENS:FUNC "{self.senseMode}"')
 
         if senseLimit is not None:
-            cmdlist.append(":SOUR:{}:PROT {}".format(self.sourceMode, float(senseLimit)))
+            cmdlist.append(f":SOUR:{self.sourceMode}:PROT {float(senseLimit)}")
 
         if nplc is not None:
-            cmdlist.append(":SENS:{}:NPLC {}".format(self.sourceMode, float(nplc)))
+            cmdlist.append(f":SENS:{self.sourceMode}:NPLC {float(nplc)}")
         if delayAuto is True:
             cmdlist.append(":SENS:WAIT:AUTO ON")
         elif delay is not None:
             cmdlist.append(":SENS:WAIT:AUTO OFF")
-            cmdlist.append(":SENS:WAIT:OFFS {}".format(float(delay)))
+            cmdlist.append(f":SENS:WAIT:OFFS {float(delay)}")
         if fourWire is True:
             cmdlist.append(":SENS:REM ON")
         elif fourWire is False:
             cmdlist.append(":SENS:REM OFF")
 
         if sourceAutoRange is True:
-            cmdlist.append(":SOUR:{}:RANG:AUTO ON".format(self.sourceMode))
+            cmdlist.append(f":SOUR:{self.sourceMode}:RANG:AUTO ON")
         elif sourceRange is not None:
-            cmdlist.append(":SOUR:{}:RANG:AUTO OFF".format(self.sourceMode))
-            cmdlist.append(":SOUR:{}:RANG {}".format(self.sourceMode, float(sourceRange)))
+            cmdlist.append(f":SOUR:{self.sourceMode}:RANG:AUTO OFF")
+            cmdlist.append(f":SOUR:{self.sourceMode}:RANG {float(sourceRange)}")
 
         cmdlist.append(":FORM:ELEM:SENS VOLT,CURR,SOUR")
 
@@ -190,7 +190,7 @@ class KeysightB2961(VisaDevice):
         value : float
             The output value to set.
         """
-        cmd = ":SOUR:{} {}".format(self.sourceMode, float(value))
+        cmd = f":SOUR:{self.sourceMode} {float(value)}"
         self.write(cmd)
 
     def getMeas(self):
@@ -214,7 +214,7 @@ class KeysightB2961(VisaDevice):
         float
             The source value.
         """
-        self.write("MEAS:{}?".format(self.sourceMode))
+        self.write(f"MEAS:{self.sourceMode}?")
         return float(self.read())
 
     def getSense(self):
@@ -226,7 +226,7 @@ class KeysightB2961(VisaDevice):
         float
             The sense value.
         """
-        self.write("MEAS:{}?".format(self.senseMode))
+        self.write(f"MEAS:{self.senseMode}?")
         return float(self.read())
 
     def setAcquisitionTriggerMode(self, mode="BUS", count=None):
@@ -245,9 +245,9 @@ class KeysightB2961(VisaDevice):
             Amount of triggers (typically 1 for BUS), allowed are: None,
             integer, or "inf".
         """
-        self.write(":TRIG:ACQ:SOUR {}".format(mode))
+        self.write(f":TRIG:ACQ:SOUR {mode}")
         if count:
-            self.write(":TRIG:ACQ:COUN {}".format(count))
+            self.write(f":TRIG:ACQ:COUN {count}")
 
     def triggerReading(self):
         """Send a trigger to trigger a reading when trigger is set to BUS."""
@@ -295,22 +295,22 @@ class KeysightB2961(VisaDevice):
         cmdlist = [":ABOR"]
 
         if onlysetamp:
-            cmdlist.append(":SOUR:ARB:{}:SIN:AMPL {}".format(self.sourceMode, amp))
+            cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:AMPL {amp}")
             cmdlist.append(":INIT")
         else:
             cmdlist.append(":OUTP OFF")
             # set sin mode
-            cmdlist.append(":SOUR:{}:MODE ARB".format(self.sourceMode))
+            cmdlist.append(f":SOUR:{self.sourceMode}:MODE ARB")
             cmdlist.append(":SOUR:ARB:FUNC SIN")
-            cmdlist.append(":SOUR:ARB:{}:SIN:AMPL {}".format(self.sourceMode, float(amp)))
-            cmdlist.append(":SOUR:ARB:{}:SIN:FREQ {}".format(self.sourceMode, float(freq)))
-            cmdlist.append(":SOUR:ARB:{}:SIN:OFFS {}".format(self.sourceMode, float(offset)))
+            cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:AMPL {float(amp)}")
+            cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:FREQ {float(freq)}")
+            cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:OFFS {float(offset)}")
             # set number of repetitions
-            cmdlist.append(":SOUR:ARB:COUN {}".format(count))
+            cmdlist.append(f":SOUR:ARB:COUN {count}")
             # set phase marker (trigger/sync) output
-            cmdlist.append(":SOUR:ARB:{}:SIN:PMAR:PHAS 0".format(self.sourceMode))
-            cmdlist.append(":SOUR:ARB:{}:SIN:PMAR:STAT 1".format(self.sourceMode))
-            cmdlist.append(":SOUR:ARB:{}:SIN:PMAR:SIGN ext1".format(self.sourceMode))
+            cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:PMAR:PHAS 0")
+            cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:PMAR:STAT 1")
+            cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:PMAR:SIGN ext1")
             cmdlist.append(":SOUR:DIG:EXT1:FUNC TOUT")
             cmdlist.append(":SOUR:DIG:EXT1:POL POS")
             cmdlist.append(":SOUR:DIG:EXT1:TOUT:WIDT 50e-6")
@@ -343,4 +343,4 @@ class KeysightB2961(VisaDevice):
             Number of points to acquire. Default is 1000.
         """
         self.setAcquisitionTriggerMode(mode="TIMER", count=points)
-        self.write(":TRIG:ACQ:TIM {}".format(dt))
+        self.write(f":TRIG:ACQ:TIM {dt}")

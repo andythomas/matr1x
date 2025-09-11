@@ -100,7 +100,7 @@ class PNA5225b(VisaDevice):
         trace : int
             The trace number to select.
         """
-        self.write("CALC%i:PAR:MNUM %i" % (channel, trace))
+        self.write(f"CALC{channel}:PAR:MNUM {trace}")
 
     @synchronized
     def createParam(self, channel, param, name=None, scale="lin", createTrace=True):
@@ -132,20 +132,20 @@ class PNA5225b(VisaDevice):
         """
         channel = int(channel)
         if not name:
-            name = "ch%i_%s" % (channel, param)
+            name = f"ch{channel}_{param}"
 
         # CALCulate<cnum>:PARameter[:DEFine]:EXTended <Mname>,<param>
-        self.write("CALC%i:PAR:EXT '%s', '%s'" % (channel, name, param))
+        self.write(f"CALC{channel}:PAR:EXT '{name}', '{param}'")
         # CALCulate<cnum>:PARameter:SELect <Mname>[,fast]
-        self.write("CALC%i:PAR:SEL '%s'" % (channel, name))
+        self.write(f"CALC{channel}:PAR:SEL '{name}'")
 
         if scale == "lin":
             # CALCulate<cnum>:FORMat <char>
-            self.write("CALC%i:FORM MLIN" % channel)
+            self.write(f"CALC{channel}:FORM MLIN")
         elif scale == "log":
-            self.write("CALC%i:FORM MLOG" % channel)
+            self.write(f"CALC{channel}:FORM MLOG")
         else:
-            print("Please choose a valid scale! Your input was: %s" % scale)
+            print(f"Please choose a valid scale! Your input was: {scale}")
 
         if createTrace:
             self.createTrace(name, param)
@@ -178,17 +178,17 @@ class PNA5225b(VisaDevice):
         """
         if average:
             # SENSe<cnum>:AVERage
-            self.write("SENS%i:AVER ON" % channel)
+            self.write(f"SENS{channel}:AVER ON")
             # SENSe<cnum>:AVERage:COUNt <num>
-            self.write("SENS%i:AVER:COUN %i" % (channel, average))
+            self.write(f"SENS{channel}:AVER:COUN {average}")
             self.maxAverage = max(average, self.maxAverage)
         else:
-            self.write("SENS%i:AVER OFF" % channel)
+            self.write(f"SENS{channel}:AVER OFF")
 
         # SENSe<cnum>:SWEep:POINts <num>
-        self.write("SENS%i:SWE:POIN %s" % (channel, str(fPoints)))
+        self.write(f"SENS{channel}:SWE:POIN {str(fPoints)}")
         # SENSe<cnum>:BWIDth
-        self.write("SENS%i:BWID %s" % (channel, str(if_bw)))
+        self.write(f"SENS{channel}:BWID {str(if_bw)}")
 
     @synchronized
     def configureSweep(self, channel, fStart, fStop, getData=False):
@@ -217,9 +217,9 @@ class PNA5225b(VisaDevice):
             The sweep data if getData is True, None otherwise.
         """
         # SENSe<cnum>:FREQuency:STARt <num>
-        self.write("SENS%i:FREQ:STAR %s" % (channel, str(fStart)))
+        self.write(f"SENS{channel}:FREQ:STAR {str(fStart)}")
         # SENSe<cnum>:FREQuency:STOP <num>
-        self.write("SENS%i:FREQ:STOP %s" % (channel, str(fStop)))
+        self.write(f"SENS{channel}:FREQ:STOP {str(fStop)}")
 
         if getData:
             return self.getSweepData(channel)
@@ -239,9 +239,9 @@ class PNA5225b(VisaDevice):
             If true, activate the output after configuration.
             Default is True.
         """
-        self.write("SENS%i:FREQ:CW %i" % (channel, freq))
+        self.write(f"SENS{channel}:FREQ:CW {freq}")
         if activate:
-            self.write("SENS%i:SWE:TYPE CW" % channel)
+            self.write(f"SENS{channel}:SWE:TYPE CW")
             self.write("OUTP ON")
 
     def setSourcePower(self, power, channel=1):
@@ -256,7 +256,7 @@ class PNA5225b(VisaDevice):
             The desired channel.
             Default is 1.
         """
-        self.write("SOUR%i:POW %i" % (channel, power))
+        self.write(f"SOUR{channel}:POW {power}")
 
     def getSourcePower(self, channel=1):
         """
@@ -351,17 +351,17 @@ class PNA5225b(VisaDevice):
         }
 
         try:
-            self.write("FORM %s" % precdict[precision][0])
+            self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print("%s is not a valid precision" % str(precision))
+            print(f"{str(precision)} is not a valid precision")
             return
 
         if precision == "ascii":
-            data = self.query("CALC%i:DATA? FDATA" % channel)
+            data = self.query(f"CALC{channel}:DATA? FDATA")
             return np.fromstring(data, sep=",").transpose()
 
         byte_width = precdict[precision][1]
-        self.write("CALC%i:DATA? FDATA" % channel)
+        self.write(f"CALC{channel}:DATA? FDATA")
         header1 = self.read(2)
         n_header_bytes = int(chr(header1[1]))
         header2 = self.read(n_header_bytes)
@@ -409,17 +409,17 @@ class PNA5225b(VisaDevice):
         }
 
         try:
-            self.write("FORM %s" % precdict[precision][0])
+            self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print("%s is not a valid precision" % str(precision))
+            print(f"{str(precision)} is not a valid precision")
             return
 
         if precision == "ascii":
-            data = self.query("CALC%i:DATA? FDATA" % channel)
+            data = self.query(f"CALC{channel}:DATA? FDATA")
             return np.fromstring(data, sep=",").transpose().ravel()
 
         byte_width = precdict[precision][1]
-        self.write("CALC%i:DATA? SDATA" % channel)
+        self.write(f"CALC{channel}:DATA? SDATA")
         header1 = self.read(2)
         n_header_bytes = int(chr(header1[1]))
         header2 = self.read(n_header_bytes)
@@ -479,11 +479,11 @@ class PNA5225b(VisaDevice):
         fPoints : int
             The number of points in the sweep.
         """
-        self.write("SENS%i:FREQ:STAR?" % channel)
+        self.write(f"SENS{channel}:FREQ:STAR?")
         fStart = float(self.read())
-        self.write("SENS%i:FREQ:STOP?" % channel)
+        self.write(f"SENS{channel}:FREQ:STOP?")
         fStop = float(self.read())
-        self.write("SENS%i:SWE:POIN?" % channel)
+        self.write(f"SENS{channel}:SWE:POIN?")
         fPoints = int(self.read())
         return fStart, fStop, fPoints
 
@@ -508,8 +508,8 @@ class PNA5225b(VisaDevice):
         # 1: Reflexion, 2: Transmission
         winNum = 1 if ("1" in param) ^ ("2" in param) else 2
         # DISPlay:WINDow<wnum>[:STATe] <ON | OFF>
-        self.write("DISP:WIND%i:STAT ON" % winNum)
-        self.write("DISP:WIND%i:TRAC%i:FEED '%s'" % (winNum, int(param[1]), name))
+        self.write(f"DISP:WIND{winNum}:STAT ON")
+        self.write(f"DISP:WIND{winNum}:TRAC{int(param[1])}:FEED '{name}'")
 
     def deleteTrace(self, winNum, tracNum):
         """
@@ -522,4 +522,4 @@ class PNA5225b(VisaDevice):
         tracNum : int
             The number of the trace.
         """
-        self.write("DISP:WIND%i:TRAC%i:DEL" % (winNum, tracNum))
+        self.write(f"DISP:WIND{winNum}:TRAC{tracNum}:DEL")

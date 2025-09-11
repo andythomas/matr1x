@@ -33,7 +33,7 @@ import textwrap
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import h5py
 import numpy as np
@@ -117,7 +117,7 @@ def get_package_path(package_name):
     return None
 
 
-def get_importable_module_name(filename_str: str) -> Union[str, bool]:
+def get_importable_module_name(filename_str: str) -> str | bool:
     """
     Get importable module name if filename point to an installed module.
 
@@ -290,7 +290,7 @@ def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
     column_width : int, optional
         Width of each column. Default is 10.
     """
-    entry_string = "{:>%d}  " % column_width
+    entry_string = f"{{:>{column_width}}}  "
     outstr = f"{prefix:>6}"
     for v in vlist:
         if isinstance(v, str) and len(v) > column_width:
@@ -1417,10 +1417,10 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             input_type: str = "string",
             timeout: float = float("inf"),
             default_value: str = "",
-            min_value: Optional[float] = None,  # Optional: minimum value for numerical input
-            max_value: Optional[float] = None,  # Optional: maximum value for numerical input
-            step: Optional[float] = None,  # Optional: step size for numerical input
-            decimals: Optional[int] = None,  # Optional: number of decimals for numerical input
+            min_value: float | None = None,  # Optional: minimum value for numerical input
+            max_value: float | None = None,  # Optional: maximum value for numerical input
+            step: float | None = None,  # Optional: step size for numerical input
+            decimals: int | None = None,  # Optional: number of decimals for numerical input
         ):
             """
             Handle user input requests from the script.
@@ -1617,9 +1617,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
                         # Fix file replacement - ensure we have valid indices
                         script_lines = self.script.splitlines()
                         if 1 <= line <= len(script_lines):
-                            tbstr = tbstr.replace(
-                                'File "<string>"', '"{}"'.format(script_lines[line - 1])
-                            )
+                            tbstr = tbstr.replace('File "<string>"', f'"{script_lines[line - 1]}"')
                         else:
                             tbstr = tbstr.replace('File "<string>"', '"<unknown line>"')
 

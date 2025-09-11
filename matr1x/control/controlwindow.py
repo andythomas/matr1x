@@ -37,7 +37,6 @@ import sys
 import threading
 import time
 import warnings
-from typing import Optional
 
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QColor, QIcon, QKeySequence, QShortcut, QTextCursor
@@ -90,7 +89,7 @@ class CollapsibleBox(QWidget):
     # https://github.com/MichaelVoelkel/qt-collapsible-section/blob/master/Section.py
     redraw_activity = pyqtSignal(bool)
 
-    def __init__(self, title: str = "", parent: Optional[QWidget] = None) -> None:
+    def __init__(self, title: str = "", parent: QWidget | None = None) -> None:
         """
         Initialize the CollapsibleBox widget.
 

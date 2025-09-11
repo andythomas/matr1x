@@ -253,7 +253,12 @@ class VisaDevice:
 
         logger.debug(f"{self.name} read {str(readout)}")
         if self.pts:
-            print("R: %s" % ("(%i) %s" % (nbytes, readout) if nbytes else readout))
+            if nbytes:
+                message = f"({nbytes}) {readout}"
+            else:
+                message = readout
+
+            print(f"R: {message}")
         return readout
 
     def _write_delay(self):

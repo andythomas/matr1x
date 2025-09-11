@@ -21,7 +21,7 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple, TypedDict
+from typing import TypedDict
 
 import numpy as np
 import pyqtgraph
@@ -87,8 +87,8 @@ class PlotData(TypedDict):
     label: str
     desig: int
     unit: str
-    data: Optional[np.ndarray]  # data can be an ndarray or None
-    shape: Tuple[int, ...]  # Specifies a tuple of integers
+    data: np.ndarray | None  # data can be an ndarray or None
+    shape: tuple[int, ...]  # Specifies a tuple of integers
     dim: int
 
 
@@ -143,7 +143,7 @@ class SweepPreview(QMainWindow):
     openfile_dialog = pyqtSignal()
     allowed_extensions = (".ma6", ".ma7", ".ma8")
 
-    def __init__(self, parent: Optional[QWidget] = None, filename: Optional[Path] = None):
+    def __init__(self, parent: QWidget | None = None, filename: Path | None = None):
         super().__init__(parent)
 
         # File-related properties
@@ -962,9 +962,9 @@ Please investigate the error and eventually restart matrix-preview""",
         indexZ, indexX, indexY = [self.w_index[i].currentIndex() - 1 for i in range(3)]
 
         # Declare the dictionaries as Optional[PlotData]
-        x: Optional[PlotData] = None
-        y: Optional[PlotData] = None
-        z: Optional[PlotData] = None
+        x: PlotData | None = None
+        y: PlotData | None = None
+        z: PlotData | None = None
 
         if indexZ == -1:
             # empty index selected
@@ -1112,8 +1112,8 @@ Please investigate the error and eventually restart matrix-preview""",
         # disable transpose widget
         self.w_transpose.setVisible(False)
 
-        y: Optional[PlotData] = None
-        x: Optional[PlotData] = None
+        y: PlotData | None = None
+        x: PlotData | None = None
 
         if indexY == -1:
             # empty index selected

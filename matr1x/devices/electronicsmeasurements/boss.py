@@ -94,7 +94,7 @@ class BOSS(VisaDevice):
 
         Raises
         ------
-        IOError
+        OSError
             If too many attempts to read eagerly.
         """
         # ignore non-ascii characters in reply which sometimes seem to appear
@@ -103,7 +103,7 @@ class BOSS(VisaDevice):
         except UnicodeDecodeError:
             logger.info(f"repeating read_very_eager (attempts: {attempts})")
             if attempts > 4:
-                raise IOError("too many attempts to read eagerly")
+                raise OSError("too many attempts to read eagerly")
             return self.read_very_eager(attempts=attempts + 1)
 
     def query(self, msg, attempts=0):
@@ -124,7 +124,7 @@ class BOSS(VisaDevice):
 
         Raises
         ------
-        IOError
+        OSError
             If too many attempts to query.
         """
         try:
@@ -132,7 +132,7 @@ class BOSS(VisaDevice):
         except UnicodeDecodeError:
             logger.info(f"repeating query {msg} (attempts: {attempts})")
             if attempts > 4:
-                raise IOError("Query failed after too many attempts.")
+                raise OSError("Query failed after too many attempts.")
             return self.query(msg, attempts=attempts + 1)
         ret = ret.replace("Command>", "")
         return ret
@@ -180,7 +180,7 @@ class BOSS(VisaDevice):
         source : float
             Source value to set.
         """
-        self.query("PC{:.3f}".format(float(source)))
+        self.query(f"PC{float(source):.3f}")
 
     def getVoltage(self):
         """

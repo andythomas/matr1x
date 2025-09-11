@@ -87,7 +87,7 @@ class ITC503(IsobusDevice):
         float or list
             Temperature reading in Kelvin, or [temperature, setpoint] if setp=True.
         """
-        temp = self.query_float("R{:d}".format(channel))
+        temp = self.query_float(f"R{channel:d}")
         if setp is False:
             return temp
         else:
@@ -189,7 +189,7 @@ class ITC503(IsobusDevice):
         """
         ret = []
         for rnum in (8, 9, 10):
-            ret.append(self.query_float("R{:d}".format(rnum)))
+            ret.append(self.query_float(f"R{rnum:d}"))
         return ret
 
     def setPID(self, pid):
@@ -202,7 +202,7 @@ class ITC503(IsobusDevice):
             List of [P, I, D] values.
         """
         for cmd, val, digits in zip(("P", "I", "D"), pid, (3, 1, 1)):
-            self.query("{}{}".format(cmd, str(round(val, digits))))
+            self.query(f"{cmd}{str(round(val, digits))}")
 
     def setAutoPID(self, aPID):
         """

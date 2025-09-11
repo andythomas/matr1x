@@ -16,14 +16,12 @@
 """Validate (some) of the config options for better error messages."""
 
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
-def format_validation_error(
-    e: Union[ValidationError, TypeError, ValueError], base: str = ""
-) -> str:
+def format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
     """
     Format the error output of the toml validation.
 
@@ -58,16 +56,16 @@ class UserlibInstallConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    controlguis: Optional[List[str]] = None
-    options: Optional[List[str]] = None
-    root_path: Optional[Path] = None
+    controlguis: list[str] | None = None
+    options: list[str] | None = None
+    root_path: Path | None = None
 
 
 class UserlibConfig(BaseModel):
     """Allow validation of [userlib]."""
 
-    systems_directory: Optional[Path] = None
-    install: Optional[UserlibInstallConfig] = None
+    systems_directory: Path | None = None
+    install: UserlibInstallConfig | None = None
 
 
 class Matr1xInstallConfig(BaseModel):
@@ -75,10 +73,10 @@ class Matr1xInstallConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    controlguis: Optional[List[str]] = None
+    controlguis: list[str] | None = None
     create_directories: bool
     desktopintegration: bool
-    options: Optional[List[str]] = None
+    options: list[str] | None = None
     pip_options: str
     root_path: Path
 

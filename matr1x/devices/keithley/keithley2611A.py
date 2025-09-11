@@ -21,8 +21,6 @@ voltage/current sourcing and measurement, range control, and various
 sensing configurations.
 """
 
-from typing import Optional, Union
-
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
@@ -99,17 +97,17 @@ class Keithley2611A(VisaDevice):
     @synchronized
     def configure(
         self,
-        sourceMode: Optional[str] = None,
-        senseMode: Optional[str] = None,
-        fourWire: Optional[bool] = None,
-        senseAutoRange: Optional[bool] = None,
-        senseRange: Optional[float] = None,
-        sourceAutoRange: Optional[bool] = None,
-        sourceRange: Optional[float] = None,
-        senseLimit: Optional[float] = None,
+        sourceMode: str | None = None,
+        senseMode: str | None = None,
+        fourWire: bool | None = None,
+        senseAutoRange: bool | None = None,
+        senseRange: float | None = None,
+        sourceAutoRange: bool | None = None,
+        sourceRange: float | None = None,
+        senseLimit: float | None = None,
         output: bool = False,
         delayAuto: bool = False,
-        delay: Optional[Union[bool, float]] = None,
+        delay: bool | float | None = None,
         reset: bool = False,
     ):
         """
@@ -181,10 +179,10 @@ class Keithley2611A(VisaDevice):
             cmdlist = []
         # we want sourceIsenseV
         cmdlist.append(f"smua.source.func={self.mode_int[self.sourceMode]}")
-        # cmdlist.append(":SENS:FUNC \"{}\"".format(self.senseMode))
+        # cmdlist.append(f":SENS:FUNC \"{self.senseMode}\"")
         # check if the last line is necessary for the new smu
         # turn on the readback so we get the actual value and not the setpoint
-        # cmdlist.append(":SOUR:{}:READ:BACK ON".format(self.sourceMode))
+        # cmdlist.append(f":SOUR:{self.sourceMode}:READ:BACK ON")
 
         if senseLimit is not None:
             cmdlist.append(

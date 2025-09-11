@@ -26,7 +26,6 @@ import tempfile
 import textwrap
 import time
 from os.path import basename, dirname
-from typing import List, Optional, Tuple
 
 import autopep8
 import pyflakes.checker
@@ -1511,7 +1510,7 @@ class ExecThread(QThread):
         """Communicate pause to the subprocess."""
         if self.proc is None or self.conn is None:
             return
-        self.conn.send("p".encode())
+        self.conn.send(b"p")
 
     def abort(self, char="q"):
         """
@@ -2088,7 +2087,7 @@ class MainWindow(QMainWindow):
             # if no file is given, nothing is saved
             self.update_systems(update_config=False)
             newscript = self.generate_save_content()
-            with open(self.scriptname, "r") as f:
+            with open(self.scriptname) as f:
                 saved_text = f.read()
                 if saved_text == newscript:
                     self.systems_dirty = False
@@ -2693,10 +2692,10 @@ class MainWindow(QMainWindow):
         input_type: str,
         timeout: float = float("inf"),
         default_value: str = "",
-        min_value: Optional[float] = None,
-        max_value: Optional[float] = None,
-        step: Optional[float] = None,
-        decimals: Optional[int] = None,
+        min_value: float | None = None,
+        max_value: float | None = None,
+        step: float | None = None,
+        decimals: int | None = None,
     ):
         """
         Open a dialog and forward input to the script.
@@ -2808,7 +2807,7 @@ class MainWindow(QMainWindow):
 
     def get_settables(
         self,
-    ) -> Tuple[Optional[List[int]], Optional[List[bool]], Optional[List[str]]]:
+    ) -> tuple[list[int] | None, list[bool] | None, list[str] | None]:
         """
         Get the settables of the system files.
 
@@ -2878,7 +2877,7 @@ class MainWindow(QMainWindow):
 
         return (indexes, settables, columns)
 
-    def update_system_commands(self, cached_info: Optional[dict] = None) -> None:
+    def update_system_commands(self, cached_info: dict | None = None) -> None:
         """
         Update the help info about the current system(s).
 
@@ -3330,7 +3329,7 @@ class MainWindow(QMainWindow):
             filename += self.extension
         try:
             output_file = open(filename, "w")
-        except (OSError, IOError):
+        except OSError:
             self.print_colored("File cannot be opened")
             return -1
         self.scriptname = filename
@@ -3414,8 +3413,8 @@ class MainWindow(QMainWindow):
             self.print_colored("Please specify file")
             return
         try:
-            input_file = open(filename, "r")
-        except (OSError, IOError):
+            input_file = open(filename)
+        except OSError:
             self.print_colored("File cannot be opened")
             return
         self.scriptname = filename

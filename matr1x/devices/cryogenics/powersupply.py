@@ -82,7 +82,7 @@ class CryogenicPS(VisaDevice):
         if "timeout" not in kwargs:
             kwargs["timeout"] = 5000
         super().__init__(interface, **kwargs)
-        self.write("++addr %d" % self.gpib_addr)
+        self.write(f"++addr {self.gpib_addr}")
         self.write("++read_tmo_ms 3000")
         self.write("++eoi 0")
         self.write("++eos 0")

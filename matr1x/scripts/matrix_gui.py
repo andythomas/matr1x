@@ -24,7 +24,6 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
 
 from PyQt6.QtCore import QByteArray, QSettings, QSize, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
@@ -168,7 +167,7 @@ class QueueListWidget(QListWidget):
             new_order.append(item.text())
         self.data_list.sort(key=lambda x: new_order.index(x["listview"]))
 
-    def parameters(self, row: int) -> Tuple:
+    def parameters(self, row: int) -> tuple:
         """
         Get the parameters for a matrix run.
 
@@ -748,7 +747,7 @@ class MainWindow(QMainWindow):
 
     def parseSystemFromInputFile(self, input_file_path: str) -> None:
         """Parse the system from an input file."""
-        systemfile: Optional[list[str]] = None
+        systemfile: list[str] | None = None
         input_path = Path(input_file_path)
         if not input_path.exists():
             # no file, ignore
@@ -848,7 +847,7 @@ class MainWindow(QMainWindow):
         self.start_action.setEnabled(False)
         self.runNextMeasurement()
 
-    def keyPressEvent(self, a0: Optional[QKeyEvent]):
+    def keyPressEvent(self, a0: QKeyEvent | None):
         """Allow to modify systems list with keyboard shortcuts."""
         if self.meas_list.hasFocus():
             if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)):
