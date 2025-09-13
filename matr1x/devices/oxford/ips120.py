@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for controlling Oxford Instruments IPS120 power supplies and related devices."""
 
-import logging
 import math
 import time
 
@@ -23,8 +22,6 @@ from pyvisa import constants
 from wrapt import synchronized
 
 from .isobus import IsobusDevice
-
-logger = logging.getLogger(__name__)
 
 
 class IPS120_switchheater(IsobusDevice):
@@ -363,13 +360,13 @@ class IPS120_switchheater(IsobusDevice):
         self.query(f"A{state:d}")
         self.statusmsg = f"Status {statedict.get(state, 'unknown')}"
 
-    def getMagnetStatus(self):
+    def getMagnetStatus(self) -> int | None:
         """
         Get the operational state of the magnet.
 
         Returns
         -------
-        int
+        int | None
             State of the magnet:
                 0 - HOLD
                 1 - RTOS (Ramp to setpoint)
@@ -377,16 +374,9 @@ class IPS120_switchheater(IsobusDevice):
                 3 - CLMP (Clamped, when current is 0)
                 4 - Warming up
                 8 - Fault
+            None if status could not be read
         """
-        state = None
-        for depth in range(11):
-            ret = self.query("X", depth)
-            try:
-                state = int(ret[4])
-                break
-            except (ValueError, IndexError):
-                logger.debug(f"index 4 not convertible to int, {ret}")
-        return state
+        return self.get_status_value(max_depth=11, index=4, default_value=None)
 
     def setSwitchHeater(self, output):
         """
@@ -410,26 +400,19 @@ class IPS120_switchheater(IsobusDevice):
             self.query("H0")
             self._update_sleep(self.switch_wait_time, "cooling the switch ({:2.0f} s)")
 
-    def getSwitchHeater(self):
+    def getSwitchHeater(self) -> int | None:
         """
         Get the state of the switch heater.
 
         Returns
         -------
-        int
+        int | None
             Switch heater state:
             0 - Off with no field in the magnet
             1 - On
             2 - Off with persistent field inside
             5 - Heater fault
             8 - No switch fitted
+            None if status could not be read
         """
-        state = None
-        for depth in range(11):
-            ret = self.query("X", depth)
-            try:
-                state = int(ret[8])
-                break
-            except (ValueError, IndexError):
-                logger.debug(f"index 8 not convertible to int, {ret}")
-        return state
+        return self.get_status_value(max_depth=11, index=8, default_value=None)

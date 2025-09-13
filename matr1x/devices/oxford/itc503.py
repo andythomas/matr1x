@@ -15,14 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for interfacing with Oxford Instruments ITC503 temperature controller."""
 
-import logging
-
 from pyvisa import constants
 from wrapt import synchronized
 
 from .isobus import IsobusDevice
-
-logger = logging.getLogger(__name__)
 
 
 class ITC503(IsobusDevice):
@@ -128,7 +124,7 @@ class ITC503(IsobusDevice):
         ahtr = int(bool(ahtr))
         self.write(f"$A{ahtr:d}")
 
-    def getAutoHeater(self):
+    def getAutoHeater(self) -> bool:
         """
         Get the status of automatic heater control.
 
@@ -137,18 +133,8 @@ class ITC503(IsobusDevice):
         bool
             True if automatic heater control is enabled, False otherwise.
         """
-        for depth in range(11):
-            ret = self.query("X", depth)
-            try:
-                astat = int(ret[3])
-                break
-            except (IndexError, ValueError):
-                logger.debug(f"index 3 not convertible to int, {ret}")
-                astat = 0
-        if astat in (1, 3):
-            return True
-        else:
-            return False
+        astat = self.get_status_value(max_depth=11, index=3, default_value=0)
+        return astat in (1, 3)
 
     def setNV(self, nv):
         """
@@ -216,7 +202,7 @@ class ITC503(IsobusDevice):
         aPID = int(bool(aPID))
         self.write(f"$L{aPID:d}")
 
-    def getAutoPID(self):
+    def getAutoPID(self) -> bool:
         """
         Get the status of automatic PID control.
 
@@ -225,20 +211,10 @@ class ITC503(IsobusDevice):
         bool
             True if automatic PID is enabled, False otherwise.
         """
-        for depth in range(6):
-            ret = self.query("X", depth)
-            try:
-                astat = int(ret[12])
-                break
-            except (IndexError, ValueError):
-                logger.debug(f"index 3 not convertible to int, {ret}")
-                astat = 0
-        if astat in (1, 3):
-            return True
-        else:
-            return False
+        astat = self.get_status_value(max_depth=6, index=12, default_value=0)
+        return astat in (1, 3)
 
-    def getSweepMode(self):
+    def getSweepMode(self) -> bool:
         """
         Get the status of temperature sweep mode.
 
@@ -247,18 +223,8 @@ class ITC503(IsobusDevice):
         bool
             True if sweep mode is active, False otherwise.
         """
-        for depth in range(6):
-            ret = self.query("X", depth)
-            try:
-                sweepstat = int(ret[7:9])
-                break
-            except (IndexError, ValueError):
-                logger.debug(f"index 7-9 not convertible to int, {ret}")
-                sweepstat = 0
-        if sweepstat == 0:
-            return False
-        else:
-            return True
+        sweepstat = self.get_status_value(max_depth=6, index=slice(7, 9), default_value=0)
+        return sweepstat != 0
 
     @synchronized
     def setSweepMode(self, flag):

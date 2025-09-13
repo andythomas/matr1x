@@ -101,7 +101,7 @@ class BOSS(VisaDevice):
         try:
             return super().read_very_eager()
         except UnicodeDecodeError:
-            logger.info(f"repeating read_very_eager (attempts: {attempts})")
+            logger.info("repeating read_very_eager (attempts: %d)", attempts)
             if attempts > 4:
                 raise OSError("too many attempts to read eagerly")
             return self.read_very_eager(attempts=attempts + 1)
@@ -130,7 +130,7 @@ class BOSS(VisaDevice):
         try:
             ret = super().query(msg)
         except UnicodeDecodeError:
-            logger.info(f"repeating query {msg} (attempts: {attempts})")
+            logger.info("repeating query %s (attempts: %d)", msg, attempts)
             if attempts > 4:
                 raise OSError("Query failed after too many attempts.")
             return self.query(msg, attempts=attempts + 1)

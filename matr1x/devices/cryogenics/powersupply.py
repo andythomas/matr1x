@@ -97,7 +97,7 @@ class CryogenicPS(VisaDevice):
         self.write("++read")
         time.sleep(3)
         msg = self.read_very_eager()
-        logger.info(f"{self.name}.open: '{msg}'")
+        logger.info("%s.open: '%s'", self.name, msg)
         self._id = msg.split("........")[0].strip()
         time.sleep(1)
         self.query("LOCK OFF")
@@ -179,8 +179,8 @@ class CryogenicPS(VisaDevice):
             up = self.getUpdate()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # log incident and retry
-            logger.info(f"getStatus: '{type(e).__name__}: {e}'")
-            logger.info(f"getStatus: retrying to get update ({depth})")
+            logger.info("getStatus: '%s: %s'", type(e).__name__, e)
+            logger.info("getStatus: retrying to get update (%d)", depth)
             return self.getStatus(depth + 1)
 
         try:
@@ -192,8 +192,8 @@ class CryogenicPS(VisaDevice):
             status = up[up.find("RAMP STATUS:") :].split()[2]
         except Exception as e:
             # log incident and retry
-            logger.info(f"getStatus: '{type(e).__name__}: {e}'")
-            logger.info(f"getStatus: retrying to analyze update ({depth})")
+            logger.info("getStatus: '%s: %s'", type(e).__name__, e)
+            logger.info("getStatus: retrying to analyze update (%d)", depth)
             return self.getStatus(depth + 1)
         return field, setp, rate, voltage, status
 
@@ -220,8 +220,8 @@ class CryogenicPS(VisaDevice):
             ret = self.query("G O")
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # log incident and retry
-            logger.info(f"getOutput: '{type(e).__name__}: {e}'")
-            logger.info(f"getOutput: retrying to get update ({depth})")
+            logger.info("getOutput: '%s: %s'", type(e).__name__, e)
+            logger.info("getOutput: retrying to get update (%d)", depth)
             return self.getOutput(depth + 1)
 
         match = self.re_output.findall(ret)
@@ -291,8 +291,8 @@ class CryogenicPS(VisaDevice):
             ret += self.read_very_eager()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # since we are desperate we ignore all other Exceptions as well
-            logger.info(f"get_ramp_status: '{type(e).__name__}: {e}'")
-            logger.info(f"get_ramp_status: retrying to get update ({depth})")
+            logger.info("get_ramp_status: '%s: %s'", type(e).__name__, e)
+            logger.info("get_ramp_status: retrying to get update (%d)", depth)
             return self.get_ramp_status(depth + 1)
 
         mhold = self.re_holding.findall(ret)
@@ -530,8 +530,8 @@ class CryogenicBipolarPS(VisaDevice):
             up = self.getUpdate()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # log incident and retry
-            logger.info(f"getStatus: '{type(e).__name__}: {e}'")
-            logger.info(f"getStatus: retrying to get update ({depth})")
+            logger.info("getStatus: '%s: %s'", type(e).__name__, e)
+            logger.info("getStatus: retrying to get update (%d)", depth)
             return self.getStatus(depth + 1)
 
         try:
@@ -543,8 +543,8 @@ class CryogenicBipolarPS(VisaDevice):
             status = up[up.find("RAMP STATUS:") :].split()[2]
         except Exception as e:
             # log incident and retry
-            logger.info(f"getStatus: '{type(e).__name__}: {e}'")
-            logger.info(f"getStatus: retrying to analyze update ({depth})")
+            logger.info("getStatus: '%s: %s'", type(e).__name__, e)
+            logger.info("getStatus: retrying to analyze update (%d)", depth)
             return self.getStatus(depth + 1)
         return field, setp, rate, voltage, status
 
@@ -571,8 +571,8 @@ class CryogenicBipolarPS(VisaDevice):
             ret = self.query("G O")
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # log incident and retry
-            logger.info(f"getOutput: '{type(e).__name__}: {e}'")
-            logger.info(f"getOutput: retrying to get update ({depth})")
+            logger.info("getOutput: '%s: %s'", type(e).__name__, e)
+            logger.info("getOutput: retrying to get update (%d)", depth)
             return self.getOutput(depth + 1)
 
         match = self.re_output.findall(ret)
@@ -638,8 +638,8 @@ class CryogenicBipolarPS(VisaDevice):
             ret += self.read_very_eager()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # since we are desperate we ignore all other Exceptions as well
-            logger.info(f"get_ramp_status: '{type(e).__name__}: {e}'")
-            logger.info(f"get_ramp_status: retrying to get update ({depth})")
+            logger.info("get_ramp_status: '%s: %s'", type(e).__name__, e)
+            logger.info("get_ramp_status: retrying to get update (%d)", depth)
             return self.get_ramp_status(depth + 1)
 
         mhold = self.re_holding.findall(ret)

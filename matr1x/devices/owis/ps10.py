@@ -114,7 +114,7 @@ class Ps10(VisaDevice):
         self.write(msg)
         ret = self.read()
         if ret == "":
-            logger.info(f"{self.name}.query: empty reply ('{msg}', {ret})")
+            logger.info("%s.query: empty reply ('%s', %s)", self.name, msg, ret)
             return self.query(msg, depth=depth + 1)
         return ret
 
@@ -143,7 +143,7 @@ class Ps10(VisaDevice):
         try:
             return int(ret)
         except ValueError:
-            logger.info(f"{self.name}.query_int: integer conversion error ('{msg}', {ret})")
+            logger.info("%s.query_int: integer conversion error ('%s', %s)", self.name, msg, ret)
             # retry query
             return self.query_int(msg, depth + 1)
 

@@ -251,7 +251,7 @@ class VisaDevice:
         else:
             readout = self.connection.read_bytes(nbytes)
 
-        logger.debug(f"{self.name} read {str(readout)}")
+        logger.debug("%s read %s", self.name, readout)
         if self.pts:
             if nbytes:
                 message = f"({nbytes}) {readout}"

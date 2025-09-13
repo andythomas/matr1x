@@ -1511,7 +1511,7 @@ def sendNotificationEmail(
             p.communicate(msg.as_bytes())
             p.wait()
             logger = logging.getLogger(__name__)
-            logger.info(f"notification email {msgtext} sent to {address}")
+            logger.info("notification email %s sent to %s", msgtext, address)
         else:
             print("no email configuration found; see documentation on how to set it up")
     except Exception as e:

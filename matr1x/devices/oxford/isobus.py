@@ -17,6 +17,8 @@
 
 import logging
 import time
+from collections.abc import Callable
+from typing import Any
 
 from pyvisa import errors
 from wrapt import synchronized
@@ -117,30 +119,32 @@ class IsobusDevice(VisaDevice):
                 cmd = msg
 
             if depth > max_depth:
-                logger.info(f"{self.name}.query: maximum depth exeeded ('{msg}')")
+                logger.info("%s.query: maximum depth exeeded ('%s')", self.name, msg)
                 ret = super().query(cmd)
 
             try:
                 # call unwrapped instance here since we do our own error handling
                 ret = super().query.__wrapped__(cmd)
             except UnicodeDecodeError:
-                logger.info(f"{self.name}.query: UnicodeDecodeError, {msg}, {depth}")
+                logger.info("%s.query: UnicodeDecodeError, %s, %d", self.name, msg, depth)
                 return self.query(msg, depth + 1, max_depth=max_depth)
             except errors.VisaIOError:
-                logger.info(f"{self.name}.query: VisaIOError, {msg}, {depth}")
+                logger.info("%s.query: VisaIOError, %s, %d", self.name, msg, depth)
                 return self.query(msg, depth + 1, max_depth=max_depth)
 
             if ret is None:
-                logger.info(f"{self.name}.query: None, {msg}, {depth}")
+                logger.info("%s.query: None, %s, %d", self.name, msg, depth)
                 ret = self.query(msg, depth + 1, max_depth=max_depth)
             if "?" in ret:
-                logger.info(f"{self.name}.query: reply '?', {msg}, {depth}")
+                logger.info("%s.query: reply '?', %s, %d", self.name, msg, depth)
                 ret = self.query(msg, depth + 1, max_depth=max_depth)
             elif "" == ret:
-                logger.info(f"{self.name}.query: empty reply, {msg}, {depth}")
+                logger.info("%s.query: empty reply, %s, %d", self.name, msg, depth)
                 ret = self.query(msg, depth + 1, max_depth=max_depth)
             elif msg[0] not in ret:
-                logger.info(f"{self.name}.query: wrong reply character, {msg}, {depth}, {ret}")
+                logger.info(
+                    "%s.query: wrong reply character, %s, %d, %s", self.name, msg, depth, ret
+                )
                 try:
                     self.read_very_eager()
                 except UnicodeDecodeError:
@@ -172,6 +176,46 @@ class IsobusDevice(VisaDevice):
             try:
                 return float(ret[1:])
             except ValueError:
-                logger.info(f"{self.name}.query_float: float conversion error ('{msg}', {ret})")
+                logger.info(
+                    "%s.query_float: float conversion error ('%s', %s)", self.name, msg, ret
+                )
                 # retry query
                 return self.query_float(msg, depth + 1)
+
+    def get_status_value(
+        self,
+        max_depth: int,
+        index: int | slice,
+        default_value: Any = None,
+        conversion_func: Callable[[str], Any] = int,
+    ) -> Any:
+        """
+        Query device status and extract a value from a specific index.
+
+        Parameters
+        ----------
+        max_depth : int
+            Maximum depth to try when querying.
+        index : int or slice
+            Index specification for extracting value from query result:
+            - int: single character index (e.g., 3, 4, 8)
+            - slice: slice object for substring extraction (e.g., slice(7, 9))
+        default_value : Any, optional
+            Default value to return if extraction fails (default: None).
+        conversion_func : Callable[[str], Any], optional
+            Function to convert extracted string (default: int).
+
+        Returns
+        -------
+        Any
+            The extracted and converted value, or default_value if extraction fails.
+        """
+        for depth in range(max_depth):
+            ret: str = self.query("X", depth)
+            try:
+                extracted = ret[index]  # str when index is int or slice
+                return conversion_func(extracted)
+            except (IndexError, ValueError):
+                logger.debug("index %s not convertible, %s", index, ret)
+
+        return default_value

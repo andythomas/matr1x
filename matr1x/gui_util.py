@@ -3420,7 +3420,7 @@ class YesNoAbortDialog(QMessageBox):
         # Check timeout first, but only if user didn't respond
         if self.timeout_occurred and not self.user_responded:
             self.logger.info(
-                f"Dialog timeout occurred - automatically selected: {self.default_value}"
+                "Dialog timeout occurred - automatically selected: %s", self.default_value
             )
             if self.default_value in ["yes", "no"]:
                 return self.default_value

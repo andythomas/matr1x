@@ -92,7 +92,7 @@ class ILM200(IsobusDevice):
         else:
             self.query("S1")
 
-    def getRate(self):
+    def getRate(self) -> bool:
         """
         Get the current rate setting.
 
@@ -101,12 +101,12 @@ class ILM200(IsobusDevice):
         bool
             True if rate is set to fast mode, False if slow mode.
         """
-        state = False  # Default value in case no valid state is read
-        for depth in range(11):
-            ret = self.query("X", depth)
-            try:
-                state = bool(int(ret[6], 16) & 0b10)
-                break
-            except (ValueError, IndexError):
-                logger.debug(f"index 6 not convertible to int, {ret}")
-        return state
+        hex_char = self.get_status_value(
+            max_depth=11, index=6, default_value="0", conversion_func=str
+        )
+
+        try:
+            return bool(int(hex_char, 16) & 0b10)
+        except ValueError:
+            logger.debug("Could not convert hex value: %s", hex_char)
+            return False

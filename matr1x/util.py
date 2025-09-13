@@ -1509,7 +1509,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             # remove trailling line feed
             ret = self.recv.strip()
             # print output
-            logger.info(f"User input received: {ret}")
+            logger.info("User input received: %s", ret)
             self.recv = ""
             return ret
 

@@ -236,12 +236,9 @@ class MercurySingleAxisIPS(VisaDevice):
                     except ValueError:
                         # what happened?
                         logger.info(
-                            "Non bool value at "
-                            + str(key)
-                            + " is "
-                            + dummy
-                            + " and can not be"
-                            + " assigned to status"
+                            "Non bool value at %s is %s and can not be assigned to status",
+                            key,
+                            dummy,
                         )
 
     def getDictValue(self, key):
@@ -297,13 +294,13 @@ class MercurySingleAxisIPS(VisaDevice):
 
     def logAllDicts(self):
         """Log the contents of all dictionaries for debugging."""
-        logger.debug("IPS-ID: " + str(self.idIPS))
-        logger.debug("IPS-SYSCONF: " + str(self.sysDict))
-        logger.debug("IPS-MAGNETCONF Z: " + str(self.confDictX))
-        logger.debug("IPS-MAGNETSTATUS Z: " + str(self.dataDictX))
-        logger.debug("ITC-LEVELCONF: " + str(self.confDictLevel))
-        logger.debug("IPS-LEVELSTATUS: " + str(self.dataDictLevel))
-        logger.debug("IPS-WORKING DICT: " + str(self.workingDict))
+        logger.debug("IPS-ID: %s", self.idIPS)
+        logger.debug("IPS-SYSCONF: %s", self.sysDict)
+        logger.debug("IPS-MAGNETCONF Z: %s", self.confDictX)
+        logger.debug("IPS-MAGNETSTATUS Z: %s", self.dataDictX)
+        logger.debug("ITC-LEVELCONF: %s", self.confDictLevel)
+        logger.debug("IPS-LEVELSTATUS: %s", self.dataDictLevel)
+        logger.debug("IPS-WORKING DICT: %s", self.workingDict)
 
     # driver functions
     def setMagneticField(self, xval):
@@ -757,12 +754,9 @@ class MercuryIPS(VisaDevice):
                     except ValueError:
                         # what happened?
                         logger.info(
-                            "Non bool value at "
-                            + str(key)
-                            + " is "
-                            + dummy
-                            + " and can not be"
-                            + " assigned to status"
+                            "Non bool value at %s is %s and can not be assigned to status",
+                            key,
+                            dummy,
                         )
 
     def getDictValue(self, key):
@@ -868,17 +862,17 @@ class MercuryIPS(VisaDevice):
 
     def logAllDicts(self):
         """Log the contents of all dictionaries for debugging."""
-        logger.debug("IPS-ID: " + str(self.idIPS))
-        logger.debug("IPS-SYSCONF: " + str(self.sysDict))
-        logger.debug("IPS-MAGNETCONF X: " + str(self.confDictX))
-        logger.debug("IPS-MAGNETCONF Y: " + str(self.confDictY))
-        logger.debug("IPS-MAGNETCONF Z: " + str(self.confDictZ))
-        logger.debug("ITC-LEVELCONF: " + str(self.confDictLevel))
-        logger.debug("IPS-MAGNETSTATUS X: " + str(self.dataDictX))
-        logger.debug("IPS-MAGNETSTATUS Y: " + str(self.dataDictY))
-        logger.debug("IPS-MAGNETSTATUS Z: " + str(self.dataDictZ))
-        logger.debug("IPS-LEVELSTATUS: " + str(self.dataDictLevel))
-        logger.debug("IPS-WORKING DICT: " + str(self.workingDict))
+        logger.debug("IPS-ID: %s", self.idIPS)
+        logger.debug("IPS-SYSCONF: %s", self.sysDict)
+        logger.debug("IPS-MAGNETCONF X: %s", self.confDictX)
+        logger.debug("IPS-MAGNETCONF Y: %s", self.confDictY)
+        logger.debug("IPS-MAGNETCONF Z: %s", self.confDictZ)
+        logger.debug("ITC-LEVELCONF: %s", self.confDictLevel)
+        logger.debug("IPS-MAGNETSTATUS X: %s", self.dataDictX)
+        logger.debug("IPS-MAGNETSTATUS Y: %s", self.dataDictY)
+        logger.debug("IPS-MAGNETSTATUS Z: %s", self.dataDictZ)
+        logger.debug("IPS-LEVELSTATUS: %s", self.dataDictLevel)
+        logger.debug("IPS-WORKING DICT: %s", self.workingDict)
 
     # driver functions
     @synchronized
@@ -896,7 +890,7 @@ class MercuryIPS(VisaDevice):
         xval, yval, zval = fields
         valid, (xv, yv, zv) = self.checkFields(xval, yval, zval)
         if valid is False:
-            logger.info("Magnetic field exceeding limits was set, " + "reduced amplitude")
+            logger.info("Magnetic field exceeding limits was set, reduced amplitude")
         # check that values also do not exceed limits with current fields
         self.setVal(xv, *self.workingDict["xFSet"][1:])
         self.setVal(yv, *self.workingDict["yFSet"][1:])
@@ -1298,7 +1292,7 @@ class MercuryITC(VisaDevice):
         try:
             return float(dummy)
         except TypeError:
-            logger.debug("Type error during conversion of dict" + f" value {dummy[0]}")
+            logger.debug("Type error during conversion of dict value %s", dummy)
             return None
 
     def queryDict(self, queryDict, address="", signal=False):
@@ -1339,7 +1333,7 @@ class MercuryITC(VisaDevice):
                     self.workingDict[key][0][0] = False
                 else:
                     # what happened?
-                    logger.info("Non bool value at " + str(key) + " is " + dummy)
+                    logger.info("Non bool value at %s is %s", key, dummy)
 
     def getDictValue(self, key):
         """
@@ -1394,13 +1388,13 @@ class MercuryITC(VisaDevice):
 
     def logAllDicts(self):
         """Log the contents of all dictionaries for debugging."""
-        logger.debug("ITC-ID: " + str(self.idITC))
-        logger.debug("ITC-SYSCONF: " + str(self.sysDict))
-        logger.debug("ITC-HEATERCONF: " + str(self.confDictHeater))
-        logger.debug("ITC-TSENSCONF: " + str(self.confDictTSens))
-        logger.debug("ITC-LOOPCONF: " + str(self.confDictTSensLoop))
-        logger.debug("ITC-TSENSSTATUS: " + str(self.dataDictTSens))
-        logger.debug("ITC-WORKING DICT: " + str(self.workingDict))
+        logger.debug("ITC-ID: %s", self.idITC)
+        logger.debug("ITC-SYSCONF: %s", self.sysDict)
+        logger.debug("ITC-HEATERCONF: %s", self.confDictHeater)
+        logger.debug("ITC-TSENSCONF: %s", self.confDictTSens)
+        logger.debug("ITC-TSENSLOOPCONF: %s", self.confDictTSensLoop)
+        logger.debug("ITC-TSENSSTATUS: %s", self.dataDictTSens)
+        logger.debug("ITC-WORKING DICT: %s", self.workingDict)
 
     # driver functions
     def setTVTI(self, val):

@@ -105,7 +105,7 @@ class Lakeshore3xx(VisaDevice):
             The response from the device.
         """
         if depth > 5:
-            logger.info(f"{self.name}.query: maximal depth exceeded ('{command}')")
+            logger.info("%s.query: maximal depth exceeded ('%s')", self.name, command)
             if command.startswith("PID?") or command.startswith("RAMP?"):
                 return "0,0,0"
             else:
@@ -114,7 +114,7 @@ class Lakeshore3xx(VisaDevice):
         ret = self.read()
         if ret == "":
             logger.info(
-                f"{self.name}.query: empty reply, reopening interface ('{command}', {ret})"
+                "%s.query: empty reply, reopening interface ('%s', '%s')", self.name, command, ret
             )
             self.close()
             self.open()
@@ -142,7 +142,7 @@ class Lakeshore3xx(VisaDevice):
         try:
             return float(ret)
         except ValueError:
-            logger.info(f"{self.name}.query_float: float conversion error ('{msg}', {ret})")
+            logger.info("%s.query_float: float conversion error ('%s', %s)", self.name, msg, ret)
             # retry query
             return self.query_float(msg, depth + 1)
 
@@ -167,7 +167,7 @@ class Lakeshore3xx(VisaDevice):
         try:
             return int(ret)
         except ValueError:
-            logger.info(f"{self.name}.query_int: integer conversion error ('{msg}', {ret})")
+            logger.info("%s.query_int: integer conversion error ('%s', %s)", self.name, msg, ret)
             # retry query
             return self.query_int(msg, depth + 1)
 

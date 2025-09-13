@@ -325,7 +325,7 @@ class SCPI_TCP_Server:
             server_thread = threading.Thread(target=self.server.serve_forever)
             server_thread.daemon = True
             server_thread.start()
-            logger.info(f"server started on {self.server.server_address}")
+            logger.info("server started on %s", self.server.server_address)
             self.running = True
 
     def stop(self):
@@ -340,4 +340,4 @@ class SCPI_TCP_Server:
             self.server.server_close()
             self.server.RequestHandlerClass.terminate = True
             self.running = False
-            logger.info(f"server stopped on {self.server.server_address}")
+            logger.info("server stopped on %s", self.server.server_address)

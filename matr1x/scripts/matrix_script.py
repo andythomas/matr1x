@@ -1643,9 +1643,15 @@ class ExecThread(QThread):
                             decimals = None  # Use default (None) on error
 
                 logger.info(
-                    f"Requesting input type: {input_type}, Query: {strlabel}, "
-                    f"Timeout: {timeout}, Default: {default_value}, Min: {min_value}, "
-                    f"Max: {max_value}, Step: {step}"
+                    "Requesting input type: %s, Query: %s, Timeout: %g, Default: %s, Min: %s, "
+                    "Max: %s, Step: %s",
+                    input_type,
+                    strlabel,
+                    timeout,
+                    default_value,
+                    min_value,
+                    max_value,
+                    step,
                 )
 
                 # Emit the signal with all parameters

@@ -265,7 +265,7 @@ class SweepPreview(QMainWindow):
 
     def open_file(self, filename: Path):
         """Read the data from the file."""
-        logger.info(f"opening {filename}")
+        logger.info("opening %s", filename)
         self.filename = filename
         # get all files
         self.file_dir = self.filename.absolute().parent

@@ -930,7 +930,7 @@ class ControlWindow(QMainWindow):
             Reason for panic mode, by default "Panic button"
         """
         if checked:
-            logger.info(f"{time.strftime(datetimefmt)}: Panic mode activated due to '{reason}'")
+            logger.info("%s: Panic mode activated due to '%s'", time.strftime(datetimefmt), reason)
             self.panicButton.setText(f"Panic mode activated due to '{reason}'")
             self.panicButton.setChecked(True)
             for g in self.guidicts:
