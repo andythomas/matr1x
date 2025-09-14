@@ -182,7 +182,7 @@ def _find_differences(default_dict, current_dict):
     # Add keys that are in current_dict but not in default_dict
     for key in current_dict:
         if key not in default_dict:
-            differences[key] = current_value
+            differences[key] = current_dict[key]
 
     return differences
 
@@ -273,7 +273,6 @@ datetimefmt = config["matr1x"]["datetime_format"]
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
 # is however not recommended in production environments.
 logfolder = expanduser(config["matr1x"]["logging_directory"])
-kwargs = dict(level=logging.INFO, format=config["matr1x"]["logging_format"], datefmt=datetimefmt)
 handlers = []
 if not exists(logfolder):
     logfolder = tempfile.gettempdir()  # set logfolder to temp directory
@@ -282,17 +281,16 @@ if not exists(logfolder):
         handlers.append(logging.StreamHandler(stream=sys.stdout))
 
 today = date.today().isocalendar()
-if sys.version_info.major == 3 and sys.version_info.minor < 9:
-    from collections import namedtuple
-
-    datetuple = namedtuple("Isocalendar", ["year", "week", "weekday"])
-    today = datetuple(*today)
 handlers.append(
     logging.FileHandler(join(logfolder, f"matr1x_{today.year}{today.week:02d}.log"), mode="a")
 )
 
-kwargs["handlers"] = handlers
-logging.basicConfig(**kwargs)
+logging.basicConfig(
+    level=logging.INFO,
+    format=config["matr1x"]["logging_format"],
+    datefmt=datetimefmt,
+    handlers=handlers,
+)
 
 usersfolder = expanduser(config["matr1x"]["users_directory"])
 if not exists(usersfolder):
