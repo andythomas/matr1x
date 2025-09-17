@@ -37,7 +37,6 @@ import logging
 import sys
 import tempfile
 from datetime import date
-from os.path import abspath, dirname, exists, expanduser, isdir, join, normpath
 from pathlib import Path
 
 import tomli_w
@@ -80,27 +79,27 @@ def load_config(optional_config_path: Path | None = None):
     """
     # Load default configuration
     default_config_path = Path(__file__).parent / "default_matr1x.toml"
-    with open(default_config_path, "rb") as f:
+    with default_config_path.open("rb") as f:
         config = tomllib.load(f)
 
     # Override with user configuration if available
-    user_config_path = Path(expanduser("~/.matr1x.toml"))
+    user_config_path = Path("~/.matr1x.toml").expanduser()
     if user_config_path.exists():
-        with open(user_config_path, "rb") as f:
+        with user_config_path.open("rb") as f:
             user_config = tomllib.load(f)
             config = merge_dicts(config, user_config)
 
     # Override with local configuration if available
     local_config_path = Path("./matr1x.toml")
     if local_config_path.exists():
-        with open(local_config_path, "rb") as f:
+        with local_config_path.open("rb") as f:
             local_config = tomllib.load(f)
             config = merge_dicts(config, local_config)
 
     # Override with optional configuration if available
     if optional_config_path:
         if optional_config_path.exists():
-            with open(optional_config_path, "rb") as f:
+            with optional_config_path.open("rb") as f:
                 optional_config = tomllib.load(f)
                 config = merge_dicts(config, optional_config)
         else:
@@ -166,7 +165,7 @@ def _find_differences(default_dict, current_dict):
     for key, default_value in default_dict.items():
         if isinstance(default_value, str):
             if "~" in default_value:
-                default_value = normpath(expanduser(default_value))
+                default_value = str(Path(default_value).expanduser().resolve())
         if key not in current_dict:
             continue  # Key is missing in the current settings
         current_value = current_dict[key]
@@ -208,19 +207,19 @@ def write_config(config_dict, optional_config_path: Path | None = None):
         configuration.
     """
     if optional_config_path:
-        with open(optional_config_path, "wb") as toml_file:
+        with optional_config_path.open("wb") as toml_file:
             tomli_w.dump(config_dict, toml_file)
     else:
         # load default settings
         default_config_path = Path(__file__).parent / "default_matr1x.toml"
-        with open(default_config_path, "rb") as f:
+        with default_config_path.open("rb") as f:
             default_settings = tomllib.load(f)
         # Dictionary to store new TOML data
         user_config = _find_differences(default_settings, config_dict)
 
-        user_config_path = Path(expanduser("~/.matr1x.toml"))
+        user_config_path = Path("~/.matr1x.toml").expanduser()
         if user_config:
-            with open(user_config_path, "wb") as toml_file:
+            with user_config_path.open("wb") as toml_file:
                 tomli_w.dump(user_config, toml_file)
 
 
@@ -272,17 +271,17 @@ datetimefmt = config["matr1x"]["datetime_format"]
 # set up logging, mostly for debugging purposes.
 # Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
 # is however not recommended in production environments.
-logfolder = expanduser(config["matr1x"]["logging_directory"])
+logfolder = Path(config["matr1x"]["logging_directory"]).expanduser()
 handlers = []
-if not exists(logfolder):
-    logfolder = tempfile.gettempdir()  # set logfolder to temp directory
+if not logfolder.exists():
+    logfolder = Path(tempfile.gettempdir())  # set logfolder to temp directory
     if sys.stdout is not None:
         # if logging to temp directory also log to stdout
         handlers.append(logging.StreamHandler(stream=sys.stdout))
 
 today = date.today().isocalendar()
 handlers.append(
-    logging.FileHandler(join(logfolder, f"matr1x_{today.year}{today.week:02d}.log"), mode="a")
+    logging.FileHandler(logfolder / f"matr1x_{today.year}{today.week:02d}.log", mode="a")
 )
 
 logging.basicConfig(
@@ -292,23 +291,25 @@ logging.basicConfig(
     handlers=handlers,
 )
 
-usersfolder = expanduser(config["matr1x"]["users_directory"])
-if not exists(usersfolder):
-    usersfolder = expanduser("~")
+usersfolder = Path(config["matr1x"]["users_directory"]).expanduser()
+if not usersfolder.exists():
+    usersfolder = Path.home()
 
-_systems_directory = expanduser(config["matr1x"]["systems_directory"])
+_systems_directory_str = config["matr1x"]["systems_directory"]
 
 # replace pkgroot placeholder if present
-if "<pkgroot>/" in _systems_directory:
-    _systems_directory = join(
-        dirname(abspath(__file__)), _systems_directory.replace("<pkgroot>/", "")
+if "<pkgroot>/" in _systems_directory_str:
+    _systems_directory = Path(__file__).resolve().parent / _systems_directory_str.replace(
+        "<pkgroot>/", ""
     )
+else:
+    _systems_directory = Path(_systems_directory_str)
 # expand eventual home
-_systems_directory = expanduser(_systems_directory)
-if not isdir(_systems_directory):
+_systems_directory = _systems_directory.expanduser()
+if not _systems_directory.is_dir():
     print("matrix.conf: option matr1x/systems_directory is invalid, using fallback")
     # use fallback option
-    _systems_directory = join(dirname(abspath(__file__)), "systems")
+    _systems_directory = Path(__file__).resolve().parent / "systems"
 
 system_names = [
     "matr1x-systems",
@@ -319,17 +320,19 @@ system_directories = [
 for section in config:
     if section != "matr1x":
         if "systems_directory" in config[section]:
-            sysdir = config[section]["systems_directory"]
+            sysdir_str = config[section]["systems_directory"]
             # replace pkgroot placeholder
-            if "<pkgroot>/" in sysdir:
+            if "<pkgroot>/" in sysdir_str:
                 package_path = get_package_path(section)
                 if package_path is not None:
-                    sysdir = join(package_path, sysdir.replace("<pkgroot>/", ""))
+                    sysdir = Path(package_path) / sysdir_str.replace("<pkgroot>/", "")
                 else:
                     raise ModuleNotFoundError(f"Optional matr1x module '{section}' not found")
+            else:
+                sysdir = Path(sysdir_str)
             # expand eventual home
-            sysdir = expanduser(sysdir)
-            if isdir(sysdir):
+            sysdir = sysdir.expanduser()
+            if sysdir.is_dir():
                 system_names.append(f"{section}-systems")
                 system_directories.append(sysdir)
             else:

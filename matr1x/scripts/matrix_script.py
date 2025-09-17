@@ -25,7 +25,8 @@ import sys
 import tempfile
 import textwrap
 import time
-from os.path import basename, dirname
+from os.path import normpath
+from pathlib import Path
 
 import autopep8
 import pyflakes.checker
@@ -108,7 +109,7 @@ from matr1x.util import (
     set_correct_mac_appname,
 )
 
-logger = logging.getLogger(os.path.split(__file__)[-1])
+logger = logging.getLogger(Path(__file__).name)
 logger.info("matrix-script starting")
 config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
@@ -1472,7 +1473,7 @@ class ExecThread(QThread):
     # signal to report the filename of the file that is written by the process
     filename_signal = pyqtSignal(str)
 
-    def __init__(self, meta_data, script, fallbackname, temp_config):
+    def __init__(self, meta_data: dict, script: str, fallbackname: Path | str, temp_config: Path):
         """
         Initialize thread that handles script execution.
 
@@ -1480,13 +1481,13 @@ class ExecThread(QThread):
         ----------
             meta_data : dict
                 dictionary containing meta data such as user and comment
-            script : string
+            script : str
                 user script that is supposed to be run by the ExecThread.
-            fallbackname : str
+            fallbackname : Path | str
                 filename used to initialize the data file if not specified
                 in the script. Its directory path will be used as execution
                 directory.
-            temp_config : str
+            temp_config : Path
                 temporary configuration file path
         """
         super().__init__()
@@ -1494,7 +1495,7 @@ class ExecThread(QThread):
         self.conn = None
         self.meta_data = meta_data
         self.script = script
-        self.datafilefallback = fallbackname
+        self.datafilefallback = str(fallbackname)
         self.temp_config = temp_config
 
     def pass_input(self, inp):
@@ -1704,7 +1705,7 @@ class ExecThread(QThread):
             # parameters to pass to matr1x/utils.py:matrix_script_process
             cmd = f"""import matr1x
 import matr1x.util as mu
-matr1x.reload_config({repr(self.temp_config)})
+matr1x.reload_config({repr(str(self.temp_config))})
 mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
                          {repr(self.datafilefallback)}, {repr(port)})"""
 
@@ -1732,7 +1733,7 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
                     print("OS error in thread communication")
             self.conn.close()
             # clean up temporary config
-            os.remove(self.temp_config)
+            self.temp_config.unlink()
 
 
 class MainWindow(QMainWindow):
@@ -1740,17 +1741,17 @@ class MainWindow(QMainWindow):
 
     extension = ".matrix"
 
-    def __init__(self, filename=None):
+    def __init__(self, filename: Path | None = None):
         """Initialize the GUI for scripted matrix control."""
         super().__init__()
         self.systems = []
-        self.scriptname = ""
+        self.scriptname: Path | None = None
         self.measurement_file = ""
         self.systems_dirty = False
-        self.last_loaded_file = None
+        self.last_loaded_file: Path | None = None
         self.is_running = False
         self.shortcut_dir = None
-        self.last_filename = ""
+        self.last_filename: Path | None = None
         self.settings = QSettings("matr1x", "script")
         self.output_stream = EmittingStream()
         self.output_stream.text_written.connect(self.output_written)
@@ -2089,11 +2090,11 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
 
-        if self.systems_dirty and "" != self.scriptname:
+        if self.systems_dirty and self.scriptname is not None:
             # if no file is given, nothing is saved
             self.update_systems(update_config=False)
             newscript = self.generate_save_content()
-            with open(self.scriptname) as f:
+            with Path(self.scriptname).open() as f:
                 saved_text = f.read()
                 if saved_text == newscript:
                     self.systems_dirty = False
@@ -2256,11 +2257,15 @@ class MainWindow(QMainWindow):
         else:
             self.config_editor.hide()
 
+    def _load_file_from_signal(self, filename: str):
+        """Convert string to Path for opening file."""
+        self.load_from_filename(Path(filename))
+
     def init_ui(self) -> None:
         """Generate the main GUI."""
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
         self.central_widget = DroppableWidget(self)
-        self.central_widget.fileDropped.connect(self.load_from_filename)
+        self.central_widget.fileDropped.connect(self._load_file_from_signal)
         self.setCentralWidget(self.central_widget)
         layout = QVBoxLayout(self.central_widget)
         layout.setSpacing(0)
@@ -2628,7 +2633,7 @@ class MainWindow(QMainWindow):
         elif self.scriptname:
             text += ": "
         if self.scriptname:
-            text += basename(self.scriptname)
+            text += self.scriptname.name
         elif self.script_edit.isModified() or self.systems_dirty:
             text += "<unsaved>"
         self.setWindowTitle(text)
@@ -2646,18 +2651,18 @@ class MainWindow(QMainWindow):
                 matr1x.system_names, matr1x.system_directories
             )
         if self.shortcut_dir:
-            directory = os.path.join(self.shortcut_dir.name, matr1x.system_names[-1])
+            directory = Path(self.shortcut_dir.name) / matr1x.system_names[-1]
         if self.last_loaded_file:
-            directory = os.path.dirname(self.last_loaded_file)
+            directory = self.last_loaded_file.parent
         # get filenames from dialog
         filenames = QFileDialog.getOpenFileNames(
-            self, "Select system file to add", directory, "system files (system*.py)"
+            self, "Select system file to add", str(directory), "system files (system*.py)"
         )[0]
         if filenames == []:
             return
         for filename in filenames:
-            self.last_loaded_file = filename
-            filename = os.path.realpath(filename)
+            self.last_loaded_file = Path(filename)
+            filename = str(Path(filename).resolve())
             module_name = get_importable_module_name(filename)
             if module_name:
                 self.system_list.addItem(module_name)
@@ -3074,7 +3079,7 @@ class MainWindow(QMainWindow):
         ----------
             path:str - path to current measurement file
         """
-        self.measurement_file = path
+        self.measurement_file = Path(path)
         self.preview_action.setEnabled(True)
 
     def highlight(self, number: int) -> None:
@@ -3211,7 +3216,8 @@ class MainWindow(QMainWindow):
         update_config (bool): Whether to update the config editor.
         """
         new_systems = [
-            os.path.normpath(self.system_list.item(j).text())
+            # use normpath here since there is no pathlib equivalent
+            normpath(self.system_list.item(j).text())
             for j in range(self.system_list.count())
         ]
 
@@ -3233,7 +3239,7 @@ class MainWindow(QMainWindow):
                 self._cached_system_info = {}
 
         # only systems that are part of matrix or ifwlib can be configured via files
-        configurable = [system for system in self.systems if not os.path.exists(system)]
+        configurable = [system for system in self.systems if not Path(system).exists()]
         matr1x.reload_config()
         if update_config:
             self.config_editor.set_systemfile(configurable)
@@ -3309,10 +3315,10 @@ class MainWindow(QMainWindow):
         filename = QFileDialog.getSaveFileName(
             self,
             "Specify filename to save",
-            (matr1x.usersfolder if "" == self.scriptname else dirname(self.scriptname)),
+            str(matr1x.usersfolder if not self.scriptname else Path(self.scriptname).parent),
             f"matrix files (*{self.extension})",
         )
-        filename = filename[0]
+        filename = Path(filename[0])
         return self.write_file(filename)
 
     def save_file(self):
@@ -3321,20 +3327,17 @@ class MainWindow(QMainWindow):
 
         if no last filename exists calls save_file_as().
         """
-        if self.last_filename == "":
+        if not self.last_filename:
             return self.save_file_as()
         else:
             return self.write_file(self.last_filename)
 
-    def write_file(self, filename):
+    def write_file(self, filename: Path):
         """Save script to file and write system information to header."""
-        if "" == filename:
-            self.print_colored("Please specify file")
-            return -1
-        elif not filename.endswith(self.extension):
-            filename += self.extension
+        if filename.suffix != self.extension:
+            filename = filename.with_suffix(self.extension)
         try:
-            output_file = open(filename, "w")
+            output_file = filename.open("w")
         except OSError:
             self.print_colored("File cannot be opened")
             return -1
@@ -3406,7 +3409,7 @@ class MainWindow(QMainWindow):
             newscript += line + "\n"
         return newscript
 
-    def load_from_filename(self, filename):
+    def load_from_filename(self, filename: Path):
         """
         Load the script from file denoted by filename.
 
@@ -3419,7 +3422,7 @@ class MainWindow(QMainWindow):
             self.print_colored("Please specify file")
             return
         try:
-            input_file = open(filename)
+            input_file = filename.open()
         except OSError:
             self.print_colored("File cannot be opened")
             return
@@ -3472,8 +3475,7 @@ class MainWindow(QMainWindow):
                         )
                 else:
                     self.print_colored(
-                        "Could not verify column names, please verify"
-                        " that columns have not changed"
+                        "Could not verify column names, please verify that columns have not changed"
                     )
             elif 2 == i and not sys_err:
                 # make sure that system unit definition agrees with
@@ -3500,8 +3502,7 @@ class MainWindow(QMainWindow):
                         )
                 else:
                     self.print_colored(
-                        "Could not verify column units, please verify"
-                        " that columns have not changed"
+                        "Could not verify column units, please verify that columns have not changed"
                     )
             self.script_edit.append(line)
         input_file.close()
@@ -3529,10 +3530,10 @@ class MainWindow(QMainWindow):
         filename = QFileDialog.getOpenFileName(
             self,
             "Select filename to open",
-            (matr1x.usersfolder if "" == self.scriptname else dirname(self.scriptname)),
+            str(matr1x.usersfolder if not self.scriptname else Path(self.scriptname).parent),
             f"matrix files (*{self.extension})",
         )
-        filename = filename[0]
+        filename = Path(filename[0])
         self.load_from_filename(filename)
 
     def new_file(self) -> None:
@@ -3553,7 +3554,7 @@ class MainWindow(QMainWindow):
                 if saved == -1:
                     return
         self.systems_dirty = False
-        self.last_filename = ""
+        self.last_filename = None
         self.script_edit.clear()
         self.script_edit.setModified(False)
 
@@ -3569,7 +3570,7 @@ def main():
     appname = "matrix-script"
     app.setDesktopFileName(appname)
     with QtGracefulKiller():
-        ex = MainWindow(filename=sys.argv[1] if len(sys.argv) >= 2 else None)
+        ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
         if config["duplicate_output_to_logfile"]:
             sys.stdout = OutputDuplication(sys.stdout, prefix=appname)
             sys.stderr = OutputDuplication(sys.stderr, prefix=appname, fallbackname="stderr")

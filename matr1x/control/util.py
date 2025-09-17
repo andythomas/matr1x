@@ -47,6 +47,7 @@ from email.mime.text import MIMEText
 from enum import IntEnum
 from functools import wraps
 from operator import attrgetter
+from pathlib import Path
 from subprocess import PIPE, Popen
 
 import numpy
@@ -1420,7 +1421,7 @@ def linear_trend(timestamps, data, interval=60):
 
 
 def sendNotificationEmail(
-    address: str, subject: str, msgtext: str, attachments: list[str] = []
+    address: str, subject: str, msgtext: str, attachments: list[str | Path] = []
 ) -> None:
     """
     Send messages to a list of email addresses.
@@ -1451,36 +1452,37 @@ def sendNotificationEmail(
     # add attachments (code adapted from
     # https://docs.python.org/3.4/library/email-examples.html)
     for fname in attachments:
-        if not os.path.isfile(fname):
+        fpath = Path(fname)
+        if not fpath.is_file():
             continue
         # Guess the content type based on the file's extension.  Encoding
         # will be ignored, although we should check for simple things like
         # gzip'd or compressed files.
-        ctype, encoding = mimetypes.guess_type(fname)
+        ctype, encoding = mimetypes.guess_type(fpath)
         if ctype is None or encoding is not None:
             # No guess could be made, or the file is encoded (compressed),
             # so use a generic bag-of-bits type.
             ctype = "application/octet-stream"
         maintype, subtype = ctype.split("/", 1)
         if maintype == "text":
-            with open(fname) as fp:
+            with fpath.open() as fp:
                 # Note: we should handle calculating the charset
                 att = MIMEText(fp.read(), _subtype=subtype)
         elif maintype == "image":
-            with open(fname, "rb") as fp:
+            with fpath.open("rb") as fp:
                 att = MIMEImage(fp.read(), _subtype=subtype)
-            att.add_header("Content-ID", f"<{fname}>")
+            att.add_header("Content-ID", f"<{fpath.name}>")
         elif maintype == "audio":
-            with open(fname, "rb") as fp:
+            with fpath.open("rb") as fp:
                 att = MIMEAudio(fp.read(), _subtype=subtype)
         else:
-            with open(fname, "rb") as fp:
+            with fpath.open("rb") as fp:
                 att = MIMEBase(maintype, subtype)
                 att.set_payload(fp.read())
             # Encode the payload using Base64
-            encoders.encode_base64(msg)
+            encoders.encode_base64(att)
         # Set the filename parameter
-        att.add_header("Content-Disposition", "attachment", filename=fname)
+        att.add_header("Content-Disposition", "attachment", filename=fpath.name)
         msg.attach(att)
 
     # read email config
@@ -1818,13 +1820,13 @@ def control_main(
         app.setStyle("fusion")
     elif sys.platform == "darwin":
         set_correct_mac_appname(f"{name}")
-    app.setDesktopFileName(f"python.{package}.{os.path.basename(sys.argv[0])}")
+    app.setDesktopFileName(f"python.{package}.{Path(sys.argv[0]).name}")
 
     if lockfile:
-        lockfilename = os.path.join(logfolder, f"{package}_gui_{name}.lock")
-        if os.path.exists(lockfilename):
+        lockfilename = Path(logfolder) / f"{package}_gui_{name}.lock"
+        if lockfilename.exists():
             # check if process still running
-            with open(lockfilename, encoding="utf-8") as lockf:
+            with lockfilename.open(encoding="utf-8") as lockf:
                 otherpid = int(lockf.read())
             try:
                 psutil.Process(otherpid)
@@ -1840,7 +1842,7 @@ Kill the other process ({otherpid}) before restarting.""",
                 # this is the normal behavior in this case -> move on.
                 pass
         # generate lockfile and write in the process ID
-        with open(lockfilename, "w", encoding="utf-8") as lockf:
+        with lockfilename.open("w", encoding="utf-8") as lockf:
             lockf.write(f"{os.getpid()}\n")
 
     kwargs["package"] = package
@@ -1856,8 +1858,8 @@ Kill the other process ({otherpid}) before restarting.""",
     logger.info("Exiting GUI")
     if lockfile:
         # clean exit, remove lockfile
-        if os.path.exists(lockfilename):
-            os.remove(lockfilename)
+        if lockfilename.exists():
+            lockfilename.unlink()
     sys.stdout.close()
     sys.stderr.close()
     sys.stderr = sys.__stderr__

@@ -20,13 +20,26 @@ This module tests the loadmatrix functionality for various matr1x file
 formats.
 """
 
-import os
 from pathlib import Path
 
 import matr1x.eval
+import numpy as np
 import pytest
 
-path = os.path.dirname(os.path.realpath(__file__))
+path = Path(__file__).resolve().parent
+
+
+def get_array_field_count(arr: np.ndarray) -> int:
+    """Get the number of fields in a numpy array."""
+    if arr.dtype.names is not None:
+        # Structured array
+        return len(arr.dtype.names)
+    elif len(arr.shape) > 1:
+        # Unstructured 2D array
+        return arr.shape[1]
+    else:
+        # 1D array
+        return 1
 
 
 def test_loadmatrix_hdf5_ma8():
@@ -37,12 +50,13 @@ def test_loadmatrix_hdf5_ma8():
     file. Checks header information, data columns, units, and specific
     data values.
     """
-    datafile = os.path.join(path, "data", "random_test.h5.ma8")
+    datafile = path / "data" / "random_test.h5.ma8"
     h, d = matr1x.eval.loadmatrix(datafile)
     assert h["dcterms:publisher"] == "matr1x measurement suite"
+    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
-    assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
+    assert get_array_field_count(d) == len(h["columns"])
     assert h["columns"][2] == "dev1 p3a"  # check specific column name
     assert h["units"][2] == "cnta"  # check specific unit entry
     assert h["status"] == "aborted"
@@ -64,14 +78,15 @@ def test_loadmatrix_ma8():
     Checks header information, data columns, units, and specific data
     values.
     """
-    datafile = os.path.join(path, "data", "random_test.ma8")
+    datafile = path / "data" / "random_test.ma8"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert h["dcterms:type"] is None
     assert h["dcterms:identifier"] == "random numpy"
     assert d["timeUTC"].shape == (100,)  # check shape of dataset
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
-    assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
+    assert get_array_field_count(d) == len(h["columns"])
     assert h["columns"][3] == "dev1 p1"  # check specific column name
     assert h["units"][3] == "cnt"  # check specific unit entry
     assert h["status"] == "finished"
@@ -93,12 +108,13 @@ def test_loadmatrix_hdf5_ma7():
     file. Checks header information, data columns, units, and specific
     data values.
     """
-    datafile = os.path.join(path, "data", "magic_sample.h5.ma7")
+    datafile = path / "data" / "magic_sample.h5.ma7"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert h["DC.Publisher"] == "matr1x;University of Konstanz"
     assert len(h["columns"]) == 11  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
-    assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
+    assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][4] == "HallProbe Temp"  # check specific column name
     assert h["units"][4] == "C"  # check specific unit entry
     assert len(h["Device query"]) == 570
@@ -116,12 +132,13 @@ def test_loadmatrix_ma7():
     Checks header information, data columns, units, and specific data
     values.
     """
-    datafile = os.path.join(path, "data", "mgk240213.ma7")
+    datafile = path / "data" / "mgk240213.ma7"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert h["DC.Type"] == "Transport data"
     assert len(h["columns"]) == 7  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
-    assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
+    assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "Ismu02"  # check specific column name
     assert h["units"][3] == "A"  # check specific unit entry
     assert len(h["Device query"]) == 167
@@ -141,7 +158,7 @@ def test_loadmatrix_hdf5_ma6():
     file. Checks header information, data columns, units, and specific
     data values.
     """
-    datafile = os.path.join(path, "data", "polybox.h5.ma6")
+    datafile = path / "data" / "polybox.h5.ma6"
     h, d = matr1x.eval.loadmatrix(datafile)
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
@@ -162,15 +179,16 @@ def test_loadmatrix_ma6():
     Checks header information, data columns, units, and specific data
     values.
     """
-    datafile = os.path.join(path, "data", "ARMR.ma6")
+    datafile = path / "data" / "ARMR.ma6"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert (
         h["Input filename"]
         == "/home/sisyphos/users/rs25/rs25180808a/ARMR_350Kto420K_10Ksteps_100uA_70mT_ip.4t"
     )
     assert len(h["columns"]) == 9  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
-    assert len(d.dtype) == len(h["columns"])  # check appropriate data column number
+    assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "timeUTC"  # check specific column name
     assert h["units"][3] == "s"  # check specific unit entry
     assert d["Vnvm07"].shape == (2196,)  # check shape of dataset
@@ -187,11 +205,11 @@ def test_loadmatrix_pathlib_ma8():
     for MA8 format files.
     """
     # Test with pathlib.Path
-    datafile_path = Path(path) / "data" / "random_test.ma8"
+    datafile_path = path / "data" / "random_test.ma8"
     h_path, d_path = matr1x.eval.loadmatrix(datafile_path)
 
     # Test with string (for comparison)
-    datafile_str = os.path.join(path, "data", "random_test.ma8")
+    datafile_str = str(datafile_path)
     h_str, d_str = matr1x.eval.loadmatrix(datafile_str)
 
     # Results should be identical

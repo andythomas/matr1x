@@ -7,8 +7,8 @@ elabFTW electronic lab notebook system.
 
 import difflib
 import logging
-import os
 import re
+from pathlib import Path
 
 import elabapi_python
 from elabapi_python.rest import ApiException
@@ -199,7 +199,7 @@ class ElabSystem(System):
         """
         self._tags.append(name)
 
-    def add_attachment(self, filename: str, label: str = "") -> None:
+    def add_attachment(self, filename: Path | str, label: str = "") -> None:
         """
         Queue additional file for upload to the labbook entry.
 
@@ -212,7 +212,7 @@ class ElabSystem(System):
         label
             A label or description for the attachment.
         """
-        self._attachments[filename] = label
+        self._attachments[str(filename)] = label
 
     def add_resource(self, resource: str) -> None:
         """
@@ -236,7 +236,7 @@ class ElabSystem(System):
     def conditional_add_file(self):
         """Attach the filename but only if allowed by configuration."""
         if self.config["upload_datafile"] and self.filename:
-            file_size_mb = os.path.getsize(self.filename) / (1024 * 1024)
+            file_size_mb = self.filename.stat().st_size / (1024 * 1024)
             if (
                 isinstance(self.config["upload_datafile"], bool)
                 or file_size_mb <= self.config["upload_datafile"]
@@ -268,14 +268,14 @@ class ElabSystem(System):
         before rendering. The template has access to the `filename` and `dcdata` variables
         in its context.
         """
-        if os.path.isfile(template):
-            with open(template) as file:
+        if Path(template).is_file():
+            with Path(template).open() as file:
                 template_str = file.read()
         else:
             template_str = template
         jinjatemplate = Template(template_str)
         return jinjatemplate.render(
-            base_filename=os.path.basename(self.filename),
+            base_filename=self.filename.name if self.filename else "",
             filename=self.filename,
             dcdata=self.merged_system.dcdata,
             query=self.merged_system.query_dict,
@@ -655,9 +655,9 @@ class ElabSystem(System):
             if self.filename:
                 # only create measurement if there is a datafile
                 try:
-                    self.elab_post_experiment(kwargs.get("status", None))
+                    self.elab_post_experiment(kwargs.get("status", ""))
                 except Exception:
-                    self._backup_info(kwargs.get("status", None))
+                    self._backup_info(kwargs.get("status", ""))
             else:
                 print("no measurement file exists, not creating entry")
         super().reset(*args, **kwargs)

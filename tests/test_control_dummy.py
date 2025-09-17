@@ -21,7 +21,6 @@ functionality of the matr1x data acquisition system, particularly
 focusing on the control GUI and script execution capabilities.
 """
 
-import glob
 import os
 import platform
 import signal
@@ -31,13 +30,15 @@ import sys
 import tempfile
 import time
 from importlib.metadata import entry_points
+from pathlib import Path
 
 import matr1x.eval
 import matr1x.util
+import numpy as np
 import pytest
 from matr1x import output_extension
 
-path = os.path.dirname(os.path.realpath(__file__))
+path = Path(__file__).resolve().parent
 
 user_script = """
 import numpy as np
@@ -65,13 +66,13 @@ def clean_data_files():
     None
         Control is yielded to the test function.
     """
-    existingfiles = glob.glob(os.path.join(path, f"*{output_extension}"))
+    existingfiles = list(path.glob(f"*{output_extension}"))
     # run test
     yield
-    files = glob.glob(os.path.join(path, f"*{output_extension}"))
+    files = list(path.glob(f"*{output_extension}"))
     newfiles = set(files) - set(existingfiles)
     for f in newfiles:
-        os.remove(f)
+        f.unlink()
 
 
 def wait_for_tcp_port(
@@ -207,8 +208,9 @@ def test_matrix_script_control_dummy(start_control_dummy):
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
-        files = glob.glob(os.path.join(path, f"epische_messdatei{output_extension}"))
+        files = list(path.glob(f"epische_messdatei{output_extension}"))
         assert len(files) >= 1
         h, d = matr1x.eval.loadmatrix(files[-1], structured=False)
         assert len(h["columns"]) == 6
+        assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
         assert d.shape == (11, 6)

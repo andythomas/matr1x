@@ -706,7 +706,7 @@ class MainWindow(QMainWindow):
                 folder = matr1x.usersfolder
         # remove old pattern with next major update
         filename = QFileDialog.getOpenFileName(
-            self, "Select input file", folder, "Sweep 8 files (*.sw8);;t files (*.*t)"
+            self, "Select input file", str(folder), "Sweep 8 files (*.sw8);;t files (*.*t)"
         )
         if "" != filename[0]:
             self.input_file.setText(filename[0])
@@ -724,7 +724,7 @@ class MainWindow(QMainWindow):
         filename = QFileDialog.getSaveFileName(
             self,
             "Select ma file",
-            folder,
+            str(folder),
             "Output files (*.ma8);; Old output files (*.ma7 *.ma6)",
             options=QFileDialog.Option.DontConfirmOverwrite,
         )
@@ -735,7 +735,7 @@ class MainWindow(QMainWindow):
         """Run sweep Generator already initialized with system."""
         if self.sg is None:
             self.sg = sweep_generator.MainWindow(
-                filename=self.input_file.text(), inputcb=self.input_file.setText
+                filename=Path(self.input_file.text()), inputcb=self.input_file.setText
             )
             self.sg.show()
         elif self.sg.isVisible() is False:

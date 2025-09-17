@@ -30,7 +30,7 @@ import warnings
 from collections import defaultdict
 from collections.abc import Iterable
 from operator import attrgetter
-from os.path import exists, expanduser, isfile, splitext
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -423,7 +423,7 @@ class System:
         # initialize HDF5 flag
         self._hdf5 = False
         # data filename variables
-        self.filename = None
+        self._filename: Path | None = None
         self._file_mode = "w"
         self._datafile_initialized = False
 
@@ -449,6 +449,16 @@ class System:
             language="en",
         )
 
+    @property
+    def filename(self) -> Path | None:
+        """Path of the data file used to store measurement data."""
+        return self._filename
+
+    @filename.setter
+    def filename(self, value: Path | str | None) -> None:
+        value = Path(value) if value is not None else None
+        self._filename = value
+
     @classmethod
     def from_file(cls, filename):
         """
@@ -466,30 +476,31 @@ class System:
         System
             System as defined in the file.
         """
-        normfilename = str(filename).strip()
-        if isfile(normfilename):
+        normfilename = Path(filename).expanduser()
+        if normfilename.is_file():
             # create module from path, automatically reloads module
             mod = module_from_path(normfilename)
         else:  # no file found, try installed system files
-            if normfilename.endswith(".py"):
-                normfilename = splitext(normfilename)[0]
+            if normfilename.suffix == ".py":
+                normfilename = normfilename.stem
+            normfilestr = str(normfilename)
 
             try:
                 # load module, or reload if exists
-                if normfilename in sys.modules:
+                if normfilestr in sys.modules:
                     # force reimport of system
-                    mod = sys.modules[normfilename]
+                    mod = sys.modules[normfilestr]
                     importlib.reload(mod)
                 else:
-                    mod = importlib.import_module(normfilename)
+                    mod = importlib.import_module(normfilestr)
             except ModuleNotFoundError:
                 # try matr1x system as fallback
-                modname = "matr1x.systems." + normfilename
+                modname = "matr1x.systems." + normfilestr
                 if modname in sys.modules:
                     mod = sys.modules[modname]
                     importlib.reload(mod)
                 else:
-                    mod = importlib.import_module("." + normfilename, "matr1x.systems")
+                    mod = importlib.import_module("." + normfilestr, "matr1x.systems")
         # get new (v8 System instance)
         try:
             system = getattr(mod, "system")
@@ -501,7 +512,7 @@ class System:
                 DeprecationWarning,
             )
         # set the name of the system to reflect the filename
-        system.__name__ = normfilename
+        system.__name__ = str(normfilename)
         return system
 
     @property
@@ -714,7 +725,9 @@ class System:
             self.add_comment(message.lstrip("\r"))
         print(*args, **kwargs)
 
-    def generate_datafilename(self, outputfile="", inputfile="", append=False):
+    def generate_datafilename(
+        self, outputfile: str | Path = "", inputfile: str | Path = "", append=False
+    ) -> Path:
         """
         Generate output datafile name.
 
@@ -726,10 +739,10 @@ class System:
 
         Parameters
         ----------
-        outputfile : str, optional
+        outputfile : str | Path, optional
             Output filename which should be used. Potentially a running number
             will be added to avoid overwriting an existing file.
-        inputfile : str, optional
+        inputfile : str | Path, optional
             If outputfile is empty this string will be used to generate a
             datafile name.
         append : bool, optional
@@ -737,8 +750,8 @@ class System:
 
         Returns
         -------
-        str
-            Generated datafilename.
+        Path
+            Generated datafile.
         """
         # check whether hdf5 is required and change output extensions
         if self.hdf5 is True:
@@ -749,23 +762,24 @@ class System:
         refileext = file_extension.replace(".", r"\.")
 
         if outputfile:
-            datafile = expanduser(outputfile)
+            datafile = Path(outputfile).expanduser()
         elif inputfile:  # no output file given -> input filename as template
-            datafile = expanduser(splitext(inputfile)[0])
+            datafile = Path(inputfile).expanduser().with_suffix("")
             # generate fallback option for the datafile name
         else:  # no output nor input file, generate from system names
             timestamp = time.strftime(datetimefmt, time.localtime())
-            _, filename = os.path.split(self.__name__)
-            if filename.endswith(".py"):
-                filename = filename[:-3]
-            datafile = f"{timestamp}_{filename}"
+            filename = Path(self.__name__).stem
+            datafile_name = f"{timestamp}_{filename}"
             if os.name == "nt":
                 # Windows does not like : in filenames
-                datafile = datafile.replace(":", "")
+                datafile_name = datafile_name.replace(":", "")
+            datafile = Path(datafile_name)
         # check if file extension was provided
-        if not re.search(f"{refileext}$", datafile):
-            datafile = re.sub(r"(\.h5)?\.ma\d$", "", datafile) + file_extension
-        if not exists(datafile):
+        if not re.search(f"{refileext}$", str(datafile)):
+            # Remove existing extensions and add the correct one
+            cleaned_name = re.sub(r"(\.h5)?\.ma\d$", "", str(datafile))
+            datafile = Path(cleaned_name + file_extension)
+        if not datafile.exists():
             # use the unmodified file name
             self.filename = datafile
             self._file_mode = "w"
@@ -777,18 +791,23 @@ class System:
 
         # in case extension and running number are already attached to
         # the filename, replace in outputfile
-        outfile = re.sub(r"(_\d+)?(\.h5)?\.ma\d$", "", datafile)
-
-        # check filename and increase "extension number" to protect existing
-        # data
+        outfile_str = re.sub(r"(_\d+)?(\.h5)?\.ma\d$", "", str(datafile))
+        outfile = Path(outfile_str)
+        # check filename and increase "extension number" to protect existing data
+        extension = None
         for extension in range(1, 10000):
-            if exists(f"{outfile}_{extension}{file_extension}"):
-                continue
-            break
-
+            candidate_file = outfile.with_name(f"{outfile.stem}_{extension}").with_suffix(
+                file_extension
+            )
+            if not candidate_file.exists():
+                break
+        if extension is None:
+            raise RuntimeError("Could not find available filename after 10000 attempts")
         # as last resort start a new file
         # append the next possible number as file extension
-        self.filename = f"{outfile}_{extension}{file_extension}"
+        self.filename = outfile.with_name(f"{outfile.stem}_{extension}").with_suffix(
+            file_extension
+        )
         self._file_mode = "w"
         return self.filename
 
@@ -1540,8 +1559,10 @@ class System:
             Filename of the output file.
         """
         if output_filename:
-            self.filename = output_filename
-        if exists(self.filename):
+            self.filename = Path(output_filename)
+        if not isinstance(self.filename, Path):
+            raise TypeError("filename must be initialized as Path object")
+        if self.filename.exists():
             self._datafile_initialized = True
             if not output_filename and self._file_mode == "a":
                 # in case append is true, do not create a new header
@@ -1580,7 +1601,7 @@ class System:
                 init_hdf5_skel(data_file, *telemetry)
         else:
             telemetry += [default_separator]
-            with open(self.filename, "w", encoding="utf-8") as data_file:
+            with Path(self.filename).open("w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
                     if dckey not in VALID_META_KEYS.keys():
                         # values that are not in the dc specifications are
@@ -1618,7 +1639,9 @@ class System:
         list
             List of values read from the devices.
         """
-        dfilename = datafilename if datafilename else self.filename
+        dfilename = Path(datafilename) if datafilename else self.filename
+        if not isinstance(dfilename, Path):
+            raise TypeError("datafilename must be specified or initialized")
         if self.hdf5:
 
             def h5save(h5d, val):
@@ -1651,7 +1674,7 @@ class System:
                     return_list.append(value)
 
         if self.hdf5 is False:
-            with open(dfilename, "a", encoding="utf-8") as datafile:
+            with Path(dfilename).open("a", encoding="utf-8") as datafile:
                 # write datapoint to file
                 datafile.write(default_separator.join(str(v) for v in return_list))
                 datafile.write("\n")
@@ -1675,9 +1698,8 @@ class System:
         -------
         None
         """
-        dfilename = datafilename if datafilename else self.filename
-
-        if dfilename is None:
+        dfilename = Path(datafilename) if datafilename else self.filename
+        if not isinstance(dfilename, Path):
             # if not valid datafile was initialized do nothing.
             return
         if not message:
@@ -1704,7 +1726,7 @@ class System:
                 )
                 comments[current_size] = new_entry
         else:
-            with open(dfilename, "a", encoding="utf-8") as datafile:
+            with Path(dfilename).open("a", encoding="utf-8") as datafile:
                 # write comment to file
                 datafile.write(f"# comment ({timestamp}): ")
                 # add continuation line markers
@@ -1734,7 +1756,7 @@ class System:
                 assert datafile.swmr_mode
                 datafile.attrs["status"] = status
         else:
-            with open(dfilename, "a", encoding="utf-8") as datafile:
+            with Path(dfilename).open("a", encoding="utf-8") as datafile:
                 # write comment to file
                 datafile.write(f"# status: {status}")
 
@@ -1772,6 +1794,7 @@ class MergedSystem(System):
         # here self.subsys is already used when initializing the
         # filename, so this needs to come here
         super().__init__()
+        self._filename: Path | None = None
         # define __name__
         self.__name__ = ",".join([subsys.__name__ for subsys in self.subsys])
         # merge devices, config_dicts, config and parameters
@@ -1856,12 +1879,12 @@ class MergedSystem(System):
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'")
 
     @property
-    def filename(self):
+    def filename(self) -> Path | None:
         """Filename property getter."""
         return self._filename
 
     @filename.setter
-    def filename(self, value):
+    def filename(self, value: Path | str | None):
         """
         Set the filename property.
 
@@ -1869,9 +1892,10 @@ class MergedSystem(System):
 
         Parameters
         ----------
-        value : str
+        value : Path | str | None
             The new filename value to be set.
         """
+        value = Path(value) if value is not None else None
         for subsys in self.subsys:
             subsys.filename = value
         self._filename = value

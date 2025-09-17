@@ -646,7 +646,7 @@ class SweepPreview(QMainWindow):
     def get_filename_without_extension(self) -> str:
         """Return the actual filename without extension."""
         if self.filename.suffix in self.allowed_extensions:
-            return self.filename.stem
+            return str(self.filename.with_suffix(""))
         return str(self.filename)
 
     def save_plot(self) -> None:

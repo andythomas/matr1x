@@ -37,6 +37,7 @@ import sys
 import threading
 import time
 import warnings
+from pathlib import Path
 
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QColor, QIcon, QKeySequence, QShortcut, QTextCursor
@@ -70,7 +71,7 @@ from matr1x.gui_util import (
 )
 from matr1x.util import Get
 
-logger = logging.getLogger(os.path.split(__file__)[-1])
+logger = logging.getLogger(Path(__file__).name)
 
 
 class CollapsibleBox(QWidget):
@@ -242,7 +243,7 @@ class ControlWindow(QMainWindow):
         if os.name == "nt":
             # Windows does not like : in filenames
             filename = filename.replace(":", "")
-        self.logfile = os.path.join(logfolder, filename)
+        self.logfile = Path(logfolder) / filename
         self.terminate_log = False
         self.terminated_log = False
         self.terminate = False
@@ -746,8 +747,8 @@ class ControlWindow(QMainWindow):
             self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
 
-        icondir = os.path.join(os.path.dirname(__file__), "..", "scripts", "icons")
-        self.setWindowIcon(QIcon(os.path.join(icondir, "matr1x-control.png")))
+        icondir = Path(__file__).parent.parent / "scripts" / "icons"
+        self.setWindowIcon(QIcon(str(icondir / "matr1x-control.png")))
         self.widget = QWidget()
         self.widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         self.main_layout = QVBoxLayout()
@@ -846,7 +847,7 @@ class ControlWindow(QMainWindow):
         self.configlog = QPushButton("show log config")
         self.configlog.setCheckable(True)
 
-        self.loglabel = QLabel(os.path.basename(self.logfile))
+        self.loglabel = QLabel(self.logfile.name)
         self.loglabel.setMaximumWidth(250)
         self.loglabel.setWordWrap(True)
         interval_label = QLabel("log interval (s):")
@@ -1045,7 +1046,7 @@ class ControlWindow(QMainWindow):
         if self.logging is False:
             # generate new log filename
             self.logfile = self.S_log.generate_datafilename(outputfile=self.logfile)
-            self.loglabel.setText(os.path.basename(self.logfile))
+            self.loglabel.setText(self.logfile.name)
             # initialize system
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
@@ -1086,7 +1087,7 @@ class ControlWindow(QMainWindow):
             Variable length argument list
         """
         filename = QFileDialog.getSaveFileName(
-            self, "Select log file", logfolder, f"data log files (*{output_extension})"
+            self, "Select log file", str(logfolder), f"data log files (*{output_extension})"
         )[0]
 
         # If no file was selected, keep the current logfile
@@ -1101,10 +1102,9 @@ class ControlWindow(QMainWindow):
             self.toggleLog(False)
 
         # Update the logfile
-        self.logfile = filename
-        if not self.logfile.endswith(output_extension):
-            self.logfile += output_extension
-        self.loglabel.setText(os.path.basename(self.logfile))
+        self.logfile = Path(filename)
+        self.logfile = self.logfile.with_suffix(output_extension)
+        self.loglabel.setText(self.logfile.name)
 
         # If logging was running, restart it with the new file
         if was_logging:

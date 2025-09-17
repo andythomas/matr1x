@@ -28,11 +28,12 @@ import re
 import subprocess
 import sys
 import sysconfig
-import tempfile
 import textwrap
 import time
+from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
 import h5py
@@ -78,7 +79,7 @@ def open_and_error(filename, mode="r"):
         or None and the error if an exception occurs.
     """
     try:
-        f = open(filename, mode)
+        f = Path(filename).open(mode)
     except Exception as error:
         yield None, error
     else:
@@ -113,7 +114,7 @@ def get_package_path(package_name):
     """
     spec = importlib.util.find_spec(package_name)
     if spec and spec.origin:
-        return os.path.dirname(spec.origin)
+        return Path(spec.origin).parent
     return None
 
 
@@ -175,7 +176,9 @@ def get_importable_module_name(filename_str: str) -> str | bool:
         return False
 
 
-def create_temp_dir_with_symlinks(names, targets):
+def create_temp_dir_with_symlinks(
+    names: Sequence[str], targets: Sequence[str | Path]
+) -> TemporaryDirectory:
     """
     Create temporary directory with symlinks.
 
@@ -184,9 +187,9 @@ def create_temp_dir_with_symlinks(names, targets):
 
     Parameters
     ----------
-    names : list
+    names : Sequence[str]
         Names of the symlinks.
-    targets : list
+    targets : Sequence[str | Path]
         Target folders for the links.
 
     Returns
@@ -195,26 +198,31 @@ def create_temp_dir_with_symlinks(names, targets):
         Temporary directory instance.
     """
     # Create a temporary directory
-    temp_dir = tempfile.TemporaryDirectory(prefix="systemdir-links-")
+    temp_dir = TemporaryDirectory(prefix="systemdir-links-")
+    temp_path = Path(temp_dir.name)
 
     # Create symbolic links in the temporary directory
     for name, target in zip(names, targets):
-        if not os.path.isdir(target):
-            raise ValueError(f"The target {target} is not a directory.")
-        link_name = os.path.join(temp_dir.name, name)
+        target_path = Path(target)
+
+        if not target_path.is_dir():
+            raise ValueError(f"The target {target_path} is not a directory.")
+
+        link_path = temp_path / name
+
         if os.name == "nt":
             subprocess.check_call(
-                ["cmd", "/c", "mklink", "/J", link_name, target],
+                ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
                 stdout=subprocess.DEVNULL,
             )
         else:
-            os.symlink(target, link_name)
+            link_path.symlink_to(target_path)
 
     # Return the temporary directory object
     return temp_dir
 
 
-def get_matrix_binary():
+def get_matrix_binary() -> str:
     """
     Find matrix binary from PATH and otherwise try known Python binary folders.
 
@@ -231,30 +239,31 @@ def get_matrix_binary():
     FileNotFoundError
         If matrix executable could not be found.
     """
-    user_scripts_path = sysconfig.get_path("scripts", f"{os.name}_user")
-    system_scripts_path = sysconfig.get_path("scripts")
-    for matrixname in (
-        "matrix",
-        os.path.join(user_scripts_path, "matrix"),
-        os.path.join(system_scripts_path, "matrix"),
+    user_scripts_path = Path(sysconfig.get_path("scripts", f"{os.name}_user"))
+    system_scripts_path = Path(sysconfig.get_path("scripts"))
+
+    for matrix_str in (
+        "matrix",  # Check PATH first
+        str(user_scripts_path / "matrix"),
+        str(system_scripts_path / "matrix"),
     ):
         try:
             subprocess.check_call(
-                [matrixname, "--help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                [matrix_str, "--help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
-            return matrixname
+            return matrix_str
         except (FileNotFoundError, subprocess.CalledProcessError):
             continue
     raise FileNotFoundError("matrix executable could not be found")
 
 
-def module_from_path(filename_str: str) -> "types.ModuleType":
+def module_from_path(filename: Path) -> "types.ModuleType":
     """
     Create a module from a file path.
 
     Parameters
     ----------
-    filename : str
+    filename : Path
         Path to the file.
 
     Returns
@@ -262,7 +271,7 @@ def module_from_path(filename_str: str) -> "types.ModuleType":
     module
         Imported module.
     """
-    filename = Path(filename_str).absolute()
+    filename = Path(filename).absolute()
     # create module specification from file and open
     spec = importlib.util.spec_from_file_location("dummyname", filename)
     if spec is None:
@@ -342,6 +351,7 @@ def generate_script_prefix_suffix(systems):
     import textwrap as _textwrap
     import time as _time
     import types as _types
+    from pathlib import Path as _Path
 
     import wrapt
 
@@ -368,13 +378,16 @@ def generate_script_prefix_suffix(systems):
     _reset_kwargs = {{}}
 
 
-    def _configure_execution_path(scriptname):
+    def _configure_execution_path(scriptname: str | _Path):
         '''Change execution path if requested in config.'''
+        script_path = _Path(scriptname)
         if _config["script_path"] == "<script-location>":
-            if _os.path.dirname(scriptname):
-                _os.chdir(_os.path.dirname(scriptname))
-        elif _os.path.exists(_config["script_path"]):
-            _os.chdir(_config["script_path"])
+            if script_path.parent != _Path.cwd():
+                _os.chdir(script_path.parent)
+        else:
+            config_path = _Path(_config["script_path"])
+            if config_path.exists():
+                _os.chdir(config_path)
 
 
     def _configure_script_storing(system, script):
@@ -804,7 +817,7 @@ def generate_script_prefix_suffix(systems):
             outputfile=filename,
             inputfile=_scriptname,
             append=append)
-        if append == False or not _os.path.exists(filename):
+        if append == False or not filename.exists():
             # write header to file
             _system.dcdata["description"] = comment
             _system.init_datafile(_scriptname or "matrix script generated")
@@ -815,7 +828,7 @@ def generate_script_prefix_suffix(systems):
             _matrix_util.print_formatted_line(
                 _matrix_util.flatten(_system.units))
         # report file to matrix_script
-        _report_path(_os.path.abspath(filename))
+        _report_path(filename.resolve())
 
 
     # wrap system.trigger and system.take_measurement_point into measure_system
@@ -1559,7 +1572,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
             if lineno > -1:
                 print(f"__lineno{lineno:d}__", end="")
 
-        def report_path(self, path):
+        def report_path(self, path: str | Path):
             """
             Report datafile that is currently written by matrix-script.
 
@@ -1567,7 +1580,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None):
 
             Parameters
             ----------
-            path : str
+            path : str | Path
                 Path to the measurement file.
             """
             if self.socket is None:

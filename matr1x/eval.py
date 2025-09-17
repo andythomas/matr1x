@@ -48,7 +48,7 @@ def detect_hdf5(filename):
         HDF5 yes (True) or no (False)
     """
     filename = Path(filename)
-    with open(filename, "rb") as file:
+    with filename.open("rb") as file:
         first_bytes = file.read(4)
     if first_bytes == b"\x89HDF":
         return True
@@ -369,7 +369,7 @@ def loadmatrix(
         h5f.close()
 
     else:
-        with open(filename) as matrix_file:
+        with Path(filename).open() as matrix_file:
             headerlines = 0
             key = None
             val = None

@@ -35,7 +35,6 @@ import tempfile
 import time
 from collections.abc import Sequence
 from importlib.metadata import version as package_version
-from os.path import dirname, expanduser, join, normpath
 from pathlib import Path
 from types import TracebackType
 from typing import Any, TextIO
@@ -1424,7 +1423,7 @@ class ConfigEditWidget(MetaViewerWidget):
                     return False
 
                 if "~" in value:
-                    value = normpath(expanduser(value))
+                    value = str(Path(value).expanduser().resolve())
 
                 # Return the value as-is if no conversion was possible
                 return value
@@ -1488,10 +1487,10 @@ class ConfigEditWidget(MetaViewerWidget):
 
         # Create a temporary file
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".toml") as tmpfile:
-            temp_file_name = tmpfile.name
-            write_config(config_dict, tmpfile.name)  # Use matr1x's write_config
+            temp_file = Path(tmpfile.name)
+            write_config(config_dict, temp_file)  # Use matr1x's write_config
 
-        return Path(temp_file_name)
+        return temp_file
 
 
 class SimplePlotWidget(QGroupBox):
@@ -2697,14 +2696,14 @@ class SimplePlotWidget(QGroupBox):
         data = np.column_stack((x, z))
         delimiter = "\t"
         newline = "\n"
-        with open(filename, "w") as f:
+        with Path(filename).open("w") as f:
             f.write(
                 f"{self.plots[index].labels[1]}{delimiter}{self.plots[index].labels[0]}{newline}"
             )
             f.write(
                 f"{self.plots[index].units[1]}{delimiter}{self.plots[index].units[0]}{newline}"
             )
-        with open(filename, "a") as f:
+        with Path(filename).open("a") as f:
             np.savetxt(f, data, delimiter=delimiter, newline=newline)
 
     def reset(self):
@@ -2902,7 +2901,7 @@ class OutputDuplication:
             name = stream.name.strip("<>")
         else:
             name = fallbackname
-        self.log = open(join(logfolder, f"{prefix}-{name}.log"), "a")
+        self.log = (Path(logfolder) / f"{prefix}-{name}.log").open("a")
         print(f"opening log: {self.log.name}")
 
     def write(self, message: str) -> None:
@@ -3602,8 +3601,8 @@ def get_matrix_icon(
         return icon
     # Use the original matrix icons
     elif name.startswith("matr1x-"):
-        icondir = join(dirname(__file__), "scripts", "icons")
-        pixmap = QPixmap(join(icondir, name))
+        icondir = Path(__file__).parent / "scripts" / "icons"
+        pixmap = QPixmap(str(icondir / name))
         # Change the color of the white icon if requested
         # and remove the rest for better visibility in a GUI
         if color is not None:
@@ -3787,19 +3786,15 @@ class MApplication(QApplication):
 
         Returns
         -------
-        list of str
+        Sequence[str]
             A list consisting of all possible platforms
         """
-        plugin_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)
-        platforms_path = os.path.join(plugin_path, "platforms")
+        plugin_path = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))
+        platforms_path = plugin_path / "platforms"
 
-        if os.path.exists(platforms_path):
-            plugins = [
-                f
-                for f in os.listdir(platforms_path)
-                if os.path.isfile(os.path.join(platforms_path, f))
-            ]
-            platforms = [os.path.splitext(plugin)[0].replace("libq", "") for plugin in plugins]
+        if platforms_path.exists():
+            plugins = [f.name for f in platforms_path.iterdir() if f.is_file()]
+            platforms = [Path(plugin).stem.replace("libq", "") for plugin in plugins]
             return platforms
         else:
             return []

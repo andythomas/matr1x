@@ -19,19 +19,19 @@ Matrix test module.
 This module contains tests for the matrix data acquisition software.
 """
 
-import glob
-import os
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 import matr1x.eval
 import matr1x.util
+import numpy as np
 import pyflakes.api
 import pytest
 from matr1x import output_extension
 
-path = os.path.dirname(os.path.realpath(__file__))
+path = Path(__file__).resolve().parent
 
 
 @pytest.fixture(autouse=True)
@@ -47,13 +47,13 @@ def clean_data_files():
     ------
     None
     """
-    existingfiles = glob.glob(os.path.join(path, f"*{output_extension}"))
+    existingfiles = set(path.glob(f"*{output_extension}"))
     # run test
     yield
-    files = glob.glob(os.path.join(path, f"*{output_extension}"))
-    newfiles = set(files) - set(existingfiles)
+    files = set(path.glob(f"*{output_extension}"))
+    newfiles = files - existingfiles
     for f in newfiles:
-        os.remove(f)
+        f.unlink()
 
 
 def test_matrix_dummy():
@@ -70,22 +70,23 @@ def test_matrix_dummy():
     output has 6 data columns
     dataset has shape (9,)
     """
-    inputfile = os.path.join(path, "sys_dummy_sweep_all.5t")
-    basename = os.path.splitext(inputfile)[0]
-    existingfiles = glob.glob(basename + "*")
-    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile]
+    inputfile = path / "sys_dummy_sweep_all.5t"
+    basename_path = inputfile.with_suffix("")
+    existingfiles = set(basename_path.parent.glob(basename_path.name + "*"))
+    cmd = [matr1x.util.get_matrix_binary(), "-i", str(inputfile)]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
     # find newly created datafile
-    files = glob.glob(basename + "*")
-    newfiles = set(files) - set(existingfiles)
+    files = set(basename_path.parent.glob(basename_path.name + "*"))
+    newfiles = files - existingfiles
     assert len(newfiles) == 1
     # check file contains data
     datafile = newfiles.pop()
     h, d = matr1x.eval.loadmatrix(datafile)
     assert len(h["columns"]) == 6  # check number of data columns
     # Note that one point is not recorded in the datafile
+    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert d.shape == (9,)  # check shape of dataset
 
 
@@ -103,18 +104,25 @@ def test_matrix_dummy_merged():
     output has 10 data columns
     dataset has shape (11,)
     """
-    inputfile = os.path.join(path, "sys_dummy_merged.8t")
-    outputfile = os.path.join(path, f"test_merged{output_extension}")
-    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o", outputfile, "--plain"]
+    inputfile = path / "sys_dummy_merged.8t"
+    outputfile = path / f"test_merged{output_extension}"
+    cmd = [
+        matr1x.util.get_matrix_binary(),
+        "-i",
+        str(inputfile),
+        "-o",
+        str(outputfile),
+        "--plain",
+    ]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
     # open latest datafile and check data shape
-    files = glob.glob(os.path.join(path, f"test_merged*{output_extension}"))
-    files.sort(key=os.path.getmtime)
+    files = sorted(path.glob(f"test_merged*{output_extension}"), key=lambda p: p.stat().st_mtime)
     assert len(files) >= 1
     h, d = matr1x.eval.loadmatrix(files[-1], structured=True)
     assert len(h["columns"]) == 10  # check number of data columns
+    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert d.shape == (11,)  # check shape of dataset
 
 
@@ -133,15 +141,21 @@ def test_matrix_dummy_hdf5():
     output has 8 data columns
     datasets have expected shapes for flat, 1D, 2D arrays
     """
-    inputfile = os.path.join(path, "sys_dummy_hdf5_sweep.3t")
-    outputfile = os.path.join(path, f"test_hdf5.h5{output_extension}")
-    cmd = [matr1x.util.get_matrix_binary(), "-i", inputfile, "-o", outputfile, "--plain"]
+    inputfile = path / "sys_dummy_hdf5_sweep.3t"
+    outputfile = path / f"test_hdf5.h5{output_extension}"
+    cmd = [
+        matr1x.util.get_matrix_binary(),
+        "-i",
+        str(inputfile),
+        "-o",
+        str(outputfile),
+        "--plain",
+    ]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
     # open latest datafile and check data shape
-    files = glob.glob(os.path.join(path, f"test_hdf5*{output_extension}"))
-    files.sort(key=os.path.getmtime)
+    files = sorted(path.glob(f"test_hdf5*{output_extension}"), key=lambda p: p.stat().st_mtime)
     assert len(files) >= 1
     h, d = matr1x.eval.loadmatrix(files[-1])
     assert len(h["columns"]) == 8  # check number of data columns
@@ -167,8 +181,8 @@ def test_matrix_script_pyflakes():
     # prepares and runs a test script in the same fashion as done by
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
-    inputfile = os.path.join(path, "test.matrix")
-    with open(inputfile) as f:
+    inputfile = path / "test.matrix"
+    with inputfile.open() as f:
         user_script = f.read()
     script = "_interrupt=lambda x:x; _print=lambda x:x; _input=lambda x:x; "
     script += "_report_line=lambda x:x;_report_path=lambda x:x;_meta_data={}; "
@@ -198,8 +212,8 @@ def test_matrix_script_dummy_merged():
     # prepares and runs a test script in the same fashion as done by
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
-    inputfile = os.path.join(path, "test.matrix")
-    with open(inputfile) as f:
+    inputfile = path / "test.matrix"
+    with inputfile.open() as f:
         user_script = f.read()
     script = matr1x.util.generate_script(
         ["system_dummy_feature", "system_dummy_meas"], user_script
@@ -213,10 +227,11 @@ def test_matrix_script_dummy_merged():
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
-        files = glob.glob(os.path.join(path, f"epische_messdatei{output_extension}"))
+        files = list(path.glob(f"epische_messdatei*{output_extension}"))
         assert len(files) >= 1
         h, d = matr1x.eval.loadmatrix(files[-1], structured=False)
         assert len(h["columns"]) == 10
+        assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
         assert d.shape == (22, 10)
 
 

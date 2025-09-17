@@ -33,6 +33,7 @@ import socket
 import sys
 import time
 import traceback
+from pathlib import Path
 
 import urwid
 
@@ -78,7 +79,7 @@ def parse_inputfile(inputfile, system):
     # allow point with and without measurements
     pointparser.add_argument("--logpoint", default=1, nargs="?", type=int)
     # start parsing the input file
-    with open(inputfile) as parameterfile:
+    with Path(inputfile).open() as parameterfile:
         for nr, line in enumerate(parameterfile):
             # jump over comments
             if line[0] != "#":
@@ -124,7 +125,7 @@ def measurementloop(
     """Measurement loops with callback functions for visualization."""
     # count number of setpoints for telemetry information
     points = 0
-    with open(inputfile) as f:
+    with Path(inputfile).open() as f:
         for line in f:
             if line.startswith("#"):
                 continue
@@ -240,9 +241,9 @@ def measure_urwid(inputfile, systemfile, system):
     msg = ""
     # display some info
     info = urwid.Text("Pause/Quit graciously with p/q after current cycle", align="center")
-    outf = urwid.Text(" output filename : " + system.filename + "\n", wrap="clip")
-    inpf = urwid.Text(" Input filename  : " + inputfile + "\n", wrap="clip")
-    systemf = urwid.Text(" systemfile      : " + ",".join(systemfile), wrap="clip")
+    outf = urwid.Text(f" output filename : {system.filename}\n", wrap="clip")
+    inpf = urwid.Text(f" Input filename  : {inputfile}\n", wrap="clip")
+    systemf = urwid.Text(f" systemfile      : {','.join(systemfile)}", wrap="clip")
     telemetry = urwid.Text("")
     status = urwid.Text("")
     parname = urwid.Text("par-name")
