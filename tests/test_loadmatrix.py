@@ -28,6 +28,57 @@ import pytest
 
 path = Path(__file__).resolve().parent
 
+ma6_header_keys = {
+    "columns",
+    "units",
+    "status",
+    "system query",
+    "input filename",
+    "system filename",
+    "comments",
+    # text version still has "comment line", and "time stamp"
+}
+
+ma7_header_keys = {
+    "columns",
+    "units",
+    "comments",
+    "status",
+    "system query",
+    "input filename",
+    "system filename",
+    "device query",
+    "dc.creator",
+    "dc.date",
+    "dc.identifier",
+    "dc.description",
+    "dc.source",
+    "dc.type",
+    "dc.publisher",
+    "dc.format",
+    "dc.language",
+}
+
+ma8_header_keys = {
+    "columns",
+    "units",
+    "comments",
+    "status",
+    "system query",
+    "input filename",
+    "system filename",
+    "dcterms:creator",
+    "dcterms:date",
+    "dcterms:identifier",
+    "dcterms:relation",
+    "dcterms:description",
+    "dcterms:source",
+    "dcterms:type",
+    "dcterms:publisher",
+    "dcterms:format",
+    "dcterms:language",
+}
+
 
 def get_array_field_count(arr: np.ndarray) -> int:
     """Get the number of fields in a numpy array."""
@@ -52,6 +103,7 @@ def test_loadmatrix_hdf5_ma8():
     """
     datafile = path / "data" / "random_test.h5.ma8"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert ma8_header_keys == set(h.keys())
     assert h["dcterms:publisher"] == "matr1x measurement suite"
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert len(h["columns"]) == 6  # check number of data columns
@@ -80,6 +132,7 @@ def test_loadmatrix_ma8():
     """
     datafile = path / "data" / "random_test.ma8"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert ma8_header_keys == set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert h["dcterms:type"] is None
     assert h["dcterms:identifier"] == "random numpy"
@@ -110,14 +163,15 @@ def test_loadmatrix_hdf5_ma7():
     """
     datafile = path / "data" / "magic_sample.h5.ma7"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
-    assert h["DC.Publisher"] == "matr1x;University of Konstanz"
+    assert h["dc.publisher"] == "matr1x;University of Konstanz"
     assert len(h["columns"]) == 11  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][4] == "HallProbe Temp"  # check specific column name
     assert h["units"][4] == "C"  # check specific unit entry
-    assert len(h["Device query"]) == 570
+    assert len(h["device query"]) == 570
     assert d["FSW8 f"].shape == (1, 2001)  # check shape of dataset
     assert d["timeUTC"].shape == (1,)  # check shape of dataset
     assert pytest.approx(d["FSW8 f"][0, 501], 1e-6) == 2.9555e9  # check specific data value
@@ -134,14 +188,15 @@ def test_loadmatrix_ma7():
     """
     datafile = path / "data" / "mgk240213.ma7"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
-    assert h["DC.Type"] == "Transport data"
+    assert h["dc.type"] == "Transport data"
     assert len(h["columns"]) == 7  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "Ismu02"  # check specific column name
     assert h["units"][3] == "A"  # check specific unit entry
-    assert len(h["Device query"]) == 167
+    assert len(h["device query"]) == 167
     assert d["y field"].shape == (1460,)  # check shape of dataset
     assert d["timeUTC"].shape == (1460,)  # check shape of dataset
     assert (
@@ -160,6 +215,7 @@ def test_loadmatrix_hdf5_ma6():
     """
     datafile = path / "data" / "polybox.h5.ma6"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert ma6_header_keys == set(h.keys())
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert len(d) == len(h["columns"])  # check appropriate data column number
@@ -181,9 +237,10 @@ def test_loadmatrix_ma6():
     """
     datafile = path / "data" / "ARMR.ma6"
     h, d = matr1x.eval.loadmatrix(datafile)
+    assert ma6_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert (
-        h["Input filename"]
+        h["input filename"]
         == "/home/sisyphos/users/rs25/rs25180808a/ARMR_350Kto420K_10Ksteps_100uA_70mT_ip.4t"
     )
     assert len(h["columns"]) == 9  # check number of data columns

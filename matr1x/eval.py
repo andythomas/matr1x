@@ -24,22 +24,78 @@ import ast
 import re
 import warnings
 from pathlib import Path
+from typing import Any, TypedDict, cast
 
 import h5py
 import numpy as np
 import pandas as pd
 
+__all__ = ["delta", "delta3p", "loadmatrix"]
 
 ######################
 # File handling
 ######################
-def detect_hdf5(filename):
+RequiredHeader = TypedDict(
+    "RequiredHeader",
+    {
+        "columns": list[str],
+        "units": list[str],
+        "comments": list[str],
+        "status": str | None,
+        "system query": dict[str, Any] | None,
+        "input filename": str,
+        "system filename": str,
+    },
+)
+
+
+OptionalFields = TypedDict(
+    "OptionalFields",
+    {
+        "dcterms:creator": str,
+        "dcterms:date": str,
+        "dcterms:identifier": str,
+        "dcterms:relation": str | None,
+        "dcterms:description": str,
+        "dcterms:source": str,
+        "dcterms:type": str | None,
+        "dcterms:publisher": str,
+        "dcterms:format": str,
+        "dcterms:language": str,
+    },
+    total=False,
+)
+
+
+class HeaderDict(RequiredHeader, OptionalFields):
+    """Header dictionary with optional fields."""
+
+
+def _create_empty_header() -> HeaderDict:
+    """Create an empty HeaderDict with all required fields initialized."""
+    return cast(
+        HeaderDict,
+        {
+            "columns": [],
+            "units": [],
+            "comments": [],
+            "status": None,
+            "system query": None,
+            "input filename": "",
+            "system filename": "",
+        },
+    )
+
+
+def _is_hdf5(filename: Path) -> bool:
     """
-    Detect if an existing file is in the HDF5 format by inspecting the first 4 bytes.
+    Detect if an existing file is in the HDF5 format.
+
+    Inspect the first 4 bytes.
 
     Parameters
     ----------
-    filename : str or pathlib.Path
+    filename : pathlib.Path
         The path of the file to be inspected
 
     Returns
@@ -55,13 +111,254 @@ def detect_hdf5(filename):
     return False
 
 
-def _parse_query_string(query: str):
+def _get_nested_dict(data: dict, path: list) -> dict:
+    """
+    Navigate to a nested dictionary location, creating intermediate dicts.
+
+    This function traverses a dictionary using a list of keys as a path,
+    creating any missing intermediate dictionaries along the way.
+
+    Parameters
+    ----------
+    data : dict
+        The root dictionary to navigate from.
+    path : list
+        List of keys representing the path to the desired location.
+        Each key will be used to access the next level of nesting.
+
+    Returns
+    -------
+    dict
+        The dictionary at the specified nested location. If the path
+        doesn't exist, intermediate dictionaries are created and the
+        final dictionary is returned.
+    """
+    current = data
+    for key in path:
+        if key not in current:
+            current[key] = {}
+        current = current[key]
+    return current
+
+
+def _parse_value(value: str) -> Any:
+    """
+    Parse a string value into its appropriate Python type.
+
+    This function attempts to convert string values into their most
+    appropriate Python data type. It handles quoted strings (preserving
+    newlines) and uses ast.literal_eval for safe evaluation of literals
+    like numbers, booleans, lists, etc.
+
+    Parameters
+    ----------
+    value : str
+        The string value to parse and convert.
+
+    Returns
+    -------
+    Any
+        The parsed value in its appropriate Python type:
+    """
+    if value.startswith('"') and value.endswith('"'):
+        return value.strip('"').replace("\\n", "\n")
+    try:
+        return ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        return value
+
+
+def _is_multiline_start(value: str) -> bool:
+    """
+    Check if a value represents the start of a multiline string.
+
+    Determines whether a string value begins a multiline string literal
+    by checking if it starts with a quote but doesn't end with one,
+    indicating that the string continues on subsequent lines.
+
+    Parameters
+    ----------
+    value : str
+        The string value to check for multiline start pattern.
+
+    Returns
+    -------
+    bool
+        True if the value starts a multiline string (begins with quote
+        but doesn't end with quote), False otherwise.
+    """
+    return value.startswith('"') and not value.endswith('"')
+
+
+def _store_multiline_value(parsed_data: dict, path_stack: list, current_key, multiline_value):
+    """
+    Store a completed multiline value in the appropriate dict location.
+
+    Takes a list of multiline content, joins it with newlines, removes
+    the trailing quote, and stores it either at the top level of
+    parsed_data or in a nested location determined by the path_stack.
+
+    Parameters
+    ----------
+    parsed_data : dict
+        The main dictionary where data is being stored.
+    path_stack : list
+        List of keys representing the nested path where
+        the value should be stored. Empty list means top-level.
+    current_key : str
+        The key name for storing the multiline value.
+    multiline_value : list
+        List of string lines that make up the multiline content.
+
+    Returns
+    -------
+    None
+        This function modifies parsed_data in-place.
+    """
+    value = "\n".join(multiline_value).rstrip('"')
+    if path_stack:
+        target_dict = _get_nested_dict(parsed_data, path_stack)
+        target_dict[current_key] = value
+    else:
+        parsed_data[current_key] = value
+
+
+def _handle_multiline_continuation(
+    line: str, path_stack: list, multiline_value, current_level: int
+):
+    """
+    Handle continuation of multiline string values across multiple lines.
+
+    Processes lines that are part of a multiline string, checking if
+    they should be included based on their hash-level indentation. Only
+    lines with hash counts greater than the current nesting level are
+    added to the multiline value.
+
+    Parameters
+    ----------
+    line : str
+        The current line being processed.
+    path_stack : list
+        Current path in the nested structure (unused in logic).
+    multiline_value : list
+        List to append continued multiline content to.
+    current_level : int
+        The nesting level where the multiline string started.
+
+    Returns
+    -------
+    bool
+        True if the line was processed as multiline continuation,
+        False otherwise.
+    """
+    if line.startswith("#"):
+        hash_count = len(line) - len(line.lstrip("#"))
+        # Only continue multiline if hash count is greater than the
+        # level where multiline started
+        content = line[hash_count:].strip()
+        if hash_count > current_level:
+            multiline_value.append(content)
+            return True
+    return False
+
+
+def _process_key_value_pair(
+    content: str, path_stack: list, parsed_data: dict
+) -> tuple[str | None, list, bool]:
+    """
+    Process a key-value pair line within a nested structure.
+
+    Parses lines containing key-value pairs, handling both regular values
+    and multiline string starts. Empty values are treated as section
+    headers that extend the current path. Regular values are parsed and
+    stored in the appropriate nested location.
+
+    Parameters
+    ----------
+    content : str
+        The line content containing "key: value" format.
+    path_stack : list
+        Current path in the nested dictionary structure.
+    parsed_data : dict
+        The main dictionary being populated with parsed data.
+
+    Returns
+    -------
+    tuple[str | None, list, bool]
+        A tuple containing:
+        - current_key (str | None): Key name if starting multiline,
+          None otherwise
+        - multiline_value (list): List with first line if multiline,
+          empty otherwise
+        - is_multiline (bool): True if this starts a multiline value,
+          False otherwise
+    """
+    key, value = content.split(":", 1)
+    key = key.strip()
+    value = value.strip()
+
+    # If value is empty, treat as section header instead of
+    # key-value pair
+    if not value:
+        path_stack.append(key)
+        _get_nested_dict(parsed_data, path_stack)
+        return None, [], False
+
+    if _is_multiline_start(value):
+        return key, [value.strip('"')], True
+    else:
+        parsed_value = _parse_value(value)
+        target_dict = _get_nested_dict(parsed_data, path_stack)
+        target_dict[key] = parsed_value
+        return None, [], False
+
+
+def _process_top_level_key_value(line: str, parsed_data: dict) -> tuple[str | None, list, bool]:
+    """
+    Process a key-value pair at the top level of the configuration.
+
+    Handles key-value pairs that are not nested within any section.
+    Similar to process_key_value_pair but stores values directly in the
+    root of parsed_data rather than in nested dictionaries.
+
+    Parameters
+    ----------
+    line : str
+        The line containing "key: value" format at top level.
+    parsed_data : dict
+        The main dictionary where top-level data is stored.
+
+    Returns
+    -------
+    tuple[str | None, list, bool]
+        A tuple containing:
+        - current_key (str | None): Key name if starting multiline,
+          None otherwise
+        - multiline_value (list): List with first line if multiline,
+          empty otherwise
+        - is_multiline (bool): True if this starts a multiline value,
+          False otherwise
+    """
+    key, value = line.split(":", 1)
+    key = key.strip()
+    value = value.strip()
+
+    if _is_multiline_start(value):
+        return key, [value.strip('"')], True
+    else:
+        parsed_value = _parse_value(value)
+        parsed_data[key] = parsed_value
+        return None, [], False
+
+
+def _parse_query_string(query: str) -> dict:
     """
     Parse a System query string into a structured dictionary.
 
-    This function takes a multi-line query string and parses it into a nested dictionary
-    structure. It handles device entries, key-value pairs, multi-line values, and
-    arbitrary nesting levels indicated by # prefixes.
+    This function takes a multi-line query string and parses it into a
+    nested dictionary structure. It handles device entries, key-value
+    pairs, multi-line values, and arbitrary nesting levels indicated by
+    # prefixes.
 
     Parameters
     ----------
@@ -71,87 +368,9 @@ def _parse_query_string(query: str):
     Returns
     -------
     dict
-        A nested dictionary containing the parsed data. The structure follows the
-        hierarchical levels indicated by #, ##, ###, etc.
+        A nested dictionary containing the parsed data. The structure
+        follows the hierarchical levels indicated by #, ##, ###, etc.
     """
-
-    def get_nested_dict(data, path):
-        """Navigate to nested dictionary location, creating intermediate dicts as needed."""
-        current = data
-        for key in path:
-            if key not in current:
-                current[key] = {}
-            current = current[key]
-        return current
-
-    def parse_value(value):
-        """Parse a string value into appropriate Python type."""
-        if value.startswith('"') and value.endswith('"'):
-            return value.strip('"').replace("\\n", "\n")
-        try:
-            return ast.literal_eval(value)
-        except (ValueError, SyntaxError):
-            return value
-
-    def is_multiline_start(value):
-        """Check if value starts a multiline string."""
-        return value.startswith('"') and not value.endswith('"')
-
-    def store_multiline_value(parsed_data, path_stack, current_key, multiline_value):
-        """Store completed multiline value in the appropriate location."""
-        value = "\n".join(multiline_value).rstrip('"')
-        if path_stack:
-            target_dict = get_nested_dict(parsed_data, path_stack)
-            target_dict[current_key] = value
-        else:
-            parsed_data[current_key] = value
-
-    def handle_multiline_continuation(line, path_stack, multiline_value, current_level):
-        """Handle continuation of multiline values."""
-        if line.startswith("#"):
-            hash_count = len(line) - len(line.lstrip("#"))
-            # Only continue multiline if hash count is greater than the
-            # level where multiline started
-            content = line[hash_count:].strip()
-            if hash_count > current_level:
-                multiline_value.append(content)
-                return True
-        return False
-
-    def process_key_value_pair(content, path_stack, parsed_data):
-        """Process a key-value pair line."""
-        key, value = content.split(":", 1)
-        key = key.strip()
-        value = value.strip()
-
-        # If value is empty, treat as section header instead of
-        # key-value pair
-        if not value:
-            path_stack.append(key)
-            get_nested_dict(parsed_data, path_stack)
-            return None, [], False
-
-        if is_multiline_start(value):
-            return key, [value.strip('"')], True
-        else:
-            parsed_value = parse_value(value)
-            target_dict = get_nested_dict(parsed_data, path_stack)
-            target_dict[key] = parsed_value
-            return None, [], False
-
-    def process_top_level_key_value(line, parsed_data):
-        """Process a top-level key-value pair."""
-        key, value = line.split(":", 1)
-        key = key.strip()
-        value = value.strip()
-
-        if is_multiline_start(value):
-            return key, [value.strip('"')], True
-        else:
-            parsed_value = parse_value(value)
-            parsed_data[key] = parsed_value
-            return None, [], False
-
     # Main parsing logic
     parsed_data = {}
     path_stack = []
@@ -168,11 +387,11 @@ def _parse_query_string(query: str):
 
         # Handle multiline value continuation
         if in_multiline:
-            if handle_multiline_continuation(line, path_stack, multiline_value, multiline_level):
+            if _handle_multiline_continuation(line, path_stack, multiline_value, multiline_level):
                 continue
 
             # End of multiline entry, store it
-            store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
+            _store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
             in_multiline = False
             multiline_value = []
             multiline_level = 0
@@ -188,7 +407,7 @@ def _parse_query_string(query: str):
             if ":" in content:
                 # This is a key-value pair
                 path_stack = path_stack[: hash_count - 1]
-                current_key, multiline_value, in_multiline = process_key_value_pair(
+                current_key, multiline_value, in_multiline = _process_key_value_pair(
                     content, path_stack, parsed_data
                 )
                 if in_multiline:
@@ -197,12 +416,12 @@ def _parse_query_string(query: str):
                 # This is a section header
                 path_stack = path_stack[: hash_count - 1]
                 path_stack.append(content)
-                get_nested_dict(parsed_data, path_stack)
+                _get_nested_dict(parsed_data, path_stack)
 
         elif ":" in line:
             # Top-level key-value pair
             path_stack = []
-            current_key, multiline_value, in_multiline = process_top_level_key_value(
+            current_key, multiline_value, in_multiline = _process_top_level_key_value(
                 line, parsed_data
             )
             if current_key and not in_multiline and multiline_value == []:
@@ -213,11 +432,11 @@ def _parse_query_string(query: str):
         elif not line.startswith("#"):
             # Top-level section without colons
             path_stack = [line.strip()]
-            get_nested_dict(parsed_data, path_stack)
+            _get_nested_dict(parsed_data, path_stack)
 
     # Handle any remaining multiline entry at the end
     if in_multiline:
-        store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
+        _store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
 
     return parsed_data
 
@@ -226,9 +445,10 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
     """
     Load a dictionary from an HDF5 file.
 
-    This function reads data from an HDF5 file and returns it as a nested dictionary.
-    It recursively traverses the HDF5 file structure, converting groups to subdictionaries
-    and datasets to array-like objects.
+    This function reads data from an HDF5 file and returns it as a
+    nested dictionary. It recursively traverses the HDF5 file structure,
+    converting groups to subdictionaries and datasets to array-like
+    objects.
 
     Parameters
     ----------
@@ -240,16 +460,22 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
     Returns
     -------
     dict
-        A nested dictionary representing the structure and data of the HDF5 file.
+        A nested dictionary representing the structure and data of the
+        HDF5 file.
 
     Notes
     -----
-    This function assumes that the HDF5 file is already open when passed as an argument.
-    It's the caller's responsibility to close the file after use.
+    This function assumes that the HDF5 file is already open when passed
+    as an argument. It's the caller's responsibility to close the file
+    after use.
     """
 
     def read_group(group: h5py.Group):
-        """Recursively read an HDF5 group into a dictionary, including attributes."""
+        """
+        Recursively read an HDF5 group into a dictionary.
+
+        This includes the attributes.
+        """
         d = {}
 
         # Read attributes from the group
@@ -272,8 +498,296 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
         group = hdf5_file[root_group]
     else:
         raise KeyError(f"Group '{root_group}' not found in the HDF5 file.")
+    if not isinstance(group, h5py.Group):
+        raise TypeError(f"Expected group '{root_group}' to be a group, got {type(group)}")
 
     return read_group(group)
+
+
+def _load_hdf5_file(
+    filename: Path, structured: bool
+) -> tuple[HeaderDict, np.ndarray | dict[str, Any]]:
+    """
+    Load data from HDF5 file format.
+
+    Parameters
+    ----------
+    filename : Path
+        Path to the HDF5 file
+    structured : bool
+        Whether to return structured array
+
+    Returns
+    -------
+    tuple[HeaderDict, np.ndarray | dict[str, Any]]
+        Header information and data
+    """
+    header = _create_empty_header()
+
+    # use swmr read mode, to avoid corrupting the data during the
+    # measurement (where it is written to by the matrix process)
+    with h5py.File(filename, "r", swmr=True, libver="latest", locking=False) as h5f:
+        h5g = h5f["data"]
+
+        if not isinstance(h5g, h5py.Group):
+            raise TypeError(f"Expected 'data' to be a Group, got {type(h5g).__name__}")
+
+        # populate header fields from HDF5
+        header["columns"] = list(h5g.keys())
+        header["units"] = [it.attrs["unit"] for it in h5g.values()]
+
+        # check whether comments exist in file
+        if (h5com := h5f.get("comments")) and isinstance(h5com, h5py.Dataset):
+            for entry in h5com:
+                message = entry[0].decode("utf-8")
+                timestamp = entry[1].decode("utf-8")
+                header["comments"].append(f"{timestamp}: {message}")
+
+        # parse additional attributes
+        for key, val in h5f.attrs.items():
+            header[key.lower()] = val if val != "__None__" else None
+
+        # parse System query entry into hierarchical dictionary
+        if filename.suffix == ".ma8":
+            header["system query"] = _load_dict_from_hdf5(h5f, "system query")
+
+        # generate data object as structured array
+        dtypeslist = []
+        # the following line relies on the fact that the first item has
+        # the correct length, the code fails later if there are unequal
+        # length
+        npoints = len(list(h5g.values())[0])
+        for name, v in h5g.items():
+            if len(v.shape) == 1:
+                dtypeslist.append((name, v.dtype))
+            else:
+                dtypeslist.append((name, v.dtype, v.shape[1:]))
+        try:
+            data = np.empty(npoints, dtype=np.dtype(dtypeslist))
+            for name, v in h5g.items():
+                data[name] = v[...]
+        except ValueError:  # occurs for unequal data length in 1D arrays
+            data = {name: v[...] for name, v in h5g.items()}
+
+    return header, data
+
+
+def _process_header_lines(
+    line: str, key: str | None, val: str | None, header: HeaderDict
+) -> tuple[str | None, str | None]:
+    """Process lines that start with hashtag to extract header information."""
+    if line[1] == "#":  # multiline entry
+        if key is None:
+            raise ValueError("Multiline entry found before any single-line entry in header")
+
+        # Process the line based on entry type
+        if key == "system query":
+            # For system query, preserve hash prefixes for proper nesting
+            strippedline = line.removesuffix("\n")
+        else:
+            # strip header format characters for other entries
+            strippedline = line.removesuffix("\n")[2:]
+            if strippedline and strippedline[0] == " ":
+                strippedline = strippedline[1:]
+
+        # Concatenate with existing value
+        val = strippedline if val is None else f"{val}\n{strippedline}"
+        header[key.lower()] = val
+    else:
+        strippedline = line.removeprefix("# ").removesuffix("\n")
+        if strippedline == "Matrix outputfile":
+            # catches first line in legacy file format
+            return key, val
+        # split at " :" instead of ":" to avoid splitting the
+        # dcterms meta data
+        key, val = strippedline.split(" :", maxsplit=1)
+        key = key.strip()
+        if val.strip() == "None":
+            val = None
+        else:
+            val = val[1:]  # remove initial space
+
+        header[key.lower()] = val
+    return key, val
+
+
+def _process_column_unit_lines(
+    line: str, headerlines: int, extension: str, header: HeaderDict
+) -> tuple[int, bool]:
+    """Process non-header lines to extract column names and units."""
+    if headerlines == 0:
+        header["columns"] = line.strip("\n").split("\t")
+    if headerlines == 1:
+        header["units"] = line.strip("\n").split("\t")
+    headerlines += 1
+
+    # Check if we should break based on file type
+    should_break = False
+    if headerlines == 3:  # for ma6, ma7 files
+        should_break = True
+    elif extension == ".ma8" and headerlines == 2:  # ma8 files have only two header lines
+        should_break = True
+
+    return headerlines, should_break
+
+
+def _process_special_lines(matrix_file, header: HeaderDict) -> None:
+    """Process special lines (comments and status) that appear after main content."""
+    # Read further special lines in the file
+    special_lines = [(i, line) for i, line in enumerate(matrix_file) if line.startswith("#")]
+
+    # combine multiline comments and note after which datapoint the comment was in the file
+    lastdpoint = -1
+    for i, (linenr, msg) in enumerate(special_lines):
+        dpoint = linenr - i
+        if msg.startswith("# status:"):
+            header["status"] = msg.split(":", maxsplit=1)[1].strip()
+            continue
+        if dpoint == lastdpoint:
+            message = msg.removeprefix("## ").removesuffix("\n")
+            header["comments"][-1] += f"\n{message}"
+        else:
+            message = msg.removeprefix("# ").removesuffix("\n")
+            if message.startswith("comment ("):
+                m = re.search(r"\(([^)]+)\):\s(.*)", message)
+                if m:
+                    header["comments"].append(
+                        f"after {dpoint} points at {m.group(1)}: {m.group(2)}"
+                    )
+            else:
+                raise ValueError("Unknown special line in matrix datafile")
+        lastdpoint = dpoint
+
+
+def _process_text_file_content(filename: Path, extension: str, header: HeaderDict) -> int:
+    """
+    Process the content of a text file to extract header information and special lines.
+
+    Parameters
+    ----------
+    filename : Path
+        Path to the text file
+    extension : str
+        File extension
+    header : HeaderDict
+        Header dictionary to populate (modified in place)
+
+    Returns
+    -------
+    int
+        Number of header lines
+    """
+    # Text file processing
+    with filename.open() as matrix_file:
+        nheader = 0
+        # state variables for process functions
+        headerlines = 0
+        key = None
+        val = None
+        for nheader, line in enumerate(matrix_file):
+            # parse header from lines that start with hashtag
+            if "#" == line[0]:
+                key, val = _process_header_lines(line, key, val, header)
+            else:
+                headerlines, should_break = _process_column_unit_lines(
+                    line, headerlines, extension, header
+                )
+                if should_break:
+                    break
+
+        # Process special lines in the file
+        _process_special_lines(matrix_file, header)
+
+    return nheader
+
+
+def _load_text_file(
+    filename: Path, structured: bool, replace_None: bool
+) -> tuple[HeaderDict, np.ndarray]:
+    """
+    Load data from text file format.
+
+    Parameters
+    ----------
+    filename : Path
+        Path to the text file
+    structured : bool
+        Whether to return structured array
+    replace_None : bool
+        Whether to replace None values
+
+    Returns
+    -------
+    tuple[HeaderDict, np.ndarray]
+        Header information and data
+    """
+    extension = filename.suffix
+    header = _create_empty_header()
+
+    # Process text file content
+    nheader = _process_text_file_content(filename, extension, header)
+
+    # separate System query entry into hierarchical dictionary
+    if extension == ".ma8":
+        # Reconstruct proper structure by adding the header line
+        system_query_content = f"# system query :{header['system query']}"
+        header["system query"] = _parse_query_string(system_query_content.replace(r"\"", '"'))[
+            "system query"
+        ]
+
+    # Clean up string values in header (except for core fields)
+    core_fields = {"columns", "units", "comments", "status", "system query"}
+    for key, val in list(header.items()):
+        if key not in core_fields and isinstance(val, str):
+            val = val.strip('"')  # strip " from header strings
+            # remove escaping of other " in datafile
+            val = val.replace(r"\"", '"')
+            header[key] = val
+
+    # Process data from text file
+    kwargs: dict[str, Any] = {
+        "sep": "\t",
+        "low_memory": False,
+        "comment": "#",
+        "header": None,
+    }
+    if replace_None:
+        kwargs["na_values"] = "None"
+    if structured is True:
+        # generate a structured array with the column names as identifier
+        kwargs["names"] = header["columns"]
+    try:
+        data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)
+    except IndexError:
+        # IndexError is raised in case an incomplete header is present
+        print("loadmatrix: incomplete data file header")
+        return header, np.empty(0)
+
+    if replace_None:
+        # Define replacement values based on data types
+        replacement_values = {
+            "bool": False,
+            "int": -1,
+            "float": np.nan,
+            "object": "NaN",  # 'object' dtype is often used for strings in Pandas
+        }
+        # Replace missing values
+        for column in data.columns:
+            if pd.api.types.is_bool_dtype(data[column]):
+                data[column] = data[column].fillna(replacement_values["bool"])
+            elif pd.api.types.is_integer_dtype(data[column]):
+                data[column] = data[column].fillna(replacement_values["int"])
+            elif pd.api.types.is_float_dtype(data[column]):
+                data[column] = data[column].fillna(replacement_values["float"])
+            elif pd.api.types.is_object_dtype(data[column]):
+                data[column] = data[column].fillna(replacement_values["object"])
+
+    if structured is True:
+        data = data.to_records(index=False)
+    else:
+        data = data.to_numpy()
+
+    return header, data
 
 
 def loadmatrix(
@@ -281,12 +795,12 @@ def loadmatrix(
     structured: bool = True,
     print_header: bool = False,
     replace_None: bool = False,
-):
+) -> tuple[HeaderDict, np.ndarray | dict[str, Any]]:
     """
     Open matrix ascii data as well as hdf5 files generated by matrix.
 
-    This utility function returns all header information as well as data as
-    numpy.ndarray. Data fields should be addressed by column name
+    This utility function returns all header information as well as data
+    as numpy.ndarray. Data fields should be addressed by column name
     (structured=True, default) or by index (structured=False).
 
     Parameters
@@ -294,224 +808,35 @@ def loadmatrix(
     filename : str or pathlib.Path
       path to file
     structured: bool, optional
-      controls whether a structured array or a plain numpy array is returned
+      controls whether a structured or a plain numpy array is returned
     print_header : bool, optional
-      if true, prints the column names read from the file together with their
-      index
+      if true, prints the column names read from the file together with
+      their index
     replace_None : boolean, optional
       set to True to replace None values by 0 to allow plotting
 
     Returns
     -------
-    header, data
-    where header is a dictionary containing the header information. Most
-    importantly it will contain a key 'columns' with a list of column names in
-    the data object
+    header : dict[str, Any]
+        Dictionary containing the header information with core typed
+        fields
+    data : np.ndarray | dict[str, Any]
+        Data array or dict for unequal length arrays
     """
-    tries = 0
-    header = {"columns": [], "units": []}
     filename = Path(filename)
-    extension = filename.suffix
-    if detect_hdf5(filename) and not structured:
+
+    if _is_hdf5(filename) and not structured:
         raise NotImplementedError("The option structured=False is not supported for hdf5 files")
-    if detect_hdf5(filename):
-        h5f = None
-        while tries < 10:
-            # maximum number of tries to open the file is 10
-            try:
-                # use swmr read mode, to avoid corrupting the data during the
-                # measurement (where it is written to by the matrix process)
-                h5f = h5py.File(filename, "r", swmr=True, libver="latest", locking=False)
-                break
-            except OSError:
-                # retry in case file is just written by the data acqusition
-                tries += 1
-        if 10 == tries or h5f is None:
-            raise OSError("File could not be opened even after 10 tries")
 
-        # generate header
-        header["columns"] = list(h5f["data"].keys())
-        header["units"] = [it.attrs["unit"] for it in h5f["data"].values()]
-        header["comments"] = []
-        header["status"] = None
-        # check whether comments exist in file
-        if "comments" in h5f:
-            for entry in h5f["comments"]:
-                message = entry[0].decode("utf-8")
-                timestamp = entry[1].decode("utf-8")
-                header["comments"].append(f"{timestamp}: {message}")
-        for key, val in h5f.attrs.items():
-            if val == "__None__":
-                header[key] = None
-            else:
-                header[key] = val
-        # parse System query entry into hierachical dictionary
-        if extension == ".ma8":
-            header["system query"] = _load_dict_from_hdf5(h5f, "system query")
-        h5g = h5f["data"]
-        try:
-            # generate data object as structured array
-            dtypeslist = []
-            # the following line relies on the fact that the first item has
-            # the correct length, the code fails later if there are unequal
-            # length
-            npoints = len(list(h5g.values())[0])
-            for name, v in h5g.items():
-                if len(v.shape) == 1:
-                    dtypeslist.append((name, v.dtype))
-                else:
-                    dtypeslist.append((name, v.dtype, v.shape[1:]))
-            data = np.empty(npoints, dtype=np.dtype(dtypeslist))
-            for name, v in h5g.items():
-                data[name] = v[...]
-        except ValueError:  # occurs for unequal data length in 1D arrays
-            data = {name: v[...] for name, v in h5g.items()}
-        h5f.close()
-
+    if _is_hdf5(filename):
+        header, data = _load_hdf5_file(filename, structured)
     else:
-        with Path(filename).open() as matrix_file:
-            headerlines = 0
-            key = None
-            val = None
-            for nheader, line in enumerate(matrix_file):
-                # parse header from lines that start with hashtag
-                if "#" == line[0]:
-                    if line[1] == "#":  # multiline entry
-                        if key is None:
-                            raise ValueError(
-                                "Multiline entry found before any single-line entry in header"
-                            )
-                        # For system query, preserve hash prefixes for proper nesting
-                        if key == "system query":
-                            strippedline = line.removesuffix("\n")
-                            if val is None:
-                                val = strippedline
-                            else:
-                                val += f"\n{strippedline}"
-                        else:
-                            # strip header format characters for other entries
-                            strippedline = line.removesuffix("\n")[2:]
-                            if strippedline[0] == " ":
-                                strippedline = strippedline[1:]
-                            if val is None:
-                                val = strippedline
-                            else:
-                                val += f"\n{strippedline}"
-                        header[key] = val
-                    else:
-                        strippedline = line.removeprefix("# ").removesuffix("\n")
-                        if strippedline == "Matrix outputfile":
-                            # catches first line in legacy file format
-                            continue
-                        # split at " :" instead of ":" to avoid splitting the
-                        # dcterms meta data
-                        key, val = strippedline.split(" :", maxsplit=1)
-                        key = key.strip()
-                        if val.strip() == "None":
-                            val = None
-                        else:
-                            val = val[1:]  # remove initial space
-
-                        header[key] = val
-                else:
-                    if headerlines == 0:
-                        header["columns"] = line.strip("\n").split("\t")
-                    if headerlines == 1:
-                        header["units"] = line.strip("\n").split("\t")
-                    headerlines += 1
-                    # for ma6, ma7 files the first three lines without hash
-                    # are header lines
-                    if headerlines == 3:
-                        break
-                    # ma8 files have only two header lines without hash
-                    if extension == ".ma8" and headerlines == 2:
-                        break
-            # Read further special lines in the file
-            special_lines = [
-                (i, line) for i, line in enumerate(matrix_file) if line.startswith("#")
-            ]
-            # combine multiline comments and note after which datapoint the
-            # comment was in the file
-            header["comments"] = []
-            header["status"] = None
-            lastdpoint = -1
-            for i, (linenr, msg) in enumerate(special_lines):
-                dpoint = linenr - i
-                if msg.startswith("# status:"):
-                    header["status"] = msg.split(":", maxsplit=1)[1].strip()
-                    continue
-                if dpoint == lastdpoint:
-                    message = msg.removeprefix("## ").removesuffix("\n")
-                    header["comments"][-1] += f"\n{message}"
-                else:
-                    message = msg.removeprefix("# ").removesuffix("\n")
-                    if message.startswith("comment ("):
-                        m = re.search(r"\(([^)]+)\):\s(.*)", message)
-                        if m:
-                            header["comments"].append(
-                                f"after {dpoint} points at {m.group(1)}: {m.group(2)}"
-                            )
-                    else:
-                        raise ValueError("Unknown special line in matrix datafile")
-                lastdpoint = dpoint
-        # separate System query entry into hierachical dictionary
-        if extension == ".ma8":
-            # Reconstruct proper structure by adding the header line
-            system_query_content = f"# system query :{header['system query']}"
-            header["system query"] = _parse_query_string(system_query_content.replace(r"\"", '"'))[
-                "system query"
-            ]
-        for key, val in header.items():
-            if isinstance(val, str):
-                val = val.strip('"')  # strip " from header strings
-                # remove escaping of other " in datafile
-                val = val.replace(r"\"", '"')
-                header[key] = val
-
-        # we now have (i+1) as the number of lines to skip
-        kwargs = {
-            "sep": "\t",
-            "low_memory": False,
-            "comment": "#",
-            "header": None,
-        }
-        if replace_None:
-            kwargs["na_values"] = "None"
-        if structured is True:
-            # generate a structured array with the column names as identifier
-            kwargs["names"] = header["columns"]
-        try:
-            data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)
-        except IndexError:
-            # IndexError is raised in case an incomplete header is present
-            print("loadmatrix: incomplete data file header")
-            data = np.empty(0)
-        if replace_None:
-            # Define replacement values based on data types
-            replacement_values = {
-                "bool": False,
-                "int": -1,
-                "float": np.nan,
-                "object": "NaN",  # 'object' dtype is often used for strings in Pandas
-            }
-            # Replace missing values
-            for column in data.columns:
-                if pd.api.types.is_bool_dtype(data[column]):
-                    data[column] = data[column].fillna(replacement_values["bool"])
-                elif pd.api.types.is_integer_dtype(data[column]):
-                    data[column] = data[column].fillna(replacement_values["int"])
-                elif pd.api.types.is_float_dtype(data[column]):
-                    data[column] = data[column].fillna(replacement_values["float"])
-                elif pd.api.types.is_object_dtype(data[column]):
-                    data[column] = data[column].fillna(replacement_values["object"])
-        if structured is True:
-            data = data.to_records(index=False)
-        else:
-            data = data.to_numpy()
+        header, data = _load_text_file(filename, structured, replace_None)
 
     if print_header is True:
         # generate list of tuples with index and column name
         print(list(enumerate(header["columns"])))
+
     return header, data
 
 
@@ -542,7 +867,7 @@ def loadh5matrix(filename: str | Path, filehandle=False):
 ######################
 # Evaluation functions
 ######################
-def delta(data):
+def delta(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Resolve transport data acquired using the delta method.
 
@@ -566,7 +891,7 @@ def delta(data):
     return (np.add(data[::2], data[1::2]) / 2, np.subtract(data[::2], data[1::2]) / 2)
 
 
-def delta3p(data):
+def delta3p(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Resolve transport data acquired using the three point delta method.
 
