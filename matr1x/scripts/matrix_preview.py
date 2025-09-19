@@ -1024,7 +1024,7 @@ Please investigate the error and eventually restart matrix-preview""",
         z, x, y = data_vars
 
         # Check for the sentinel value
-        if z is None or z["data"] is NO_DATA:
+        if x is None or y is None or z is None or z["data"] is NO_DATA:
             return -9
         # data in a 2d plot can always be transposed
         self.w_transpose.setVisible(True)
