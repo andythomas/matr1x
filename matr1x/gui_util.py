@@ -3508,12 +3508,18 @@ class AboutBox(QMessageBox):
         pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
         self.setWindowTitle(title)
-        self.setText(title)
+
+        # Get package and git information
         (version, branch, sha, time) = self.get_install_info(package)
         if time != "not available":
             date = datetime.datetime.fromtimestamp(time).strftime(date_format)
         else:
             date = time
+
+        # Get Python interpreter information
+        python_info = self.get_python_interpreter_info()
+
+        # Get system and Qt information
         system_type = platform.system().lower()
         result = subprocess.run(
             "qmake6 --version | grep -oE '6[.][0-9]+[.][0-9]+'",
@@ -3525,22 +3531,117 @@ class AboutBox(QMessageBox):
             qmake_qt6_version = result.stdout.strip()
         else:
             qmake_qt6_version = "unavailable"
+
         text = f"""
                 <div style="text-align: left;">
-                    <p><b>Version:</b> {version}<br>
-                    <b>Git branch:</b> {branch}<br>
-                    <b>Git commit:</b> {sha}<br>
-                    <b>Git date:</b> {date}<br>
-                    <b>Platform:</b> {system_type}<br>
-                    <b>Qt version:</b> {QT_VERSION_STR}<br>
-                    <b>PyQt version:</b> {PYQT_VERSION_STR}<br>
-                    <b>Qt (qmake):</b> {qmake_qt6_version}<br>
-                    <br>
-                    (C) 2006-2025 Matr1x Developers. All rights reserved.
+                    <p><b>Git information:</b><br>
+                    Branch:</b> {branch}<br>
+                    Commit:</b> {sha}<br>
+                    Date:</b> {date}</p>
+
+                    <p><b>Python Environment</b><br>
+                    Python:</b> {python_info["implementation"]} {python_info["full_version"]}<br>
+                    Executable:</b> {python_info["executable"]}<br>
+                    Environment:</b> {python_info["env_description"]}<br>
+                    Location:</b> {python_info["env_location"]}</p>
+
+                    <p><b>System Information</b><br>
+                    Platform:</b> {system_type}<br>
+                    Qt version:</b> {QT_VERSION_STR}<br>
+                    PyQt version:</b> {PYQT_VERSION_STR}<br>
+                    Qt (qmake):</b> {qmake_qt6_version}</p>
+
+                    <p>(C) 2006-2025 Matr1x Developers. All rights reserved.</p>
                 </div>
                 """
+        self.setText(f"<b>{title} {version}</b>")
         self.setInformativeText(text)
         self.setStandardButtons(QMessageBox.StandardButton.Ok)
+
+    def _shorten_path(self, path: str) -> str:
+        """
+        Shorten a file system path for display by using ~ for home directory.
+
+        Parameters
+        ----------
+        path : str
+            Full file system path to shorten.
+
+        Returns
+        -------
+        str
+            Shortened path with ~ substitution if under home directory.
+        """
+        try:
+            path_obj = Path(path).resolve()
+            home = Path.home()
+            if path_obj.is_relative_to(home):
+                return "~/" + str(path_obj.relative_to(home))
+            return str(path_obj)
+        except (ValueError, AttributeError, OSError):
+            return path
+
+    def get_python_interpreter_info(self) -> dict[str, str]:
+        """
+        Get Python interpreter information formatted for the about dialog.
+
+        Returns
+        -------
+        dict[str, str]
+            Dictionary containing interpreter version, implementation, and environment info.
+        """
+        # Full version string (includes build info)
+        full_version = sys.version.split()[0]
+
+        # Implementation (CPython, PyPy, etc.)
+        implementation = sys.implementation.name.title()
+
+        # Interpreter executable path (shortened)
+        executable = self._shorten_path(sys.executable)
+
+        # Virtual environment detection
+        venv_info = self.get_virtual_env_info()
+
+        return {
+            "full_version": full_version,
+            "implementation": implementation,
+            "executable": executable,
+            "env_description": venv_info["description"],
+            "env_location": venv_info["location"],
+        }
+
+    def get_virtual_env_info(self) -> dict[str, str]:
+        """
+        Detect and return virtual environment information.
+
+        Returns
+        -------
+        dict[str, str]
+            Dictionary containing environment description and location.
+        """
+        # Determine environment type (only modern venv, not old virtualenv)
+        if hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix:
+            env_type = "venv"
+            env_location = sys.prefix
+        else:
+            env_type = "system"
+            env_location = sys.prefix
+
+        # Check for conda
+        conda_env = os.environ.get("CONDA_DEFAULT_ENV")
+        if conda_env:
+            if env_type == "system":
+                env_type = "conda"
+            env_description = "Conda"
+        elif env_type == "system":
+            env_description = "System Python"
+        else:
+            env_description = env_type.title()
+
+        # Shorten location path for display
+        location = self._shorten_path(env_location)
+
+        return {"description": env_description, "location": location}
 
     def get_install_info(self, imported_package):
         """Receive git infos about the installed version."""
@@ -3553,7 +3654,6 @@ class AboutBox(QMessageBox):
             last_commit = repo[repo.head.target]
             commit_short_sha = str(last_commit.id)[:7]
             commit_time = last_commit.author.time
-
             if commit_branch == "HEAD":
                 # Attempt to find the remote branch
                 for ref_name in repo.references:
