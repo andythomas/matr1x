@@ -20,6 +20,28 @@ from matr1x.system import System
 logger = logging.getLogger(__name__)
 
 
+def _is_template_content(template: str) -> bool:
+    """Check if string contains template content rather than a file path.
+
+    Parameters
+    ----------
+    template : str
+        The string to check.
+
+    Returns
+    -------
+    bool
+        True if the string appears to be template content, False otherwise.
+    """
+    # Check for excessive length (filesystem limits)
+    if len(template) > 255:
+        return True
+
+    # Check for Jinja2 template syntax and newlines
+    template_patterns = ["{%", "{{", "{#", "%}", "}}", "#}", "\n"]
+    return any(pattern in template for pattern in template_patterns)
+
+
 # ============================
 # This area contains the required MeasSystem definition and
 # the optional reimplementation of the set and reset function
@@ -268,11 +290,17 @@ class ElabSystem(System):
         before rendering. The template has access to the `filename` and `dcdata` variables
         in its context.
         """
-        if Path(template).is_file():
-            with Path(template).open() as file:
-                template_str = file.read()
-        else:
+        if _is_template_content(template):
             template_str = template
+        else:
+            try:  # use try/except around file operations that can fail
+                if Path(template).is_file():
+                    with Path(template).open() as file:
+                        template_str = file.read()
+                else:
+                    template_str = template
+            except OSError:
+                template_str = template
         jinjatemplate = Template(template_str)
         return jinjatemplate.render(
             base_filename=self.filename.name if self.filename else "",
