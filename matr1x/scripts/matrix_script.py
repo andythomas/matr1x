@@ -3416,11 +3416,6 @@ class MainWindow(QMainWindow):
         Also, make sure that header information specified still agree
         with the corresponding system.
         """
-        if self.is_running:
-            return
-        if "" == filename:
-            self.print_colored("Please specify file")
-            return
         try:
             input_file = filename.open()
         except OSError:
@@ -3430,80 +3425,85 @@ class MainWindow(QMainWindow):
         self.script_edit.clear()
         self.system_list.clear()
         settable_info = None
-        sys_err = False
+        #
+        # system files
+        #
+        line = input_file.readline()
+        if "# system def : " in line:
+            # load system from definition in file
+            system_line = line.replace("# system def : ", "").strip()
+            for syst in system_line.split(","):
+                try:
+                    self.system_list.addItem(syst)
+                    self.update_systems()
+                    settable_info = self.get_settable_info()
+                except KeyError:
+                    self.print_colored(
+                        "System that was used to generate the "
+                        "script was not found in installed systems."
+                        " Please check .matrix.conf file."
+                    )
+                    return
+            self.print_colored("No system defined in script, please choose system(s)")
+        self.script_edit.append(line)
+        #
+        # system columns definiton
+        #
+        line = input_file.readline()
+        self.script_edit.append(line)
+        # make sure that system column definition agrees with
+        # current system
+        if "# system names : " in line and settable_info is not None and len(settable_info) >= 2:
+            system_names = line.strip().replace("# system names : ", "")
+            current_columns = [str(col).strip() for col in settable_info[1]]
+            # Handle both "," and ", " as separators since compound columns use ", "
+            loaded_columns = []
+            for col in system_names.split(","):
+                col = col.strip()
+                if col:
+                    loaded_columns.append(col)
+            if current_columns != loaded_columns:
+                self.print_colored(
+                    "Column names have changed between generation "
+                    "of script and now, please make sure that "
+                    "columns are set correctly before running the "
+                    "script"
+                )
+        else:
+            self.print_colored(
+                "Could not verify column names, please verify that columns have not changed"
+            )
+        #
+        # system unit definiton
+        #
+        line = input_file.readline()
+        self.script_edit.append(line)
+        # make sure that system unit definition agrees with
+        # current system
+        if "# system units : " in line and settable_info is not None and len(settable_info) >= 3:
+            system_units = line.strip().replace("# system units : ", "")
+            current_units = [str(unit).strip() for unit in settable_info[2]]
+            # Handle both "," and ", " as separators since compound columns use ", "
+            loaded_units = []
+            for unit in system_units.split(","):
+                unit = unit.strip()
+                if unit:
+                    loaded_units.append(unit)
+            if current_units != loaded_units:
+                self.print_colored(
+                    "Column units have changed between generation "
+                    "of script and now, please make sure that "
+                    "columns are set correctly before running the "
+                    "script"
+                )
+        else:
+            self.print_colored(
+                "Could not verify column units, please verify that columns have not changed"
+            )
+        #
+        # read actual code
+        #
         for i, line in enumerate(input_file):
-            if 0 == i:
-                if "# system def : " in line:
-                    # load system from definition in file
-                    system_line = line.replace("# system def : ", "").strip()
-                    for syst in system_line.split(","):
-                        try:
-                            self.system_list.addItem(syst)
-                            self.update_systems()
-                            settable_info = self.get_settable_info()
-                        except KeyError:
-                            sys_err = True
-                            self.print_colored(
-                                "System that was used to generate the "
-                                "script was not found in installed systems."
-                                " Please check .matrix.conf file."
-                            )
-                else:
-                    self.print_colored("No system defined in script, " + "please choose system(s)")
-            elif 1 == i and not sys_err:
-                # make sure that system column definition agrees with
-                # current system
-                if (
-                    "# system names : " in line
-                    and settable_info is not None
-                    and len(settable_info) >= 2
-                ):
-                    system_names = line.strip().replace("# system names : ", "")
-                    current_columns = [str(col).strip() for col in settable_info[1]]
-                    # Handle both "," and ", " as separators since compound columns use ", "
-                    loaded_columns = []
-                    for col in system_names.split(","):
-                        col = col.strip()
-                        if col:
-                            loaded_columns.append(col)
-                    if current_columns != loaded_columns:
-                        self.print_colored(
-                            "Column names have changed between generation "
-                            "of script and now, please make sure that "
-                            "columns are set correctly before running the "
-                            "script"
-                        )
-                else:
-                    self.print_colored(
-                        "Could not verify column names, please verify that columns have not changed"
-                    )
-            elif 2 == i and not sys_err:
-                # make sure that system unit definition agrees with
-                # current system
-                if (
-                    "# system units : " in line
-                    and settable_info is not None
-                    and len(settable_info) >= 3
-                ):
-                    system_units = line.strip().replace("# system units : ", "")
-                    current_units = [str(unit).strip() for unit in settable_info[2]]
-                    # Handle both "," and ", " as separators since compound columns use ", "
-                    loaded_units = []
-                    for unit in system_units.split(","):
-                        unit = unit.strip()
-                        if unit:
-                            loaded_units.append(unit)
-                    if current_units != loaded_units:
-                        self.print_colored(
-                            "Column units have changed between generation "
-                            "of script and now, please make sure that "
-                            "columns are set correctly before running the "
-                            "script"
-                        )
-                else:
-                    self.print_colored(
-                        "Could not verify column units, please verify that columns have not changed"
-                    )
             self.script_edit.append(line)
         input_file.close()
         self.script_edit.setModified(False)
@@ -3534,7 +3534,8 @@ class MainWindow(QMainWindow):
             f"matrix files (*{self.extension})",
         )
         filename = Path(filename[0])
-        self.load_from_filename(filename)
+        if filename != Path():
+            self.load_from_filename(filename)
 
     def new_file(self) -> None:
         """
