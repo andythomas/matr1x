@@ -184,12 +184,7 @@ def test_matrix_script_pyflakes():
     inputfile = path / "test.matrix"
     with inputfile.open() as f:
         user_script = f.read()
-    script = "_interrupt=lambda x:x; _print=lambda x:x; _input=lambda x:x; "
-    script += "_report_line=lambda x:x;_report_path=lambda x:x;_meta_data={}; "
-    script += "_scriptname=''; _script=''; _status=''\n"
-    script += matr1x.util.generate_script(
-        ["system_dummy_feature", "system_dummy_meas"], user_script
-    )
+    script = matr1x.util.generate_script(user_script)
     print(script)
     ret = pyflakes.api.check(script, "sc")
     assert ret == 0
@@ -215,15 +210,16 @@ def test_matrix_script_dummy_merged():
     inputfile = path / "test.matrix"
     with inputfile.open() as f:
         user_script = f.read()
-    script = matr1x.util.generate_script(
-        ["system_dummy_feature", "system_dummy_meas"], user_script
-    )
+    script = matr1x.util.generate_script(user_script)
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         for line in script:
             tf.write(line.encode())
         tf.flush()
         script = (
-            "import matr1x.util as mu\n" + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
+            "import matr1x.util as mu\n"
+            "mu.matrix_script_process(\n"
+            f"{repr(tf.name)}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
+            ")"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
@@ -247,7 +243,8 @@ def test_empty_script():
     """
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         script = (
-            "import matr1x.util as mu\n" + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
+            "import matr1x.util as mu\n"
+            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, [])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

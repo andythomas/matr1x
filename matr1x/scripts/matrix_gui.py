@@ -183,7 +183,7 @@ class QueueListWidget(QListWidget):
         return self.data_list[row]["parameters"]
 
 
-class ExecThread(QThread):
+class GuiThread(QThread):
     """Execute the measurement thread."""
 
     filename_received = pyqtSignal(str)
@@ -358,7 +358,7 @@ class MainWindow(QMainWindow):
         self.sg = None
         self.running = False
         self.sys_meta_data = {}
-        self.measurement_thread = ExecThread()
+        self.measurement_thread = GuiThread()
         self.measurement_thread.filename_received.connect(self.handle_received_filename)
         self.measurement_thread.finished.connect(self.processFinished)
 

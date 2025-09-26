@@ -1,0 +1,665 @@
+# This file is part of a software collection for data acquisition (matr1x).
+# Copyright (C) 2006-2025 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""INTERNAL TEMPLATE FILE - DO NOT RUN OR IMORT DIRECTLY.
+
+This file is a template used by matr1x.util.generate_script() to create
+executable scripts for matrix-script. It contains placeholder variables
+and markers that must be replaced before execution.
+"""
+
+import builtins as _builtins
+import datetime as _datetime
+import inspect as _inspect
+import math as _math
+import os as _os
+import sys as _sys
+import textwrap as _textwrap
+import time as _time
+import types as _types
+from pathlib import Path as _Path
+
+import wrapt
+
+import matr1x as _matr1x
+import matr1x.util as _matrix_util
+from matr1x.system import MergedSystem as _MergedSystem
+
+# =============================================================================
+# CONDITIONAL STUB DEFINITIONS - Only define if not already injected
+# The stub functions raise NotImplementedError to make sure this file can not
+# be executed directly.
+# =============================================================================
+
+# These stubs satisfy the linter but don't interfere with injection
+if "_interrupt" not in globals():
+
+    def _interrupt(duration=None, until=None, message="", silent=10, system=None):
+        raise NotImplementedError("This function should be injected at runtime")
+
+
+if "_report_line" not in globals():
+
+    def _report_line(line_number: int):
+        raise NotImplementedError("This function should be injected at runtime")
+
+
+if "_report_path" not in globals():
+
+    def _report_path(path):
+        raise NotImplementedError("This function should be injected at runtime")
+
+
+if "_input" not in globals():
+
+    def _input(
+        message: str = "",
+        system: object = None,
+        input_type: str = "string",
+        timeout: float = float("inf"),
+        default_value: str | float = "",
+        min_value: float | None = None,
+        max_value: float | None = None,
+        step: float | None = None,
+        decimals: int | None = None,
+    ) -> str:
+        raise NotImplementedError("This function should be injected at runtime")
+
+
+if "_meta_data" not in globals():
+    _meta_data = {}  # Stub for linting
+
+if "_scriptname" not in globals():
+    _scriptname = ""  # Stub for linting
+
+if "_script" not in globals():
+    _script = ""  # Stub for linting
+
+if "_status" not in globals():
+
+    class _StatusStub:
+        finished = None
+
+    _status = _StatusStub()  # Stub for linting
+
+
+# load config section from toml file
+_config = _matr1x.get_config_dict("matr1x.scripts.matrix-script")
+
+# systems will be injected at runtime
+if "_systems" not in globals():
+    _systems = []  # Stub for linting
+_system = _MergedSystem.from_files(_systems)
+
+# pass meta information
+for _key, _value in _meta_data.items():
+    if _key in _matr1x.VALID_META_KEYS.keys():
+        if _matr1x.VALID_META_KEYS[_key]:
+            _system.dcdata[_key] = _value
+_setvalues = []  # buffer for set values for printing
+_npoints = 0  # internal measurement point counter
+_ntot = None  # total number of measurement points for telemetry
+_starttime = _time.time()
+_preset = _starttime
+_reset_kwargs = {}
+
+
+def _configure_execution_path(scriptname: str | _Path):
+    """Change execution path if requested in config."""
+    script_path = _Path(scriptname)
+    if _config["script_path"] == "<script-location>":
+        if script_path.parent != _Path.cwd():
+            _os.chdir(script_path.parent)
+    else:
+        config_path = _Path(_config["script_path"])
+        if config_path.exists():
+            _os.chdir(config_path)
+
+
+def _configure_script_storing(system, script):
+    """Store user script if requested in config."""
+    if _config["store_script_in_datafile"]:
+        prefix, suffix = _matrix_util.generate_script_prefix_suffix()
+        npref, nsuff = len(prefix.splitlines()), len(suffix.splitlines())
+        # strip prefix and suffix lines from script for storing
+        user_script = _textwrap.dedent("\\n".join(script.splitlines()[npref:-nsuff]))
+        if "user script" not in system.system_config_params:
+            system.system_config_params["user script"] = user_script
+        else:
+            print("'user script' key already present in system, not overwriting!")
+
+
+def _find_caller_frame():
+    """Find the frame of the actual caller, skipping over decorator frames."""
+    # stepping twice back on frame, since the inner most frame is from this
+    # and the second one is from the _lineno_decorator function
+    frame = _inspect.currentframe()
+    frame = frame.f_back.f_back if (frame and frame.f_back) else None
+    # Try to find the first frame called in script environment
+    # in Python 3.13+
+    while frame:
+        if frame.f_code.co_filename == "<string>":
+            if frame.f_code.co_name.startswith("_") or frame.f_code.co_name in ["wait", "print"]:
+                frame = frame.f_back
+                continue
+            else:
+                return frame
+
+        frame = frame.f_back
+
+    # Fallback for Python 3.12 or earlier: step back a fixed number of frames
+    frame = _inspect.currentframe()
+    steps_back = 3 if _sys.version_info >= (3, 13) else 2
+    for _ in range(steps_back):
+        frame = frame.f_back if frame else None
+
+    return frame  # Returns the frame that we believe to be the caller
+
+
+@wrapt.decorator
+def _lineno_decorator(wrapped, instance, args, kwargs):
+    """Report the executing line number back to the GUI."""
+    frame = _find_caller_frame()
+    if frame:
+        caller_filename = frame.f_code.co_filename
+        if caller_filename == "<string>":
+            # report line only if called directly from script
+            _report_line(frame.f_lineno)
+    return wrapped(*args, **kwargs)
+
+
+@wrapt.decorator
+def _breakpoint(wrapped, instance, args, kwargs):
+    """Add a breakpoint check."""
+    # avoid recursive loop (a decorated function calling another)
+    # If the wrapped object is a method, attach _calling to the instance
+    if instance is not None:
+        if not hasattr(instance, "_calling"):
+            instance._calling = False
+
+        if instance._calling:
+            # do not call decoration recursively
+            return wrapped(*args, **kwargs)
+
+        instance._calling = True
+        try:
+            _interrupt(0, system=_system)
+            result = wrapped(*args, **kwargs)
+        finally:
+            instance._calling = False
+    else:
+        # If the wrapped object is a function,
+        # attach _calling to the function itself
+        if not hasattr(wrapped, "_calling"):
+            wrapped._calling = False
+
+        if wrapped._calling:
+            # do not call decoration recursively
+            return wrapped(*args, **kwargs)
+
+        wrapped._calling = True
+        try:
+            _interrupt(0, system=_system)
+            result = wrapped(*args, **kwargs)
+        finally:
+            wrapped._calling = False
+    return result
+
+
+def _inject_decorator(instance, decorator):
+    """Inject decorator into instance methods."""
+    for attr_name in dir(instance):
+        if attr_name in ["add_comment", "_print"]:
+            # exclude this methods from decoration since they are
+            # potentially called from inside the decorator. anything called
+            # inside the _interrupt function should be added here/not
+            # decorated.
+            continue
+        attr = getattr(instance, attr_name)
+        if isinstance(attr, _types.MethodType):
+            decorated_attr = decorator(attr)
+            setattr(instance, attr_name, decorated_attr)
+
+
+def _reset_setvalues():
+    """Reset the setvalues variable."""
+    global _setvalues
+    _setvalues = []
+    for i, col in enumerate(_system.columns):
+        if isinstance(col, (list, tuple)):
+            _setvalues.append(
+                [
+                    None,
+                ]
+                * len(col)
+            )
+        else:
+            _setvalues.append(None)
+
+
+# inject line number decorator to time.sleep
+_time.sleep = _lineno_decorator(_time.sleep)
+# inject breakpoint and line number decorators to system methods
+_inject_decorator(_system, _breakpoint)
+for subsys in _system.subsys:
+    _inject_decorator(subsys, _breakpoint)
+    _inject_decorator(subsys, _lineno_decorator)
+_reset_setvalues()  # initialize the setvalues variable
+# bring meta_data and system into namespace
+meta_data = _system.dcdata
+system = _system
+
+
+# define wrapper around system.set_value
+@_lineno_decorator
+def set_value(col, value):
+    """
+    Store set parameters and call _system.set_value.
+
+    Parameters
+    ----------
+    col : str or int
+        Column name or index.
+    value : Any
+        Value to set.
+
+    Returns
+    -------
+    Any
+        Set value.
+    """
+    if col in _system.columns:
+        i = _system.columns.index(col)
+    else:
+        i = col
+
+    setv = _system.set_value(i, value)
+    if setv is None and isinstance(_system.columns[i], (list, tuple)):
+        _setvalues[i] = [
+            None,
+        ] * len(_system.columns[i])
+    else:
+        _setvalues[i] = setv
+    return setv
+
+
+@_lineno_decorator
+def trigger_value(*args, **kwargs):
+    """
+    Execute system.trigger_value. All arguments are forwarded.
+
+    Parameters
+    ----------
+    *args : tuple
+        Positional arguments.
+    **kwargs : dict
+        Keyword arguments.
+
+    Returns
+    -------
+    Any
+        Result of system.trigger_value.
+    """
+    _system.trigger_value(*args, **kwargs)
+
+
+@_lineno_decorator
+def read_value(*args, **kwargs):
+    """
+    Execute system.read_value. All arguments are forwarded.
+
+    Parameters
+    ----------
+    *args : tuple
+        Positional arguments.
+    **kwargs : dict
+        Keyword arguments.
+
+    Returns
+    -------
+    Any
+        Result of system.read_value.
+    """
+    return _system.read_value(*args, **kwargs)
+
+
+@_lineno_decorator
+def wait(duration=None, until=None, message="", silent=10):
+    """
+    Pauses execution for a duration, until a timestamp, or for a relative time.
+
+    Parameters
+    ----------
+    duration : float or int, optional
+        The number of seconds to sleep.
+        If specified, the function will sleep for this duration.
+        If paused during this duration the remaining wait time continue after unpausing.
+        If a str or datetime object is used here it will be redirected to the until argument.
+    until : str or datetime, optional
+        A target time or relative time string. It can be:
+        - An absolute timestamp in a format like "YYYY-MM-DD HH:MM:SS" or "HH:MM".
+        - A relative time string starting with '+' followed by a number and a unit
+            (e.g., "+24h" for 24 hours, "+30m" for 30 minutes, "+1d" for 1 day).
+        - A `datetime` object representing a specific time.
+    message : str, optional
+        A string which is printed if the sleep exceeds the silent argument.
+    silent : float, optional
+        If the wait time exceeds this value a message string will be printed.
+
+    Examples
+    --------
+    >>> wait(duration=10)
+    Pauses execution for 10 seconds.
+
+    >>> wait(until="2025-11-05 15:30")
+    Pauses execution until 15:30 on November 5, 2025.
+
+    >>> wait(until="+2h")
+    Pauses execution for 2 hours from the current time.
+
+    >>> wait(until="18:00")
+    Pauses execution until 18:00 today,
+    or until the same time tomorrow if it has already passed today.
+    """
+    if isinstance(duration, (str, _datetime.datetime)) and not until:
+        until = duration
+        duration = None
+    if duration and until:
+        print(f"until ({until}) argument of the wait function will be ignored")
+        until = None
+    _interrupt(duration=duration, until=until, message=message, silent=silent, system=_system)
+
+
+@_lineno_decorator
+def input(query: str, timeout=float("inf"), default_value=""):  # noqa: A001
+    """
+    Ask user to provide some free text input.
+
+    Parameters
+    ----------
+    query : str
+        Query string presented to the user so they know what to enter.
+    timeout : float, optional
+        Maximum time in seconds to wait for user input. Default is infinity.
+    default_value : str, optional
+        Value to return if timeout occurs. Default is empty string.
+
+    Returns
+    -------
+    str
+        User input.
+    """
+    return _input(query, system=_system, timeout=timeout, default_value=default_value)
+
+
+@_lineno_decorator
+def input_bool(query: str, timeout=float("inf"), default_value="yes") -> bool:
+    """
+    Ask user to answer a yes/no question.
+
+    Parameters
+    ----------
+    query : str
+        Question to ask the user.
+    timeout : float, optional
+        Maximum time in seconds to wait for user input. Default is infinity.
+    default_value : str, optional
+        Value to return if timeout occurs. Default is empty string.
+
+    Returns
+    -------
+    bool
+        True if the user answers yes, False otherwise.
+    """
+    ret = _input(
+        query,
+        system=_system,
+        input_type="bool",
+        timeout=timeout,
+        default_value=default_value,
+    )
+    if ret == "yes":
+        return True
+    return False
+
+
+@_lineno_decorator
+def input_numerical(
+    query: str,
+    timeout=float("inf"),
+    default_value: float = 0.0,
+    min_value: float = -100e9,
+    max_value: float = 100e9,
+    step: float = 1.0,
+    decimals: int = 2,
+) -> float:
+    """
+    Ask user to answer a yes/no question.
+
+    Parameters
+    ----------
+    query : str
+        Question to ask the user.
+    timeout : float, optional
+        Maximum time in seconds to wait for user input. Default is infinity.
+    default_value : float, optional
+        Value to return if timeout occurs. Default is empty string.
+    min_value : float, optional
+        Minimal input value. Default is -1e9
+    max_value : float, optional
+        Maximum input value. Default is 1e9
+    step : float, optional
+        Allowed steps between user input values. Default is 1.0
+    decimals : int, optional
+        Number of decimals of the input number
+
+    Returns
+    -------
+    float
+        numerical user input value.
+    """
+    ret = _input(
+        query,
+        system=_system,
+        input_type="numerical",
+        timeout=timeout,
+        default_value=default_value,
+        min_value=min_value,
+        max_value=max_value,
+        step=step,
+        decimals=decimals,
+    )
+    return float(ret)
+
+
+@_lineno_decorator
+def end_script(finished: bool | None = None):
+    """
+    End the script execution and set the file status acordingly.
+
+    Parameters
+    ----------
+    finished : bool, optional
+        If True, mark the script as finished. If False, mark as unfinished.
+        If None, don't change the status.
+    """
+    _status.finished = finished
+    raise KeyboardInterrupt
+
+
+@_lineno_decorator
+def print(*args, **kwargs):  # noqa: A001
+    """Use system._print to optionally forward the printed message to the datafile.
+
+    The behavior of this function depends on the config option
+    matr1x.scripts.matrix-script.print_to_comment
+    """
+    _system._print(*args, **kwargs)
+
+
+# load execution path of scripts and change to this directory
+_configure_execution_path(_scriptname)
+# optionally set user script to be stored in data file
+_configure_script_storing(_system, _script)
+# initialize system and put devs into namespace
+print("setting system")
+# system.set is called before the filename is set so we have no arguments
+# here -> this is a difference to matrix
+_system.set()
+devs = _system.devs
+
+# switch meta data to append state
+_system.dcdata.append = True
+
+
+@_lineno_decorator
+@_breakpoint
+def init_datafile(filename, comment=None, append=False, print_header=True, ntot=None):
+    """
+    Initialize the datafile for the matrix_script measurement.
+
+    By default a new datafile will be generated whose name is generated in a
+    way that no existing datafile can be overwritten.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the datafile to be used.
+    comment : str, optional
+        Comment to be saved in the file header.
+    append : bool, optional
+        Flag to tell if an existing datafile should be used. If append is
+        False a new datafile with a non-conflicting name will be generated by
+        appending "_<number>" to the filename.
+    print_header : bool, optional
+        Flag to decide if the header information with column names and units
+        should be printed.
+    ntot : int, optional
+        Total number of expected datapoints for estimation of remaining
+        measurement time.
+    """
+    global _ntot, _npoints, _starttime
+
+    _ntot = ntot
+    _npoints = 0  # reset the number of measurement points
+    _starttime = _time.time()
+
+    filename = _system.generate_datafilename(
+        outputfile=filename, inputfile=_scriptname, append=append
+    )
+    if not append or not filename.exists():
+        # write header to file
+        _system.dcdata["description"] = comment
+        _system.init_datafile(_scriptname or "matrix script generated")
+        print("acquired configuration, and initialized file")
+    if print_header:
+        _matrix_util.print_formatted_line(_matrix_util.flatten(_system.columns))
+        _matrix_util.print_formatted_line(_matrix_util.flatten(_system.units))
+    # report file to matrix_script
+    _report_path(filename.resolve())
+
+
+# wrap system.trigger and system.take_measurement_point into measure_system
+@_lineno_decorator
+@_breakpoint
+def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
+    """
+    Perform the measurement of a single data point.
+
+    This means a sequence of system.trigger, and reading the data is performed.
+
+    Parameters
+    ----------
+    print_setpoint : bool, optional
+        Flag to decide if the column values set since the last measurement
+        should be printed in a way compatible with the header information of
+        init_datafile.
+    print_data : bool, optional
+        Flag to decide if the measured data values should be printed in a way
+        compatible with the header information of init_datafile.
+    print_telemetry : bool, optional
+        Flag to decide if telemetry data about the measurement duration should
+        be printed.
+
+    Returns
+    -------
+    list
+        List of measured values.
+    """
+    global _preset, _npoints
+    _npoints += 1
+    preread = _time.time()
+    if not _system.filename:
+        init_datafile("")
+
+    if print_setpoint:
+        _matrix_util.print_formatted_line(_matrix_util.flatten(_setvalues), prefix="Set : ")
+    _reset_setvalues()
+
+    _system.trigger()
+    return_list = _system.take_measurement_point()
+    if print_data:
+        _matrix_util.print_formatted_line(return_list, prefix="Meas: ")
+    if print_telemetry:
+        elapsed = _time.time() - _starttime
+        if _ntot:
+            remaining = (elapsed / _npoints * _ntot - elapsed) / 60
+        else:
+            remaining = _math.nan
+        # use builtins.print here to make sure the telemetry do not get added to the datafile
+        _builtins.print(
+            _matrix_util.telemetry_string.format(
+                _npoints,
+                _ntot or -1,
+                elapsed / 60,
+                remaining,
+                preread - _preset,
+                _time.time() - preread,
+            )
+        )
+    if print_data or print_telemetry or print_setpoint:
+        # isolate different iterations of measure system by a space
+        _builtins.print("")
+    _preset = _time.time()
+    return return_list
+
+
+# ==== BEGIN USER SCRIPT AREA ====
+try:
+    # the pass statement is needed to handle "empty" scripts
+    # an empty script is one without code, but only comments
+    pass
+    # USER_SCRIPT_INSERTION_POINT
+# ==== END USER SCRIPT AREA ====
+except KeyboardInterrupt:
+    print("\\nscript has been aborted by user.")
+    # mark script as aborted per default once abort is called
+    if _status.finished:
+        _reset_kwargs["status"] = "finished"
+    elif _status.finished is False:
+        # supposed to be marked as aborted
+        _reset_kwargs["status"] = "aborted"
+    else:
+        # finished is None, so ask what is supposed to happen
+        _reset_kwargs["status"] = _input("", system=_system, input_type="__end_script__")
+
+# mark last open file as finished, if not labeled elsewhere
+if "status" not in _reset_kwargs.keys():
+    _reset_kwargs["status"] = "finished"
+# the reset function is called at the script end only, but we nevertheless
+# specify the last datafile name to be as close as possible to the behavior
+# of matrix
+print("resetting system")
+_system.reset(**_reset_kwargs)

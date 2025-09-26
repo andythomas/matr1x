@@ -198,13 +198,14 @@ def test_matrix_script_control_dummy(start_control_dummy):
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
 
-    script = matr1x.util.generate_script(["system_dummygui"], user_script)
+    script = matr1x.util.generate_script(user_script)
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         for line in script:
             tf.write(line.encode())
         tf.flush()
         script = (
-            "import matr1x.util as mu\n" + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '')"
+            "import matr1x.util as mu\n"
+            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, ['system_dummygui'])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

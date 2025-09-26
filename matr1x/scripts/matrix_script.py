@@ -137,7 +137,7 @@ LINTER_ERRORS = [
 ]
 
 # +1 here is needed since otherwise the last newline is not counted.
-SCRIPT_OFFSET = len(generate_script_prefix_suffix("")[0].splitlines()) + 1
+SCRIPT_OFFSET = len(generate_script_prefix_suffix()[0].splitlines()) + 1
 
 MAX_LINES_STATUS = 10000
 # to test what a good limiting value is, use the following:
@@ -1083,11 +1083,7 @@ class QScintillaCustom(QsciScintilla, DroppableWidget):
         # add initial definitions that are passed to the script
         # externally to avoid linter errors, make sure not to add an
         # additional line here
-        script = "_interrupt=lambda x, s:x;_print=lambda x:x;"
-        script += "_input=lambda x:x;_report_line=lambda x:x;"
-        script += "_report_path=lambda x:x; _status='';"
-        script += "_meta_data='';_scriptname='';_script='';"
-        script += generate_script("", self.text())
+        script = generate_script(self.text())
         # reimplement the pyflakes.api.check function
         scriptname = "sc"
         try:
@@ -1455,7 +1451,7 @@ if sys.platform == "win32":
         pass
 
 
-class ExecThread(QThread):
+class ScriptThread(QThread):
     """Control and the thread running the measurements."""
 
     # signal initiating user input from the GUI.
@@ -1473,30 +1469,40 @@ class ExecThread(QThread):
     # signal to report the filename of the file that is written by the process
     filename_signal = pyqtSignal(str)
 
-    def __init__(self, meta_data: dict, script: str, fallbackname: Path | str, temp_config: Path):
+    def __init__(
+        self,
+        meta_data: dict,
+        script: str,
+        fallbackname: Path | None,
+        temp_config: Path,
+        systems: list,
+    ):
         """
         Initialize thread that handles script execution.
 
         Parameters
         ----------
-            meta_data : dict
-                dictionary containing meta data such as user and comment
-            script : str
-                user script that is supposed to be run by the ExecThread.
-            fallbackname : Path | str
-                filename used to initialize the data file if not specified
-                in the script. Its directory path will be used as execution
-                directory.
-            temp_config : Path
-                temporary configuration file path
+        meta_data : dict
+            dictionary containing meta data such as user and comment
+        script : str
+            user script that is supposed to be run by the ScriptThread.
+        fallbackname : Path | str
+            filename used to initialize the data file if not specified
+            in the script. Its directory path will be used as execution
+            directory.
+        temp_config : Path
+            temporary configuration file path
+        systems : list
+            list of system files to load
         """
         super().__init__()
         self.proc = None
         self.conn = None
         self.meta_data = meta_data
         self.script = script
-        self.datafilefallback = str(fallbackname)
+        self.datafilefallback = str(fallbackname) if fallbackname else ""
         self.temp_config = temp_config
+        self.systems = systems
 
     def pass_input(self, inp):
         """Communicate user input to the subprocess."""
@@ -1707,7 +1713,7 @@ class ExecThread(QThread):
 import matr1x.util as mu
 matr1x.reload_config({repr(str(self.temp_config))})
 mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
-                         {repr(self.datafilefallback)}, {repr(port)})"""
+                         {repr(self.datafilefallback)}, {repr(port)}, {repr(self.systems)})"""
 
             self.proc = subprocess.Popen(
                 [sys.executable, "-c", cmd],
@@ -3195,10 +3201,12 @@ class MainWindow(QMainWindow):
         self.print_colored("### Running script now")
         # define basic part of script, imports relevant commands
         user_script = self.script_edit.text()
-        script = generate_script(self.systems, user_script)
+        script = generate_script(user_script)
         meta_data = self.metadata.get_metadata()
         temp_config = self.config_editor.write_config()
-        self.measurement_thread = ExecThread(meta_data, script, self.scriptname, temp_config)
+        self.measurement_thread = ScriptThread(
+            meta_data, script, self.scriptname, temp_config, self.systems
+        )
         self.measurement_thread.lineno_signal.connect(self.highlight)
         self.measurement_thread.input_signal.connect(self.get_script_input)
         self.measurement_thread.filename_signal.connect(self.update_filename)

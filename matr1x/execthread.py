@@ -180,7 +180,7 @@ class Unbuffered:
 class Status:
     """Status class that stores the finished status for aborting."""
 
-    def __init__(self, value=None):
+    def __init__(self, value: bool | None = None):
         """
         Initialize the Status object.
 
@@ -204,7 +204,7 @@ class Status:
         return self._finished
 
     @finished.setter
-    def finished(self, value):
+    def finished(self, value: bool | None):
         """
         Set finished value to either None, True or False.
 
@@ -249,6 +249,7 @@ class ExecThread(threading.Thread):
         scriptname: str,
         socket: socket.socket | None,
         n_pref: int = 0,
+        systems: list | None = None,
     ):
         """Initialize the execution thread.
 
@@ -264,11 +265,14 @@ class ExecThread(threading.Thread):
             Socket for communication.
         n_pref : int, optional
             Number of prefix lines.
+        systems : list, optional
+            List of system files to load.
         """
         super().__init__()
         self.script = script
         self.meta_data = meta_data
         self.scriptname = scriptname
+        self.systems = systems or []
         self.stop_status = Status()
         self.pause_flag = False
         self.interrupt_flag = False
@@ -507,12 +511,12 @@ class ExecThread(threading.Thread):
         system: object = None,
         input_type: str = "string",
         timeout: float = float("inf"),
-        default_value: str = "",
+        default_value: str | float = "",
         min_value: float | None = None,  # Optional: minimum value for numerical input
         max_value: float | None = None,  # Optional: maximum value for numerical input
         step: float | None = None,  # Optional: step size for numerical input
         decimals: int | None = None,  # Optional: number of decimals for numerical input
-    ):
+    ) -> str:
         """
         Handle user input requests from the script.
 
@@ -533,7 +537,7 @@ class ExecThread(threading.Thread):
         timeout : float, optional
             Timeout in seconds. Will be handled by GUI layer.
             Default is infinity.
-        default_value : str, optional
+        default_value : str | float, optional
             Default value if timeout occurs. Will be handled by GUI
             layer. Default is empty string.
 
@@ -686,6 +690,7 @@ class ExecThread(threading.Thread):
                     "_meta_data": self.meta_data,
                     "_scriptname": self.scriptname,
                     "_script": self.script,
+                    "_systems": self.systems,
                 }
                 exec(self.script, _vars)
             except Exception:
