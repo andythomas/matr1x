@@ -129,6 +129,9 @@ _lo.setNumberOptions(QLocale.NumberOption.RejectGroupSeparator)
 validator[float].setLocale(_lo)
 validator[np.uint].setBottom(0)
 
+MIN_INT64 = -(2**63)
+MAX_INT64 = 2**63 - 1
+
 
 class QRangeWidget(QGroupBox):
     """
@@ -375,6 +378,14 @@ class MetaViewerWidget(QDockWidget):
     higher.
     """
 
+    class scifloat(float):
+        """Allow to edit scientific notation via this helper class."""
+
+        def __new__(cls, value):
+            """Behave like float with a different name."""
+            instance = super().__new__(cls, value)
+            return instance
+
     class EditableDelegate(QStyledItemDelegate):
         """
         Custom delegate for editable items in a view.
@@ -429,48 +440,37 @@ class MetaViewerWidget(QDockWidget):
                 editor.setStyleSheet("QCheckBox { border: none; padding: 0px; }")
             elif cast_type[0] is int:
                 editor = QSpinBox(parent)
-                if not cast_spec:
-                    # unbounded
-                    editor.setRange(-int(1e9), int(1e9))
-                elif len(cast_spec) == 1:
-                    # lower bound
-                    editor.setRange(cast_spec[0], int(1e9))
-                elif len(cast_spec) == 2:
-                    # lower and upper bound
-                    editor.setRange(cast_spec[0], cast_spec[1])
-                elif len(cast_spec) == 3:
-                    # lower and upper bound and step
-                    editor.setRange(cast_spec[0], cast_spec[1])
-                    editor.setSingleStep(cast_spec[2])
-                else:
-                    # unbounded and something is wrong with config
-                    # raise error?
-                    editor.setRange(-int(1e9), int(1e9))
+                min_val = cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else MIN_INT64
+                max_val = cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else MAX_INT64
+                editor.setRange(min_val, max_val)
                 editor.setStyleSheet("QSpinBox { border: none; padding: 0px; }")
                 editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
             elif cast_type[0] is float:
                 editor = QDoubleSpinBox(parent)
                 if cast_type[1]:
                     editor.setDecimals(cast_type[1])
-                if not cast_spec:
-                    # unbounded
-                    editor.setRange(-1e9, 1e9)
-                elif len(cast_spec) == 1:
-                    # lower bound
-                    editor.setRange(cast_spec[0], 1e9)
-                elif len(cast_spec) == 2:
-                    # lower and upper bound
-                    editor.setRange(cast_spec[0], cast_spec[1])
-                elif len(cast_spec) == 3:
-                    # lower and upper bound and step
-                    editor.setRange(cast_spec[0], cast_spec[1])
-                    editor.setSingleStep(cast_spec[2])
-                else:
-                    # unbounded and something is wrong with config
-                    # raise error?
-                    editor.setRange(-1e9, 1e9)
+                min_val = (
+                    cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else -sys.float_info.max
+                )
+                max_val = (
+                    cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else sys.float_info.max
+                )
+                editor.setRange(min_val, max_val)
                 editor.setStyleSheet("QDoubleSpinBox { border: none; padding: 0px; }")
                 editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+            elif cast_type[0] is MetaViewerWidget.scifloat:
+                editor = QLineEdit(parent)
+                scifloat_validator = validator[float]
+                if cast_type[1]:
+                    scifloat_validator.setDecimals(cast_type[1])
+                min_val = (
+                    cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else -sys.float_info.max
+                )
+                max_val = (
+                    cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else sys.float_info.max
+                )
+                scifloat_validator.setRange(min_val, max_val)
+                editor.setValidator(scifloat_validator)
             elif cast_type[0] is str and cast_spec in ["file", "folder"]:
 
                 def cb(value):
@@ -556,6 +556,8 @@ class MetaViewerWidget(QDockWidget):
                 value = editor.currentText()
             elif isinstance(editor, (QSpinBox, QDoubleSpinBox)):
                 value = editor.value()
+            elif isinstance(editor, QLineEdit):
+                value = float(editor.text())
             index.model().setData(index, value, Qt.ItemDataRole.EditRole)
 
         def sizeHint(self, option, index):
@@ -617,13 +619,16 @@ class MetaViewerWidget(QDockWidget):
             cast_split = cast_type_spec.split(";;")
             try:
                 # make sure type is interpreted correctly
-                cast_type = (globals()["__builtins__"][cast_split[0]], None)
+                if cast_split[0] == "scifloat":
+                    cast_type = (MetaViewerWidget.scifloat, None)
+                else:
+                    cast_type = (globals()["__builtins__"][cast_split[0]], None)
             except AttributeError:
                 raise AttributeError("Wrong type specified in config")
             if len(cast_split) == 1:
                 # only type is specified
                 return (cast_type, None)
-            if cast_type[0] is float:
+            if cast_type[0] in (float, MetaViewerWidget.scifloat):
                 # on float, second parameter can be number of digits
                 try:
                     cast_type = (cast_type[0], int(cast_split[1]))
