@@ -353,7 +353,10 @@ def makeSCPIdevice(*cmds, system=True):
             else:
                 kwargs["check_set_errors"] = True
                 # cast not valid kwarg for Instrument.setting
-                del kwargs["cast"]
+                if "cast" in kwargs:
+                    del kwargs["cast"]
+                if "get_process" in kwargs:
+                    del kwargs["get_process"]
                 attributes[att] = Instrument.setting(
                     name + f" {stringplaceholder}", f"set {att}", **kwargs
                 )

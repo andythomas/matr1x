@@ -278,14 +278,14 @@ class guiObject(IntEnum):
     @classmethod
     def _create_spinbox_widget(cls, init):
         sb = QSpinBox()
-        if init is not None:
+        if init is not None and len(init) == 2:
             sb.setRange(*init)
         return sb
 
     @classmethod
     def _create_doublespinbox_widget(cls, init):
         sb = QDoubleSpinBox()
-        if init is not None:
+        if init is not None and len(init) == 2:
             sb.setRange(*init)
         return sb
 
