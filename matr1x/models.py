@@ -79,6 +79,7 @@ class Matr1xInstallConfig(BaseModel):
     options: list[str] | None = None
     pip_options: str
     root_path: Path
+    monaco: str
 
 
 class Matr1xDevicesVisadeviceConfig(BaseModel):
@@ -97,6 +98,15 @@ class Matr1xDevicesConfig(BaseModel):
     visadevice: Matr1xDevicesVisadeviceConfig
 
 
+class Matr1xScriptsMatrix_ScriptShortcutsConfig(BaseModel):
+    """Allow validation of [matr1x.scripts.matrix-script.shortcuts]."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    line_comment_display: str
+    line_comment_shortcut: str
+
+
 class Matr1xScriptsMatrix_ScriptConfig(BaseModel):
     """Allow validation of [matr1x.scripts.matrix-script]."""
 
@@ -106,6 +116,7 @@ class Matr1xScriptsMatrix_ScriptConfig(BaseModel):
     store_script_in_datafile: bool
     duplicate_output_to_logfile: bool
     print_to_comment: bool
+    shortcuts: Matr1xScriptsMatrix_ScriptShortcutsConfig
 
 
 class Matr1xScriptsConfig(BaseModel):

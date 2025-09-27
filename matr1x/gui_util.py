@@ -47,6 +47,7 @@ from PyQt6.QtCore import (
     PYQT_VERSION_STR,
     QT_VERSION_STR,
     QAbstractItemModel,
+    QEvent,
     QLibraryInfo,
     QLocale,
     QModelIndex,
@@ -66,6 +67,7 @@ from PyQt6.QtGui import (
     QIntValidator,
     QKeySequence,
     QPainter,
+    QPalette,
     QPixmap,
     QPolygon,
 )
@@ -3882,8 +3884,45 @@ def create_tray_notification(title: str, message: str, instance) -> None:
     instance._tray_icon.showMessage(title, message, QSystemTrayIcon.MessageIcon.Warning)
 
 
+class ThemeDetector(QWidget):
+    """
+    Hidden widget that detects theme changes.
+
+    This is required because a QWidget receives different signals than
+    the QApplication.
+    """
+
+    isDarkSignal = pyqtSignal(bool)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.hide()
+        self._is_dark = QTextEdit().palette().color(QPalette.ColorRole.Text).value() > 128
+
+    def isDark(self) -> bool:
+        """
+        Return the desktop theme (Light or Dark).
+
+        Returns
+        -------
+        bool
+            Desktop dark (True) or Light (False).
+        """
+        return self._is_dark
+
+    def changeEvent(self, event) -> None:
+        """Detect theme change event."""
+        if event.type() == QEvent.Type.PaletteChange:
+            self._is_dark = QTextEdit().palette().color(QPalette.ColorRole.Text).value() > 128
+            self.isDarkSignal.emit(self._is_dark)
+        super().changeEvent(event)
+
+
 class MApplication(QApplication):
     """Fix GUI related issues for all applications."""
+
+    isDarkSignal = pyqtSignal(bool)
+    isDark = property(lambda self: self._theme_detector.isDark())
 
     def _list_platform_plugins(self) -> Sequence[str]:
         """
@@ -3920,6 +3959,9 @@ class MApplication(QApplication):
             if "QT_QPA_PLATFORM" not in os.environ and "xcb" in self._list_platform_plugins():
                 os.environ["QT_QPA_PLATFORM"] = "xcb"
         super().__init__(args)
+
+        self._theme_detector = ThemeDetector()
+        self._theme_detector.isDarkSignal.connect(self.isDarkSignal.emit)
 
     def toolbar_icon_size(self) -> int:
         """
@@ -4095,3 +4137,27 @@ def open_matrix_toml() -> None:
         subprocess.run(["open", "-R", toml_home])
     else:
         subprocess.run(["xdg-open", toml_home])
+
+
+def find_parent_of_type(widget: QWidget, cls: type[QWidget]) -> QWidget | None:
+    """
+    Return first ancestor of `widget` that is an instance of `cls`.
+
+    Parameters
+    ----------
+    widget: QWidget
+        The widget to start the search from.
+    cls: type[QWidget]
+        The class to search for.
+
+    Returns
+    -------
+    QWidget or None
+        The first ancestor of 'widget' that is an instance of 'cls'.
+    """
+    w = widget
+    while w is not None:
+        if isinstance(w, cls):
+            return w
+        w = w.parentWidget()
+    return None

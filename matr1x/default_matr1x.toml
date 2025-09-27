@@ -11,6 +11,10 @@ store_script_in_datafile = false
 duplicate_output_to_logfile = false
 print_to_comment = false
 
+[matr1x.scripts.matrix-script.shortcuts]
+line_comment_display = "Ctrl+/"
+line_comment_shortcut = "Ctrl+/"
+
 [matr1x.systems.system_dummy_feature._types]
 setting1 = "str;;strict;;CURR;;VOLT"
 setting2 = "bool"
@@ -40,3 +44,4 @@ root_path = "core_library/"
 create_directories = false
 desktopintegration = true
 pip_options = "-q"
+monaco = "https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.53.0.tgz"

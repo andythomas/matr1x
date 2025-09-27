@@ -24,15 +24,14 @@ dependencies = [
     "pyobjc ; platform_system == 'Darwin'",          # imported via util
     "pandas >= 1.0.0",                               # imported via eval,
     "psutil",                                        # imported via control/util
-    "pyflakes",                                      # needed for GUI apps
-    "autopep8",                                      # needed for GUI apps
     "pyqtgraph >= 0.11.0",                           # needed for GUI apps
     "PyQt6",                                         # needed for GUI apps
     "PyQt6 >= 6.5.0 ; platform_system == 'Windows'", # needed for GUI apps
-    "PyQt6-QScintilla",                              # needed for GUI apps
+    "PyQt6-WebEngine",                               # needed for GUI apps
     "pygit2 >= 1.16",                                # needed for GUI apps
     "wrapt",                                         # needed for GUI apps
     "urwid>2.0",                                     # needed for GUI apps
+    "ruff>=0.13.0",                                  # needed for matrix script
     "pymeasure",                                     # shared by several device drivers
     "pyserial",                                      # shared by several device drivers
     "pyvisa",                                        # shared by several device drivers
@@ -65,6 +64,9 @@ homepage = "https://github.com/andythomas/IFW_software"
 requires = ["flit_core >=3.6,<4"]
 build-backend = "flit_core.buildapi"
 
+[tool.flit.external-data]
+directory = "matr1x/resources" # includes the code editor
+
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
 env = [
@@ -76,7 +78,6 @@ dev = [
     "pre-commit>=4.3.0",
     "pytest>=8.4.1",
     "pytest-env>=1.1.5",
-    "ruff>=0.13.0",
     "ty>=0.0.1-alpha.20",
     "sphinx>=7.4.7",
 ]

@@ -27,9 +27,9 @@ from pathlib import Path
 import matr1x.eval
 import matr1x.util
 import numpy as np
-import pyflakes.api
 import pytest
 from matr1x import output_extension
+from matr1x.editor import Linter
 
 path = Path(__file__).resolve().parent
 
@@ -167,16 +167,17 @@ def test_matrix_dummy_hdf5():
     assert d["timeUTC"].shape == (10,)  # check shape of dataset
 
 
-def test_matrix_script_pyflakes():
+def test_matrix_script_ruff():
     """
-    Test matrix script functionality with pyflakes.
+    Test matrix script functionality with ruff.
 
-    Tests running a matrix script through pyflakes for syntax checking.
-    Prepares test environment with dummy functions and runs script validation.
+    Tests running a matrix script through ruff for syntax checking.
+    Prepares test environment with dummy functions and runs script
+    validation.
 
     Asserts
     -------
-    pyflakes returns 0 (no errors)
+    ruff returns 0 (no errors)
     """
     # prepares and runs a test script in the same fashion as done by
     # matrix_script, code is partially duplicated but should not require
@@ -186,7 +187,27 @@ def test_matrix_script_pyflakes():
         user_script = f.read()
     script = matr1x.util.generate_script(user_script)
     print(script)
-    ret = pyflakes.api.check(script, "sc")
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py") as temp_file:
+        temp_file.write(script)
+        temp_file_path = temp_file.name
+
+        result = subprocess.run(
+            [
+                "ruff",
+                "check",
+                "--select",
+                ",".join(Linter.RUFF_RULES),
+                "--no-cache",
+                temp_file_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        ret = result.returncode
+        print(result.stdout)
+        print(result.stderr)
     assert ret == 0
 
 
@@ -248,3 +269,17 @@ def test_empty_script():
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
+
+
+def test_monaco_install():
+    """
+    Test if the editor IDE was properly installed.
+
+    Test that the loader file exists.
+
+    Asserts
+    -------
+    The file exists.
+    """
+    loader = path / ".." / "matr1x" / "resources" / "monaco" / "vs" / "loader.js"
+    assert loader.exists()

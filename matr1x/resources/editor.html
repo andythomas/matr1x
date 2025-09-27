@@ -1,0 +1,297 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <style>
+            html,
+            body,
+            #container {
+                margin: 0;
+                padding: 0;
+                height: 100%;
+                width: 100%;
+                overflow: hidden;
+            }
+
+            .highlighted-line {
+                background-color: var(--highlight-bg) !important;
+            }
+
+            .highlighted-line-decoration {
+                background-color: var(--highlight-border) !important;
+                width: 4px !important;
+            }
+        </style>
+
+        <!-- QWebChannel for Python communication -->
+        <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+
+        <!-- Monaco loader -->
+        <script src="monaco/vs/loader.js"></script>
+
+        <script>
+            let editor;
+            let linter;
+            let editorBackend;
+            let currentDiagnostics = [];
+            let lintingTimeout = null;
+            let isModified = false;
+
+            new QWebChannel(qt.webChannelTransport, function (channel) {
+                linter = channel.objects.linter;
+                editorBackend = channel.objects.editor_backend;
+
+                // Listen for linting results
+                linter.lintingComplete.connect(function (diagnosticsJson) {
+                    const diagnostics = JSON.parse(diagnosticsJson);
+                    updateEditorDiagnostics(diagnostics);
+                });
+
+                console.log(
+                    "QWebChannel initialized, linter and editor backend connected",
+                );
+            });
+
+            require.config({ paths: { vs: "monaco/vs" } });
+
+            require(["vs/editor/editor.main"], function () {
+                editor = monaco.editor.create(
+                    document.getElementById("container"),
+                    {
+                        value: "",
+                        language: "python",
+                        theme: "vs-light",
+                        automaticLayout: true,
+                        minimap: {
+                            enabled: false,
+                        },
+                        scrollBeyondLastLine: false,
+                        fontSize: 14,
+                        lineHeight: 21,
+                        renderWhitespace: "boundary",
+                        // Tab completion settings
+                        acceptSuggestionOnEnter: "on",
+                        acceptSuggestionOnCommitCharacter: true,
+                        suggestOnTriggerCharacters: true,
+                        quickSuggestions: {
+                            other: true,
+                            comments: true,
+                            strings: true,
+                        },
+                        wordBasedSuggestions: "allDocuments",
+                        tabCompletion: "on",
+                    },
+                );
+
+                // Register custom completion provider
+                const customCompletions = [
+                    "system",
+                    "meta_data",
+                    "meta_data['creator']",
+                    "meta_data['identifier']",
+                    "meta_data['relation']",
+                    "meta_data['description']",
+                    "devs",
+                    "wait(duration: float = None, until: str | datetime = None, message: str = '', silent: float = 10)",
+                    "end_script(finished: bool = None)",
+                    "input(query: str = '', timeout: float = float('inf'), default_value: str = '')",
+                    "input_bool(query: str = '', timeout: float = float('inf'), default_value: str = 'yes')",
+                    "input_numerical(query: str = '', timeout: float = float('inf'), default_value: float = 0.0, min_value: float=-100e9, max_value: float=100e9, step: float=1.0, decimals: int=2)",
+                    "init_datafile(filename: str, comment: str = '', append: bool = False, print_header: bool = True, ntot: int = None)",
+                    "measure_system(print_setpoint: bool = True, print_data: bool = True, print_telemetry: bool = True)",
+                    "set_value(value_index: int, value)",
+                    "set_value(name: str, value)",
+                    "read_value(value_index: int)",
+                    "read_value(name: str)",
+                    "trigger_value(value_index: int)",
+                    "trigger_value(name: str)",
+                ];
+
+                monaco.languages.registerCompletionItemProvider("python", {
+                    provideCompletionItems: function (model, position) {
+                        const word = model.getWordUntilPosition(position);
+                        const range = {
+                            startLineNumber: position.lineNumber,
+                            endLineNumber: position.lineNumber,
+                            startColumn: word.startColumn,
+                            endColumn: word.endColumn,
+                        };
+
+                        const suggestions = customCompletions.map((item) => ({
+                            label: item,
+                            kind: item.includes("(")
+                                ? monaco.languages.CompletionItemKind.Function
+                                : monaco.languages.CompletionItemKind.Property,
+                            insertText: item,
+                            range: range,
+                        }));
+
+                        return { suggestions };
+                    },
+                });
+
+                // Set up automatic linting on content changes
+                let changeTimeout;
+                editor.onDidChangeModelContent(() => {
+                    // Mark as modified whenever content changes
+                    setModified(true);
+
+                    // Clear previous timeout
+                    if (changeTimeout) {
+                        clearTimeout(changeTimeout);
+                    }
+
+                    // Avoid too frequent calls
+                    changeTimeout = setTimeout(() => {
+                        triggerLinting();
+                    }, 1000); // Wait 1 second after last change
+                });
+
+                // Initial linting
+                setTimeout(() => {
+                    triggerLinting();
+                }, 500);
+
+                // Make editor globally available
+                window.editor = editor;
+                window.triggerLinting = triggerLinting;
+
+                console.log("Monaco Editor initialized");
+            });
+
+            function triggerLinting() {
+                if (!linter || !editor) {
+                    console.log("Linter or editor not ready");
+                    return;
+                }
+
+                const code = editor.getValue();
+                console.log("Triggering linting for code length:", code.length);
+
+                linter.lint_code(code);
+            }
+
+            function updateEditorDiagnostics(diagnostics) {
+                if (!editor) return;
+
+                monaco.editor.setModelMarkers(
+                    editor.getModel(),
+                    "ruff",
+                    diagnostics,
+                );
+                currentDiagnostics = diagnostics;
+                console.log(
+                    `Updated editor diagnostics: ${diagnostics.length} issues`,
+                );
+            }
+
+            // Global functions for external access
+            window.getLintingResults = function () {
+                return currentDiagnostics;
+            };
+
+            window.setEditorContent = function (content) {
+                if (editor) {
+                    editor.setValue(content);
+                    setTimeout(triggerLinting, 100);
+                }
+            };
+
+            window.getEditorContent = function () {
+                return editor ? editor.getValue() : "";
+            };
+
+            // Function to set modification state
+            function setModified(modified) {
+                if (modified !== isModified) {
+                    isModified = modified;
+                    console.log(
+                        "Content modification state changed:",
+                        isModified,
+                    );
+                    if (editorBackend) {
+                        editorBackend.content_changed(isModified);
+                    }
+                }
+            }
+
+            // Function to set modification state from Python
+            window.setModificationState = function (modified) {
+                setModified(modified);
+            };
+
+            // Function to check if content is modified (for external access)
+            window.isModified = function () {
+                return isModified;
+            };
+
+            // Line highlighting utility functions
+            window.highlightLine = function (lineNumber) {
+                if (!editor) return;
+
+                // Remove existing line highlighting
+                if (window.currentLineHighlight) {
+                    window.currentLineHighlight = editor.deltaDecorations(
+                        window.currentLineHighlight,
+                        [],
+                    );
+                }
+
+                // Get theme colors
+                const theme = editor._themeService.getColorTheme();
+                const backgroundColor =
+                    theme.getColor("editor.lineHighlightBackground") ||
+                    theme.getColor("editor.selectionHighlightBackground");
+                const borderColor =
+                    theme.getColor("editorLineNumber.activeForeground") ||
+                    theme.getColor("focusBorder");
+
+                // Update CSS variables with theme colors
+                document.documentElement.style.setProperty(
+                    "--highlight-bg",
+                    backgroundColor,
+                );
+                document.documentElement.style.setProperty(
+                    "--highlight-border",
+                    borderColor,
+                );
+
+                // Add new line highlighting using theme colors
+                window.currentLineHighlight = editor.deltaDecorations(
+                    [],
+                    [
+                        {
+                            range: new monaco.Range(
+                                lineNumber,
+                                1,
+                                lineNumber,
+                                1,
+                            ),
+                            options: {
+                                isWholeLine: true,
+                                className: "highlighted-line",
+                                linesDecorationsClassName:
+                                    "highlighted-line-decoration",
+                            },
+                        },
+                    ],
+                );
+
+                // Scroll to the highlighted line
+                editor.revealLineInCenter(lineNumber);
+            };
+
+            window.clearLineHighlight = function () {
+                if (editor && window.currentLineHighlight) {
+                    window.currentLineHighlight = editor.deltaDecorations(
+                        window.currentLineHighlight,
+                        [],
+                    );
+                }
+            };
+        </script>
+    </head>
+    <body>
+        <div id="container"></div>
+    </body>
+</html>

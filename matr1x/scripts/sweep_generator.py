@@ -133,6 +133,7 @@ class QLabelWithColor(QLabel):
         self.color_bright = "#DCF5D4"
         self.color_dark = "#325725"
         self._update_colors()
+        get_application_instance().isDarkSignal.connect(self._update_colors)
 
     def _update_colors(self) -> None:
         """Change color while avoiding recursion."""
@@ -154,13 +155,6 @@ class QLabelWithColor(QLabel):
         else:
             self.setStyleSheet(self.stylesheet_bright)
         self.updating_stylesheet = False
-
-    def changeEvent(self, a0):
-        """Detect palette changes such as dark and bright mode desktops."""
-        if a0 is not None:
-            if a0.type() == QEvent.Type.PaletteChange and not self.updating_stylesheet:
-                self._update_colors()
-        return super().changeEvent(a0)
 
     def mousePressEvent(self, ev):
         """
