@@ -49,6 +49,7 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
+    FileDropMixin,
     MApplication,
     MetaDataDialog,
     check_config,
@@ -349,7 +350,7 @@ class GuiThread(QThread):
         return ret
 
 
-class MainWindow(QMainWindow):
+class MainWindow(QMainWindow, FileDropMixin):
     """Define layout, runs everything."""
 
     def __init__(self):
@@ -361,16 +362,9 @@ class MainWindow(QMainWindow):
         self.measurement_thread = GuiThread()
         self.measurement_thread.filename_received.connect(self.handle_received_filename)
         self.measurement_thread.finished.connect(self.processFinished)
-
-        # allow to store the settings
+        self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
+        self.file_dropped.connect(lambda file: self.input_file.setText(file))
         self.settings = QSettings("matr1x", "gui")
-
-        # Define the allowed extension pattern
-        self.allowed_extension_pattern = re.compile(r"\.\d+t$")
-        # Enable dragging and dropping onto the widget
-        self.setAcceptDrops(True)
-
-        # Initialize cache for system information
         self._cached_system_info = None
 
     def handle_received_filename(self, filename: str) -> None:
@@ -384,46 +378,6 @@ class MainWindow(QMainWindow):
         """
         self.current_file.setText(filename)
         self.preview_action.setEnabled(True)
-
-    def is_valid_extension(self, file_path):
-        """Return True if extension is valid."""
-        pattern = re.compile(r"\.\d+t$")
-        # remove old pattern with next major update
-        if pattern.search(file_path) is not None:
-            return True
-        elif ".sw8" in file_path:
-            return True
-        else:
-            return False
-
-    def dragEnterEvent(self, a0):
-        """Enable drag and drop (1)."""
-        if a0 is not None:
-            mimedata = a0.mimeData()
-            if mimedata is not None:
-                if mimedata.hasUrls():
-                    a0.acceptProposedAction()
-                else:
-                    a0.ignore()
-
-    def dropEvent(self, a0):
-        """Enable drag and drop(2)."""
-        if a0 is not None:
-            mimedata = a0.mimeData()
-            if mimedata is not None:
-                urls = mimedata.urls()
-                if len(urls) == 1:
-                    file_path = urls[0].toLocalFile()
-                    if self.is_valid_extension(file_path):
-                        self.input_file.setText(file_path)
-                    else:
-                        QMessageBox.warning(
-                            self,
-                            "Invalid File",
-                            "Only files with extensions matching .<number>t are supported.",
-                        )
-                else:
-                    QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
 
     def closeEvent(self, a0):
         """Close app properly."""

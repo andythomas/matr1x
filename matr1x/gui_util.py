@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -37,7 +38,7 @@ from collections.abc import Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
 from types import TracebackType
-from typing import Any, TextIO
+from typing import Any, TextIO, cast
 
 import numpy as np
 import pygit2
@@ -50,6 +51,7 @@ from PyQt6.QtCore import (
     QEvent,
     QLibraryInfo,
     QLocale,
+    QMimeData,
     QModelIndex,
     QObject,
     QPoint,
@@ -60,6 +62,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QColor,
     QDoubleValidator,
+    QDragEnterEvent,
     QDropEvent,
     QFontDatabase,
     QIcon,
@@ -4137,6 +4140,62 @@ def open_matrix_toml() -> None:
         subprocess.run(["open", "-R", toml_home])
     else:
         subprocess.run(["xdg-open", toml_home])
+
+
+class FileDropMixin:
+    """Enable drag and drop of a file for QWidgets."""
+
+    file_dropped = pyqtSignal(str)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.valid_extensions: list = []
+        self.setAcceptDrops(True)
+
+    def setAcceptDrops(self, on: bool) -> None:
+        """Has to be provided by second parent (a QWidget)."""
+        ...
+
+    def setValidExtensions(self, valid_extensions: list[str | re.Pattern]) -> None:
+        """
+        Set the valid extensions.
+
+        Parameters
+        ----------
+        valid_extensions: list[str | re.Pattern]
+            A list where each element is either a string or a compiled!
+            RegEx pattern.
+        """
+        self.valid_extensions = valid_extensions
+
+    def dragEnterEvent(self, a0: QDragEnterEvent) -> None:
+        """Enable drag and drop (1)."""
+        mimedata = cast(QMimeData, a0.mimeData())
+        if mimedata.hasUrls():
+            a0.acceptProposedAction()
+        else:
+            a0.ignore()
+
+    def dropEvent(self, a0: QDropEvent) -> None:
+        """Enable drag and drop (2)."""
+        mimedata = cast(QMimeData, a0.mimeData())
+        urls = mimedata.urls()
+        if len(urls) != 1:
+            QMessageBox.warning(None, "Too many Files", "Please only drop a single file.")
+            return
+        suffix = Path(urls[0].toLocalFile()).suffix
+        for extension in self.valid_extensions:
+            if (isinstance(extension, re.Pattern) and extension.match(suffix)) or (
+                isinstance(extension, str) and suffix == extension
+            ):
+                self.file_dropped.emit(urls[0].toLocalFile())  # type: ignore
+                a0.acceptProposedAction()
+                return
+        QMessageBox.warning(
+            None,
+            "Invalid File",
+            "Unsupported file dropped.",
+        )
 
 
 def find_parent_of_type(widget: QWidget, cls: type[QWidget]) -> QWidget | None:

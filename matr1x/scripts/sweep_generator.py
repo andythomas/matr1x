@@ -63,6 +63,7 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.gui_util import (
     AboutBox,
     CustomViewBox,
+    FileDropMixin,
     MApplication,
     SystemListWidget,
     check_config,
@@ -305,7 +306,7 @@ class SweepPreviewPopup(QDialog):
         )
 
 
-class MainWindow(QMainWindow):
+class MainWindow(QMainWindow, FileDropMixin):
     """
     Define main layout, run everything.
 
@@ -364,15 +365,16 @@ class MainWindow(QMainWindow):
         # initialize generic (system independent) part of ui
         self.outputList = None
         self.populated = False
-
-        # Enable dragging and dropping onto the widget
-        self.setAcceptDrops(True)
         self.init_ui()
+
         # If filename is passed as command line argument
         if filename is not None:
             if self.is_valid_extension(filename):
                 self.open_file(filename)
                 self.last_filename = filename
+
+        self.setValidExtensions([self.extension])
+        self.file_dropped.connect(lambda file: self.open_file(Path(file)))
 
     def closeEvent(self, a0):
         """
@@ -614,41 +616,14 @@ class MainWindow(QMainWindow):
     def is_valid_extension(self, file_path: Path) -> bool:
         """Return True if extension is valid."""
         pattern = re.compile(r"\.\d+t$")
-        # remove old pattern with next major update, i.e. Matrix v9
+        # remove this method with next major update, i.e. Matrix v9
+        # also simplifies FileDropMixin
         if pattern.search(str(file_path)) is not None:
             return True
         elif file_path.suffix == self.extension:
             return True
         else:
             return False
-
-    def dragEnterEvent(self, event):
-        """Enable drag and drop (1)."""
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        """Enable drag and drop (2)."""
-        urls = event.mimeData().urls()
-        if len(urls) == 1:
-            file_path = Path(urls[0].toLocalFile())
-            if self.is_valid_extension(file_path):
-                self.open_file(file_path)
-            else:
-                warning_text = (
-                    "Only files with extensions matching .<number>t "
-                    f"or {self.extension} are supported."
-                )
-                QMessageBox.warning(
-                    self,
-                    "Invalid File",
-                    # remove old pattern with next major update
-                    warning_text,
-                )
-        else:
-            QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
 
     def reset_layout(self) -> None:
         """Reset layout to clean state."""

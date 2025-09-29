@@ -58,6 +58,7 @@ from matr1x.control.util import QtGracefulKiller
 from matr1x.eval import loadmatrix
 from matr1x.gui_util import (
     AboutBox,
+    FileDropMixin,
     MApplication,
     check_config,
     get_application_instance,
@@ -128,7 +129,7 @@ class UpdateThread(QThread):
         self.stopFlag = True
 
 
-class SweepPreview(QMainWindow):
+class SweepPreview(QMainWindow, FileDropMixin):
     """
     Data viewer for matrix files.
 
@@ -194,42 +195,8 @@ class SweepPreview(QMainWindow):
         # initialize filename if available
         if filename:
             self.open_file(filename)
-
-    def is_valid_extension(self, file_path: Path) -> bool:
-        """Return True if extension is valid."""
-        return file_path.suffix in self.allowed_extensions
-
-    def dragEnterEvent(self, a0):
-        """Enable drag and drop (1)."""
-        if a0 is not None:
-            mimedata = a0.mimeData()
-            if mimedata is not None:
-                if mimedata.hasUrls():
-                    a0.acceptProposedAction()
-                else:
-                    a0.ignore()
-
-    def dropEvent(self, a0):
-        """Enable drag and drop(2)."""
-        if a0 is not None:
-            mimedata = a0.mimeData()
-            if mimedata is not None:
-                urls = mimedata.urls()
-                if len(urls) == 1:
-                    file_path = Path(urls[0].toLocalFile())
-                    if self.is_valid_extension(file_path):
-                        self.open_file(file_path)
-                    else:
-                        QMessageBox.warning(
-                            self,
-                            "Invalid File",
-                            (
-                                "Only files with extensions"
-                                f" {', '.join(self.allowed_extensions)} are supported."
-                            ),
-                        )
-                else:
-                    QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
+        self.setValidExtensions(list(self.allowed_extensions))
+        self.file_dropped.connect(lambda file: self.open_file(Path(file)))
 
     def _get_maximum_screen_width(self):
         """Determine width of the biggest available screen."""
@@ -284,7 +251,7 @@ class SweepPreview(QMainWindow):
     def file_list_refresh(self):
         """Refresh all files with the correct extension in the selected directory."""
         files = self.file_dir.iterdir()
-        self.data_files = [file.name for file in files if self.is_valid_extension(file)]
+        self.data_files = [file.name for file in files if file.suffix in self.allowed_extensions]
         self.data_files = sorted(
             self.data_files,
             key=lambda t: (self.file_dir / t).stat().st_mtime,
@@ -366,8 +333,6 @@ class SweepPreview(QMainWindow):
         pyqtgraph.setConfigOption("background", "w")
         pyqtgraph.setConfigOption("foreground", "k")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        # Enable dragging and dropping onto the widget
-        self.setAcceptDrops(True)
         self.grid = QGridLayout()
         self.widget = QWidget()
         self.w_status = QLabel("")

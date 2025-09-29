@@ -35,12 +35,11 @@ from PyQt6.QtCore import (
     pyqtSignal,
     pyqtSlot,
 )
-from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineCore import QWebEnginePage  # ty: ignore[unresolved-import], stub incomplete?
 from PyQt6.QtWebEngineWidgets import QWebEngineView  # ty: ignore[unresolved-import], same
 
-from matr1x.gui_util import get_application_instance
+from matr1x.gui_util import FileDropMixin, get_application_instance
 from matr1x.util import (
     generate_script,
     generate_script_prefix_suffix,
@@ -430,11 +429,11 @@ class EditorBackend(QObject):
         self._is_modified = modified
 
 
-class CodeEditor(QWebEngineView):
+# again, PyQt defines in QWidget and QWebEngineView variables differently
+class CodeEditor(QWebEngineView, FileDropMixin):  # type: ignore
     """Code editor connected to Monaco."""
 
     contentModified = pyqtSignal(bool)
-    fileDropped = pyqtSignal(str)
 
     ZOOM_STEP = 0.1
     MIN_ZOOM = 0.1
@@ -445,7 +444,7 @@ class CodeEditor(QWebEngineView):
         "High contrast": {"Light high contrast": "hc-light", "Dark high contrast": "hc-black"},
     }
 
-    def __init__(self):
+    def __init__(self, extensions: list):
         super().__init__()
         self.channel = QWebChannel()
         self.linter = Linter(self)
@@ -462,30 +461,7 @@ class CodeEditor(QWebEngineView):
         self.setAcceptDrops(True)
         self._current_theme: str
         get_application_instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
-
-    # make drag-n-drop things more general to avoid code duplications?
-    def dragEnterEvent(self, a0: QDragEnterEvent):
-        """Enable drag and drop (1)."""
-        if a0 is not None:
-            mimedata = a0.mimeData()
-            if mimedata is not None:
-                if mimedata.hasUrls():
-                    a0.acceptProposedAction()
-                else:
-                    a0.ignore()
-
-    def dropEvent(self, a0: QDropEvent) -> None:
-        """Enable drag and drop (2)."""
-        if a0 is not None:
-            mimedata = a0.mimeData()
-            if mimedata is not None:
-                urls = mimedata.urls()
-                if len(urls) == 1 and urls[0].isLocalFile():
-                    file_path = urls[0].toLocalFile()
-                    if file_path.endswith(".matrix"):
-                        self.fileDropped.emit(file_path)
-                        a0.acceptProposedAction()
-                        return
+        self.setValidExtensions(extensions)
 
     def setPlainText(self, code: str) -> None:
         """

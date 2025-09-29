@@ -73,6 +73,7 @@ from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
     EmittingStream,
+    FileDropMixin,
     MApplication,
     MetaDataDialog,
     NumericalInputDialog,
@@ -132,41 +133,12 @@ class Matr1xApplication(MApplication):
         return MApplication.event(self, event)
 
 
-class DroppableWidget(QWidget):
-    """Allow drag and drop of files."""
-
-    fileDropped = pyqtSignal(str)  # Custom signal to emit file path
+class CentralWidget(QWidget, FileDropMixin):
+    """Enable drag and drop of matrix files."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAcceptDrops(True)  # Enable drag and drop for this widget
-
-    def is_valid_extension(self, file_path):
-        """Check is extension is valid."""
-        return file_path.endswith(MainWindow.extension)
-
-    def dragEnterEvent(self, event):
-        """Enable drag and drop (1)."""
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        """Enable drag and drop (2)."""
-        urls = event.mimeData().urls()
-        if len(urls) == 1:
-            file_path = urls[0].toLocalFile()
-            if self.is_valid_extension(file_path):
-                self.fileDropped.emit(file_path)
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Invalid Action",
-                    f"Only files with {MainWindow.extension} extension can be dropped.",
-                )
-        else:
-            QMessageBox.warning(self, "Multiple Files", "Please drop only a single file.")
+        self.setValidExtensions([MainWindow.extension])
 
 
 class TerminalOutput(QTextEdit):
@@ -612,7 +584,7 @@ class MainWindow(QMainWindow):
         """Print the script."""
         # go via QTextEdit functions for better portability
         text_edit = QTextEdit()
-        text_edit.setText(self.script_edit.text())
+        text_edit.setText(self.script_edit.toPlainText())
         printer = QPrinter()
         print_dialog = QPrintDialog(printer, self)
         if print_dialog.exec():
@@ -901,8 +873,8 @@ class MainWindow(QMainWindow):
     def init_ui(self) -> None:
         """Generate the main GUI."""
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
-        self.central_widget = DroppableWidget(self)
-        self.central_widget.fileDropped.connect(self._load_file_from_signal)
+        self.central_widget = CentralWidget(self)
+        self.central_widget.file_dropped.connect(self._load_file_from_signal)
         self.setCentralWidget(self.central_widget)
         layout = QVBoxLayout(self.central_widget)
         layout.setSpacing(0)
@@ -934,9 +906,9 @@ class MainWindow(QMainWindow):
         self.system_list.orderChanged.connect(self.update_systems)
         self.status_preview = TerminalOutput()
         self.status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
-        self.script_edit = CodeEditor()
+        self.script_edit = CodeEditor(extensions=[self.extension])
         self.script_edit.contentModified.connect(self.update_window_title)
-        self.script_edit.fileDropped.connect(self._load_file_from_signal)
+        self.script_edit.file_dropped.connect(self._load_file_from_signal)
         self.create_actions()
         # initialize widgets in layout
         self.splitter = QSplitter(self)
@@ -2136,7 +2108,7 @@ class MainWindow(QMainWindow):
                     return
         self.systems_dirty = False
         self.last_filename = None
-        self.script_edit.clear()
+        self.script_edit.setPlainText("")
         self.script_edit.setModified(False)
 
 
