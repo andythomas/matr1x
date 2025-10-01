@@ -34,7 +34,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
 from types import TracebackType
@@ -4220,3 +4220,21 @@ def find_parent_of_type(widget: QWidget, cls: type[QWidget]) -> QWidget | None:
             return w
         w = w.parentWidget()
     return None
+
+
+def protected_restore(restore_settings: Callable[[], None]):
+    """
+    Allow settings-reload to savely fail.
+
+    Parameters
+    ----------
+    restore_settings: Callable() -> None
+        The method used for the restore.
+    """
+    try:
+        restore_settings()
+    except Exception as e:
+        print(
+            f"\n{e}\nRestoring the settings resulted in an unexpected issue. "
+            f"This caused all settings to be reset."
+        )

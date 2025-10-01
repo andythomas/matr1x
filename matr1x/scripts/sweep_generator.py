@@ -71,6 +71,7 @@ from matr1x.gui_util import (
     get_application_instance,
     get_matrix_icon,
     open_matrix_toml,
+    protected_restore,
     save_messagebox,
     validator,
 )
@@ -1429,6 +1430,6 @@ def main():
         else:
             mw = MainWindow(filename=Path(sys.argv[1]))
         mw.show()
-        mw.restore_window_state()
+        protected_restore(mw.restore_window_state)
         ret = app.exec()
     sys.exit(ret)

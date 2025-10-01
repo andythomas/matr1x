@@ -89,6 +89,7 @@ from matr1x.gui_util import (
     get_matrix_icon,
     get_system_info,
     open_matrix_toml,
+    protected_restore,
     save_messagebox,
 )
 from matr1x.scripts import matrix_preview
@@ -2128,7 +2129,7 @@ def main():
             sys.stdout = OutputDuplication(sys.stdout, prefix=appname)
             sys.stderr = OutputDuplication(sys.stderr, prefix=appname, fallbackname="stderr")
         ex.show()
-        ex.restore_window_state()
+        protected_restore(ex.restore_window_state)
         ret = app.exec()
     if config["duplicate_output_to_logfile"]:
         sys.stdout.close()

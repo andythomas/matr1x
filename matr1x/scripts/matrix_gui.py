@@ -58,6 +58,7 @@ from matr1x.gui_util import (
     get_matrix_icon,
     get_system_info,
     open_matrix_toml,
+    protected_restore,
 )
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
@@ -865,6 +866,6 @@ def main():
     with QtGracefulKiller():
         ex = MainWindow()
         ex.show()
-        ex.restore_window_state()
+        protected_restore(ex.restore_window_state)
         ret = app.exec()
     sys.exit(ret)

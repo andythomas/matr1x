@@ -64,6 +64,7 @@ from matr1x.gui_util import (
     get_application_instance,
     get_matrix_icon,
     open_matrix_toml,
+    protected_restore,
 )
 from matr1x.util import set_correct_mac_appname
 
@@ -1215,6 +1216,6 @@ def main():
         else:
             ex = SweepPreview(None, Path(sys.argv[1]))
         ex.show()
-        ex.restore_window_state()
+        protected_restore(ex.restore_window_state)
         ret = app.exec()
     sys.exit(ret)
