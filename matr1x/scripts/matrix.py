@@ -488,7 +488,7 @@ def main():
 
     # report filename to GUI if GUI is active and close socket
     if client_socket is not None:
-        client_socket.send(output_filename.encode())
+        client_socket.send(str(output_filename).encode())
         client_socket.close()
 
     # update the meta data with potential user input
