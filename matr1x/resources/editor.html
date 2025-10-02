@@ -85,26 +85,201 @@
 
                 // Register custom completion provider
                 const customCompletions = [
-                    "system",
-                    "meta_data",
-                    "meta_data['creator']",
-                    "meta_data['identifier']",
-                    "meta_data['relation']",
-                    "meta_data['description']",
-                    "devs",
-                    "wait(duration: float = None, until: str | datetime = None, message: str = '', silent: float = 10)",
-                    "end_script(finished: bool = None)",
-                    "input(query: str = '', timeout: float = float('inf'), default_value: str = '')",
-                    "input_bool(query: str = '', timeout: float = float('inf'), default_value: str = 'yes')",
-                    "input_numerical(query: str = '', timeout: float = float('inf'), default_value: float = 0.0, min_value: float=-100e9, max_value: float=100e9, step: float=1.0, decimals: int=2)",
-                    "init_datafile(filename: str, comment: str = '', append: bool = False, print_header: bool = True, ntot: int = None)",
-                    "measure_system(print_setpoint: bool = True, print_data: bool = True, print_telemetry: bool = True)",
-                    "set_value(value_index: int, value)",
-                    "set_value(name: str, value)",
-                    "read_value(value_index: int)",
-                    "read_value(name: str)",
-                    "trigger_value(value_index: int)",
-                    "trigger_value(name: str)",
+                    {
+                        label: "system",
+                        insertText: "system",
+                        kind: monaco.languages.CompletionItemKind.Property,
+                        documentation:
+                            "Represents the object of the current system.",
+                    },
+                    {
+                        label: "meta_data",
+                        insertText: "meta_data",
+                        kind: monaco.languages.CompletionItemKind.Property,
+                        documentation:
+                            "Dictionary containing metadata according to Dublin Core.",
+                    },
+                    {
+                        label: "meta_data['creator']",
+                        insertText: "meta_data['creator']",
+                        kind: monaco.languages.CompletionItemKind.Property,
+                        documentation:
+                            "The person performing this measurement.",
+                    },
+                    {
+                        label: "meta_data['identifier']",
+                        insertText: "meta_data['identifier']",
+                        kind: monaco.languages.CompletionItemKind.Property,
+                        documentation:
+                            "An identifier for the measurement, e.g. the sample name.",
+                    },
+                    {
+                        label: "meta_data['relation']",
+                        insertText: "meta_data['relation']",
+                        kind: monaco.languages.CompletionItemKind.Property,
+                        documentation:
+                            "Additonal information about the measurement identifier, e.g. an ancestor.",
+                    },
+                    {
+                        label: "meta_data['description']",
+                        insertText: "meta_data['description']",
+                        kind: monaco.languages.CompletionItemKind.Property,
+                        documentation:
+                            "Verbose information about the measurement.",
+                    },
+                    {
+                        label: "devs",
+                        insertText: "devs",
+                        kind: monaco.languages.CompletionItemKind.Property,
+                        documentation: "Dictionary of the connected devices.",
+                    },
+                    {
+                        label: "wait(duration, until, message, silent)",
+                        insertText:
+                            "wait(${1:0}, until=${2:None}, message='${3:}', silent=${4:10})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Wait for either a duration or until a timestamp. " +
+                            "Also acts as a breakpoint to pause and abort the execution." +
+                            "Print a message for wait period more than silent",
+                    },
+                    {
+                        label: "end_script(finished)",
+                        insertText: "end_script(finished=${1:None})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "End script and mark as finished (True) or aborted (False) or query user (None).",
+                    },
+                    {
+                        label: "input(query, timeout, default_value)",
+                        insertText:
+                            "input('${1:query}', timeout=${2:float('inf')}, default_value='${3}')",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Prompts the user for input with an optional timeout and default reply.",
+                    },
+
+                    {
+                        label: "input_bool(query, timeout, default_value)",
+                        insertText:
+                            "input_bool('${1:query}', timeout=${2:float('inf')}, default_value='${3:yes}')",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Prompts the user for a yes/no input with an optional timeout and default reply.",
+                    },
+                    {
+                        label: "input_numerical(query, timeout, default_value, min_value, max_value, step, decimals)",
+                        insertText:
+                            "input_numerical('${1:query}', timeout=${2:float('inf')}, default_value=${3:0.0}, min_value=${4:-100e9}, max_value=${5:100e9}, step=${6:1.0}, decimals=${7:2})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Prompts the user for numerical input with validation (min, max, step, decimals)" +
+                            "and optional an optional default value and timeout.",
+                    },
+                    {
+                        label: "init_datafile(filename, comment, append, print_header, ntot)",
+                        insertText:
+                            "init_datafile('${1:test}', comment='${2}', append=${3:False}, print_header=${4:True}, ntot=${5:None})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Initializes a new data file with optional comment, append mode, and header printing. The total entry count." +
+                            "is used to calculate the total measurement duration.",
+                    },
+                    {
+                        label: "measure_system(print_setpoint, print_data, print_telemetry)",
+                        insertText:
+                            "measure_system(print_setpoint=${1:True}, print_data=${2:True}, print_telemetry=${3:True})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Performs a system measurement with options to print setpoint, data, and telemetry.",
+                    },
+                    {
+                        label: "set_value(value_index, value)",
+                        insertText: "set_value(${1:0}, ${2:0})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Sets a system value by index (int)." +
+                            "Please use 'help/system' for more information.",
+                    },
+                    {
+                        label: "set_value(name, value)",
+                        insertText: "set_value('${1:column}', ${2:0})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Sets a system value by name (str)." +
+                            "Please use 'help/system' for more information.",
+                    },
+                    {
+                        label: "read_value(value_index)",
+                        insertText: "read_value(${1:0})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Reads a system value by index (int)." +
+                            "Please use 'help/system' for more information.",
+                    },
+                    {
+                        label: "read_value(name: str)",
+                        insertText: "read_value('${1:column}')",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Reads a system value by name (str)." +
+                            "Please use 'help/system' for more information.",
+                    },
+                    {
+                        label: "trigger_value(value_index)",
+                        insertText: "trigger_value(${1:0})",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Triggers a system value by index (int)." +
+                            "Please use 'help/system' for more information.",
+                    },
+                    {
+                        label: "trigger_value(name)",
+                        insertText: "trigger_value('${1:column}')",
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertTextRules:
+                            monaco.languages.CompletionItemInsertTextRule
+                                .InsertAsSnippet,
+                        documentation:
+                            "Triggers a system value by name (str)." +
+                            "Please use 'help/system' for more information.",
+                    },
                 ];
 
                 monaco.languages.registerCompletionItemProvider("python", {
@@ -118,12 +293,8 @@
                         };
 
                         const suggestions = customCompletions.map((item) => ({
-                            label: item,
-                            kind: item.includes("(")
-                                ? monaco.languages.CompletionItemKind.Function
-                                : monaco.languages.CompletionItemKind.Property,
-                            insertText: item,
-                            range: range,
+                            ...item,
+                            range,
                         }));
 
                         return { suggestions };

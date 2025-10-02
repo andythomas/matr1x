@@ -525,62 +525,6 @@ class MainWindow(QMainWindow):
         cursor.setCharFormat(default_format)
         cursor.insertText("\n")
 
-    def insert_code(self, function: str) -> None:
-        """
-        Insert a code fragment with explanation at the current cursor position.
-
-        Parameters
-        ----------
-        function : str
-            The function name to be explained.
-        """
-        if function == "init_datafile":
-            code = (
-                'init_datafile(filename, comment="", append=False, print_header=True, ntot=None)\n'
-            )
-            code += "# ntot is total number of points in a given measurement\n"
-            code += "# and is used to calculate measurement duration\n"
-        elif function == "measure_system":
-            code = "measure_system(print_setpoint=True, print_data=True, print_telemetry=True)\n"
-            code += "# performs a single measurement as specified in system\n"
-        elif function == "wait":
-            code = 'wait(duration=None, until=None, message="", silent=10)\n'
-            code += "# waits for either a duration or until a timestamp\n"
-            code += "# this also acts as a breakpoint to pause and abort the execution,\n"
-            code += "# for wait period > silent, prints message\n"
-        elif function == "end_script":
-            code = "end_script(finished=None)\n"
-            code += '# if finished is True, file is marked as "finished", for False\n'
-            code += "# it is marked as aborted, otherwise user is querried\n"
-        elif function == "input":
-            code = 'input(query="", timeout=float("inf"), default_value="")\n'
-            code += "# waits for user text input or timeouts with a default reply.\n"
-        elif function == "input_bool":
-            code = 'input_bool(question="", timeout=float("inf"), default_value="")\n'
-            code += "# waits for user to answer a yes/no question"
-            code += "or continues with the default reply after timeout.\n"
-        elif function == "input_numerical":
-            code = 'input_numerical(query="", timeout=float("inf"), default_value=0.0, '
-            code += "min_value=-100e9, max_value=100e9, step=1.0, decimals=2)\n"
-            code += (
-                "# waits for user to input a number or continues with the default after timeout.\n"
-            )
-        elif function == "set_value":
-            code = "set_value(column, value)\n"
-            code += "# column can be the index or the name.\n"
-            code += "# Please use 'help/system' for more information.\n"
-        elif function == "read_value":
-            code = "read_value(column)\n"
-            code += "# column can be the index or the name.\n"
-            code += "# Please use 'help/system' for more information.\n"
-        elif function == "trigger_value":
-            code = "trigger_value(column)\n"
-            code += "# column can be the index or the name.\n"
-            code += "# Please use 'Help/Show system help' for more information.\n"
-        else:
-            code = f"Unknown function <{function}> in 'insert_code', please file a bug report.\n"
-        self.script_edit.insertText(code)
-
     def print_document(self) -> None:
         """Print the script."""
         # go via QTextEdit functions for better portability
@@ -1140,32 +1084,16 @@ class MainWindow(QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction(self.pep8_action)
         #
-        code_menu = menu.addMenu("&Code")
+        code_menu = menu.addMenu("&Editor")
         assert code_menu is not None
-        code_menu.addAction(self.autocomplete_action)
+        theme_menu = code_menu.addMenu("Theme")
+        for action in self.theme_actions:
+            theme_menu.addAction(action)
         code_menu.addSeparator()
-        functions = (
-            "init_datafile",
-            "measure_system",
-            "wait",
-            "end_script",
-            "input",
-            "input_bool",
-            "input_numerical",
-            "separator",
-            "set_value",
-            "read_value",
-            "trigger_value",
-        )
-        for function in functions:
-            if function == "separator":
-                code_menu.addSeparator()
-            else:
-                action = QAction(function + "()", self)
-                action.triggered.connect(
-                    lambda checked, function=function: self.insert_code(function)
-                )
-                code_menu.addAction(action)
+        code_menu.addAction(self.zoom_in_action)
+        code_menu.addAction(self.zoom_out_action)
+        code_menu.addSeparator()
+        code_menu.addAction(self.autocomplete_action)
         #
         control_menu = menu.addMenu("&Control")
         assert control_menu is not None
@@ -1178,13 +1106,6 @@ class MainWindow(QMainWindow):
         #
         view_menu = menu.addMenu("&View")
         assert view_menu is not None
-        theme_menu = view_menu.addMenu("Theme")
-        for action in self.theme_actions:
-            theme_menu.addAction(action)
-        view_menu.addSeparator()
-        view_menu.addAction(self.zoom_in_action)
-        view_menu.addAction(self.zoom_out_action)
-        view_menu.addSeparator()
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.toggle_metadata_action)
         view_menu.addAction(self.matrix_settings_action)
@@ -1868,7 +1789,10 @@ class MainWindow(QMainWindow):
             f"matrix files (*{self.extension})",
         )
         filename = Path(filename[0])
-        return self.write_file(filename)
+        if filename == Path():
+            return -1
+        else:
+            return self.write_file(filename)
 
     def save_file(self):
         """
