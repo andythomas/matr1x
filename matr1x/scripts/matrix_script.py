@@ -1703,8 +1703,6 @@ class MainWindow(QMainWindow):
 
     def run_linter(self):
         """Call the linter for the editor view."""
-        if self.script_edit.toPlainText().strip() == "":
-            return 0
         self.script_edit.setSettables(self.get_settables())
         return self.script_edit.returnIssues()
 

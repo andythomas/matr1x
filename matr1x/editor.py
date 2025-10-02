@@ -23,6 +23,7 @@ JavaScript should be used outside of this module!
 import ast
 import json
 import subprocess
+import sys
 import tempfile
 from importlib import resources
 from pathlib import Path
@@ -308,25 +309,43 @@ class Linter(QObject):
         -------
             List of diagnostics in Monaco Editor format.
         """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+        code = code.replace("\r\n", "\n").replace("\r", "\n")
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, newline=""
+        ) as temp_file:
             temp_file.write(code)
             temp_file_path = temp_file.name
 
+        python_exec = Path(sys.executable)
+
+        if sys.platform == "win32":
+            if python_exec.name == "pythonw.exe":
+                python_exec = python_exec.parent / "python.exe"
+
         try:
-            result = subprocess.run(
-                [
-                    "ruff",
-                    "check",
-                    "--output-format=json",
-                    "--select",
-                    ",".join(Linter.RUFF_RULES),
-                    "--no-cache",
-                    temp_file_path,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            cmd_args = [
+                python_exec,
+                "-m",
+                "ruff",
+                "check",
+                "--output-format=json",
+                "--select",
+                ",".join(Linter.RUFF_RULES),
+                "--no-cache",
+                temp_file_path,
+            ]
+
+            kwargs = {
+                "capture_output": True,
+                "text": True,
+                "timeout": 10,
+            }
+
+            if sys.platform == "win32":
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+            result = subprocess.run(cmd_args, **kwargs)
 
             if result.stdout:
                 ruff_issues = json.loads(result.stdout)
