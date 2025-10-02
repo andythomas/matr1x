@@ -2107,6 +2107,7 @@ class MainWindow(QMainWindow):
                     return
         self.systems_dirty = False
         self.last_filename = None
+        self.scriptname = None
         self.script_edit.setPlainText("")
         self.script_edit.setModified(False)
 
