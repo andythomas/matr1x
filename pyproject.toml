@@ -69,8 +69,9 @@ directory = "matr1x/resources" # includes the code editor
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
-env = [
-  "QT_QPA_PLATFORM=offscreen",
+markers = [
+    "qt_offscreen: Tests that successfully run 'offscreen' on all platforms.",
+    "qt_gui: Tests that require a native Qt GUI platform.",
 ]
 
 [dependency-groups]
@@ -80,4 +81,6 @@ dev = [
     "pytest-env>=1.1.5",
     "ty>=0.0.1-alpha.20",
     "sphinx>=7.4.7",
+    "pytest-qt>=4.5.0",
+    "pytest-timeout>=2.4.0",
 ]

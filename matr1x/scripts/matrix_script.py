@@ -720,6 +720,12 @@ class MainWindow(QMainWindow):
                     event.ignore()
                     return
         self.save_window_state()
+        # QWebEngineView: Disconnect the webpage to prevent memory leaks
+        if hasattr(self.script_edit, "page") and self.script_edit.page():
+            self.script_edit.page().deleteLater()
+        self.script_edit.deleteLater()
+        qApp = get_application_instance()
+        qApp.processEvents()
         event.accept()
 
     def standard_action(self, name, display_name=None) -> QAction:
