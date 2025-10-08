@@ -15,7 +15,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module containing custom GUI widgets for the matr1x data acquisition software."""
 
+from PyQt6.QtCore import QObject
+from PyQt6.QtGui import QAction, QColor
 from PyQt6.QtWidgets import QProgressBar, QPushButton
+
+from matr1x.gui_util import get_matrix_icon
 
 
 class matr1xProgressBar(QProgressBar):
@@ -90,3 +94,71 @@ class ToggleButton(QPushButton):
             # if it is unchecked
             else:
                 self.setText(self._labels[0])
+
+
+class EnableAction(QAction):
+    """
+    A QAction subclass that automatically updates its icon based on checked state.
+
+    This action is designed for enable/disable functionality and automatically
+    updates its icon color when the checked state changes.
+    """
+
+    def __init__(self, text: str, parent: QObject | None = None):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Enable")
+        self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        # Connect toggled signal to update icon automatically
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """Update the icon based on checked state."""
+        if checked:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")))
+        else:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        # Only call check_enables if all actions are initialized and parent has the method
+        if hasattr(self.parent(), "disable_all_action") and hasattr(
+            self.parent(), "check_enables"
+        ):
+            self.parent().check_enables()
+
+    def setChecked(self, a0: bool):
+        """Override setChecked to ensure icon is updated."""
+        super().setChecked(a0)
+        self._update_icon(a0)
+
+
+class FullInfoAction(QAction):
+    """
+    A QAction subclass that automatically updates its icon based on checked state.
+
+    This action is designed for full info/less info functionality and automatically
+    updates its icon (+ or -) when the checked state changes.
+    """
+
+    def __init__(self, text: str, parent: QObject | None = None):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Full info")
+        self.setIcon(get_matrix_icon("CHAR_+"))
+        # Connect toggled signal to update icon automatically
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """Update the icon based on checked state."""
+        if checked:
+            self.setIcon(get_matrix_icon("CHAR_-"))
+        else:
+            self.setIcon(get_matrix_icon("CHAR_+"))
+        # Only call check_full_infos if all actions are initialized and parent has the method
+        if hasattr(self.parent(), "full_info_all_action") and hasattr(
+            self.parent(), "check_full_infos"
+        ):
+            self.parent().check_full_infos()
+
+    def setChecked(self, a0: bool):
+        """Override setChecked to ensure icon is updated."""
+        super().setChecked(a0)
+        self._update_icon(a0)
