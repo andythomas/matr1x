@@ -37,7 +37,6 @@ def qapp():
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-@pytest.mark.usefixtures("qt_gui")
 def test_basic_script_run(qtbot, qapp):
     """
     Start a basic matrix script measurement.
@@ -191,6 +190,7 @@ def test_CodeEditor(qtbot, qapp):
     code = "#print(  1 )"
     no_comment = code[1:]
     editor = main_window.script_edit
+    qtbot.wait(GUI_WAIT)
     editor.setPlainText(code)
     qtbot.wait(5 * GUI_WAIT)
     return_code = editor.toPlainText()
