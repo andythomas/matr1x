@@ -40,7 +40,7 @@ import warnings
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, Signal, Slot
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut, QTextCursor
+from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -68,6 +68,7 @@ from matr1x.gui_util import (
     check_config,
     get_application_instance,
     open_matrix_toml,
+    protected_restore,
 )
 from matr1x.util import Get
 
@@ -269,12 +270,7 @@ class ControlWindow(QMainWindow):
         self._harmonize_guidicts()
         # initialize GUI
         self.initUI()
-        self._restore_gui_settings()
-        # enable saving of geometry by Ctrl+S
-        self.saveStateSc = QShortcut(QKeySequence("Ctrl+S"), self)
-        self.saveStateSc.activated.connect(self.saveCurrentState)
-        for g in self.guidicts:
-            self.saveStateSc.activated.connect(g.dock.saveCurrentState)
+        protected_restore(self._restore_gui_settings)
         # set outputStream as stdout (i.e. all output is written to status)
         self.output_stream = EmittingStream()
         self.output_stream.text_written.connect(self.output_written)
@@ -295,6 +291,9 @@ class ControlWindow(QMainWindow):
 
         # add the menu bar
         self.create_menu()
+
+        # restore toolbar and activity indicator states after menu creation
+        protected_restore(self._restore_view_settings)
 
         # show the GUI
         self.show()
@@ -410,6 +409,16 @@ class ControlWindow(QMainWindow):
             self.settings.value("status_visible", False, type=bool)
         )
 
+    def _restore_view_settings(self):
+        """Restore view-related settings after menu has been created."""
+        # restore toolbar visibility
+        toolbar_visible = self.settings.value("toolbar_visible", False, type=bool)
+        self.show_toolbar_action.setChecked(toolbar_visible)
+        self.set_toolbar_visible(toolbar_visible)
+        # restore activity indicator location
+        saved_activity_in_logger = self.settings.value("activity_in_logger", True, type=bool)
+        self.set_activity_in_logger(saved_activity_in_logger)
+
     # GUI functions
     def initUI(self) -> None:
         """
@@ -509,14 +518,25 @@ class ControlWindow(QMainWindow):
             if has_hiding:
                 guidict.extend_switch.setChecked(False)
 
-    def toggle_activity_indicators(self) -> None:
+    def set_activity_in_logger(self, in_logger: bool) -> None:
         """
-        Move the activity indicator from the logger to the docks (and back).
+        Set the location of activity indicators.
 
-        It slightly adjusts the size for the respective options.
+        Parameters
+        ----------
+        in_logger : bool
+            If True, show activity indicators in the logger area.
+            If False, show activity indicators in individual toolbars.
         """
         widgets = []
-        if self.activity_in_logger:
+        # Determine current state by checking where activity indicators actually are
+        current_state = self.activity_layout.count() > 0
+
+        # Only do work if state is actually changing
+        if current_state == in_logger:
+            return
+
+        if not in_logger:  # Move from logger to toolbars
             for i in range(self.activity_layout.count()):
                 item = self.activity_layout.itemAt(i)
                 widgets.append(item.widget())
@@ -526,8 +546,7 @@ class ControlWindow(QMainWindow):
                 empty = QWidget()
                 empty.setFixedWidth(10)
                 self.guidicts[i].toolbar.addWidget(empty)
-                self.activity_in_logger = False
-        else:
+        else:  # Move from toolbars to logger
             for guidict in self.guidicts:
                 items = len(guidict.toolbar.actions())
                 for i, action in enumerate(guidict.toolbar.actions()):
@@ -540,19 +559,21 @@ class ControlWindow(QMainWindow):
                 widget.setFixedHeight(30)
                 self.activity_layout.addWidget(widget)
                 widget.show()
-            self.activity_in_logger = True
 
-    def toggle_toolbar_view(self, checked: bool) -> None:
+        # Update action state to reflect new location
+        self.activity_in_logger_action.setChecked(in_logger)
+
+    def set_toolbar_visible(self, visible: bool) -> None:
         """
-        Toogles the visibility of all toolbars on and off.
+        Set the visibility of all toolbars.
 
         Parameters
         ----------
-        checked : bool
+        visible : bool
             Show (True) or hide (False).
         """
         for guidict in self.guidicts:
-            if checked:
+            if visible:
                 guidict.toolbar.show()
             else:
                 guidict.toolbar.hide()
@@ -640,16 +661,20 @@ class ControlWindow(QMainWindow):
         self.less_info_all_action = QAction("Less info all", self)
         self.less_info_all_action.triggered.connect(self.less_info_all)
 
-        toggle_activity = QAction("Move activity indicators", self)
-        toggle_activity.triggered.connect(self.toggle_activity_indicators)
+        self.activity_in_logger_action = QAction("Activity in Logger")
+        self.activity_in_logger_action.setShortcut(QKeySequence("Ctrl+0"))
+        self.activity_in_logger_action.setCheckable(True)
+        # Default to True (activity indicators start in logger)
+        self.activity_in_logger_action.setChecked(True)
+        self.activity_in_logger_action.triggered.connect(
+            lambda checked: self.set_activity_in_logger(checked)
+        )
 
-        toggle_toolbar_action = QAction("Show Toolbar", self)
-        toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
-        toggle_toolbar_action.setCheckable(True)
-        initial_toolbar_view = False
-        toggle_toolbar_action.setChecked(initial_toolbar_view)
-        self.toggle_toolbar_view(initial_toolbar_view)
-        toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
+        self.show_toolbar_action = QAction("Show Toolbar")
+        self.show_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
+        self.show_toolbar_action.setCheckable(True)
+        # Initial state will be set in _restore_view_settings()
+        self.show_toolbar_action.triggered.connect(self.set_toolbar_visible)
 
         self.matrix_settings_action = QAction("Show matrix toml", self)
         self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
@@ -666,8 +691,8 @@ class ControlWindow(QMainWindow):
         self.fullinfo_menu.addAction(self.less_info_all_action)
 
         self.view_menu.addSeparator()
-        self.view_menu.addAction(toggle_toolbar_action)
-        self.view_menu.addAction(toggle_activity)
+        self.view_menu.addAction(self.show_toolbar_action)
+        self.view_menu.addAction(self.activity_in_logger_action)
         self.view_menu.addAction(self.matrix_settings_action)
 
         self.check_enables()
@@ -778,7 +803,6 @@ class ControlWindow(QMainWindow):
             )
             guidict.refresh_worker.panic.connect(self.panic)
             self.activity_layout.addWidget(ql)
-        self.activity_in_logger = True
 
         self.activity.connect(self.change_color)
         self.deactivate.connect(self.deactivate_gui)
@@ -1256,22 +1280,42 @@ class ControlWindow(QMainWindow):
                 widget.setEnabled(True)
 
     @Slot()
-    def saveCurrentState(self):
+    def save_window_state(self) -> None:
         """
         Save current window and dock geometry.
 
         This method saves the current size, position, and state of the window,
-        as well as the visibility of the status box. These settings will be
-        reloaded upon restart of the Control GUI.
+        as well as the visibility of the status box, toolbar visibility state,
+        and activity indicator location. These settings will be reloaded upon
+        restart of the Control GUI.
 
         Note:
-        If this should be done on every close, this method should be called
-        from the closeEvent.
+        This method is automatically called from closeEvent() when the window
+        is closed to ensure settings are always saved.
         """
         self.settings.setValue("size", self.size())
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
         self.settings.setValue("status_visible", self.status_box.toggle_button.isChecked())
+        self.settings.setValue("toolbar_visible", self.show_toolbar_action.isChecked())
+        self.settings.setValue("activity_in_logger", self.activity_in_logger_action.isChecked())
+
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        """
+        Handle window close event by automatically saving current state.
+
+        Parameters
+        ----------
+        event : QCloseEvent
+            The close event
+        """
+        # Save window and dock states
+        self.save_window_state()
+        for g in self.guidicts:
+            g.dock.saveCurrentState()
+
+        # Accept the close event
+        super().closeEvent(a0)
 
     @Slot(type, Exception, str)
     def handleError(self, exc_type, exc_value, pointer):
