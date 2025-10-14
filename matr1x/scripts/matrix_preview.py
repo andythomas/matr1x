@@ -26,7 +26,7 @@ from typing import TypedDict
 import numpy as np
 import pyqtgraph
 import pyqtgraph.exporters
-from PyQt6.QtCore import (
+from PySide6.QtCore import (
     QByteArray,
     QEvent,
     QKeyCombination,
@@ -34,10 +34,10 @@ from PyQt6.QtCore import (
     QSize,
     Qt,
     QThread,
-    pyqtSignal,
+    Signal,
 )
-from PyQt6.QtGui import QAction, QColor, QFileOpenEvent, QKeySequence
-from PyQt6.QtWidgets import (
+from PySide6.QtGui import QAction, QColor, QFileOpenEvent, QKeySequence
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDockWidget,
@@ -97,7 +97,7 @@ class PlotData(TypedDict):
 class Matr1xApplication(MApplication):
     """Allow double-click file open on a Mac."""
 
-    openfile = pyqtSignal(str)
+    openfile = Signal(str)
 
     def event(self, a0):
         """Catch file open on a Mac."""
@@ -111,7 +111,7 @@ class Matr1xApplication(MApplication):
 class UpdateThread(QThread):
     """Handle the thread."""
 
-    update_now = pyqtSignal()
+    update_now = Signal()
 
     def __init__(self, interval):
         """Init thread and set sleep interval."""
@@ -130,7 +130,7 @@ class UpdateThread(QThread):
         self.stopFlag = True
 
 
-class SweepPreview(QMainWindow, FileDropMixin):
+class SweepPreview(FileDropMixin, QMainWindow):
     """
     Data viewer for matrix files.
 
@@ -142,7 +142,7 @@ class SweepPreview(QMainWindow, FileDropMixin):
       parent widget
     """
 
-    openfile_dialog = pyqtSignal()
+    openfile_dialog = Signal()
     allowed_extensions = (".ma6", ".ma7", ".ma8")
 
     def __init__(self, parent: QWidget | None = None, filename: Path | None = None):
@@ -196,6 +196,7 @@ class SweepPreview(QMainWindow, FileDropMixin):
         # initialize filename if available
         if filename:
             self.open_file(filename)
+        self.setAcceptDrops(True)
         self.setValidExtensions(list(self.allowed_extensions))
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
 

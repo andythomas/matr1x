@@ -45,26 +45,26 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import IntEnum
-from functools import wraps
 from operator import attrgetter
 from pathlib import Path
 from subprocess import PIPE, Popen
 
 import numpy
 import psutil
-from PyQt6 import QtCore
-from PyQt6.QtCore import (
+from decorator import FunctionMaker
+from PySide6.QtCore import (
+    QAbstractTableModel,
+    QModelIndex,
     QObject,
     QSettings,
     QSize,
     Qt,
     QThread,
     QTimer,
-    QVariant,
-    pyqtSignal,
-    pyqtSlot,
+    Signal,
+    Slot,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -112,8 +112,7 @@ def catchEmitError(method):
         The decorated method.
     """
 
-    @wraps(method)
-    def decorated_method(self, *args, **kwargs):
+    def call(self, *args, **kwargs):
         try:
             method(self, *args, **kwargs)
         except Exception:
@@ -153,7 +152,12 @@ def catchEmitError(method):
             # this otherwise causes (sometimes) a segmentation fault
             time.sleep(0.05)
 
-    return decorated_method
+    return FunctionMaker.create(
+        method,
+        "return call(%(shortsignature)s)",
+        dict(call=call, _method=method),
+        __wrapped__=method,
+    )
 
 
 class guiObject(IntEnum):
@@ -334,8 +338,8 @@ class var(QObject):
         Flag to hide the variable in the GUI.
     """
 
-    valueChanged = pyqtSignal([str], [float], [int], [bool])
-    unitChanged = pyqtSignal([str])
+    valueChanged = Signal(object)
+    unitChanged = Signal(str)
 
     def __init__(
         self,
@@ -412,7 +416,7 @@ class var(QObject):
         # cast the value to the internal type (most likely float)
         self._value = self.variableType(newValue)
         # cast the output value to outType and emit matching signal
-        self.valueChanged[self.outType].emit(self.outType(self._value))
+        self.valueChanged.emit(self.outType(self._value))
 
     @property
     def unit(self):
@@ -437,7 +441,7 @@ class var(QObject):
             The new unit to set.
         """
         self._unit = newunit
-        self.unitChanged[str].emit(self._unit)
+        self.unitChanged.emit(self._unit)
 
     def generate_widgets(self, label=""):
         """
@@ -578,17 +582,17 @@ class var(QObject):
             if isinstance(self.widgets[1], (QLineEdit, QLabel)):
                 # Handle automatic string conversion for text widgets
                 if self.outType is str:
-                    self.valueChanged[str].connect(self.widgets[1].setText)
+                    self.valueChanged.connect(self.widgets[1].setText)
                 else:
                     # Create wrapper to convert non-string types to string
                     def string_wrapper(value):
                         self.widgets[1].setText(str(value))
 
-                    self.valueChanged[self.outType].connect(string_wrapper)
+                    self.valueChanged.connect(string_wrapper)
             elif isinstance(self.widgets[1], (QSpinBox, QProgressBar)):
                 # Handle automatic int conversion for spinboxes and progress bars
                 if self.outType is int:
-                    self.valueChanged[int].connect(self.widgets[1].setValue)
+                    self.valueChanged.connect(self.widgets[1].setValue)
                 else:
                     # Create wrapper to convert non-int types to int
                     def int_wrapper(value):
@@ -597,11 +601,11 @@ class var(QObject):
                         except (ValueError, TypeError):
                             pass
 
-                    self.valueChanged[self.outType].connect(int_wrapper)
+                    self.valueChanged.connect(int_wrapper)
             elif isinstance(self.widgets[1], QDoubleSpinBox):
                 # Handle automatic float conversion for double spinboxes
                 if self.outType is float:
-                    self.valueChanged[float].connect(self.widgets[1].setValue)
+                    self.valueChanged.connect(self.widgets[1].setValue)
                 else:
                     # Create wrapper to convert non-float types to float
                     def float_wrapper(value):
@@ -610,17 +614,22 @@ class var(QObject):
                         except (ValueError, TypeError):
                             pass
 
-                    self.valueChanged[self.outType].connect(float_wrapper)
+                    self.valueChanged.connect(float_wrapper)
             elif isinstance(self.widgets[1], QComboBox):
                 # Always connect both int and str signals like the original code
                 # This allows combo boxes to be updated by either index or text
                 # regardless of outType
-                self.valueChanged[int].connect(self.widgets[1].setCurrentIndex)
-                self.valueChanged[str].connect(self.widgets[1].setCurrentText)
+                def combo_handler(value):
+                    if isinstance(value, int):
+                        self.widgets[1].setCurrentIndex(value)
+                    elif isinstance(value, str):
+                        self.widgets[1].setCurrentText(value)
+
+                self.valueChanged.connect(combo_handler)
             elif isinstance(self.widgets[1], QCheckBox):
                 # Handle automatic bool conversion for checkboxes
                 if self.outType is bool:
-                    self.valueChanged[bool].connect(self.widgets[1].setChecked)
+                    self.valueChanged.connect(self.widgets[1].setChecked)
                 else:
                     # Create wrapper to convert non-bool types to bool
                     def bool_wrapper(value):
@@ -629,9 +638,9 @@ class var(QObject):
                         except (ValueError, TypeError):
                             pass
 
-                    self.valueChanged[self.outType].connect(bool_wrapper)
+                    self.valueChanged.connect(bool_wrapper)
             if isinstance(self.widgets[0], QLabel):
-                self.unitChanged[str].connect(self.updateLabel)
+                self.unitChanged.connect(self.updateLabel)
 
         # automatically copy state of checkbox to togglebutton
         if len(self.widgets) >= 3:
@@ -639,7 +648,7 @@ class var(QObject):
                 self.widgets[1], QCheckBox
             ):
                 if self.widgets[2].isCheckable():
-                    self.valueChanged[bool].connect(self.widgets[2].setChecked)
+                    self.valueChanged.connect(self.widgets[2].setChecked)
 
     def copy_value(self):
         """Copy the read values into the set field."""
@@ -796,18 +805,18 @@ class GuiDict(UserDict, ABC):
 
         Attributes
         ----------
-        activity : pyqtSignal
+        activity : Signal
             Signal to indicate an iteration of the refresh timer.
-        panic : pyqtSignal
+        panic : Signal
             Signal to indicate a panic state.
-        sig_error : pyqtSignal
+        sig_error : Signal
             Signal to report errors.
         """
 
         # activity signal to indicate an iteration of the refresh timer
-        activity = pyqtSignal(str)
-        panic = pyqtSignal(bool, str)
-        sig_error = pyqtSignal(type, Exception, str)
+        activity = Signal(str)
+        panic = Signal(bool, str)
+        sig_error = Signal(type, Exception, str)
 
         def __init__(self, target, interval, parent=None):
             super().__init__()
@@ -816,8 +825,8 @@ class GuiDict(UserDict, ABC):
             self.guidict = parent
             self._timer = QTimer()  # fake definition
 
-        @pyqtSlot()
-        @pyqtSlot(bool)
+        @Slot()
+        @Slot(bool)
         @catchEmitError
         def run(self, copy=True):
             """
@@ -839,7 +848,7 @@ class GuiDict(UserDict, ABC):
                 self.guidict.copy_values()
             self._timer.start()
 
-        @pyqtSlot()
+        @Slot()
         def stop(self):
             """Stop the worker's refresh loop."""
             self._timer.stop()
@@ -903,7 +912,7 @@ class GuiDict(UserDict, ABC):
         class MyQDockWidget(QDockWidget):
             """Modify QDockWidget to be able to track its closing."""
 
-            dockClosed = pyqtSignal()
+            dockClosed = Signal()
 
             def __init__(self, title, appname):
                 super().__init__(title)
@@ -913,7 +922,7 @@ class GuiDict(UserDict, ABC):
                 self.disabled = False
                 self.extended = False
 
-            @pyqtSlot()
+            @Slot()
             def saveCurrentState(self):
                 """Save current dock geometry and enable state."""
                 self.settings.beginGroup(self.windowTitle())
@@ -1583,7 +1592,7 @@ class SelectLakeshoreInput(QDialog):
         self.close()
 
 
-class TableModel(QtCore.QAbstractTableModel):
+class TableModel(QAbstractTableModel):
     """
     A table model for displaying PID parameters.
 
@@ -1600,13 +1609,13 @@ class TableModel(QtCore.QAbstractTableModel):
         super().__init__()
         self._data = data
 
-    def data(self, index: QtCore.QModelIndex, role: int) -> str | None:
+    def data(self, index: QModelIndex, role: int) -> str | None:
         """
         Return the data stored under the given role for the item referred to by the index.
 
         Parameters
         ----------
-        index : QtCore.QModelIndex
+        index : QModelIndex
             The index of the requested data.
         role : int
             The role for which the data is requested.
@@ -1621,13 +1630,13 @@ class TableModel(QtCore.QAbstractTableModel):
             return str(value)
         return None
 
-    def rowCount(self, index: QtCore.QModelIndex) -> int:
+    def rowCount(self, index: QModelIndex) -> int:
         """
         Return the number of rows in the model.
 
         Parameters
         ----------
-        index : QtCore.QModelIndex
+        index : QModelIndex
             The parent index (unused in this implementation).
 
         Returns
@@ -1637,13 +1646,13 @@ class TableModel(QtCore.QAbstractTableModel):
         """
         return self._data.shape[0]
 
-    def columnCount(self, index: QtCore.QModelIndex) -> int:
+    def columnCount(self, index: QModelIndex) -> int:
         """
         Return the number of columns in the model.
 
         Parameters
         ----------
-        index : QtCore.QModelIndex
+        index : QModelIndex
             The parent index (unused in this implementation).
 
         Returns
@@ -1653,7 +1662,7 @@ class TableModel(QtCore.QAbstractTableModel):
         """
         return self._data.shape[1]
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int) -> str | QVariant:
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int) -> str | None:
         """
         Return the header data.
 
@@ -1671,7 +1680,7 @@ class TableModel(QtCore.QAbstractTableModel):
 
         Returns
         -------
-        Union[str, QVariant]
+        str or None
             The header data as a string if the conditions are met, QVariant() otherwise.
         """
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
@@ -1685,7 +1694,7 @@ class TableModel(QtCore.QAbstractTableModel):
                 return "D"
             elif section == 4:
                 return "Heater range"
-        return QVariant()
+        return None
 
 
 class WriteLakeshoreZonePID(QDialog):

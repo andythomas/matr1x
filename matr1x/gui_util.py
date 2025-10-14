@@ -38,28 +38,28 @@ from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
 from types import TracebackType
-from typing import Any, TextIO, cast
+from typing import Any, TextIO
 
 import numpy as np
 import pygit2
 import pyqtgraph
+import PySide6
 from pydantic import ValidationError
-from PyQt6.QtCore import (
-    PYQT_VERSION_STR,
-    QT_VERSION_STR,
+from pyqtgraph.exporters import ImageExporter
+from PySide6.QtCore import (
     QAbstractItemModel,
     QEvent,
     QLibraryInfo,
     QLocale,
-    QMimeData,
     QModelIndex,
     QObject,
     QPoint,
     Qt,
     QTimer,
-    pyqtSignal,
+    Signal,
+    qVersion,
 )
-from PyQt6.QtGui import (
+from PySide6.QtGui import (
     QColor,
     QDoubleValidator,
     QDragEnterEvent,
@@ -74,7 +74,7 @@ from PyQt6.QtGui import (
     QPixmap,
     QPolygon,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QAbstractSpinBox,
     QApplication,
@@ -108,7 +108,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from pyqtgraph.exporters import ImageExporter
 
 from matr1x.models import MainConfig, UserlibConfig
 
@@ -146,7 +145,7 @@ class QRangeWidget(QGroupBox):
     slider on either side and a label on the left.
     """
 
-    value_changed = pyqtSignal(int)
+    value_changed = Signal(int)
 
     def __init__(self, title, parent=None):
         """
@@ -326,10 +325,10 @@ class SystemListWidget(QListWidget):
 
     Attributes
     ----------
-        orderChanged (pyqtSignal): Signal emitted when the order of items changes.
+        orderChanged (Signal): Signal emitted when the order of items changes.
     """
 
-    orderChanged = pyqtSignal()  # Custom signal for order changes
+    orderChanged = Signal()  # Custom signal for order changes
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -2847,12 +2846,12 @@ class EmittingStream(QObject):
     ----------
     name : str
         Name of the stream.
-    text_written : pyqtSignal
+    text_written : Signal
         Signal emitted when text is written to the stream.
     """
 
     name = "GUIStream"
-    text_written = pyqtSignal(str)
+    text_written = Signal(str)
 
     def write(self, text):
         """
@@ -3553,17 +3552,18 @@ class AboutBox(QMessageBox):
                     Python:</b> {python_info["implementation"]} {python_info["full_version"]}<br>
                     Executable:</b> {python_info["executable"]}<br>
                     Environment:</b> {python_info["env_description"]}<br>
+                    PySide6 version:</b> {PySide6.__version__}<br>
+                    PySide6 build against:</b> {qVersion()}<br>
                     Location:</b> {python_info["env_location"]}</p>
 
                     <p><b>System Information</b><br>
                     Platform:</b> {system_type}<br>
-                    Qt version:</b> {QT_VERSION_STR}<br>
-                    PyQt version:</b> {PYQT_VERSION_STR}<br>
-                    Qt (qmake):</b> {qmake_qt6_version}</p>
+                    System Qt (qmake):</b> {qmake_qt6_version}</p>
 
                     <p>(C) 2006-2025 Matr1x Developers. All rights reserved.</p>
                 </div>
                 """
+
         self.setText(f"<b>{title} {version}</b>")
         self.setInformativeText(text)
         self.setStandardButtons(QMessageBox.StandardButton.Ok)
@@ -3825,7 +3825,9 @@ def detect_shortcut(event, shortcut):
     # A QKeySequence could be a sequence of several keys. Only the first
     # combination makes sense as a shortcut
     if isinstance(shortcut, str):
-        keys = QKeySequence(shortcut)[0]
+        # There seems to be bug bug, but this code is unreachable.
+        # Will look at it later (at).
+        keys = QKeySequence(shortcut)[0]  # ty: ignore[non-subscriptable]
     elif isinstance(shortcut, QKeySequence):
         keys = shortcut[0]
     else:
@@ -3895,7 +3897,7 @@ class ThemeDetector(QWidget):
     the QApplication.
     """
 
-    isDarkSignal = pyqtSignal(bool)
+    isDarkSignal = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3924,7 +3926,7 @@ class ThemeDetector(QWidget):
 class MApplication(QApplication):
     """Fix GUI related issues for all applications."""
 
-    isDarkSignal = pyqtSignal(bool)
+    isDarkSignal = Signal(bool)
     isDark = property(lambda self: self._theme_detector.isDark())
 
     def _list_platform_plugins(self) -> Sequence[str]:
@@ -4145,16 +4147,11 @@ def open_matrix_toml() -> None:
 class FileDropMixin:
     """Enable drag and drop of a file for QWidgets."""
 
-    file_dropped = pyqtSignal(str)
+    file_dropped = Signal(str)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.valid_extensions: list = []
-        self.setAcceptDrops(True)
-
-    def setAcceptDrops(self, on: bool) -> None:
-        """Has to be provided by second parent (a QWidget)."""
-        ...
 
     def setValidExtensions(self, valid_extensions: list[str | re.Pattern]) -> None:
         """
@@ -4170,16 +4167,14 @@ class FileDropMixin:
 
     def dragEnterEvent(self, a0: QDragEnterEvent) -> None:
         """Enable drag and drop (1)."""
-        mimedata = cast(QMimeData, a0.mimeData())
-        if mimedata.hasUrls():
+        if a0.mimeData().hasUrls():
             a0.acceptProposedAction()
         else:
             a0.ignore()
 
     def dropEvent(self, a0: QDropEvent) -> None:
         """Enable drag and drop (2)."""
-        mimedata = cast(QMimeData, a0.mimeData())
-        urls = mimedata.urls()
+        urls = a0.mimeData().urls()
         if len(urls) != 1:
             QMessageBox.warning(None, "Too many Files", "Please only drop a single file.")
             return

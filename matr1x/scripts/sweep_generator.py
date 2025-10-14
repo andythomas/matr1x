@@ -31,9 +31,9 @@ from pathlib import Path
 
 import pyqtgraph as pg
 from numpy import linspace, uint
-from PyQt6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QKeySequence, QPalette
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QKeySequence, QPalette
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -100,7 +100,7 @@ def add_focusInEvent(cls):
     class decorated_class(cls):
         """The class shell."""
 
-        focusIn = pyqtSignal()
+        focusIn = Signal()
 
         def focusInEvent(self, e: QEvent, parent=None):
             super().focusInEvent(e)
@@ -127,7 +127,7 @@ class SpinBoxFocus(QSpinBox):
 class QLabelWithColor(QLabel):
     """Allow QLabel with highlight color and mouseclick reaction."""
 
-    clicked = pyqtSignal(int)
+    clicked = Signal(int)
 
     def __init__(self):
         """Init with colored background for bright and dark mode."""
@@ -162,7 +162,7 @@ class QLabelWithColor(QLabel):
         """
         Detect mouse-click for proper column highlighting.
 
-        The column of the click is emitted as a pyqtSignal.
+        The column of the click is emitted as a Signal.
         """
         if ev is not None:
             if ev.button() == Qt.MouseButton.LeftButton:
@@ -307,7 +307,7 @@ class SweepPreviewPopup(QDialog):
         )
 
 
-class MainWindow(QMainWindow, FileDropMixin):
+class MainWindow(FileDropMixin, QMainWindow):
     """
     Define main layout, run everything.
 
@@ -374,6 +374,7 @@ class MainWindow(QMainWindow, FileDropMixin):
                 self.open_file(filename)
                 self.last_filename = filename
 
+        self.setAcceptDrops(True)
         self.setValidExtensions([self.extension])
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
 

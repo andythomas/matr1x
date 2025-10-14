@@ -25,9 +25,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QByteArray, QSettings, QSize, Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QByteArray, QSettings, QSize, Qt, QThread, Signal
+from PySide6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
+from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -90,7 +90,7 @@ if sys.platform == "win32":
 class LabelWithSignal(QLabel):
     """A QLabel that emits a signal if the text changes."""
 
-    textChanged = pyqtSignal(str)
+    textChanged = Signal(str)
 
     def setText(self, a0):
         """
@@ -188,7 +188,7 @@ class QueueListWidget(QListWidget):
 class GuiThread(QThread):
     """Execute the measurement thread."""
 
-    filename_received = pyqtSignal(str)
+    filename_received = Signal(str)
 
     def __init__(self):
         """Initialize the thread."""
@@ -351,7 +351,7 @@ class GuiThread(QThread):
         return ret
 
 
-class MainWindow(QMainWindow, FileDropMixin):
+class MainWindow(FileDropMixin, QMainWindow):
     """Define layout, runs everything."""
 
     def __init__(self):
@@ -363,6 +363,7 @@ class MainWindow(QMainWindow, FileDropMixin):
         self.measurement_thread = GuiThread()
         self.measurement_thread.filename_received.connect(self.handle_received_filename)
         self.measurement_thread.finished.connect(self.processFinished)
+        self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
         self.file_dropped.connect(lambda file: self.input_file.setText(file))
         self.settings = QSettings("matr1x", "gui")

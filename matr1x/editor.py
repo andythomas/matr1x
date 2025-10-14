@@ -29,16 +29,16 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import (
+from PySide6.QtCore import (
     QEventLoop,
     QObject,
     QUrl,
-    pyqtSignal,
-    pyqtSlot,
+    Signal,
+    Slot,
 )
-from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtWebEngineCore import QWebEnginePage  # ty: ignore[unresolved-import], stub incomplete?
-from PyQt6.QtWebEngineWidgets import QWebEngineView  # ty: ignore[unresolved-import], same
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEnginePage
+from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.gui_util import FileDropMixin, get_application_instance
 from matr1x.util import (
@@ -187,7 +187,7 @@ class Linter(QObject):
     This is the Python backend class for the JavaScript editor.
     """
 
-    lintingComplete = pyqtSignal(str)
+    lintingComplete = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__()
@@ -216,7 +216,7 @@ class Linter(QObject):
         "F504",
     ]
 
-    @pyqtSlot(str)
+    @Slot(str)
     def lint_code(self, code: str) -> None:
         """
         Lint Python code utilizing Ruff.
@@ -427,13 +427,13 @@ class EditorBackend(QObject):
     This is the Python backend class for the JavaScript editor.
     """
 
-    contentModified = pyqtSignal(bool)
+    contentModified = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._is_modified = False
 
-    @pyqtSlot(bool)
+    @Slot(bool)
     def content_changed(self, is_modified: bool) -> None:
         """Handle content modification notifications from the editor."""
         self._is_modified = is_modified
@@ -448,11 +448,10 @@ class EditorBackend(QObject):
         self._is_modified = modified
 
 
-# again, PyQt defines in QWidget and QWebEngineView variables differently
-class CodeEditor(QWebEngineView, FileDropMixin):  # type: ignore
+class CodeEditor(FileDropMixin, QWebEngineView):
     """Code editor connected to Monaco."""
 
-    contentModified = pyqtSignal(bool)
+    contentModified = Signal(bool)
 
     ZOOM_STEP = 0.1
     MIN_ZOOM = 0.1

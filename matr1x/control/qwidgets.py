@@ -15,9 +15,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module containing custom GUI widgets for the matr1x data acquisition software."""
 
-from PyQt6.QtCore import QObject
-from PyQt6.QtGui import QAction, QColor
-from PyQt6.QtWidgets import QProgressBar, QPushButton
+from PySide6.QtCore import QObject
+from PySide6.QtGui import QAction, QColor
+from PySide6.QtWidgets import QProgressBar, QPushButton
 
 from matr1x.gui_util import get_matrix_icon
 

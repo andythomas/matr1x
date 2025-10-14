@@ -20,8 +20,8 @@ import threading
 import time
 
 import numpy
-from PyQt6 import QtCore
-from PyQt6.QtGui import QAction
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QAction
 
 from matr1x import system
 from matr1x.control import (
@@ -296,15 +296,15 @@ class exampleDict2(GuiDict):
     allow_disabling = True
     v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
 
-    class MyQObject(QtCore.QObject):
+    class MyQObject(QObject):
         """
-        Define pyqtSignals via QObjects.
+        Define Signals via QObjects.
 
         We need an object derived from QObject here. In this example it
         is used to set a tooltip string in a thread safe manner.
         """
 
-        tooltip = QtCore.pyqtSignal(str, str)
+        tooltip = Signal(str, str)
 
     def __init__(self):
         super().__init__()

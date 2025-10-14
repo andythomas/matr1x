@@ -39,9 +39,9 @@ import time
 import warnings
 from pathlib import Path
 
-from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QAction, QIcon, QKeySequence, QShortcut, QTextCursor
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QSettings, Qt, Signal, Slot
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut, QTextCursor
+from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -83,12 +83,12 @@ class CollapsibleBox(QWidget):
 
     Attributes
     ----------
-        redraw_activity (pyqtSignal): Signal emitted when the box is expanded or collapsed.
+        redraw_activity (Signal): Signal emitted when the box is expanded or collapsed.
     """
 
     # code inspired from
     # https://github.com/MichaelVoelkel/qt-collapsible-section/blob/master/Section.py
-    redraw_activity = pyqtSignal(bool)
+    redraw_activity = Signal(bool)
 
     def __init__(self, title: str = "", parent: QWidget | None = None) -> None:
         """
@@ -215,9 +215,9 @@ class ControlWindow(QMainWindow):
         TCP port number for the control GUI SCPI server socket.
     """
 
-    sig_error = pyqtSignal(type, Exception, str)
-    activity = pyqtSignal(str)
-    deactivate = pyqtSignal(bool)
+    sig_error = Signal(type, Exception, str)
+    activity = Signal(str)
+    deactivate = Signal(bool)
 
     def __init__(
         self,
@@ -715,7 +715,7 @@ class ControlWindow(QMainWindow):
             content = guidict.create_GUI()
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
 
-    @pyqtSlot()
+    @Slot()
     def needToAdjustSize(self) -> None:
         """Adjust the size of the main window."""
         self.adjustSize()
@@ -860,8 +860,8 @@ class ControlWindow(QMainWindow):
             variable.copy_value()
 
     @catchEmitError
-    @pyqtSlot(bool)
-    @pyqtSlot(bool, str)
+    @Slot(bool)
+    @Slot(bool, str)
     def panic(self, checked: bool, reason: str = "Panic button") -> None:
         """
         Signal panic mode to guidicts if the button is checked.
@@ -902,7 +902,7 @@ class ControlWindow(QMainWindow):
             except Exception:  # upon cleanup after exception this can fail
                 pass
 
-    @pyqtSlot(bool)
+    @Slot(bool)
     def readjustSize(self, expanding: bool = False) -> None:
         """
         Resize window when the status and logging tab is minimized.
@@ -1212,7 +1212,7 @@ class ControlWindow(QMainWindow):
         """
         self.activityIndicator[idx].setStyleSheet(f"QLabel {{ background-color: {color}; }}")
 
-    @pyqtSlot(str)
+    @Slot(str)
     def change_color(self, color: str) -> None:
         """
         Change the background color of all activity indicators.
@@ -1225,7 +1225,7 @@ class ControlWindow(QMainWindow):
         for ql in self.activityIndicator:
             ql.setStyleSheet(f"QLabel {{ background-color: {color}; }}")
 
-    @pyqtSlot(bool)
+    @Slot(bool)
     def deactivate_gui(self, flag: bool) -> None:
         """
         Disable all GUI elements.
@@ -1255,7 +1255,7 @@ class ControlWindow(QMainWindow):
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
 
-    @pyqtSlot()
+    @Slot()
     def saveCurrentState(self):
         """
         Save current window and dock geometry.
@@ -1273,7 +1273,7 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("windowState", self.saveState())
         self.settings.setValue("status_visible", self.status_box.toggle_button.isChecked())
 
-    @pyqtSlot(type, Exception, str)
+    @Slot(type, Exception, str)
     def handleError(self, exc_type, exc_value, pointer):
         """
         Signal slot to handle showing the error message and disabling the GUI.

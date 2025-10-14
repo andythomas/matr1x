@@ -27,17 +27,17 @@ import time
 from os.path import normpath
 from pathlib import Path
 
-from PyQt6.QtCore import (
+from PySide6.QtCore import (
     QByteArray,
     QEvent,
     QSettings,
     QSize,
     Qt,
     QThread,
-    pyqtSignal,
-    pyqtSlot,
+    Signal,
+    Slot,
 )
-from PyQt6.QtGui import (
+from PySide6.QtGui import (
     QAction,
     QActionGroup,
     QColor,
@@ -48,9 +48,9 @@ from PyQt6.QtGui import (
     QTextCharFormat,
     QTextCursor,
 )
-from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
-from PyQt6.QtWebEngineWidgets import QWebEngineView  # ty: ignore[unresolved-import]
-from PyQt6.QtWidgets import (
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
     QFileDialog,
@@ -124,7 +124,7 @@ MAX_LINES_STATUS = 10000
 class Matr1xApplication(MApplication):
     """Enable double-click open on a Mac."""
 
-    openfile = pyqtSignal(str)
+    openfile = Signal(str)
 
     def event(self, event):
         """Evaluate the event and open the file."""
@@ -134,11 +134,12 @@ class Matr1xApplication(MApplication):
         return MApplication.event(self, event)
 
 
-class CentralWidget(QWidget, FileDropMixin):
+class CentralWidget(FileDropMixin, QWidget):
     """Enable drag and drop of matrix files."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAcceptDrops(True)
         self.setValidExtensions([MainWindow.extension])
 
 
@@ -196,11 +197,11 @@ class ScriptThread(QThread):
     #            max_value (object, float or None),
     #            step (object, float or None),
     #            decimals (object, int or None)
-    input_signal = pyqtSignal(str, str, float, str, object, object, object, object)
+    input_signal = Signal(str, str, float, str, object, object, object, object)
     # signal to report the currently executing line number to the editor.
-    lineno_signal = pyqtSignal(int)
+    lineno_signal = Signal(int)
     # signal to report the filename of the file that is written by the process
-    filename_signal = pyqtSignal(str)
+    filename_signal = Signal(str)
 
     def __init__(
         self,
@@ -533,7 +534,7 @@ class MainWindow(QMainWindow):
         printer = QPrinter()
         print_dialog = QPrintDialog(printer, self)
         if print_dialog.exec():
-            text_edit.print(printer)
+            text_edit.print_(printer)
         del text_edit
 
     def save_window_state(self) -> None:
@@ -1193,7 +1194,7 @@ class MainWindow(QMainWindow):
         if self.system_command_help.isVisible():
             self.show_system_commands()
 
-    @pyqtSlot(str, str, float, str, object, object, object, object)
+    @Slot(str, str, float, str, object, object, object, object)
     def get_script_input(
         self,
         query: str,
