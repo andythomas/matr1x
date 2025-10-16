@@ -288,7 +288,6 @@ class SweepPreviewPopup(QDialog):
             value = QTableWidgetItem(str(item))
             value.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.data_table.setItem(index, 0, value)
-        self.data_table.update()
 
     def mouseMoved(self, ev):
         """Implement event to update cursor position while pointer is in plot."""
@@ -770,7 +769,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 lambda text, column=column - 1: self.update_append(text, column)
             )
             if name == "points":
-                widget.setValidator(validator[int])
+                widget.setValidator(validator[uint])
             else:
                 widget.setValidator(validator[float])
         elif name == "repeat":
@@ -1007,7 +1006,6 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.sweep_preview.setItem(i, 0, value)
             # replace excess spaces from file and print, could be removed
             self.outputList.append(string.replace("   ", " ") + "\n")
-        self.sweep_preview.update()
 
     def update_window_title(self, dirty: bool = False) -> None:
         """
@@ -1158,14 +1156,15 @@ class MainWindow(FileDropMixin, QMainWindow):
             for i in range(3):
                 line_edit = QLineEdit(self)
                 line_edit.setText(str(param_set[i]))
-                if 3 == i:
+                if i == 2:
                     line_edit.setValidator(validator[uint])
                 else:
                     line_edit.setValidator(validator[float])
                 line_edit.editingFinished.connect(
-                    lambda actual_column=actual_column, row=row, i=i: self.change_sweep_param(
-                        actual_column, row, i
-                    )
+                    lambda line_edit=line_edit,
+                    actual_column=actual_column,
+                    row=row,
+                    i=i: self.sweep_params[actual_column - 1][row].__setitem__(i, line_edit.text())
                 )
                 line_edit.textChanged.connect(lambda: self.update_window_title(dirty=True))
                 line_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -1197,22 +1196,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         del self.sweep_params[col - 1][row]
         self.populate_sweep_grid(col)
-
-    def change_sweep_param(self, col: int, row: int, field) -> None:
-        """
-        Change the sweep param if it is manipulated within the sweep table.
-
-        Parameters
-        ----------
-        col : int
-            The currently selected matrix column, e.g., a/field.
-        row : int
-            The row that of the table that is edited.
-        field : int
-            The text field that is edited, i.e. the column of the table.
-        """
-        text = self.sender().text()
-        self.sweep_params[col - 1][row][field] = text
 
     def clear_layout(self, layout):
         """Clear all child widgets from layout."""
