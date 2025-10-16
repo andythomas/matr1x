@@ -239,10 +239,10 @@ class PSA_E4440A(VisaDevice):
         numpy.ndarray
             The measured data from the spectrum analyzer.
         """
-        precdict = {
+        precdict: dict[str, tuple[str, int, str, str]] = {
             "single": ("REAL,32", 4, ">f", "float32"),
             "double": ("REAL,64", 8, ">d", "float64"),
-            "ascii": ("ASC,0", None, None),
+            "ascii": ("ASC,0", 0, "", ""),
         }
 
         try:

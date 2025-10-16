@@ -345,7 +345,7 @@ class Linter(QObject):
             if sys.platform == "win32":
                 kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
-            result = subprocess.run(cmd_args, **kwargs)
+            result = subprocess.run(cmd_args, **kwargs)  # ty: ignore [no-matching-overload]
 
             if result.stdout:
                 ruff_issues = json.loads(result.stdout)

@@ -38,7 +38,7 @@ from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
 from types import TracebackType
-from typing import Any, TextIO
+from typing import Any, TextIO, cast
 
 import numpy as np
 import pygit2
@@ -464,7 +464,7 @@ class MetaViewerWidget(QDockWidget):
                 editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
             elif cast_type[0] is MetaViewerWidget.scifloat:
                 editor = QLineEdit(parent)
-                scifloat_validator = validator[float]
+                scifloat_validator = cast(QDoubleValidator, validator[float])
                 if cast_type[1]:
                     scifloat_validator.setDecimals(cast_type[1])
                 min_val = (
@@ -4088,7 +4088,7 @@ def check_config(config: dict) -> None:
             except (ValidationError, TypeError, ValueError) as e:
                 html += _format_validation_error(e, key + ".")
     try:
-        MainConfig(**config)  # ty: ignore [missing-argument] issue #247; validate matr1x
+        MainConfig(**config)
     except (ValidationError, TypeError, ValueError) as e:
         html += _format_validation_error(e)
     if html != "":

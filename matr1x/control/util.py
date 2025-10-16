@@ -1755,7 +1755,7 @@ class WriteLakeshoreZonePID(QDialog):
         button.
         """
         filename = QFileDialog.getOpenFileName(
-            self, "Select PID table file", usersfolder, "calibration file (*.*)"
+            self, "Select PID table file", str(usersfolder), "calibration file (*.*)"
         )[0]
         self.fileEdit.setText(filename)
         if filename != "":

@@ -344,10 +344,10 @@ class PNA5225b(VisaDevice):
         np.ndarray
             The measured data from the specified channel.
         """
-        precdict = {
+        precdict: dict[str, tuple[str, int, str, str]] = {
             "single": ("REAL,32", 4, ">f", "float32"),
             "double": ("REAL,64", 8, ">d", "float64"),
-            "ascii": ("ASC,0", None, None),
+            "ascii": ("ASC,0", 0, "", ""),
         }
 
         try:
@@ -402,10 +402,10 @@ class PNA5225b(VisaDevice):
             as a 2xN array where the first row is the real part and
             the second row is the imaginary part.
         """
-        precdict = {
+        precdict: dict[str, tuple[str, int, str, str]] = {
             "single": ("REAL,32", 4, ">f", "float32"),
             "double": ("REAL,64", 8, ">d", "float64"),
-            "ascii": ("ASC,0", None, None),
+            "ascii": ("ASC,0", 0, "", ""),
         }
 
         try:

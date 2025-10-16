@@ -291,7 +291,7 @@ logging.basicConfig(
     handlers=handlers,
 )
 
-usersfolder = Path(config["matr1x"]["users_directory"]).expanduser()
+usersfolder: Path = Path(config["matr1x"]["users_directory"]).expanduser()
 if not usersfolder.exists():
     usersfolder = Path.home()
 

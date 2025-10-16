@@ -21,7 +21,7 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, no_type_check
 
 import numpy as np
 import pyqtgraph
@@ -55,7 +55,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x import gui_util
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import loadmatrix
+from matr1x.eval import HeaderDict, loadmatrix
 from matr1x.gui_util import (
     AboutBox,
     FileDropMixin,
@@ -178,10 +178,11 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.column_items: list[str] = []  # Column descriptions for current file
 
         # Data properties
-        self.names: list = []
-        self.units: list = []
-        self.shapes: list = []
-        self.header: dict = {}
+        self.names: list[str] = []
+        self.units: list[str] = []
+        self.shapes: list[tuple[int, ...]] = []
+        self.header: HeaderDict = {}
+        self.data: np.ndarray | dict[str, np.ndarray] = np.array([])
 
         # initialize basic GUI
         self.init_basic_ui()
@@ -1067,6 +1068,7 @@ Please investigate the error and eventually restart matrix-preview""",
             self.spw.plot(z, x, y, plot2d=self.w_plot2d.isChecked())
         return 0
 
+    @no_type_check
     def reload_data_curve(self):
         """
         Reload the data.

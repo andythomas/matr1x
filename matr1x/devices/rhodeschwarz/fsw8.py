@@ -367,10 +367,10 @@ class FSW8(VisaDevice):
         numpy.ndarray
             The measured data from the device.
         """
-        precdict = {
+        precdict: dict[str, tuple[str, int, str, str]] = {
             "single": ("REAL,32", 4, ">f", "float32"),
             "double": ("REAL,64", 8, ">d", "float64"),
-            "ascii": ("ASC,0", None, None),
+            "ascii": ("ASC,0", 0, "", ""),
         }
 
         p = str(precision).lower().strip()

@@ -145,7 +145,7 @@ class QueueListWidget(QListWidget):
         list_entry = f"Input: {Path(parameters[0]).name} - Output: {output} - Id: {hash_value}"
         param_dict = {"parameters": parameters, "listview": list_entry}
         self.data_list.append(param_dict)
-        list_item = QListWidgetItem(param_dict["listview"])
+        list_item = QListWidgetItem(list_entry)
         super().addItem(list_item)
 
     def takeItem(self, row: int):

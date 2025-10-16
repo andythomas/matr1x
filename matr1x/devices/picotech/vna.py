@@ -170,12 +170,12 @@ class PicoVNA(VisaDevice):
         Returns
         -------
         numpy.ndarray
-            The mesured data from the specified channel.
+            The measured data from the specified channel.
         """
-        precdict = {
+        precdict: dict[str, tuple[str, int, str, str]] = {
             "single": ("REAL,32", 4, ">f", "float32"),
             "double": ("REAL,64", 8, ">d", "float64"),
-            "ascii": ("ASC,0", None, None),
+            "ascii": ("ASC,0", 0, "", ""),
         }
 
         if precision == "ascii":
