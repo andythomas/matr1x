@@ -34,6 +34,7 @@ system directories.
 """
 
 import logging
+import os
 import sys
 import tempfile
 from datetime import date
@@ -54,7 +55,8 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib  # ty: ignore [unresolved-import]
 
-
+# enforce PySide use in pyqtgraph
+os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
 # default datafile extension
 output_extension = ".ma8"
 
