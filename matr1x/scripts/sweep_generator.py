@@ -26,6 +26,7 @@ import sys
 import time
 import traceback
 from ast import literal_eval
+from collections.abc import Callable
 from math import floor
 from pathlib import Path
 
@@ -322,7 +323,12 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     extension = ".sw8"
 
-    def __init__(self, filename: Path | None = None, system=None, inputcb=None):
+    def __init__(
+        self,
+        filename: Path | None = None,
+        system=None,
+        inputcb: Callable[[str], None] | None = None,
+    ):
         super().__init__()
         self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
 
@@ -1106,7 +1112,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.last_filename = filename
         self.update_window_title(dirty=False)
         if self.inputcb is not None:
-            self.inputcb(filename)
+            self.inputcb(str(filename))
         return True
 
     def append_sweep_col(self, column: int) -> None:
