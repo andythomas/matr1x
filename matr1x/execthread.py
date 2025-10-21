@@ -19,6 +19,7 @@ execution thread control for matrix-script.
 This module includes class definitions used for execution of the matrix-script process.
 """
 
+import io
 import logging
 import re
 import socket
@@ -694,37 +695,27 @@ class ExecThread(threading.Thread):
                 }
                 exec(self.script, _vars)
             except Exception:
-                print("script exited with error:")
-                # get traceback information and format accordingly
-                tbinfo = traceback.format_exception(*sys.exc_info())
-                tbstr = "".join(tbinfo[2:])
-                tbstr = tbstr.replace("<module>", "script")
+                # This catches errors during template initialization or cleanup,
+                # not user script errors (those are handled in the template itself)
+                print("script initialization/cleanup error:")
 
-                # get line information from traceback
-                ms = re.search(r"line (\d+)", tbstr)
-                if ms:
-                    line = int(ms.group(1))
-                    # replace line number to match the user defined script
-                    # to that end, determine number of lines in prefix
-                    adjusted_line = line - self.n_pref
-                    tbstr = re.sub(r"line (\d+)", "line " + str(adjusted_line), tbstr)
+                # Get the traceback and improve the file context
+                tb_str = io.StringIO()
+                traceback.print_exc(file=tb_str)
+                tb_output = tb_str.getvalue()
 
-                    # Fix file replacement - ensure we have valid indices
-                    script_lines = self.script.splitlines()
-                    if 1 <= line <= len(script_lines):
-                        tbstr = tbstr.replace('File "<string>"', f'"{script_lines[line - 1]}"')
-                    else:
-                        tbstr = tbstr.replace('File "<string>"', '"<unknown line>"')
+                # Replace <string> with more descriptive context
+                lines = tb_output.split("\n")
+                for i, line in enumerate(lines):
+                    if 'File "<string>"' in line and ", line " in line:
+                        # Extract line number from the traceback
+                        match = re.search(r"line (\d+)", line)
+                        if match:
+                            line_num = int(match.group(1))
+                            # Add template context
+                            replacement = f'File "<template script, line {line_num}>"'
+                            lines[i] = line.replace('File "<string>"', replacement)
 
-                    print(tbstr)
-
-                    # Check adjusted line instead of original line
-                    if adjusted_line < 1:
-                        print(" error during device initialization\n")
-                else:
-                    # No line number found in traceback
-                    tbstr = tbstr.replace('File "<string>"', '"<script>"')
-                    print(tbstr)
-                    print(" error during device initialization\n")
+                print("\n".join(lines))
         except KeyboardInterrupt:
-            print("script interrupted by user")
+            print("script interrupted during initialization")

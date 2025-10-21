@@ -25,9 +25,11 @@ import datetime as _datetime
 import inspect as _inspect
 import math as _math
 import os as _os
+import re as _re
 import sys as _sys
 import textwrap as _textwrap
 import time as _time
+import traceback as _traceback
 import types as _types
 from pathlib import Path as _Path
 
@@ -132,7 +134,7 @@ def _configure_script_storing(system, script):
     """Store user script if requested in config."""
     if _config["store_script_in_datafile"]:
         prefix, suffix = _matrix_util.generate_script_prefix_suffix()
-        npref, nsuff = len(prefix.splitlines()), len(suffix.splitlines())
+        npref, nsuff = _matrix_util.get_script_prefix_offset(), len(suffix.splitlines())
         # strip prefix and suffix lines from script for storing
         user_script = _textwrap.dedent("\\n".join(script.splitlines()[npref:-nsuff]))
         if "user script" not in system.system_config_params:
@@ -644,7 +646,7 @@ try:
     # USER_SCRIPT_INSERTION_POINT
 # ==== END USER SCRIPT AREA ====
 except KeyboardInterrupt:
-    print("\\nscript has been aborted by user.")
+    print("\nscript has been aborted by user.")
     # mark script as aborted per default once abort is called
     if _status.finished:
         _reset_kwargs["status"] = "finished"
@@ -654,6 +656,53 @@ except KeyboardInterrupt:
     else:
         # finished is None, so ask what is supposed to happen
         _reset_kwargs["status"] = _input("", system=_system, input_type="__end_script__")
+except Exception as e:
+    print("script exited with error:")
+    # get traceback information and format accordingly
+    exc_type, exc_value, exc_traceback = _sys.exc_info()
+
+    tbinfo = _traceback.format_exception(exc_type, exc_value, exc_traceback)
+
+    # Don't skip the traceback lines - we need them for line number extraction
+    tbstr = "".join(tbinfo[1:])  # Skip only the first line (Traceback header)
+
+    tbstr = tbstr.replace("<module>", "script")
+
+    # get line information from traceback
+    ms = _re.search(r"line (\d+)", tbstr)
+
+    if ms:
+        line = int(ms.group(1))
+        n_pref = _matrix_util.get_script_prefix_offset()
+        adjusted_line = line - n_pref
+        tbstr = _re.sub(r"line (\d+)", "line " + str(adjusted_line), tbstr)
+
+        # Fix file replacement - get the actual script content
+        # Since we're executing from a string, we need to get the script content differently
+        try:
+            # Get the current script content from the _script variable that was injected
+            script_lines = _script.splitlines()
+            if 1 <= line <= len(script_lines):
+                actual_line = script_lines[line - 1].strip()
+                tbstr = tbstr.replace('File "<string>"', f'"{actual_line}"')
+            else:
+                tbstr = tbstr.replace('File "<string>"', '"<unknown line>"')
+        except Exception:
+            tbstr = tbstr.replace('File "<string>"', '"<script>"')
+
+        print(tbstr)
+
+        # Check adjusted line instead of original line
+        if adjusted_line < 1:
+            print(" error during device initialization\n")
+    else:
+        # No line number found in traceback
+        tbstr = tbstr.replace('File "<string>"', '"<script>"')
+        print(tbstr)
+        print(" error during device initialization\n")
+
+    _reset_kwargs["status"] = "errored"
+    _system.add_comment(f"Script errored: {exc_type.__name__}: {e}")
 
 # mark last open file as finished, if not labeled elsewhere
 if "status" not in _reset_kwargs.keys():

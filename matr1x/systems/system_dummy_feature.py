@@ -124,6 +124,9 @@ class MeasSystem(System):
         """
         # set some parameter upon deinitializtion
         self.devs["dev1"].p2 = 0
+        if "status" in kwargs and kwargs["status"] == "errored":
+            # perform special cleanup on error
+            self.devs["dev2"].p1 = -1
         # wrap base system function for safe handling of opening
         super().reset(*args, **kwargs)
 

@@ -360,6 +360,22 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
     return prefix, suffix
 
 
+def get_script_prefix_offset() -> int:
+    """
+    Get the number of lines in the script prefix.
+
+    This centralizes the calculation of the script offset that is used
+    in multiple places throughout the codebase for line number adjustment.
+
+    Returns
+    -------
+    int
+        Number of lines in the script prefix (n_pref)
+    """
+    prefix, _ = generate_script_prefix_suffix()
+    return len(prefix.splitlines())
+
+
 def generate_script(user_script: str) -> str:
     """
     Define the general part of the script used in matrix_script.
@@ -454,7 +470,7 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None, syst
         connected = False
 
     # initialize the thread
-    n_pref = len(generate_script_prefix_suffix()[0].splitlines())
+    n_pref = get_script_prefix_offset()
     if connected is True:
         thread = ExecThread(script, meta_data, scriptname, client_socket, n_pref, systems)
     else:

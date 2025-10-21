@@ -363,6 +363,48 @@ def measure_urwid(inputfile, systemfile, system):
     return ret, msg
 
 
+def reset_system_and_exit(
+    system: MergedSystem,
+    reset_kwargs: dict,
+    exit_code: int,
+    error_message: str | None = None,
+    exception: Exception | None = None,
+    immediate_error: bool = False,
+):
+    """
+    Reset system and exit with proper error handling.
+
+    This eliminates code duplication in error handling paths.
+
+    Parameters
+    ----------
+    system : System
+        The system object to reset
+    reset_kwargs : dict
+        Arguments to pass to system.reset()
+    exit_code : int
+        Exit code for sys.exit()
+    error_message : str, optional
+        Error message to print
+    exception : Exception, optional
+        Exception object for adding comment to system
+    immediate_error : bool, optional
+        True for immediate error exits, False for normal program end
+    """
+    if error_message:
+        print(error_message)
+
+    # Set errored status and add comment for immediate errors
+    if immediate_error:
+        reset_kwargs["status"] = "errored"
+        if exception:
+            system.add_comment(f"Matrix errored: {type(exception).__name__}: {exception}")
+
+    print("resetting devices")
+    system.reset(**reset_kwargs)
+    sys.exit(exit_code)
+
+
 def main():
     """Read the command line and perform measurement accordingly."""
     # define the possible command line parameters
@@ -503,59 +545,87 @@ def main():
     print("setting devices")
     system.set(input_file=options.inputfile, output_file=output_filename)
 
-    # acquire configuration from devices and notify user what is going on
-    print("devices set, acquiring configuration and writing header")
-    # initialize datefile and insert device query
-    try:
-        system.init_datafile(options.inputfile)
-    except OSError:
-        print("matrix: error: cannot create output file")
-        sys.exit(1)
-    except Exception:
-        print("matrix: error: could not acquire configuration.")
-        sys.exit(1)
-
-    # do the loop
-    print("entering loop now")
-    # read the parameter input file
-    try:
-        # enforce plain interface on Windows because urwid would fail
-        if options.plain or options.quiet or os.name == "nt":
-            control_string = "To pause or quit after next point, press p/q"
-            if os.name != "nt":
-                control_string += " and enter"
-            # print help string for pause in plain version
-            print(control_string)
-            ret = measure_plain(options.inputfile, system, quiet=options.quiet)
-        else:
-            ret, msg = measure_urwid(options.inputfile, options.systemfile, system)
-            if msg:
-                print(msg)
-    except KeyboardInterrupt as e:
-        print(
-            "Received keyboard interrupt, file may be corrupt!\n"
-            + "Some devices may be in unknown state. Check traceback!\n"
-            + "Traceback of error:\n"
-        )
-        traceback.print_tb(e.__traceback__)
-        ret = 1
+    # After system.set(), ensure system.reset() is called for any error
     reset_kwargs = {
         "input_file": options.inputfile,
         "output_file": output_filename,
     }
-    if ret == 1:
-        x = input(
-            "Shall the termination of the sequence lead to marking the datafile as aborted? (Y/n)"
-        )
-        if x.lower().startswith("y") or x == "":
-            print("marking file as aborted")
+    ret = 0
+
+    try:
+        # acquire configuration from devices and notify user what is going on
+        print("devices set, acquiring configuration and writing header")
+        # initialize datefile and insert device query
+        try:
+            system.init_datafile(options.inputfile)
+        except OSError as e:
+            reset_system_and_exit(
+                system,
+                reset_kwargs,
+                1,
+                "matrix: error: cannot create output file",
+                e,
+                immediate_error=True,
+            )
+        except Exception as e:
+            reset_system_and_exit(
+                system,
+                reset_kwargs,
+                1,
+                "matrix: error: could not acquire configuration.",
+                e,
+                immediate_error=True,
+            )
+
+        # do the loop
+        print("entering loop now")
+        # read the parameter input file
+        try:
+            # enforce plain interface on Windows because urwid would fail
+            if options.plain or options.quiet or os.name == "nt":
+                control_string = "To pause or quit after next point, press p/q"
+                if os.name != "nt":
+                    control_string += " and enter"
+                # print help string for pause in plain version
+                print(control_string)
+                ret = measure_plain(options.inputfile, system, quiet=options.quiet)
+            else:
+                ret, msg = measure_urwid(options.inputfile, options.systemfile, system)
+                if msg:
+                    print(msg)
+        except KeyboardInterrupt as e:
+            print(
+                "Received keyboard interrupt, file may be corrupt!\n"
+                + "Some devices may be in unknown state. Check traceback!\n"
+                + "Traceback of error:\n"
+            )
+            traceback.print_tb(e.__traceback__)
+            ret = 1
+
+        # Handle return codes for normal completion or user-initiated abort
+        if ret == 1:
+            x = input(
+                "Shall the termination of the sequence lead to "
+                "marking the datafile as aborted? (Y/n)"
+            )
+            if x.lower().startswith("y") or x == "":
+                print("marking file as aborted")
+                reset_kwargs["status"] = "aborted"
+        if ret == 2:
             reset_kwargs["status"] = "aborted"
-    if ret == 2:
-        reset_kwargs["status"] = "aborted"
-    if "status" not in reset_kwargs.keys():
-        reset_kwargs["status"] = "finished"
-    print("resetting devices")
-    # reset system/devices
-    system.reset(**reset_kwargs)
-    # set returncode of the measurementloop as our exit status
-    sys.exit(ret)
+        if "status" not in reset_kwargs.keys():
+            reset_kwargs["status"] = "finished"
+
+    except Exception as e:
+        # Catch any other unexpected errors after system.set()
+        traceback.print_exc()
+        reset_system_and_exit(
+            system,
+            reset_kwargs,
+            1,  # exit_code
+            error_message=f"matrix exited with error:\n{type(e).__name__}: {e}",
+            exception=e,
+            immediate_error=True,
+        )
+
+    reset_system_and_exit(system, reset_kwargs, ret)

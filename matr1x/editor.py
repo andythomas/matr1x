@@ -43,10 +43,10 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from matr1x.gui_util import FileDropMixin, get_application_instance
 from matr1x.util import (
     generate_script,
-    generate_script_prefix_suffix,
+    get_script_prefix_offset,
 )
 
-SCRIPT_OFFSET = len(generate_script_prefix_suffix()[0].splitlines())
+SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
 
 __all__ = ["CodeEditor"]

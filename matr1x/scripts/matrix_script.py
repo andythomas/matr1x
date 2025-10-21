@@ -96,7 +96,6 @@ from matr1x.scripts import matrix_preview
 from matr1x.util import (
     create_temp_dir_with_symlinks,
     generate_script,
-    generate_script_prefix_suffix,
     get_importable_module_name,
     set_correct_mac_appname,
 )
@@ -105,8 +104,6 @@ logger = logging.getLogger(Path(__file__).name)
 logger.info("matrix-script starting")
 config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
-# +1 here is needed since otherwise the last newline is not counted.
-SCRIPT_OFFSET = len(generate_script_prefix_suffix()[0].splitlines()) + 1
 
 MAX_LINES_STATUS = 10000
 # to test what a good limiting value is, use the following:
