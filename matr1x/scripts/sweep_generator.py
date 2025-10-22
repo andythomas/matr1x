@@ -29,11 +29,13 @@ from ast import literal_eval
 from collections.abc import Callable
 from math import floor
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import TypedDict
 
 import pyqtgraph as pg
 from numpy import linspace, uint
-from PySide6.QtCore import QByteArray, QEvent, QSettings, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QKeySequence, QPalette
+from PySide6.QtCore import QByteArray, QEvent, QObject, QSettings, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QKeySequence, QMouseEvent, QPalette
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -48,6 +50,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -95,6 +98,15 @@ if sys.platform == "win32":
         pass
 
 
+class ColumnData(TypedDict):
+    """Container for column data."""
+
+    name: list[str]
+    unit: list[str]
+    sign: list[str]
+    color: list[bool]
+
+
 def add_focusInEvent(cls):
     """Add a focusIn signal and focusInEvent handling."""
 
@@ -128,7 +140,7 @@ class SpinBoxFocus(QSpinBox):
 class QLabelWithColor(QLabel):
     """Allow QLabel with highlight color and mouseclick reaction."""
 
-    clicked = Signal(int)
+    clicked = Signal()
 
     def __init__(self):
         """Init with colored background for bright and dark mode."""
@@ -159,19 +171,19 @@ class QLabelWithColor(QLabel):
             self.setStyleSheet(self.stylesheet_bright)
         self.updating_stylesheet = False
 
-    def mousePressEvent(self, ev):
+    def mousePressEvent(self, ev: QMouseEvent):
         """
         Detect mouse-click for proper column highlighting.
 
         The column of the click is emitted as a Signal.
         """
-        if ev is not None:
-            if ev.button() == Qt.MouseButton.LeftButton:
-                self.clicked.emit(ev)
-                active_window = MApplication.activeWindow()
-                if active_window is not None:
-                    active_window.setFocus()
-        return super().mousePressEvent(ev)
+        super().mousePressEvent(ev)
+
+        if ev.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+            active_window = MApplication.activeWindow()
+            if active_window is not None:
+                active_window.setFocus()
 
     def setColors(self, color_bright: str, color_dark: str) -> None:
         """
@@ -187,6 +199,239 @@ class QLabelWithColor(QLabel):
         self.color_bright = color_bright
         self.color_dark = color_dark
         self._update_colors()
+
+
+class WidgetGenerator(QObject):
+    """Generate the sweep labels and columns."""
+
+    widget_modified = Signal()
+    select_grid_column = Signal(int)
+    append = Signal(int)
+
+    def __init__(
+        self,
+        columns: ColumnData = {"name": [], "unit": [], "sign": [], "color": []},
+        column: int = 0,
+    ):
+        """
+        Generate the general labels and the widgets for each column.
+
+        Parameters
+        ----------
+        columns: ColumnData
+            The properties of the columns (name, unit, sign, color).
+        column: int
+            The current column in the MainWindow.
+        """
+        super().__init__()
+        self.columns = columns
+        self.column = column
+        self.column_widgets = {
+            "column": self._create_column_widget,
+            "nameunit": self._create_nameunit_widget,
+            "start": self._create_line_edit_widget,
+            "end": self._create_line_edit_widget,
+            "points": self._create_points_widget,
+            "append": self._create_append_widget,
+            "repeat": self._create_repeat_widget,
+            "doublearrow": self._create_arrow_widget,
+            "updown": self._create_checkbox_widget,
+            "loopover": self._create_combobox_widget,
+        }
+
+        placeholder = QWidget()
+        placeholder.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        placeholder.setFixedSize(0, 0)
+
+        self.label_widgets = {
+            "column": QLabel("Column"),
+            "nameunit": QLabel("Name (Unit)"),
+            "start": QLabel("Start value"),
+            "end": QLabel("End value"),
+            "points": QLabel("Point count"),
+            "append": placeholder,
+            "repeat": QLabel("Repeat/ Up-down"),
+            "doublearrow": QLabel(""),
+            "updown": QLabel(""),
+            "loopover": QLabel("Loop over"),
+        }
+
+    def labels(self):
+        """Return the label widgets as a list."""
+        return list(self.label_widgets.values())
+
+    def generate_column(self) -> dict[str, QWidget]:
+        """
+        Generate a dict of widgets for the respective column.
+
+        Returns
+        -------
+        dict[str, QWidget]
+            Each entry is one of the required widgets for the column.
+        """
+        sweep_widgets = {}
+        for widget_type, factory in self.column_widgets.items():
+            sweep_widgets[widget_type] = factory()
+        return sweep_widgets
+
+    def _create_column_widget(self) -> QLabel:
+        """
+        Create a label widget for column.
+
+        Returns
+        -------
+        QLabel
+            The label with the required properties.
+        """
+        widget = QLabelWithColor()
+        widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        widget.setText(self.columns["sign"][self.column])
+        if not self.columns["color"][self.column]:
+            widget.setColors("#D0EBFE", "#1E4962")
+        widget.clicked.connect(lambda: self.select_grid_column.emit(self.column))
+        return widget
+
+    def _create_nameunit_widget(self) -> QLabel:
+        """
+        Create a label widget for nameunit.
+
+        Returns
+        -------
+        QLabel
+            The label with the required properties.
+        """
+        widget = QLabelWithColor()
+        widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        name = self.columns["name"][self.column].strip()
+        unit = self.columns["unit"][self.column].strip()
+        widget.setText(f"{name} ({unit})")
+        if not self.columns["color"][self.column]:
+            widget.setColors("#D0EBFE", "#1E4962")
+        widget.clicked.connect(lambda: self.select_grid_column.emit(self.column))
+        return widget
+
+    def _create_line_edit_widget(self) -> QLineEdit:
+        """
+        Create a line edit widget for start or end values.
+
+        Returns
+        -------
+        QLineEdit
+            The line edit with the required properties.
+        """
+        widget = LineEditFocus()
+        widget.setAlignment(Qt.AlignmentFlag.AlignRight)
+        widget.setValidator(validator[float])
+        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))  # type: ignore
+        return widget
+
+    def _create_points_widget(self) -> QWidget:
+        """
+        Create a line edit widget for points.
+
+        Returns
+        -------
+        QLineEdit
+            The line edit with the required properties.
+        """
+        widget = LineEditFocus()
+        widget.setAlignment(Qt.AlignmentFlag.AlignRight)
+        widget.setValidator(validator[uint])
+        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))  # type: ignore
+        return widget
+
+    def _create_append_widget(self) -> QPushButton:
+        """
+        Create an append button widget.
+
+        Returns
+        -------
+        QPushButton
+            The push button with the required properties.
+        """
+        widget = QPushButton("+")
+        temp_widget = QLineEdit(None)
+        size = temp_widget.sizeHint().height()
+        temp_widget.deleteLater()
+        # A vertical button that almost spans the three lines it appends looks nice
+        widget.setFixedSize(size, int(2.9 * size))
+        widget.clicked.connect(self.widget_modified.emit)
+        widget.clicked.connect(lambda: self.append.emit(self.column))
+        return widget
+
+    def _create_repeat_widget(self) -> QSpinBox:
+        """
+        Create a spinbox widget for repeat count.
+
+        Returns
+        -------
+        QSpinBox
+            The spin box with the required properties.
+        """
+        widget = SpinBoxFocus()
+        widget.setRange(1, 999)
+        widget.setAlignment(Qt.AlignmentFlag.AlignRight)
+        widget.valueChanged.connect(lambda: self.widget_modified.emit())
+        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))  # type: ignore
+        return widget
+
+    def _create_arrow_widget(self) -> QLabel:
+        """
+        Create an arrow icon widget.
+
+        Returns
+        -------
+        QLabel
+            The label with the up-down arrow icon.
+        """
+        arrow_icon = get_matrix_icon(
+            "CUSTOM_Updown",
+            color=QColor("transparent"),
+            pencolor=QColor("darkgray"),
+        )
+        widget = QLabel()
+        height = 24
+        widget.setPixmap(arrow_icon.pixmap(height, height))
+        return widget
+
+    def _create_checkbox_widget(self) -> QCheckBox:
+        """
+        Create a checkbox widget for updown selection.
+
+        Returns
+        -------
+        QCheckBox
+            A standard check box.
+        """
+        widget = CheckBoxFocus()
+        widget.stateChanged.connect(lambda: self.widget_modified.emit())
+        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))  # type: ignore
+        return widget
+
+    def _create_combobox_widget(self) -> QComboBox:
+        """
+        Create a combobox widget for loopover.
+
+        Note
+        ----
+        This is the widest widgets and determines how many columns fit
+        in one row of the screen. Therefore, font size is decreased.
+
+        Returns
+        -------
+        QComboBox
+            The box that can hold all columns later.
+        """
+        widget = QComboBox()
+        widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        font = widget.font()
+        font.setPointSize(font.pointSize() - 1)
+        widget.setFont(font)
+        widget.currentIndexChanged.connect(lambda: self.widget_modified.emit())
+        widget.activated.connect(lambda: self.select_grid_column.emit(self.column))
+        columns = ["None"] + [name.strip() for name in self.columns["name"]]
+        widget.addItems(columns)
+        return widget
 
 
 class SweepPreviewPopup(QDialog):
@@ -247,7 +492,9 @@ class SweepPreviewPopup(QDialog):
         self.plt.setPen((0, 0, 153), width=3)
 
         self.proxy = pg.SignalProxy(
-            self.pw.scene().sigMouseMoved, rateLimit=30, slot=self.mouseMoved
+            self.pw.scene().sigMouseMoved,  # type: ignore
+            rateLimit=30,
+            slot=self.mouseMoved,
         )
 
         self.plotListRangeX(index)
@@ -322,6 +569,7 @@ class MainWindow(FileDropMixin, QMainWindow):
     """
 
     extension = ".sw8"
+    window_title_dirty = Signal()
 
     def __init__(
         self,
@@ -333,20 +581,20 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
 
         # file handling helpers
-        self.system = system
-        self.inputcb = inputcb
-        self.last_loaded_system = None
+        self.system: MergedSystem | None = system
+        self.inputcb: Callable[[str], None] | None = inputcb
+        self.last_loaded_system: str | None = None
         self.last_filename: Path | None = None
-        self.dirty = False
-        self.shortcut_dir = None
+        self.dirty: bool = False
+        self.shortcut_dir: TemporaryDirectory | None = None
 
         # allow to store the settings
         self.settings = QSettings("matr1x", "sweep-generator")
 
-        # column variables
-        self.flat_col = []
-        self.flat_unit = []
-        self.col_sign = []
+        # Connect the signal to the update method
+        self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
+
+        self.columns: ColumnData = {"name": [], "unit": [], "sign": [], "color": []}
 
         # sweep variables
         self.loop_over = []
@@ -356,20 +604,10 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.systemFilename = ""
 
         # gui variables
-        self.preview_column = 1
-        self.labels = (
-            ("column", "Column"),
-            ("nameunit", "Name (Unit)"),
-            ("start", "Start value"),
-            ("end", "End value"),
-            ("points", "Point count"),
-            ("append", "Append sweep"),
-            ("repeat", "Repeat"),
-            ("updown", "Up-down"),
-            ("loopover", "Loop over"),
-        )
+        self.preview_column = 0
+
         # initialize generic (system independent) part of ui
-        self.outputList = None
+        self.outputList: list
         self.populated = False
         self.init_ui()
 
@@ -422,9 +660,11 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         # Just in case it is the first start
         self.resize(self.sizeHint())
-        self.restoreGeometry(self.settings.value("geometry", QByteArray()))
+        self.restoreGeometry(
+            self.settings.value("geometry", defaultValue=QByteArray(), type=QByteArray)  # type: ignore
+        )
         self.addToolBar(
-            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
+            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),  # type: ignore
             self.toolbar,
         )
 
@@ -582,9 +822,7 @@ class MainWindow(FileDropMixin, QMainWindow):
     def create_menu(self) -> None:
         """Create the main menu."""
         menu = self.menuBar()
-        assert menu is not None
         file_menu = menu.addMenu("&File")
-        assert file_menu is not None
         file_menu.addAction(self.new_file_action)
         file_menu.addAction(self.load_action)
         file_menu.addSeparator()
@@ -598,16 +836,13 @@ class MainWindow(FileDropMixin, QMainWindow):
         file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
         #
         control_menu = menu.addMenu("&Control")
-        assert control_menu is not None
         control_menu.addAction(self.sweep_action)
         #
         view_menu = menu.addMenu("&View")
-        assert view_menu is not None
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.matrix_settings_action)
         #
         help_menu = menu.addMenu("&Help")
-        assert help_menu is not None
         help_menu.addAction(self.about_action)
 
     def info_box(self) -> None:
@@ -636,7 +871,9 @@ class MainWindow(FileDropMixin, QMainWindow):
         """Reset layout to clean state."""
         if self.populated:
             self.sweep_params = []
-            self.flat_col = []
+            self.columns["name"].clear()
+            self.columns["unit"].clear()
+            self.columns["sign"].clear()
             self.clear_layout(self.grid)
             self.sweep_table.setRowCount(0)
             self.sweep_preview.setRowCount(0)
@@ -699,6 +936,13 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def process_system_import(self) -> None:
         """Process specified system imports and populate layout."""
+        if self.system is None:
+            QMessageBox.warning(
+                self,
+                "Import error!",
+                "No system files given.",
+            )
+            return
         if len(self.system.columns) != len(self.system.units):
             # simple sanity check
             QMessageBox.warning(
@@ -709,32 +953,33 @@ class MainWindow(FileDropMixin, QMainWindow):
             return
         self.reset_layout()
         # store old columns
-        old_cols = self.flat_col
+        old_cols = self.columns["name"]
         # Initalize sweep lists
-        self.col_sign = []
+        self.columns["sign"] = []
         # generate list of settable parameters
-        settables, self.flat_col, self.flat_unit = self.system.settable_columns()
+        settables, self.columns["name"], self.columns["unit"] = self.system.settable_columns()
         for i, (settable, col) in enumerate(zip(settables, self.system.columns)):
             # add a column for each settable parameter in the system
             if settable is True:
                 if isinstance(col, (tuple, list)):
                     # if parameter has multiple values, add multiple columns
                     for c in col:
-                        self.col_sign.append(generate_col_index(i))
+                        self.columns["sign"].append(generate_col_index(i))
                 else:
-                    self.col_sign.append(generate_col_index(i))
+                    self.columns["sign"].append(generate_col_index(i))
+
+        self.columns["color"] = self._generate_alternating_colors()
+
         # columns are initialized, get already available columns from
         # the old columns, save the sweep params and their new location
         save_sweep_params = {}
         for index, old_col in enumerate(old_cols):
-            if old_col in self.flat_col:
-                newloc = self.flat_col.index(old_col)
+            if old_col in self.columns["name"]:
+                newloc = self.columns["name"].index(old_col)
                 save_sweep_params[newloc] = self.sweep_params[index]
-        # populate the actual number of used parameters (fully flattened)
-        self.nParmsUsed = len(self.flat_col)
         # generate empty list of list for the sweep parameters
         self.sweep_params = []
-        for pos in range(self.nParmsUsed):
+        for pos in range(len(self.columns["name"])):
             if pos in save_sweep_params.keys():
                 # if parameter was already defined before, keep sweep params
                 self.sweep_params.append(save_sweep_params[pos])
@@ -744,158 +989,103 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.populate_layout()
         self.populated = True
 
-    def get_custom_widget(self, name: str, column: int = 0) -> QWidget:
+    def add2grid(self, widgets: dict[str, QWidget], row: int = 0, column: int = 0):
         """
-        Receive a custom widget for use in the GUI.
+        Add widgets to grid.
 
-        We need a new istance of a widget every time, otherwise Qt moves it
-        to the last position.
+        Note
+        ----
+        The grid requires 5 rows for every parameter set:
+        column, nameunit, parameters, modifiers and combobox.
 
         Parameters
         ----------
-        name : str
-            The custom name of the widget to receive.
-        column : int
-            The column of the widget.
+        widgets: dict[str, QWidget]
+            The dict of widgets.
+        row: int, optional
+            The row of the parameters.
+        column: int, optional
+            The column of the parameters, which is the same as the grid.
+        """
+        row = row * 5
+        self.grid.addWidget(widgets["column"], row, column)
+        self.grid.addWidget(widgets["nameunit"], row + 1, column)
+        parameters = QVBoxLayout()
+        parameters.setSpacing(3)
+        parameters.addWidget(widgets["start"])
+        parameters.addWidget(widgets["end"])
+        parameters.addWidget(widgets["points"])
+        quart = QHBoxLayout()
+        quart.setSpacing(8)
+        quart.addLayout(parameters)
+        quart.addWidget(widgets["append"])
+        widgets["append"].setDisabled(True)
+        self.grid.addLayout(quart, row + 2, column)
+        modifiers = QHBoxLayout()
+        modifiers.setSpacing(5)
+        if not isinstance(widgets["updown"], QLabel):
+            modifiers.addWidget(widgets["repeat"], stretch=1)
+        else:
+            modifiers.addWidget(widgets["repeat"])
+        modifiers.addWidget(widgets["doublearrow"])
+        modifiers.addWidget(widgets["updown"])
+        self.grid.addLayout(modifiers, row + 3, column)
+        combobox = QVBoxLayout()
+        combobox.addWidget(widgets["loopover"])
+        combobox.addWidget(QLabel(" "))
+        self.grid.addLayout(combobox, row + 4, column)
+
+    def _generate_alternating_colors(self) -> list[bool]:
+        """
+        Generate alternating colors for column entries.
 
         Returns
         -------
-        QWidget
-            The widget.
+        list[bool]
+            True and False alternate when entry differs from previous.
         """
-        if name == "column" or name == "nameunit":
-            widget = QLabelWithColor()
-            widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            widget.clicked.connect(lambda: self.populate_sweep_grid(column))
-        elif name == "start" or name == "end" or name == "points":
-            widget = LineEditFocus()
-            widget.setAlignment(Qt.AlignmentFlag.AlignRight)
-            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))  # ty: ignore [unresolved-attribute] issue #143
-            widget.textChanged.connect(
-                lambda text, column=column - 1: self.update_append(text, column)
-            )
-            if name == "points":
-                widget.setValidator(validator[uint])
-            else:
-                widget.setValidator(validator[float])
-        elif name == "repeat":
-            widget = SpinBoxFocus()
-            widget.setRange(1, 999)
-            widget.setAlignment(Qt.AlignmentFlag.AlignRight)
-            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))  # ty: ignore [unresolved-attribute] issue #143
-            widget.valueChanged.connect(lambda: self.update_window_title(dirty=True))
-        elif name == "append":
-            widget = QPushButton("+")
-            temp_widget = QLineEdit(None)
-            size = temp_widget.sizeHint().height()
-            temp_widget.deleteLater()
-            # A vertical button that almost spans the three lines it appends looks nice
-            widget.setFixedSize(size, int(2.9 * size))
-            widget.clicked.connect(lambda: self.append_sweep_col(column))
-            widget.clicked.connect(lambda: self.update_window_title(dirty=True))
-        elif name == "updown":
-            widget = CheckBoxFocus(self)
-            widget.focusIn.connect(lambda: self.populate_sweep_grid(column))  # ty: ignore [unresolved-attribute] issue #143
-            widget.stateChanged.connect(lambda: self.update_window_title(dirty=True))
-        elif name == "loopover":
-            widget = QComboBox(self)
-            widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            font = widget.font()
-            font.setPointSize(font.pointSize() - 1)
-            widget.setFont(font)
-            columns = ["None"]
-            for i in range(self.nParmsUsed):
-                columns.append(self.flat_col[i].strip())
-            widget.addItems(columns)
-            widget.activated.connect(lambda: self.populate_sweep_grid(column))
-            widget.currentIndexChanged.connect(lambda: self.update_window_title(dirty=True))
-        else:
-            raise ValueError(f"Unknown widget {name}.")
-        return widget
+        colors = []
+        if len(self.columns["sign"]) > 0:
+            current_color = True
+            last_sign = self.columns["sign"][0]
+            colors.append(current_color)
+
+            for i in range(1, len(self.columns["sign"])):
+                if self.columns["sign"][i] != last_sign:
+                    current_color = not current_color
+                    last_sign = self.columns["sign"][i]
+                colors.append(current_color)
+        return colors
 
     def populate_layout(self) -> None:
         """Populate sweep control and data fields."""
         self.grid_widgets = []
-        color1 = True
-        last_letter = self.col_sign[0][0]
-        for column in range(self.nParmsUsed):
-            sweep_widgets = {}
-            for label in self.labels:
-                sweep_widgets[label[0]] = self.get_custom_widget(label[0], column=column + 1)
-            sweep_widgets["column"].setText(self.col_sign[column])
-            nameunit = f"{self.flat_col[column].strip()} ({self.flat_unit[column].strip()})"
-            sweep_widgets["nameunit"].setText(nameunit)
-            # alternate the column label colors
-            letter = self.col_sign[column][0]
-            if letter != last_letter:
-                last_letter = letter
-                color1 = not color1
-            if not color1:
-                sweep_widgets["column"].setColors("#D0EBFE", "#1E4962")
-                sweep_widgets["nameunit"].setColors("#D0EBFE", "#1E4962")
+        self.add2grid(WidgetGenerator(self.columns).label_widgets)
+
+        for column in range(len(self.columns["name"])):
+            sweep_generator = WidgetGenerator(self.columns, column)
+            sweep_generator.widget_modified.connect(self.window_title_dirty.emit)
+            sweep_generator.select_grid_column.connect(self.populate_sweep_grid)
+            sweep_generator.append.connect(self.append_sweep_col)
+            sweep_widgets = sweep_generator.generate_column()
+            for widget_type, widget in sweep_widgets.items():
+                if widget_type in ["start", "end", "points"]:
+                    widget.textChanged.connect(  # type: ignore
+                        lambda text, col=column: self.update_append(text, col)
+                    )
             self.grid_widgets.append(sweep_widgets)
 
-        self.grid.addWidget(QLabel(self.labels[0][1]), 0, 0)
-        self.grid.addWidget(QLabel(self.labels[1][1]), 1, 0)
-        parameters = QVBoxLayout()
-        parameters.addWidget(QLabel(self.labels[2][1]))
-        parameters.addWidget(QLabel(self.labels[3][1]))
-        parameters.addWidget(QLabel(self.labels[4][1]))
-        self.grid.addLayout(parameters, 2, 0)
-        modifiers = f"{self.labels[6][1]}/ {self.labels[7][1]}"
-        self.grid.addWidget(QLabel(modifiers), 3, 0)
-        combolabel = f"{self.labels[8][1]}\n "
-        self.grid.addWidget(QLabel(combolabel), 4, 0)
-        # determine how many columns can fit
-        combobox = self.get_custom_widget("loopover")
-        max_width = combobox.minimumSizeHint().width() + self.grid.horizontalSpacing()
-        combobox.deleteLater()
-        left, top, right, bottom = self.grid.getContentsMargins()
+        max_column_width = self.grid_widgets[0]["loopover"].minimumSizeHint().width()
+        # calculate how many columns fit the screen horizontally
+        max_width = max_column_width + self.grid.horizontalSpacing()
+        left, top, right, bottom = self.grid.getContentsMargins()  # type: ignore
         screen_width = self.screen().availableGeometry().width() - left - right
-        # The first column fits one column less because of the labels.
         column_fit = screen_width // max_width - 1
-        row = 0
-        for column in range(self.nParmsUsed):
-            # Fit the calculated number of columns in the first row and
-            # one more in the subsequent ones.
-            # The grid requires 5 rows for every parameter set:
-            # column, nameunit, parameters, modifiers and combobox.
-            if column >= column_fit:
-                row = ((column - column_fit) // (column_fit + 1) + 1) * 5
+
+        for column in range(len(self.columns["name"])):
+            row = (column + 1) // (column_fit + 1)
             grid_column = (column + 1) % (column_fit + 1)
-            self.grid.addWidget(self.grid_widgets[column]["column"], 0 + row, grid_column)
-            self.grid.addWidget(self.grid_widgets[column]["nameunit"], 1 + row, grid_column)
-            parameters = QVBoxLayout()
-            parameters.setSpacing(3)
-            parameters.addWidget(self.grid_widgets[column]["start"])
-            parameters.addWidget(self.grid_widgets[column]["end"])
-            parameters.addWidget(self.grid_widgets[column]["points"])
-            quart = QHBoxLayout()
-            quart.setSpacing(8)
-            quart.addLayout(parameters)
-            quart.addWidget(self.grid_widgets[column]["append"])
-            self.grid_widgets[column]["append"].setDisabled(True)
-            self.grid.addLayout(quart, 2 + row, grid_column)
-            modifiers = QHBoxLayout()
-            modifiers.setSpacing(5)
-            modifiers.addWidget(self.grid_widgets[column]["repeat"], stretch=1)
-            temp_widget = QLineEdit(None)
-            size = temp_widget.sizeHint().height()
-            temp_widget.deleteLater()
-            arrow_icon = get_matrix_icon(
-                "CUSTOM_Updown",
-                color=QColor("transparent"),
-                pencolor=QColor("darkgray"),
-            )
-            arrow_label = QLabel()
-            arrow_label.setPixmap(arrow_icon.pixmap(size, size))
-            modifiers.addWidget(arrow_label)
-            modifiers.addWidget(self.grid_widgets[column]["updown"])
-            self.grid.addLayout(modifiers, 3 + row, grid_column)
-            combobox = QVBoxLayout()
-            combobox.addWidget(self.grid_widgets[column]["loopover"])
-            combobox.addWidget(QLabel(" "))
-            self.grid.addLayout(combobox, 4 + row, grid_column)
+            self.add2grid(self.grid_widgets[column], row, grid_column)
 
     def update_append(self, text: str, column: int) -> None:
         """
@@ -911,7 +1101,6 @@ class MainWindow(FileDropMixin, QMainWindow):
             and self.grid_widgets[column]["end"].text().strip()
             and self.grid_widgets[column]["points"].text().strip()
         ):
-            #
             self.grid_widgets[column]["append"].setEnabled(True)
         else:
             self.grid_widgets[column]["append"].setEnabled(False)
@@ -929,11 +1118,11 @@ class MainWindow(FileDropMixin, QMainWindow):
             return
         popup = SweepPreviewPopup(
             self,
-            self.preview_column - 1,
+            self.preview_column,
             sweep,
-            self.flat_col,
-            self.flat_unit,
-            self.col_sign,
+            self.columns["name"],
+            self.columns["unit"],
+            self.columns["sign"],
         )
         popup.show()
 
@@ -941,12 +1130,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         """Print the complete set of sweeps to self.sweep_preview."""
         sweep = self.generate_sweep()
         if sweep is None:
-            # sweep generation failed
             return
         elif isinstance(sweep, str):
-            # if an error is encountered during the generation of the sweep
-            # lists from the parameter, a helpful error message should be
-            # provided here
             QMessageBox.warning(self, "Error during sweep generation!", sweep)
             return
         # get length of longest sweep and
@@ -956,12 +1141,13 @@ class MainWindow(FileDropMixin, QMainWindow):
         for i in range(len(sweep)):
             # make sure that values that belong to the same parameter have the
             # same length
-            if self.col_sign[i] == self.col_sign[i - 1] and len(sweep[i]) != len(sweep[i - 1]):
+            if self.columns["sign"][i] == self.columns["sign"][i - 1] and len(sweep[i]) != len(
+                sweep[i - 1]
+            ):
                 error_text = "Not all parameters for that instrument have the same length."
-                error_text += (
-                    f"Please correct your sweep parameters in instrument {self.col_sign[i]} "
-                )
-                error_text += f" -> {self.flat_col[i]}. If a parameter accepts multiple "
+                error_text += "Please correct your sweep parameters in instrument "
+                error_text += f"{self.columns['sign'][i]} "
+                error_text += f" -> {self.columns['name'][i]}. If a parameter accepts multiple "
                 error_text += (
                     "values, the different values for that parameter must have the same length."
                 )
@@ -998,12 +1184,14 @@ class MainWindow(FileDropMixin, QMainWindow):
                 if 0 != mult[j] and not i % mult[j]:
                     # here the values are stretched to the correct "length" if
                     # the loop_over parameter is considered
-                    if self.col_sign[j] == self.col_sign[j - 1] and len(sweep) > 1:
+                    if self.columns["sign"][j] == self.columns["sign"][j - 1] and len(sweep) > 1:
                         # Parameter has multiple values
-                        string.append(str(swp[floor(i / mult[j])]))
+                        string.append(str(swp[floor(i / mult[j])]))  # type: ignore
                     else:
                         # Parameter has single value
-                        string.append("-" + self.col_sign[j] + " " + str(swp[floor(i / mult[j])]))
+                        string.append(
+                            "-" + self.columns["sign"][j] + " " + str(swp[floor(i / mult[j])])  # type: ignore
+                        )
                 string.append("   ")
             # add everything into a single string
             string = "".join(string)
@@ -1091,11 +1279,11 @@ class MainWindow(FileDropMixin, QMainWindow):
             outputFile.write("\n# system filename : ")
             outputFile.write(self.systemFilename)
             outputFile.write("\n# settable columns : ")
-            outputFile.write(",".join(self.flat_col))
+            outputFile.write(",".join(self.columns["name"]))
             outputFile.write("\n# settable units : ")
-            outputFile.write(",".join(self.flat_unit))
+            outputFile.write(",".join(self.columns["unit"]))
             outputFile.write("\n# settable column label : ")
-            outputFile.write(",".join(self.col_sign))
+            outputFile.write(",".join(self.columns["sign"]))
             outputFile.write("\n# params : ")
             outputFile.write(str(self.sweep_params))
             outputFile.write("\n# loop_over : ")
@@ -1119,18 +1307,19 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         Add defined sweep parameters to self.sweep_params and populate sweep table.
 
-        Take care that whenever adressing the list (i.e. sweep_params)
-        that those are shifted by 1 (layout starts at col 1, lists at
-        0).
+        Parameters
+        ----------
+        column : int
+            The column index (0-based).
         """
         param_set = []
-        param_set.append(self.grid_widgets[column - 1]["start"].text())
-        param_set.append(self.grid_widgets[column - 1]["end"].text())
-        param_set.append(self.grid_widgets[column - 1]["points"].text())
-        self.sweep_params[column - 1].append(param_set)
-        self.grid_widgets[column - 1]["start"].setText("")
-        self.grid_widgets[column - 1]["end"].setText("")
-        self.grid_widgets[column - 1]["points"].setText("")
+        param_set.append(self.grid_widgets[column]["start"].text())
+        param_set.append(self.grid_widgets[column]["end"].text())
+        param_set.append(self.grid_widgets[column]["points"].text())
+        self.sweep_params[column].append(param_set)
+        self.grid_widgets[column]["start"].setText("")
+        self.grid_widgets[column]["end"].setText("")
+        self.grid_widgets[column]["points"].setText("")
         # update the sweep grid for the active column (should now display
         # the new parameter set)
         self.populate_sweep_grid(column)
@@ -1142,23 +1331,23 @@ class MainWindow(FileDropMixin, QMainWindow):
         Parameters
         ----------
         actual_column : int
-            The column that is selected.
+            The column that is selected (0-based index).
         """
         self.preview_column = actual_column
-        for column in range(self.nParmsUsed + 1):
-            col_sign_label = self.grid_widgets[column - 1]["column"]
-            flat_col_nameunit = self.grid_widgets[column - 1]["nameunit"]
+        for column in range(len(self.columns["name"])):
+            col_sign_label = self.grid_widgets[column]["column"]
+            col_nameunit = self.grid_widgets[column]["nameunit"]
             if column == actual_column:
                 col_sign_label.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
                 col_sign_label.setLineWidth(2)
-                flat_col_nameunit.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
-                flat_col_nameunit.setLineWidth(2)
+                col_nameunit.setFrameStyle(QLabel.Shape.Panel | QLabel.Shadow.Sunken)
+                col_nameunit.setLineWidth(2)
             else:
                 col_sign_label.setFrameStyle(QLabel.Shape.NoFrame)
-                flat_col_nameunit.setFrameStyle(QLabel.Shape.NoFrame)
-        self.sweep_table.setRowCount(len(self.sweep_params[actual_column - 1]))
+                col_nameunit.setFrameStyle(QLabel.Shape.NoFrame)
+        self.sweep_table.setRowCount(len(self.sweep_params[actual_column]))
 
-        for row, param_set in enumerate(self.sweep_params[actual_column - 1]):
+        for row, param_set in enumerate(self.sweep_params[actual_column]):
             for i in range(3):
                 line_edit = QLineEdit(self)
                 line_edit.setText(str(param_set[i]))
@@ -1170,9 +1359,9 @@ class MainWindow(FileDropMixin, QMainWindow):
                     lambda line_edit=line_edit,
                     actual_column=actual_column,
                     row=row,
-                    i=i: self.sweep_params[actual_column - 1][row].__setitem__(i, line_edit.text())
+                    i=i: self.sweep_params[actual_column][row].__setitem__(i, line_edit.text())
                 )
-                line_edit.textChanged.connect(lambda: self.update_window_title(dirty=True))
+                line_edit.textChanged.connect(self.window_title_dirty.emit)
                 line_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
                 self.sweep_table.setCellWidget(row, i, line_edit)
             delete_button = QPushButton("-")
@@ -1181,7 +1370,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                     actual_column, row
                 )
             )
-            delete_button.clicked.connect(lambda: self.update_window_title(dirty=True))
+            delete_button.clicked.connect(self.window_title_dirty.emit)
             wrapper = QWidget()
             layout = QHBoxLayout(wrapper)
             layout.addWidget(delete_button)
@@ -1196,11 +1385,11 @@ class MainWindow(FileDropMixin, QMainWindow):
         Parameters
         ----------
         col : int
-            The currently selected matrix column, e.g. a/field.
+            The currently selected matrix column (0-based index).
         row : int
             The row of the table to be deleted.
         """
-        del self.sweep_params[col - 1][row]
+        del self.sweep_params[col][row]
         self.populate_sweep_grid(col)
 
     def clear_layout(self, layout):
@@ -1241,7 +1430,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.systemList.addItem(module_name)
             else:
                 self.systemList.addItem(filename)
-        self.update_window_title(dirty=True)
+        self.window_title_dirty.emit()
         if not self.filename_changed():
             for filename in filenames:
                 self.systemList.takeItem(self.systemList.count() - 1)
@@ -1260,7 +1449,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         if self.systemList.count() == 0:
             self.remove_system_action.setEnabled(False)
         self.filename_changed()
-        self.update_window_title(dirty=True)
+        self.window_title_dirty.emit()
 
     def generate_sweep(self):
         """
@@ -1273,7 +1462,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.up_down = []
         self.repeat = []
 
-        for col in range(self.nParmsUsed):
+        for col in range(len(self.columns["name"])):
             self.loop_over.append(self.grid_widgets[col]["loopover"].currentIndex() - 1)
             updownstate = self.grid_widgets[col]["updown"].checkState()
             if updownstate == Qt.CheckState.Checked:
@@ -1321,11 +1510,11 @@ class MainWindow(FileDropMixin, QMainWindow):
             Sweep file to open.
         """
         params = {
-            "# params : ": None,
-            "# loop_over : ": None,
-            "# functions : ": None,
-            "# up_down : ": None,
-            "# repeat : ": None,
+            "# params : ": [],
+            "# loop_over : ": [],
+            "# functions : ": [],
+            "# up_down : ": [],
+            "# repeat : ": [],
         }
         self.systemList.clear()
         with Path(filename).open() as infile:
@@ -1366,7 +1555,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             )
             return
         # initialize layout with values specified in file
-        for col in range(self.nParmsUsed):
+        for col in range(len(self.columns["name"])):
             self.grid_widgets[col]["loopover"].setCurrentIndex(self.loop_over[col] + 1)
             self.grid_widgets[col]["updown"].setCheckState(Qt.CheckState(self.up_down[col]))
             self.grid_widgets[col]["repeat"].setValue(self.repeat[col])
@@ -1391,7 +1580,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 if not saved:
                     return
         self.sweep_params = []
-        for col in range(self.nParmsUsed):
+        for col in range(len(self.columns["name"])):
             self.sweep_params.append([])
             self.grid_widgets[col]["start"].setText("")
             self.grid_widgets[col]["end"].setText("")
@@ -1399,7 +1588,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.grid_widgets[col]["repeat"].setValue(1)
             self.grid_widgets[col]["updown"].setChecked(False)
             self.grid_widgets[col]["loopover"].setCurrentIndex(0)
-            self.populate_sweep_grid(col + 1)
+            self.populate_sweep_grid(col)
         self.print_sweep_to_preview()
         self.grid_widgets[0]["start"].setFocus()
         self.last_filename = None
