@@ -233,6 +233,7 @@ def test_CodeEditor(qtbot, qapp):
     assert issues == 0
     error_code = "unknown(1)\n"
     editor.insertText(error_code)
+    qtbot.wait(GUI_WAIT)
     return_code = editor.toPlainText()
     assert return_code == error_code + formatted_no_comment
     qtbot.wait(1500)  # linter runs asynchronously at least every second

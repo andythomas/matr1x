@@ -44,4 +44,4 @@ root_path = "core_library/"
 create_directories = false
 desktopintegration = true
 pip_options = "-q"
-monaco = "https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.53.0.tgz"
+monaco = "https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.54.0.tgz"

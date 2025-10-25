@@ -22,6 +22,7 @@ JavaScript should be used outside of this module!
 
 import ast
 import json
+import logging
 import subprocess
 import sys
 import tempfile
@@ -189,9 +190,9 @@ class Linter(QObject):
 
     lintingComplete = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, editor):
         super().__init__()
-        self.parent = parent
+        self.editor = editor
         self.current_diagnostics_count = 0
         self.issues: int = 0
 
@@ -263,7 +264,7 @@ class Linter(QObject):
         """
         try:
             tree = ast.parse(script, filename="script")
-            checker = Matr1xFunctionChecker(self.parent, *self.parent.settables)
+            checker = Matr1xFunctionChecker(self.parent, *self.editor.settables)
             checker.visit(tree)
             return checker.returnDiagnostics()
         except Exception:
@@ -424,7 +425,11 @@ class EditorBackend(QObject):
     """
     Modification tracking to be used with the Monaco editor.
 
-    This is the Python backend class for the JavaScript editor.
+    When Qt objects are registered with WebChannel, Qt expects certain
+    properties to have notify signals for proper data binding. The
+    "CodeEditor" inherits from "QWebEngineView" which has many
+    properties without notify signals, causing console noise. Therefore,
+    a class inheriting only from "QObject" is a clean solution.
     """
 
     contentModified = Signal(bool)
@@ -448,6 +453,48 @@ class EditorBackend(QObject):
         self._is_modified = modified
 
 
+class CodeEditorPage(QWebEnginePage):
+    """Pipe JavaScript console messages to logger."""
+
+    def __init__(self, parent=None):
+        """Init the logger."""
+        super().__init__(parent)
+        self.logger = logging.getLogger(f"{__name__}.CodeEditorPage")
+
+    def javaScriptConsoleMessage(
+        self,
+        level: QWebEnginePage.JavaScriptConsoleMessageLevel,
+        message: str,
+        lineNumber: int,
+        sourceID: str,
+    ):
+        """
+        Override to handle JavaScript console messages and log them.
+
+        Gives full info for errors and warnings and just the message
+        otherwise.
+
+        Parameters
+        ----------
+        level: QWebEnginePage.JavaScriptConsoleMessageLevel
+            Error, warning or info. debug level is encoded in message.
+        message: str
+            The message itself with optional [DEBUG] prefix.
+        lineNumber: int
+            The line number where the message originated.
+        sourceID: str
+            The file name where the message originated.
+        """
+        if level == QWebEnginePage.JavaScriptConsoleMessageLevel.ErrorMessageLevel:
+            self.logger.error(f"{message} (line {lineNumber}){sourceID}")
+        elif level == QWebEnginePage.JavaScriptConsoleMessageLevel.WarningMessageLevel:
+            self.logger.warning(f"{message} (line {lineNumber}){sourceID}")
+        elif message[0:7] == "[DEBUG]":
+            self.logger.debug(f"{message[8:]} (line {lineNumber}){sourceID}")
+        else:
+            self.logger.info(f"{message}")
+
+
 class CodeEditor(FileDropMixin, QWebEngineView):
     """Code editor connected to Monaco."""
 
@@ -464,6 +511,9 @@ class CodeEditor(FileDropMixin, QWebEngineView):
 
     def __init__(self, extensions: list):
         super().__init__()
+        self.logger = logging.getLogger(f"{__name__}.CodeEditor")
+        self.editor_page = CodeEditorPage()
+        self.setPage(self.editor_page)
         self.channel = QWebChannel()
         self.linter = Linter(self)
         self.backend = EditorBackend(self)
@@ -481,6 +531,32 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         get_application_instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
         self.setValidExtensions(extensions)
 
+    def _run_javascript(self, command: str):
+        """Execute JavaScript command and return result synchronously."""
+        result: Any = None
+        loop = QEventLoop()
+
+        def handle_result(js_result):
+            nonlocal result
+            result = js_result
+            loop.quit()
+
+        self.logger.debug(f"executing: {command}")
+        wrapped_command = f"""
+        (function() {{
+            try {{
+                return {command};
+            }} catch (error) {{
+                console.error(error.message);
+            }}
+        }})()
+        """
+
+        self.page().runJavaScript(wrapped_command, handle_result)
+        loop.exec()
+
+        return result
+
     def setPlainText(self, code: str) -> None:
         """
         Send code to the editor.
@@ -493,7 +569,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
             The code to send.
         """
         escaped_code = code.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-        self.page().runJavaScript(f'window.editor.setValue("{escaped_code}")')
+        self._run_javascript(f'window.editor.setValue("{escaped_code}")')
 
     def toPlainText(self) -> str:
         """
@@ -504,33 +580,15 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         str
             The received code.
         """
-        code = ""
-        loop = QEventLoop()
-
-        def handle_result(result):
-            nonlocal code
-            code = result
-            loop.quit()
-
-        self.page().runJavaScript("window.editor.getValue()", handle_result)
-        loop.exec()
-        return code
+        return self._run_javascript("window.editor.getValue()") or ""
 
     def toggleLineComment(self) -> None:
         """Toggle comment on/off for the active line."""
-        self.page().runJavaScript("""
-            if (window.editor) {
-                window.editor.getAction('editor.action.commentLine').run();
-            }
-        """)
+        self._run_javascript("window.editor.getAction('editor.action.commentLine').run()")
 
-    def find(self) -> None:
+    def show_find(self) -> None:
         """Show the find dialog."""
-        self.page().runJavaScript("""
-            if (window.editor) {
-                window.editor.getAction('actions.find').run();
-            }
-        """)
+        self._run_javascript("window.editor.getAction('actions.find').run()")
 
     def zoomIn(self) -> None:
         """Zoom into the view."""
@@ -542,19 +600,11 @@ class CodeEditor(FileDropMixin, QWebEngineView):
 
     def undo(self) -> None:
         """Perform undo."""
-        self.page().runJavaScript("""
-            if (window.editor && window.editor.getModel()) {
-                window.editor.getModel().undo();
-            }
-        """)
+        self._run_javascript("window.editor.getModel().undo()")
 
     def redo(self) -> None:
         """Perform redo."""
-        self.page().runJavaScript("""
-            if (window.editor && window.editor.getModel()) {
-                window.editor.getModel().redo();
-            }
-        """)
+        self._run_javascript("window.editor.getModel().redo()")
 
     def cut(self) -> None:
         """Perform cut."""
@@ -597,12 +647,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
             Set modified (True) or clean (False).
         """
         self.backend.setModified(modified)
-        # Notify the JavaScript editor about the modification state
-        self.page().runJavaScript(f"""
-            if (window.setModificationState) {{
-                window.setModificationState({str(modified).lower()});
-            }}
-        """)
+        self._run_javascript(f"window.setModificationState({str(modified).lower()})")
 
     def setReadOnly(self, read_only: bool) -> None:
         """
@@ -613,11 +658,9 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         read_only: bool
             Set readOnly (True) or not (False).
         """
-        self.page().runJavaScript(f"""
-            if (window.editor) {{
-                window.editor.updateOptions({{ readOnly: {str(read_only).lower()} }});
-            }}
-        """)
+        self._run_javascript(
+            f"window.editor.updateOptions({{ readOnly: {str(read_only).lower()} }})"
+        )
 
     def highlight(self, line_number: int) -> None:
         """
@@ -628,19 +671,11 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         line_number: int
             The line number to highlight.
         """
-        self.page().runJavaScript(f"""
-            if (window.editor && window.highlightLine) {{
-                window.highlightLine({line_number});
-            }}
-        """)
+        self._run_javascript(f"window.highlightLine({line_number})")
 
     def removeHighlight(self) -> None:
         """Remove line highlighting."""
-        self.page().runJavaScript("""
-            if (window.clearLineHighlight) {
-                window.clearLineHighlight();
-            }
-        """)
+        self._run_javascript("window.clearLineHighlight()")
 
     def setTheme(self, theme_selection: str) -> None:
         """
@@ -651,6 +686,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         theme: str
             Theme name.
         """
+        monaco_theme = list(CodeEditor.THEMES["Standard"].values())[0]
         for name, theme_pair in CodeEditor.THEMES.items():
             if name == theme_selection:
                 dark = get_application_instance().isDark
@@ -660,12 +696,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
                 if name == theme_selection:
                     self._current_theme = theme_selection
                     monaco_theme = theme
-
-        self.page().runJavaScript(f"""
-            if (window.editor) {{
-                monaco.editor.setTheme('{monaco_theme}');
-            }}
-        """)
+        self._run_javascript(f"monaco.editor.setTheme('{monaco_theme}')")
 
     def supportedThemes(self) -> list:
         """
@@ -689,15 +720,11 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         enable: bool
             Enable (True) or disable (False) tab completion.
         """
-        self.page().runJavaScript(f"""
-            if (window.editor) {{
-                window.editor.updateOptions({{
+        self._run_javascript(f"""window.editor.updateOptions({{
                     tabCompletion: {str(enable).lower() and "'on'" or "'off'"},
                     acceptSuggestionOnEnter: {str(enable).lower() and "'on'" or "'off'"},
                     quickSuggestions: {str(enable).lower()}
-                }});
-            }}
-        """)
+                }})""")
 
     def setSettables(self, settables) -> None:
         """
@@ -709,7 +736,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
             The settables of the system files.
         """
         self.settables = settables
-        self.page().runJavaScript("if (window.triggerLinting) window.triggerLinting();")
+        self._run_javascript("window.triggerLinting()")
 
     def insertText(self, text: str) -> None:
         """
@@ -721,23 +748,21 @@ class CodeEditor(FileDropMixin, QWebEngineView):
             The text to insert.
         """
         escaped_text = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-        self.page().runJavaScript(f"""
-        if (window.editor) {{
+        self._run_javascript(f"""(function() {{
           const position = window.editor.getPosition();
           const range = new monaco.Range(
             position.lineNumber,
             position.column,
             position.lineNumber,
-            position.column,
+            position.column
           );
-          window.editor.executeEdits("insertText", [
+          return window.editor.executeEdits("insertText", [
             {{
               range: range,
-              text: "{escaped_text}",
-            }},
+              text: "{escaped_text}"
+            }}
           ]);
-        }}
-        """)
+        }})()""")
 
     def returnIssues(self) -> int:
         """

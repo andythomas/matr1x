@@ -36,7 +36,27 @@
             let currentDiagnostics = [];
             let lintingTimeout = null;
             let isModified = false;
+            let webChannelReady = false;
+            let monacoReady = false;
 
+            // enable additional debug logging level
+            console.debug = function (...args) {
+                console.log("[DEBUG]", ...args);
+            };
+
+            // Initialize both systems independently
+            function initializeIfReady() {
+                if (webChannelReady && monacoReady) {
+                    console.log("QWebChannel and Monaco Editor are ready.");
+
+                    // Initial linting
+                    setTimeout(() => {
+                        triggerLinting();
+                    }, 100);
+                }
+            }
+
+            // Initialize QWebChannel
             new QWebChannel(qt.webChannelTransport, function (channel) {
                 linter = channel.objects.linter;
                 editorBackend = channel.objects.editor_backend;
@@ -50,8 +70,11 @@
                 console.log(
                     "QWebChannel initialized, linter and editor backend connected",
                 );
+                webChannelReady = true;
+                initializeIfReady();
             });
 
+            // Initialize Monaco Editor
             require.config({ paths: { vs: "monaco/vs" } });
 
             require(["vs/editor/editor.main"], function () {
@@ -318,42 +341,62 @@
                     }, 1000); // Wait 1 second after last change
                 });
 
-                // Initial linting
-                setTimeout(() => {
-                    triggerLinting();
-                }, 500);
-
                 // Make editor globally available
                 window.editor = editor;
                 window.triggerLinting = triggerLinting;
 
                 console.log("Monaco Editor initialized");
+                monacoReady = true;
+                initializeIfReady();
             });
 
             function triggerLinting() {
-                if (!linter || !editor) {
-                    console.log("Linter or editor not ready");
+                if (!webChannelReady || !monacoReady || !linter || !editor) {
+                    console.warn(
+                        "System not ready - WebChannel:",
+                        webChannelReady,
+                        "Monaco:",
+                        monacoReady,
+                        "Linter:",
+                        !!linter,
+                        "Editor:",
+                        !!editor,
+                    );
                     return;
                 }
 
                 const code = editor.getValue();
-                console.log("Triggering linting for code length:", code.length);
+                console.debug(
+                    "Triggering linting for code length:",
+                    code.length,
+                );
 
-                linter.lint_code(code);
+                try {
+                    linter.lint_code(code);
+                } catch (error) {
+                    console.error("Error during linting:", error);
+                }
             }
 
             function updateEditorDiagnostics(diagnostics) {
-                if (!editor) return;
+                if (!monacoReady || !editor) {
+                    console.warn("Editor not ready for diagnostics update.");
+                    return;
+                }
 
-                monaco.editor.setModelMarkers(
-                    editor.getModel(),
-                    "ruff",
-                    diagnostics,
-                );
-                currentDiagnostics = diagnostics;
-                console.log(
-                    `Updated editor diagnostics: ${diagnostics.length} issues`,
-                );
+                try {
+                    monaco.editor.setModelMarkers(
+                        editor.getModel(),
+                        "ruff",
+                        diagnostics,
+                    );
+                    currentDiagnostics = diagnostics;
+                    console.debug(
+                        `Updated editor diagnostics: ${diagnostics.length} issues`,
+                    );
+                } catch (error) {
+                    console.error("Error updating diagnostics:", error);
+                }
             }
 
             // Global functions for external access
@@ -362,21 +405,28 @@
             };
 
             window.setEditorContent = function (content) {
-                if (editor) {
+                if (monacoReady && editor) {
                     editor.setValue(content);
                     setTimeout(triggerLinting, 100);
+                } else {
+                    console.warn("Editor not ready for content setting.");
                 }
             };
 
             window.getEditorContent = function () {
-                return editor ? editor.getValue() : "";
+                if (monacoReady && editor) {
+                    return editor.getValue();
+                } else {
+                    console.warn("Editor not ready for content retrieval.");
+                    return "";
+                }
             };
 
             // Function to set modification state
             function setModified(modified) {
                 if (modified !== isModified) {
                     isModified = modified;
-                    console.log(
+                    console.debug(
                         "Content modification state changed:",
                         isModified,
                     );

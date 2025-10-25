@@ -963,7 +963,7 @@ class MainWindow(QMainWindow):
         self.print_action.triggered.connect(self.print_document)
         self.find_action = QAction("Find", self)
         self.find_action.setShortcut(QKeySequence.StandardKey.Find)
-        self.find_action.triggered.connect(self.script_edit.find)
+        self.find_action.triggered.connect(self.script_edit.show_find)
         self.start_pause_action = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self)
         self.start_pause_action.setToolTip("Execute the script.")
         self.start_pause_action.triggered.connect(self.start_process)
