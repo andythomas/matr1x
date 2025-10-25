@@ -23,6 +23,7 @@ JavaScript should be used outside of this module!
 import ast
 import json
 import logging
+import re
 import subprocess
 import sys
 import tempfile
@@ -56,8 +57,7 @@ __all__ = ["CodeEditor"]
 class Matr1xFunctionChecker(ast.NodeVisitor):
     """Implements ast-based function checker for matr1x functions."""
 
-    def __init__(self, parent, indexes, settables, columns):
-        self.parent = parent
+    def __init__(self, indexes, settables, columns):
         self.indexes = indexes
         self.settables = settables
         self.columns = columns
@@ -67,6 +67,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self.end_lineno: int
         self.end_col: int
         self.diagnostics: list[dict] = []
+        self.script_lines: list[str] = []
 
     def reporter(self, error_text: str) -> None:
         """
@@ -89,6 +90,17 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         }
         self.diagnostics.append(diagnostic)
 
+    def set_script(self, script: str) -> None:
+        """
+        Set the script content for type ignore checking.
+
+        Parameters
+        ----------
+        script: str
+            The script, i.e. the code.
+        """
+        self.script_lines = script.splitlines() if script else []
+
     def returnDiagnostics(self) -> list[dict]:
         """
         Return the value checker diagnostics.
@@ -106,10 +118,16 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
             func_name = node.func.id
             self.lineno = node.func.lineno
             self.col = node.func.col_offset
-            self.end_lineno = node.func.end_lineno
-            self.end_col = node.func.end_col_offset
+            self.end_lineno = node.func.end_lineno if node.func.end_lineno else self.lineno
+            self.end_col = node.func.end_col_offset if node.func.end_col_offset else self.col
 
             if func_name in ("set_value", "read_value", "trigger_value"):
+                if (
+                    self.script_lines
+                    and self.lineno <= len(self.script_lines)
+                    and re.search(r"#\s*type:\s*ignore\s*$", self.script_lines[self.lineno - 1])
+                ):
+                    return
                 args = node.args
 
                 num_required = 2 if func_name == "set_value" else 1
@@ -190,11 +208,22 @@ class Linter(QObject):
 
     lintingComplete = Signal(str)
 
-    def __init__(self, editor):
+    def __init__(self):
         super().__init__()
-        self.editor = editor
+        self.settables = None
         self.current_diagnostics_count = 0
         self.issues: int = 0
+
+    def update_settables(self, settables):
+        """
+        Update the settables data used for validation.
+
+        Parameters
+        ----------
+        settables
+            The settables of the system files (indexes, settables, columns).
+        """
+        self.settables = settables
 
     RUFF_RULES = [
         "F821",
@@ -232,9 +261,8 @@ class Linter(QObject):
         script = generate_script(code)
         try:
             diagnostics = self._run_ruff_check(script)
-            if self.parent and hasattr(self.parent, "settables"):
-                value_diagnostics = self._get_value_diagnostics(script)
-                diagnostics.extend(value_diagnostics)
+            value_diagnostics = self._get_value_diagnostics(script)
+            diagnostics.extend(value_diagnostics)
             self.lintingComplete.emit(json.dumps(diagnostics))
             self.issues = len(diagnostics)
         except Exception as e:
@@ -263,10 +291,14 @@ class Linter(QObject):
             The generated script to check for value errors.
         """
         try:
-            tree = ast.parse(script, filename="script")
-            checker = Matr1xFunctionChecker(self.parent, *self.editor.settables)
-            checker.visit(tree)
-            return checker.returnDiagnostics()
+            if self.settables:
+                tree = ast.parse(script, filename="script")
+                checker = Matr1xFunctionChecker(*self.settables)
+                checker.set_script(script)
+                checker.visit(tree)
+                return checker.returnDiagnostics()
+            else:
+                return []
         except Exception:
             return []
 
@@ -515,7 +547,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self.editor_page = CodeEditorPage()
         self.setPage(self.editor_page)
         self.channel = QWebChannel()
-        self.linter = Linter(self)
+        self.linter = Linter()
         self.backend = EditorBackend(self)
         self.backend.contentModified.connect(self.contentModified.emit)
         self.channel.registerObject("linter", self.linter)
@@ -735,7 +767,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         settables
             The settables of the system files.
         """
-        self.settables = settables
+        self.linter.update_settables(settables)
         self._run_javascript("window.triggerLinting()")
 
     def insertText(self, text: str) -> None:
