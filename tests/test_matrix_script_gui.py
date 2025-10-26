@@ -15,29 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in matrix script."""
 
-import sys
 from pathlib import Path
 
 import matr1x.eval
 import pytest
-from matr1x.gui_util import MApplication
 from matr1x.scripts import matrix_preview, matrix_script
-
-GUI_WAIT = 100  # ms
 
 path = Path(__file__).resolve().parent
 
 
-@pytest.fixture(scope="session")
-def qapp():
-    """Create and later exit an MApplication instance."""
-    argv = sys.argv or ["pytest"]
-    app = MApplication(argv)
-    yield app
-
-
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_basic_script_run(qtbot, qapp):
+def test_basic_script_run(qtbot, qapp, gui_wait):
     """
     Start a basic matrix script measurement.
 
@@ -59,7 +47,7 @@ def test_basic_script_run(qtbot, qapp):
     qtbot.addWidget(main_window)
     qtbot.waitExposed(main_window)
     qapp.processEvents()
-    qtbot.wait(GUI_WAIT)
+    qtbot.wait(gui_wait())
 
     assert main_window.isVisible()
     base = Path(__file__).parent
@@ -79,14 +67,14 @@ def test_basic_script_run(qtbot, qapp):
     metadata.description.setText(description)
 
     main_window.config_action.setChecked(True)
-    qtbot.wait(GUI_WAIT)
+    qtbot.wait(gui_wait())
     assert main_window.config_editor.isVisible()
     main_window.config_editor.w_update_config.click()
 
     main_window.start_pause_action.trigger()
     qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
     main_window.preview_action.trigger()
-    qtbot.wait(GUI_WAIT)
+    qtbot.wait(gui_wait())
     previews = [
         w
         for w in qapp.allWidgets()
@@ -94,8 +82,8 @@ def test_basic_script_run(qtbot, qapp):
     ]
 
     assert len(previews) == 1
-    assert main_window.measurement_file.name[:14] == "boring_testrun"  # type:ignore
-    assert main_window.measurement_file.exists()  # type:ignore
+    assert main_window.measurement_file.name[:14] == "boring_testrun"
+    assert main_window.measurement_file.exists()
     header, data = matr1x.eval.loadmatrix(main_window.measurement_file)
     assert header["dcterms:creator"] == creator
     assert header["dcterms:identifier"] == identifier
@@ -104,12 +92,12 @@ def test_basic_script_run(qtbot, qapp):
     assert "This is a testrun!" in header["dcterms:description"]
     assert header["status"] == "finished"
     assert len(data) == 10
-    Path(main_window.measurement_file).unlink()
+    main_window.measurement_file.unlink()
 
     main_window.new_file()
-    qtbot.wait(GUI_WAIT)
+    qtbot.wait(gui_wait())
     assert main_window.windowTitle() == "Matrix Script"
-    qtbot.wait(GUI_WAIT)
+    qtbot.wait(gui_wait())
 
 
 def test_CodeEditor_API(qtbot, qapp):
@@ -158,7 +146,7 @@ def test_CodeEditor_API(qtbot, qapp):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_CodeEditor(qtbot, qapp):
+def test_CodeEditor(qtbot, qapp, gui_wait):
     """
     Test to visually inspect the matrix GUI window.
 
@@ -190,9 +178,9 @@ def test_CodeEditor(qtbot, qapp):
     code = "#print(  1 )"
     no_comment = code[1:]
     editor = main_window.script_edit
-    qtbot.wait(GUI_WAIT)
+    qtbot.wait(gui_wait())
     editor.setPlainText(code)
-    qtbot.wait(5 * GUI_WAIT)
+    qtbot.wait(5 * gui_wait())
     return_code = editor.toPlainText()
     assert return_code == code
     editor.toggleLineComment()
@@ -233,7 +221,7 @@ def test_CodeEditor(qtbot, qapp):
     assert issues == 0
     error_code = "unknown(1)\n"
     editor.insertText(error_code)
-    qtbot.wait(GUI_WAIT)
+    qtbot.wait(gui_wait())
     return_code = editor.toPlainText()
     assert return_code == error_code + formatted_no_comment
     qtbot.wait(1500)  # linter runs asynchronously at least every second
@@ -241,4 +229,4 @@ def test_CodeEditor(qtbot, qapp):
     assert issues == 1
 
     editor.setModified(False)
-    qtbot.wait(GUI_WAIT)
+    qtbot.wait(gui_wait())

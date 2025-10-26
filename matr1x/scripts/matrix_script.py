@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.systems = []
         self.scriptname: Path | None = None
-        self.measurement_file = ""
+        self.measurement_file: Path
         self.systems_dirty = False
         self.last_loaded_file: Path | None = None
         self.is_running = False

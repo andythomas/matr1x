@@ -1222,45 +1222,20 @@ class MainWindow(FileDropMixin, QMainWindow):
             text += "<unsaved>"
         self.setWindowTitle(text)
 
-    def save_file(self, append: bool = False, dialog: bool = False) -> bool:
+    def _write_file_to_disk(self, filename: Path, append: bool) -> bool:
         """
-        Save the generated sweep to a file.
+        Write the generated sweep to disk.
 
         Parameters
         ----------
         append : bool, optional
             Append the file (True) or create/ overwrite the file (False).
-        dialog : bool, optional
-            Do (True) or do not (False) show a dialog to chose a filename.
 
         Returns
         -------
         bool
-            Saved (True) or cancelled (False)
+            Saved (True) or errored (False)
         """
-        if dialog or not self.last_filename:
-            prefilled_file = self.last_filename if self.last_filename != "" else usersfolder
-            if append:
-                filename = QFileDialog.getOpenFileName(
-                    self,
-                    "Select file to append to",
-                    str(prefilled_file),
-                    f"Sweep 8 files (*{self.extension})",
-                )
-            else:
-                filename = QFileDialog.getSaveFileName(
-                    self,
-                    "Select output file",
-                    str(prefilled_file),
-                    f"Sweep 8 files (*{self.extension})",
-                )
-            if filename[0] != "":
-                self.last_filename = Path(filename[0])
-                filename = self.last_filename
-            else:
-                return False
-        else:
-            filename = self.last_filename
         self.print_sweep_to_preview()
         if filename.suffix != self.extension:
             filename = filename.with_suffix(self.extension)
@@ -1302,6 +1277,44 @@ class MainWindow(FileDropMixin, QMainWindow):
         if self.inputcb is not None:
             self.inputcb(str(filename))
         return True
+
+    def save_file(self, append: bool = False, dialog: bool = False) -> bool:
+        """
+        Save the generated sweep to a file.
+
+        Parameters
+        ----------
+        append : bool, optional
+            Append the file (True) or create/ overwrite the file (False).
+        dialog : bool, optional
+            Do (True) or do not (False) show a dialog to chose a filename.
+
+        Returns
+        -------
+        bool
+            Saved (True) or cancelled (False)
+        """
+        if dialog or not self.last_filename:
+            prefilled_file = self.last_filename if self.last_filename != "" else usersfolder
+            if append:
+                filename = QFileDialog.getOpenFileName(
+                    self,
+                    "Select file to append to",
+                    str(prefilled_file),
+                    f"Sweep 8 files (*{self.extension})",
+                )
+            else:
+                filename = QFileDialog.getSaveFileName(
+                    self,
+                    "Select output file",
+                    str(prefilled_file),
+                    f"Sweep 8 files (*{self.extension})",
+                )
+            if filename[0] != "":
+                self.last_filename = Path(filename[0])
+            else:
+                return False
+        return self._write_file_to_disk(self.last_filename, append)
 
     def append_sweep_col(self, column: int) -> None:
         """
@@ -1403,7 +1416,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             else:
                 self.clear_layout(item)
 
-    def add_system(self) -> None:
+    def add_system(self, filenames: list | None = None) -> None:
         """
         Add a system file to the system list and initiate import.
 
@@ -1417,9 +1430,10 @@ class MainWindow(FileDropMixin, QMainWindow):
         if self.last_loaded_system:
             directory = Path(self.last_loaded_system).parent
         # get filenames from dialog
-        filenames = QFileDialog.getOpenFileNames(
-            self, "Select system file", str(directory), "system files (system*.py)"
-        )[0]
+        if not filenames:
+            filenames = QFileDialog.getOpenFileNames(
+                self, "Select system file", str(directory), "system files (system*.py)"
+            )[0]
         if filenames == []:
             return
         for filename in filenames:
