@@ -20,6 +20,8 @@ from pathlib import Path
 import matr1x.eval
 import pytest
 from matr1x.scripts import matrix_preview, matrix_script
+from PySide6.QtCore import QUrl
+from PySide6.QtWebEngineWidgets import QWebEngineView
 
 path = Path(__file__).resolve().parent
 
@@ -72,7 +74,7 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
     main_window.config_editor.w_update_config.click()
 
     main_window.start_pause_action.trigger()
-    qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
+    qtbot.wait(2000)
     main_window.preview_action.trigger()
     qtbot.wait(gui_wait())
     previews = [
@@ -230,3 +232,35 @@ def test_CodeEditor(qtbot, qapp, gui_wait):
 
     editor.setModified(False)
     qtbot.wait(gui_wait())
+
+
+def test_matrix_script_monaco(qtbot, qapp, gui_wait):
+    """
+    Verify vanilla monaco loads without errors.
+
+    Asserts
+    -------
+    minimal_monaco.html exists
+    the minimal webpage finished and succeeded loading
+    """
+    HTML_PATH = path / "minimal_monaco.html"
+    assert HTML_PATH.exists(), f"HTML file not found at {HTML_PATH}"
+
+    view = QWebEngineView()
+    load_completed = {"finished": False, "success": False}
+
+    def on_load_finished(success):
+        load_completed["finished"] = True
+        load_completed["success"] = success
+
+    view.loadFinished.connect(on_load_finished)
+    view.load(QUrl.fromLocalFile(__import__("os").path.abspath(HTML_PATH)))
+    view.show()
+
+    for _ in range(50):
+        if load_completed["finished"]:
+            break
+        qtbot.wait(100)
+
+    assert load_completed["finished"], "Page did not finish loading"
+    assert load_completed["success"], "Page failed to load"

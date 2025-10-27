@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Monaco Editor — Minimal</title>
+        <style>
+            html,
+            body,
+            #container {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container"></div>
+
+        <script src="../matr1x/resources/monaco/vs/loader.js"></script>
+        <script>
+            require.config({ paths: { vs: "../matr1x/resources/monaco/vs" } });
+
+            require(["vs/editor/editor.main"], function () {
+                editor = monaco.editor.create(
+                    document.getElementById("container"),
+                    {
+                        value: "print('Hello, Matr1x!')",
+                        language: "python",
+                        theme: "vs-light",
+                    },
+                );
+            });
+        </script>
+    </body>
+</html>
