@@ -752,11 +752,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         enable: bool
             Enable (True) or disable (False) tab completion.
         """
-        self._run_javascript(f"""window.editor.updateOptions({{
-                    tabCompletion: {str(enable).lower() and "'on'" or "'off'"},
-                    acceptSuggestionOnEnter: {str(enable).lower() and "'on'" or "'off'"},
-                    quickSuggestions: {str(enable).lower()}
-                }})""")
+        self._run_javascript(f"window.enableTabCompletion({str(enable).lower()})")
 
     def setSettables(self, settables) -> None:
         """
@@ -780,21 +776,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
             The text to insert.
         """
         escaped_text = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-        self._run_javascript(f"""(function() {{
-          const position = window.editor.getPosition();
-          const range = new monaco.Range(
-            position.lineNumber,
-            position.column,
-            position.lineNumber,
-            position.column
-          );
-          return window.editor.executeEdits("insertText", [
-            {{
-              range: range,
-              text: "{escaped_text}"
-            }}
-          ]);
-        }})()""")
+        self._run_javascript(f'window.insertText("{escaped_text}")')
 
     def returnIssues(self) -> int:
         """
