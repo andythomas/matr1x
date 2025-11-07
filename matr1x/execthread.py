@@ -651,7 +651,7 @@ class ExecThread(threading.Thread):
         if self.socket is None:
             # only print line number if connected to a socket
             return
-        lineno -= self.n_pref + 1
+        lineno -= self.n_pref
         if lineno > -1:
             print(f"__lineno{lineno:d}__", end="")
 
