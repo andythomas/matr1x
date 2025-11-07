@@ -74,6 +74,11 @@ env = [
     "QT_QUICK_BACKEND=software",
 ]
 
+[tool.pyrefly]
+project-includes = [
+    "matr1x"
+]
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.3.0",

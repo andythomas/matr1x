@@ -39,7 +39,7 @@ import time
 import warnings
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, Signal, Slot
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -65,6 +65,7 @@ from matr1x.control.qwidgets import EnableAction, FullInfoAction
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import (
     EmittingStream,
+    SaferQSettings,
     check_config,
     get_application_instance,
     open_matrix_toml,
@@ -222,11 +223,11 @@ class ControlWindow(QMainWindow):
 
     def __init__(
         self,
-        name,
+        name: str,
         guidicts=None,
-        extra_cmds=None,
-        parent=None,
-        package="matr1x",
+        extra_cmds: dict | None = None,
+        parent: QWidget | None = None,
+        package: str = "matr1x",
         logging=False,
         port=scpi_tcpserver.DEFAULT_PORT,
     ):
@@ -236,7 +237,7 @@ class ControlWindow(QMainWindow):
 
         super().__init__(parent=parent)
         self.setWindowTitle(name)
-        self.settings = QSettings(package, name)
+        self.settings = SaferQSettings(package, name)
         # initialize paramaters
         self.running = False
         self.logging = False
@@ -254,7 +255,7 @@ class ControlWindow(QMainWindow):
         # initialize error handling
         self.sig_error.connect(self.handleError)
         # SCPI TCP server placeholders
-        self._local_server = None
+        self._local_server: scpi_tcpserver.SCPI_TCP_Server | None = None
         self._port = port
         # initialize data logging system
         self.S_log = system.System()
@@ -406,17 +407,17 @@ class ControlWindow(QMainWindow):
             self.restoreState(self.settings.value("windowState"))
         # restore status visibility
         self.status_box.toggle_button.setChecked(
-            self.settings.value("status_visible", False, type=bool)
+            self.settings.safer_value("status_visible", False, type=bool)
         )
 
     def _restore_view_settings(self):
         """Restore view-related settings after menu has been created."""
         # restore toolbar visibility
-        toolbar_visible = self.settings.value("toolbar_visible", False, type=bool)
+        toolbar_visible = self.settings.safer_value("toolbar_visible", False, type=bool)
         self.show_toolbar_action.setChecked(toolbar_visible)
         self.set_toolbar_visible(toolbar_visible)
         # restore activity indicator location
-        saved_activity_in_logger = self.settings.value("activity_in_logger", True, type=bool)
+        saved_activity_in_logger = self.settings.safer_value("activity_in_logger", True, type=bool)
         self.set_activity_in_logger(saved_activity_in_logger)
 
     # GUI functions
@@ -528,7 +529,7 @@ class ControlWindow(QMainWindow):
             If True, show activity indicators in the logger area.
             If False, show activity indicators in individual toolbars.
         """
-        widgets = []
+        widgets: list[QWidget] = []
         # Determine current state by checking where activity indicators actually are
         current_state = self.activity_layout.count() > 0
 
@@ -1300,7 +1301,7 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("toolbar_visible", self.show_toolbar_action.isChecked())
         self.settings.setValue("activity_in_logger", self.activity_in_logger_action.isChecked())
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, a0: QCloseEvent) -> None:
         """
         Handle window close event by automatically saving current state.
 

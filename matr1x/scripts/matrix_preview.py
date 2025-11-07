@@ -30,7 +30,7 @@ from PySide6.QtCore import (
     QByteArray,
     QEvent,
     QKeyCombination,
-    QSettings,
+    QPoint,
     QSize,
     Qt,
     QThread,
@@ -60,6 +60,7 @@ from matr1x.gui_util import (
     AboutBox,
     FileDropMixin,
     MApplication,
+    SaferQSettings,
     check_config,
     get_application_instance,
     get_matrix_icon,
@@ -165,7 +166,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.udthread = None
 
         # Widget properties (initialized to None, created later)
-        self.w_meta_view = None
+        self.w_meta_view: QDockWidget | None = None
 
         # UI components that are recreated for each file in init_ui()
         self.w_l: list = []  # Labels for axes
@@ -187,7 +188,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         # initialize basic GUI
         self.init_basic_ui()
         # allow to store the settings
-        self.settings = QSettings("matr1x", "preview")
+        self.settings = SaferQSettings("matr1x", "preview")
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
@@ -309,7 +310,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         )
         # Just in case it is the first start
         self.resize(self.sizeHint())
-        self.restoreGeometry(self.settings.value("geometry", QByteArray()))
+        self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
 
     def info_box(self):
         """Display an 'about this app' widget."""
@@ -510,14 +511,24 @@ class SweepPreview(FileDropMixin, QMainWindow):
                 self.settings.value("meta_placement", Qt.DockWidgetArea.RightDockWidgetArea),
                 self.w_meta_view,
             )
-            self.w_meta_view.setFloating(self.settings.value("meta_floating", False, type=bool))
+            self.w_meta_view.setFloating(
+                self.settings.safer_value("meta_floating", False, type=bool)
+            )
             if self.w_meta_view.isFloating():
-                self.w_meta_view.move(self.settings.value("meta_position", self.w_meta_view.pos()))
-                self.w_meta_view.resize(self.settings.value("meta_size", self.w_meta_view.size()))
+                self.w_meta_view.move(
+                    self.settings.safer_value("meta_position", self.w_meta_view.pos(), type=QPoint)
+                )
+                self.w_meta_view.resize(
+                    self.settings.safer_value("meta_size", self.w_meta_view.size(), type=QSize)
+                )
             else:
                 self.resizeDocks(
                     [self.w_meta_view],
-                    [self.settings.value("meta_size", self.w_meta_view.size()).width()],
+                    [
+                        self.settings.safer_value(
+                            "meta_size", self.w_meta_view.size(), type=QSize
+                        ).width()
+                    ],
                     Qt.Orientation.Horizontal,
                 )
         else:

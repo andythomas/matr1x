@@ -25,7 +25,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QSettings, QSize, Qt, QThread, Signal
+from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QThread, Signal
 from PySide6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -52,6 +52,7 @@ from matr1x.gui_util import (
     FileDropMixin,
     MApplication,
     MetaDataDialog,
+    SaferQSettings,
     check_config,
     detect_shortcut,
     get_application_instance,
@@ -148,7 +149,7 @@ class QueueListWidget(QListWidget):
         list_item = QListWidgetItem(list_entry)
         super().addItem(list_item)
 
-    def takeItem(self, row: int):
+    def takeItem(self, row: int) -> QListWidgetItem:
         """
         Delete the item.
 
@@ -158,7 +159,7 @@ class QueueListWidget(QListWidget):
             The row to be deleted.
         """
         self.data_list.pop(row)
-        super().takeItem(row)
+        return super().takeItem(row)
 
     def update_data_order(self):
         """Update the list of dicts based on the list widget."""
@@ -312,8 +313,7 @@ class GuiThread(QThread):
 
             try:
                 # fork the child
-                child = subprocess.Popen(*args, preexec_fn=new_pgid, **kwargs)  # ty: ignore [no-matching-overload] issue #247
-
+                child = subprocess.Popen(*args, preexec_fn=new_pgid, **kwargs)  # type: ignore
                 # we can't set the process group id from the parent since the
                 # child will already have exec'd. and we can't SIGSTOP it before
                 # exec, see above.
@@ -357,7 +357,7 @@ class MainWindow(FileDropMixin, QMainWindow):
     def __init__(self):
         super().__init__()
         self.initUI()
-        self.sg = None
+        self.sg: QMainWindow | None = None
         self.running = False
         self.sys_meta_data = {}
         self.measurement_thread = GuiThread()
@@ -366,7 +366,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
         self.file_dropped.connect(lambda file: self.input_file.setText(file))
-        self.settings = QSettings("matr1x", "gui")
+        self.settings = SaferQSettings("matr1x", "gui")
         self._cached_system_info = None
 
     def handle_received_filename(self, filename: str) -> None:
@@ -437,14 +437,22 @@ class MainWindow(FileDropMixin, QMainWindow):
         )
         # Just in case it is the first start
         self.resize(self.sizeHint())
-        self.restoreGeometry(self.settings.value("geometry", QByteArray()))
+        self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
         self.resizeDocks(
             [self.w_dockable_metadata],
-            [self.settings.value("metadata_size", self.w_dockable_metadata.size()).width()],
+            [
+                self.settings.safer_value(
+                    "metadata_size", self.w_dockable_metadata.size(), type=QSize
+                ).width()
+            ],
             Qt.Orientation.Horizontal,
         )
-        self.config_editor.move(self.settings.value("config_position", self.config_editor.pos()))
-        self.config_editor.resize(self.settings.value("config_size", self.config_editor.size()))
+        self.config_editor.move(
+            self.settings.safer_value("config_position", self.config_editor.pos(), type=QPoint)
+        )
+        self.config_editor.resize(
+            self.settings.safer_value("config_size", self.config_editor.size(), type=QSize)
+        )
 
     def toggle_preferences(self, checked):
         """Open the preferences pane."""
@@ -803,7 +811,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.start_action.setEnabled(False)
         self.runNextMeasurement()
 
-    def keyPressEvent(self, a0: QKeyEvent | None):
+    def keyPressEvent(self, a0: QKeyEvent):
         """Allow to modify systems list with keyboard shortcuts."""
         if self.meas_list.hasFocus():
             if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)):

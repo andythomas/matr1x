@@ -34,7 +34,7 @@ from typing import TypedDict
 
 import pyqtgraph as pg
 from numpy import linspace, uint
-from PySide6.QtCore import QByteArray, QEvent, QObject, QSettings, QSize, Qt, Signal
+from PySide6.QtCore import QByteArray, QEvent, QObject, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QKeySequence, QMouseEvent, QPalette
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -69,6 +69,7 @@ from matr1x.gui_util import (
     CustomViewBox,
     FileDropMixin,
     MApplication,
+    SaferQSettings,
     SystemListWidget,
     check_config,
     create_tray_notification,
@@ -589,7 +590,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.shortcut_dir: TemporaryDirectory | None = None
 
         # allow to store the settings
-        self.settings = QSettings("matr1x", "sweep-generator")
+        self.settings = SaferQSettings("matr1x", "sweep-generator")
 
         # Connect the signal to the update method
         self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
@@ -661,10 +662,10 @@ class MainWindow(FileDropMixin, QMainWindow):
         # Just in case it is the first start
         self.resize(self.sizeHint())
         self.restoreGeometry(
-            self.settings.value("geometry", defaultValue=QByteArray(), type=QByteArray)  # type: ignore
+            self.settings.safer_value("geometry", defaultValue=QByteArray(), type=QByteArray)
         )
         self.addToolBar(
-            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),  # type: ignore
+            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
             self.toolbar,
         )
 

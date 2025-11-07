@@ -38,7 +38,7 @@ from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
 from types import TracebackType
-from typing import Any, TextIO, cast
+from typing import Any, TextIO, cast, overload
 
 import numpy as np
 import pygit2
@@ -48,12 +48,15 @@ from pydantic import ValidationError
 from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
     QAbstractItemModel,
+    QByteArray,
     QEvent,
     QLibraryInfo,
     QLocale,
     QModelIndex,
     QObject,
     QPoint,
+    QSettings,
+    QSize,
     Qt,
     QTimer,
     Signal,
@@ -4233,3 +4236,33 @@ def protected_restore(restore_settings: Callable[[], None]):
             f"\n{e}\nRestoring the settings resulted in an unexpected issue. "
             f"This caused all settings to be reset."
         )
+
+
+class SaferQSettings(QSettings):
+    """Require default value and type hint for settings restore."""
+
+    def __init__(self, organization: str, application: str) -> None:
+        super().__init__(organization, application)
+
+    @overload
+    def safer_value(self, key: str, defaultValue: QPoint, type: type[QPoint]) -> QPoint: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: QSize, type: type[QSize]) -> QSize: ...
+    @overload
+    def safer_value(
+        self, key: str, defaultValue: QByteArray, type: type[QByteArray]
+    ) -> QByteArray: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: bool, type: type[bool]) -> bool: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: int, type: type[int]) -> int: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: list, type: type[list]) -> list: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: float, type: type[float]) -> float: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: str, *, type: type[str]) -> str: ...
+
+    def safer_value(self, key, defaultValue, type):  # noqa: A002
+        """Call the original QSaver value method."""
+        return super().value(key, defaultValue, type)

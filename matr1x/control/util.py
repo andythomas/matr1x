@@ -56,7 +56,6 @@ from PySide6.QtCore import (
     QAbstractTableModel,
     QModelIndex,
     QObject,
-    QSettings,
     QSize,
     Qt,
     QThread,
@@ -90,7 +89,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import config, datetimefmt, logfolder, system, usersfolder
-from ..gui_util import MApplication, OutputDuplication, validator
+from ..gui_util import MApplication, OutputDuplication, SaferQSettings, validator
 from ..util import normalize_cmds, set_correct_mac_appname
 from .qwidgets import ToggleButton, matr1xProgressBar
 
@@ -918,7 +917,7 @@ class GuiDict(UserDict, ABC):
                 super().__init__(title)
                 self.application_name = appname
                 self.setObjectName(f"{appname}-{title}")
-                self.settings = QSettings("matr1x", appname)
+                self.settings = SaferQSettings("matr1x", appname)
                 self.disabled = False
                 self.extended = False
 
@@ -939,8 +938,8 @@ class GuiDict(UserDict, ABC):
                     self.resize(self.settings.value("size"))
                 if self.settings.value("pos") is not None:
                     self.move(self.settings.value("pos"))
-                self.disabled = self.settings.value("disabled", False, type=bool)
-                self.extended = self.settings.value("extended", False, type=bool)
+                self.disabled = self.settings.safer_value("disabled", False, type=bool)
+                self.extended = self.settings.safer_value("extended", False, type=bool)
                 self.settings.endGroup()
 
             def closeEvent(self, event):

@@ -30,7 +30,7 @@ from pathlib import Path
 from PySide6.QtCore import (
     QByteArray,
     QEvent,
-    QSettings,
+    QPoint,
     QSize,
     Qt,
     QThread,
@@ -78,6 +78,7 @@ from matr1x.gui_util import (
     MetaDataDialog,
     NumericalInputDialog,
     OutputDuplication,
+    SaferQSettings,
     SystemListWidget,
     TerminationDialog,
     TextInputDialog,
@@ -489,7 +490,7 @@ class MainWindow(QMainWindow):
         self.is_running = False
         self.shortcut_dir = None
         self.last_filename: Path | None = None
-        self.settings = QSettings("matr1x", "script")
+        self.settings = SaferQSettings("matr1x", "script")
         self.output_stream = EmittingStream()
         self.output_stream.text_written.connect(self.output_written)
 
@@ -595,9 +596,12 @@ class MainWindow(QMainWindow):
         # Just in case it is the first start
         self.resize(self.sizeHint())
         self.settings.beginGroup("MainWindow")
-        self.restoreGeometry(self.settings.value("geometry", QByteArray()))
+        self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
         self.splitter.setSizes(
-            [int(size) for size in self.settings.value("splitter", self.splitter.sizes())]
+            [
+                int(size)
+                for size in self.settings.safer_value("splitter", self.splitter.sizes(), type=list)
+            ]
         )
         self.settings.endGroup()
         # Check if there is a settings file. This improves the robustness
@@ -606,26 +610,30 @@ class MainWindow(QMainWindow):
         # settings are changed.
         if self.settings.contains("created"):
             self.settings.beginGroup("script_edit")
-            self.script_edit.resize(self.settings.value("size", self.script_edit.size()))
-            self.script_edit.setZoomFactor(self.settings.value("monaco_zoom", 1, type=float))
-            last_theme = self.settings.value("theme", "", type=str)
+            self.script_edit.resize(
+                self.settings.safer_value("size", self.script_edit.size(), type=QSize)
+            )
+            self.script_edit.setZoomFactor(self.settings.safer_value("monaco_zoom", 1, type=float))
+            last_theme = self.settings.safer_value("theme", "", type=str)
             for theme in self.theme_actions:
                 if theme.text() == last_theme:
                     theme.setChecked(True)
                     self.script_edit.setTheme(last_theme)
             self.autocomplete_action.setChecked(
-                self.settings.value("autocomplete", True, type=bool)
+                self.settings.safer_value("autocomplete", True, type=bool)
             )
             self.settings.endGroup()
 
             self.settings.beginGroup("status_preview")
-            self.status_preview.resize(self.settings.value("size", self.status_preview.size()))
+            self.status_preview.resize(
+                self.settings.safer_value("size", self.status_preview.size(), type=QSize)
+            )
             self.settings.endGroup()
 
             self.settings.beginGroup("Toolbars")
-            self.toolbar.setVisible(self.settings.value("buttons_visible", True, type=bool))
+            self.toolbar.setVisible(self.settings.safer_value("buttons_visible", True, type=bool))
             self.toggle_toolbar_action.setChecked(
-                self.settings.value("buttons_visible", True, type=bool)
+                self.settings.safer_value("buttons_visible", True, type=bool)
             )
             self.addToolBar(
                 self.settings.value("buttons_placement", Qt.ToolBarArea.TopToolBarArea),
@@ -634,31 +642,47 @@ class MainWindow(QMainWindow):
             self.settings.endGroup()
 
             self.settings.beginGroup("dockable_metadata")
-            self.dockable_metadata.setVisible(self.settings.value("visible", True, type=bool))
-            self.toggle_metadata_action.setChecked(self.settings.value("visible", True, type=bool))
+            self.dockable_metadata.setVisible(
+                self.settings.safer_value("visible", True, type=bool)
+            )
+            self.toggle_metadata_action.setChecked(
+                self.settings.safer_value("visible", True, type=bool)
+            )
             self.addDockWidget(
                 self.settings.value("placement", Qt.DockWidgetArea.RightDockWidgetArea),
                 self.dockable_metadata,
             )
-            self.dockable_metadata.setFloating(self.settings.value("floating", False, type=bool))
+            self.dockable_metadata.setFloating(
+                self.settings.safer_value("floating", False, type=bool)
+            )
             if self.dockable_metadata.isFloating():
                 self.dockable_metadata.move(
-                    self.settings.value("position", self.dockable_metadata.pos())
+                    self.settings.safer_value(
+                        "position", self.dockable_metadata.pos(), type=QPoint
+                    )
                 )
                 self.dockable_metadata.resize(
-                    self.settings.value("size", self.dockable_metadata.size())
+                    self.settings.safer_value("size", self.dockable_metadata.size(), type=QSize)
                 )
             else:
                 self.resizeDocks(
                     [self.dockable_metadata],
-                    [self.settings.value("size", self.dockable_metadata.size()).width()],
+                    [
+                        self.settings.safer_value(
+                            "size", self.dockable_metadata.size(), type=QSize
+                        ).width()
+                    ],
                     Qt.Orientation.Horizontal,
                 )
             self.settings.endGroup()
 
             self.settings.beginGroup("config_editor")
-            self.config_editor.move(self.settings.value("position", self.config_editor.pos()))
-            self.config_editor.resize(self.settings.value("size", self.config_editor.size()))
+            self.config_editor.move(
+                self.settings.safer_value("position", self.config_editor.pos(), type=QPoint)
+            )
+            self.config_editor.resize(
+                self.settings.safer_value("size", self.config_editor.size(), type=QSize)
+            )
             self.settings.endGroup()
 
     def keyPressEvent(self, event: QKeyEvent):
@@ -1506,8 +1530,12 @@ class MainWindow(QMainWindow):
         # Load size and position from settings (only if not already visible)
         if not self.system_command_help.isVisible():
             self.settings.beginGroup("system_command_help")
-            saved_size = self.settings.value("size", self.system_command_help.sizeHint())
-            saved_position = self.settings.value("position", self.system_command_help.pos())
+            saved_size = self.settings.safer_value(
+                "size", self.system_command_help.sizeHint(), type=QSize
+            )
+            saved_position = self.settings.safer_value(
+                "position", self.system_command_help.pos(), type=QPoint
+            )
             self.settings.endGroup()
             self.system_command_help.resize(saved_size)
             self.system_command_help.move(saved_position)
