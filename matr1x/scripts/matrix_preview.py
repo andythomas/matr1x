@@ -18,6 +18,7 @@
 import logging
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -192,8 +193,9 @@ class SweepPreview(FileDropMixin, QMainWindow):
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # handle MacOS specific FileOpenEvent from Matr1xApplication
+        # Only connect for root windows (parent=None) to avoid duplicate connections
         application = get_application_instance()
-        if isinstance(application, Matr1xApplication):
+        if isinstance(application, Matr1xApplication) and parent is None:
             application.openfile.connect(self._open_file_from_signal)
         # initialize filename if available
         if filename:
@@ -323,6 +325,11 @@ class SweepPreview(FileDropMixin, QMainWindow):
         box.exec()
         return
 
+    def create_new_preview(self) -> None:
+        """Create a new preview window."""
+        preview = Path(sys.executable).parent / "matrix-preview"
+        subprocess.Popen([preview])
+
     def toggle_toolbar_view(self, checked):
         """Toogles the visibility of the toolbar on and off."""
         if checked:
@@ -355,7 +362,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         """Create all QActions of this application."""
         self.new_action = QAction()
         self.new_preview_action = QAction(get_matrix_icon("SP_FileIcon"), "New window", self)
-        self.new_preview_action.triggered.connect(lambda: SweepPreview().show())
+        self.new_preview_action.triggered.connect(self.create_new_preview)
         self.new_preview_action.setShortcut(QKeySequence.StandardKey.New)
         self.load_action = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self)
         self.load_action.triggered.connect(self.load_button_pressed)

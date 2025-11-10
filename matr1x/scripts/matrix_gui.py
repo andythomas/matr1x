@@ -63,7 +63,6 @@ from matr1x.gui_util import (
 )
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
-    matrix_preview,
     sweep_generator,
 )
 from matr1x.system import MergedSystem
@@ -855,8 +854,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         if not output.exists():
             QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
         else:
-            a = matrix_preview.SweepPreview(self, output)
-            a.show()
+            preview = Path(sys.executable).parent / "matrix-preview"
+            subprocess.Popen([preview, str(output)])
 
 
 def main():

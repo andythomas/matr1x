@@ -93,7 +93,6 @@ from matr1x.gui_util import (
     protected_restore,
     save_messagebox,
 )
-from matr1x.scripts import matrix_preview
 from matr1x.util import (
     create_temp_dir_with_symlinks,
     generate_script,
@@ -828,7 +827,8 @@ class MainWindow(QMainWindow):
 
     def preview_data(self):
         """Launch matrix-preview with current measurement file."""
-        matrix_preview.SweepPreview(self, self.measurement_file).show()
+        preview = Path(sys.executable).parent / "matrix-preview"
+        subprocess.Popen([preview, str(self.measurement_file)])
 
     def toggle_preferences(self, checked):
         """Open the preferences pane."""

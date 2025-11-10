@@ -19,7 +19,7 @@ from pathlib import Path
 
 import matr1x.eval
 import pytest
-from matr1x.scripts import matrix_preview, matrix_script
+from matr1x.scripts import matrix_script
 from PySide6.QtCore import QUrl
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
@@ -37,7 +37,7 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
     Asserts
     -------
     main window is visible
-    preview window popped up
+    preview action is enabled
     name fits the init_datafile
     a file was created
     all dcterms are in the file
@@ -75,15 +75,8 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
 
     main_window.start_pause_action.trigger()
     qtbot.wait(2000)
-    main_window.preview_action.trigger()
-    qtbot.wait(gui_wait())
-    previews = [
-        w
-        for w in qapp.allWidgets()
-        if isinstance(w, matrix_preview.SweepPreview) and w.isVisible()
-    ]
+    assert main_window.preview_action.isEnabled()
 
-    assert len(previews) == 1
     assert main_window.measurement_file.name[:14] == "boring_testrun"
     assert main_window.measurement_file.exists()
     header, data = matr1x.eval.loadmatrix(main_window.measurement_file)
