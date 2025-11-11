@@ -45,7 +45,7 @@ const initializeWebChannel = () => {
 
 // Initialize Monaco Editor
 const initializeMonacoEditor = () => {
-  require.config({ paths: { vs: "monaco/vs" } });
+  require.config({ paths: { vs: "http://localhost:54529/min/vs" } });
 
   require(["vs/editor/editor.main"], () => {
     editor = monaco.editor.create(document.getElementById("container"), {

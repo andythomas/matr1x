@@ -17,11 +17,13 @@
     <body>
         <div id="container"></div>
 
-        <script src="../matr1x/resources/monaco/vs/loader.js"></script>
+        <script src="http://localhost:54529/min/vs/loader.js"></script>
         <script>
-            require.config({ paths: { vs: "../matr1x/resources/monaco/vs" } });
+            require.config({
+                paths: { vs: "http://localhost:54529/min/vs" },
+            });
 
-            require(["vs/editor/editor.main"], function () {
+            require(["vs/editor/editor.main"], () => {
                 editor = monaco.editor.create(
                     document.getElementById("container"),
                     {

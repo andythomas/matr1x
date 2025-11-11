@@ -79,7 +79,6 @@ class Matr1xInstallConfig(BaseModel):
     options: list[str] | None = None
     pip_options: str
     root_path: Path
-    monaco: str
 
 
 class Matr1xDevicesVisadeviceConfig(BaseModel):

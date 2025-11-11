@@ -269,17 +269,3 @@ def test_empty_script():
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
-
-
-def test_monaco_install():
-    """
-    Test if the editor IDE was properly installed.
-
-    Test that the loader file exists.
-
-    Asserts
-    -------
-    The file exists.
-    """
-    loader = path / ".." / "matr1x" / "resources" / "monaco" / "vs" / "loader.js"
-    assert loader.exists()

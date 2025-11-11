@@ -39,7 +39,7 @@ from PySide6.QtCore import (
     Slot,
 )
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEnginePage
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.gui_util import FileDropMixin, get_application_instance
@@ -518,13 +518,13 @@ class CodeEditorPage(QWebEnginePage):
             The file name where the message originated.
         """
         if level == QWebEnginePage.JavaScriptConsoleMessageLevel.ErrorMessageLevel:
-            self.logger.error(f"{message} (line {lineNumber}){sourceID}")
+            self.logger.error("%s (line %d)%s", message, lineNumber, sourceID)
         elif level == QWebEnginePage.JavaScriptConsoleMessageLevel.WarningMessageLevel:
-            self.logger.warning(f"{message} (line {lineNumber}){sourceID}")
+            self.logger.warning("%s (line %d)%s", message, lineNumber, sourceID)
         elif message[0:7] == "[DEBUG]":
-            self.logger.debug(f"{message[8:]} (line {lineNumber}){sourceID}")
+            self.logger.debug("%s (line %d)%s", message[8:], lineNumber, sourceID)
         else:
-            self.logger.info(f"{message}")
+            self.logger.info("%s", message)
 
 
 class CodeEditor(FileDropMixin, QWebEngineView):
@@ -546,6 +546,11 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self.logger = logging.getLogger(f"{__name__}.CodeEditor")
         self.editor_page = CodeEditorPage()
         self.setPage(self.editor_page)
+        settings = self.page().settings()
+        settings.setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
+        )
+        settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
         self.channel = QWebChannel()
         self.linter = Linter()
         self.backend = EditorBackend(self)
@@ -573,7 +578,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
             result = js_result
             loop.quit()
 
-        self.logger.debug(f"executing: {command}")
+        self.logger.debug("executing: %s", command)
         wrapped_command = f"""
         (function() {{
             try {{
