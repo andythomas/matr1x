@@ -327,8 +327,12 @@ class SweepPreview(FileDropMixin, QMainWindow):
 
     def create_new_preview(self) -> None:
         """Create a new preview window."""
-        preview = Path(sys.executable).parent / "matrix-preview"
-        subprocess.Popen([preview])
+        preview = [
+            sys.executable,
+            "-c",
+            "from matr1x.scripts import matrix_preview; matrix_preview.main()",
+        ]
+        subprocess.Popen(preview)
 
     def toggle_toolbar_view(self, checked):
         """Toogles the visibility of the toolbar on and off."""
@@ -1218,7 +1222,7 @@ Please investigate the error and eventually restart matrix-preview""",
         return 0
 
 
-def main():
+def main(file: str | None = None):
     """Set the basic GUI parameters and run."""
     app = Matr1xApplication(sys.argv)
     if os.name == "nt":
@@ -1232,7 +1236,9 @@ def main():
     if hasattr(signal, "SIGTTOU"):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     with QtGracefulKiller():
-        if len(sys.argv) < 2:
+        if file is not None:
+            ex = SweepPreview(None, Path(file))
+        elif len(sys.argv) < 2:
             ex = SweepPreview(None, None)
         else:
             ex = SweepPreview(None, Path(sys.argv[1]))

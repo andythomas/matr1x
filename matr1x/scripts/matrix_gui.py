@@ -854,8 +854,12 @@ class MainWindow(FileDropMixin, QMainWindow):
         if not output.exists():
             QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
         else:
-            preview = Path(sys.executable).parent / "matrix-preview"
-            subprocess.Popen([preview, str(output)])
+            preview = [
+                sys.executable,
+                "-c",
+                f"from matr1x.scripts import matrix_preview; matrix_preview.main(file={self.measurement_file})",  # noqa: E501
+            ]
+            subprocess.Popen(preview)
 
 
 def main():

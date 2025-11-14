@@ -838,8 +838,12 @@ class MainWindow(QMainWindow):
 
     def preview_data(self):
         """Launch matrix-preview with current measurement file."""
-        preview = Path(sys.executable).parent / "matrix-preview"
-        subprocess.Popen([preview, str(self.measurement_file)])
+        preview = [
+            sys.executable,
+            "-c",
+            f"from matr1x.scripts import matrix_preview; matrix_preview.main(file={self.measurement_file})",  # noqa: E501
+        ]
+        subprocess.Popen(preview)
 
     def toggle_preferences(self, checked):
         """Open the preferences pane."""
