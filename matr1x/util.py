@@ -30,9 +30,10 @@ import textwrap
 import time
 from collections.abc import Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, TypeAlias, TypeVar
 
 import h5py
 import numpy as np
@@ -51,9 +52,28 @@ else:
 
 from .metadata import APP_META_KEY
 
+T = TypeVar("T")
+E = TypeVar("E")
+
+
+@dataclass(frozen=True)
+class Success(Generic[T]):
+    """Received value from a successful operation."""
+
+    value: T
+
+
+@dataclass(frozen=True)
+class Error(Generic[E]):
+    """Received error from a failed operation."""
+
+    error: E
+
+
+Result: TypeAlias = Success[T] | Error[E]
+
+
 # allow error handling while using with
-
-
 @contextmanager
 def open_and_error(filename, mode="r"):
     """
@@ -1117,8 +1137,8 @@ def set_correct_mac_appname(name: str) -> None:
     if sys.platform != "darwin":
         return
 
-    from AppKit import NSApplication  # ty: ignore [unresolved-import], library not completey typed
-    from Foundation import NSBundle  # ty: ignore [unresolved-import], library not completey typed
+    from AppKit import NSApplication  # type: ignore
+    from Foundation import NSBundle  # type: ignore
 
     bundle = NSBundle.mainBundle()
     if bundle:
@@ -1206,3 +1226,55 @@ class DcDict(dict):
                     super().__setitem__(key, sep.join([self[key], value]))
                     return
             super().__setitem__(key, sep[1:] + value)
+
+
+def run_python_cmdline(
+    cmd: list[str],
+    stdin: str | None = None,
+    timeout: float | None = 10,
+) -> Result[subprocess.CompletedProcess[str], Exception | str]:
+    """
+    Run a python command line and return the result.
+
+    It utilizes subprocess.run to execute the command, captures its
+    output and avoids the creation of a new console window on Windows.
+
+    Parameters
+    ----------
+    cmd : list[str]
+        The "command" to be placed after the python binary,
+        e.g. ["-m", "ruff", "check"].
+    stdin: str or None, optional
+        The string to utilize as stdin
+    timeout: float, optional
+        An optional timeout value
+
+    Returns
+    -------
+    Result
+        Either a string with the output, a string with the error from
+        the commandline or the exception in case of an subprocess.run
+        error.
+    """
+    python_exec = Path(sys.executable)
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = subprocess.CREATE_NO_WINDOW
+        if python_exec.name == "pythonw.exe":
+            python_exec = python_exec.parent / "python.exe"
+    cmd = [str(python_exec)] + cmd
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            input=stdin,
+            creationflags=creationflags,
+        )
+        if result.returncode != 0:
+            return Error(result.stderr or result.stdout)
+        return Success(result)
+    except Exception as e:
+        return Error(e)

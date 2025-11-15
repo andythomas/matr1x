@@ -24,11 +24,8 @@ import ast
 import json
 import logging
 import re
-import subprocess
-import sys
 import tempfile
 from importlib import resources
-from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import (
@@ -44,8 +41,10 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.gui_util import FileDropMixin, get_application_instance
 from matr1x.util import (
+    Error,
     generate_script,
     get_script_prefix_offset,
+    run_python_cmdline,
 )
 
 SCRIPT_OFFSET = get_script_prefix_offset()
@@ -302,7 +301,7 @@ class Linter(QObject):
         except Exception:
             return []
 
-    def _ruff_error_diagnostic(self, error: str) -> list[dict]:
+    def _ruff_error_diagnostic(self, error: str) -> list[dict[str, Any]]:
         """
         Format a general error in the required way.
 
@@ -344,71 +343,30 @@ class Linter(QObject):
         """
         code = code.replace("\r\n", "\n").replace("\r", "\n")
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False, newline=""
-        ) as temp_file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", newline="") as temp_file:
             temp_file.write(code)
-            temp_file_path = temp_file.name
-
-        python_exec = Path(sys.executable)
-
-        if sys.platform == "win32":
-            if python_exec.name == "pythonw.exe":
-                python_exec = python_exec.parent / "python.exe"
-
-        try:
+            temp_file.flush()
             cmd_args = [
-                python_exec,
                 "-m",
                 "ruff",
                 "check",
+                "-e",
                 "--output-format=json",
                 "--select",
                 ",".join(Linter.RUFF_RULES),
                 "--no-cache",
-                temp_file_path,
+                temp_file.name,
             ]
+            result = run_python_cmdline(cmd_args)
 
-            kwargs = {
-                "capture_output": True,
-                "text": True,
-                "timeout": 10,
-            }
+        if isinstance(result, Error):
+            return self._ruff_error_diagnostic(f"Ruff execution error: {result.error}")
 
-            if sys.platform == "win32":
-                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        if result.value.stdout:
+            ruff_issues = json.loads(result.value.stdout)
+            return self._convert_ruff_to_monaco_diagnostics(ruff_issues)
 
-            result = subprocess.run(cmd_args, **kwargs)  # ty: ignore [no-matching-overload]
-
-            if result.stdout:
-                ruff_issues = json.loads(result.stdout)
-                return self._convert_ruff_to_monaco_diagnostics(ruff_issues)
-            else:
-                return []
-
-        except subprocess.TimeoutExpired:
-            return self._ruff_error_diagnostic("Ruff check timed out")
-
-        except subprocess.CalledProcessError as e:
-            if e.stdout:
-                try:
-                    ruff_issues = json.loads(e.stdout)
-                    return self._convert_ruff_to_monaco_diagnostics(ruff_issues)
-                except json.JSONDecodeError:
-                    pass
-
-            return self._ruff_error_diagnostic(
-                f"Ruff execution error: {e.stderr or 'Unknown error'}"
-            )
-
-        except FileNotFoundError:
-            return self._ruff_error_diagnostic("Ruff not found. Please install ruff.")
-
-        finally:
-            try:
-                Path(temp_file_path).unlink()
-            except Exception:
-                pass
+        return []
 
     def _convert_ruff_to_monaco_diagnostics(self, ruff_issues: list[dict]) -> list[dict[str, Any]]:
         """
@@ -657,18 +615,11 @@ class CodeEditor(FileDropMixin, QWebEngineView):
 
     def formatCode(self) -> None:
         """Format Python code utilizing 'ruff format'."""
-        try:
-            result = subprocess.run(
-                ["ruff", "format", "--stdin-filename", "dummy.py", "-"],
-                input=self.toPlainText(),
-                text=True,
-                capture_output=True,
-                check=True,
-            )
-            formatted_code = result.stdout
-            self.setPlainText(formatted_code)
-        except subprocess.CalledProcessError:
+        cmd_args = ["-m", "ruff", "format", "--stdin-filename", "dummy.py", "-"]
+        result = run_python_cmdline(cmd_args, stdin=self.toPlainText())
+        if isinstance(result, Error):
             return
+        self.setPlainText(result.value.stdout)
 
     def isModified(self) -> bool:
         """Return True if the editor content has been modified."""
