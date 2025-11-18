@@ -1123,40 +1123,6 @@ def normalize_cmds(cmds):
             cmds[cmd] = Command.from_deprecated_list(val)
 
 
-def set_correct_mac_appname(name: str) -> None:
-    """
-    Set the correct app name on a Mac.
-
-    This function only performs an action if the platform is macOS.
-
-    Parameters
-    ----------
-    name : str
-        The desired name of the application.
-    """
-    if sys.platform != "darwin":
-        return
-
-    from AppKit import NSApplication  # type: ignore
-    from Foundation import NSBundle  # type: ignore
-
-    bundle = NSBundle.mainBundle()
-    if bundle:
-        info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
-        info_dict["CFBundleName"] = name
-    # Correct the menu
-    app = NSApplication.sharedApplication()
-    main_menu = app.mainMenu()
-    if not main_menu:
-        # occurs when using offscreen mode during testing
-        return
-    # Get left-most menu with app-specific items
-    app_menu = main_menu.itemAtIndex_(0).submenu()
-    for i in range(app_menu.numberOfItems()):
-        item = app_menu.itemAtIndex_(i)
-        item.setTitle_(item.title().replace("Python", name))
-
-
 class DcDict(dict):
     """
     Custom dictionary class that only allows append if key already exists.

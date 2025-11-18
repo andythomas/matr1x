@@ -99,7 +99,6 @@ from matr1x.util import (
     create_temp_dir_with_symlinks,
     generate_script,
     get_importable_module_name,
-    set_correct_mac_appname,
 )
 
 logger = logging.getLogger(Path(__file__).name)
@@ -117,19 +116,6 @@ MAX_LINES_STATUS = 10000
 # number of lines/s can be set (here 110 lines/s). With this in place
 # run matrix-script until it reaches the limit and see whether the
 # display perforamnce of the GUI drops.
-
-
-class Matr1xApplication(MApplication):
-    """Enable double-click open on a Mac."""
-
-    openfile = Signal(str)
-
-    def event(self, event):
-        """Evaluate the event and open the file."""
-        if event.type() == QEvent.Type.FileOpen:
-            filename = event.file()
-            self.openfile.emit(filename)
-        return MApplication.event(self, event)
 
 
 class CentralWidget(FileDropMixin, QWidget):
@@ -2120,12 +2106,7 @@ class MainWindow(QMainWindow):
 
 def main():
     """Set the basic GUI parameters and run."""
-    app = Matr1xApplication(sys.argv)
-    if os.name == "nt":
-        # enable modern mode on windows which allows for darkmode
-        app.setStyle("fusion")
-    elif sys.platform == "darwin":
-        set_correct_mac_appname("Matrix Script")
+    app = MApplication(sys.argv)
     appname = "matrix-script"
     app.setDesktopFileName(appname)
     with QtGracefulKiller():
@@ -2135,6 +2116,8 @@ def main():
             sys.stderr = OutputDuplication(sys.stderr, prefix=appname, fallbackname="stderr")
         ex.show()
         protected_restore(ex.restore_window_state)
+        # handle MacOS specific FileOpenEvent from MApplication
+        app.connect_file_handler(ex._load_file_from_signal)
         ret = app.exec()
     if config["duplicate_output_to_logfile"]:
         sys.stdout.close()

@@ -90,7 +90,7 @@ from PySide6.QtWidgets import (
 
 from .. import config, datetimefmt, logfolder, system, usersfolder
 from ..gui_util import MApplication, OutputDuplication, SaferQSettings, validator
-from ..util import normalize_cmds, set_correct_mac_appname
+from ..util import normalize_cmds
 from .qwidgets import ToggleButton, matr1xProgressBar
 
 
@@ -1823,11 +1823,6 @@ def control_main(
             pass
 
     app = MApplication(sys.argv)
-    if os.name == "nt":
-        # enable modern mode on windows which allows for darkmode
-        app.setStyle("fusion")
-    elif sys.platform == "darwin":
-        set_correct_mac_appname(f"{name}")
     app.setDesktopFileName(f"python.{package}.{Path(sys.argv[0]).name}")
 
     if lockfile:

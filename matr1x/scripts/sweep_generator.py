@@ -88,7 +88,6 @@ from matr1x.util import (
     create_temp_dir_with_symlinks,
     generate_col_index,
     get_importable_module_name,
-    set_correct_mac_appname,
 )
 
 if sys.platform == "win32":
@@ -1648,17 +1647,15 @@ class MainWindow(FileDropMixin, QMainWindow):
 def main():
     """Set the basic GUI parameters and run."""
     app = MApplication(sys.argv)
-    if os.name == "nt":
-        # enable modern mode on windows which allows for darkmode
-        app.setStyle("fusion")
-    elif sys.platform == "darwin":
-        set_correct_mac_appname("Sweep Generator")
+    app.setDesktopFileName("sweep-generator")
     with QtGracefulKiller():
         if len(sys.argv) < 2:
             mw = MainWindow()
         else:
             mw = MainWindow(filename=Path(sys.argv[1]))
         mw.show()
+        # handle MacOS specific FileOpenEvent from MApplication
+        app.connect_file_handler(mw.open_file)
         protected_restore(mw.restore_window_state)
         ret = app.exec()
     sys.exit(ret)

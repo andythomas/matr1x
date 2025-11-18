@@ -68,7 +68,7 @@ from matr1x.scripts import (
     sweep_generator,
 )
 from matr1x.system import MergedSystem
-from matr1x.util import get_matrix_binary, open_and_error, set_correct_mac_appname
+from matr1x.util import get_matrix_binary, open_and_error
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -901,11 +901,6 @@ class MainWindow(FileDropMixin, QMainWindow):
 def main():
     """Set the basic GUI parameters and run."""
     app = MApplication(sys.argv)
-    if os.name == "nt":
-        # enable modern mode on windows which allows for darkmode
-        app.setStyle("fusion")
-    elif sys.platform == "darwin":
-        set_correct_mac_appname("Matrix GUI")
     app.setDesktopFileName("matrix-gui")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process

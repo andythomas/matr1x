@@ -68,6 +68,7 @@ from PySide6.QtGui import (
     QDoubleValidator,
     QDragEnterEvent,
     QDropEvent,
+    QFileOpenEvent,
     QFontDatabase,
     QIcon,
     QImage,
@@ -3934,6 +3935,29 @@ class MApplication(QApplication):
 
     isDarkSignal = Signal(bool)
     isDark = property(lambda self: self._theme_detector.isDark())
+    openfile = Signal(str)
+
+    def __init__(self, args: Sequence[str]) -> None:
+        """
+        Improve theme change handling, linux and mac behavior.
+
+        Use a helper widget for better theme handling. Automatically
+        select the xcb client on a Linux machine.  Allow double-click
+        file opening on a Mac.
+
+        args : list of str
+            Arguments for QApplication
+        """
+        if sys.platform == "linux":
+            if "QT_QPA_PLATFORM" not in os.environ and "xcb" in self._list_platform_plugins():
+                os.environ["QT_QPA_PLATFORM"] = "xcb"
+        super().__init__(args)
+        if os.name == "nt":
+            self.setStyle("fusion")  # Enable modern mode on Windows which allows for dark mode
+        self._theme_detector = ThemeDetector()
+        self._theme_detector.isDarkSignal.connect(self.isDarkSignal.emit)
+        self._pending_files = []
+        self._handler_connected = False
 
     def _list_platform_plugins(self) -> Sequence[str]:
         """
@@ -3946,33 +3970,12 @@ class MApplication(QApplication):
         """
         plugin_path = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))
         platforms_path = plugin_path / "platforms"
-
         if platforms_path.exists():
             plugins = [f.name for f in platforms_path.iterdir() if f.is_file()]
             platforms = [Path(plugin).stem.replace("libq", "") for plugin in plugins]
             return platforms
         else:
             return []
-
-    def __init__(self, args: Sequence[str]) -> None:
-        """
-        Call init of QApplication, automatically select the xcb client.
-
-        If, for example, wayland is used as the default window manager,
-        the lack of client side decorations would lead to missing visual
-        cues such as window shadows. To regain the visual aids, the
-        client-side is switched to xcb.
-
-        args : list of str
-            Arguments for QApplication
-        """
-        if sys.platform == "linux":
-            if "QT_QPA_PLATFORM" not in os.environ and "xcb" in self._list_platform_plugins():
-                os.environ["QT_QPA_PLATFORM"] = "xcb"
-        super().__init__(args)
-
-        self._theme_detector = ThemeDetector()
-        self._theme_detector.isDarkSignal.connect(self.isDarkSignal.emit)
 
     def toolbar_icon_size(self) -> int:
         """
@@ -3983,12 +3986,64 @@ class MApplication(QApplication):
         int
             size of the icon
         """
-        style = MApplication.style()
-        assert style is not None
-        small = style.pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
-        standard = style.pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize)
+        small = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+        standard = MApplication.style().pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize)
         intermediate = int((small + standard) / 2)
         return intermediate
+
+    def event(self, event: QEvent) -> bool:
+        """Handle application events including file open events."""
+        if event.type() == QEvent.Type.FileOpen and isinstance(event, QFileOpenEvent):
+            filename = event.file()
+            if self._handler_connected:
+                self.openfile.emit(filename)
+            else:
+                self._pending_files.append(filename)
+        return QApplication.event(self, event)
+
+    def connect_file_handler(self, handler: Callable[[str], None]) -> None:
+        """
+        Connect file open handler and process any buffered events.
+
+        Parameters
+        ----------
+        handler: Callable[[str], None]
+            A function to connect that takes a filename as a parameter.
+        """
+        self.openfile.connect(handler)
+        self._handler_connected = True
+        for filename in self._pending_files:
+            self.openfile.emit(filename)
+        self._pending_files.clear()
+
+    def setDesktopFileName(self, name: str, /) -> None:
+        """
+        Set desktop filename with platform-specific optimizations.
+
+        Parameters
+        ----------
+        name : str
+            The desktop filename (e.g., "matrix-script")
+        """
+        if sys.platform == "darwin":
+            from AppKit import NSApplication  # type: ignore
+            from Foundation import NSBundle  # type: ignore
+
+            bundle = NSBundle.mainBundle()
+            if bundle:
+                info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+                info_dict["CFBundleName"] = name
+            # Correct the menu
+            app = NSApplication.sharedApplication()
+            main_menu = app.mainMenu()
+            if main_menu:
+                # Get left-most menu with app-specific items
+                app_menu = main_menu.itemAtIndex_(0).submenu()
+                for i in range(app_menu.numberOfItems()):
+                    item = app_menu.itemAtIndex_(i)
+                    item.setTitle_(item.title().replace("Python", name))
+
+        super().setDesktopFileName(name)
 
 
 def get_application_instance() -> MApplication:

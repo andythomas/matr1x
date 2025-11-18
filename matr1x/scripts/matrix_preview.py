@@ -37,7 +37,7 @@ from PySide6.QtCore import (
     QThread,
     Signal,
 )
-from PySide6.QtGui import QAction, QColor, QFileOpenEvent, QKeySequence
+from PySide6.QtGui import QAction, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -69,7 +69,6 @@ from matr1x.gui_util import (
     open_matrix_toml,
     protected_restore,
 )
-from matr1x.util import set_correct_mac_appname
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -95,20 +94,6 @@ class PlotData(TypedDict):
     data: np.ndarray | None  # data can be an ndarray or None
     shape: tuple[int, ...]  # Specifies a tuple of integers
     dim: int
-
-
-class Matr1xApplication(MApplication):
-    """Allow double-click file open on a Mac."""
-
-    openfile = Signal(str)
-
-    def event(self, a0):
-        """Catch file open on a Mac."""
-        if a0 is not None:
-            if a0.type() == QEvent.Type.FileOpen and isinstance(a0, QFileOpenEvent):
-                filename = a0.file()
-                self.openfile.emit(filename)
-        return MApplication.event(self, a0)
 
 
 class UpdateThread(QThread):
@@ -196,11 +181,10 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.settings = SaferQSettings("matr1x", "preview")
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
-        # handle MacOS specific FileOpenEvent from Matr1xApplication
         # Only connect for root windows (parent=None) to avoid duplicate connections
         application = get_application_instance()
-        if isinstance(application, Matr1xApplication) and parent is None:
-            application.openfile.connect(self._open_file_from_signal)
+        if parent is None:
+            application.connect_file_handler(self._open_file_from_signal)
         # initialize filename if available
         if filename:
             self.open_file(filename)
@@ -1253,12 +1237,7 @@ Please investigate the error and eventually restart matrix-preview""",
 
 def main(file: str | None = None):
     """Set the basic GUI parameters and run."""
-    app = Matr1xApplication(sys.argv)
-    if os.name == "nt":
-        # enable modern mode on windows which allows for darkmode
-        app.setStyle("fusion")
-    elif sys.platform == "darwin":
-        set_correct_mac_appname("Matrix Preview")
+    app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into
     # background when matrix returns. see run_as_fg_process
