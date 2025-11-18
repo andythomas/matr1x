@@ -17,6 +17,7 @@
 
 import hashlib
 import json
+import logging
 import os
 import re
 import signal
@@ -50,6 +51,7 @@ from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
     FileDropMixin,
+    LoggingWindow,
     MApplication,
     MetaDataDialog,
     SaferQSettings,
@@ -67,6 +69,8 @@ from matr1x.scripts import (
 )
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error, set_correct_mac_appname
+
+logger = logging.getLogger(Path(__file__).name)
 
 
 def signal_handler(signal, frame):
@@ -355,6 +359,10 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.log_window = LoggingWindow(parent=self)
+        self.log_window.hide()
+        logger.info("matrix-gui starting")
+
         self.initUI()
         self.sg: QMainWindow | None = None
         self.running = False
@@ -399,6 +407,9 @@ class MainWindow(FileDropMixin, QMainWindow):
             while self.meas_list.count() > 0:
                 self.removeMeasurement()
             self.save_window_state()
+            root_logger = logging.getLogger()
+            root_logger.removeHandler(self.log_window.log_handler)
+            self.log_window.deleteLater()
             a0.accept()
 
     def info_box(self):
@@ -422,6 +433,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.settings.setValue("metadata_size", self.w_dockable_metadata.size())
         self.settings.setValue("config_position", self.config_editor.pos())
         self.settings.setValue("config_size", self.config_editor.size())
+        self.settings.setValue("log_window/position", self.log_window.pos())
+        self.settings.setValue("log_window/size", self.log_window.size())
 
     def restore_window_state(self) -> None:
         """
@@ -452,6 +465,25 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.config_editor.resize(
             self.settings.safer_value("config_size", self.config_editor.size(), type=QSize)
         )
+        self.log_window.move(
+            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
+        )
+        self.log_window.resize(
+            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
+        )
+
+    def toggle_log_window(self):
+        """Toggle the visibility of the logging window."""
+        if self.log_window.isVisible():
+            self.log_window.hide()
+            self.show_log_action.setChecked(False)
+            self.show_log_action.setText("Show Log Window")
+        else:
+            self.log_window.show()
+            self.log_window.raise_()
+            self.log_window.activateWindow()
+            self.show_log_action.setChecked(True)
+            self.show_log_action.setText("Hide Log Window")
 
     def toggle_preferences(self, checked):
         """Open the preferences pane."""
@@ -590,6 +622,9 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
+        self.show_log_action = QAction("Show Log Window", self)
+        self.show_log_action.setCheckable(True)
+        self.show_log_action.triggered.connect(self.toggle_log_window)
 
     def create_toolbar(self) -> None:
         """Create the Toolbar."""
@@ -653,6 +688,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         help_menu = menu.addMenu("&Help")
         assert help_menu is not None
         help_menu.addAction(self.about_action)
+        help_menu.addAction(self.show_log_action)
 
     def updateAutoGenFilename(self, state):
         """Fill in output filename if required."""
@@ -880,4 +916,5 @@ def main():
         ex.show()
         protected_restore(ex.restore_window_state)
         ret = app.exec()
+        logger.info("matrix-gui exiting")
     sys.exit(ret)

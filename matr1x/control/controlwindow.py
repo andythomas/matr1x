@@ -39,7 +39,7 @@ import time
 import warnings
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtCore import QPoint, QSize, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -65,6 +65,7 @@ from matr1x.control.qwidgets import EnableAction, FullInfoAction
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import (
     EmittingStream,
+    LoggingWindow,
     SaferQSettings,
     check_config,
     get_application_instance,
@@ -236,6 +237,12 @@ class ControlWindow(QMainWindow):
         os.environ["QT_NO_FT_CACHE"] = "1"
 
         super().__init__(parent=parent)
+
+        # Initialize logging window
+        self.log_window = LoggingWindow(parent=self)
+        self.log_window.hide()
+        logger.info("Control window '%s' starting", name)
+
         self.setWindowTitle(name)
         self.settings = SaferQSettings(package, name)
         # initialize paramaters
@@ -409,6 +416,13 @@ class ControlWindow(QMainWindow):
         self.status_box.toggle_button.setChecked(
             self.settings.safer_value("status_visible", False, type=bool)
         )
+        # restore log window geometry
+        self.log_window.move(
+            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
+        )
+        self.log_window.resize(
+            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
+        )
 
     def _restore_view_settings(self):
         """Restore view-related settings after menu has been created."""
@@ -579,6 +593,19 @@ class ControlWindow(QMainWindow):
             else:
                 guidict.toolbar.hide()
 
+    def toggle_log_window(self):
+        """Toggle the visibility of the logging window."""
+        if self.log_window.isVisible():
+            self.log_window.hide()
+            self.show_log_action.setChecked(False)
+            self.show_log_action.setText("Show Log Window")
+        else:
+            self.log_window.show()
+            self.log_window.raise_()
+            self.log_window.activateWindow()
+            self.show_log_action.setChecked(True)
+            self.show_log_action.setText("Hide Log Window")
+
     def create_menu(self) -> None:
         """
         Create the main menu.
@@ -591,6 +618,7 @@ class ControlWindow(QMainWindow):
         self.fullinfo_menu = menu.addMenu("&Full info")
         self.view_menu = menu.addMenu("&View")
         self.custom_menu = menu.addMenu("&Custom")
+        self.help_menu = menu.addMenu("&Help")
 
         self.file_menu.addAction(self.quit_action)
 
@@ -682,6 +710,10 @@ class ControlWindow(QMainWindow):
         self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
         self.matrix_settings_action.triggered.connect(open_matrix_toml)
 
+        self.show_log_action = QAction("Show Log Window", self)
+        self.show_log_action.setCheckable(True)
+        self.show_log_action.triggered.connect(self.toggle_log_window)
+
         # Build the rest of the menu
         self.enable_menu.addSeparator()
         self.enable_menu.addAction(self.enable_all_action)
@@ -695,6 +727,8 @@ class ControlWindow(QMainWindow):
         self.view_menu.addAction(self.show_toolbar_action)
         self.view_menu.addAction(self.activity_in_logger_action)
         self.view_menu.addAction(self.matrix_settings_action)
+
+        self.help_menu.addAction(self.show_log_action)
 
         self.check_enables()
         self.check_full_infos()
@@ -1300,6 +1334,8 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("status_visible", self.status_box.toggle_button.isChecked())
         self.settings.setValue("toolbar_visible", self.show_toolbar_action.isChecked())
         self.settings.setValue("activity_in_logger", self.activity_in_logger_action.isChecked())
+        self.settings.setValue("log_window/position", self.log_window.pos())
+        self.settings.setValue("log_window/size", self.log_window.size())
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         """
@@ -1314,6 +1350,11 @@ class ControlWindow(QMainWindow):
         self.save_window_state()
         for g in self.guidicts:
             g.dock.saveCurrentState()
+
+        # Clean up logging window
+        root_logger = logging.getLogger()
+        root_logger.removeHandler(self.log_window.log_handler)
+        self.log_window.deleteLater()
 
         # Accept the close event
         super().closeEvent(a0)

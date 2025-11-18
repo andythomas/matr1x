@@ -60,6 +60,7 @@ from matr1x.eval import HeaderDict, loadmatrix
 from matr1x.gui_util import (
     AboutBox,
     FileDropMixin,
+    LoggingWindow,
     MApplication,
     SaferQSettings,
     check_config,
@@ -149,6 +150,9 @@ class SweepPreview(FileDropMixin, QMainWindow):
 
     def __init__(self, parent: QWidget | None = None, filename: Path | None = None):
         super().__init__(parent)
+        self.log_window = LoggingWindow(parent=self)
+        self.log_window.hide()
+        logger.info("matrix-preview starting")
 
         # File-related properties
         self.filename = filename
@@ -278,12 +282,12 @@ class SweepPreview(FileDropMixin, QMainWindow):
 
     def closeEvent(self, a0):
         """Store toolbar position on close."""
-        if a0 is not None:
-            if self.closing_allowed:
-                self.save_window_state()
-                a0.accept()
-            else:
-                a0.ignore()
+        if self.closing_allowed:
+            self.save_window_state()
+            root_logger = logging.getLogger()
+            root_logger.removeHandler(self.log_window.log_handler)
+            self.log_window.deleteLater()
+            a0.accept()
 
     def save_window_state(self) -> None:
         """
@@ -299,6 +303,8 @@ class SweepPreview(FileDropMixin, QMainWindow):
             self.settings.setValue("meta_floating", self.w_meta_view.isFloating())
             self.settings.setValue("meta_position", self.w_meta_view.pos())
             self.settings.setValue("meta_size", self.w_meta_view.size())
+        self.settings.setValue("log_window/position", self.log_window.pos())
+        self.settings.setValue("log_window/size", self.log_window.size())
 
     def restore_window_state(self) -> None:
         """
@@ -313,6 +319,12 @@ class SweepPreview(FileDropMixin, QMainWindow):
         # Just in case it is the first start
         self.resize(self.sizeHint())
         self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
+        self.log_window.move(
+            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
+        )
+        self.log_window.resize(
+            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
+        )
 
     def info_box(self):
         """Display an 'about this app' widget."""
@@ -429,6 +441,9 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.meta_action.setEnabled(False)
         self.meta_action.setCheckable(True)
         self.meta_action.triggered.connect(self.toggle_meta)
+        self.show_log_action = QAction("Show Log Window", self)
+        self.show_log_action.setCheckable(True)
+        self.show_log_action.triggered.connect(self.toggle_log_window)
 
     def create_toolbar(self) -> None:
         """Create the toolbar."""
@@ -497,6 +512,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         help_menu = menu.addMenu("&Help")
         assert help_menu is not None
         help_menu.addAction(self.about_action)
+        help_menu.addAction(self.show_log_action)
 
     def init_ui(self):
         """Initialize GUI for popup."""
@@ -632,6 +648,19 @@ class SweepPreview(FileDropMixin, QMainWindow):
             self.w_meta_view.setVisible(True)
         else:
             self.w_meta_view.setVisible(False)
+
+    def toggle_log_window(self):
+        """Toggle the visibility of the logging window."""
+        if self.log_window.isVisible():
+            self.log_window.hide()
+            self.show_log_action.setChecked(False)
+            self.show_log_action.setText("Show Log Window")
+        else:
+            self.log_window.show()
+            self.log_window.raise_()
+            self.log_window.activateWindow()
+            self.show_log_action.setChecked(True)
+            self.show_log_action.setText("Hide Log Window")
 
     def get_filename_without_extension(self) -> str:
         """Return the actual filename without extension."""

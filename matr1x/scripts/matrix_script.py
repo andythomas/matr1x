@@ -75,6 +75,7 @@ from matr1x.gui_util import (
     ConfigEditWidget,
     EmittingStream,
     FileDropMixin,
+    LoggingWindow,
     MApplication,
     MetaDataDialog,
     NumericalInputDialog,
@@ -102,7 +103,6 @@ from matr1x.util import (
 )
 
 logger = logging.getLogger(Path(__file__).name)
-logger.info("matrix-script starting")
 config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
 
@@ -482,6 +482,9 @@ class MainWindow(QMainWindow):
     def __init__(self, filename: Path | None = None):
         """Initialize the GUI for scripted matrix control."""
         super().__init__()
+        self.log_window = LoggingWindow(parent=self)
+        self.log_window.hide()
+        logger.info("matrix-script starting")
         self.systems = []
         self.scriptname: Path | None = None
         self.measurement_file: Path
@@ -586,6 +589,9 @@ class MainWindow(QMainWindow):
         self.settings.setValue("position", self.config_editor.pos())
         self.settings.setValue("size", self.config_editor.size())
         self.settings.endGroup()
+
+        self.settings.setValue("log_window/position", self.log_window.pos())
+        self.settings.setValue("log_window/size", self.log_window.size())
 
         # Only save help dialog size and position if it has been shown at least once
         if hasattr(self, "_help_dialog_shown") and self._help_dialog_shown:
@@ -693,6 +699,15 @@ class MainWindow(QMainWindow):
             )
             self.settings.endGroup()
 
+            self.log_window.move(
+                self.settings.safer_value(
+                    "log_window/position", self.log_window.pos(), type=QPoint
+                )
+            )
+            self.log_window.resize(
+                self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
+            )
+
     def keyPressEvent(self, event: QKeyEvent):
         """Allow to modify systems list with keyboard shortcuts."""
         if self.system_list.hasFocus():
@@ -755,6 +770,9 @@ class MainWindow(QMainWindow):
             self.script_edit.page().loadFinished.disconnect()
             self.script_edit.page().deleteLater()
         self.script_edit.deleteLater()
+        root_logger = logging.getLogger()
+        root_logger.removeHandler(self.log_window.log_handler)
+        self.log_window.deleteLater()
         qApp = get_application_instance()
         qApp.processEvents()
         self.server.stop()
@@ -853,6 +871,19 @@ class MainWindow(QMainWindow):
             self.config_editor.activateWindow()
         else:
             self.config_editor.hide()
+
+    def toggle_log_window(self):
+        """Toggle the visibility of the logging window."""
+        if self.log_window.isVisible():
+            self.log_window.hide()
+            self.show_log_action.setChecked(False)
+            self.show_log_action.setText("Show Log Window")
+        else:
+            self.log_window.show()
+            self.log_window.raise_()
+            self.log_window.activateWindow()
+            self.show_log_action.setChecked(True)
+            self.show_log_action.setText("Hide Log Window")
 
     def _load_file_from_signal(self, filename: str):
         """Convert string to Path for opening file."""
@@ -1056,6 +1087,9 @@ class MainWindow(QMainWindow):
         self.autocomplete_action.setCheckable(True)
         self.autocomplete_action.setChecked(True)
         self.autocomplete_action.toggled.connect(self.script_edit.enableTabCompletion)
+        self.show_log_action = QAction("Show Log Window", self)
+        self.show_log_action.setCheckable(True)
+        self.show_log_action.triggered.connect(self.toggle_log_window)
 
     def create_toolbar(self) -> None:
         """Create the toolbar."""
@@ -1157,6 +1191,7 @@ class MainWindow(QMainWindow):
         help_menu = menu.addMenu("&Help")
         assert help_menu is not None
         help_menu.addAction(self.help_system_action)
+        help_menu.addAction(self.show_log_action)
         help_menu.addAction(self.about_action)  # This is auto-moved on a Mac
 
     def update_window_title(self):

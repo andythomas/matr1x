@@ -20,6 +20,7 @@ It heavily relies on numpy.linspace for the creation of the sweep
 segments.
 """
 
+import logging
 import os
 import re
 import sys
@@ -34,7 +35,7 @@ from typing import TypedDict
 
 import pyqtgraph as pg
 from numpy import linspace, uint
-from PySide6.QtCore import QByteArray, QEvent, QObject, QSize, Qt, Signal
+from PySide6.QtCore import QByteArray, QEvent, QObject, QPoint, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QKeySequence, QMouseEvent, QPalette
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -68,6 +69,7 @@ from matr1x.gui_util import (
     AboutBox,
     CustomViewBox,
     FileDropMixin,
+    LoggingWindow,
     MApplication,
     SaferQSettings,
     SystemListWidget,
@@ -97,6 +99,8 @@ if sys.platform == "win32":
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
+
+logger = logging.getLogger(Path(__file__).name)
 
 
 class ColumnData(TypedDict):
@@ -579,6 +583,10 @@ class MainWindow(FileDropMixin, QMainWindow):
         inputcb: Callable[[str], None] | None = None,
     ):
         super().__init__()
+        self.log_window = LoggingWindow(parent=self)
+        self.log_window.hide()
+        logger.info("sweep-generator starting")
+
         self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
 
         # file handling helpers
@@ -629,19 +637,21 @@ class MainWindow(FileDropMixin, QMainWindow):
         If the script was modified without saving, a dialog asks how to
         proceed.
         """
-        if a0 is not None:
-            if self.dirty:
-                ret = save_messagebox(self)
-                if ret == QMessageBox.StandardButton.Cancel:
+        if self.dirty:
+            ret = save_messagebox(self)
+            if ret == QMessageBox.StandardButton.Cancel:
+                a0.ignore()
+                return
+            if ret == QMessageBox.StandardButton.Save:
+                if not self.save_file():
+                    # if save fails, ignore message
                     a0.ignore()
                     return
-                if ret == QMessageBox.StandardButton.Save:
-                    if not self.save_file():
-                        # if save fails, ignore message
-                        a0.ignore()
-                        return
-            self.save_window_state()
-            a0.accept()
+        self.save_window_state()
+        root_logger = logging.getLogger()
+        root_logger.removeHandler(self.log_window.log_handler)
+        self.log_window.deleteLater()
+        a0.accept()
 
     def save_window_state(self) -> None:
         """
@@ -652,6 +662,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
+        self.settings.setValue("log_window/position", self.log_window.pos())
+        self.settings.setValue("log_window/size", self.log_window.size())
 
     def restore_window_state(self) -> None:
         """
@@ -668,6 +680,12 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
             self.toolbar,
         )
+        self.log_window.move(
+            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
+        )
+        self.log_window.resize(
+            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
+        )
 
     def toggle_toolbar_view(self, checked):
         """Toogles the visibility of the toolbar on and off."""
@@ -675,6 +693,19 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.toolbar.show()
         else:
             self.toolbar.hide()
+
+    def toggle_log_window(self):
+        """Toggle the visibility of the logging window."""
+        if self.log_window.isVisible():
+            self.log_window.hide()
+            self.show_log_action.setChecked(False)
+            self.show_log_action.setText("Show Log Window")
+        else:
+            self.log_window.show()
+            self.log_window.raise_()
+            self.log_window.activateWindow()
+            self.show_log_action.setChecked(True)
+            self.show_log_action.setText("Hide Log Window")
 
     def init_ui(self) -> None:
         """Generate the main GUI."""
@@ -727,6 +758,9 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.about_action = QAction("About", self)
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.info_box)
+        self.show_log_action = QAction("Show Log Window", self)
+        self.show_log_action.setCheckable(True)
+        self.show_log_action.triggered.connect(self.toggle_log_window)
         self.new_file_action = QAction(get_matrix_icon("SP_FileIcon"), "New", self)
         self.new_file_action.triggered.connect(self.new_file)
         self.new_file_action.setShortcut(QKeySequence.StandardKey.New)
@@ -845,6 +879,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         #
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.about_action)
+        help_menu.addAction(self.show_log_action)
 
     def info_box(self) -> None:
         """Display an 'about this app' widget."""
