@@ -21,6 +21,7 @@ import signal
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict, no_type_check
 
@@ -56,7 +57,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x import gui_util
 from matr1x.control.util import QtGracefulKiller
-from matr1x.eval import HeaderDict, loadmatrix
+from matr1x.eval import HeaderDict, _create_empty_header, loadmatrix
 from matr1x.gui_util import (
     AboutBox,
     FileDropMixin,
@@ -116,6 +117,172 @@ class UpdateThread(QThread):
     def terminate(self):
         """Terminate the thread."""
         self.stopFlag = True
+        self.wait()
+
+
+@dataclass
+class ActionGroup:
+    """Actions to be utilized in the GUI."""
+
+    new: QAction
+    load: QAction
+    previous: QAction
+    next: QAction
+    export_png: QAction
+    export_data: QAction
+    auto_update: QAction
+    update: QAction
+    quit: QAction
+    matrix_settings: QAction
+    about: QAction
+    toggle_toolbar: QAction
+    meta: QAction
+    show_log: QAction
+
+
+class UIBuilder:
+    """Create actions, toolbar and menu."""
+
+    def __init__(self, window: QMainWindow):
+        self.window: QMainWindow = window
+        self.actions: ActionGroup
+        self.toolbar: QToolBar
+        self.file_selector: QComboBox
+
+    def setup_ui(self) -> None:
+        """Set up actions, toolbar, and menu."""
+        self._create_actions()
+        self._create_toolbar()
+        self._create_menu()
+
+    def _create_actions(self) -> None:
+        """Create all required actions."""
+        new = QAction(get_matrix_icon("SP_FileIcon"), "New window", self.window)
+        new.setShortcut(QKeySequence.StandardKey.New)
+        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self.window)
+        load.setShortcut(QKeySequence.StandardKey.Open)
+        previous = QAction(get_matrix_icon("SP_ArrowLeft"), "Previous", self.window)
+        cmd_left_shortcut = QKeySequence(
+            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Left)
+        )
+        previous.setShortcut(cmd_left_shortcut)
+        previous.setEnabled(False)
+        next_file = QAction(get_matrix_icon("SP_ArrowRight"), "Next", self.window)
+        cmd_right_shortcut = QKeySequence(
+            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Right)
+        )
+        next_file.setShortcut(cmd_right_shortcut)
+        next_file.setEnabled(False)
+        export_png = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save png", self.window)
+        export_png.setEnabled(False)
+        export_png.setShortcut(QKeySequence.StandardKey.Save)
+        export_data = QAction(
+            get_matrix_icon("SP_FileDialogDetailedView"), "Save txt", self.window
+        )
+        export_data.setEnabled(False)
+        auto_update = QAction(get_matrix_icon("SP_BrowserReload"), "Auto Update", self.window)
+        auto_update.setEnabled(False)
+        auto_update.setCheckable(True)
+        update = QAction(get_matrix_icon("CHAR_U", QColor("RoyalBlue")), "Update", self.window)
+        update.setEnabled(False)
+        quit_app = QAction("Quit", self.window)
+        if os.name == "nt":
+            quit_app.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
+        matrix_settings = QAction("Show matrix toml", self.window)
+        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
+        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
+        about = QAction("About", self.window)
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+        toggle_toolbar = QAction("Show Toolbar", self.window)
+        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
+        toggle_toolbar.setCheckable(True)
+        toggle_toolbar.setChecked(True)
+        meta = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata", self.window)
+        meta.setShortcut(QKeySequence("Ctrl+2"))
+        meta.setEnabled(False)
+        meta.setCheckable(True)
+        show_log = QAction("Show Log Window", self.window)
+        show_log.setCheckable(True)
+        self.actions = ActionGroup(
+            new=new,
+            load=load,
+            previous=previous,
+            next=next_file,
+            export_png=export_png,
+            export_data=export_data,
+            auto_update=auto_update,
+            update=update,
+            quit=quit_app,
+            matrix_settings=matrix_settings,
+            about=about,
+            toggle_toolbar=toggle_toolbar,
+            meta=meta,
+            show_log=show_log,
+        )
+
+    def _create_toolbar(self) -> None:
+        """Create the main toolbar."""
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFloatable(False)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        icon_size = get_application_instance().toolbar_icon_size()
+        self.toolbar.setIconSize(QSize(icon_size, icon_size))
+        self.toolbar.setAllowedAreas(
+            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
+        )
+        self.toolbar.addAction(self.actions.load)
+        self.window.addToolBar(self.toolbar)
+        self.toolbar.visibilityChanged.connect(self.actions.toggle_toolbar.setChecked)
+        self.toolbar.addAction(self.actions.export_png)
+        self.toolbar.addAction(self.actions.export_data)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.actions.update)
+        self.toolbar.addAction(self.actions.auto_update)
+        empty = QWidget()
+        empty.setFixedWidth(icon_size)
+        self.toolbar.addWidget(empty)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.toolbar.addWidget(spacer)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.actions.previous)
+        self.file_selector = QComboBox()
+        self.file_selector.setEnabled(False)
+        self.file_selector.setMinimumContentsLength(50)
+        self.toolbar.addWidget(self.file_selector)
+        self.toolbar.addAction(self.actions.next)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.actions.meta)
+
+    def _create_menu(self) -> None:
+        """Create the main menu."""
+        menu = self.window.menuBar()
+        file_menu = menu.addMenu("&File")
+        file_menu.addAction(self.actions.new)
+        file_menu.addSeparator()
+        file_menu.addAction(self.actions.load)
+        file_menu.addAction(self.actions.quit)
+        file_menu.addAction(self.actions.export_png)
+        file_menu.addAction(self.actions.export_data)
+        file_menu.addSeparator()
+        file_menu.addAction(self.actions.update)
+        file_menu.addAction(self.actions.auto_update)
+        if sys.platform != "darwin":
+            file_menu.addSeparator()
+            file_menu.addAction(self.actions.quit)
+        control_menu = menu.addMenu("&Control")
+        control_menu.addAction(self.actions.previous)
+        control_menu.addAction(self.actions.next)
+        view_menu = menu.addMenu("&View")
+        view_menu.addAction(self.actions.toggle_toolbar)
+        view_menu.addAction(self.actions.meta)
+        view_menu.addAction(self.actions.matrix_settings)
+        help_menu = menu.addMenu("&Help")
+        help_menu.addAction(self.actions.about)
+        help_menu.addAction(self.actions.show_log)
 
 
 class SweepPreview(FileDropMixin, QMainWindow):
@@ -138,7 +305,6 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.log_window = LoggingWindow(parent=self)
         self.log_window.hide()
         logger.info("matrix-preview starting")
-
         # File-related properties
         self.filename = filename
         self.file_dir: Path = Path()
@@ -153,32 +319,30 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.lu_time = 0.0
 
         # Thread and update properties
-        self.udthread = None
-
-        # Widget properties (initialized to None, created later)
-        self.w_meta_view: QDockWidget | None = None
+        self.update_thread: UpdateThread | None = None
 
         # UI components that are recreated for each file in init_ui()
         self.w_l: list = []  # Labels for axes
-        self.w_index: list = []  # Combo boxes for column selection
-        self.w_plot2d = None  # 2D plotting checkbox
-        self.w_plot2d_comp = None  # 2D complex plotting checkbox
-        self.w_transpose = None  # Transpose checkbox
-        self.spw = None  # Simple plot widget
-        self.iv = None  # Image view widget
+        self.column_selector: list[QComboBox]
+        self.w_plot2d: QCheckBox  # 2D plotting checkbox
+        self.w_plot2d_comp: QCheckBox  # 2D complex plotting checkbox
+        self.w_transpose: QCheckBox  # Transpose checkbox
+        self.spw: gui_util.SimplePlotWidget  # Simple plot widget
+        self.iv: pyqtgraph.ImageView | None = None  # Image view widget
         self.column_items: list[str] = []  # Column descriptions for current file
 
         # Data properties
         self.names: list[str] = []
         self.units: list[str] = []
         self.shapes: list[tuple[int, ...]] = []
-        self.header: HeaderDict = {}
+        self.header: HeaderDict = _create_empty_header()
         self.data: np.ndarray | dict[str, np.ndarray] = np.array([])
-
         # initialize basic GUI
         self.init_basic_ui()
         # allow to store the settings
         self.settings = SaferQSettings("matr1x", "preview")
+        self.meta_viewer = gui_util.MetaViewerWidget(self.header)
+        self.setup_meta_viewer()
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # Only connect for root windows (parent=None) to avoid duplicate connections
@@ -201,7 +365,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
 
     def eventFilter(self, a0, a1):
         """Update the file view if required."""
-        if a0 == self.w_file:
+        if a0 == self.ui.file_selector:
             if a1 is not None and a1.type() == QEvent.Type.MouseButtonPress:
                 self.update_file_combo()
             return False
@@ -233,14 +397,14 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.setWindowTitle(f"Matrix Preview: {self.file_dir}")
         self.file_list_refresh()
         self.file_index = self.data_files.index(self.filename.name)
-        self.udthread = None
+        self.update_thread = None
         self.lu_time = time.time()
         self.fetch_data()
         self.multidim = False
         self.error = False
         self.clear_ui()
         self.init_ui()
-        self.w_file.installEventFilter(self)
+        self.ui.file_selector.installEventFilter(self)
 
     def file_list_refresh(self):
         """Refresh all files with the correct extension in the selected directory."""
@@ -254,24 +418,28 @@ class SweepPreview(FileDropMixin, QMainWindow):
     def update_file_combo(self):
         """Update the combo box that displays the file names."""
         self.file_list_refresh()
-        ctext = self.w_file.currentText()
-        self.w_file.setToolTip(str(self.file_dir))
-        self.w_file.currentIndexChanged.disconnect()
-        self.w_file.clear()
-        self.w_file.addItems(self.data_files)
+        ctext = self.ui.file_selector.currentText()
+        self.ui.file_selector.setToolTip(str(self.file_dir))
+        self.ui.file_selector.currentIndexChanged.disconnect()
+        self.ui.file_selector.clear()
+        self.ui.file_selector.addItems(self.data_files)
         index = self.data_files.index(ctext)
-        self.w_file.setCurrentIndex(index)  # current index can differ from
+        self.ui.file_selector.setCurrentIndex(index)  # current index can differ from
         # self.file_index, problem?
-        self.w_file.currentIndexChanged.connect(self.file_index_changed)
+        self.ui.file_selector.currentIndexChanged.connect(self.file_index_changed)
 
     def closeEvent(self, a0):
         """Store toolbar position on close."""
         if self.closing_allowed:
+            if self.update_thread is not None:
+                self.update_thread.terminate()
             self.save_window_state()
             root_logger = logging.getLogger()
             root_logger.removeHandler(self.log_window.log_handler)
             self.log_window.deleteLater()
             a0.accept()
+        else:
+            a0.ignore()
 
     def save_window_state(self) -> None:
         """
@@ -281,12 +449,11 @@ class SweepPreview(FileDropMixin, QMainWindow):
         and the size and position of the metadata pane are saved.
         """
         self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
-        if self.w_meta_view:
-            self.settings.setValue("meta_placement", self.dockWidgetArea(self.w_meta_view))
-            self.settings.setValue("meta_floating", self.w_meta_view.isFloating())
-            self.settings.setValue("meta_position", self.w_meta_view.pos())
-            self.settings.setValue("meta_size", self.w_meta_view.size())
+        self.settings.setValue("toolbar_position", self.toolBarArea(self.ui.toolbar).value)
+        self.settings.setValue("meta_position_area", self.dockWidgetArea(self.meta_viewer).value)
+        self.settings.setValue("meta_floating", self.meta_viewer.isFloating())
+        self.settings.setValue("meta_position", self.meta_viewer.pos())
+        self.settings.setValue("meta_size", self.meta_viewer.size())
         self.settings.setValue("log_window/position", self.log_window.pos())
         self.settings.setValue("log_window/size", self.log_window.size())
 
@@ -296,10 +463,10 @@ class SweepPreview(FileDropMixin, QMainWindow):
 
         Main window geometry and the toolbar placement are restored.
         """
-        self.addToolBar(
-            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
-            self.toolbar,
+        toolbar_pos = self.settings.safer_value(
+            "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
         )
+        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
         # Just in case it is the first start
         self.resize(self.sizeHint())
         self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
@@ -333,9 +500,22 @@ class SweepPreview(FileDropMixin, QMainWindow):
     def toggle_toolbar_view(self, checked):
         """Toogles the visibility of the toolbar on and off."""
         if checked:
-            self.toolbar.show()
+            self.ui.toolbar.show()
         else:
-            self.toolbar.hide()
+            self.ui.toolbar.hide()
+
+    def toggle_log_window(self):
+        """Toggle the visibility of the logging window."""
+        if self.log_window.isVisible():
+            self.log_window.hide()
+            self.ui.actions.show_log.setChecked(False)
+            self.ui.actions.show_log.setText("Show Log Window")
+        else:
+            self.log_window.show()
+            self.log_window.raise_()
+            self.log_window.activateWindow()
+            self.ui.actions.show_log.setChecked(True)
+            self.ui.actions.show_log.setText("Hide Log Window")
 
     def init_basic_ui(self):
         """Initialize basic GUI that works without chosen filename."""
@@ -352,213 +532,85 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.widget.setLayout(self.grid)
         self.setCentralWidget(self.widget)
         # create Actions and Toolbar
-        self.create_actions()
-        self.create_toolbar()
-        self.create_menu()
+        self.ui = UIBuilder(self)
+        self.ui.setup_ui()
         self.show()
         check_config(matr1x.config)
 
-    def create_actions(self) -> None:
-        """Create all QActions of this application."""
-        self.new_action = QAction()
-        self.new_preview_action = QAction(get_matrix_icon("SP_FileIcon"), "New window", self)
-        self.new_preview_action.triggered.connect(self.create_new_preview)
-        self.new_preview_action.setShortcut(QKeySequence.StandardKey.New)
-        self.load_action = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self)
-        self.load_action.triggered.connect(self.load_button_pressed)
-        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.previous_action = QAction(get_matrix_icon("SP_ArrowLeft"), "Previous", self)
-        cmd_left_shortcut = QKeySequence(
-            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Left)
+        self.ui.actions.new.triggered.connect(self.create_new_preview)
+        self.ui.actions.load.triggered.connect(self.load_button_pressed)
+        self.ui.actions.previous.triggered.connect(self.previous_file)
+        self.ui.actions.next.triggered.connect(self.next_file)
+        self.ui.actions.export_png.triggered.connect(self.save_plot)
+        self.ui.actions.export_data.triggered.connect(self.save_data)
+        self.ui.actions.auto_update.toggled.connect(self.updatethread)
+        self.ui.actions.update.triggered.connect(lambda: self.conditional_fetch_data(True))
+        self.ui.actions.quit.triggered.connect(self.close)
+        self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
+        self.ui.actions.about.triggered.connect(self.info_box)
+        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
+        self.ui.actions.meta.triggered.connect(self.toggle_meta)
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+
+    def setup_meta_viewer(self) -> None:
+        """Configure the metadata view dock widget."""
+        self.meta_viewer.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
         )
-        self.previous_action.setShortcut(cmd_left_shortcut)
-        self.previous_action.setEnabled(False)
-        self.previous_action.triggered.connect(self.previous_file)
-        self.next_action = QAction(get_matrix_icon("SP_ArrowRight"), "Next", self)
-        cmd_right_shortcut = QKeySequence(
-            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Right)
+        self.meta_viewer.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
-        self.next_action.setShortcut(cmd_right_shortcut)
-        self.next_action.setEnabled(False)
-        self.next_action.triggered.connect(self.next_file)
-        self.export_png_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save png", self)
-        self.export_png_action.setEnabled(False)
-        self.export_png_action.setShortcut(QKeySequence.StandardKey.Save)
-        self.export_png_action.triggered.connect(self.save_plot)
-        self.export_data_action = QAction(
-            get_matrix_icon("SP_FileDialogDetailedView"), "Save txt", self
+        self.meta_viewer.setVisible(False)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.meta_viewer)
+        protected_restore(self.restore_meta_viewer)
+        self.meta_viewer.visibilityChanged.connect(self.ui.actions.meta.setChecked)
+
+    def restore_meta_viewer(self) -> None:
+        """Restore viewer position ans size from settings."""
+        meta_pos = self.settings.safer_value(
+            "meta_position_area", Qt.DockWidgetArea.RightDockWidgetArea.value, type=int
         )
-        self.export_data_action.setEnabled(False)
-        self.export_data_action.triggered.connect(self.save_data)
-        self.auto_update_action = QAction(get_matrix_icon("SP_BrowserReload"), "Auto Update", self)
-        self.auto_update_action.setEnabled(False)
-        self.auto_update_action.setCheckable(True)
-        self.auto_update_action.toggled.connect(self.updatethread)
-        self.update_action = QAction(
-            get_matrix_icon("CHAR_U", QColor("RoyalBlue")), "Update", self
-        )
-        self.update_action.setEnabled(False)
-        self.update_action.triggered.connect(lambda: self.conditional_fetch_data(True))
-        self.quit_action = QAction("Quit", self)
-        if os.name == "nt":
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
+
+        self.addDockWidget(Qt.DockWidgetArea(meta_pos), self.meta_viewer)
+        self.meta_viewer.setFloating(self.settings.safer_value("meta_floating", False, type=bool))
+        if self.meta_viewer.isFloating():
+            self.meta_viewer.move(
+                self.settings.safer_value("meta_position", self.meta_viewer.pos(), type=QPoint)
+            )
+            self.meta_viewer.resize(
+                self.settings.safer_value("meta_size", self.meta_viewer.size(), type=QSize)
+            )
         else:
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        self.quit_action.triggered.connect(self.close)
-        self.w_file = QComboBox()
-        self.w_file.setEnabled(False)
-        self.w_file.setMinimumContentsLength(50)
-        self.matrix_settings_action = QAction("Show matrix toml", self)
-        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
-        self.matrix_settings_action.triggered.connect(open_matrix_toml)
-        self.about_action = QAction("About", self)
-        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
-        self.about_action.triggered.connect(self.info_box)
-        self.toggle_toolbar_action = QAction("Show Toolbar", self)
-        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
-        self.toggle_toolbar_action.setCheckable(True)
-        self.toggle_toolbar_action.setChecked(True)
-        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        self.meta_action = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata", self)
-        self.meta_action.setShortcut(QKeySequence("Ctrl+2"))
-        self.meta_action.setEnabled(False)
-        self.meta_action.setCheckable(True)
-        self.meta_action.triggered.connect(self.toggle_meta)
-        self.show_log_action = QAction("Show Log Window", self)
-        self.show_log_action.setCheckable(True)
-        self.show_log_action.triggered.connect(self.toggle_log_window)
-
-    def create_toolbar(self) -> None:
-        """Create the toolbar."""
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFloatable(False)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = get_application_instance().toolbar_icon_size()
-        self.toolbar.setIconSize(QSize(icon_size, icon_size))
-        self.toolbar.setAllowedAreas(
-            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
-        )
-        # add the toolbar items
-        self.toolbar.addAction(self.load_action)
-        self.addToolBar(self.toolbar)
-        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
-        self.toolbar.addAction(self.export_png_action)
-        self.toolbar.addAction(self.export_data_action)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.update_action)
-        self.toolbar.addAction(self.auto_update_action)
-        empty = QWidget()
-        empty.setFixedWidth(icon_size)
-        self.toolbar.addWidget(empty)
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.previous_action)
-        self.toolbar.addWidget(self.w_file)
-        self.toolbar.addAction(self.next_action)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.meta_action)
-
-    def create_menu(self) -> None:
-        """Create the main menu."""
-        menu = self.menuBar()
-        assert menu is not None
-        #
-        file_menu = menu.addMenu("&File")
-        assert file_menu is not None
-        file_menu.addAction(self.new_preview_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.load_action)
-        file_menu.addAction(self.quit_action)
-        file_menu.addAction(self.export_png_action)
-        file_menu.addAction(self.export_data_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.update_action)
-        file_menu.addAction(self.auto_update_action)
-        if sys.platform != "darwin":
-            file_menu.addSeparator()
-            file_menu.addAction(self.quit_action)
-        #
-        control_menu = menu.addMenu("&Control")
-        assert control_menu is not None
-        control_menu.addAction(self.previous_action)
-        control_menu.addAction(self.next_action)
-        #
-        view_menu = menu.addMenu("&View")
-        assert view_menu is not None
-        view_menu.addAction(self.toggle_toolbar_action)
-        view_menu.addAction(self.meta_action)
-        view_menu.addAction(self.matrix_settings_action)
-        #
-        help_menu = menu.addMenu("&Help")
-        assert help_menu is not None
-        help_menu.addAction(self.about_action)
-        help_menu.addAction(self.show_log_action)
+            self.resizeDocks(
+                [self.meta_viewer],
+                [
+                    self.settings.safer_value(
+                        "meta_size", self.meta_viewer.size(), type=QSize
+                    ).width()
+                ],
+                Qt.Orientation.Horizontal,
+            )
 
     def init_ui(self):
         """Initialize GUI for popup."""
         # File list
-        self.w_file.addItems(self.data_files)
-        self.w_file.setCurrentIndex(self.file_index)
-        self.w_file.currentIndexChanged.connect(self.file_index_changed)
+        self.ui.file_selector.addItems(self.data_files)
+        self.ui.file_selector.setCurrentIndex(self.file_index)
+        self.ui.file_selector.currentIndexChanged.connect(self.file_index_changed)
 
-        if not self.w_meta_view:
-            self.w_meta_view = gui_util.MetaViewerWidget(self.header)
-            self.w_meta_view.setFeatures(
-                QDockWidget.DockWidgetFeature.DockWidgetClosable
-                | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-                | QDockWidget.DockWidgetFeature.DockWidgetMovable
-            )
-            self.w_meta_view.setAllowedAreas(
-                Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
-            )
-            self.w_meta_view.setVisible(False)
-            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_meta_view)
-            # restore settings
-            self.addDockWidget(
-                self.settings.value("meta_placement", Qt.DockWidgetArea.RightDockWidgetArea),
-                self.w_meta_view,
-            )
-            self.w_meta_view.setFloating(
-                self.settings.safer_value("meta_floating", False, type=bool)
-            )
-            if self.w_meta_view.isFloating():
-                self.w_meta_view.move(
-                    self.settings.safer_value("meta_position", self.w_meta_view.pos(), type=QPoint)
-                )
-                self.w_meta_view.resize(
-                    self.settings.safer_value("meta_size", self.w_meta_view.size(), type=QSize)
-                )
-            else:
-                self.resizeDocks(
-                    [self.w_meta_view],
-                    [
-                        self.settings.safer_value(
-                            "meta_size", self.w_meta_view.size(), type=QSize
-                        ).width()
-                    ],
-                    Qt.Orientation.Horizontal,
-                )
-        else:
-            # meta view already exists, replace and ensure w_meta button
-            # has right check state
-            self.meta_action.setChecked(self.w_meta_view.isVisible())
-
-        self.w_meta_view.visibilityChanged.connect(self.meta_action.setChecked)
         # Update
         auinit = False
-        self.auto_update_action.setChecked(auinit)
+        self.ui.actions.auto_update.setChecked(auinit)
         self.updatethread(auinit)
 
         self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
         self.w_l[2].setVisible(False)
 
-        self.w_index = [QComboBox(), QComboBox(), QComboBox()]
-        self.w_index[1].setEnabled(False)
-        self.w_index[2].setVisible(False)
+        self.column_selector = [QComboBox(), QComboBox(), QComboBox()]
+        self.column_selector[1].setEnabled(False)
+        self.column_selector[2].setVisible(False)
 
         self.column_items = [
             f"{name} ({unit}), shape: {shape}"
@@ -566,8 +618,8 @@ class SweepPreview(FileDropMixin, QMainWindow):
         ]
 
         for i in range(3):
-            self.w_index[i].addItems([""] + self.column_items)
-            self.w_index[i].currentIndexChanged.connect(self.index_changed)
+            self.column_selector[i].addItems([""] + self.column_items)
+            self.column_selector[i].currentIndexChanged.connect(self.index_changed)
 
         self.w_plot2d = QCheckBox("2d plotting")
         self.w_plot2d.toggled.connect(self.plotting_toggled)
@@ -589,7 +641,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
         for i in range(3):
             self.grid.addWidget(self.w_l[i], i + 1, 0)
-            self.grid.addWidget(self.w_index[i], i + 1, 1)
+            self.grid.addWidget(self.column_selector[i], i + 1, 1)
         self.grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
         self.grid.addWidget(self.w_transpose, 2, 2, 1, 1)
         self.grid.addWidget(self.spw, 4, 0, 1, -1)
@@ -604,14 +656,14 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.setMaximumWidth(self._get_maximum_screen_width())
 
         if not self.ui_initialized:
-            self.export_png_action.setEnabled(True)
-            self.export_data_action.setEnabled(True)
-            self.update_action.setEnabled(True)
-            self.auto_update_action.setEnabled(True)
-            self.previous_action.setEnabled(True)
-            self.w_file.setEnabled(True)
-            self.next_action.setEnabled(True)
-            self.meta_action.setEnabled(True)
+            self.ui.actions.export_png.setEnabled(True)
+            self.ui.actions.export_data.setEnabled(True)
+            self.ui.actions.update.setEnabled(True)
+            self.ui.actions.auto_update.setEnabled(True)
+            self.ui.actions.previous.setEnabled(True)
+            self.ui.file_selector.setEnabled(True)
+            self.ui.actions.next.setEnabled(True)
+            self.ui.actions.meta.setEnabled(True)
             # do not duplicate the items next time
             self.ui_initialized = True
 
@@ -629,25 +681,14 @@ class SweepPreview(FileDropMixin, QMainWindow):
     def toggle_meta(self, state):
         """Toggle the meta data view."""
         if state is True:
-            self.w_meta_view.setVisible(True)
+            self.meta_viewer.setVisible(True)
         else:
-            self.w_meta_view.setVisible(False)
-
-    def toggle_log_window(self):
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-            self.show_log_action.setChecked(False)
-            self.show_log_action.setText("Show Log Window")
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-            self.show_log_action.setChecked(True)
-            self.show_log_action.setText("Hide Log Window")
+            self.meta_viewer.setVisible(False)
 
     def get_filename_without_extension(self) -> str:
         """Return the actual filename without extension."""
+        if self.filename is None:
+            return ""
         if self.filename.suffix in self.allowed_extensions:
             return str(self.filename.with_suffix(""))
         return str(self.filename)
@@ -692,13 +733,13 @@ class SweepPreview(FileDropMixin, QMainWindow):
         """Determine the previous file."""
         self.update_file_combo()
         if self.file_index > 0:
-            self.w_file.setCurrentIndex(self.file_index - 1)
+            self.ui.file_selector.setCurrentIndex(self.file_index - 1)
 
     def next_file(self):
         """Determine the next file."""
         self.update_file_combo()
         if self.file_index < len(self.data_files) - 1:
-            self.w_file.setCurrentIndex(self.file_index + 1)
+            self.ui.file_selector.setCurrentIndex(self.file_index + 1)
 
     def file_index_changed(self, index):
         """Update info when index changes."""
@@ -715,39 +756,39 @@ class SweepPreview(FileDropMixin, QMainWindow):
                 # names to reflect the dimensions
                 for i in range(3):
                     for j, item in enumerate(self.column_items):
-                        self.w_index[i].setItemText(j + 1, item)
+                        self.column_selector[i].setItemText(j + 1, item)
             elif -1 == check:
                 # file has different columns
                 # reload interface
                 for i in range(3):
-                    self.w_index[i].clear()
-                    self.w_index[i].addItems([""] + self.column_items)
+                    self.column_selector[i].clear()
+                    self.column_selector[i].addItems([""] + self.column_items)
                 self.reset()
                 self.spw.reset()
         else:
             self.spw.refresh_all_plots()
-        self.w_meta_view.update_data(self.header)
+        self.meta_viewer.update_data(self.header)
 
     def index_changed(self, newIndex):
         """If index changed, reload the new data and handle the gui interaction."""
-        if self.w_index[0] == self.sender():
+        if self.column_selector[0] == self.sender():
             if newIndex == 0:
-                self.w_index[1].setEnabled(False)
-                self.w_index[1].setCurrentIndex(0)
+                self.column_selector[1].setEnabled(False)
+                self.column_selector[1].setCurrentIndex(0)
             else:
-                self.w_index[1].setEnabled(True)
+                self.column_selector[1].setEnabled(True)
         self.reload_data()
 
     def transpose_toggled(self, check_state):
         """Transpose has been toggled, reload data."""
         if self.w_plot2d.isChecked() is True and self.w_plot2d_comp.isChecked() is False:
-            if len(self.shapes[self.w_index[0].currentIndex() - 1]) < 3:
+            if len(self.shapes[self.column_selector[0].currentIndex() - 1]) < 3:
                 # toggle index for 2d data, since x and y invert role
-                dummy = self.w_index[2].currentIndex()
-                self.w_index[2].blockSignals(True)
-                self.w_index[2].setCurrentIndex(self.w_index[1].currentIndex())
-                self.w_index[1].setCurrentIndex(dummy)
-                self.w_index[2].blockSignals(False)
+                dummy = self.column_selector[2].currentIndex()
+                self.column_selector[2].blockSignals(True)
+                self.column_selector[2].setCurrentIndex(self.column_selector[1].currentIndex())
+                self.column_selector[1].setCurrentIndex(dummy)
+                self.column_selector[2].blockSignals(False)
         self.reload_data()
 
     def plotting_toggled(self, check_state):
@@ -759,8 +800,8 @@ class SweepPreview(FileDropMixin, QMainWindow):
         if self.w_plot2d_comp.isChecked() is True:
             check_state = not check_state
         self.w_l[2].setVisible(check_state)
-        self.w_index[2].setVisible(check_state)
-        self.export_data_action.setEnabled(not check_state)
+        self.column_selector[2].setVisible(check_state)
+        self.ui.actions.export_data.setEnabled(not check_state)
         self.reload_data()
 
     def plotting_complex(self, check_state):
@@ -775,11 +816,11 @@ class SweepPreview(FileDropMixin, QMainWindow):
             if self.iv is None:
                 # set up image view on first initialization
                 self.iv = pyqtgraph.ImageView()
-                self.widget.layout().addWidget(self.iv, 4, 0, 1, -1)
+                self.grid.addWidget(self.iv, 4, 0, 1, -1)
             else:
                 self.iv.setVisible(True)
         elif check_state is False and self.iv is not None:
-            self.widget.layout().removeWidget(self.iv)
+            self.grid.removeWidget(self.iv)
             del self.iv
             self.iv = None
             self.spw.setVisible(True)
@@ -812,9 +853,9 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.w_plot2d.setChecked(plot_object.plot2d)
         self.w_plot2d.blockSignals(False)
         for i in range(3):
-            self.w_index[i].blockSignals(True)
-            self.w_index[i].setCurrentIndex(plot_object.desig[i])
-            self.w_index[i].blockSignals(False)
+            self.column_selector[i].blockSignals(True)
+            self.column_selector[i].setCurrentIndex(plot_object.desig[i])
+            self.column_selector[i].blockSignals(False)
         self.reload_data()
 
     def updatethread(self, state):
@@ -825,12 +866,12 @@ class SweepPreview(FileDropMixin, QMainWindow):
         """
         if state is True:
             # start updatethread with 2s refresh time
-            self.udthread = UpdateThread(2)
-            self.udthread.update_now.connect(self.conditional_fetch_data)
-            self.udthread.start()
-        if state is False and self.udthread is not None:
-            self.udthread.terminate()
-            self.udthread = None
+            self.update_thread = UpdateThread(2)
+            self.update_thread.update_now.connect(self.conditional_fetch_data)
+            self.update_thread.start()
+        if state is False and self.update_thread is not None:
+            self.update_thread.terminate()
+            self.update_thread = None
 
     def conditional_fetch_data(self, force=False, check=False):
         """
@@ -871,7 +912,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         # change names to reflect the dimensions
         for i in range(3):
             for j, item in enumerate(self.column_items):
-                self.w_index[i].setItemText(j + 1, item)
+                self.column_selector[i].setItemText(j + 1, item)
 
     def reset(self):
         """Reset the actual data view."""
@@ -879,7 +920,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.w_plot2d_comp.setChecked(False)
         self.w_transpose.setChecked(False)
         if self.iv is not None:
-            self.widget.layout().removeWidget(self.iv)
+            self.grid.removeWidget(self.iv)
             del self.iv
             self.iv = None
 
@@ -904,8 +945,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
             self.units = units
             self.shapes = shapes
             # update meta data info
-            if self.w_meta_view:
-                self.w_meta_view.update_data(self.header)
+            self.meta_viewer.update_data(self.header)
         except Exception:
             # file could not be opened
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -962,7 +1002,7 @@ Please investigate the error and eventually restart matrix-preview""",
 
     def reload_data_2d(self):
         """Reload the data in the 2d case."""
-        indexZ, indexX, indexY = [self.w_index[i].currentIndex() - 1 for i in range(3)]
+        indexZ, indexX, indexY = [self.column_selector[i].currentIndex() - 1 for i in range(3)]
 
         # Declare the dictionaries as Optional[PlotData]
         x: PlotData | None = None
@@ -978,6 +1018,7 @@ Please investigate the error and eventually restart matrix-preview""",
 
         for i, index in enumerate(indices):
             if index == -1:
+                dim = 0
                 data_vars[i] = {
                     "label": "",
                     "desig": 0,
@@ -1003,22 +1044,22 @@ Please investigate the error and eventually restart matrix-preview""",
                     "dim": dim,
                 }
             if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is True:
-                self.w_index[1].setEnabled(True)
+                self.column_selector[1].setEnabled(True)
             elif i == 0 and self.w_plot2d_comp.isChecked() is True:
-                self.w_index[1].setEnabled(False)
-                self.w_index[1].setCurrentIndex(0)
-            elif i == 0 and self.w_index[1].isEnabled() is False:
+                self.column_selector[1].setEnabled(False)
+                self.column_selector[1].setCurrentIndex(0)
+            elif i == 0 and self.column_selector[1].isEnabled() is False:
                 # if coming from complex view and x was disabled, enable now
-                self.w_index[1].setEnabled(True)
+                self.column_selector[1].setEnabled(True)
             if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is False:
                 # 3D plotting, disable y since it is not meaningful here
                 # x gives the plotting axis (i.e. value corresponding to index)
                 self.w_l[2].setVisible(False)
-                self.w_index[2].setVisible(False)
-                self.w_index[2].setCurrentIndex(0)
+                self.column_selector[2].setVisible(False)
+                self.column_selector[2].setCurrentIndex(0)
             elif i == 0 and self.w_plot2d_comp.isChecked() is False:
                 self.w_l[2].setVisible(True)
-                self.w_index[2].setVisible(True)
+                self.column_selector[2].setVisible(True)
             if (dim < 2 and i == 0) or dim > 3:
                 # dimensions not compatible
                 # <1D or >3D data cannot be 2d plotted.
@@ -1095,10 +1136,11 @@ Please investigate the error and eventually restart matrix-preview""",
                 axes = {"t": 0, "x": 1, "y": 2}
             else:
                 axes = {"x": 0, "y": 1}
-            self.iv.setImage(z["data"], axes=axes, xvals=x["data"])
-            self.iv.getView().invertY(False)
-            self.iv.getView().setAspectLocked(False)
-            self.iv.getHistogramWidget().axis.setLabel(z["label"])
+            if self.iv is not None:
+                self.iv.setImage(z["data"], axes=axes, xvals=x["data"])
+                self.iv.getView().invertY(False)
+                self.iv.getView().setAspectLocked(False)
+                self.iv.getHistogramWidget().axis.setLabel(z["label"])
         else:
             self.spw.plot(z, x, y, plot2d=self.w_plot2d.isChecked())
         return 0
@@ -1111,7 +1153,7 @@ Please investigate the error and eventually restart matrix-preview""",
         Try to make the dimensions suitable for a 1D curve plot by smart
         guessing from the data dimension.
         """
-        indexY, indexX = [self.w_index[i].currentIndex() - 1 for i in range(2)]
+        indexY, indexX = [self.column_selector[i].currentIndex() - 1 for i in range(2)]
 
         # disable transpose widget
         self.w_transpose.setVisible(False)
