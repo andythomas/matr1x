@@ -123,8 +123,9 @@ class VisaDevice:
     """
 
     @output_name_on_error
-    def __init__(self, interface, cmdpers=None, **kwargs):
-        self.interface = interface
+    def __init__(self, interface: resources.MessageBasedResource | str, cmdpers=None, **kwargs):
+        self.interface: resources.MessageBasedResource | str = interface
+        self.connection: resources.MessageBasedResource
         self.name = f"{type(self).__name__}@{self.interface}"
         self._config = get_config_dict("matr1x.devices.visadevice")
         # have never tested these myself
@@ -151,7 +152,7 @@ class VisaDevice:
             self.timedelay = None
 
         self._kwargs = kwargs
-        self._opened = False
+        self._opened: bool = False
         self.open()
 
     def open(self):
@@ -166,11 +167,15 @@ class VisaDevice:
             kwargs = copy.copy(self._kwargs)
             # Open the connection to the device
             self.manager = pyvisa.ResourceManager(kwargs.pop("backend", ""))
-            if isinstance(self.interface, resources.Resource):
+            if isinstance(self.interface, resources.MessageBasedResource):
                 self.connection = self.interface
                 return
             try:
-                self.connection = self.manager.open_resource(self.interface)
+                connection = self.manager.open_resource(self.interface)
+                if isinstance(connection, resources.MessageBasedResource):
+                    self.connection = connection
+                else:
+                    raise ValueError("Invalid resource type")
                 if self.pts:
                     print(f"C: {self.name}")
                 logger.info("Connection to %s opened", self.name)

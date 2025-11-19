@@ -89,6 +89,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import config, datetimefmt, logfolder, system, usersfolder
+from ..error_handling import InternalInvariantError
 from ..gui_util import MApplication, OutputDuplication, SaferQSettings, validator
 from ..util import normalize_cmds
 from .qwidgets import ToggleButton, matr1xProgressBar
@@ -351,6 +352,7 @@ class var(QObject):
         hide: bool = False,
     ):
         super().__init__()
+        self.variableType: type | None
         if isinstance(dtype, Iterable):
             self.variableType = dtype[0]
             self.outType = dtype[1]
@@ -413,6 +415,10 @@ class var(QObject):
             self._value = None
             return
         # cast the value to the internal type (most likely float)
+        if self.variableType is None or self.outType is None:
+            raise InternalInvariantError(
+                "Neither variableType nor outType should be None at this point!"
+            )
         self._value = self.variableType(newValue)
         # cast the output value to outType and emit matching signal
         self.valueChanged.emit(self.outType(self._value))
@@ -478,7 +484,7 @@ class var(QObject):
         added which shows and changes the logging preferences.
         """
         fulllabel = f"{label} ({self.unit})" if "" != self.unit else label
-        self.widgets = [
+        self.widgets: list[QWidget] = [
             QLabel(fulllabel),
         ]
 
@@ -492,7 +498,7 @@ class var(QObject):
         # set sensible default values and disable readout column
         if len(self.widgets) > 1:
             if not isinstance(self.widgets[1], QCheckBox):
-                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(): qsize
+                self.widgets[1].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             if isinstance(self.widgets[1], QLineEdit):
                 self.widgets[1].setReadOnly(True)
             elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
@@ -500,7 +506,7 @@ class var(QObject):
         # apply a validator
         if len(self.widgets) > 2:
             if not isinstance(self.widgets[2], QCheckBox):
-                self.widgets[1].sizeHint = lambda qsize=self.widgets[1].minimumSizeHint(): qsize
+                self.widgets[2].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             if isinstance(self.widgets[2], QLineEdit):
                 val = validator.get(self.variableType, None)
                 if val:
@@ -530,12 +536,15 @@ class var(QObject):
         newunit : str
             The new unit to display in the label.
         """
-        label = self.widgets[0].text()
+        widget = self.widgets[0]
+        if not isinstance(widget, QLabel):
+            raise InternalInvariantError("updateLabel should work on a QLabel!")
+        label = widget.text()
         if re.search(r"\([^)]*\)", label):
             newlabel = re.sub(r"\([^)]*\)", f"({newunit})", label)
         else:
             newlabel = f"{label} ({newunit})"
-        self.widgets[0].setText(newlabel)
+        widget.setText(newlabel)
 
     def getGUIvalue(self, column=2):
         """
@@ -573,67 +582,70 @@ class var(QObject):
         else:
             raise TypeError(f"Unknown type of GUI element {type(element)}")
         # cast value and return
+        if self.variableType is None:
+            raise InternalInvariantError("variableType should not be None at this point!")
         return self.variableType(value)
 
     def connect_signal(self):
         """Connect the valueChanged signal to the corresponding widget."""
         if len(self.widgets) >= 2 and self.variableType is not None:
-            if isinstance(self.widgets[1], (QLineEdit, QLabel)):
+            widgets1 = self.widgets[1]
+            if isinstance(widgets1, (QLineEdit, QLabel)):
                 # Handle automatic string conversion for text widgets
                 if self.outType is str:
-                    self.valueChanged.connect(self.widgets[1].setText)
+                    self.valueChanged.connect(widgets1.setText)
                 else:
                     # Create wrapper to convert non-string types to string
                     def string_wrapper(value):
-                        self.widgets[1].setText(str(value))
+                        widgets1.setText(str(value))
 
                     self.valueChanged.connect(string_wrapper)
-            elif isinstance(self.widgets[1], (QSpinBox, QProgressBar)):
+            elif isinstance(widgets1, (QSpinBox, QProgressBar)):
                 # Handle automatic int conversion for spinboxes and progress bars
                 if self.outType is int:
-                    self.valueChanged.connect(self.widgets[1].setValue)
+                    self.valueChanged.connect(widgets1.setValue)
                 else:
                     # Create wrapper to convert non-int types to int
                     def int_wrapper(value):
                         try:
-                            self.widgets[1].setValue(int(value))
+                            widgets1.setValue(int(value))
                         except (ValueError, TypeError):
                             pass
 
                     self.valueChanged.connect(int_wrapper)
-            elif isinstance(self.widgets[1], QDoubleSpinBox):
+            elif isinstance(widgets1, QDoubleSpinBox):
                 # Handle automatic float conversion for double spinboxes
                 if self.outType is float:
-                    self.valueChanged.connect(self.widgets[1].setValue)
+                    self.valueChanged.connect(widgets1.setValue)
                 else:
                     # Create wrapper to convert non-float types to float
                     def float_wrapper(value):
                         try:
-                            self.widgets[1].setValue(float(value))
+                            widgets1.setValue(float(value))
                         except (ValueError, TypeError):
                             pass
 
                     self.valueChanged.connect(float_wrapper)
-            elif isinstance(self.widgets[1], QComboBox):
+            elif isinstance(widgets1, QComboBox):
                 # Always connect both int and str signals like the original code
                 # This allows combo boxes to be updated by either index or text
                 # regardless of outType
                 def combo_handler(value):
                     if isinstance(value, int):
-                        self.widgets[1].setCurrentIndex(value)
+                        widgets1.setCurrentIndex(value)
                     elif isinstance(value, str):
-                        self.widgets[1].setCurrentText(value)
+                        widgets1.setCurrentText(value)
 
                 self.valueChanged.connect(combo_handler)
-            elif isinstance(self.widgets[1], QCheckBox):
+            elif isinstance(widgets1, QCheckBox):
                 # Handle automatic bool conversion for checkboxes
                 if self.outType is bool:
-                    self.valueChanged.connect(self.widgets[1].setChecked)
+                    self.valueChanged.connect(widgets1.setChecked)
                 else:
                     # Create wrapper to convert non-bool types to bool
                     def bool_wrapper(value):
                         try:
-                            self.widgets[1].setChecked(bool(value))
+                            widgets1.setChecked(bool(value))
                         except (ValueError, TypeError):
                             pass
 
@@ -821,7 +833,7 @@ class GuiDict(UserDict, ABC):
             super().__init__()
             self.target = target  # target function for the refresh loop
             self.interval = interval  # in milliseconds
-            self.guidict = parent
+            self.guidict: GuiDict = parent
             self._timer = QTimer()  # fake definition
 
         @Slot()
@@ -946,7 +958,10 @@ class GuiDict(UserDict, ABC):
                 super().closeEvent(event)
                 self.dockClosed.emit()
 
-        self.dock = MyQDockWidget(list(self.keys())[0], self.parent.windowTitle())
+        if self.parent is not None:
+            self.dock = MyQDockWidget(list(self.keys())[0], self.parent.windowTitle())
+        else:
+            self.dock = MyQDockWidget(list(self.keys())[0], "")
         self.dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
@@ -1547,8 +1562,10 @@ class SelectLakeshoreInput(QDialog):
         A widget displaying the list of available curves.
     """
 
-    def __init__(self, parent, lakeshore_dev=None):
+    def __init__(self, parent, lakeshore_dev):
         super().__init__(parent)
+        if not hasattr(lakeshore_dev, "getCurveNumber"):
+            raise AttributeError(f"Device {lakeshore_dev} does not support 'getCurveNumber")
         self._dev = lakeshore_dev
         # read input curves
         self.curves = dict()

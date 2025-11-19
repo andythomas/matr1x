@@ -70,6 +70,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.editor import CodeEditor
+from matr1x.error_handling import install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
@@ -559,13 +560,13 @@ class MainWindow(QMainWindow):
 
         self.settings.beginGroup("Toolbars")
         self.settings.setValue("buttons_visible", self.toolbar.isVisible())
-        self.settings.setValue("buttons_placement", self.toolBarArea(self.toolbar))
+        self.settings.setValue("position", self.toolBarArea(self.toolbar).value)
         self.settings.setValue("buttons_geometry", self.toolbar.geometry())
         self.settings.endGroup()
 
         self.settings.beginGroup("dockable_metadata")
         self.settings.setValue("visible", self.dockable_metadata.isVisible())
-        self.settings.setValue("placement", self.dockWidgetArea(self.dockable_metadata))
+        self.settings.setValue("dock_position", self.dockWidgetArea(self.dockable_metadata).value)
         self.settings.setValue("floating", self.dockable_metadata.isFloating())
         self.settings.setValue("position", self.dockable_metadata.pos())
         self.settings.setValue("size", self.dockable_metadata.size())
@@ -635,10 +636,10 @@ class MainWindow(QMainWindow):
             self.toggle_toolbar_action.setChecked(
                 self.settings.safer_value("buttons_visible", True, type=bool)
             )
-            self.addToolBar(
-                self.settings.value("buttons_placement", Qt.ToolBarArea.TopToolBarArea),
-                self.toolbar,
+            toolbar_pos = self.settings.safer_value(
+                "position", Qt.ToolBarArea.TopToolBarArea.value, type=int
             )
+            self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.toolbar)
             self.settings.endGroup()
 
             self.settings.beginGroup("dockable_metadata")
@@ -648,10 +649,10 @@ class MainWindow(QMainWindow):
             self.toggle_metadata_action.setChecked(
                 self.settings.safer_value("visible", True, type=bool)
             )
-            self.addDockWidget(
-                self.settings.value("placement", Qt.DockWidgetArea.RightDockWidgetArea),
-                self.dockable_metadata,
+            dock_pos = self.settings.safer_value(
+                "dock_position", Qt.DockWidgetArea.RightDockWidgetArea.value, type=int
             )
+            self.addDockWidget(Qt.DockWidgetArea(dock_pos), self.dockable_metadata)
             self.dockable_metadata.setFloating(
                 self.settings.safer_value("floating", False, type=bool)
             )
@@ -2106,6 +2107,7 @@ class MainWindow(QMainWindow):
 
 def main():
     """Set the basic GUI parameters and run."""
+    install_error_handler()
     app = MApplication(sys.argv)
     appname = "matrix-script"
     app.setDesktopFileName(appname)

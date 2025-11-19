@@ -39,9 +39,9 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
+from matr1x.error_handling import Error
 from matr1x.gui_util import FileDropMixin, get_application_instance
 from matr1x.util import (
-    Error,
     generate_script,
     get_script_prefix_offset,
     run_python_cmdline,

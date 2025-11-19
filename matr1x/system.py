@@ -407,7 +407,7 @@ class System:
         self.__name__ = str(name)
         self._config = get_config_dict("matr1x.scripts.matrix-script")
         # define merged system reference
-        self.merged_system = None
+        self.merged_system: MergedSystem | None = None
         # initialize lists for later use
         self.parameters = []
 
@@ -435,7 +435,7 @@ class System:
         self.sensitive_config = {}
 
         # Dublin Core metadata default entries
-        self.dcdata = DcDict(
+        self.dcdata: dict[str, str | None] = DcDict(
             self,
             creator=None,  # measurement user
             date=time.strftime(f"{datetimefmt}", time.localtime()),
@@ -783,11 +783,11 @@ class System:
             # use the unmodified file name
             self.filename = datafile
             self._file_mode = "w"
-            return self.filename
+            return datafile
         if append:
             self.filename = datafile
             self._file_mode = "a"
-            return self.filename
+            return datafile
 
         # in case extension and running number are already attached to
         # the filename, replace in outputfile
@@ -805,11 +805,10 @@ class System:
             raise RuntimeError("Could not find available filename after 10000 attempts")
         # as last resort start a new file
         # append the next possible number as file extension
-        self.filename = outfile.with_name(f"{outfile.stem}_{extension}").with_suffix(
-            file_extension
-        )
+        outfile = outfile.with_name(f"{outfile.stem}_{extension}").with_suffix(file_extension)
+        self.filename = outfile
         self._file_mode = "w"
-        return self.filename
+        return outfile
 
     def clear_parameters(self):
         """Clear all system parameters."""
@@ -877,10 +876,10 @@ class System:
         TypeError
             If column cannot be identified.
         """
-        if i in self.columns:
-            idx = self.columns.index(i)
-        elif isinstance(i, int):
+        if isinstance(i, int):
             idx = i
+        elif i in self.columns:
+            idx = self.columns.index(i)
         else:
             raise TypeError(f"column '{i}' could not be identified")
 
@@ -1606,7 +1605,8 @@ class System:
                     if dckey not in VALID_META_KEYS.keys():
                         # values that are not in the dc specifications are
                         # just added as attribute
-                        dcentry = dcvalue.replace("\n", "\n## ")
+                        if dcvalue is not None:
+                            dcentry = dcvalue.replace("\n", "\n## ")
                         dcentry = dcentry.replace('"', '"')
                         data_file.write(f'# {dckey} : "{dcentry}"\n')
                     elif dcvalue is None:

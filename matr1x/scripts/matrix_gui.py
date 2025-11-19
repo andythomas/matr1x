@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
+from matr1x.error_handling import install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
@@ -429,7 +430,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         saved.
         """
         self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
+        self.settings.setValue("toolbar_position", self.toolBarArea(self.toolbar).value)
         self.settings.setValue("metadata_size", self.w_dockable_metadata.size())
         self.settings.setValue("config_position", self.config_editor.pos())
         self.settings.setValue("config_size", self.config_editor.size())
@@ -443,10 +444,10 @@ class MainWindow(FileDropMixin, QMainWindow):
         Main window geometry, the toolbar placement, and the size and
         position of metadata and configuration pane are restored.
         """
-        self.addToolBar(
-            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
-            self.toolbar,
+        toolbar_pos = self.settings.safer_value(
+            "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
         )
+        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.toolbar)
         # Just in case it is the first start
         self.resize(self.sizeHint())
         self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
@@ -893,13 +894,14 @@ class MainWindow(FileDropMixin, QMainWindow):
             preview = [
                 sys.executable,
                 "-c",
-                f"from matr1x.scripts import matrix_preview; matrix_preview.main(file={self.measurement_file})",  # noqa: E501
+                f"from matr1x.scripts import matrix_preview; matrix_preview.main(file={output})",
             ]
             subprocess.Popen(preview)
 
 
 def main():
     """Set the basic GUI parameters and run."""
+    install_error_handler()
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-gui")
     # we need to ignore this signal here otherwise we are kicked into

@@ -41,6 +41,8 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     and parse commands specified in the server's command list.
     """
 
+    server: "ThreadedTCPServer"
+
     @staticmethod
     def _normalize_cmd(cmd):
         """
@@ -235,6 +237,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
     daemon_threads = True
     allow_reuse_address = True
+    cmd_list: dict
 
 
 class SCPI_TCP_Server:
@@ -307,7 +310,7 @@ class SCPI_TCP_Server:
           e.g. value="curvename"
     """
 
-    def __init__(self, cmd_list, host="localhost", port=DEFAULT_PORT):
+    def __init__(self, cmd_list: dict, host: str = "localhost", port: int = DEFAULT_PORT):
         # run on localhost at port 8898 (default), take care, can be
         # accessible also from the internet if PC is accessible from there and
         # the host is not set to localhost!
@@ -338,6 +341,6 @@ class SCPI_TCP_Server:
             self.server.shutdown()
             self.server.socket.close()
             self.server.server_close()
-            self.server.RequestHandlerClass.terminate = True
+            self.server.RequestHandlerClass.terminate: bool = True
             self.running = False
             logger.info("server stopped on %s", self.server.server_address)

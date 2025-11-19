@@ -57,6 +57,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x import gui_util
 from matr1x.control.util import QtGracefulKiller
+from matr1x.error_handling import expect_not_none, install_error_handler
 from matr1x.eval import HeaderDict, _create_empty_header, loadmatrix
 from matr1x.gui_util import (
     AboutBox,
@@ -306,7 +307,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.log_window.hide()
         logger.info("matrix-preview starting")
         # File-related properties
-        self.filename = filename
+        self.filename: Path | None = filename
         self.file_dir: Path = Path()
         self.file_index: int = 0
         self.data_files: list[str] = []
@@ -524,7 +525,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         pyqtgraph.setConfigOption("background", "w")
         pyqtgraph.setConfigOption("foreground", "k")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.grid = QGridLayout()
+        self.grid: QGridLayout = QGridLayout()
         self.widget = QWidget()
         self.w_status = QLabel("")
         self.w_status.setStyleSheet("QLabel { color : red; }")
@@ -676,7 +677,9 @@ class SweepPreview(FileDropMixin, QMainWindow):
                 widget.deleteLater()
             else:
                 for j in range(item.layout().count()):
-                    item.layout().takeAt(0).widget().deleteLater()
+                    expect_not_none(
+                        item.layout().takeAt(0).widget(), "The requested item manages no widget!"
+                    ).deleteLater()
 
     def toggle_meta(self, state):
         """Toggle the meta data view."""
@@ -873,7 +876,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
             self.update_thread.terminate()
             self.update_thread = None
 
-    def conditional_fetch_data(self, force=False, check=False):
+    def conditional_fetch_data(self, force=False, check=False) -> int:
         """
         Fetch data from the file.
 
@@ -882,6 +885,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         in self.lu_time). If force is false, this function was called
         from the updatethread, therefore make it update all windows.
         """
+        filename = expect_not_none(self.filename, "Trying to fetch data, but filename is None!")
         ret = 0
         if force is True:
             # file has changed after last update,
@@ -890,11 +894,11 @@ class SweepPreview(FileDropMixin, QMainWindow):
             self.reload_data()
             self.spw.refresh_all_plots()
             self.refresh_columns_size()
-        elif self.filename.stat().st_size > 300000 and time.time() - self.lu_time < 20:
+        elif filename.stat().st_size > 300000 and time.time() - self.lu_time < 20:
             # skip updates if delta is below 20s and filesize is > 300kB
             # to avoid overloading the system with read queries
             pass
-        elif self.lu_time < self.filename.stat().st_mtime:
+        elif self.lu_time < filename.stat().st_mtime:
             # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
@@ -924,7 +928,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
             del self.iv
             self.iv = None
 
-    def fetch_data(self, check=False):
+    def fetch_data(self, check=False) -> int:
         """Handle the data operations."""
         try:
             ret = 0
@@ -1084,7 +1088,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 z["data"] = z["data"].T
         z["shape"] = z["data"].shape
         if x["data"] is NO_DATA:
-            x = dict(
+            x = PlotData(
                 label="array index",
                 unit="",
                 dim=1,
@@ -1108,7 +1112,7 @@ Please investigate the error and eventually restart matrix-preview""",
             x["dim"] = 1
 
         if y["data"] is NO_DATA:
-            y = dict(
+            y = PlotData(
                 label="array index",
                 unit="",
                 dim=1,
@@ -1279,6 +1283,7 @@ Please investigate the error and eventually restart matrix-preview""",
 
 def main(file: str | None = None):
     """Set the basic GUI parameters and run."""
+    install_error_handler()
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into

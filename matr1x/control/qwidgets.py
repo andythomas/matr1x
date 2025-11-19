@@ -119,10 +119,9 @@ class EnableAction(QAction):
         else:
             self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
         # Only call check_enables if all actions are initialized and parent has the method
-        if hasattr(self.parent(), "disable_all_action") and hasattr(
-            self.parent(), "check_enables"
-        ):
-            self.parent().check_enables()
+        parent = self.parent()
+        if hasattr(parent, "disable_all_action") and hasattr(parent, "check_enables"):
+            getattr(parent, "check_enables")()
 
     def setChecked(self, a0: bool):
         """Override setChecked to ensure icon is updated."""
@@ -153,10 +152,9 @@ class FullInfoAction(QAction):
         else:
             self.setIcon(get_matrix_icon("CHAR_+"))
         # Only call check_full_infos if all actions are initialized and parent has the method
-        if hasattr(self.parent(), "full_info_all_action") and hasattr(
-            self.parent(), "check_full_infos"
-        ):
-            self.parent().check_full_infos()
+        parent = self.parent()
+        if hasattr(parent, "full_info_all_action") and hasattr(parent, "check_full_infos"):
+            getattr(parent, "check_full_infos")()
 
     def setChecked(self, a0: bool):
         """Override setChecked to ensure icon is updated."""

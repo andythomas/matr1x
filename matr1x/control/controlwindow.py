@@ -63,6 +63,7 @@ from matr1x import config as matrixconfig
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.qwidgets import EnableAction, FullInfoAction
 from matr1x.control.util import GuiDict, catchEmitError, var
+from matr1x.error_handling import expect_not_none
 from matr1x.gui_util import (
     EmittingStream,
     LoggingWindow,
@@ -245,20 +246,21 @@ class ControlWindow(QMainWindow):
 
         self.setWindowTitle(name)
         self.settings = SaferQSettings(package, name)
-        # initialize paramaters
+        # initialize parameters
         self.running = False
         self.logging = False
         filename = f"{package}.{name}_{time.strftime(datetimefmt)}{output_extension}"
         if os.name == "nt":
             # Windows does not like : in filenames
             filename = filename.replace(":", "")
-        self.logfile = Path(logfolder) / filename
+        self.logfile: Path = Path(logfolder) / filename
         self.terminate_log = False
         self.terminated_log = False
         self.terminate = False
         self.terminated = False
         self.devInit = False
         self.keep_enabled = []
+        self.activity_layout: QHBoxLayout
         # initialize error handling
         self.sig_error.connect(self.handleError)
         # SCPI TCP server placeholders
@@ -554,7 +556,8 @@ class ControlWindow(QMainWindow):
         if not in_logger:  # Move from logger to toolbars
             for i in range(self.activity_layout.count()):
                 item = self.activity_layout.itemAt(i)
-                widgets.append(item.widget())
+                w = expect_not_none(item.widget(), "No widget was returned.")
+                widgets.append(w)
             for i, widget in enumerate(widgets):
                 widget.setFixedHeight(10)
                 self.guidicts[i].toolbar.addWidget(widget)

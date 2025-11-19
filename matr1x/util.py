@@ -30,13 +30,14 @@ import textwrap
 import time
 from collections.abc import Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Generic, TypeAlias, TypeVar
+from typing import TYPE_CHECKING
 
 import h5py
 import numpy as np
+
+from matr1x.error_handling import Error, Result, Success
 
 # conditional import for type checkers
 if TYPE_CHECKING:
@@ -51,26 +52,6 @@ else:
 
 
 from .metadata import APP_META_KEY
-
-T = TypeVar("T")
-E = TypeVar("E")
-
-
-@dataclass(frozen=True)
-class Success(Generic[T]):
-    """Received value from a successful operation."""
-
-    value: T
-
-
-@dataclass(frozen=True)
-class Error(Generic[E]):
-    """Received error from a failed operation."""
-
-    error: E
-
-
-Result: TypeAlias = Success[T] | Error[E]
 
 
 # allow error handling while using with

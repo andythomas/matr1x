@@ -35,8 +35,8 @@ from typing import TypedDict
 
 import pyqtgraph as pg
 from numpy import linspace, uint
-from PySide6.QtCore import QByteArray, QEvent, QObject, QPoint, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QKeySequence, QMouseEvent, QPalette
+from PySide6.QtCore import QByteArray, QObject, QPoint, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QFocusEvent, QKeySequence, QMouseEvent, QPalette
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -65,6 +65,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x import datetimefmt, system_directories, system_names, usersfolder
 from matr1x.control.util import QtGracefulKiller
+from matr1x.error_handling import install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     CustomViewBox,
@@ -111,34 +112,37 @@ class ColumnData(TypedDict):
     color: list[bool]
 
 
-def add_focusInEvent(cls):
-    """Add a focusIn signal and focusInEvent handling."""
-
-    class decorated_class(cls):
-        """The class shell."""
-
-        focusIn = Signal()
-
-        def focusInEvent(self, e: QEvent, parent=None):
-            super().focusInEvent(e)
-            self.focusIn.emit()
-
-    return decorated_class
-
-
-@add_focusInEvent
 class CheckBoxFocus(QCheckBox):
     """Reimplement CheckBox with focusInEvent."""
 
+    focusIn = Signal()
 
-@add_focusInEvent
+    def focusInEvent(self, e: QFocusEvent) -> None:
+        """Handle focus in event and emit custom signal."""
+        super().focusInEvent(e)
+        self.focusIn.emit()
+
+
 class LineEditFocus(QLineEdit):
     """Reimplement LineEdit with focusInEvent."""
 
+    focusIn = Signal()
 
-@add_focusInEvent
+    def focusInEvent(self, e: QFocusEvent) -> None:
+        """Handle focus in event and emit custom signal."""
+        super().focusInEvent(e)
+        self.focusIn.emit()
+
+
 class SpinBoxFocus(QSpinBox):
     """Reimplement QSpinBox with focusInEvent."""
+
+    focusIn = Signal()
+
+    def focusInEvent(self, e: QFocusEvent) -> None:
+        """Handle focus in event and emit custom signal."""
+        super().focusInEvent(e)
+        self.focusIn.emit()
 
 
 class QLabelWithColor(QLabel):
@@ -214,7 +218,7 @@ class WidgetGenerator(QObject):
 
     def __init__(
         self,
-        columns: ColumnData = {"name": [], "unit": [], "sign": [], "color": []},
+        columns: ColumnData,
         column: int = 0,
     ):
         """
@@ -326,7 +330,7 @@ class WidgetGenerator(QObject):
         widget = LineEditFocus()
         widget.setAlignment(Qt.AlignmentFlag.AlignRight)
         widget.setValidator(validator[float])
-        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))  # type: ignore
+        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
         return widget
 
     def _create_points_widget(self) -> QWidget:
@@ -341,7 +345,7 @@ class WidgetGenerator(QObject):
         widget = LineEditFocus()
         widget.setAlignment(Qt.AlignmentFlag.AlignRight)
         widget.setValidator(validator[uint])
-        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))  # type: ignore
+        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
         return widget
 
     def _create_append_widget(self) -> QPushButton:
@@ -376,7 +380,7 @@ class WidgetGenerator(QObject):
         widget.setRange(1, 999)
         widget.setAlignment(Qt.AlignmentFlag.AlignRight)
         widget.valueChanged.connect(lambda: self.widget_modified.emit())
-        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))  # type: ignore
+        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
         return widget
 
     def _create_arrow_widget(self) -> QLabel:
@@ -409,7 +413,7 @@ class WidgetGenerator(QObject):
         """
         widget = CheckBoxFocus()
         widget.stateChanged.connect(lambda: self.widget_modified.emit())
-        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))  # type: ignore
+        widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
         return widget
 
     def _create_combobox_widget(self) -> QComboBox:
@@ -660,7 +664,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         saved.
         """
         self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("toolbar_placement", self.toolBarArea(self.toolbar))
+        self.settings.setValue("toolbar_position", self.toolBarArea(self.toolbar).value)
         self.settings.setValue("log_window/position", self.log_window.pos())
         self.settings.setValue("log_window/size", self.log_window.size())
 
@@ -675,10 +679,10 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.restoreGeometry(
             self.settings.safer_value("geometry", defaultValue=QByteArray(), type=QByteArray)
         )
-        self.addToolBar(
-            self.settings.value("toolbar_placement", Qt.ToolBarArea.TopToolBarArea),
-            self.toolbar,
+        toolbar_pos = self.settings.safer_value(
+            "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
         )
+        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.toolbar)
         self.log_window.move(
             self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
         )
@@ -1221,11 +1225,11 @@ class MainWindow(FileDropMixin, QMainWindow):
                     # the loop_over parameter is considered
                     if self.columns["sign"][j] == self.columns["sign"][j - 1] and len(sweep) > 1:
                         # Parameter has multiple values
-                        string.append(str(swp[floor(i / mult[j])]))  # type: ignore
+                        string.append(str(swp[floor(i / mult[j])]))
                     else:
                         # Parameter has single value
                         string.append(
-                            "-" + self.columns["sign"][j] + " " + str(swp[floor(i / mult[j])])  # type: ignore
+                            "-" + self.columns["sign"][j] + " " + str(swp[floor(i / mult[j])])
                         )
                 string.append("   ")
             # add everything into a single string
@@ -1646,6 +1650,7 @@ class MainWindow(FileDropMixin, QMainWindow):
 
 def main():
     """Set the basic GUI parameters and run."""
+    install_error_handler()
     app = MApplication(sys.argv)
     app.setDesktopFileName("sweep-generator")
     with QtGracefulKiller():

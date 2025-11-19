@@ -9,15 +9,37 @@ import difflib
 import logging
 import re
 from pathlib import Path
+from typing import TypedDict
 
 import elabapi_python
 from elabapi_python.rest import ApiException
 from jinja2 import Template
 
 from matr1x import get_config_dict
-from matr1x.system import System
+from matr1x.system import MergedSystem, System
 
 logger = logging.getLogger(__name__)
+
+
+class SensitiveConfig(TypedDict):
+    """Sensitive configuration parameters for elabFTW system."""
+
+    host: str | None
+    api_key: str | None
+    teamid: int
+
+
+class Config(TypedDict):
+    """Non-sensitive configuration parameters for elabFTW system."""
+
+    debug: bool
+    enable_elab: bool
+    require_server: bool
+    upload_datafile: bool | int
+    create_resource: bool
+    resource_category: str | None
+    title_template: str
+    body_template: str
 
 
 def _is_template_content(template: str) -> bool:
@@ -56,6 +78,7 @@ class ElabSystem(System):
 
     def __init__(self):
         super().__init__()
+        self.merged_system: MergedSystem
         # clean meta data for this system
         for key in self.dcdata:
             self.dcdata[key] = ""
@@ -75,7 +98,7 @@ class ElabSystem(System):
         # see the code for their use and meaning.
 
         # Non-sensitive configuration
-        self.config = {
+        self.config: Config = {
             "debug": False,
             # boolean flag to decide about entry creation
             "enable_elab": True,
@@ -123,7 +146,7 @@ class ElabSystem(System):
         }
 
         # Sensitive configuration (will not be stored in file headers)
-        self.sensitive_config = {
+        self.sensitive_config: SensitiveConfig = {
             "host": None,
             "api_key": None,
             "teamid": 0,
@@ -159,20 +182,21 @@ class ElabSystem(System):
         if not self.config["enable_elab"]:
             return
         configuration = elabapi_python.Configuration()
-        try:
-            configuration.api_key["api_key"] = self.sensitive_config["api_key"]
-            configuration.api_key_prefix["api_key"] = "Authorization"
-            configuration.host = self.sensitive_config["host"] + "/api/v2"
-            configuration.debug = self.config["debug"]
-        except KeyError:
+
+        if self.sensitive_config["host"] is None or self.sensitive_config["api_key"] is None:
             print(
-                "ElabFTW connection API key not found in the TOML config, make "
-                "sure api_key and host address of the server are specified."
+                "ElabFTW connection host or API key not found in the TOML config, make "
+                "sure host address and API key of the server are specified."
             )
             raise Exception(
-                "ElabFTW API key not found in the TOML config, make sure "
-                "api_key and host address of the server are specified."
+                "ElabFTW host or API key not found in the TOML config, make sure "
+                "host address and API key of the server are specified."
             )
+
+        configuration.api_key["api_key"] = self.sensitive_config["api_key"]
+        configuration.api_key_prefix["api_key"] = "Authorization"
+        configuration.host = self.sensitive_config["host"] + "/api/v2"
+        configuration.debug = self.config["debug"]
         configuration.verify_ssl = True
 
         # create an instance of the API class

@@ -76,6 +76,9 @@ env = [
 project-includes = [
     "matr1x"
 ]
+project-excludes = [
+    "matr1x/devices"
+]
 
 [dependency-groups]
 dev = [

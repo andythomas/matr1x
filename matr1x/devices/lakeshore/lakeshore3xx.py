@@ -428,7 +428,7 @@ class Lakeshore3xx(VisaDevice):
         """
         return self.query_int("INCRV? " + str(channel if channel else self.channel))
 
-    def getActiveCurveName(self, channel: str | None = None) -> str:
+    def getActiveCurveName(self, channel: str | None = None) -> str | None:
         """
         Get the name of the currently active calibration curve for the specified channel.
 

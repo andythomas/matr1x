@@ -416,7 +416,7 @@ class PIDcontroller:
     The other parameters should not be accessed directly.
     """
 
-    def __init__(self, ndim):
+    def __init__(self, ndim: int):
         """
         Initialize PID controller class with ndim dimensions.
 
@@ -430,14 +430,14 @@ class PIDcontroller:
         Make sure outFunc and readFunc take/return np.arrays of correct
         dimension.
         """
-        self.parameters = np.zeros(3)
-        self.outLimit = 0
-        self._lasttime = 0
+        self.parameters: np.ndarray = np.zeros(3)
+        self.outLimit: float = 0
+        self._lasttime: int | float = 0
 
-        self._ndim = ndim
-        self.setpoint = np.zeros(ndim)
-        self.bipolar = True
-        self._integral = np.zeros(ndim)
+        self._ndim: int = ndim
+        self.setpoint: np.ndarray = np.zeros(ndim)
+        self.bipolar: bool = True
+        self._integral: np.ndarray = np.zeros(ndim)
         self._previous_error = np.zeros(ndim)
         self.ones = np.ones(ndim)
 
@@ -465,7 +465,7 @@ class PIDcontroller:
         self._integral += self.parameters[1] * error * dt
         # windup supression
         ol = self.outLimit < np.absolute(self._integral)
-        if any(ol):
+        if np.any(ol):
             # set all values that are above/below self.outLimit to +-
             # self.outlimit
             self._integral[ol] = self.ones[ol] * self.outLimit * np.sign(self._integral[ol])

@@ -295,7 +295,7 @@ def measure_urwid(inputfile, systemfile, system):
             if os.environ.get("CI") == "true":
                 screen = urwid.raw_display.Screen(input=None)
             self.loop = urwid.MainLoop(topwidget, screen=screen)
-            self.loop.screen.set_input_timeouts(max_wait=0)
+            self.loop.screen.set_input_timeouts(max_wait=0)  # type: ignore
 
         def __enter__(self):
             self.loop.start()

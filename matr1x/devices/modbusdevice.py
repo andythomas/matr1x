@@ -50,14 +50,20 @@ class ModbusDevice(minimalmodbus.Instrument):
     """
 
     @output_name_on_error
-    def __init__(self, portname, slaveaddress, baudrate, parity=serial.PARITY_NONE):
+    def __init__(
+        self,
+        portname: str,
+        slaveaddress: int,
+        baudrate: int,
+        parity: str = serial.PARITY_NONE,
+    ):
         self.name = f"{type(self).__name__}@{portname}({slaveaddress})"
         super().__init__(portname, slaveaddress)
-        self.serial.baudrate = baudrate
-        self.serial.parity = parity
+        self.serial.baudrate: int = baudrate
+        self.serial.parity: str = parity
         # next line added to potentially prevent problems (no proof this is neeed!)
         # the drawbacks (lower speed) seem however minor!Add commentMore actions
-        self.serial.close_port_after_each_call = True
+        self.serial.close_port_after_each_call: bool = True
 
     @synchronized
     @output_name_on_error

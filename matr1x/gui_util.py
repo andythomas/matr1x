@@ -116,6 +116,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from matr1x.error_handling import InternalInvariantError
 from matr1x.models import MainConfig, UserlibConfig
 
 from . import (
@@ -308,7 +309,10 @@ class FileLineEdit(QLineEdit):
         self.dialog_button.clicked.connect(self._open_file_dialog)
 
     def _open_file_dialog(self):
-        dialog = QFileDialog(self.parent())
+        parent = self.parent()
+        if not isinstance(parent, QWidget):
+            raise InternalInvariantError("The parent widget must be a QWidget!")
+        dialog = QFileDialog(parent)
         if self.spec == "file":
             dialog.setFileMode(QFileDialog.FileMode.AnyFile)
             dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
@@ -1111,9 +1115,9 @@ class MetaViewerWidget(QDockWidget):
 
         self.editable = editable
 
-        self.tree_view = QTreeView()
+        self.tree_view: QTreeView = QTreeView()
 
-        self.model = self.TreeModel(self.parse_header(metadata))
+        self.model: self.TreeModel = self.TreeModel(self.parse_header(metadata))
         self.tree_view.setModel(self.model)
         for i in range(2):
             self.tree_view.resizeColumnToContents(i)
@@ -1469,7 +1473,7 @@ class ConfigEditWidget(MetaViewerWidget):
             return input_dict
 
         config_dict = {}
-        for item in self.tree_view.model().root_item.child_items:
+        for item in self.model.root_item.child_items:
             if item.child_count() == 0:
                 # system has no configurable options
                 continue
@@ -1760,7 +1764,7 @@ class SimplePlotWidget(QGroupBox):
             """
 
             def __init__(self, orientation, mapping=None, *args, **kwargs):
-                super().__init__(orientation=orientation, *args, **kwargs)
+                super().__init__(orientation, *args, **kwargs)
                 self.mapping = mapping or {}
                 self.unique_ticks = set()
 
@@ -1819,13 +1823,26 @@ class SimplePlotWidget(QGroupBox):
                 ticks.append((1, values))
                 return ticks
 
-        def __init__(self, l_plot, error, l_slider, plot2d, index, desig, pen=None):
+        def __init__(
+            self,
+            l_plot: pyqtgraph.GraphicsLayoutWidget,
+            error,
+            l_slider,
+            plot2d: bool,
+            index,
+            desig,
+            pen=None,
+        ):
             self.index = index
             self.desig = desig
-            self.l_plot = l_plot
+            self.l_plot: pyqtgraph.GraphicsLayoutWidget = l_plot
             self.l_slider = l_slider
-            self.plot2d = plot2d
+            self.plot2d: bool = plot2d
             self.error = error
+
+            self.pw: pyqtgraph.PlotItem
+            self.plt: pyqtgraph.PlotDataItem | pyqtgraph.ImageView
+            self.vb: CustomViewBox
 
             # Store mappings for categorical data
             self.x_mapping = {}
@@ -1841,11 +1858,12 @@ class SimplePlotWidget(QGroupBox):
             self.vb = CustomViewBox()
             if self.plot2d is True:
                 self.plt = pyqtgraph.ImageView(view=self.vb)
-                self.pw = self.l_plot.addPlot(
+                # please note https://github.com/pyqtgraph/pyqtgraph/issues/3023
+                self.pw = self.l_plot.ci.addPlot(
                     row=self.index, col=0, viewBox=self.vb, title=f"p{index}"
                 )
             else:
-                self.pw = self.l_plot.addPlot(
+                self.pw = self.l_plot.ci.addPlot(
                     row=self.index, col=0, viewBox=self.vb, title=f"p{index}"
                 )
                 self.plt = self.pw.plot([])
@@ -2092,6 +2110,8 @@ class SimplePlotWidget(QGroupBox):
             if self.plot2d is True:
                 # for 2d plot, select index of current data element
                 self._handle_multidim_data()
+                if not isinstance(self.plt, pyqtgraph.ImageView):
+                    raise InternalInvariantError("Plotting 3D data requires an ImageView widget!")
                 self.plt.setCurrentIndex(val)
                 self.pw.setTitle(
                     f"p{self.index} at {self.labels[1]} = {self.x[val]} {self.units[1]}"
@@ -2109,7 +2129,7 @@ class SimplePlotWidget(QGroupBox):
             including the horizontal line, x-slider, and z-slider
             widgets associated with this PlotObject.
             """
-            self.l_plot.removeItem(self.l_plot.getItem(row=self.index, col=0))
+            self.l_plot.removeItem(self.l_plot.ci.getItem(row=self.index, col=0))
             self.l_slider.removeWidget(self.w_hline)
             self.l_slider.removeWidget(self.w_xslider)
             self.l_slider.removeWidget(self.w_zslider)
@@ -2211,6 +2231,10 @@ class SimplePlotWidget(QGroupBox):
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
                     # 3d plotting
+                    if not isinstance(self.plt, pyqtgraph.ImageView):
+                        raise InternalInvariantError(
+                            "Plotting 3D data requires an ImageView widget!"
+                        )
                     self.plt.setImage(
                         self.z,
                         pos=[0, 0],
@@ -2226,6 +2250,10 @@ class SimplePlotWidget(QGroupBox):
                     self.vb.setAspectLocked(False)
                     self.vb.invertY(False)
                 else:
+                    if not isinstance(self.plt, pyqtgraph.ImageView):
+                        raise InternalInvariantError(
+                            "Plotting 3D data requires an ImageView widget!"
+                        )
                     # 2d data follows different dimensioning scheme
                     x0, x1 = self.x[0], self.x[-1]
                     xscale = (x1 - x0) / self.z.shape[0]
@@ -2260,7 +2288,8 @@ class SimplePlotWidget(QGroupBox):
                 # Set labels for axes
                 for i, ax in zip(range(2), ["left", "bottom"]):
                     self.pw.setLabel(ax, self.labels[i], self.units[i])
-
+                if not isinstance(self.plt, pyqtgraph.PlotDataItem):
+                    raise InternalInvariantError("Plotting requires an PlotDataItem widget!")
                 try:
                     self.plt.setData(x=x, y=z, *args, **kwargs)
                 except ValueError as e:
@@ -2268,7 +2297,10 @@ class SimplePlotWidget(QGroupBox):
                     self._raise_error(f"Plot error: {str(e)}")
 
             # After plotting, if autorange is enabled on any axis, recompute now.
-            x_auto, y_auto = self.vb.state["autoRange"]
+            auto_range = self.vb.state["autoRange"]
+            if auto_range is None or isinstance(auto_range, (int, float)):
+                raise InternalInvariantError("Invalid auto_range value!")
+            x_auto, y_auto = auto_range
             if x_auto or y_auto:
                 # updateAutoRange respects which axes are enabled for auto
                 self.vb.updateAutoRange()
@@ -2331,16 +2363,17 @@ class SimplePlotWidget(QGroupBox):
         # GraphicsLayout to display the x/y position on the current
         # plot, additionally introduce proxy to select active plot by
         # just clicking into the plot
+        scene = cast(pyqtgraph.GraphicsScene, self.gl.scene())
         self.proxy = pyqtgraph.SignalProxy(
-            self.gl.scene().sigMouseMoved, rateLimit=30, slot=self._mouse_moved
+            scene.sigMouseMoved, rateLimit=30, slot=self._mouse_moved
         )
         self.proxy2 = pyqtgraph.SignalProxy(
-            self.gl.scene().sigMouseClicked, rateLimit=2, slot=self._mouse_clicked
+            scene.sigMouseClicked, rateLimit=2, slot=self._mouse_clicked
         )
 
         # add the first empty plot with
         initial_plot = self.PlotObject(self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0])
-        self.plots = [initial_plot]
+        self.plots: list[self.PlotObject] = [initial_plot]
 
         # Connect X-axis linking signal for automatic linking
         if hasattr(initial_plot, "vb") and initial_plot.vb is not None:
@@ -2573,13 +2606,17 @@ class SimplePlotWidget(QGroupBox):
         if state is True:
             for plot in self.plots:
                 if plot.plot2d is False:
+                    if not isinstance(plot.plt, pyqtgraph.PlotDataItem):
+                        raise InternalInvariantError("Plotting requires an PlotDataItem widget!")
                     plot.plt.setPen((0, 0, 153), width=3)
         if state is False:
             for plot in self.plots:
                 if plot.plot2d is False:
+                    if not isinstance(plot.plt, pyqtgraph.PlotDataItem):
+                        raise InternalInvariantError("Plotting requires an PlotDataItem widget!")
                     plot.plt.setPen(None)
 
-    def _on_range_changed(self, view_box, ranges):
+    def _on_range_changed(self, view_box, ranges: tuple[tuple[float, float], tuple[float, float]]):
         """Handle range change event to synchronize X-axis across plots with same X-column.
 
         Parameters
@@ -3374,8 +3411,11 @@ class YesNoAbortDialog(QMessageBox):
 
             # Set up timer and label - use milliseconds for better precision
             self.timer_label = QLabel(f"Time remaining: {int(self.timeout)} seconds", self)
-            self.layout().addWidget(self.timer_label, 1, 1, 1, 3)
-
+            layout = self.layout()
+            if isinstance(layout, QGridLayout):
+                layout.addWidget(self.timer_label, 1, 1, 1, 3)
+            else:
+                raise InternalInvariantError("No grid-layout was returned!")
             self.remaining_time = self.timeout * 1000  # Convert to milliseconds
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.update_timer)
@@ -4058,7 +4098,8 @@ def get_application_instance() -> MApplication:
         The instance that cannot be None.
     """
     app = MApplication.instance()
-    assert isinstance(app, MApplication)
+    if not isinstance(app, MApplication):
+        raise InternalInvariantError("The application instance is None!")
     return app
 
 
