@@ -846,7 +846,7 @@ class MainWindow(QMainWindow):
         preview = [
             sys.executable,
             "-c",
-            f"from matr1x.scripts import matrix_preview; matrix_preview.main(file={self.measurement_file})",  # noqa: E501
+            f"from matr1x.scripts import matrix_preview; matrix_preview.main(file='{self.measurement_file}')",  # noqa: E501
         ]
         subprocess.Popen(preview)
 
