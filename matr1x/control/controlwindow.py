@@ -1167,8 +1167,7 @@ class ControlWindow(QMainWindow):
             time.sleep(min_period)
             if self.terminate:
                 for guidict in self.guidicts:
-                    if guidict.running:
-                        guidict.stop()
+                    guidict.stop()
                 break
 
         # flag for stating that thread has ended
@@ -1376,14 +1375,13 @@ class ControlWindow(QMainWindow):
         pointer : str
             A string indicating where the error occurred.
         """
-        # end the refreshDict thread
-        self.terminate = True
-        self.terminate_log = True
         # stop guidicts immediately on error (Prevents a sometimes occuring
         # timeout error)
         for guidict in self.guidicts:
-            if guidict.running:
-                guidict.stop(wait=False)
+            guidict.stop(wait=False)
+        # end the refreshDict thread
+        self.terminate = True
+        self.terminate_log = True
         if pointer == "refreshDict":
             # set terminated flag since our main loop is dead
             self.terminated = True

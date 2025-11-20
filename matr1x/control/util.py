@@ -1111,6 +1111,7 @@ class GuiDict(UserDict, ABC):
         None
         """
         if self.running:
+            self.running = False
             self._refresh_thread.quit()
             if wait:
                 self._refresh_thread.wait(2 * self.refresh_period_ms)
@@ -1119,7 +1120,6 @@ class GuiDict(UserDict, ABC):
             self.S.close()
             # reset variables and commands
             self._reset()
-            self.running = False
 
     def _reset(self):
         """
