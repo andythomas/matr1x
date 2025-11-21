@@ -103,26 +103,26 @@ const registerCustomCompletions = () => {
       documentation: "Dictionary containing metadata according to Dublin Core.",
     },
     {
-      label: "meta_data['creator']",
-      insertText: "meta_data['creator']",
+      label: 'meta_data["creator"]',
+      insertText: 'meta_data["creator"]',
       kind: monaco.languages.CompletionItemKind.Property,
       documentation: "The person performing this measurement.",
     },
     {
-      label: "meta_data['identifier']",
-      insertText: "meta_data['identifier']",
+      label: 'meta_data["identifier"]',
+      insertText: 'meta_data["identifier"]',
       kind: monaco.languages.CompletionItemKind.Property,
       documentation: "An identifier for the measurement, e.g. the sample name.",
     },
     {
-      label: "meta_data['relation']",
-      insertText: "meta_data['relation']",
+      label: 'meta_data["relation"]',
+      insertText: 'meta_data["relation"]',
       kind: monaco.languages.CompletionItemKind.Property,
       documentation: "Additonal information about the measurement identifier, e.g. an ancestor.",
     },
     {
-      label: "meta_data['description']",
-      insertText: "meta_data['description']",
+      label: 'meta_data["description"]',
+      insertText: 'meta_data["description"]',
       kind: monaco.languages.CompletionItemKind.Property,
       documentation: "Verbose information about the measurement.",
     },
@@ -135,7 +135,7 @@ const registerCustomCompletions = () => {
     {
       label: "wait(duration, until, message, silent)",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "wait(${1:0}, until=${2:None}, message='${3:}', silent=${4:10})",
+      insertText: 'wait(${1:0}, until=${2:None}, message="${3:}", silent=${4:10})',
       kind: monaco.languages.CompletionItemKind.Function,
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       documentation:
@@ -155,7 +155,7 @@ const registerCustomCompletions = () => {
     {
       label: "input(query, timeout, default_value)",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "input('${1:query}', timeout=${2:float('inf')}, default_value='${3}')",
+      insertText: 'input("${1:query}", timeout=${2:float("inf")}, default_value="${3}")',
       kind: monaco.languages.CompletionItemKind.Function,
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       documentation: "Prompts the user for input with an optional timeout and default reply.",
@@ -163,7 +163,7 @@ const registerCustomCompletions = () => {
     {
       label: "input_bool(query, timeout, default_value)",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "input_bool('${1:query}', timeout=${2:float('inf')}, default_value='${3:yes}')",
+      insertText: 'input_bool("${1:query}", timeout=${2:float("inf")}, default_value="${3:yes}")',
       kind: monaco.languages.CompletionItemKind.Function,
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       documentation:
@@ -173,7 +173,7 @@ const registerCustomCompletions = () => {
       label: "input_numerical(query, timeout, default_value, min_value, max_value, step, decimals)",
       insertText:
         // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        "input_numerical('${1:query}', timeout=${2:float('inf')}, " +
+        'input_numerical("${1:query}", timeout=${2:float("inf")}, ' +
         // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
         "default_value=${3:0.0}, min_value=${4:-100e9}, max_value=${5:100e9}, " +
         // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
@@ -188,7 +188,7 @@ const registerCustomCompletions = () => {
       label: "init_datafile(filename, comment, append, print_header, ntot)",
       insertText:
         // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        "init_datafile('${1:test}', comment='${2}', append=${3:False}, " +
+        'init_datafile("${1:test}", comment="${2}", append=${3:False}, ' +
         // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
         "print_header=${4:True}, ntot=${5:None})",
       kind: monaco.languages.CompletionItemKind.Function,
@@ -221,7 +221,7 @@ const registerCustomCompletions = () => {
     {
       label: "set_value(name, value)",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "set_value('${1:column}', ${2:0})",
+      insertText: 'set_value("${1:column}", ${2:0})',
       kind: monaco.languages.CompletionItemKind.Function,
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       documentation:
@@ -239,7 +239,7 @@ const registerCustomCompletions = () => {
     {
       label: "read_value(name: str)",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "read_value('${1:column}')",
+      insertText: 'read_value("${1:column}")',
       kind: monaco.languages.CompletionItemKind.Function,
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       documentation:
@@ -257,7 +257,7 @@ const registerCustomCompletions = () => {
     {
       label: "trigger_value(name)",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "trigger_value('${1:column}')",
+      insertText: 'trigger_value("${1:column}")',
       kind: monaco.languages.CompletionItemKind.Function,
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       documentation:
