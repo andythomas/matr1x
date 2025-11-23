@@ -58,16 +58,16 @@ def test_sweep_generator_run(qtbot, qapp, gui_wait):
     main_window.update_window_title(dirty=False)
     assert main_window.windowTitle() == "Sweep Generator"
 
-    system = main_window.systemList.item(0).text()
+    system = main_window.ui.system_list.item(0).text()
     assert system == "matr1x.systems.system_dummy"
 
     start = "0"
     end = "10"
     points = "11"
-    main_window.grid_widgets[0]["start"].setText(start)
-    main_window.grid_widgets[0]["end"].setText(end)
-    main_window.grid_widgets[0]["points"].setText(points)
-    main_window.grid_widgets[0]["append"].click()
+    main_window.grid_widgets[0].start.setText(start)
+    main_window.grid_widgets[0].end.setText(end)
+    main_window.grid_widgets[0].points.setText(points)
+    main_window.grid_widgets[0].append.click()
     sweep = numpy.linspace(float(start), float(end), int(points)).tolist()
     main_window.update_window_title(dirty=False)
     widget = main_window.sweep_table.cellWidget(0, 0)
@@ -80,7 +80,7 @@ def test_sweep_generator_run(qtbot, qapp, gui_wait):
     assert isinstance(widget, QLineEdit)
     assert widget.text() == points
 
-    main_window.preview_action.trigger()
+    main_window.ui.actions.preview.trigger()
     qtbot.wait(gui_wait())
     previews = [
         w
@@ -89,16 +89,16 @@ def test_sweep_generator_run(qtbot, qapp, gui_wait):
     ]
     assert len(previews) == 1
 
-    main_window.sweep_action.trigger()
+    main_window.ui.actions.sweep.trigger()
     for i in range(main_window.sweep_preview.model().rowCount()):
         assert main_window.sweep_preview.item(i, 0).text().strip() == "-a " + str(sweep[i])  # type: ignore
 
-    main_window.grid_widgets[1]["start"].setText("1")
-    main_window.grid_widgets[1]["end"].setText("2")
-    main_window.grid_widgets[1]["points"].setText("2")
-    main_window.grid_widgets[1]["append"].click()
-    main_window.grid_widgets[0]["repeat"].setValue(2)
-    main_window.grid_widgets[0]["updown"].setChecked(True)
+    main_window.grid_widgets[1].start.setText("1")
+    main_window.grid_widgets[1].end.setText("2")
+    main_window.grid_widgets[1].points.setText("2")
+    main_window.grid_widgets[1].append.click()
+    main_window.grid_widgets[0].repeat.setValue(2)
+    main_window.grid_widgets[0].updown.setChecked(True)
     filename = "sweep_sweep"
     save_file = path / filename
     main_window._write_file_to_disk(save_file, False)
@@ -142,9 +142,9 @@ def test_sweep_generator_load(qtbot, qapp, gui_wait):
     assert main_window.up_down == [2, 0]
     assert main_window.repeat == [2, 1]
     assert main_window.sweep_params == [[["0", "10", "11"]], [["1", "2", "2"]]]
-    assert main_window.grid_widgets[0]["repeat"].value() == 2
-    assert main_window.grid_widgets[1]["repeat"].value() == 1
-    assert main_window.grid_widgets[0]["updown"].isChecked() is True
-    assert main_window.grid_widgets[1]["updown"].isChecked() is False
-    assert main_window.grid_widgets[0]["loopover"].currentText() == "None"
-    assert main_window.grid_widgets[1]["loopover"].currentText() == "None"
+    assert main_window.grid_widgets[0].repeat.value() == 2
+    assert main_window.grid_widgets[1].repeat.value() == 1
+    assert main_window.grid_widgets[0].updown.isChecked() is True
+    assert main_window.grid_widgets[1].updown.isChecked() is False
+    assert main_window.grid_widgets[0].loopover.currentText() == "None"
+    assert main_window.grid_widgets[1].loopover.currentText() == "None"

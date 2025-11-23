@@ -74,6 +74,7 @@ from PySide6.QtGui import (
     QImage,
     QIntValidator,
     QKeySequence,
+    QMouseEvent,
     QPainter,
     QPalette,
     QPixmap,
@@ -2841,7 +2842,7 @@ class CustomViewBox(pyqtgraph.ViewBox):
         pyqtgraph.ViewBox.__init__(self, *args, **kwds)
         self.setMouseMode(self.RectMode)
 
-    def mouseClickEvent(self, ev):
+    def mouseClickEvent(self, ev: QMouseEvent):
         """
         Handle mouse click events.
 
@@ -2852,12 +2853,9 @@ class CustomViewBox(pyqtgraph.ViewBox):
         """
         if ev.button() == Qt.MouseButton.RightButton:
             self.autoRange()
-            # set autorange upon change of data
             self.enableAutoRange()
-        # elif ev.button() == Qt.MidButton:
-        #     self.raiseContextMenu(ev)
 
-    def mouseDragEvent(self, ev, axis=None):
+    def mouseDragEvent(self, ev: QMouseEvent, axis=None):
         """
         Handle mouse drag events.
 
@@ -2869,7 +2867,6 @@ class CustomViewBox(pyqtgraph.ViewBox):
             The axis being dragged, if any.
         """
         if ev.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
-            # enable pan mode
             self.setMouseMode(self.PanMode)
             pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
             self.setMouseMode(self.RectMode)
@@ -3974,8 +3971,19 @@ class MApplication(QApplication):
     """Fix GUI related issues for all applications."""
 
     isDarkSignal = Signal(bool)
-    isDark = property(lambda self: self._theme_detector.isDark())
     openfile = Signal(str)
+
+    @property
+    def isDark(self) -> bool:
+        """
+        Return whether the current theme is dark.
+
+        Returns
+        -------
+        bool
+            True if dark theme is active, False otherwise.
+        """
+        return self._theme_detector.isDark()
 
     def __init__(self, args: Sequence[str]) -> None:
         """
