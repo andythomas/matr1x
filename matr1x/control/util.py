@@ -497,16 +497,12 @@ class var(QObject):
 
         # set sensible default values and disable readout column
         if len(self.widgets) > 1:
-            if not isinstance(self.widgets[1], QCheckBox):
-                self.widgets[1].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             if isinstance(self.widgets[1], QLineEdit):
                 self.widgets[1].setReadOnly(True)
             elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
                 self.widgets[1].setEnabled(False)
         # apply a validator
         if len(self.widgets) > 2:
-            if not isinstance(self.widgets[2], QCheckBox):
-                self.widgets[2].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             if isinstance(self.widgets[2], QLineEdit):
                 val = validator.get(self.variableType, None)
                 if val:
