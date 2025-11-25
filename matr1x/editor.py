@@ -24,10 +24,13 @@ import ast
 import json
 import logging
 import re
+import socket
 import tempfile
+import time
 from importlib import resources
 from typing import Any
 
+import monaco_assets
 from PySide6.QtCore import (
     QEventLoop,
     QObject,
@@ -499,9 +502,33 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         "High contrast": {"Light high contrast": "hc-light", "Dark high contrast": "hc-black"},
     }
 
+    @staticmethod
+    def find_free_port(start_port=54529):
+        """Find an available port starting from start_port."""
+        port = start_port
+        while port < start_port + 100:  # Try 100 ports
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.bind(("localhost", port))
+                sock.close()
+                return port
+            except OSError:
+                port += 1
+        raise RuntimeError("No free ports available")
+
     def __init__(self, extensions: list):
         super().__init__()
         self.logger = logging.getLogger(f"{__name__}.CodeEditor")
+        # Find free port and start Monaco server
+        self.port = self.find_free_port()
+        self.server = monaco_assets.MonacoServer(port=self.port)
+        timeout = 20  # seconds
+        start_time = time.time()
+        while not self.server.is_running() and (time.time() - start_time) < timeout:
+            time.sleep(0.1)
+        if not self.server.is_running():
+            self.logger.error("Warning: Monaco server did not start within %d seconds", timeout)
+
         self.editor_page = CodeEditorPage()
         self.setPage(self.editor_page)
         settings = self.page().settings()
@@ -517,7 +544,9 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
         html_path = resources.files("matr1x") / "resources" / "editor.html"
-        self.load(QUrl.fromLocalFile(str(html_path)))
+        editor_url = QUrl.fromLocalFile(str(html_path))
+        editor_url.setQuery(f"port={self.port}")
+        self.load(editor_url)
         loop = QEventLoop()
         self.loadFinished.connect(lambda success: loop.quit() if success else None)
         loop.exec()

@@ -27,7 +27,6 @@ import time
 from os.path import normpath
 from pathlib import Path
 
-import monaco_assets
 from PySide6.QtCore import (
     QByteArray,
     QEvent,
@@ -484,14 +483,6 @@ class MainWindow(QMainWindow):
         self.output_stream = EmittingStream()
         self.output_stream.text_written.connect(self.output_written)
 
-        self.server = monaco_assets.MonacoServer(port=54529)
-        timeout = 20  # seconds
-        start_time = time.time()
-        while not self.server.is_running() and (time.time() - start_time) < timeout:
-            time.sleep(0.1)
-        if not self.server.is_running():
-            logger.error("Warning: Monaco server did not start within %d seconds", timeout)
-
         self.init_ui()
         # set outputStream as stdout (i.e. all output is written to status
         # preview
@@ -752,6 +743,7 @@ class MainWindow(QMainWindow):
                     event.ignore()
                     return
         self.save_window_state()
+        self.script_edit.server.stop()
         # QWebEngineView: Disconnect the webpage to prevent memory leaks
         if hasattr(self.script_edit, "page") and self.script_edit.page():
             self.script_edit.page().loadFinished.disconnect()
@@ -762,7 +754,6 @@ class MainWindow(QMainWindow):
         self.log_window.deleteLater()
         qApp = get_application_instance()
         qApp.processEvents()
-        self.server.stop()
         event.accept()
 
     def standard_action(self, name, display_name=None) -> QAction:
