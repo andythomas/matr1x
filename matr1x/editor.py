@@ -31,6 +31,7 @@ from importlib import resources
 from typing import Any
 
 import monaco_assets
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 from PySide6.QtCore import (
     QEventLoop,
     QObject,
@@ -56,6 +57,28 @@ COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
 __all__ = ["CodeEditor"]
 
 
+class PositionModel(BaseModel):
+    row: int
+    column: int
+
+
+class FixModel(BaseModel):
+    content: str
+    location: PositionModel
+    end_location: PositionModel
+
+
+class RuffMessageModel(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    code: str
+    message: str
+    filename: str
+    location: PositionModel
+    end_location: PositionModel
+    fix: FixModel | None = None
+
+
 class Matr1xFunctionChecker(ast.NodeVisitor):
     """Implements ast-based function checker for matr1x functions."""
 
@@ -63,15 +86,17 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self.indexes = indexes
         self.settables = settables
         self.columns = columns
-        self.errors = 0
+        self.errors: int = 0
         self.lineno: int
         self.col: int
         self.end_lineno: int
         self.end_col: int
-        self.diagnostics: list[dict] = []
+        self.diagnostics: list[dict[str, str | int]] = []
         self.script_lines: list[str] = []
+        self.node: ast.Call
+        self.func_name: str
 
-    def reporter(self, error_text: str) -> None:
+    def _reporter(self, error_text: str, is_error: bool = True) -> None:
         """
         Generate a report in the Monaco format.
 
@@ -79,7 +104,11 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         ----------
         error_text: str
             The error text to be displayed.
+        is_error: bool
+            Is this an error (True) or an info (False).
         """
+        if is_error:
+            self.errors += 1
         diagnostic = {
             "severity": 2,
             "startLineNumber": self.lineno - SCRIPT_OFFSET,
@@ -103,102 +132,115 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         """
         self.script_lines = script.splitlines() if script else []
 
-    def returnDiagnostics(self) -> list[dict]:
+    def returnDiagnostics(self) -> list[dict[str, str | int]]:
         """
         Return the value checker diagnostics.
 
         Returns
         -------
-        list[dict]
+        list[dict[str, str | int]]
             The list of errors in the Monaco format.
         """
         return self.diagnostics
 
-    def visit_Call(self, node):
-        """Reimplemented function to perform custom function checking."""
-        if isinstance(node.func, ast.Name):
-            func_name = node.func.id
-            self.lineno = node.func.lineno
-            self.col = node.func.col_offset
-            self.end_lineno = node.func.end_lineno if node.func.end_lineno else self.lineno
-            self.end_col = node.func.end_col_offset if node.func.end_col_offset else self.col
+    def _should_ignore_line(self) -> bool:
+        """
+        Check if current line has type: ignore comment.
 
-            if func_name in ("set_value", "read_value", "trigger_value"):
-                if (
-                    self.script_lines
-                    and self.lineno <= len(self.script_lines)
-                    and re.search(r"#\s*type:\s*ignore\s*$", self.script_lines[self.lineno - 1])
-                ):
-                    return
-                args = node.args
+        Returns
+        -------
+        bool
+            Line will be ignored (True) or validated (False).
+        """
+        if not (self.script_lines and self.lineno <= len(self.script_lines)):
+            return False
+        return bool(re.search(r"#\s*type:\s*ignore\s*$", self.script_lines[self.lineno - 1]))
 
-                num_required = 2 if func_name == "set_value" else 1
+    def _validate_parameter_count(self) -> bool:
+        """
+        Check if parameter count is valid.
 
-                # make sure number of parameters is correct
-                if len(args) < num_required:
-                    if len(args) == 1 and num_required == 2:
-                        # check for starred expression and report that
-                        # these cannot be checked
-                        if isinstance(args[0], ast.Starred):
-                            error_text = (
-                                "Cannot statically check starred expression"
-                                f" <*{args[0].value.id}> in set_value call in"
-                                f" line {args[0].lineno}"
-                            )
-                            self.reporter(error_text)
-                            return
-                        else:
-                            self.errors += 1
-                            error_text = "too few parameters."
-                            self.reporter(error_text)
-                            return
-                    else:
-                        self.errors += 1
-                        error_text = "too few parameters."
-                        self.reporter(error_text)
-                        return
-                elif len(args) > num_required:
-                    self.errors += 1
-                    error_text = "too many parameters."
-                    self.reporter(error_text)
-                    return
-                col_name = args[0]
-                if isinstance(col_name, ast.Constant):
-                    value = col_name.value
-                    if isinstance(value, int):
-                        if value >= len(self.indexes) or value < 0:
-                            # make sure column index is in valid range
-                            self.errors += 1
-                            error_text = f"index <{value}> beyond valid range."
-                            self.reporter(error_text)
-                        elif not self.settables[value] and func_name == "set_value":
-                            # make sure column is settable in set_value
-                            self.errors += 1
-                            error_text = f"index <{value}> not settable."
-                            self.reporter(error_text)
-                    elif value not in self.columns:
-                        # check validity of string based columns
-                        self.errors += 1
-                        error_text = f"<{value}> not a valid column name."
-                        self.reporter(error_text)
-                    elif (
-                        not self.settables[self.columns.index(value)] and func_name == "set_value"
-                    ):
-                        # make sure column is settable in set_value function
-                        self.errors += 1
-                        error_text = f"column <{value}> not settable."
-                        self.reporter(error_text)
-                # could add check for defined variables at an earlier point
-                # however, requires more sophisticated checking of variable
-                # definitions
-                # for now, remain with a printed warning to the user
-                # could also be made into a warning
-                # elif isinstance(col_name, ast.Name):...
-                else:
-                    error_text = (
-                        f"Cannot statically check arg in {func_name} in line {col_name.lineno}"
-                    )
-                    self.reporter(error_text)
+        Returns
+        -------
+        bool
+            True is parameter count is valid, False otherwise.
+        """
+        args = self.node.args
+        required = 2 if self.func_name == "set_value" else 1
+        if len(args) < required:
+            if len(args) == 1 and required == 2 and isinstance(args[0], ast.Starred):
+                error_text = (
+                    "Cannot statically check starred expression"
+                    f" in {self.func_name} call in line {args[0].lineno}"
+                )
+                self._reporter(error_text, False)
+                return False
+            self._reporter("Too few parameters.")
+            return False
+        elif len(args) > required:
+            self._reporter("Too many parameters.")
+            return False
+        return True
+
+    def _validate_integer_column(self, value: int) -> None:
+        """
+        Validate integer column index.
+
+        Parameters
+        ----------
+        value: int
+            The parameter value to be checked.
+        """
+        if value >= len(self.indexes) or value < 0:
+            self._reporter(f"Index <{value}> beyond valid range.")
+        elif not self.settables[value] and self.func_name == "set_value":
+            self._reporter(f"Index <{value}> not settable.")
+
+    def _validate_string_column(self, value: str) -> None:
+        """
+        Validate string column name.
+
+        Parameters
+        ----------
+        value: int
+            The parameter value to be checked.
+        """
+        if value not in self.columns:
+            self._reporter(f"<{value}> not a valid column name.")
+        elif not self.settables[self.columns.index(value)] and self.func_name == "set_value":
+            self._reporter(f"Column <{value}> not settable.")
+
+    def _validate_column(self) -> None:
+        """Validate column argument for matr1x functions."""
+        col_arg = self.node.args[0]
+        if not isinstance(col_arg, ast.Constant):
+            self._reporter("Cannot statically check argument.", False)
+            return
+        value = col_arg.value
+        if isinstance(value, int):
+            self._validate_integer_column(value)
+        elif isinstance(value, str):
+            self._validate_string_column(value)
+        else:
+            self._reporter(f"<{value}> not a valid column identifier.")
+
+    def visit_Call(self, node: ast.Call):
+        """Perform custom function parameter-value checking."""
+        if not isinstance(node.func, ast.Name):
+            return
+        if node.func.id not in ("set_value", "read_value", "trigger_value"):
+            return
+        self.node = node
+        self.func_name = node.func.id
+        self.lineno = node.func.lineno
+        self.col = node.func.col_offset
+        self.end_lineno = node.func.end_lineno if node.func.end_lineno else self.lineno
+        self.end_col = node.func.end_col_offset if node.func.end_col_offset else self.col
+        if self._should_ignore_line():
+            return
+        if not self._validate_parameter_count():
+            return
+        self._validate_column()
 
 
 class Linter(QObject):
@@ -268,7 +310,7 @@ class Linter(QObject):
             self.lintingComplete.emit(json.dumps(diagnostics))
             self.issues = len(diagnostics)
         except Exception as e:
-            error_diagnostic = self._ruff_error_diagnostic(f"Linting error: {str(e)}")
+            error_diagnostic = self._ruff_error_diagnostic(f"Linting error: {str(e)}", "Linter")
             self.lintingComplete.emit(json.dumps(error_diagnostic))
             self.issues = 1
 
@@ -304,7 +346,7 @@ class Linter(QObject):
         except Exception:
             return []
 
-    def _ruff_error_diagnostic(self, error: str) -> list[dict[str, Any]]:
+    def _ruff_error_diagnostic(self, error: str, source: str) -> list[dict[str, str | int]]:
         """
         Format a general error in the required way.
 
@@ -312,10 +354,12 @@ class Linter(QObject):
         ----------
         error : str
             The error string to be included.
+        source: str
+            The source of the error.
 
         Returns
         -------
-        list[dict]
+        list[dict[str, str | int]]
             A dictionary as the only element in a list.
         """
         error_diagnostic = [
@@ -325,13 +369,13 @@ class Linter(QObject):
                 "startColumn": 1,
                 "endLineNumber": 1,
                 "endColumn": 1,
-                "message": f"{error}",
-                "source": "ruff",
+                "message": error,
+                "source": source,
             }
         ]
         return error_diagnostic
 
-    def _run_ruff_check(self, code: str) -> list[dict[str, Any]]:
+    def _run_ruff_check(self, code: str) -> list[dict[str, str | int]]:
         """
         Utilize Ruff to lint code and convert to Monaco diagnostics.
 
@@ -345,7 +389,6 @@ class Linter(QObject):
             List of diagnostics in Monaco Editor format.
         """
         code = code.replace("\r\n", "\n").replace("\r", "\n")
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", newline="") as temp_file:
             temp_file.write(code)
             temp_file.flush()
@@ -361,56 +404,49 @@ class Linter(QObject):
                 temp_file.name,
             ]
             result = run_python_cmdline(cmd_args)
-
         if isinstance(result, Error):
-            return self._ruff_error_diagnostic(f"Ruff execution error: {result.error}")
+            return self._ruff_error_diagnostic(
+                f"Ruff execution error: {result.error}", "os, python"
+            )
+        ruff_issues = json.loads(result.value.stdout)
+        adapter = TypeAdapter(list[RuffMessageModel])
+        try:
+            validated = adapter.validate_python(ruff_issues)
+        except ValidationError:
+            return self._ruff_error_diagnostic(
+                "Ruff validation error: Output format changed!", "pydantic"
+            )
+        return self._convert_ruff_to_monaco_diagnostics(validated)
 
-        if result.value.stdout:
-            ruff_issues = json.loads(result.value.stdout)
-            return self._convert_ruff_to_monaco_diagnostics(ruff_issues)
-
-        return []
-
-    def _convert_ruff_to_monaco_diagnostics(self, ruff_issues: list[dict]) -> list[dict[str, Any]]:
+    def _convert_ruff_to_monaco_diagnostics(
+        self,
+        ruff_issues: list[RuffMessageModel],
+    ) -> list[dict[str, int | str]]:
         """
-        Convert Ruff JSON output to Monaco Editor diagnostics format.
+        Convert ruff output to Monaco Editor diagnostics format.
 
         Parameters
         ----------
-        ruff_issues: list[dict]
-            List of issues from Ruff JSON output.
+        ruff_issues: list[RuffMessageModel]
+            List of issues from pydantic validated Ruff output.
 
         Returns
         -------
-            List of diagnostics in Monaco Editor format.
+            List of diagnostics in Monaco Editor dict format.
         """
         diagnostics = []
-
         for issue in ruff_issues:
-            location = issue.get("location", {})
-            end_location = issue.get("end_location", location)
-
-            # Map Ruff severity to Monaco severity
-            # Monaco: 1=Error, 2=Warning, 4=Info, 8=Hint
-            severity_map = {"error": 1, "warning": 2, "info": 4, "hint": 8}
-
-            # Ruff doesn't always provide severity, default to warning
-            ruff_severity = issue.get("severity", "warning").lower()
-            monaco_severity = severity_map.get(ruff_severity, 2)
-
             diagnostic = {
-                "severity": monaco_severity,
-                "startLineNumber": location.get("row", 1) - SCRIPT_OFFSET,
-                "startColumn": location.get("column", 1) - COLUMN_OFFSET,
-                "endLineNumber": end_location.get("row", location.get("row", 1)) - SCRIPT_OFFSET,
-                "endColumn": end_location.get("column", location.get("column", 1)) - COLUMN_OFFSET,
-                "message": f"{issue.get('code', '')}: {issue.get('message', 'Unknown issue')}",
+                "severity": 2,
+                "startLineNumber": issue.location.row - SCRIPT_OFFSET,
+                "startColumn": issue.location.column - COLUMN_OFFSET,
+                "endLineNumber": issue.end_location.row - SCRIPT_OFFSET,
+                "endColumn": issue.end_location.column - COLUMN_OFFSET,
+                "message": issue.message,
                 "source": "ruff",
-                "code": issue.get("code", ""),
+                "code": issue.code,
             }
-
             diagnostics.append(diagnostic)
-
         return diagnostics
 
 
