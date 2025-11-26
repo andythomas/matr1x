@@ -56,7 +56,7 @@ from .metadata import APP_META_KEY
 
 # allow error handling while using with
 @contextmanager
-def open_and_error(filename, mode="r"):
+def open_and_error(filename: str, mode: str = "r"):
     """
     Context manager to handle file opening with error handling.
 
@@ -69,17 +69,16 @@ def open_and_error(filename, mode="r"):
 
     Yields
     ------
-    tuple
-        A tuple containing the file object and None if successful,
-        or None and the error if an exception occurs.
+    Result
+        Either Success(file object) or Error(exception).
     """
     try:
         f = Path(filename).open(mode)
     except Exception as error:
-        yield None, error
+        yield Error(error)
     else:
         try:
-            yield f, None
+            yield Success(f)
         finally:
             f.close()
 

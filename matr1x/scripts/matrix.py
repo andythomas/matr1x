@@ -38,6 +38,7 @@ from pathlib import Path
 import urwid
 
 from matr1x import reload_config
+from matr1x.error_handling import Error
 from matr1x.system import MergedSystem
 from matr1x.util import (
     flatten,
@@ -467,24 +468,23 @@ def main():
         client_socket = None
 
     # check input file header for system file information
-    systemfile = None
-    with open_and_error(options.inputfile, "r") as (f, err):
-        if err:
-            print("matrix: error:", err)
+    systemfile: list[str] | None = None
+    with open_and_error(options.inputfile, "r") as f:
+        if isinstance(f, Error):
+            print("matrix: error:", f.error)
             sys.exit(1)
-        else:
-            for line in f:
-                system_pattern = r"^# [Ss]ystem filename : (.+)"
-                settable_names_pattern = r"^# [Ss]ettable columns : (.+)"
-                settable_units_pattern = r"^# [Ss]ettable units : (.+)"
-                if match := re.match(system_pattern, line.strip()):
-                    systemfile = match.group(1).split(",")
-                elif match := re.match(settable_names_pattern, line.strip()):
-                    settable_names_file = match.group(1).split(",")
-                elif match := re.match(settable_units_pattern, line.strip()):
-                    settable_units_file = match.group(1).split(",")
-                if "#" != line[0]:
-                    break
+        for line in f.value:
+            system_pattern = r"^# [Ss]ystem filename : (.+)"
+            settable_names_pattern = r"^# [Ss]ettable columns : (.+)"
+            settable_units_pattern = r"^# [Ss]ettable units : (.+)"
+            if match := re.match(system_pattern, line.strip()):
+                systemfile = match.group(1).split(",")
+            elif match := re.match(settable_names_pattern, line.strip()):
+                settable_names_file: list[str] = match.group(1).split(",")
+            elif match := re.match(settable_units_pattern, line.strip()):
+                settable_units_file: list[str] = match.group(1).split(",")
+            if "#" != line[0]:
+                break
 
     # import self made libraries
     if options.systemfile is None:

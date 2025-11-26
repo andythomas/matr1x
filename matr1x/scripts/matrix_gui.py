@@ -24,10 +24,11 @@ import signal
 import socket
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QColor, QKeyEvent, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
@@ -47,7 +48,7 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
-from matr1x.error_handling import install_error_handler
+from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
@@ -97,7 +98,7 @@ class LabelWithSignal(QLabel):
 
     textChanged = Signal(str)
 
-    def setText(self, a0):
+    def setText(self, a0: str) -> None:
         """
         Set label text and emit signal.
 
@@ -118,15 +119,13 @@ class QueueListWidget(QListWidget):
     the line to show in the list view.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the list widget with an empty list."""
         super().__init__()
         self.data_list = []
         self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         self.setAlternatingRowColors(True)
-        model = self.model()
-        assert model is not None
-        model.rowsMoved.connect(self.update_data_order)
+        self.model().rowsMoved.connect(self.update_data_order)
 
     def add_parameters(self, parameters: tuple) -> None:
         """
@@ -137,9 +136,7 @@ class QueueListWidget(QListWidget):
         parameters : tuple
             The tuple to be added: (inputFile, outputFile, metadata_dict, config_dict).
         """
-        output = Path(parameters[1]).name if parameters[1] else ""
-        if output == "":
-            output = "<use input>"
+        output = Path(parameters[1]).name if parameters[1] else "<use input>"
         dict_str = (
             parameters[0]
             + parameters[1]
@@ -165,7 +162,7 @@ class QueueListWidget(QListWidget):
         self.data_list.pop(row)
         return super().takeItem(row)
 
-    def update_data_order(self):
+    def update_data_order(self) -> None:
         """Update the list of dicts based on the list widget."""
         new_order = []
         for i in range(self.count()):
@@ -195,16 +192,16 @@ class GuiThread(QThread):
 
     filename_received = Signal(str)
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the thread."""
         QThread.__init__(self)
 
-    def set_param(self, params, config_editor):
+    def set_param(self, params: tuple, config_editor: ConfigEditWidget) -> None:
         """Set measurement parameters and meta-data from a parameter tuple."""
         self.inputFile, self.outputFile, self.meta_data, self.config_dict = params
-        self.config_editor = config_editor
+        self.config_editor: ConfigEditWidget = config_editor
 
-    def receive_filename(self):
+    def receive_filename(self) -> None:
         """
         Receive filename from command line.
 
@@ -216,8 +213,7 @@ class GuiThread(QThread):
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("127.0.0.1", MATRIX_GUI_PORT))
         s.listen(1)
-        conn, address = s.accept()  # will block until a new client connects
-
+        conn, _ = s.accept()  # will block until a new client connects
         # get filename which is sent by matrix
         data = ""
         while True:
@@ -225,7 +221,6 @@ class GuiThread(QThread):
             if not datachunk:
                 break
             data += datachunk.decode()
-
         conn.close()
         self.filename_received.emit(data)
 
@@ -236,7 +231,6 @@ class GuiThread(QThread):
         if hasattr(self, "config_dict") and self.config_dict:
             # Use ConfigEditWidget's write_config method to write the dictionary
             tmp_config_file = self.config_editor.write_config(self.config_dict)
-
         try:
             cmd = [get_matrix_binary(), "-i", self.inputFile]
             if self.outputFile != "":
@@ -253,7 +247,6 @@ class GuiThread(QThread):
             ret = self.run_as_fg_process(cmd)
             print(f"matrix ended with returncode: {ret}")
         finally:
-            # Clean up temporary config file
             if tmp_config_file and tmp_config_file.exists():
                 tmp_config_file.unlink()
 
@@ -332,7 +325,6 @@ class GuiThread(QThread):
                 # forward process by tcsetpgrp.
                 os.kill(child.pid, signal.SIGCONT)
 
-                # get filename back
                 self.receive_filename()
 
                 # wait for the child to terminate
@@ -355,25 +347,283 @@ class GuiThread(QThread):
         return ret
 
 
-class MainWindow(FileDropMixin, QMainWindow):
-    """Define layout, runs everything."""
+@dataclass(frozen=True)
+class ActionGroup:
+    """Actions to be utilized in the GUI."""
 
-    def __init__(self):
+    remove: QAction
+    preview: QAction
+    matrix_settings: QAction
+    about: QAction
+    config: QAction
+    sweep: QAction
+    auto_filename: QAction
+    save_as: QAction
+    queue: QAction
+    start: QAction
+    toggle_toolbar: QAction
+    show_log: QAction
+    load: QAction
+    quit: QAction
+
+
+@dataclass(frozen=True)
+class WidgetGroup:
+    """UI widgets to be utilized in the GUI."""
+
+    meas_list: QueueListWidget
+    config_editor: ConfigEditWidget
+    output_edit: QLineEdit
+    dockable_metadata: QDockWidget
+    meta_view: MetaDataDialog
+    input_file: LabelWithSignal
+    current_file: QLabel
+
+
+class UIBuilder:
+    """Build the GUI and provide widgets and actions."""
+
+    def __init__(self, window: QMainWindow) -> None:
+        self.window: QMainWindow = window
+        self.actions: ActionGroup
+        self.widgets: WidgetGroup
+        self.toolbar: QToolBar
+        self._create_actions()
+        self._create_widgets()
+        self._create_gui()
+        self._create_toolbar()
+        self._create_menu()
+
+    def _create_widgets(self) -> None:
+        """Create all UI widgets of this application."""
+        self.measurements_container = QWidget()
+        meas_list = QueueListWidget()
+        config_editor = ConfigEditWidget()
+        config_editor.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        output_edit = QLineEdit()
+        input_file = LabelWithSignal()
+        current_file = QLabel()
+        dockable_metadata = QDockWidget("Metadata", self.window)
+        meta_view = MetaDataDialog()
+        dockable_metadata.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        dockable_metadata.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        dockable_metadata.setWidget(meta_view)
+        self.central_widget = QWidget()
+        self.input_label = QLabel("<b>Input: </b>")
+        self.output_label = QLabel("<b>Output: </b>")
+        self.queue_label = QLabel("Queue")
+        self.current_label = QLabel("<b>Current: </b>")
+        self.widgets = WidgetGroup(
+            meas_list=meas_list,
+            config_editor=config_editor,
+            output_edit=output_edit,
+            dockable_metadata=dockable_metadata,
+            meta_view=meta_view,
+            input_file=input_file,
+            current_file=current_file,
+        )
+
+    def _create_gui(self) -> None:
+        """Create and set up all GUI layouts."""
+        inner_measurement_layout = QHBoxLayout()
+        inner_measurement_layout.setContentsMargins(0, 0, 0, 0)
+        inner_measurement_layout.addWidget(self.widgets.meas_list)
+        inner_measurement_layout.addWidget(self.remove_button)
+        self.measurements_container.setLayout(inner_measurement_layout)
+        self.window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.widgets.config_editor)
+        self.widgets.config_editor.setFloating(True)
+        self.widgets.config_editor.close()
+        central_layout = QVBoxLayout()
+        input_line = QHBoxLayout()
+        input_line.addWidget(self.input_label)
+        input_line.addWidget(self.widgets.input_file)
+        input_line.addStretch()
+        central_layout.addLayout(input_line)
+        output_line = QHBoxLayout()
+        output_line.addWidget(self.output_label)
+        output_line.addWidget(self.widgets.output_edit)
+        central_layout.addLayout(output_line)
+        central_layout.addWidget(self.queue_label)
+        central_layout.addWidget(self.measurements_container)
+        current_line = QHBoxLayout()
+        current_line.addWidget(self.current_label)
+        current_line.addWidget(self.widgets.current_file)
+        current_line.addStretch()
+        central_layout.addLayout(current_line)
+        self.central_widget.setLayout(central_layout)
+        self.window.setCentralWidget(self.central_widget)
+        self.window.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.widgets.dockable_metadata
+        )
+
+    def _create_actions(self) -> None:
+        """Create all QActions of this application."""
+        self.remove_button = QToolButton()
+        self.remove_button.setStyleSheet(
+            """
+                    QToolButton {
+                        border: none;
+                        background: none;
+                    }
+                """
+        )
+        self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        remove = QAction(get_matrix_icon("CHAR_-"), "Remove", self.window)
+        self.remove_button.setDefaultAction(remove)
+        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self.window)
+        load.setShortcut(QKeySequence.StandardKey.Open)
+        quit_app = QAction("Quit", self.window)
+        if os.name == "nt":
+            quit_app.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
+        preview = QAction(
+            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")),
+            "Preview",
+            self.window,
+        )
+        preview.setEnabled(False)
+        matrix_settings = QAction("Show matrix toml", self.window)
+        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
+        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
+        matrix_settings.triggered.connect(open_matrix_toml)
+        about = QAction("About", self.window)
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+        config = QAction(get_matrix_icon("CHAR_≡"), "Device config", self.window)
+        config.setCheckable(True)
+        sweep = QAction(
+            get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
+            "Generator",
+            self.window,
+        )
+        auto_filename = QAction(get_matrix_icon("SP_DriveHDIcon"), "Auto-filename", self.window)
+        auto_filename.setCheckable(True)
+        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self.window)
+        save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
+        queue = QAction(get_matrix_icon("CHAR_+"), "Queue", self.window)
+        queue.setEnabled(False)
+        start = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self.window)
+        start.setEnabled(False)
+        toggle_toolbar = QAction("Show Toolbar", self.window)
+        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
+        toggle_toolbar.setCheckable(True)
+        toggle_toolbar.setChecked(True)
+        show_log = QAction("Show Log Window", self.window)
+        show_log.setCheckable(True)
+        self.actions = ActionGroup(
+            remove=remove,
+            preview=preview,
+            matrix_settings=matrix_settings,
+            about=about,
+            config=config,
+            sweep=sweep,
+            auto_filename=auto_filename,
+            save_as=save_as,
+            queue=queue,
+            start=start,
+            toggle_toolbar=toggle_toolbar,
+            show_log=show_log,
+            load=load,
+            quit=quit_app,
+        )
+
+    def _create_toolbar(self) -> None:
+        """Create the Toolbar."""
+        self.toolbar = QToolBar("Toolbar")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.toolbar.setFloatable(False)
+        icon_size = get_application_instance().toolbar_icon_size()
+        empty = QWidget()
+        empty.setFixedWidth(icon_size)
+        empty2 = QWidget()
+        empty2.setFixedWidth(icon_size)
+        self.toolbar.setIconSize(QSize(icon_size, icon_size))
+        self.toolbar.addAction(self.actions.load)
+        self.toolbar.addAction(self.actions.sweep)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.actions.auto_filename)
+        self.toolbar.addAction(self.actions.save_as)
+        self.toolbar.addWidget(empty)
+        self.toolbar.addAction(self.actions.start)
+        self.toolbar.addAction(self.actions.queue)
+        self.toolbar.visibilityChanged.connect(self.actions.toggle_toolbar.setChecked)
+        self.toolbar.addWidget(empty2)
+        self.toolbar.addAction(self.actions.preview)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.toolbar.addWidget(spacer)
+        self.toolbar.addAction(self.actions.config)
+        self.window.addToolBar(self.toolbar)
+
+    def _create_menu(self) -> None:
+        """Create the menu."""
+        menu = self.window.menuBar()
+        file_menu = menu.addMenu("&File")
+        file_menu.addAction(self.actions.load)
+        file_menu.addAction(self.actions.sweep)
+        file_menu.addSeparator()
+        file_menu.addAction(self.actions.auto_filename)
+        file_menu.addAction(self.actions.save_as)
+        file_menu.addSeparator()
+        file_menu.addAction(self.actions.remove)
+        file_menu.addSeparator()
+        file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
+        control_menu = menu.addMenu("&Control")
+        control_menu.addAction(self.actions.start)
+        control_menu.addAction(self.actions.queue)
+        control_menu.addSeparator()
+        control_menu.addAction(self.actions.preview)
+        view_menu = menu.addMenu("&View")
+        view_menu.addAction(self.actions.toggle_toolbar)
+        view_menu.addAction(self.actions.matrix_settings)
+        view_menu.addAction(self.actions.config)
+        help_menu = menu.addMenu("&Help")
+        help_menu.addAction(self.actions.about)
+        help_menu.addAction(self.actions.show_log)
+
+
+class MainWindow(FileDropMixin, QMainWindow):
+    """Runs the logical code."""
+
+    def __init__(self) -> None:
         super().__init__()
         self.log_window = LoggingWindow(parent=self)
         self.log_window.hide()
         logger.info("matrix-gui starting")
-
-        self.initUI()
+        self.setWindowTitle("Matrix GUI")
+        self.setWindowIcon(get_matrix_icon("matr1x-matrix-gui.png"))
+        self.ui = UIBuilder(self)
+        self.ui.actions.remove.triggered.connect(self.remove_measurement)
+        self.ui.actions.preview.triggered.connect(self.open_preview)
+        self.ui.actions.about.triggered.connect(self.info_box)
+        self.ui.actions.config.toggled.connect(self.toggle_preferences)
+        self.ui.widgets.config_editor.visibilityChanged.connect(self.ui.actions.config.setChecked)
+        self.ui.actions.sweep.triggered.connect(self.start_sweep_generator)
+        self.ui.actions.auto_filename.toggled.connect(self.update_auto_gen_filename)
+        self.ui.actions.save_as.triggered.connect(self.show_output_dialog)
+        self.ui.actions.queue.triggered.connect(self.queue_measurement)
+        self.ui.actions.start.triggered.connect(self.run_matrix)
+        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.ui.actions.load.triggered.connect(self.show_input_dialog)
+        self.ui.actions.quit.triggered.connect(self.close)
+        self.ui.widgets.input_file.textChanged.connect(self.parse_system_from_inputfile)
+        check_config(matr1x.config)
         self.sg: QMainWindow | None = None
         self.running = False
         self.sys_meta_data = {}
         self.measurement_thread = GuiThread()
         self.measurement_thread.filename_received.connect(self.handle_received_filename)
-        self.measurement_thread.finished.connect(self.processFinished)
+        self.measurement_thread.finished.connect(self.process_finished)
         self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
-        self.file_dropped.connect(lambda file: self.input_file.setText(file))
+        self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
         self.settings = SaferQSettings("matr1x", "gui")
         self._cached_system_info = None
 
@@ -386,85 +636,74 @@ class MainWindow(FileDropMixin, QMainWindow):
         filename : str
             The filename given to the measurement file.
         """
-        self.current_file.setText(filename)
-        self.preview_action.setEnabled(True)
+        self.ui.widgets.current_file.setText(filename)
+        self.ui.actions.preview.setEnabled(True)
 
-    def closeEvent(self, a0):
+    def closeEvent(self, a0: QCloseEvent) -> None:
         """Close app properly."""
-        if a0 is not None:
-            if self.running:
-                QMessageBox.critical(
-                    QWidget(),
-                    "Measurement running!",
-                    """Please wait for the measurement to finish. Alternatively,
-                    stop the measurement in the terminal before exiting 'Matrix GUI'!""",
-                )
-                a0.ignore()
-                return
-            # close sweep generator as well
-            if self.sg is not None:
-                self.sg.close()
-            # clean up measurement list
-            while self.meas_list.count() > 0:
-                self.removeMeasurement()
-            self.save_window_state()
-            root_logger = logging.getLogger()
-            root_logger.removeHandler(self.log_window.log_handler)
-            self.log_window.deleteLater()
-            a0.accept()
+        if self.running:
+            QMessageBox.warning(
+                QWidget(),
+                "Measurement running!",
+                """Please wait for the measurement to finish. Alternatively,
+                stop the measurement in the terminal before exiting 'Matrix GUI'!""",
+            )
+            a0.ignore()
+            return
+        if self.sg is not None:
+            self.sg.close()
+        while self.ui.widgets.meas_list.count() > 0:
+            self.remove_measurement()
+        self.save_window_state()
+        root_logger = logging.getLogger()
+        root_logger.removeHandler(self.log_window.log_handler)
+        self.log_window.deleteLater()
+        a0.accept()
 
-    def info_box(self):
+    def info_box(self) -> None:
         """Display an 'about this app' widget."""
         box = AboutBox(
             "Matrix GUI", get_matrix_icon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
         )
         box.exec()
-        return
 
     def save_window_state(self) -> None:
-        """
-        Save application configuration until next startup.
-
-        For convenience, main window geometry, the toolbar placement,
-        and the size and position of metadata and configuration pane are
-        saved.
-        """
+        """Save application configuration until next startup."""
         self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("toolbar_position", self.toolBarArea(self.toolbar).value)
-        self.settings.setValue("metadata_size", self.w_dockable_metadata.size())
-        self.settings.setValue("config_position", self.config_editor.pos())
-        self.settings.setValue("config_size", self.config_editor.size())
+        self.settings.setValue("toolbar_position", self.toolBarArea(self.ui.toolbar).value)
+        self.settings.setValue("metadata_size", self.ui.widgets.dockable_metadata.size())
+        self.settings.setValue("config_position", self.ui.widgets.config_editor.pos())
+        self.settings.setValue("config_size", self.ui.widgets.config_editor.size())
         self.settings.setValue("log_window/position", self.log_window.pos())
         self.settings.setValue("log_window/size", self.log_window.size())
 
     def restore_window_state(self) -> None:
-        """
-        Restore application configuration to look similar to the previous use.
-
-        Main window geometry, the toolbar placement, and the size and
-        position of metadata and configuration pane are restored.
-        """
+        """Restore application configuration from the previous use."""
         toolbar_pos = self.settings.safer_value(
             "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
         )
-        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.toolbar)
+        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
         # Just in case it is the first start
         self.resize(self.sizeHint())
         self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
         self.resizeDocks(
-            [self.w_dockable_metadata],
+            [self.ui.widgets.dockable_metadata],
             [
                 self.settings.safer_value(
-                    "metadata_size", self.w_dockable_metadata.size(), type=QSize
+                    "metadata_size", self.ui.widgets.dockable_metadata.size(), type=QSize
                 ).width()
             ],
             Qt.Orientation.Horizontal,
         )
-        self.config_editor.move(
-            self.settings.safer_value("config_position", self.config_editor.pos(), type=QPoint)
+        self.ui.widgets.config_editor.move(
+            self.settings.safer_value(
+                "config_position", self.ui.widgets.config_editor.pos(), type=QPoint
+            )
         )
-        self.config_editor.resize(
-            self.settings.safer_value("config_size", self.config_editor.size(), type=QSize)
+        self.ui.widgets.config_editor.resize(
+            self.settings.safer_value(
+                "config_size", self.ui.widgets.config_editor.size(), type=QSize
+            )
         )
         self.log_window.move(
             self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
@@ -473,235 +712,60 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
         )
 
-    def toggle_log_window(self):
+    def toggle_log_window(self) -> None:
         """Toggle the visibility of the logging window."""
         if self.log_window.isVisible():
             self.log_window.hide()
-            self.show_log_action.setChecked(False)
-            self.show_log_action.setText("Show Log Window")
+            self.ui.actions.show_log.setChecked(False)
+            self.ui.actions.show_log.setText("Show Log Window")
         else:
             self.log_window.show()
             self.log_window.raise_()
             self.log_window.activateWindow()
-            self.show_log_action.setChecked(True)
-            self.show_log_action.setText("Hide Log Window")
+            self.ui.actions.show_log.setChecked(True)
+            self.ui.actions.show_log.setText("Hide Log Window")
 
-    def toggle_preferences(self, checked):
-        """Open the preferences pane."""
+    def toggle_preferences(self, checked: bool) -> None:
+        """
+        Toggle the preferences pane.
+
+        Parameters
+        ----------
+        checked: bool
+            Show (True) or hide (False) the preferences.
+        """
         if checked:
-            self.config_editor.show()
-            self.config_editor.raise_()
-            self.config_editor.activateWindow()
+            self.ui.widgets.config_editor.show()
+            self.ui.widgets.config_editor.raise_()
+            self.ui.widgets.config_editor.activateWindow()
         else:
-            self.config_editor.hide()
+            self.ui.widgets.config_editor.hide()
 
-    def toggle_toolbar_view(self, checked):
-        """Toogles the visibility of the toolbar on and off."""
+    def toggle_toolbar_view(self, checked: bool) -> None:
+        """
+        Toogles the visibility of the toolbar.
+
+        Parameters
+        ----------
+        checked: bool
+            Show (True) or hide (False) the toolbar.
+        """
         if checked:
-            self.toolbar.show()
+            self.ui.toolbar.show()
         else:
-            self.toolbar.hide()
+            self.ui.toolbar.hide()
 
-    def initUI(self):
-        """Initialize the basic GUI for the graphical version of matrix."""
-        self.setWindowTitle("Matrix GUI")
-        self.setWindowIcon(get_matrix_icon("matr1x-matrix-gui.png"))
-        self.measurements_container = QWidget()
-        inner_measurement_layout = QHBoxLayout()
-        inner_measurement_layout.setContentsMargins(0, 0, 0, 0)
-        self.meas_list = QueueListWidget()
-        self.create_actions()
-        inner_measurement_layout.addWidget(self.meas_list)
-        inner_measurement_layout.addWidget(self.remove_button)
-        self.measurements_container.setLayout(inner_measurement_layout)
-        self.create_menu()
-        self.create_toolbar()
-        central_layout = QVBoxLayout()
-        self.input_file = LabelWithSignal()
-        self.input_file.textChanged.connect(self.parseSystemFromInputFile)
-        input_line = QHBoxLayout()
-        input_line.addWidget(QLabel("<b>Input: </b>"))
-        input_line.addWidget(self.input_file)
-        input_line.addStretch()
-        central_layout.addLayout(input_line)
-        output_line = QHBoxLayout()
-        output_line.addWidget(QLabel("<b>Output: </b>"))
-        output_line.addWidget(self.outputEdit)
-        central_layout.addLayout(output_line)
-        central_layout.addWidget(QLabel("Queue"))
-        central_layout.addWidget(self.measurements_container)
-        current_line = QHBoxLayout()
-        current_line.addWidget(QLabel("<b>Current: </b>"))
-        self.current_file = QLabel()
-        current_line.addWidget(self.current_file)
-        current_line.addStretch()
-        central_layout.addLayout(current_line)
-        self.widget = QWidget()
-        self.widget.setLayout(central_layout)
-        self.setCentralWidget(self.widget)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.w_dockable_metadata)
-        check_config(matr1x.config)
-
-    def create_actions(self) -> None:
-        """Create all QActions of this application."""
-        self.remove_button = QToolButton()
-        self.remove_button.setStyleSheet(
-            """
-                    QToolButton {
-                        border: none;
-                        background: none;
-                    }
-                """
-        )
-        self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.remove_action = QAction(get_matrix_icon("CHAR_-"), "Remove", self)
-        self.remove_action.triggered.connect(self.removeMeasurement)
-        self.remove_button.setDefaultAction(self.remove_action)
-        self.preview_action = QAction(
-            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview", self
-        )
-        self.preview_action.triggered.connect(self.openPreview)
-        self.preview_action.setEnabled(False)
-        self.matrix_settings_action = QAction("Show matrix toml", self)
-        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
-        self.matrix_settings_action.triggered.connect(open_matrix_toml)
-        self.about_action = QAction("About", self)
-        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
-        self.about_action.triggered.connect(self.info_box)
-        self.config_editor = ConfigEditWidget()
-        self.config_editor.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.config_editor)
-        self.config_editor.setFloating(True)
-        self.config_editor.close()
-        self.config_action = QAction(get_matrix_icon("CHAR_≡"), "Device config", self)
-        self.config_action.setCheckable(True)
-        self.config_action.toggled.connect(self.toggle_preferences)
-        self.config_editor.visibilityChanged.connect(self.config_action.setChecked)
-        self.load_action = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self)
-        self.load_action.triggered.connect(self.showInputDialog)
-        self.load_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.sweep_action = QAction(
-            get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
-            "Generator",
-            self,
-        )
-        self.sweep_action.triggered.connect(self.startSweepGenerator)
-        self.auto_filename_action = QAction(
-            get_matrix_icon("SP_DriveHDIcon"), "Auto-filename", self
-        )
-        self.auto_filename_action.setCheckable(True)
-        self.auto_filename_action.toggled.connect(self.updateAutoGenFilename)
-        self.save_as_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self)
-        self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        self.save_as_action.triggered.connect(self.showOutputDialog)
-        self.outputEdit = QLineEdit()
-        self.quit_action = QAction("Quit", self)
-        if os.name == "nt":
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        self.quit_action.triggered.connect(self.close)
-        self.queue_action = QAction(get_matrix_icon("CHAR_+"), "Queue", self)
-        self.queue_action.triggered.connect(self.queueMeasurement)
-        self.queue_action.setEnabled(False)
-        self.start_action = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self)
-        self.start_action.triggered.connect(self.runMatrix)
-        self.start_action.setEnabled(False)
-        self.w_dockable_metadata = QDockWidget("Metadata", self)
-        self.w_meta_view = MetaDataDialog()
-        self.w_dockable_metadata.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
-        )
-        self.w_dockable_metadata.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-        self.w_dockable_metadata.setWidget(self.w_meta_view)
-        self.toggle_toolbar_action = QAction("Show Toolbar", self)
-        self.toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
-        self.toggle_toolbar_action.setCheckable(True)
-        self.toggle_toolbar_action.setChecked(True)
-        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar_view)
-        self.show_log_action = QAction("Show Log Window", self)
-        self.show_log_action.setCheckable(True)
-        self.show_log_action.triggered.connect(self.toggle_log_window)
-
-    def create_toolbar(self) -> None:
-        """Create the Toolbar."""
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.toolbar.setFloatable(False)
-        icon_size = get_application_instance().toolbar_icon_size()
-        empty = QWidget()
-        empty.setFixedWidth(icon_size)
-        empty2 = QWidget()
-        empty2.setFixedWidth(icon_size)
-        self.toolbar.setIconSize(QSize(icon_size, icon_size))
-        self.toolbar.addAction(self.load_action)
-        self.toolbar.addAction(self.sweep_action)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.auto_filename_action)
-        self.toolbar.addAction(self.save_as_action)
-        self.toolbar.addWidget(empty)
-        self.toolbar.addAction(self.start_action)
-        self.toolbar.addAction(self.queue_action)
-        self.toolbar.visibilityChanged.connect(self.toggle_toolbar_action.setChecked)
-        self.toolbar.addWidget(empty2)
-        self.toolbar.addAction(self.preview_action)
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addAction(self.config_action)
-        self.addToolBar(self.toolbar)
-
-    def create_menu(self) -> None:
-        """Create the menu."""
-        menu = self.menuBar()
-        assert menu is not None
-        # Populate the actions
-        file_menu = menu.addMenu("&File")
-        assert file_menu is not None
-        file_menu.addAction(self.load_action)
-        file_menu.addAction(self.sweep_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.auto_filename_action)
-        file_menu.addAction(self.save_as_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.remove_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.quit_action)  # This gets auto-moved on a Mac
-        #
-        control_menu = menu.addMenu("&Control")
-        assert control_menu is not None
-        control_menu.addAction(self.start_action)
-        control_menu.addAction(self.queue_action)
-        control_menu.addSeparator()
-        control_menu.addAction(self.preview_action)
-        #
-        view_menu = menu.addMenu("&View")
-        assert view_menu is not None
-        view_menu.addAction(self.toggle_toolbar_action)
-        view_menu.addAction(self.matrix_settings_action)
-        view_menu.addAction(self.config_action)
-        #
-        help_menu = menu.addMenu("&Help")
-        assert help_menu is not None
-        help_menu.addAction(self.about_action)
-        help_menu.addAction(self.show_log_action)
-
-    def updateAutoGenFilename(self, state):
+    def update_auto_gen_filename(self, state: bool) -> None:
         """Fill in output filename if required."""
-        if state is True:
-            input_path = Path(self.input_file.text())
-            self.outputEdit.setText(str(input_path.with_suffix("")))
+        if state:
+            input_path = Path(self.ui.widgets.input_file.text())
+            self.ui.widgets.output_edit.setText(str(input_path.with_suffix("")))
 
-    def showInputDialog(self):
+    def show_input_dialog(self) -> None:
         """Open a QFileDialog with filter for input files."""
-        folder = self.input_file.text()
+        folder = self.ui.widgets.input_file.text()
         if "" == folder:
-            folder = self.outputEdit.text()
+            folder = self.ui.widgets.output_edit.text()
             if "" == folder:
                 folder = matr1x.usersfolder
         # remove old pattern with next major update
@@ -709,16 +773,16 @@ class MainWindow(FileDropMixin, QMainWindow):
             self, "Select input file", str(folder), "Sweep 8 files (*.sw8);;t files (*.*t)"
         )
         if "" != filename[0]:
-            self.input_file.setText(filename[0])
-            if self.auto_filename_action.isChecked():
-                input_path = Path(self.input_file.text())
-                self.outputEdit.setText(str(input_path.with_suffix("")))
+            self.ui.widgets.input_file.setText(filename[0])
+            if self.ui.actions.auto_filename.isChecked():
+                input_path = Path(self.ui.widgets.input_file.text())
+                self.ui.widgets.output_edit.setText(str(input_path.with_suffix("")))
 
-    def showOutputDialog(self):
+    def show_output_dialog(self) -> None:
         """Open a QFileDialog with filter for output files."""
-        folder = self.outputEdit.text()
+        folder = self.ui.widgets.output_edit.text()
         if "" == folder:
-            folder = self.input_file.text()
+            folder = self.ui.widgets.input_file.text()
             if "" == folder:
                 folder = matr1x.usersfolder
         filename = QFileDialog.getSaveFileName(
@@ -729,13 +793,14 @@ class MainWindow(FileDropMixin, QMainWindow):
             options=QFileDialog.Option.DontConfirmOverwrite,
         )
         if "" != filename[0]:
-            self.outputEdit.setText(filename[0])
+            self.ui.widgets.output_edit.setText(filename[0])
 
-    def startSweepGenerator(self):
+    def start_sweep_generator(self) -> None:
         """Run sweep Generator already initialized with system."""
         if self.sg is None:
             self.sg = sweep_generator.MainWindow(
-                filename=Path(self.input_file.text()), inputcb=self.input_file.setText
+                filename=Path(self.ui.widgets.input_file.text()),
+                inputcb=self.ui.widgets.input_file.setText,
             )
             self.sg.show()
         elif self.sg.isVisible() is False:
@@ -745,45 +810,38 @@ class MainWindow(FileDropMixin, QMainWindow):
         else:
             self.sg.raise_()
 
-    def parseSystemFromInputFile(self, input_file_path: str) -> None:
+    def parse_system_from_inputfile(self, input_file_path: str) -> None:
         """Parse the system from an input file."""
-        systemfile: list[str] | None = None
         input_path = Path(input_file_path)
         if not input_path.exists():
-            # no file, ignore
             return
-        with open_and_error(input_file_path, "r") as (f, err):
-            if err:
+        with open_and_error(input_file_path, "r") as f:
+            if isinstance(f, Error):
                 QMessageBox.warning(
-                    self, "Input file error!", f"Input file cannot be parsed: {err}."
+                    self, "Input file error!", f"Input file cannot be parsed: {f.error}."
                 )
-            else:
-                assert f is not None
-                for line in f:
-                    system_pattern = r"^# [Ss]ystem filename : (.+)"
-                    if match := re.match(system_pattern, line.strip()):
-                        systemfile = match.group(1).split(",")
-                        break
-                    if "#" != line[0]:
-                        # should not occur
-                        QMessageBox.warning(
-                            self,
-                            "System file error!",
-                            "No system specified in input file.",
-                        )
-                        return
-
-                # Check if systemfile was found
-                if systemfile is None:
+                return
+            for line in f.value:
+                system_pattern = r"^# [Ss]ystem filename : (.+)"
+                if match := re.match(system_pattern, line.strip()):
+                    systemfile: list[str] = match.group(1).split(",")
+                    break
+                if line.strip() and not line.strip().startswith("#"):
+                    # should not occur
                     QMessageBox.warning(
                         self,
                         "System file error!",
                         "No system specified in input file.",
                     )
                     return
+            else:
+                QMessageBox.warning(
+                    self,
+                    "System file error!",
+                    "No system specified in input file.",
+                )
+                return
         try:
-            # Type assertion to help type checker
-            assert systemfile is not None
             system = MergedSystem.from_files(systemfile)
         except ModuleNotFoundError:
             QMessageBox.warning(self, "System file error!", "System file does not exist.")
@@ -793,84 +851,82 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self, "System file error!", "Insufficient permissions for system file."
             )
             return
-
         self.sys_meta_data = system.dcdata
-
         configurable = [system for system in systemfile if not Path(system.strip()).exists()]
-
         # Get system information using subprocess (cache for reuse)
         self._cached_system_info = None
         if systemfile:
             try:
-                self._cached_system_info = get_system_info(systemfile)
+                self._cached_system_info = get_system_info(systemfile)  # type: ignore
                 if not self._cached_system_info:
                     print("Warning: subprocess returned empty system info")
-                    self._cached_system_info = {}
+                    self._cached_system_info = {}  # type: ignore
             except Exception as e:
                 print(f"Warning: Could not get system info for config editor: {e}")
-                self._cached_system_info = {}
-
+                self._cached_system_info = {}  # type: ignore
         matr1x.reload_config()
-        self.config_editor.set_systemfile(configurable)
-        if systemfile != self.config_editor.full_system_list:
-            self.config_editor.set_full_system_list(systemfile)
-            self.config_editor.set_system_info(self._cached_system_info or {})
-            self.config_editor.update_data()
-        self.queue_action.setEnabled(True)
+        self.ui.widgets.config_editor.set_systemfile(configurable)
+        if systemfile != self.ui.widgets.config_editor.full_system_list:
+            self.ui.widgets.config_editor.set_full_system_list(systemfile)
+            self.ui.widgets.config_editor.set_system_info(self._cached_system_info or {})
+            self.ui.widgets.config_editor.update_data()
+        self.ui.actions.queue.setEnabled(True)
 
-    def queueMeasurement(self):
+    def queue_measurement(self) -> None:
         """Queue a measurement into the measurement menu."""
-        inputFile = self.input_file.text()
-        outputFile = self.outputEdit.text()
+        inputFile = self.ui.widgets.input_file.text()
+        outputFile = self.ui.widgets.output_edit.text()
         if not Path(inputFile).exists():
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
             return
-        metadata = self.w_meta_view.get_metadata()
+        metadata = self.ui.widgets.meta_view.get_metadata()
         for key in metadata.keys():
             self.sys_meta_data[key] = metadata[key]
         # create parameter set for measurement, make sure to copy the meta data
-        config_dict = self.config_editor.get_config_dict()
+        config_dict = self.ui.widgets.config_editor.get_config_dict()
         parameters = (
             inputFile,
             outputFile,
             self.sys_meta_data.copy(),
             config_dict,
         )
-        self.meas_list.add_parameters(parameters)
+        self.ui.widgets.meas_list.add_parameters(parameters)
         if not self.running:
-            self.start_action.setEnabled(True)
+            self.ui.actions.start.setEnabled(True)
 
-    def runMatrix(self):
+    def run_matrix(self) -> None:
         """Start running the queued measurements."""
         self.running = True
-        self.preview_action.setEnabled(False)
-        self.start_action.setEnabled(False)
-        self.runNextMeasurement()
+        self.ui.actions.preview.setEnabled(False)
+        self.ui.actions.start.setEnabled(False)
+        self.run_next_measurement()
 
-    def keyPressEvent(self, a0: QKeyEvent):
+    def keyPressEvent(self, a0: QKeyEvent) -> None:
         """Allow to modify systems list with keyboard shortcuts."""
-        if self.meas_list.hasFocus():
+        if self.ui.widgets.meas_list.hasFocus():
             if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)):
-                self.removeMeasurement()
+                self.remove_measurement()
             if detect_shortcut(a0, QKeySequence(Qt.Key.Key_Backspace)):
-                self.removeMeasurement()
+                self.remove_measurement()
         super().keyPressEvent(a0)
 
-    def removeMeasurement(self):
+    def remove_measurement(self) -> None:
         """Remove selected or last item from measurement list."""
-        selected = self.meas_list.selectedItems()
+        selected = self.ui.widgets.meas_list.selectedItems()
         if len(selected) > 0:
-            self.meas_list.takeItem(self.meas_list.row(selected[0]))
-        elif 0 < self.meas_list.count():  # remove last item
-            self.meas_list.takeItem(self.meas_list.count() - 1)
-            self.start_action.setEnabled(False)
+            self.ui.widgets.meas_list.takeItem(self.ui.widgets.meas_list.row(selected[0]))
+        elif 0 < self.ui.widgets.meas_list.count():  # remove last item
+            self.ui.widgets.meas_list.takeItem(self.ui.widgets.meas_list.count() - 1)
+            self.ui.actions.start.setEnabled(False)
 
-    def runNextMeasurement(self):
+    def run_next_measurement(self) -> None:
         """Run the next queued measurement."""
-        self.measurement_thread.set_param(self.meas_list.parameters(0), self.config_editor)
+        self.measurement_thread.set_param(
+            self.ui.widgets.meas_list.parameters(0), self.ui.widgets.config_editor
+        )
         self.measurement_thread.start()
 
-    def processFinished(self):
+    def process_finished(self) -> None:
         """
         Properly finish a mesurement.
 
@@ -878,16 +934,16 @@ class MainWindow(FileDropMixin, QMainWindow):
         there are further measurements in the queue and runs them in
         case.
         """
-        self.meas_list.takeItem(0)
-        if self.meas_list.count() > 0 and self.running is True:
-            self.runNextMeasurement()
+        self.ui.widgets.meas_list.takeItem(0)
+        if self.ui.widgets.meas_list.count() > 0 and self.running is True:
+            self.run_next_measurement()
         else:
-            self.start_action.setEnabled(False)
+            self.ui.actions.start.setEnabled(False)
             self.running = False
 
-    def openPreview(self):
-        """Open a window and preview the (running) measurement."""
-        output = Path(self.current_file.text())
+    def open_preview(self) -> None:
+        """Spawn a preview for the (running) measurement."""
+        output = Path(self.ui.widgets.current_file.text())
         if not output.exists():
             QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
         else:
@@ -899,7 +955,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             subprocess.Popen(preview)
 
 
-def main():
+def main() -> None:
     """Set the basic GUI parameters and run."""
     install_error_handler()
     app = MApplication(sys.argv)
