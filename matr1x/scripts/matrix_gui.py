@@ -950,7 +950,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             preview = [
                 sys.executable,
                 "-c",
-                f"from matr1x.scripts import matrix_preview; matrix_preview.main(file='{output}')",
+                f"from matr1x.scripts import matrix_preview; matrix_preview.main(file=r'{output}')",
             ]
             subprocess.Popen(preview)
 
