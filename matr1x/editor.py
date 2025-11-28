@@ -45,6 +45,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.error_handling import Error
 from matr1x.gui_util import FileDropMixin, get_application_instance
+from matr1x.models import SystemInfo
 from matr1x.util import (
     generate_script,
     get_script_prefix_offset,
@@ -82,10 +83,15 @@ class RuffMessageModel(BaseModel):
 class Matr1xFunctionChecker(ast.NodeVisitor):
     """Implements ast-based function checker for matr1x functions."""
 
-    def __init__(self, indexes, settables, columns):
-        self.indexes = indexes
-        self.settables = settables
-        self.columns = columns
+    def __init__(self, system_info: SystemInfo | None):
+        self.indexes = []
+        self.settables = []
+        self.columns = []
+        if system_info is not None:
+            for key, data in system_info.parameters.items():
+                self.indexes.append(str(data.index))
+                self.settables.append(data.settable)
+                self.columns.append(data.name)
         self.errors: int = 0
         self.lineno: int
         self.col: int
@@ -254,20 +260,20 @@ class Linter(QObject):
 
     def __init__(self):
         super().__init__()
-        self.settables = None
+        self.system_info: SystemInfo | None = None
         self.current_diagnostics_count = 0
         self.issues: int = 0
 
-    def update_settables(self, settables):
+    def update_settables(self, system_info: SystemInfo | None):
         """
-        Update the settables data used for validation.
+        Update the SystemInfo object used for value checking.
 
         Parameters
         ----------
-        settables
-            The settables of the system files (indexes, settables, columns).
+        system_info
+            The system information.
         """
-        self.settables = settables
+        self.system_info = system_info
 
     RUFF_RULES = [
         "F821",
@@ -335,9 +341,9 @@ class Linter(QObject):
             The generated script to check for value errors.
         """
         try:
-            if self.settables:
+            if self.system_info is not None:
                 tree = ast.parse(script, filename="script")
-                checker = Matr1xFunctionChecker(*self.settables)
+                checker = Matr1xFunctionChecker(self.system_info)
                 checker.set_script(script)
                 checker.visit(tree)
                 return checker.returnDiagnostics()
@@ -775,16 +781,16 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         """
         self._run_javascript(f"window.enableTabCompletion({str(enable).lower()})")
 
-    def setSettables(self, settables) -> None:
+    def setSettables(self, system_info: SystemInfo | None) -> None:
         """
-        Receive the (settable) column names and update Monaco.
+        Receive the system info and update Monaco.
 
         Parameters
         ----------
-        settables
-            The settables of the system files.
+        system_info
+            The system information required by the linter.
         """
-        self.linter.update_settables(settables)
+        self.linter.update_settables(system_info)
         self._run_javascript("window.triggerLinting()")
 
     def insertText(self, text: str) -> None:

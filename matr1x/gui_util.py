@@ -25,7 +25,6 @@ script and control-guis.
 """
 
 import datetime
-import json
 import logging
 import os
 import platform
@@ -117,8 +116,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from matr1x.error_handling import InternalInvariantError
-from matr1x.models import MainConfig, UserlibConfig
+from matr1x.error_handling import Error, InternalInvariantError, Result, Success
+from matr1x.models import MainConfig, SystemInfo, UserlibConfig
 
 from . import (
     datetimefmt,
@@ -1200,7 +1199,7 @@ class ConfigEditWidget(MetaViewerWidget):
     def __init__(self):
         super().__init__({}, heading="Device config", editable=True)
         self.system_file = None
-        self.system_info = {}
+        self.system_info: SystemInfo | None = None
         self.full_system_list = []
 
         widget = QWidget()
@@ -1258,7 +1257,7 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         self.systemfile = systemfile
 
-    def set_system_info(self, system_info):
+    def set_system_info(self, system_info: SystemInfo | None):
         """
         Set system information from subprocess for config editor.
 
@@ -1267,7 +1266,7 @@ class ConfigEditWidget(MetaViewerWidget):
         system_info : dict
             Dictionary containing system information including config.
         """
-        self.system_info = system_info or {}
+        self.system_info = system_info
 
     def set_full_system_list(self, full_system_list):
         """
@@ -1284,17 +1283,13 @@ class ConfigEditWidget(MetaViewerWidget):
         """Reload system information and update data - wrapper for button action."""
         # Reload system information if full system list is available
         if hasattr(self, "full_system_list") and self.full_system_list:
-            try:
-                self.system_info = get_system_info(self.full_system_list)
-                if not self.system_info:
-                    print("Warning: Could not reload system info")
-                    self.system_info = {}
-            except Exception as e:
-                print(f"Warning: Could not reload system info: {e}")
-                self.system_info = {}
-
-        # Call the original update_data method
-        self.update_data()
+            system_info = get_system_info(self.full_system_list)
+            if isinstance(system_info, Error):
+                print(system_info.error)
+                self.system_info = None
+            else:
+                self.system_info = system_info.value
+        self.update_data()  # Call the original update_data method
 
     def update_data(self):
         """Update the configuration data in the widget."""
@@ -1302,10 +1297,8 @@ class ConfigEditWidget(MetaViewerWidget):
         reload_config()
 
         # Check if we have a merged system by looking for comma-separated system names
-        is_merged_system = (
-            self.system_info
-            and "config" in self.system_info
-            and any("," in system_name for system_name in self.system_info["config"].keys())
+        is_merged_system = self.system_info is not None and any(
+            "," in system_name for system_name in self.system_info.config.keys()
         )
 
         # parse config of systems specified in self.systemfile
@@ -1315,8 +1308,8 @@ class ConfigEditWidget(MetaViewerWidget):
                 syst_dict[syst.strip()] = get_config_dict(syst.strip())
 
         # parse config from system info (from subprocess)
-        if self.system_info and "config" in self.system_info:
-            for system_name, config_info in self.system_info["config"].items():
+        if self.system_info is not None:
+            for system_name, config_info in self.system_info.config.items():
                 if system_name not in syst_dict:
                     syst_dict[system_name] = {}
                 # Add runtime config from system info
@@ -1332,9 +1325,8 @@ class ConfigEditWidget(MetaViewerWidget):
                     else:
                         syst_dict[system_name][key] = value_info
 
-        # Try to get type information from config system for all systems with config
-        if self.system_info and "config" in self.system_info:
-            for system_name, config_info in self.system_info["config"].items():
+            # Try to get type information from config system for all systems with config
+            for system_name, config_info in self.system_info.config.items():
                 if system_name in syst_dict:
                     try:
                         system_config_with_types = get_config_dict(system_name)
@@ -4112,7 +4104,7 @@ def get_application_instance() -> MApplication:
 
 
 # Common system information functions for matrix scripts
-def get_system_info(systems):
+def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
     """Get system information using subprocess."""
     try:
         result = subprocess.run(
@@ -4126,25 +4118,22 @@ def get_system_info(systems):
             capture_output=True,
             timeout=30,
         )
+    except Exception as e:
+        return Error(f"Error getting system info: {e}")
 
-        if result.returncode == 0:
-            output_str = result.stdout.decode()
-            json_data = extract_json_from_output(output_str)
-            if json_data is not None:
-                return json_data
-            else:
-                print("Warning: Could not parse JSON from subprocess output")
-                return {}
-        else:
-            stderr_output = result.stderr.decode()
-            print(f"Error getting system info: {stderr_output}")
-            # If subprocess failed due to missing dependencies, return empty dict
-            if "ModuleNotFoundError" in stderr_output:
-                print("Note: System config will not be available due to missing dependencies")
-            return {}
-    except (subprocess.TimeoutExpired, Exception) as e:
-        print(f"Error getting system info: {e}")
-        return {}
+    if result.returncode == 0:
+        output_str = result.stdout.decode()
+        try:
+            validated_data = SystemInfo.model_validate_json(output_str)
+            return Success(validated_data)
+        except ValidationError as e:
+            return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
+
+    stderr_output = result.stderr.decode()
+    error_str = f"Error getting system info: {stderr_output}"
+    if "ModuleNotFoundError" in stderr_output:  # If subprocess failed due to missing dependencies
+        error_str += "\nNote: System config will not be available due to missing dependencies!"
+    return Error(error_str)
 
 
 def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
@@ -4208,32 +4197,6 @@ def check_config(config: dict) -> None:
             "The following error(s) occured:<br><br>"
         ) + html
         QMessageBox.critical(None, "Validation error!", html)
-
-
-def extract_json_from_output(output_str):
-    """Extract JSON from subprocess output."""
-    try:
-        # Try to parse the entire output as JSON first
-        return json.loads(output_str.strip())
-    except json.JSONDecodeError:
-        # If that fails, try to find JSON in the output
-        lines = output_str.strip().split("\n")
-        for line in lines:
-            line = line.strip()
-            if line.startswith("{") and line.endswith("}"):
-                try:
-                    return json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-        return None
-
-
-def show_json_parse_error(output_str):
-    """Show JSON parse error with output details."""
-    error_msg = "Failed to parse system information from subprocess output."
-    if output_str:
-        error_msg += f"\nOutput received: {output_str[:200]}..."
-    print(error_msg)
 
 
 def open_matrix_toml() -> None:

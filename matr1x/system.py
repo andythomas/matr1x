@@ -1519,12 +1519,16 @@ class System:
                     "name": display_name,
                     "unit": display_unit,
                     "description": f"Settable parameter at index {index}",
+                    "index": index,
+                    "settable": True,
                 }
             else:
                 info["parameters"][param_key] = {
                     "name": display_name,
                     "unit": display_unit,
                     "description": f"Read-only parameter at index {index}",
+                    "index": index,
+                    "settable": False,
                 }
 
         # Add custom methods and variables

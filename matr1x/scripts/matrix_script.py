@@ -69,7 +69,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x.control.util import QtGracefulKiller
 from matr1x.editor import CodeEditor
-from matr1x.error_handling import install_error_handler
+from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
@@ -95,6 +95,7 @@ from matr1x.gui_util import (
     protected_restore,
     save_messagebox,
 )
+from matr1x.models import SystemInfo
 from matr1x.util import (
     create_temp_dir_with_symlinks,
     generate_script,
@@ -482,6 +483,8 @@ class MainWindow(QMainWindow):
         self.settings = SaferQSettings("matr1x", "script")
         self.output_stream = EmittingStream()
         self.output_stream.text_written.connect(self.output_written)
+        self._cached_system_info: SystemInfo | None = None
+        get_application_instance().isDarkSignal.connect(self.update_systems)
 
         self.init_ui()
         # set outputStream as stdout (i.e. all output is written to status
@@ -1363,79 +1366,7 @@ class MainWindow(QMainWindow):
         )
         print(help_string)
 
-    def get_settables(
-        self,
-    ) -> tuple[list[int] | None, list[bool] | None, list[str] | None]:
-        """
-        Get the settables of the system files.
-
-        This is used to find errors in the script and
-        the help message box.
-
-        Returns
-        -------
-        indexes: list [int] or None
-            The indexes of the columns.
-        settables : list[bool] or None
-            True, if the property is settable.
-        columns : list[str] or None
-            The names of the columns.
-        """
-        # Use cached system info if available
-        if hasattr(self, "_cached_system_info") and self._cached_system_info:
-            return self._process_system_data(self._cached_system_info)
-
-        json_data = get_system_info(self.systems)
-        if json_data is None:
-            return (None, None, None)
-
-        return self._process_system_data(json_data)
-
-    def _extract_parameter_index(self, key, data):
-        """Extract index from parameter key or description."""
-        if key.startswith("param_"):
-            try:
-                return key.split("_")[1]
-            except IndexError:
-                return ""
-        elif "at index" in data.get("description", ""):
-            try:
-                return data["description"].split("at index ")[1]
-            except IndexError:
-                return ""
-        return ""
-
-    def _process_system_data(self, output):
-        """Process the parsed JSON data and extract system information."""
-        indexes = []
-        settables = []
-        columns = []
-
-        # Process parameters section (indexed items)
-        if "parameters" in output:
-            for key, data in output["parameters"].items():
-                index = self._extract_parameter_index(key, data)
-                indexes.append(index)
-                settables.append(data.get("description", ""))
-                columns.append(data.get("name", ""))
-
-        # Process devices section (no indices)
-        if "devices" in output:
-            for dev_id, data in output["devices"].items():
-                indexes.append("")
-                settables.append(data.get("description", ""))
-                columns.append(data.get("name", ""))
-
-        # Process methods section (no indices)
-        if "methods" in output:
-            for method_id, data in output["methods"].items():
-                indexes.append("")
-                settables.append(data.get("description", ""))
-                columns.append(data.get("name", ""))
-
-        return (indexes, settables, columns)
-
-    def update_system_commands(self, cached_info: dict | None = None) -> None:
+    def update_system_commands(self, cached_info: SystemInfo | None = None) -> None:
         """
         Update the help info about the current system(s).
 
@@ -1444,7 +1375,7 @@ class MainWindow(QMainWindow):
         cached_info : dict, optional
             Dictionary containing cached system information.
             If provided, this will be used instead of calling
-            :meth:`get_settables`.  By default, None
+            `get settables`.  By default, None.
         """
         if len(self.systems) == 0:
             text = "<p style='margin: 20px;'><b>No system file selected!</b></p>"
@@ -1457,89 +1388,64 @@ class MainWindow(QMainWindow):
             text += "<li>Connected devices and their configurations</li>"
             text += "<li>System methods and variables</li>"
             text += "</ul>"
-        else:
-            if cached_info is not None:
-                # Use cached information
-                indexes = cached_info.get("indexes")
-                settables = cached_info.get("settables")
-                columns = cached_info.get("columns")
-            else:
-                # Fall back to getting settables normally
-                indexes, settables, columns = self.get_settables()
+            self.system_command_text_edit.setText(text)
+            return
+        system_info = self._cached_system_info
+        if system_info is None:
+            self.system_command_text_edit.setText("Could not parse the system file(s)!")
+            return
 
-            if indexes and settables and columns:
-                text = "The following systems were selected:<br><b>"
-                for system in self.systems:
-                    text = text + system + "<br>"
-                text += "<br></b>These systems provide the following:<br><br>"
+        text = "The following systems were selected:<br><b>"
+        for system in self.systems:
+            text = text + system + "<br>"
+        text += "<br></b>These systems provide the following:<br>"
 
-                # Group parameters, devices, and methods
-                parameters = []
-                devices = []
-                methods = []
+        bg_color = "#565656" if get_application_instance().isDark else "#f0f0f0"
 
-                for i in range(len(indexes)):
-                    desc_str = str(settables[i]) if settables[i] is not None else ""
-                    if "parameter" in desc_str.lower():
-                        # Check if parameter is settable
-                        is_settable = "settable" in desc_str.lower()
-                        parameters.append((indexes[i], columns[i], settables[i], is_settable))
-                    elif "device" in desc_str.lower():
-                        devices.append((indexes[i], columns[i], settables[i]))
-                    elif "method" in desc_str.lower() or "variable" in desc_str.lower():
-                        methods.append((indexes[i], columns[i], settables[i]))
-                    else:
-                        # Fallback - anything not categorized goes to parameters
-                        parameters.append((indexes[i], columns[i], settables[i], False))
+        if system_info.parameters != {}:
+            text += "<h3>Parameters</h3>"
+            text += '<table border="1" cellpadding="5" cellspacing="0" '
+            text += 'style="border-collapse: collapse; text-align: left; '
+            text += 'margin-bottom: 20px;">'
+            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
+            text += '<th style="text-align: left;">Index</th>'
+            text += '<th style="text-align: left;">Name</th>'
+            text += '<th style="text-align: left;">Description</th></tr>'
+            for parameter in system_info.parameters.values():
+                if parameter.settable:
+                    text += f"<tr><td>{parameter.index}</td>"
+                    text += f"<td><b>{parameter.name}</b></td>"
+                    text += f"<td>{parameter.description}</td></tr>"
+                else:
+                    text += f"<tr><td>{parameter.index}</td>"
+                    text += f"<td>{parameter.name}</td>"
+                    text += f"<td>{parameter.description}</td></tr>"
+            text += "</table>"
 
-                # Display parameters table
-                if parameters:
-                    text += "<h3>Parameters</h3>"
-                    text += '<table border="1" cellpadding="5" cellspacing="0" '
-                    text += 'style="border-collapse: collapse; text-align: left; '
-                    text += 'margin-bottom: 20px;">'
-                    text += '<tr style="background-color: #f0f0f0; text-align: left;">'
-                    text += '<th style="text-align: left;">Index</th>'
-                    text += '<th style="text-align: left;">Name</th>'
-                    text += '<th style="text-align: left;">Description</th></tr>'
-                    # Sort parameters by index for correct display order
-                    parameters.sort(key=lambda x: int(x[0]) if x[0] and x[0].isdigit() else 999)
-                    for idx, col, desc, is_settable in parameters:
-                        if is_settable:
-                            text += f"<tr><td>{idx}</td><td><b>{col}</b></td><td>{desc}</td></tr>"
-                        else:
-                            text += f"<tr><td>{idx}</td><td>{col}</td><td>{desc}</td></tr>"
-                    text += "</table>"
+        if system_info.devices != {}:
+            text += "<h3>Devices</h3>"
+            text += '<table border="1" cellpadding="5" cellspacing="0" '
+            text += 'style="border-collapse: collapse; text-align: left; '
+            text += 'margin-bottom: 20px;">'
+            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
+            text += '<th style="text-align: left;">Name</th>'
+            text += '<th style="text-align: left;">Description</th></tr>'
+            for device in system_info.devices.values():
+                text += f"<tr><td><b>{device.name}</b></td><td>{device.description}</td></tr>"
+            text += "</table>"
 
-                # Display devices table
-                if devices:
-                    text += "<h3>Devices</h3>"
-                    text += '<table border="1" cellpadding="5" cellspacing="0" '
-                    text += 'style="border-collapse: collapse; text-align: left; '
-                    text += 'margin-bottom: 20px;">'
-                    text += '<tr style="background-color: #f0f0f0; text-align: left;">'
-                    text += '<th style="text-align: left;">Name</th>'
-                    text += '<th style="text-align: left;">Description</th></tr>'
-                    for idx, col, desc in devices:
-                        text += f"<tr><td><b>{col}</b></td><td>{desc}</td></tr>"
-                    text += "</table>"
-
-                # Display methods table
-                if methods:
-                    text += "<h3>System Methods and Variables</h3>"
-                    text += '<table border="1" cellpadding="5" cellspacing="0" '
-                    text += 'style="border-collapse: collapse; text-align: left; '
-                    text += 'margin-bottom: 20px;">'
-                    text += '<tr style="background-color: #f0f0f0; text-align: left;">'
-                    text += '<th style="text-align: left;">Name</th>'
-                    text += '<th style="text-align: left;">Description</th></tr>'
-                    for idx, col, desc in methods:
-                        text += f"<tr><td><b>{col}</b></td><td>{desc}</td></tr>"
-                    text += "</table>"
-
-                text += "<br>"
-            else:
-                text = "Could not parse the system file(s)!"
+        if system_info.methods != {}:
+            text += "<h3>System Methods and Variables</h3>"
+            text += '<table border="1" cellpadding="5" cellspacing="0" '
+            text += 'style="border-collapse: collapse; text-align: left; '
+            text += 'margin-bottom: 20px;">'
+            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
+            text += '<th style="text-align: left;">Name</th>'
+            text += '<th style="text-align: left;">Description</th></tr>'
+            for method in system_info.methods.values():
+                text += f"<tr><td><b>{method.name}</b></td><td>{method.description}</td></tr>"
+            text += "</table>"
+        text += "<br>"
         self.system_command_text_edit.setText(text)
 
     def show_system_commands(self) -> None:
@@ -1684,7 +1590,7 @@ class MainWindow(QMainWindow):
 
     def run_linter(self):
         """Call the linter for the editor view."""
-        self.script_edit.setSettables(self.get_settables())
+        self.script_edit.setSettables(self._cached_system_info)
         return self.script_edit.returnIssues()
 
     def start_process(self):
@@ -1750,22 +1656,15 @@ class MainWindow(QMainWindow):
             for j in range(self.system_list.count())
         ]
 
-        # Clear cache if systems changed
-        if not hasattr(self, "systems") or self.systems != new_systems:
-            self._cached_system_info = None
-
-        self.systems = new_systems
-
-        # Get system information using subprocess (cache for reuse)
-        if self._cached_system_info is None and self.systems:
-            try:
-                self._cached_system_info = get_system_info(self.systems)
-                if not self._cached_system_info:
-                    print("Warning: subprocess returned empty system info")
-                    self._cached_system_info = {}
-            except Exception as e:
-                print(f"Warning: Could not get system info for config editor: {e}")
-                self._cached_system_info = {}
+        if self.systems != new_systems:
+            self.systems = new_systems
+            if self.systems != []:
+                system_info = get_system_info(self.systems)
+                if isinstance(system_info, Error):
+                    print(system_info.error)
+                    self._cached_system_info = None
+                else:
+                    self._cached_system_info = system_info.value
 
         # only systems that are part of matrix or ifwlib can be configured via files
         configurable = [system for system in self.systems if not Path(system).exists()]
@@ -1773,70 +1672,30 @@ class MainWindow(QMainWindow):
         if update_config:
             self.config_editor.set_systemfile(configurable)
             self.config_editor.set_full_system_list(self.systems)
-            self.config_editor.set_system_info(self._cached_system_info or {})
+            self.config_editor.set_system_info(self._cached_system_info)
             self.config_editor.update_data()
 
         # Update system commands with cached info
         self.update_system_commands(self._cached_system_info)
         self.run_linter()
 
-    def get_settable_info(self):
-        """Verify that the systems match the ones from the loaded script."""
-        # Use cached system info if available
-        if hasattr(self, "_cached_system_info") and self._cached_system_info:
-            try:
-                return self._extract_settable_info(self._cached_system_info)
-            except Exception:
-                pass
-
-        # Fallback to fresh system info
-        try:
-            system_info = get_system_info(self.systems)
-            if system_info:
-                self._cached_system_info = system_info
-                return self._extract_settable_info(system_info)
-        except Exception:
-            pass
-
-        return None
-
-    def _extract_settable_info(self, system_info):
+    def _extract_settable_info(self, system_info: SystemInfo):
         """Extract settable information from system info."""
-        if not system_info or "parameters" not in system_info:
-            return None
-
         indexes = []
         columns = []
         units = []
-
-        for param_key, param_info in system_info["parameters"].items():
-            if isinstance(param_info, dict) and "name" in param_info:
-                # Extract index from param_key (e.g., "param_0" -> 0)
-                try:
-                    index = int(param_key.split("_")[1])
-                    param_name = param_info["name"]
-                    param_unit = param_info.get("unit", "")
-
-                    # Handle compound columns (names/units joined with ", ")
-                    if ", " in param_name:
-                        # Split compound columns back into individual columns
-                        name_parts = [name.strip() for name in param_name.split(", ")]
-                        unit_parts = [unit.strip() for unit in param_unit.split(", ")]
-
-                        # Ensure we have the same number of names and units
-                        if len(unit_parts) != len(name_parts):
-                            unit_parts = [""] * len(name_parts)
-
-                        for name, unit in zip(name_parts, unit_parts):
-                            indexes.append(index)
-                            columns.append(name)
-                            units.append(unit)
-                    else:
-                        indexes.append(index)
-                        columns.append(param_name)
-                        units.append(param_unit)
-                except (ValueError, IndexError):
-                    continue
+        for parameter in system_info.parameters.values():
+            if ", " in parameter.name:
+                name_parts = [name.strip() for name in parameter.name.split(", ")]
+                unit_parts = [unit.strip() for unit in parameter.unit.split(", ")]
+                for name, unit in zip(name_parts, unit_parts):
+                    indexes.append(parameter.index)
+                    columns.append(name)
+                    units.append(unit)
+            else:
+                indexes.append(parameter.index)
+                columns.append(parameter.name)
+                units.append(parameter.unit)
 
         return (indexes, columns, units)
 
@@ -1890,12 +1749,15 @@ class MainWindow(QMainWindow):
     def generate_save_content(self):
         """Add the systems in the header of a script."""
         header = ""
+        system_info = self._cached_system_info
         if 0 < len(self.systems):
             # only attempt generating a header if a system is selected
             try:
                 # get settable information to put into the header
                 # (columns/units)
-                settable_info = self.get_settable_info()
+                settable_info = (
+                    self._extract_settable_info(system_info) if system_info is not None else None
+                )
 
                 if settable_info is not None and len(settable_info) >= 3:
                     # write matrix file header
@@ -1969,7 +1831,11 @@ class MainWindow(QMainWindow):
                 try:
                     self.system_list.addItem(syst)
                     self.update_systems()
-                    settable_info = self.get_settable_info()
+                    settable_info = (
+                        self._extract_settable_info(self._cached_system_info)
+                        if self._cached_system_info is not None
+                        else None
+                    )
                 except KeyError:
                     self.print_colored(
                         "System that was used to generate the "

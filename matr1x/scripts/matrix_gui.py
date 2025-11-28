@@ -65,6 +65,7 @@ from matr1x.gui_util import (
     open_matrix_toml,
     protected_restore,
 )
+from matr1x.models import SystemInfo
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
     sweep_generator,
@@ -625,7 +626,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
         self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
         self.settings = SaferQSettings("matr1x", "gui")
-        self._cached_system_info = None
+        self._cached_system_info: SystemInfo | None = None
 
     def handle_received_filename(self, filename: str) -> None:
         """
@@ -856,19 +857,17 @@ class MainWindow(FileDropMixin, QMainWindow):
         # Get system information using subprocess (cache for reuse)
         self._cached_system_info = None
         if systemfile:
-            try:
-                self._cached_system_info = get_system_info(systemfile)  # type: ignore
-                if not self._cached_system_info:
-                    print("Warning: subprocess returned empty system info")
-                    self._cached_system_info = {}  # type: ignore
-            except Exception as e:
-                print(f"Warning: Could not get system info for config editor: {e}")
-                self._cached_system_info = {}  # type: ignore
+            system_info = get_system_info(systemfile)
+            if isinstance(system_info, Error):
+                print(system_info.error)
+                self._cached_system_info = None
+            else:
+                self._cached_system_info = system_info.value
         matr1x.reload_config()
         self.ui.widgets.config_editor.set_systemfile(configurable)
         if systemfile != self.ui.widgets.config_editor.full_system_list:
             self.ui.widgets.config_editor.set_full_system_list(systemfile)
-            self.ui.widgets.config_editor.set_system_info(self._cached_system_info or {})
+            self.ui.widgets.config_editor.set_system_info(self._cached_system_info)
             self.ui.widgets.config_editor.update_data()
         self.ui.actions.queue.setEnabled(True)
 

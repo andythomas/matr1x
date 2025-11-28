@@ -146,3 +146,47 @@ class MainConfig(BaseModel):
     """Allow validation of the configuration toml."""
 
     matr1x: Matr1xConfig
+
+
+# --- merged system "air-gap" evaluations
+
+
+class SystemDevice(BaseModel):
+    """Model for device entries."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    description: str
+
+
+class SystemParameter(BaseModel):
+    """Model for parameter entries."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    unit: str
+    description: str
+    index: int
+    settable: bool
+
+
+class SystemMethod(BaseModel):
+    """Model for method entries."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    description: str
+
+
+class SystemInfo(BaseModel):
+    """Main model for the configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    devices: dict[str, SystemDevice]
+    parameters: dict[str, SystemParameter]
+    methods: dict[str, SystemMethod]
+    config: dict[str, Any]
