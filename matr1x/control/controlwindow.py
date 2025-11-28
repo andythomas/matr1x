@@ -39,8 +39,8 @@ import time
 import warnings
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QSize, Qt, Signal, Slot
-from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QTextCursor
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal, Slot
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -824,6 +824,7 @@ class ControlWindow(QMainWindow):
         self.status.setReadOnly(True)
         self.keep_enabled.append(self.status)
         self.activityIndicator = []
+        self._pending_updates = {}  # {idx: color}
         self.activity_layout = QHBoxLayout()
         self.activity_layout.setSpacing(0)
         indicator_width = 17
@@ -833,7 +834,10 @@ class ControlWindow(QMainWindow):
             ql = QLabel(" ")
             ql.setFixedWidth(indicator_width)
             ql.setFixedHeight(30)
-            ql.setStyleSheet("QLabel { background-color: lightgray; }")
+            ql.setAutoFillBackground(True)  # Add this
+            palette = ql.palette()
+            palette.setColor(ql.backgroundRole(), QColor("lightgray"))
+            ql.setPalette(palette)
             ql.setToolTip(guidict.dock.windowTitle())
             self.activityIndicator.append(ql)
             guidict.refresh_worker.activity.connect(
@@ -841,6 +845,11 @@ class ControlWindow(QMainWindow):
             )
             guidict.refresh_worker.panic.connect(self.panic)
             self.activity_layout.addWidget(ql)
+
+        # Timer to process pending updates
+        self._process_timer = QTimer()
+        self._process_timer.timeout.connect(self._process_updates)
+        self._process_timer.start(100)  # 10 FPS
 
         self.activity.connect(self.change_color)
         self.deactivate.connect(self.deactivate_gui)
@@ -1260,6 +1269,7 @@ class ControlWindow(QMainWindow):
             self._local_server.stop()
         self._local_server = None
 
+    @Slot(str, int)
     def change_single_color(self, color: str, idx: int) -> None:
         """
         Change the background color of a single activity indicator.
@@ -1267,11 +1277,11 @@ class ControlWindow(QMainWindow):
         Parameters
         ----------
         color : str
-            The color to set as background, in a format accepted by Qt stylesheets.
+            The color to set as background as in QColor(color).
         idx : int
             The index of the activity indicator to change.
         """
-        self.activityIndicator[idx].setStyleSheet(f"QLabel {{ background-color: {color}; }}")
+        self._pending_updates[idx] = color
 
     @Slot(str)
     def change_color(self, color: str) -> None:
@@ -1281,10 +1291,27 @@ class ControlWindow(QMainWindow):
         Parameters
         ----------
         color : str
-            The color to set as background, in a format accepted by Qt stylesheets.
+            The color to set as background as in QColor(color).
         """
-        for ql in self.activityIndicator:
-            ql.setStyleSheet(f"QLabel {{ background-color: {color}; }}")
+        for idx, ql in enumerate(self.activityIndicator):
+            self._pending_updates[idx] = color
+
+    def _process_updates(self):
+        """Process all pending updates."""
+        if not self._pending_updates:
+            return
+
+        # Get all pending updates and clear the dict
+        updates = self._pending_updates.copy()
+        self._pending_updates.clear()
+
+        # Apply all updates
+        for idx, color in updates.items():
+            if idx < len(self.activityIndicator):
+                label = self.activityIndicator[idx]
+                palette = label.palette()
+                palette.setColor(label.backgroundRole(), QColor(color))
+                label.setPalette(palette)
 
     @Slot(bool)
     def deactivate_gui(self, flag: bool) -> None:
