@@ -29,7 +29,7 @@ dependencies = [
     "PySide6",                                       # needed for GUI apps
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'", # needed for GUI apps
     "pygit2 >= 1.16",                                # needed for GUI apps
-    "wrapt",                                         # needed for GUI apps
+    "wrapt>2.0",                                     # needed for GUI apps
     "urwid>2.0",                                     # needed for GUI apps
     "monaco-assets>=0.5.1",                          # needed for matrix script
     "ruff>=0.13.0",                                  # needed for matrix script
@@ -75,9 +75,6 @@ env = [
 [tool.pyrefly]
 project-includes = [
     "matr1x"
-]
-project-excludes = [
-    "matr1x/devices"
 ]
 
 [dependency-groups]
