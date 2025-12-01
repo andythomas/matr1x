@@ -27,6 +27,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import shiboken6
 from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QThread, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
@@ -612,6 +613,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.start.triggered.connect(self.run_matrix)
         self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
+        self._on_log_window_visibility_changed(self.log_window.isVisible())
         self.ui.actions.load.triggered.connect(self.show_input_dialog)
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.widgets.input_file.textChanged.connect(self.parse_system_from_inputfile)
@@ -675,8 +678,9 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.settings.setValue("metadata_size", self.ui.widgets.dockable_metadata.size())
         self.settings.setValue("config_position", self.ui.widgets.config_editor.pos())
         self.settings.setValue("config_size", self.ui.widgets.config_editor.size())
-        self.settings.setValue("log_window/position", self.log_window.pos())
-        self.settings.setValue("log_window/size", self.log_window.size())
+        if shiboken6.isValid(self.log_window):
+            self.settings.setValue("log_window/position", self.log_window.pos())
+            self.settings.setValue("log_window/size", self.log_window.size())
 
     def restore_window_state(self) -> None:
         """Restore application configuration from the previous use."""
@@ -717,14 +721,16 @@ class MainWindow(FileDropMixin, QMainWindow):
         """Toggle the visibility of the logging window."""
         if self.log_window.isVisible():
             self.log_window.hide()
-            self.ui.actions.show_log.setChecked(False)
-            self.ui.actions.show_log.setText("Show Log Window")
         else:
             self.log_window.show()
             self.log_window.raise_()
             self.log_window.activateWindow()
-            self.ui.actions.show_log.setChecked(True)
-            self.ui.actions.show_log.setText("Hide Log Window")
+
+    def _on_log_window_visibility_changed(self, visible: bool) -> None:
+        """Keep 'Show Log Window' action label/checked state in sync."""
+        action = self.ui.actions.show_log
+        action.setChecked(visible)
+        action.setText("Hide Log Window" if visible else "Show Log Window")
 
     def toggle_preferences(self, checked: bool) -> None:
         """
@@ -802,6 +808,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.sg = sweep_generator.MainWindow(
                 filename=Path(self.ui.widgets.input_file.text()),
                 inputcb=self.ui.widgets.input_file.setText,
+                log_window=self.log_window,
             )
             self.sg.show()
         elif self.sg.isVisible() is False:

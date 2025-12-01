@@ -27,6 +27,7 @@ import time
 from os.path import normpath
 from pathlib import Path
 
+import shiboken6
 from PySide6.QtCore import (
     QByteArray,
     QEvent,
@@ -571,8 +572,9 @@ class MainWindow(QMainWindow):
         self.settings.setValue("size", self.config_editor.size())
         self.settings.endGroup()
 
-        self.settings.setValue("log_window/position", self.log_window.pos())
-        self.settings.setValue("log_window/size", self.log_window.size())
+        if shiboken6.isValid(self.log_window):
+            self.settings.setValue("log_window/position", self.log_window.pos())
+            self.settings.setValue("log_window/size", self.log_window.size())
 
         # Only save help dialog size and position if it has been shown at least once
         if hasattr(self, "_help_dialog_shown") and self._help_dialog_shown:
@@ -857,14 +859,15 @@ class MainWindow(QMainWindow):
         """Toggle the visibility of the logging window."""
         if self.log_window.isVisible():
             self.log_window.hide()
-            self.show_log_action.setChecked(False)
-            self.show_log_action.setText("Show Log Window")
         else:
             self.log_window.show()
             self.log_window.raise_()
             self.log_window.activateWindow()
-            self.show_log_action.setChecked(True)
-            self.show_log_action.setText("Hide Log Window")
+
+    def _on_log_window_visibility_changed(self, visible: bool) -> None:
+        """Keep the log-window action in sync with the window state."""
+        self.show_log_action.setChecked(visible)
+        self.show_log_action.setText("Hide Log Window" if visible else "Show Log Window")
 
     def _load_file_from_signal(self, filename: str):
         """Convert string to Path for opening file."""
@@ -1071,6 +1074,8 @@ class MainWindow(QMainWindow):
         self.show_log_action = QAction("Show Log Window", self)
         self.show_log_action.setCheckable(True)
         self.show_log_action.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
+        self._on_log_window_visibility_changed(self.log_window.isVisible())
 
     def create_toolbar(self) -> None:
         """Create the toolbar."""

@@ -35,6 +35,7 @@ from tempfile import TemporaryDirectory
 
 import numpy
 import pyqtgraph as pg
+import shiboken6
 from PySide6.QtCore import QByteArray, QObject, QPoint, QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFocusEvent, QKeySequence, QMouseEvent
 from PySide6.QtWidgets import (
@@ -804,6 +805,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         filename: Path | None = None,
         system=None,
         inputcb: Callable[[str], None] | None = None,
+        log_window: LoggingWindow | None = None,
     ):
         """
         Init the main window.
@@ -818,8 +820,12 @@ class MainWindow(FileDropMixin, QMainWindow):
             Callback function used to return the filename of the generated file.
         """
         super().__init__()
-        self.log_window = LoggingWindow(parent=self)
-        self.log_window.hide()
+        self._owns_log_window = log_window is None
+        if log_window is None:
+            self.log_window = LoggingWindow(parent=self)
+            self.log_window.hide()
+        else:
+            self.log_window = log_window
         logger.info("sweep-generator starting")
 
         self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
@@ -881,9 +887,10 @@ class MainWindow(FileDropMixin, QMainWindow):
                     a0.ignore()
                     return
         self.save_window_state()
-        root_logger = logging.getLogger()
-        root_logger.removeHandler(self.log_window.log_handler)
-        self.log_window.deleteLater()
+        if self._owns_log_window:
+            root_logger = logging.getLogger()
+            root_logger.removeHandler(self.log_window.log_handler)
+            self.log_window.deleteLater()
         a0.accept()
 
     def save_window_state(self) -> None:
@@ -895,6 +902,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_position", self.toolBarArea(self.ui.toolbar).value)
+        if not self._owns_log_window or not shiboken6.isValid(self.log_window):
+            return
         self.settings.setValue("log_window/position", self.log_window.pos())
         self.settings.setValue("log_window/size", self.log_window.size())
 
@@ -912,6 +921,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
         )
         self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
+        if not self._owns_log_window or not shiboken6.isValid(self.log_window):
+            return
         self.log_window.move(
             self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
         )
@@ -937,14 +948,16 @@ class MainWindow(FileDropMixin, QMainWindow):
         """Toggle the visibility of the logging window."""
         if self.log_window.isVisible():
             self.log_window.hide()
-            self.ui.actions.show_log.setChecked(False)
-            self.ui.actions.show_log.setText("Show Log Window")
         else:
             self.log_window.show()
             self.log_window.raise_()
             self.log_window.activateWindow()
-            self.ui.actions.show_log.setChecked(True)
-            self.ui.actions.show_log.setText("Hide Log Window")
+
+    def _on_log_window_visibility_changed(self, visible: bool) -> None:
+        """Keep the 'Show Log Window' action state in sync with the window."""
+        action = self.ui.actions.show_log
+        action.setChecked(visible)
+        action.setText("Hide Log Window" if visible else "Show Log Window")
 
     def init_ui(self) -> None:
         """Generate the main GUI."""
@@ -987,6 +1000,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
         self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
+        self._on_log_window_visibility_changed(self.log_window.isVisible())
         self.ui.actions.new_file.triggered.connect(self.new_file)
         self.ui.actions.load.triggered.connect(self.gui_from_sweep)
         self.ui.actions.add_system.triggered.connect(self.add_system)

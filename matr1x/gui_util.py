@@ -63,12 +63,14 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QBrush,
+    QCloseEvent,
     QColor,
     QDoubleValidator,
     QDragEnterEvent,
     QDropEvent,
     QFileOpenEvent,
     QFontDatabase,
+    QHideEvent,
     QIcon,
     QImage,
     QIntValidator,
@@ -78,6 +80,7 @@ from PySide6.QtGui import (
     QPalette,
     QPixmap,
     QPolygon,
+    QShowEvent,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -4425,8 +4428,11 @@ class LoggingWindow(QMainWindow):
     LOG_FIELDS = ["asctime", "name", "levelname", "message"]
     LOG_SEPARATOR = "\x1f"
 
-    def __init__(self, parent=None):
+    visibility_changed = Signal(bool)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         self.setWindowTitle("Log Messages")
         self.setWindowFlags(
             Qt.WindowType.Window
@@ -4485,6 +4491,25 @@ class LoggingWindow(QMainWindow):
         self.log_handler.setFormatter(formatter)
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
+
+    def showEvent(self, event: QShowEvent) -> None:
+        """Emit visibility state changes when the window shows."""
+        super().showEvent(event)
+        self.visibility_changed.emit(True)
+
+    def hideEvent(self, event: QHideEvent) -> None:
+        """Emit visibility state changes when the window hides."""
+        super().hideEvent(event)
+        self.visibility_changed.emit(False)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """
+        Prevent destruction when the user presses the close button.
+
+        The logging window is hidden instead to keep the C++ object alive.
+        """
+        event.ignore()
+        self.hide()
 
     def _on_level_changed(self):
         """Handle logging level change from combobox."""
