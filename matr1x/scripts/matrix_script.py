@@ -1886,9 +1886,7 @@ class MainWindow(QMainWindow):
             # Handle both "," and ", " as separators since compound columns use ", "
             loaded_units = []
             for unit in system_units.split(","):
-                unit = unit.strip()
-                if unit:
-                    loaded_units.append(unit)
+                loaded_units.append(unit.strip())
             if current_units != loaded_units:
                 self.print_colored(
                     "Column units have changed between generation "
