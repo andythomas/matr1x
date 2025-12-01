@@ -931,7 +931,7 @@ class MetaViewerWidget(QDockWidget):
 
             return None
 
-        def setData(self, index, value, role):
+        def setData(self, index, value, role):  # type: ignore our issue #1600
             """
             Update the data for the given index and role.
 
@@ -1034,7 +1034,7 @@ class MetaViewerWidget(QDockWidget):
                 return self.createIndex(row, column, child_item)
             return QModelIndex()
 
-        def parent(self, index):
+        def parent(self, index):  # type: ignore our issue #1600
             """
             Return the parent index for the given index.
 
@@ -1094,7 +1094,7 @@ class MetaViewerWidget(QDockWidget):
             parent_item = parent.internalPointer()
             return parent_item.child_count()
 
-        def columnCount(self, index):
+        def columnCount(self, index):  # type: ignore our issue #1600
             """
             Return the number of columns for the children of the given parent.
 
@@ -1291,7 +1291,7 @@ class ConfigEditWidget(MetaViewerWidget):
                 self.system_info = system_info.value
         self.update_data()  # Call the original update_data method
 
-    def update_data(self):
+    def update_data(self):  # type: ignore our issue #1600
         """Update the configuration data in the widget."""
         syst_dict = {}
         reload_config()
@@ -2251,7 +2251,7 @@ class SimplePlotWidget(QGroupBox):
                     x0, x1 = self.x[0], self.x[-1]
                     xscale = (x1 - x0) / self.z.shape[0]
                     y0, y1 = self.y[0], self.y[-1]
-                    yscale = (y1 - y0) / self.z.shape[1]
+                    yscale = (y1 - y0) / self.z.shape[1]  # type: ignore
                     pos = [x0, y0]
                     scale = [xscale, yscale]
                     self.plt.setImage(self.z, pos=pos, scale=scale)

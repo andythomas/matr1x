@@ -1621,7 +1621,7 @@ class TableModel(QAbstractTableModel):
         super().__init__()
         self._data = data
 
-    def data(self, index: QModelIndex, role: int) -> str | None:
+    def data(self, index: QModelIndex, role: int) -> str | None:  # type: ignore our issue #1601
         """
         Return the data stored under the given role for the item referred to by the index.
 
@@ -1642,7 +1642,7 @@ class TableModel(QAbstractTableModel):
             return str(value)
         return None
 
-    def rowCount(self, index: QModelIndex) -> int:
+    def rowCount(self, index: QModelIndex) -> int:  # type: ignore our issue #1601
         """
         Return the number of rows in the model.
 
@@ -1658,7 +1658,7 @@ class TableModel(QAbstractTableModel):
         """
         return self._data.shape[0]
 
-    def columnCount(self, index: QModelIndex) -> int:
+    def columnCount(self, index: QModelIndex) -> int:  # type: ignore our issue #1601
         """
         Return the number of columns in the model.
 
@@ -1674,7 +1674,7 @@ class TableModel(QAbstractTableModel):
         """
         return self._data.shape[1]
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int) -> str | None:
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int) -> str | None:  # type: ignore our issue #1601
         """
         Return the header data.
 

@@ -1078,7 +1078,7 @@ def run_python_cmdline(
             creationflags=creationflags,
         )
         if result.returncode != 0:
-            return Error(result.stderr or result.stdout)
+            return Error(result.stderr or result.stdout)  # ty: ignore[invalid-return-type]
         return Success(result)
     except Exception as e:
-        return Error(e)
+        return Error(e)  # ty: ignore[invalid-return-type]

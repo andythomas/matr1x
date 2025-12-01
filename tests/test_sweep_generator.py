@@ -15,15 +15,27 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test internal functions of sweep generator."""
 
+from matr1x.error_handling import Error
 from matr1x.scripts.sweep_generator import calculate_sweep, check_depth
 
 
 def test_check_depth():
     """Test check_depth function using several examples."""
-    assert check_depth(0, [-1, -1, 1, 2]).value == 0
-    assert check_depth(1, [-1, -1, 1, 2]).value == 2
-    assert check_depth(2, [-1, -1, 1, 2]).value == 1
-    assert check_depth(3, [-1, -1, 1, 2]).value == 0
+    result = check_depth(0, [-1, -1, 1, 2])
+    assert not isinstance(result, Error)
+    assert result.value == 0
+
+    result = check_depth(1, [-1, -1, 1, 2])
+    assert not isinstance(result, Error)
+    assert result.value == 2
+
+    result = check_depth(2, [-1, -1, 1, 2])
+    assert not isinstance(result, Error)
+    assert result.value == 1
+
+    result = check_depth(3, [-1, -1, 1, 2])
+    assert not isinstance(result, Error)
+    assert result.value == 0
 
 
 def test_calculate_sweep():
@@ -32,9 +44,11 @@ def test_calculate_sweep():
     loop_over = [-1, -1, 0]
     up_down = [True, False, False]
     repeat = [1, 1, 1]
-    result = [
+    expected_result = [
         [1.0, 2.0, 3.0, 4.0, 4.0, 3.0, 2.0, 1.0],
         [],
         [-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0],
     ]
-    assert calculate_sweep(sweep_parms, loop_over, up_down, repeat).value == result
+    result = calculate_sweep(sweep_parms, loop_over, up_down, repeat)
+    assert not isinstance(result, Error)
+    assert result.value == expected_result

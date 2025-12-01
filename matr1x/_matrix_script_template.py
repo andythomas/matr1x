@@ -702,8 +702,10 @@ except Exception as e:
         print(" error during device initialization\n")
 
     _reset_kwargs["status"] = "errored"
-    _system.add_comment(f"Script errored: {exc_type.__name__}: {e}")
-
+    if exc_type is None:
+        _system.add_comment(f"Script errored: {e}")
+    else:
+        _system.add_comment(f"Script errored: {exc_type.__name__}: {e}")
 # mark last open file as finished, if not labeled elsewhere
 if "status" not in _reset_kwargs.keys():
     _reset_kwargs["status"] = "finished"
