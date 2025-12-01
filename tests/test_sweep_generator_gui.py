@@ -136,8 +136,8 @@ def test_sweep_generator_load(qtbot, qapp, gui_wait):
     qtbot.wait(gui_wait())
     assert main_window.isVisible()
     assert test_sweep_file.exists()
-    main_window.open_file(test_sweep_file)
 
+    main_window.open_file(test_sweep_file)
     assert main_window.loop_over == [-1, -1]
     assert main_window.up_down == [2, 0]
     assert main_window.repeat == [2, 1]
@@ -148,3 +148,54 @@ def test_sweep_generator_load(qtbot, qapp, gui_wait):
     assert main_window.grid_widgets[1].updown.isChecked() is False
     assert main_window.grid_widgets[0].loopover.currentText() == "None"
     assert main_window.grid_widgets[1].loopover.currentText() == "None"
+
+
+@pytest.mark.timeout(timeout=30, method="thread")
+def test_sweep_generator_sweep_table(qtbot, qapp, gui_wait):
+    """
+    Test changing points entry in sweep_table.
+
+    Asserts
+    -------
+    main window is visible
+    sweep parameters are set up correctly
+    points value can be changed in sweep_table
+    window title becomes dirty after change
+    sweep_params data is updated correctly
+    """
+    main_window = sweep_generator.MainWindow()
+    main_window.show()
+    qtbot.addWidget(main_window)
+    qtbot.waitExposed(main_window)
+    qapp.processEvents()
+    qtbot.wait(gui_wait())
+    assert main_window.isVisible()
+
+    dummy_system = path / "../matr1x/systems/system_dummy.py"
+    main_window.add_system([dummy_system])
+    qtbot.wait(gui_wait())
+    main_window.grid_widgets[0].start.setText("0")
+    main_window.grid_widgets[0].end.setText("10")
+    main_window.grid_widgets[0].points.setText("2")
+    main_window.grid_widgets[0].append.click()
+    qtbot.wait(gui_wait())
+    widget = main_window.sweep_table.cellWidget(0, 2)
+    assert isinstance(widget, QLineEdit)
+    assert widget.text() == "2"
+    assert main_window.sweep_params[0][0][2] == "2"
+
+    main_window.update_window_title(dirty=False)
+    assert "unsaved" not in main_window.windowTitle().lower()
+
+    points_widget = main_window.sweep_table.cellWidget(0, 2)
+    assert isinstance(points_widget, QLineEdit)
+
+    points_widget.clear()
+    qtbot.keyClicks(points_widget, "3")
+    points_widget.editingFinished.emit()
+    qtbot.wait(gui_wait())
+    assert points_widget.text() == "3"
+    assert main_window.sweep_params[0][0][2] == "3"
+    assert "*" in main_window.windowTitle()
+
+    main_window.update_window_title(dirty=False)

@@ -452,7 +452,7 @@ class ColumnGenerator(QObject):
         size = temp_widget.sizeHint().height()
         temp_widget.deleteLater()
         append_widget.setFixedSize(size, int(2.9 * size))
-        append_widget.clicked.connect(self.widget_modified.emit)
+        append_widget.clicked.connect(lambda: self.widget_modified.emit())
         append_widget.clicked.connect(lambda: self.append.emit(self.column))
 
         repeat_widget = SpinBoxFocus()
@@ -1526,7 +1526,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                     row=row,
                     i=i: self.sweep_params[actual_column][row].__setitem__(i, line_edit.text())
                 )
-                line_edit.textChanged.connect(self.window_title_dirty.emit)
+                line_edit.textChanged.connect(lambda: self.window_title_dirty.emit())
                 line_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
                 self.sweep_table.setCellWidget(row, i, line_edit)
             delete_button = QPushButton("-")
@@ -1535,7 +1535,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                     actual_column, row
                 )
             )
-            delete_button.clicked.connect(self.window_title_dirty.emit)
+            delete_button.clicked.connect(lambda: self.window_title_dirty.emit())
             wrapper = QWidget()
             layout = QHBoxLayout(wrapper)
             layout.addWidget(delete_button)
