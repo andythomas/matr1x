@@ -56,7 +56,7 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
     main_window.load_from_filename(inputfile)
     assert main_window.windowTitle() == "Matrix Script: " + script_filename
 
-    metadata = main_window.metadata
+    metadata = main_window.ui.widgets.metadata
     creator = "Power User"
     metadata.creator.setText(creator)
     identifier = "np20250929b"
@@ -66,14 +66,14 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
     description = "I: 9,3\nV: 12,2"
     metadata.description.setText(description)
 
-    main_window.config_action.setChecked(True)
+    main_window.ui.actions.config.setChecked(True)
     qtbot.wait(gui_wait())
-    assert main_window.config_editor.isVisible()
-    main_window.config_editor.w_update_config.click()
+    assert main_window.ui.widgets.config_editor.isVisible()
+    main_window.ui.widgets.config_editor.w_update_config.click()
 
-    main_window.start_pause_action.trigger()
+    main_window.ui.actions.start_pause.trigger()
     qtbot.wait(2000)
-    assert main_window.preview_action.isEnabled()
+    assert main_window.ui.actions.preview.isEnabled()
 
     assert main_window.measurement_file.name[:14] == "boring_testrun"
     assert main_window.measurement_file.exists()
@@ -111,7 +111,7 @@ def test_CodeEditor_API(qtbot, qapp):
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     assert main_window.isVisible()
-    editor = main_window.script_edit
+    editor = main_window.ui.widgets.script_edit
 
     assert hasattr(editor, "setPlainText")
     assert hasattr(editor, "toPlainText")
@@ -170,7 +170,7 @@ def test_CodeEditor(qtbot, qapp, gui_wait):
     assert main_window.isVisible()
     code = "#print(  1 )"
     no_comment = code[1:]
-    editor = main_window.script_edit
+    editor = main_window.ui.widgets.script_edit
     qtbot.wait(gui_wait())
     editor.setPlainText(code)
     qtbot.wait(5 * gui_wait())
