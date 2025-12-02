@@ -52,3 +52,21 @@ def test_calculate_sweep():
     result = calculate_sweep(sweep_parms, loop_over, up_down, repeat)
     assert not isinstance(result, Error)
     assert result.value == expected_result
+
+
+def test_recursion():
+    """Test calculate_sweep function with more recursion."""
+    sweep_parms = [[], [], [[0, 10, 3]], [[0, 1, 2]], [[1, 2, 2]]]
+    loop_over = [-1, -1, -1, 2, 2]
+    up_down = [False, False, False, False, False]
+    repeat = [1, 1, 1, 1, 1]
+    expected_result = [
+        [],
+        [],
+        [0.0, 5.0, 10.0],
+        [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+        [1.0, 2.0, 1.0, 2.0, 1.0, 2.0],
+    ]
+    result = calculate_sweep(sweep_parms, loop_over, up_down, repeat)
+    assert not isinstance(result, Error)
+    assert result.value == expected_result

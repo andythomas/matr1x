@@ -215,15 +215,19 @@ def check_depth(index: int, array: list, depth: int = 0) -> Result[int, int]:
         # adds the position of the occurences of the index to a list
         if cnt > 1:
             # multiple occurences of index in array
-            d = []
+            d: list[int] = []
             occ = -1
             for _ in range(cnt):
                 # follow all branches of the occurences to get the actual
                 # maximum hirarchy of the occurence
                 occ = array.index(index, occ + 1)
-                d.append(check_depth(occ, array, depth + 1))
-            return max(d)
+                item = check_depth(occ, array, depth + 1)
+                if isinstance(item, Error):
+                    return Error(-1)
+                d.append(item.value)
+            return Success(max(d))
         return check_depth(array.index(index), array, depth + 1)
+
     # if no more occurence is in the array, then return the current depth
     return Success(depth)
 
