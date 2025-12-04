@@ -35,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 from PySide6.QtCore import (
     QEventLoop,
     QObject,
+    QTimer,
     QUrl,
     Signal,
     Slot,
@@ -54,6 +55,7 @@ from matr1x.util import (
 
 SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
+HIGHLIGHT_INTERVAL_MS = 15
 
 __all__ = ["CodeEditor"]
 
@@ -593,6 +595,10 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self.loadFinished.connect(lambda success: loop.quit() if success else None)
         loop.exec()
         self.setAcceptDrops(True)
+        self._highlight_timer = QTimer(self)
+        self._highlight_timer.setSingleShot(True)
+        self._highlight_timer.timeout.connect(self._apply_pending_highlight)
+        self._pending_highlight_line: int | None = None
         self._current_theme: str
         get_application_instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
         self.setValidExtensions(extensions)
@@ -730,11 +736,22 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         line_number: int
             The line number to highlight.
         """
-        self._run_javascript(f"window.highlightLine({line_number})")
+        self._pending_highlight_line = line_number
+        self._highlight_timer.start(HIGHLIGHT_INTERVAL_MS)
 
     def removeHighlight(self) -> None:
         """Remove line highlighting."""
+        self._highlight_timer.stop()
+        self._pending_highlight_line = None
         self._run_javascript("window.clearLineHighlight()")
+
+    def _apply_pending_highlight(self) -> None:
+        """Apply the most recently requested line highlight."""
+        if self._pending_highlight_line is None:
+            return
+        line_number = self._pending_highlight_line
+        self._pending_highlight_line = None
+        self._run_javascript(f"window.highlightLine({line_number})")
 
     def setTheme(self, theme_selection: str) -> None:
         """

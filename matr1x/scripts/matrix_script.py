@@ -37,6 +37,7 @@ from PySide6.QtCore import (
     QSize,
     Qt,
     QThread,
+    QTimer,
     Signal,
     Slot,
 )
@@ -60,6 +61,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QPlainTextEdit,
     QSplitter,
     QTextEdit,
     QToolBar,
@@ -133,7 +135,7 @@ class CentralWidget(FileDropMixin, QWidget):
         self.setValidExtensions([MainWindow.extension])
 
 
-class TerminalOutput(QTextEdit):
+class TerminalOutput(QPlainTextEdit):
     """
     Custom class for terminal-like text output.
 
@@ -152,7 +154,7 @@ class TerminalOutput(QTextEdit):
     def updateColors(self) -> None:
         """Update terminal colors based on system theme."""
         palette = self.palette()
-        text_edit = QTextEdit()
+        text_edit = QPlainTextEdit()
         text_edit.setEnabled(False)
         changed_palette = text_edit.palette()
         palette.setColor(
@@ -1014,6 +1016,11 @@ class MainWindow(QMainWindow):
         self.output_stream = EmittingStream()
         self.output_stream.text_written.connect(self.output_written)
         self._cached_system_info: SystemInfo | None = None
+        self._output_buffer: list[str] = []
+        self._output_timer = QTimer()
+        self._output_timer.timeout.connect(self._flush_output_buffer)
+        self._output_timer.setSingleShot(False)
+        self._output_timer.setInterval(50)
         get_application_instance().isDarkSignal.connect(self.update_systems)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
         self.ui = UIBuilder(self)
@@ -1047,6 +1054,7 @@ class MainWindow(QMainWindow):
             self.ui.widgets.script_edit.enableTabCompletion
         )
         self.ui.actions.start_pause.triggered.connect(self.start_process)
+        self.ui.actions.stop.triggered.connect(lambda: self.abort_thread("q"))
         self.ui.actions.abort.triggered.connect(lambda: self.abort_thread("a"))
         self.ui.actions.finish.triggered.connect(lambda: self.abort_thread("f"))
         self.ui.actions.kill.triggered.connect(self.kill_thread)
@@ -1080,6 +1088,7 @@ class MainWindow(QMainWindow):
             The line to be printed.
         """
         cursor = self.ui.widgets.status_preview.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
         emphasize = QTextCharFormat()
         emphasize.setForeground(QColor("royalblue"))
         cursor.insertText(line, emphasize)
@@ -1660,52 +1669,26 @@ class MainWindow(QMainWindow):
 
     def output_written(self, text: str) -> None:
         """
-        Append most recent text to the end of the display.
-
-        This function also tries to mimick the behavior of a carriage
-        return in the output text. At the position of a carriage return
-        the current line is deleted and replaced by the new text and
-        the cursor is placed at the end.
+        Buffer text and update GUI periodically to prevent crashes.
 
         Parameters
         ----------
         text: str
             Text to be appended.
         """
-        if len(text) > 20000:
-            # if receiving very long print statements, limit display to 20k
-            # symbols. This is necessary because performance of QTextEdit is
-            # insufficient to handle very large texts
-            prefix = "Received very long print statement, first 20k symbols:\n"
-            text = prefix + text[:20000]
-        self.ui.widgets.status_preview.moveCursor(QTextCursor.MoveOperation.End)
-        if "\r" in text:
-            before, after = text.split("\r", maxsplit=1)
-            self.ui.widgets.status_preview.insertPlainText(before)
-            # make sure cursor is at the end of the inserted text (required
-            # if there is a \n in `before`).
-            self.ui.widgets.status_preview.moveCursor(QTextCursor.MoveOperation.End)
-            # return cursor to beginning of line by deleting its content
-            cursor = self.ui.widgets.status_preview.textCursor()
-            # select the content of the last line and clear the text
-            self.ui.widgets.status_preview.moveCursor(
-                QTextCursor.MoveOperation.EndOfLine, QTextCursor.MoveMode.MoveAnchor
-            )
-            self.ui.widgets.status_preview.moveCursor(
-                QTextCursor.MoveOperation.StartOfLine, QTextCursor.MoveMode.KeepAnchor
-            )
-            cursor.removeSelectedText()
-            if "\r" in after:
-                # recursion for long strings
-                self.output_written(after)
-            else:
-                # insert text after \r at the cursor location
-                self.ui.widgets.status_preview.insertPlainText(after)
+        text = text.replace("\r", "")
+        self._output_buffer.append(text)
+        if not self._output_timer.isActive():
+            self._output_timer.start()
+
+    def _flush_output_buffer(self) -> None:
+        """Flush buffered text to the GUI."""
+        if self._output_buffer:
+            combined_text = "".join(self._output_buffer)
+            self._output_buffer.clear()
+            self.ui.widgets.status_preview.appendPlainText(combined_text)
         else:
-            self.ui.widgets.status_preview.insertPlainText(text)
-            self.ui.widgets.status_preview.moveCursor(QTextCursor.MoveOperation.End)
-        sb = self.ui.widgets.status_preview.verticalScrollBar()
-        sb.setValue(sb.maximum())
+            self._output_timer.stop()
 
     def update_filename(self, path: str) -> None:
         """
