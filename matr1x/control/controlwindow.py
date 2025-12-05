@@ -254,13 +254,20 @@ class ControlWindow(QMainWindow):
             # Windows does not like : in filenames
             filename = filename.replace(":", "")
         self.logfile: Path = Path(logfolder) / filename
-        self.terminate_log = False
-        self.terminated_log = False
+        self._log_stop_event = threading.Event()
+        self._log_interval_updated = threading.Event()
+        self._log_stopped_event = threading.Event()
+        self._log_stopped_event.set()
+        self._log_thread: threading.Thread | None = None
+        self._legacy_refresh_thread: threading.Thread | None = None
+        self._legacy_refresh_stopped = threading.Event()
+        self._legacy_refresh_stopped.set()
         self.terminate = False
         self.terminated = False
         self.devInit = False
         self.keep_enabled = []
         self.activity_layout: QHBoxLayout
+        self._log_interval = 60
         # initialize error handling
         self.sig_error.connect(self.handleError)
         # SCPI TCP server placeholders
@@ -869,6 +876,8 @@ class ControlWindow(QMainWindow):
         self.interval.setRange(1, 24 * 3600 + 1)
         self.interval.setValue(60)
         self.interval.setMaximumWidth(70)
+        self._log_interval = self.interval.value()
+        self.interval.valueChanged.connect(self._update_log_interval)
         clearlog = QPushButton("Clear Output")
         self.togglelog.clicked.connect(self.toggleLog)
         selectlog.clicked.connect(self.selectLog)
@@ -1075,16 +1084,16 @@ class ControlWindow(QMainWindow):
             self.configlog.setChecked(False)
             self.togglelog.setText("data log running")
             # start thread
-            self.terminate_log = False
-            self.terminated_log = False
-            self.tlog = threading.Thread(target=self.loggingFunc, daemon=True)
-            self.tlog.start()
+            self._log_stop_event.clear()
+            self._log_stopped_event.clear()
+            self._log_thread = threading.Thread(target=self.loggingFunc, daemon=True)
+            self._log_thread.start()
             self.logging = True
             print(f"{time.strftime(datetimefmt)}: data logging started")
 
         elif self.logging is True:
             self.S_log.reset()
-            self.terminate_log = True
+            self._stop_logging_thread()
             self.logging = False
             # reset GUI
             self.configlog.setEnabled(True)
@@ -1128,35 +1137,56 @@ class ControlWindow(QMainWindow):
     def loggingFunc(self) -> None:
         """Perform logging at specified intervals."""
         cnt = 0
-        while not self.terminate_log:
-            # get interval and initialize counter for seconds
-            interval = self.interval.value()
-            if 0 == cnt:
-                # every interval seconds, perform log
-                self.S_log.trigger()
-                self.S_log.take_measurement_point(self.logfile)
-            # ensure logging is interruptible even while waiting for
-            # the next logpoint
-            cnt = (cnt + 1) % interval
-            time.sleep(1)
-        self.terminated_log = True
+        interval = max(1, self._log_interval)
+        try:
+            while not self._log_stop_event.is_set():
+                if self._log_interval_updated.is_set():
+                    self._log_interval_updated.clear()
+                    interval = max(1, self._log_interval)
+                if cnt == 0:
+                    self.S_log.trigger()
+                    self.S_log.take_measurement_point(self.logfile)
+                cnt = (cnt + 1) % interval
+                if self._log_stop_event.wait(1):
+                    break
+        finally:
+            self._log_stopped_event.set()
+
+    @Slot(int)
+    def _update_log_interval(self, value: int) -> None:
+        """Store the most recent logging interval for use in worker threads."""
+        self._log_interval = max(1, value)
+        self._log_interval_updated.set()
+
+    def _stop_logging_thread(self, timeout: float = 2.0) -> None:
+        """
+        Request the logging thread to stop and wait for confirmation.
+
+        Parameters
+        ----------
+        timeout : float, optional
+            Maximum wait time in seconds for the logging thread to terminate.
+        """
+        self._log_stop_event.set()
+        thread = self._log_thread
+        if thread is None:
+            self._log_stopped_event.set()
+            return
+        if self._log_stopped_event.wait(timeout):
+            thread.join()
+        else:
+            logger.warning("logging thread did not terminate within %.1f s", timeout)
+        self._log_thread = None
 
     @catchEmitError
     def refreshDict(self) -> None:
         """
-        Update the GUI fields in the main loop.
+        Initialize GuiDicts and align them with their dock visibility.
 
-        The readout is conducted thread-safe. The main loop terminates
-        once self.terminate is set to True and sets self.terminated once
-        it's successfully finished.
-
-        This method is typically decorated with an error handler to
-        catch and terminate upon an uncaught Python exception.
+        The setup runs on the GUI thread and ensures that only visible guidicts
+        are started. Optionally, a delayed log start is scheduled to give all
+        guidicts time to populate their values.
         """
-        # start guidicts and get minimum/maximum period
-        # minimal period used as check interval for the shutdown
-        min_period = 1
-        # maximal period serves as delay for the potential start of the log
         max_period = 1
         for guidict in self.guidicts:
             dockw = guidict.dock
@@ -1165,37 +1195,67 @@ class ControlWindow(QMainWindow):
                 guidict.restoreFeatures()
             else:
                 guidict.start()
-            min_period = min(min_period, guidict.refresh_period)
             max_period = max(max_period, guidict.refresh_period)
         if self._run_log_on_start:
-            # delay log start by one refresh_period with the hope that then all
-            # values are initialized
-            timer = threading.Timer(max_period, lambda: self.toggleLog(True))
-            timer.start()
-        while True:
-            time.sleep(min_period)
-            if self.terminate:
-                for guidict in self.guidicts:
-                    guidict.stop()
-                break
+            QTimer.singleShot(int(max_period * 1000), lambda: self.toggleLog(True))
+        self.terminated = False
 
-        # flag for stating that thread has ended
+    def _stop_guidicts(self, wait: bool = True) -> None:
+        """Stop all guidicts and update the terminated flag."""
+        for guidict in self.guidicts:
+            guidict.stop(wait=wait)
         self.terminated = True
+
+    def _has_custom_refresh(self) -> bool:
+        """Return True if the subclass overrides refreshDict."""
+        return type(self).refreshDict is not ControlWindow.refreshDict
+
+    def _start_legacy_refresh_thread(self) -> None:
+        """Launch the legacy refresh loop in a worker thread if needed."""
+        if self._legacy_refresh_thread and self._legacy_refresh_thread.is_alive():
+            return
+        self._legacy_refresh_stopped.clear()
+        self._legacy_refresh_thread = threading.Thread(
+            target=self._legacy_refresh_entrypoint,
+            name=f"{self.__class__.__name__}-refresh",
+            daemon=True,
+        )
+        self._legacy_refresh_thread.start()
+
+    def _legacy_refresh_entrypoint(self) -> None:
+        """Execute the legacy refresh loop and signal when it terminates."""
+        try:
+            self.refreshDict()
+        finally:
+            self._legacy_refresh_stopped.set()
+
+    def _stop_legacy_refresh_thread(self, timeout: float = 5.0) -> None:
+        """
+        Stop the legacy refresh thread and wait for it to terminate.
+
+        Parameters
+        ----------
+        timeout : float, optional
+            Maximum time in seconds to wait for the thread to finish. Defaults to 5.0.
+        """
+        thread = self._legacy_refresh_thread
+        if thread is None:
+            return
+        finished = self._legacy_refresh_stopped.wait(timeout)
+        if finished:
+            thread.join()
+        else:
+            logger.warning("refresh thread did not terminate within %.1f s", timeout)
+        self._legacy_refresh_thread = None
 
     # general local server and start stop overhead
     def __enter__(self):
-        """
-        Start refreshing the values in a separate thread and initialize devices.
-
-        This method checks that the devices are initialized and starts a
-        thread to continuously refresh the values in the GUI.
-        """
+        """Initialize devices, start GuiDict workers, and launch the SCPI server."""
         # initialize devices
         print(f"{time.strftime(datetimefmt)}: initializing devices")
         self.connectDev()
 
-        # initialize thread to refresh dicts
-        # check if successful
+        # start guidicts if devices initialized successfully
         if self.devInit is True:
             # merge all cmds from the GuiDicts and the extra cmds
 
@@ -1217,20 +1277,14 @@ class ControlWindow(QMainWindow):
                         )
                 self.cmd_list.update(guidict.cmds)
 
-            self.t = threading.Thread(target=self.refreshDict, daemon=True)
-            self.t.start()
+            ControlWindow.refreshDict(self)
+            if self._has_custom_refresh():
+                self._start_legacy_refresh_thread()
             self.running = True
             self.startServer()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        """
-        Stop the refreshDict function and close devices.
-
-        This method is called when exiting the context manager. It
-        handles the cleanup process, including stopping the server,
-        terminating the refresh thread, and stopping any ongoing
-        logging.
-        """
+        """Stop GuiDict workers, close devices, and stop the logging thread."""
         if exc_type is not None:
             print(exc_type, exc_value, exc_traceback)
 
@@ -1238,15 +1292,11 @@ class ControlWindow(QMainWindow):
         if self.running is True:
             self.terminate = True
             self.running = False
-            # wait for refreshDict to terminate
-            while self.terminated is False:
-                time.sleep(0.01)
+            self._stop_guidicts()
+            self._stop_legacy_refresh_thread()
         if self.logging is True:
-            self.terminate_log = True
             self.logging = False
-            # wait for logging to terminate
-            while self.terminated_log is False:
-                time.sleep(0.01)
+            self._stop_logging_thread()
 
     def startServer(self) -> None:
         """
@@ -1402,18 +1452,13 @@ class ControlWindow(QMainWindow):
         pointer : str
             A string indicating where the error occurred.
         """
-        # stop guidicts immediately on error (Prevents a sometimes occuring
-        # timeout error)
-        for guidict in self.guidicts:
-            guidict.stop(wait=False)
-        # end the refreshDict thread
+        # stop guidicts; block briefly so worker threads actually terminate
         self.terminate = True
-        self.terminate_log = True
-        if pointer == "refreshDict":
-            # set terminated flag since our main loop is dead
-            self.terminated = True
-        elif pointer == "loggingFunc":
-            self.terminated_log = True
+        self._stop_guidicts()
+        self._stop_legacy_refresh_thread(timeout=0.5)
+        self._log_stop_event.set()
+        if pointer == "loggingFunc":
+            self._log_stopped_event.set()
         self.activity.emit("lightgray")
         self.deactivate.emit(True)
         qApp = get_application_instance()

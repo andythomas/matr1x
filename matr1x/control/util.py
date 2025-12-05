@@ -139,7 +139,7 @@ def catchEmitError(method):
                 logger.info(outstr)
                 print(outstr)
                 if guidict.allow_disabling:
-                    guidict.enable_switch.setChecked(False)
+                    guidict._dispatcher.disable_requested.emit()
                     outstr = "Ignoring last Exception since device can be deactivated."
                     logger.info(outstr)
                     print(outstr)
@@ -148,9 +148,6 @@ def catchEmitError(method):
                 self.sig_error.emit(exc_type, exc_value, pointer)
             elif hasattr(self, "parent") and self.parent:
                 self.parent.sig_error.emit(exc_type, exc_value, pointer)
-            # prevent prematurely cleaning up objects,
-            # this otherwise causes (sometimes) a segmentation fault
-            time.sleep(0.05)
 
     return FunctionMaker.create(
         method,
@@ -852,7 +849,7 @@ class GuiDict(UserDict, ABC):
             self.target(0)
             # copy values from readout to set fields upon first run
             if copy:
-                self.guidict.copy_values()
+                self.guidict._dispatcher.copy_requested.emit()
             self._timer.start()
 
         @Slot()
@@ -876,6 +873,28 @@ class GuiDict(UserDict, ABC):
             else:
                 self.activity.emit("lightgreen")
             self.target(count)
+
+    class _GuiDispatcher(QObject):
+        """Small QObject living on the GUI thread to run widget updates safely."""
+
+        copy_requested = Signal()
+        disable_requested = Signal()
+
+        def __init__(self, guidict: GuiDict):
+            super().__init__()
+            self._guidict = guidict
+            self.copy_requested.connect(self.copy_values_slot)
+            self.disable_requested.connect(self.disable_guidict)
+
+        @Slot()
+        def copy_values_slot(self) -> None:
+            """Trigger a safe copy-values operation on the GUI thread."""
+            self._guidict.copy_values()
+
+        @Slot()
+        def disable_guidict(self) -> None:
+            """Disable the GuiDict safely on the GUI thread."""
+            self._guidict.enable_switch.setChecked(False)
 
     def __init__(self):
         super().__init__(self.data)
@@ -903,6 +922,7 @@ class GuiDict(UserDict, ABC):
         self.menu_actions = []
         # initialize all with None
         self._reset()
+        self._dispatcher = GuiDict._GuiDispatcher(self)
 
     def create_GUI(self):
         """
@@ -1110,7 +1130,14 @@ class GuiDict(UserDict, ABC):
             self.running = False
             self._refresh_thread.quit()
             if wait:
-                self._refresh_thread.wait(2 * self.refresh_period_ms)
+                finished = self._refresh_thread.wait(2 * self.refresh_period_ms)
+                if not finished and self._refresh_thread.isRunning():
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        "GuiDict %s refresh thread did not terminate within %.2f s",
+                        self.__class__.__name__,
+                        2 * self.refresh_period_ms / 1000,
+                    )
             self.restoreFeatures()
             self.S.reset()
             self.S.close()
