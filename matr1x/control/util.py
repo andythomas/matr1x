@@ -56,6 +56,7 @@ from PySide6.QtCore import (
     QAbstractTableModel,
     QModelIndex,
     QObject,
+    QPoint,
     QSize,
     Qt,
     QThread,
@@ -962,10 +963,8 @@ class GuiDict(UserDict, ABC):
             def restoreState(self):
                 """Load stored dock geometry and disable state."""
                 self.settings.beginGroup(self.windowTitle())
-                if self.settings.value("size") is not None:
-                    self.resize(self.settings.value("size"))
-                if self.settings.value("pos") is not None:
-                    self.move(self.settings.value("pos"))
+                self.resize(self.settings.safer_value("size", self.size(), type=QSize))
+                self.move(self.settings.safer_value("pos", self.pos(), type=QPoint))
                 self.disabled = self.settings.safer_value("disabled", False, type=bool)
                 self.extended = self.settings.safer_value("extended", False, type=bool)
                 self.settings.endGroup()

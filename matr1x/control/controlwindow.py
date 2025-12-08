@@ -39,7 +39,7 @@ import time
 import warnings
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal, Slot
+from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -415,12 +415,11 @@ class ControlWindow(QMainWindow):
             g.enable_switch.setChecked(not g.dock.disabled)
             g.restoreFeatures()
         # restore geometry settings of main window
-        if self.settings.value("size") is not None:
-            self.resize(self.settings.value("size"))
-        if self.settings.value("pos") is not None:
-            self.move(self.settings.value("pos"))
-        if self.settings.value("windowState") is not None:
-            self.restoreState(self.settings.value("windowState"))
+        self.resize(self.settings.safer_value("size", self.size(), type=QSize))
+        self.move(self.settings.safer_value("pos", self.pos(), type=QPoint))
+        self.restoreState(
+            self.settings.safer_value("windowState", self.saveState(), type=QByteArray)
+        )
         # restore status visibility
         self.status_box.toggle_button.setChecked(
             self.settings.safer_value("status_visible", False, type=bool)
