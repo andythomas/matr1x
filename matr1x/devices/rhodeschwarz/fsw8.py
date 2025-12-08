@@ -265,7 +265,9 @@ class FSW8(VisaDevice):
         self.write("INP:COUP AC")  # options : AC / DC
 
         if getData:
-            return self.getSweepData()
+            # This needs to be fixed to work. Get sweep data needs a
+            # channel as a parameter
+            return self.getSweepData()  # type: ignore
 
     @synchronized
     def noise_cancellation(self, state=False):

@@ -252,7 +252,7 @@ def _reset_setvalues():
 
 
 # inject line number decorator to time.sleep
-_time.sleep = _lineno_decorator(_time.sleep)
+_time.sleep = _lineno_decorator(_time.sleep)  # type: ignore time shadowing is intended!
 # inject breakpoint and line number decorators to system methods
 _inject_decorator(_system, _breakpoint)
 for subsys in _system.subsys:

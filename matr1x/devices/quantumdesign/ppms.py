@@ -262,7 +262,9 @@ class PPMS:
         setpoint : float
             The temperature to set in Kelvin.
         """
-        self.set_temperature(setpoint)
+        # This needs to be fixed to work. Get set temperature needs a
+        # rate as a parameter
+        self.set_temperature(setpoint)  # type: ignore
         client = self._get_client()
         client.wait_for(1, 1000000, client.temperature.waitfor)
 
