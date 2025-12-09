@@ -21,13 +21,14 @@ sweep calculations, and various helper functions for data processing and
 system configuration.
 """
 
+import codecs
 import importlib.util
 import os
 import subprocess
 import sys
 import sysconfig
 import textwrap
-import time
+import threading
 from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -453,16 +454,6 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None, syst
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         client_socket.connect(("127.0.0.1", port))
-        # make socket non-blocking
-        client_socket.settimeout(0.05)
-        # timeout should be chosen so that the server socket can receive the
-        # full message within the timeout
-        # Since currently the server socket delays the receiving by 5 ms every
-        # 250 1024 byte segments, once more then 10 of such segments are
-        # expected, the timeout will occur (not accounting for the internal
-        # delays of the socket operations). Consequently, we impose a maximum
-        # message length of < 2.5 MByte here, which I assume is a large print
-        # statement and should be completely irrelevant.
         connected = True
     except (ConnectionRefusedError, TypeError):
         # GUI not running - script was not run from graphical user interface.
@@ -476,41 +467,64 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None, syst
     else:
         thread = ExecThread(script, meta_data, scriptname, None, n_pref, systems)
 
+    control_thread = None
+    stop_event: threading.Event | None = None
+
+    if connected:
+        stop_event = threading.Event()
+
     # start the thread that runs the script
     thread.start()
 
-    # wait until the thread is finished while waiting for input on
-    # client_socket in the case it is connected
-    while thread.is_alive():
-        if connected is True:
+    if connected:
+
+        def _control_listener() -> None:
+            """Forward GUI control commands to the execution thread."""
+            decoder = codecs.getincrementaldecoder("utf-8")()
+            while True:
+                if stop_event is not None and stop_event.is_set():
+                    break
+                try:
+                    datachunk = client_socket.recv(32)
+                except OSError:
+                    # Socket was closed or shutdown, terminate listener.
+                    break
+                if len(datachunk) == 0:
+                    break
+                try:
+                    decoded = decoder.decode(datachunk)
+                except UnicodeDecodeError:
+                    # invalid byte sequence, skip this chunk
+                    continue
+                for char in decoded:
+                    thread.handle_input(char)
             try:
-                datachunk = client_socket.recv(1)
-                if len(datachunk) > 0:
-                    try:
-                        thread.handle_input(datachunk.decode("utf-8"))
-                    except UnicodeDecodeError:
-                        # unicode symbol that consists of two symbols was
-                        # likely found, try to recv one more symbol
-                        datachunk += client_socket.recv(1)
-                        try:
-                            thread.handle_input(datachunk.decode("utf-8"))
-                        except UnicodeDecodeError:
-                            # not the relevant error -> something went wrong
-                            pass
-            except OSError:  # for Python >= 3.10 this can be TimeoutError
-                # recv timed out, no data was sent
-                pass
-        # this sleep prevents a deadlock scenario which otherwise heavily slows
-        # down matrix_script execution
-        time.sleep(0.001)
-        # this sleep SIGNIFICANTLY slows down matr1x interthread communication
-        # can this be made shorter? -> changed to 0.001
+                tail = decoder.decode(b"", final=True)
+            except UnicodeDecodeError:
+                tail = ""
+            for char in tail:
+                thread.handle_input(char)
+
+        control_thread = threading.Thread(
+            target=_control_listener,
+            name="matrix-script-control-listener",
+            daemon=True,
+        )
+        control_thread.start()
+
+    # wait until the execution thread is finished
+    thread.join()
 
     if connected is True:
-        # wait for all data from socket to be received by the other side
-        # necessary to make sure all output is actually sent to other side
-        # before socket is closed.
-        client_socket.shutdown(socket.SHUT_WR)
+        if stop_event is not None:
+            stop_event.set()
+        # unblock the control listener and close the communication socket
+        try:
+            client_socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        if control_thread is not None:
+            control_thread.join(timeout=1)
         # close socket
         client_socket.close()
 
