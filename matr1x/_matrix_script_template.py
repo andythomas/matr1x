@@ -31,6 +31,7 @@ import textwrap as _textwrap
 import time as _time
 import traceback as _traceback
 import types as _types
+import typing as _typing
 from pathlib import Path as _Path
 
 import wrapt
@@ -39,33 +40,11 @@ import matr1x as _matr1x
 import matr1x.util as _matrix_util
 from matr1x.system import MergedSystem as _MergedSystem
 
-# =============================================================================
-# CONDITIONAL STUB DEFINITIONS - Only define if not already injected
-# The stub functions raise NotImplementedError to make sure this file can not
-# be executed directly.
-# =============================================================================
+if _typing.TYPE_CHECKING:
 
-# These stubs satisfy the linter but don't interfere with injection
-if "_interrupt" not in globals():
-
-    def _interrupt(duration=None, until=None, message="", silent=10, system=None):
-        raise NotImplementedError("This function should be injected at runtime")
-
-
-if "_report_line" not in globals():
-
-    def _report_line(line_number: int):
-        raise NotImplementedError("This function should be injected at runtime")
-
-
-if "_report_path" not in globals():
-
-    def _report_path(path):
-        raise NotImplementedError("This function should be injected at runtime")
-
-
-if "_input" not in globals():
-
+    def _interrupt(duration=None, until=None, message="", silent=10, system=None): ...
+    def _report_line(line_number: int): ...
+    def _report_path(path): ...
     def _input(
         message: str = "",
         system: object = None,
@@ -76,33 +55,21 @@ if "_input" not in globals():
         max_value: float | None = None,
         step: float | None = None,
         decimals: int | None = None,
-    ) -> str:
-        raise NotImplementedError("This function should be injected at runtime")
+    ) -> str: ...
 
-
-if "_meta_data" not in globals():
-    _meta_data = {}  # Stub for linting
-
-if "_scriptname" not in globals():
-    _scriptname = ""  # Stub for linting
-
-if "_script" not in globals():
-    _script = ""  # Stub for linting
-
-if "_status" not in globals():
+    _meta_data = {}
+    _scriptname = ""
+    _script = ""
 
     class _StatusStub:
-        finished = None
+        finished: bool | None = None
 
-    _status = _StatusStub()  # Stub for linting
-
+    _status = _StatusStub()
+    _systems = []
 
 # load config section from toml file
 _config = _matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
-# systems will be injected at runtime
-if "_systems" not in globals():
-    _systems = []  # Stub for linting
 _system = _MergedSystem.from_files(_systems)
 
 # pass meta information
@@ -144,9 +111,9 @@ def _configure_script_storing(system, script):
 
 
 def _find_caller_frame():
-    """Find the frame of the actual caller, skipping over decorator frames."""
-    # stepping twice back on frame, since the inner most frame is from this
-    # and the second one is from the _lineno_decorator function
+    """Find the frame of the actual caller, skip decorator frames."""
+    # stepping twice back on frame, since the inner most frame is from
+    # this and the second one is from the _lineno decorator/function.
     frame = _inspect.currentframe()
     frame = frame.f_back.f_back if (frame and frame.f_back) else None
     # Try to find the first frame called in script environment
@@ -161,7 +128,7 @@ def _find_caller_frame():
 
         frame = frame.f_back
 
-    # Fallback for Python 3.12 or earlier: step back a fixed number of frames
+    # Fallback for Python <=3.12: step back a fixed number of frames
     frame = _inspect.currentframe()
     steps_back = 3 if _sys.version_info >= (3, 13) else 2
     for _ in range(steps_back):
@@ -173,13 +140,18 @@ def _find_caller_frame():
 @wrapt.decorator
 def _lineno_decorator(wrapped, instance, args, kwargs):
     """Report the executing line number back to the GUI."""
+    _show_lineno()
+    return wrapped(*args, **kwargs)
+
+
+def _show_lineno() -> None:
+    """Report the executing line number back to the GUI."""
     frame = _find_caller_frame()
     if frame:
         caller_filename = frame.f_code.co_filename
         if caller_filename == "<string>":
             # report line only if called directly from script
             _report_line(frame.f_lineno)
-    return wrapped(*args, **kwargs)
 
 
 @wrapt.decorator
@@ -225,9 +197,9 @@ def _inject_decorator(instance, decorator):
     for attr_name in dir(instance):
         if attr_name in ["add_comment", "_print"]:
             # exclude this methods from decoration since they are
-            # potentially called from inside the decorator. anything called
-            # inside the _interrupt function should be added here/not
-            # decorated.
+            # potentially called from inside the decorator. anything
+            # called inside the _interrupt function should be added
+            # here/not decorated.
             continue
         attr = getattr(instance, attr_name)
         if isinstance(attr, _types.MethodType):
@@ -264,16 +236,14 @@ meta_data = _system.dcdata
 system = _system
 
 
-# define wrapper around system.set_value
-@_lineno_decorator
-def set_value(col, value):
+def set_value(parameter, value):
     """
     Store set parameters and call _system.set_value.
 
     Parameters
     ----------
     col : str or int
-        Column name or index.
+        Parameter name or index.
     value : Any
         Value to set.
 
@@ -282,10 +252,11 @@ def set_value(col, value):
     Any
         Set value.
     """
-    if col in _system.columns:
-        i = _system.columns.index(col)
+    _show_lineno()
+    if parameter in _system.columns:
+        i = _system.columns.index(parameter)
     else:
-        i = col
+        i = parameter
 
     setv = _system.set_value(i, value)
     if setv is None and isinstance(_system.columns[i], (list, tuple)):
@@ -297,68 +268,65 @@ def set_value(col, value):
     return setv
 
 
-@_lineno_decorator
-def trigger_value(*args, **kwargs):
+def trigger_value(parameter: str | int) -> None:
     """
-    Execute system.trigger_value. All arguments are forwarded.
+    Execute trigger_value for the (merged) system.
 
     Parameters
     ----------
-    *args : tuple
-        Positional arguments.
-    **kwargs : dict
-        Keyword arguments.
-
-    Returns
-    -------
-    Any
-        Result of system.trigger_value.
+    parameter: str | int
+        Parameter name or index.
     """
-    _system.trigger_value(*args, **kwargs)
+    _show_lineno()
+    _system.trigger_value(parameter)
 
 
-@_lineno_decorator
-def read_value(*args, **kwargs):
+def read_value(parameter: str | int):
     """
-    Execute system.read_value. All arguments are forwarded.
+    Execute read_value for the (merged) system.
 
     Parameters
     ----------
-    *args : tuple
-        Positional arguments.
-    **kwargs : dict
-        Keyword arguments.
+    parameter: str | int
+        Parameter name or index.
 
     Returns
     -------
     Any
         Result of system.read_value.
     """
-    return _system.read_value(*args, **kwargs)
+    _show_lineno()
+    return _system.read_value(parameter)
 
 
-@_lineno_decorator
-def wait(duration=None, until=None, message="", silent=10):
+def wait(
+    duration: float | int | None = None,
+    until: _datetime.datetime | str | None = None,
+    message: str = "",
+    silent: float = 10,
+) -> None:
     """
-    Pauses execution for a duration, until a timestamp, or for a relative time.
+    Pause for a duration, until a timestamp, or for a relative time.
 
     Parameters
     ----------
     duration : float or int, optional
-        The number of seconds to sleep.
-        If specified, the function will sleep for this duration.
-        If paused during this duration the remaining wait time continue after unpausing.
-        If a str or datetime object is used here it will be redirected to the until argument.
+        The number of seconds to sleep. If specified, the function will
+        sleep for this duration. If paused during this duration the
+        remaining wait time continue after unpausing. If a str or
+        datetime object is used here it will be redirected to the until
+        argument.
     until : str or datetime, optional
         A target time or relative time string. It can be:
-        - An absolute timestamp in a format like "YYYY-MM-DD HH:MM:SS" or "HH:MM".
-        - A relative time string starting with '+' followed by a number and a unit
-            (e.g., "+24h" for 24 hours, "+30m" for 30 minutes, "+1d" for 1 day).
+        - An absolute timestamp: "YYYY-MM-DD HH:MM:SS" or "HH:MM".
+        - A relative time string starting with '+' followed by a number
+            and a unit (e.g., "+24h" for 24 hours, "+30m" for 30 min.,
+            "+1d" for 1 day).
         - A `datetime` object representing a specific time.
     message : str, optional
-        A string which is printed if the sleep exceeds the silent argument.
+        Print this string if the sleep exceeds the silent argument.
     silent : float, optional
-        If the wait time exceeds this value a message string will be printed.
+        Print a message string if this value is exceeded.
 
     Examples
     --------
@@ -375,6 +343,7 @@ def wait(duration=None, until=None, message="", silent=10):
     Pauses execution until 18:00 today,
     or until the same time tomorrow if it has already passed today.
     """
+    _show_lineno()
     if isinstance(duration, (str, _datetime.datetime)) and not until:
         until = duration
         duration = None
@@ -384,8 +353,7 @@ def wait(duration=None, until=None, message="", silent=10):
     _interrupt(duration=duration, until=until, message=message, silent=silent, system=_system)
 
 
-@_lineno_decorator
-def input(query: str, timeout=float("inf"), default_value=""):  # noqa: A001
+def input(query: str, timeout: float = float("inf"), default_value: str = "") -> str:  # noqa: A001
     """
     Ask user to provide some free text input.
 
@@ -394,7 +362,7 @@ def input(query: str, timeout=float("inf"), default_value=""):  # noqa: A001
     query : str
         Query string presented to the user so they know what to enter.
     timeout : float, optional
-        Maximum time in seconds to wait for user input. Default is infinity.
+        Max. time in seconds to wait for user input (default=infinity).
     default_value : str, optional
         Value to return if timeout occurs. Default is empty string.
 
@@ -403,11 +371,11 @@ def input(query: str, timeout=float("inf"), default_value=""):  # noqa: A001
     str
         User input.
     """
+    _show_lineno()
     return _input(query, system=_system, timeout=timeout, default_value=default_value)
 
 
-@_lineno_decorator
-def input_bool(query: str, timeout=float("inf"), default_value="yes") -> bool:
+def input_bool(query: str, timeout: float = float("inf"), default_value: str = "yes") -> bool:
     """
     Ask user to answer a yes/no question.
 
@@ -416,15 +384,16 @@ def input_bool(query: str, timeout=float("inf"), default_value="yes") -> bool:
     query : str
         Question to ask the user.
     timeout : float, optional
-        Maximum time in seconds to wait for user input. Default is infinity.
+        Max. time in seconds to wait for user input (default=infinity).
     default_value : str, optional
-        Value to return if timeout occurs. Default is empty string.
+        Value to return if timeout occurs. Default is yes.
 
     Returns
     -------
     bool
         True if the user answers yes, False otherwise.
     """
+    _show_lineno()
     ret = _input(
         query,
         system=_system,
@@ -437,7 +406,6 @@ def input_bool(query: str, timeout=float("inf"), default_value="yes") -> bool:
     return False
 
 
-@_lineno_decorator
 def input_numerical(
     query: str,
     timeout=float("inf"),
@@ -455,9 +423,9 @@ def input_numerical(
     query : str
         Question to ask the user.
     timeout : float, optional
-        Maximum time in seconds to wait for user input. Default is infinity.
+        Max. time in seconds to wait for user input (default=infinity).
     default_value : float, optional
-        Value to return if timeout occurs. Default is empty string.
+        Value to return if timeout occurs. Default is 0.0.
     min_value : float, optional
         Minimal input value. Default is -1e9
     max_value : float, optional
@@ -472,6 +440,7 @@ def input_numerical(
     float
         numerical user input value.
     """
+    _show_lineno()
     ret = _input(
         query,
         system=_system,
@@ -486,29 +455,44 @@ def input_numerical(
     return float(ret)
 
 
-@_lineno_decorator
-def end_script(finished: bool | None = None):
+def end_script(finished: bool | None = None) -> None:
     """
     End the script execution and set the file status acordingly.
 
     Parameters
     ----------
     finished : bool, optional
-        If True, mark the script as finished. If False, mark as unfinished.
-        If None, don't change the status.
+        Mark the script as finished (True), unfinished (False) or do not
+        change the status (None).
     """
+    _show_lineno()
     _status.finished = finished
     raise KeyboardInterrupt
 
 
-@_lineno_decorator
-def print(*args, **kwargs):  # noqa: A001
-    """Use system._print to optionally forward the printed message to the datafile.
-
-    The behavior of this function depends on the config option
-    matr1x.scripts.matrix-script.print_to_comment
+def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False) -> None:  # noqa: A001
     """
-    _system._print(*args, **kwargs)
+    Print the message and optionally forward it to the datafile.
+
+    The arguments are identical to the Python print builtin. The
+    behavior of this function depends on the config option
+    matr1x.scripts.matrix-script.print_to_comment.
+
+    Parameters
+    ----------
+    *args
+        Print these values.
+    sep: str
+        String inserted between values, default a space.
+    end: str
+        String appended after the last value, default a newline.
+    file
+        A file-like object (stream); defaults to the output widget.
+    flush
+        Whether to forcibly flush the stream.
+    """
+    _show_lineno()
+    _system._print(*args, sep=sep, end=end, file=file, flush=flush)
 
 
 # load execution path of scripts and change to this directory
@@ -517,8 +501,8 @@ _configure_execution_path(_scriptname)
 _configure_script_storing(_system, _script)
 # initialize system and put devs into namespace
 print("setting system")
-# system.set is called before the filename is set so we have no arguments
-# here -> this is a difference to matrix
+# system.set is called before the filename is set. So, we have no
+# arguments here -> this is a difference to matrix
 _system.set()
 devs = _system.devs
 
@@ -526,14 +510,18 @@ devs = _system.devs
 _system.dcdata.append = True
 
 
-@_lineno_decorator
-@_breakpoint
-def init_datafile(filename, comment=None, append=False, print_header=True, ntot=None):
+def init_datafile(
+    filename: str,
+    comment: str | None = None,
+    append: bool = False,
+    print_header: bool = True,
+    ntot: int | None = None,
+) -> None:
     """
     Initialize the datafile for the matrix_script measurement.
 
-    By default a new datafile will be generated whose name is generated in a
-    way that no existing datafile can be overwritten.
+    By default a new datafile will be generated whose name is generated
+    in a way that no existing datafile can be overwritten.
 
     Parameters
     ----------
@@ -542,26 +530,28 @@ def init_datafile(filename, comment=None, append=False, print_header=True, ntot=
     comment : str, optional
         Comment to be saved in the file header.
     append : bool, optional
-        Flag to tell if an existing datafile should be used. If append is
-        False a new datafile with a non-conflicting name will be generated by
-        appending "_<number>" to the filename.
+        Flag to tell if an existing datafile should be used. If append
+        is False a new datafile with a non-conflicting name will be
+        generated by appending "_<number>" to the filename.
     print_header : bool, optional
-        Flag to decide if the header information with column names and units
-        should be printed.
+        Flag to decide if the header information with column names and
+        units should be printed.
     ntot : int, optional
         Total number of expected datapoints for estimation of remaining
         measurement time.
     """
+    _interrupt(0, system=_system)  # equivalent to @_breakpoint with transparent signature
+    _show_lineno()
     global _ntot, _npoints, _starttime
 
     _ntot = ntot
     _npoints = 0  # reset the number of measurement points
     _starttime = _time.time()
 
-    filename = _system.generate_datafilename(
+    safe_filename = _system.generate_datafilename(
         outputfile=filename, inputfile=_scriptname, append=append
     )
-    if not append or not filename.exists():
+    if not append or not safe_filename.exists():
         # write header to file
         _system.dcdata["description"] = comment
         _system.init_datafile(_scriptname or "matrix script generated")
@@ -570,36 +560,39 @@ def init_datafile(filename, comment=None, append=False, print_header=True, ntot=
         _matrix_util.print_formatted_line(_matrix_util.flatten(_system.columns))
         _matrix_util.print_formatted_line(_matrix_util.flatten(_system.units))
     # report file to matrix_script
-    _report_path(filename.resolve())
+    _report_path(safe_filename.resolve())
 
 
-# wrap system.trigger and system.take_measurement_point into measure_system
-@_lineno_decorator
-@_breakpoint
-def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
+# wrap system.trigger and system.take_measurement_point into
+# measure_system
+def measure_system(
+    print_setpoint: bool = True, print_data: bool = True, print_telemetry: bool = True
+) -> list:
     """
     Perform the measurement of a single data point.
 
-    This means a sequence of system.trigger, and reading the data is performed.
+    A sequence of system.trigger, and reading the data is performed.
 
     Parameters
     ----------
     print_setpoint : bool, optional
-        Flag to decide if the column values set since the last measurement
-        should be printed in a way compatible with the header information of
-        init_datafile.
+        Flag to decide if the column values set since the last
+        measurement should be printed in a way compatible with the
+        header information of init_datafile.
     print_data : bool, optional
-        Flag to decide if the measured data values should be printed in a way
-        compatible with the header information of init_datafile.
+        Flag to decide if the measured data values should be printed in
+        a way compatible with the header information of init_datafile.
     print_telemetry : bool, optional
-        Flag to decide if telemetry data about the measurement duration should
-        be printed.
+        Flag to decide if telemetry data about the measurement duration
+        should be printed.
 
     Returns
     -------
     list
         List of measured values.
     """
+    _interrupt(0, system=_system)  # equivalent to @_breakpoint with transparent signature
+    _show_lineno()
     global _preset, _npoints
     _npoints += 1
     preread = _time.time()
@@ -620,7 +613,8 @@ def measure_system(print_setpoint=True, print_data=True, print_telemetry=True):
             remaining = (elapsed / _npoints * _ntot - elapsed) / 60
         else:
             remaining = _math.nan
-        # use builtins.print here to make sure the telemetry do not get added to the datafile
+        # use builtins.print here to make sure the telemetry do not get
+        # added to the datafile
         _builtins.print(
             _matrix_util.telemetry_string.format(
                 _npoints,
@@ -663,7 +657,8 @@ except Exception as e:
 
     tbinfo = _traceback.format_exception(exc_type, exc_value, exc_traceback)
 
-    # Don't skip the traceback lines - we need them for line number extraction
+    # Don't skip the traceback lines - we need them for line number
+    # extraction
     tbstr = "".join(tbinfo[1:])  # Skip only the first line (Traceback header)
 
     tbstr = tbstr.replace("<module>", "script")
@@ -678,9 +673,11 @@ except Exception as e:
         tbstr = _re.sub(r"line (\d+)", "line " + str(adjusted_line), tbstr)
 
         # Fix file replacement - get the actual script content
-        # Since we're executing from a string, we need to get the script content differently
+        # Since we're executing from a string, we need to get the script
+        # content differently
         try:
-            # Get the current script content from the _script variable that was injected
+            # Get the current script content from the _script variable
+            # that was injected
             script_lines = _script.splitlines()
             if 1 <= line <= len(script_lines):
                 actual_line = script_lines[line - 1].strip()
@@ -709,8 +706,8 @@ except Exception as e:
 # mark last open file as finished, if not labeled elsewhere
 if "status" not in _reset_kwargs.keys():
     _reset_kwargs["status"] = "finished"
-# the reset function is called at the script end only, but we nevertheless
-# specify the last datafile name to be as close as possible to the behavior
-# of matrix
+# the reset function is called at the script end only, but we
+# nevertheless specify the last datafile name to be as close as possible
+# to the behavior of matrix
 print("resetting system")
 _system.reset(**_reset_kwargs)

@@ -435,7 +435,7 @@ class System:
         self.sensitive_config = {}
 
         # Dublin Core metadata default entries
-        self.dcdata: dict[str, str | None] = DcDict(
+        self.dcdata: DcDict = DcDict(
             self,
             creator=None,  # measurement user
             date=time.strftime(f"{datetimefmt}", time.localtime()),
