@@ -223,3 +223,43 @@ def test_CodeEditor(qtbot, qapp, gui_wait):
 
     editor.setModified(False)
     qtbot.wait(gui_wait())
+
+
+@pytest.mark.timeout(timeout=30, method="thread")
+def test_status_preview_handles_carriage_return(qtbot, qapp, gui_wait, tmp_path):
+    """
+    Ensure carriage returns from a running script overwrite the current line.
+
+    Load a temporary script that uses system_dummy and prints a string containing
+    a carriage return, then verify the rendered output.
+    """
+    main_window = matrix_script.MainWindow()
+    main_window.show()
+    qtbot.addWidget(main_window)
+    qtbot.waitExposed(main_window)
+    qapp.processEvents()
+
+    header_lines = (path / "matrix_script_gui.matrix").read_text().splitlines()[:4]
+    carriage_script = "\n".join(
+        header_lines + ['print("test\\nnot sure what to say\\ragain")', ""]
+    )
+    temp_script = tmp_path / "carriage_test.matrix"
+    temp_script.write_text(carriage_script)
+    main_window.ui.widgets.status_preview.clear()
+    main_window.load_from_filename(temp_script)
+    qtbot.wait(gui_wait())
+    qapp.processEvents()
+
+    # Run script and wait for it to finish
+    main_window.ui.actions.start_pause.trigger()
+    qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
+    thread = main_window.measurement_thread
+    qtbot.waitSignal(thread.finished, timeout=2000)
+    # Next line: Increased timeout needed for Windows
+    qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
+    qapp.processEvents()
+
+    output_text = main_window.ui.widgets.status_preview.toPlainText()
+    assert "test" in output_text
+    assert "again" in output_text
+    assert "what to say" not in output_text

@@ -1676,18 +1676,37 @@ class MainWindow(QMainWindow):
         text: str
             Text to be appended.
         """
-        text = text.replace("\r", "")
         self._output_buffer.append(text)
         if not self._output_timer.isActive():
             self._output_timer.start()
 
     def _flush_output_buffer(self) -> None:
         """Flush buffered text to the GUI."""
-        if self._output_buffer:
-            combined_text = "".join(self._output_buffer)
-            self._output_buffer.clear()
+        if not self._output_buffer:
+            self._output_timer.stop()
+            return
+
+        combined_text = "".join(self._output_buffer)
+        self._output_buffer.clear()
+
+        if "\r" not in combined_text:
             self.ui.widgets.status_preview.appendPlainText(combined_text)
         else:
+            # operate on a disposable cursor so we do not move the user's cursor/selection
+            doc = self.ui.widgets.status_preview.document()
+            cursor = QTextCursor(doc)
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            for char in combined_text:
+                if char == "\r":
+                    cursor.movePosition(
+                        QTextCursor.MoveOperation.StartOfBlock,
+                        QTextCursor.MoveMode.KeepAnchor,
+                    )
+                    cursor.removeSelectedText()
+                else:
+                    cursor.insertText(char)
+
+        if not self._output_buffer:
             self._output_timer.stop()
 
     def update_filename(self, path: str) -> None:
