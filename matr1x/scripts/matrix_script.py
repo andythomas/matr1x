@@ -17,6 +17,7 @@
 
 import logging
 import os
+import platform
 import re
 import socket
 import subprocess
@@ -58,6 +59,8 @@ from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
     QFileDialog,
+    QHBoxLayout,
+    QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -72,7 +75,7 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.control.util import QtGracefulKiller
-from matr1x.editor import CodeEditor
+from matr1x.editor import CodeEditor, LSPServer
 from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
@@ -102,6 +105,7 @@ from matr1x.gui_util import (
 from matr1x.models import SystemInfo
 from matr1x.util import (
     create_temp_dir_with_symlinks,
+    find_binary,
     generate_script,
     get_importable_module_name,
 )
@@ -592,6 +596,8 @@ class WidgetGroup:
     stop_button: QToolButton
     splitter: QSplitter
     central_widget: CentralWidget
+    python_info: QLabel
+    lsp_info: QLabel
 
 
 class UIBuilder:
@@ -694,7 +700,13 @@ class UIBuilder:
         system_list.setMaximumHeight(50)
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
-        script_edit = CodeEditor(extensions=[self.window.extension])
+        lsp_name = "ty"
+        lsp_binary = find_binary(lsp_name)
+        if isinstance(lsp_binary, Error):
+            raise lsp_binary.error
+        lsp_parameters = ["server"]
+        lsp_server = LSPServer(binary=str(lsp_binary.value), parameters=lsp_parameters)
+        script_edit = CodeEditor([self.window.extension], lsp_server)
         system_command_help = QDialog(self.window)
         box_layout = QVBoxLayout()
         system_command_text_edit = QTextEdit()
@@ -714,6 +726,10 @@ class UIBuilder:
         stop_button.setText("Abort")
         splitter = QSplitter(self.window)
         central_widget = CentralWidget(self.window)
+        python_info = QLabel(f"Python {platform.python_version()}")
+        python_info.setToolTip(f"Python: {sys.version}")
+        lsp_info = QLabel(f"LSP: {lsp_name}")
+        lsp_info.setToolTip(f"{lsp_binary.value}")
 
         return WidgetGroup(
             dockable_metadata=dockable_metadata,
@@ -728,6 +744,8 @@ class UIBuilder:
             stop_button=stop_button,
             splitter=splitter,
             central_widget=central_widget,
+            python_info=python_info,
+            lsp_info=lsp_info,
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -820,7 +838,7 @@ class UIBuilder:
             action.setCheckable(True)
             if theme == self.widgets.script_edit.supportedThemes()[0]:
                 action.setChecked(True)
-            action.toggled.connect(
+            action.triggered.connect(
                 lambda checked=False, theme=theme: self.widgets.script_edit.setTheme(theme)
             )
             theme_group.addAction(action)
@@ -977,11 +995,17 @@ class UIBuilder:
         """Create and set up the main GUI."""
         self.window.setCentralWidget(self.widgets.central_widget)
         layout = QVBoxLayout(self.widgets.central_widget)
-        layout.setSpacing(0)
+        layout.setSpacing(6)
         layout.setContentsMargins(11, 4, 11, 11)
         self.widgets.splitter.addWidget(self.widgets.script_edit)
         self.widgets.splitter.addWidget(self.widgets.status_preview)
-        layout.addWidget(self.widgets.splitter)
+        layout.addWidget(self.widgets.splitter, 1)
+        infobar = QHBoxLayout()
+        infobar.addStretch()
+        infobar.addWidget(self.widgets.python_info)
+        infobar.addWidget(QLabel("  |  "))
+        infobar.addWidget(self.widgets.lsp_info)
+        layout.addLayout(infobar, 0)
         self.window.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self.widgets.dockable_metadata
         )
@@ -1422,6 +1446,8 @@ class MainWindow(QMainWindow):
         elif self.ui.widgets.script_edit.isModified() or self.systems_dirty:
             text += "<unsaved>"
         self.setWindowTitle(text)
+        lsp_name = self.scriptname.name if self.scriptname else None
+        self.ui.widgets.script_edit.setFilename(lsp_name)
 
     def add_system(self) -> None:
         """
@@ -2028,7 +2054,7 @@ class MainWindow(QMainWindow):
             self.print_colored("File cannot be opened")
             return
         self.scriptname = filename
-        self.ui.widgets.script_edit.setPlainText("")
+        code = ""
         self.ui.widgets.system_list.clear()
         settable_info = None
         #
@@ -2056,12 +2082,12 @@ class MainWindow(QMainWindow):
                     return
         else:
             self.print_colored("No system defined in script, please choose system(s)")
-        self.ui.widgets.script_edit.insertText(line)
+        code += line
         #
         # system columns definiton
         #
         line = input_file.readline()
-        self.ui.widgets.script_edit.insertText(line)
+        code += line
         # make sure that system column definition agrees with
         # current system
         if "# system names : " in line and settable_info is not None and len(settable_info) >= 2:
@@ -2088,7 +2114,7 @@ class MainWindow(QMainWindow):
         # system unit definiton
         #
         line = input_file.readline()
-        self.ui.widgets.script_edit.insertText(line)
+        code += line
         # make sure that system unit definition agrees with
         # current system
         if "# system units : " in line and settable_info is not None and len(settable_info) >= 3:
@@ -2113,15 +2139,15 @@ class MainWindow(QMainWindow):
         # read actual code
         #
         for i, line in enumerate(input_file):
-            self.ui.widgets.script_edit.insertText(line)
+            code += line
         input_file.close()
+        self.ui.widgets.script_edit.setPlainText(code)
         self.ui.widgets.script_edit.setModified(False)
         self.systems_dirty = False
         self.last_filename = filename
         self.update_window_title()
         if self.ui.widgets.system_list.count() > 0:
             self.ui.actions.remove_system.setEnabled(True)
-        self.run_linter()
 
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""

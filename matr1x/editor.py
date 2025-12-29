@@ -25,13 +25,19 @@ import json
 import logging
 import re
 import socket
+import subprocess
+import sys
 import tempfile
+import threading
 import time
+from dataclasses import dataclass
 from importlib import resources
-from typing import Any
+from pathlib import Path
+from queue import Empty, Queue
+from typing import Any, Literal
 
 import monaco_assets
-from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from PySide6.QtCore import (
     QEventLoop,
     QObject,
@@ -44,7 +50,7 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
-from matr1x.error_handling import Error
+from matr1x.error_handling import Error, Result, Success
 from matr1x.gui_util import FileDropMixin, get_application_instance
 from matr1x.models import SystemInfo
 from matr1x.util import (
@@ -56,6 +62,7 @@ from matr1x.util import (
 SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
 HIGHLIGHT_INTERVAL_MS = 15
+DUMMY_LSP_FILENAME = "user_script.py"
 
 __all__ = ["CodeEditor"]
 
@@ -80,6 +87,399 @@ class RuffMessageModel(BaseModel):
     location: PositionModel
     end_location: PositionModel
     fix: FixModel | None = None
+
+
+class JsonRpcResponse(BaseModel):
+    """A JSON RPC 2 response."""
+
+    jsonrpc: str = Field("2.0")
+    id: int | None
+    result: Any | None = None
+    error: Any | None = None
+
+
+class JsonRpcNotification(BaseModel):
+    """A JSON RPC 2 notification."""
+
+    jsonrpc: str = Field("2.0")
+    method: str
+    params: Any | None = None
+
+
+class JsonRpcRequest(BaseModel):
+    """A JSON RPC 2 request."""
+
+    jsonrpc: str = Field("2.0")
+    id: int
+    method: str
+    params: Any | None = None
+
+
+class LSPPositionModel(BaseModel):
+    """A position in the editor."""
+
+    line: int
+    character: int
+
+
+class LSPHover(BaseModel):
+    """A hover announcement."""
+
+    requestId: float
+    position: LSPPositionModel
+
+
+class LSPContentsModel(BaseModel):
+    """The contents of an LSP response."""
+
+    kind: Literal["plaintext", "markdown"] = "plaintext"
+    value: str
+
+
+class LSPResponse(BaseModel):
+    """A response from the LSP."""
+
+    contents: LSPContentsModel | list[None]
+
+
+@dataclass
+class LSPServer:
+    """A server for the LSP."""
+
+    binary: str
+    parameters: list[str]
+
+
+class LSPClient:
+    """
+    Allow communication to an LSP server.
+
+    Parameters
+    ----------
+    server : list[str]
+        The server with parameters to start in the subprocess.
+    """
+
+    def __init__(self, server: LSPServer) -> None:
+        self.server = [server.binary] + server.parameters
+        self.process: subprocess.Popen | None = None
+        self.id: int = 0
+        self.pending_requests: dict[int, Queue[JsonRpcResponse | None]] = {}
+        self.reader_thread: threading.Thread | None = None
+        self.stderr_thread: threading.Thread | None = None
+        self.stop_event = threading.Event()
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
+    def start(self) -> None:
+        """Start the LSP server process."""
+        creationflags = 0
+        if sys.platform == "win32":
+            creationflags = subprocess.CREATE_NO_WINDOW
+        self.process = subprocess.Popen(
+            self.server,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+            creationflags=creationflags,
+        )
+        time.sleep(0.1)
+        self.reader_thread = threading.Thread(target=self._message_reader, daemon=True)
+        self.reader_thread.start()
+        self.stderr_thread = threading.Thread(target=self._drain_stderr, daemon=True)
+        self.stderr_thread.start()
+        self.logger.info("LSP server started.")
+
+    def stop(self) -> None:
+        """Stop the LSP server."""
+        self.stop_event.set()
+        if self.process:
+            self.process.terminate()
+            self.process.wait()
+        if self.reader_thread:
+            self.reader_thread.join(timeout=1.0)
+        if self.stderr_thread:
+            self.stderr_thread.join(timeout=1.0)
+        self.logger.info("LSP server stopped.")
+
+    def send_request(
+        self,
+        method: str,
+        params: dict | None = None,
+        timeout: float = 0.05,  # should be >0.01 on my Mac
+    ) -> Result[JsonRpcResponse, None]:
+        """
+        Send a request to the LSP.
+
+        This triggers a response.
+
+        Parameters
+        ----------
+        method : str
+            A string with the name of the method to be invoked.
+        params: dict (optional)
+            An object or array of values to be passed as parameters to
+            the defined method.
+        timeout: float
+            Timeout in seconds to wait for response.
+        """
+        if not self.process or not self.process.stdin:
+            return Error(None)
+        request_id = self.id
+        message = self._build_request(method, params)
+        response_queue: Queue[JsonRpcResponse | None] = Queue()
+        self.pending_requests[request_id] = response_queue
+        try:
+            self.process.stdin.write(message.encode())
+            self.process.stdin.flush()
+            try:
+                response = response_queue.get(timeout=timeout)
+                if response is None:
+                    return Error(None)
+                return Success(response)
+            except Empty:
+                self.logger.debug("LSP007: Timeout waiting for response to %s", method)
+                return Error(None)
+        finally:
+            self.pending_requests.pop(request_id, None)
+
+    def send_notification(self, method: str, params: dict | None = None) -> None:
+        """
+        Send a notification to the LSP.
+
+        Parameters
+        ----------
+        method : str
+            A string with the name of the method to be invoked.
+        params: dict (optional)
+            An object or array of values to be passed as parameters to
+            the defined method.
+        """
+        if not self.process or not self.process.stdin:
+            return
+        message = self._build_notification(method, params)
+        self.process.stdin.write(message.encode())
+        self.process.stdin.flush()
+
+    def initialize(self) -> None:
+        """Initialize the server/client communication."""
+        capabilities = {
+            "textDocument": {
+                "hover": {"contentFormat": ["markdown", "plaintext"]},
+                "signatureHelp": {
+                    "signatureInformation": {"documentationFormat": ["markdown", "plaintext"]}
+                },
+                "completion": {
+                    "completionItem": {"documentationFormat": ["markdown", "plaintext"]}
+                },
+            }
+        }
+        init = self.send_request("initialize", {"capabilities": capabilities})
+        if isinstance(init, Error):
+            return
+        self.send_notification("initialized", {})
+
+    def set_document(self, uri: str, version: int, content: str) -> None:
+        """Inform the server about a new document (content)."""
+        code = generate_script(content)
+        self.send_notification(
+            "textDocument/didOpen",
+            {
+                "textDocument": {
+                    "uri": Path(uri).resolve().as_uri(),
+                    "languageId": "python",
+                    "version": version,
+                    "text": code,
+                }
+            },
+        )
+
+    def _handle_response(self, message: str) -> None:
+        """
+        Handle a JSON-RPC response message.
+
+        Parameters
+        ----------
+        message : str
+            The message string to process as a response.
+        """
+        try:
+            response = JsonRpcResponse.model_validate_json(message)
+            if response.id is not None:
+                response_queue = self.pending_requests.get(response.id)
+                if response_queue:
+                    try:
+                        response_queue.put_nowait(response)
+                    except Exception:
+                        self.logger.warning("LSP003: Exception putting response in queue.")
+                        pass
+            else:
+                self.logger.warning("LSP005: id is None in response message.")
+        except ValidationError:
+            self.logger.warning("LSP004: Invalid response message.")
+            pass
+
+    def _handle_notification(self, message: str) -> None:
+        """
+        Handle a JSON-RPC notification message.
+
+        Parameters
+        ----------
+        message : str
+            The message string to process as a notification.
+        """
+        try:
+            notification = JsonRpcNotification.model_validate_json(message)  # noqa: F841
+            # do something with the notifications later
+        except ValidationError:
+            self.logger.warning("LSP006: Invalid notification message.")
+            pass
+
+    def _drain_stderr(self) -> None:
+        """
+        Continuously drain stderr from the LSP server process.
+
+        Some LSPs log into stderr. This avoids a stall in that case.
+        """
+        if not self.process or not self.process.stderr:
+            return
+        try:
+            while not self.stop_event.is_set():
+                if self.process.stderr.readable():
+                    data = self.process.stderr.read(1024)
+                    if not data:
+                        break
+        except Exception:
+            self.logger.warning("LSP008: Exception draining stderr.")
+
+    def _message_reader(self) -> None:
+        """Read messages from the LSP server."""
+        if not self.process or not self.process.stdout:
+            return
+        try:
+            while not self.stop_event.is_set():
+                message = self._read_one_message()
+                if message is None:
+                    break
+                if "id" in json.loads(message):
+                    self._handle_response(message)
+                else:
+                    self._handle_notification(message)
+        except Exception:
+            for response_queue in self.pending_requests.values():
+                try:
+                    response_queue.put_nowait(None)  # Signal error
+                except Exception:
+                    pass
+            raise RuntimeError("Message reader crashed!")
+
+    def _read_one_message(self) -> str | None:
+        """
+        Read one message from the LSP server.
+
+        Returns
+        -------
+        str | None
+            The message content or None.
+        """
+        if not self.process or not self.process.stdout:
+            return None
+        content_length: int = 0
+        while not self.stop_event.is_set():
+            try:
+                line_bytes = self.process.stdout.readline()
+                if not line_bytes:
+                    return None
+                line = line_bytes.decode().strip()
+                if line.startswith("Content-Length:"):
+                    content_length = int(line.split(":")[1].strip())
+                elif line == "":  # Empty line separates headers from content
+                    break
+            except Exception:
+                self.logger.warning("LSP001: Exception reading message.")
+                return None
+        if content_length > 0:
+            try:
+                content_bytes = self.process.stdout.read(content_length)
+                if len(content_bytes) != content_length:
+                    return None
+                result = content_bytes.decode()
+                return result
+            except Exception:
+                self.logger.warning("LSP002: Exception reading message content.")
+                return None
+        return None
+
+    def _add_length(self, json_call: JsonRpcRequest | JsonRpcNotification) -> str:
+        """
+        Add the required header with the length of the message.
+
+        Parameters
+        ----------
+        json_call: JsonRpcRequest or JsonRpcNotification
+            The request or notification message.
+
+        Returns
+        -------
+        str
+            The message with the added header (Content-Length).
+        """
+        serialized_call = json_call.model_dump_json()
+        content_length = len(serialized_call.encode("utf-8"))
+        message = f"Content-Length: {content_length}\r\n\r\n{serialized_call}"
+        return message
+
+    def _build_request(self, method: str, params: dict | None = None) -> str:
+        """
+        Build a compliant JSON RPC2 request.
+
+        This triggers a response.
+
+        Parameters
+        ----------
+        method : str
+            A string with the name of the method to be invoked.
+        params: dict (optional)
+            An object or array of values to be passed as parameters to
+            the defined method.
+
+        Returns
+        -------
+        str
+            The serialized JSON request.
+        """
+        packet = JsonRpcRequest(
+            jsonrpc="2.0",
+            id=self.id,
+            method=method,
+            params=params,
+        )
+        self.id += 1
+        return self._add_length(packet)
+
+    def _build_notification(self, method: str, params: dict | None = None) -> str:
+        """
+        Build a compliant JSON RPC2 notification.
+
+        Parameters
+        ----------
+        method : str
+            A string with the name of the method to be invoked.
+        params: dict (optional)
+            An object or array of values to be passed as parameters to
+            the defined method.
+
+        Returns
+        -------
+        str
+            The serialized JSON notification.
+        """
+        packet = JsonRpcNotification(
+            jsonrpc="2.0",
+            method=method,
+            params=params,
+        )
+        return self._add_length(packet)
 
 
 class Matr1xFunctionChecker(ast.NodeVisitor):
@@ -470,6 +870,8 @@ class EditorBackend(QObject):
     """
 
     contentModified = Signal(bool)
+    hoverRequested = Signal(LSPPositionModel)
+    contentChanged = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -488,6 +890,22 @@ class EditorBackend(QObject):
     def setModified(self, modified: bool) -> None:
         """Set the modification state."""
         self._is_modified = modified
+
+    @Slot(str)
+    def handle_hover(self, payload: str) -> None:
+        """Handle hover notifications from the Monaco editor."""
+        try:
+            hover = LSPHover.model_validate_json(payload)
+        except ValidationError:
+            return
+        hover.position.line = hover.position.line + SCRIPT_OFFSET - 1
+        hover.position.character = hover.position.character + COLUMN_OFFSET - 1
+        self.hoverRequested.emit(hover)
+
+    @Slot(str)
+    def linting_triggered(self, text: str) -> None:
+        """Handle linting trigger notifications from the editor."""
+        self.contentChanged.emit(text)
 
 
 class CodeEditorPage(QWebEnginePage):
@@ -560,9 +978,15 @@ class CodeEditor(FileDropMixin, QWebEngineView):
                 port += 1
         raise RuntimeError("No free ports available")
 
-    def __init__(self, extensions: list):
+    def __init__(self, extensions: list, lsp_server: LSPServer):
         super().__init__()
         self.logger = logging.getLogger(f"{__name__}.CodeEditor")
+        self.version = 1
+        self.code: str = ""
+        self.filename: str = DUMMY_LSP_FILENAME
+        self.lsp = LSPClient(lsp_server)
+        self.lsp.start()
+        self.lsp.initialize()
         # Find free port and start Monaco server
         self.port = self.find_free_port()
         self.server = monaco_assets.MonacoServer(port=self.port)
@@ -584,6 +1008,8 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self.linter = Linter()
         self.backend = EditorBackend(self)
         self.backend.contentModified.connect(self.contentModified.emit)
+        self.backend.hoverRequested.connect(self.on_hover_requested)
+        self.backend.contentChanged.connect(self.on_content_changed)
         self.channel.registerObject("linter", self.linter)
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
@@ -623,11 +1049,39 @@ class CodeEditor(FileDropMixin, QWebEngineView):
             }}
         }})()
         """
-
         self.page().runJavaScript(wrapped_command, handle_result)
         loop.exec()
-
         return result
+
+    def _run_javascript_async(self, command: str):
+        """Execute JavaScript command asynchronously without blocking."""
+        self.logger.debug("executing async: %s", command)
+        wrapped_command = f"""
+        (function() {{
+            try {{
+                return {command};
+            }} catch (error) {{
+                console.error('JavaScript error:', error.message);
+                return null;
+            }}
+        }})()
+        """
+
+        def handle_result(js_result):
+            if js_result is not None:
+                self.logger.debug("async JS result: %s", js_result)
+
+        self.page().runJavaScript(wrapped_command, handle_result)
+
+    def setFilename(self, name: str | None) -> None:
+        """
+        Set the filename for the LSP interactions.
+
+        name: str
+            The filename to be used by the LSP.
+        """
+        self.filename = name if name else DUMMY_LSP_FILENAME
+        self.lsp.set_document(self.filename, self.version, self.code)
 
     def setPlainText(self, code: str) -> None:
         """
@@ -752,6 +1206,47 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         line_number = self._pending_highlight_line
         self._pending_highlight_line = None
         self._run_javascript(f"window.highlightLine({line_number})")
+
+    def on_hover_requested(self, hover: LSPHover) -> None:
+        """
+        Handle hover requests from Monaco editor.
+
+        Parameters
+        ----------
+        hover : LSPHover
+            Pydantic model with the position and an id.
+        """
+        hover_result = self.lsp.send_request(
+            "textDocument/hover",
+            {
+                "textDocument": {"uri": Path(self.filename).resolve().as_uri()},
+                "position": hover.position.model_dump(),
+            },
+        )
+        if (
+            isinstance(hover_result, Error)
+            or hover_result.value.error is not None
+            or hover_result.value.result is None
+        ):
+            return
+        try:
+            hover_result = LSPResponse.model_validate(hover_result.value.result)
+        except ValidationError:
+            return
+        contents = hover_result.contents
+        if isinstance(contents, list):
+            popup = [{"value": "Unknown"}]
+        else:
+            text = contents.value.rsplit("Go to", 1)[0]
+            popup = [{"value": text}]
+        js_command = f"window.showHover({hover.requestId}, {json.dumps(popup)})"
+        self._run_javascript_async(js_command)
+
+    def on_content_changed(self, text: str) -> None:
+        """Increment version counter and process text."""
+        self.version += 1
+        self.code = text
+        self.lsp.set_document(self.filename, self.version, self.code)
 
     def setTheme(self, theme_selection: str) -> None:
         """

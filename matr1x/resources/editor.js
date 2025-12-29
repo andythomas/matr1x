@@ -57,7 +57,9 @@ const initializeMonacoEditor = () => {
     return;
   }
 
-  require.config({ paths: { vs: `http://localhost:${window.MONACO_PORT}/min/vs` } });
+  require.config({
+    paths: { vs: `http://localhost:${window.MONACO_PORT}/min/vs` },
+  });
 
   require(["vs/editor/editor.main"], () => {
     editor = monaco.editor.create(document.getElementById("container"), {
@@ -81,10 +83,19 @@ const initializeMonacoEditor = () => {
       },
       wordBasedSuggestions: "allDocuments",
       tabCompletion: "on",
+      // Disable hover loading popup
+      hover: {
+        enabled: true,
+        delay: 0,
+        sticky: true,
+      },
     });
 
     // Register custom completion provider
     registerCustomCompletions();
+
+    // Register hover provider
+    registerHoverProvider();
 
     // Set up automatic linting on content changes
     setupContentChangeHandling();
@@ -297,6 +308,72 @@ const registerCustomCompletions = () => {
   });
 };
 
+// Store pending hover requests
+const pendingHoverRequests = new Map();
+
+// Function to be called from Python backend
+window.showHover = (requestId, content) => {
+  const request = pendingHoverRequests.get(requestId);
+  if (request) {
+    clearTimeout(request.timeoutId);
+    request.resolve({
+      contents: content,
+    });
+    pendingHoverRequests.delete(requestId);
+  }
+};
+
+const registerHoverProvider = () => {
+  monaco.languages.registerHoverProvider("python", {
+    provideHover: async (model, position) => {
+      // Get the word at the current position
+      const word = model.getWordAtPosition(position);
+
+      if (!word) {
+        return null;
+      }
+
+      const requestId = Date.now();
+
+      return new Promise((resolve, reject) => {
+        // Timeout after 2 seconds
+        const timeoutId = setTimeout(() => {
+          if (pendingHoverRequests.has(requestId)) {
+            pendingHoverRequests.delete(requestId);
+            resolve(null);
+          }
+        }, 2000);
+
+        pendingHoverRequests.set(requestId, { resolve, reject, timeoutId });
+
+        const hoverData = {
+          requestId: requestId,
+          position: {
+            line: position.lineNumber,
+            character: position.column,
+          },
+        };
+
+        if (editorBackend?.handle_hover) {
+          try {
+            editorBackend.handle_hover(JSON.stringify(hoverData));
+          } catch {
+            clearTimeout(timeoutId);
+            pendingHoverRequests.delete(requestId);
+            resolve(null);
+            return;
+          }
+        } else {
+          clearTimeout(timeoutId);
+          pendingHoverRequests.delete(requestId);
+          resolve(null);
+          return;
+        }
+      });
+    },
+  });
+};
+
 // Set up content change handling and automatic linting
 const LINTING_DELAY_MS = 1000;
 
@@ -338,6 +415,11 @@ const triggerLinting = () => {
   console.debug("Triggering linting for code length:", code.length);
 
   try {
+    // Notify backend
+    if (editorBackend?.linting_triggered) {
+      editorBackend.linting_triggered(code);
+    }
+
     linter.lint_code(code);
   } catch (error) {
     console.error("Error during linting:", error);

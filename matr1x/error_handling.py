@@ -36,7 +36,7 @@ from asyncio import AbstractEventLoop
 from dataclasses import dataclass
 from threading import ExceptHookArgs
 from types import TracebackType
-from typing import Any, Generic, TypeAlias, TypeVar
+from typing import Any, Generic, TypeAlias, TypeVar, final
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -111,6 +111,7 @@ T = TypeVar("T")
 E = TypeVar("E")
 
 
+@final
 @dataclass(frozen=True)
 class Success(Generic[T]):
     """Received value from a successful operation."""
@@ -118,6 +119,7 @@ class Success(Generic[T]):
     value: T
 
 
+@final
 @dataclass(frozen=True)
 class Error(Generic[E]):
     """Received error from a failed operation."""
