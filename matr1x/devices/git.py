@@ -96,6 +96,8 @@ class gitDevice:
         diff = self.repo.diff()  # Get the diff object
         diff_text = ""
         for patch in diff:
+            if patch is None:
+                continue
             diff_text += f"Diff for {patch.delta.new_file.path}:\n"
             if patch.text is not None:
                 diff_text += patch.text + "\n"
