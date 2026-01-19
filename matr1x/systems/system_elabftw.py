@@ -1,3 +1,18 @@
+# This file is part of a software collection for data acquisition (matr1x).
+# Copyright (C) 2006-2026 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 Defines a system for automatically defining an elabFTW entry for a successful measurement.
 
@@ -350,30 +365,39 @@ class ElabSystem(System):
         except ApiException as e:
             print(f"Exception when calling UsersApi->readUsers: {e}\n")
             return None
-        names = [user.fullname for user in response]
-        orgids = [user.orgid for user in response]
-        # Search string
-        search_string = self.merged_system.dcdata["creator"]
+
+        names = [user["fullname"] for user in response]
+        # Handle potential None values in orgid safely
+        orgids = [str(user["orgid"]).lower() if user["orgid"] else None for user in response]
+
+        search_string = self.merged_system.dcdata.get("creator")
         if not search_string:
             return None
 
+        search_string_lower = search_string.lower()
+
         # Step 1: try to match orgid
         try:
-            return response[orgids.index(search_string.lower())].userid
-        except ValueError:
-            # orgid does not exist
+            idx = orgids.index(search_string_lower)
+            return response[idx]["userid"]
+        except (ValueError, KeyError):
             pass
 
         # Step 2: try to find exact substring matches
-        substring_matches = [name for name in names if search_string.lower() in name.lower()]
+        substring_matches = [name for name in names if search_string_lower in name.lower()]
 
-        # Step 3: If no exact substring matches, find the closest match
+        # Step 3: Match logic
+        most_likely_match = None
         if substring_matches:
-            most_likely_match = substring_matches[0]  # Assuming the first match is the most likely
+            most_likely_match = substring_matches[0]
         else:
             closest_matches = difflib.get_close_matches(search_string, names, n=1, cutoff=0.6)
             most_likely_match = closest_matches[0] if closest_matches else None
-        return response[names.index(most_likely_match)].userid
+
+        if most_likely_match:
+            return response[names.index(most_likely_match)]["userid"]
+
+        return None
 
     def _determine_category(self) -> int | None:
         """
@@ -439,12 +463,15 @@ class ElabSystem(System):
         if not category_name:
             return None
 
-        itemsTypesApi = elabapi_python.ItemsTypesApi(self.api_client)
+        itemsTypesApi = elabapi_python.ItemsTypesResourcesTemplatesApi(self.api_client)
         try:
             # Read all resources categories that are accessible.
             response = itemsTypesApi.read_items_types()
         except ApiException as e:
-            print(f"Exception when calling ItemsTypesApi->readItemsTypes: {e}\n")
+            print(
+                f"Exception when calling ItemsTypesResourcesTemplatesApi->read_item_types: {e}\n"
+            )
+            return None
         # find id for search category
         return next((item.id for item in response if item.title == category_name), None)
 
