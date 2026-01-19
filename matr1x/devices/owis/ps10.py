@@ -1,5 +1,5 @@
 # This file is part of a software collection for data acquisition (matr4x).
-# Copyright (C) 2006-2025 matr1x developers
+# Copyright (C) 2006-2026 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

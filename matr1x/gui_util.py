@@ -1,5 +1,5 @@
 # This file is part of a software collection for data acquisition (matr1x).
-# Copyright (C) 2006-2025 matr1x developers
+# Copyright (C) 2006-2026 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -3599,7 +3599,7 @@ class AboutBox(QMessageBox):
                     Platform:</b> {system_type}<br>
                     System Qt (qmake):</b> {qmake_qt6_version}</p>
 
-                    <p>(C) 2006-2025 Matr1x Developers. All rights reserved.</p>
+                    <p>(C) 2006-2026 Matr1x Developers. All rights reserved.</p>
                 </div>
                 """
 
