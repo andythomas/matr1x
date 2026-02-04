@@ -126,6 +126,40 @@ MAX_LINES_STATUS = 10000
 # run matrix-script until it reaches the limit and see whether the
 # display perforamnce of the GUI drops.
 
+
+help_text = (
+    """
+MATRIX SCRIPT HELP
+
+The available functions are listed in the following lines. Please use hover (mouseover) """
+    """in the left editor window to get more specific information about a particular function. """
+    """Furthermore, auto-completion will try to suggest possible parameters.
+
+set_value(value_index/name, value)
+trigger_value(value_index/name)
+read_value(value_index/name)
+wait(seconds, until, message, silent)
+input(query, timeout, default_value)
+input_bool(query, timeout, default_value)
+input_numerical(query, timeout, default_value, min_value, max_value, step, decimals)
+end_script(finished)
+print(*args, sep, end, file, flush)
+init_datafile(filename, comment, append, print_header, ntot)
+measure_system(print_setpoint, print_data, print_telemetry)
+
+In addition, the following variables are available. Please use help to get a list of """
+    """available parameters and devices. Note that user variable names must not start with """
+    """an underscore!
+
+devs  # dictionary that contains all devices
+sys  # merged system object from the selected systems
+meta_data  # dictionary that contains all meta information
+
+---
+
+"""
+)
+
 T = TypeVar("T")
 R = TypeVar("R")
 
@@ -1056,6 +1090,7 @@ class MainWindow(QMainWindow):
         if filename is not None:
             self.load_from_filename(filename)
         self.update_systems()  # in case the load failed just to be sure
+        print(help_text)
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
