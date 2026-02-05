@@ -129,6 +129,15 @@ class LSPHover(BaseModel):
     position: LSPPositionModel
 
 
+class CompletionRequest(BaseModel):
+    """A completion request."""
+
+    requestId: float
+    position: LSPPositionModel
+    triggerCharacter: str
+    code: str
+
+
 class LSPContentsModel(BaseModel):
     """The contents of an LSP response."""
 
@@ -169,6 +178,7 @@ class LSPClient:
         self.stderr_thread: threading.Thread | None = None
         self.stop_event = threading.Event()
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.opened_documents: set[str] = set()
 
     def start(self) -> None:
         """Start the LSP server process."""
@@ -282,17 +292,32 @@ class LSPClient:
     def set_document(self, uri: str, version: int, content: str) -> None:
         """Inform the server about a new document (content)."""
         code = generate_script(content)
-        self.send_notification(
-            "textDocument/didOpen",
-            {
-                "textDocument": {
-                    "uri": Path(uri).resolve().as_uri(),
-                    "languageId": "python",
-                    "version": version,
-                    "text": code,
-                }
-            },
-        )
+        document_uri = Path(uri).resolve().as_uri()
+
+        if document_uri not in self.opened_documents:
+            self.send_notification(
+                "textDocument/didOpen",
+                {
+                    "textDocument": {
+                        "uri": document_uri,
+                        "languageId": "python",
+                        "version": version,
+                        "text": code,
+                    }
+                },
+            )
+            self.opened_documents.add(document_uri)
+        else:
+            self.send_notification(
+                "textDocument/didChange",
+                {
+                    "textDocument": {
+                        "uri": document_uri,
+                        "version": version,
+                    },
+                    "contentChanges": [{"text": code}],
+                },
+            )
 
     def _handle_response(self, message: str) -> None:
         """
@@ -871,7 +896,9 @@ class EditorBackend(QObject):
 
     contentModified = Signal(bool)
     hoverRequested = Signal(LSPPositionModel)
+    completionRequested = Signal(CompletionRequest)
     contentChanged = Signal(str)
+    cursorPositionChanged = Signal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -903,9 +930,28 @@ class EditorBackend(QObject):
         self.hoverRequested.emit(hover)
 
     @Slot(str)
+    def handle_completion_request(self, payload: str) -> None:
+        """Handle completion requests from the Monaco editor."""
+        try:
+            completion_request = CompletionRequest.model_validate_json(payload)
+        except ValidationError:
+            return
+        self.contentChanged.emit(completion_request.code)
+        completion_request.position.line = completion_request.position.line + SCRIPT_OFFSET - 1
+        completion_request.position.character = (
+            completion_request.position.character + COLUMN_OFFSET - 1
+        )
+        self.completionRequested.emit(completion_request)
+
+    @Slot(str)
     def linting_triggered(self, text: str) -> None:
         """Handle linting trigger notifications from the editor."""
         self.contentChanged.emit(text)
+
+    @Slot(int, int)
+    def cursor_position_changed(self, line: int, column: int) -> None:
+        """Handle cursor position change notifications from the editor."""
+        self.cursorPositionChanged.emit(line, column)
 
 
 class CodeEditorPage(QWebEnginePage):
@@ -984,13 +1030,15 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self.version = 1
         self.code: str = ""
         self.filename: str = DUMMY_LSP_FILENAME
+        self.column = 1
+        self.row = 1
         self.lsp = LSPClient(lsp_server)
         self.lsp.start()
         self.lsp.initialize()
         # Find free port and start Monaco server
         self.port = self.find_free_port()
         self.server = monaco_assets.MonacoServer(port=self.port)
-        timeout = 20  # seconds
+        timeout = 30  # seconds
         start_time = time.time()
         while not self.server.is_running() and (time.time() - start_time) < timeout:
             time.sleep(0.1)
@@ -1009,7 +1057,9 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self.backend = EditorBackend(self)
         self.backend.contentModified.connect(self.contentModified.emit)
         self.backend.hoverRequested.connect(self.on_hover_requested)
+        self.backend.completionRequested.connect(self.on_completion_requested)
         self.backend.contentChanged.connect(self.on_content_changed)
+        self.backend.cursorPositionChanged.connect(self.on_cursor_position_changed)
         self.channel.registerObject("linter", self.linter)
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
@@ -1242,11 +1292,89 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         js_command = f"window.showHover({hover.requestId}, {json.dumps(popup)})"
         self._run_javascript_async(js_command)
 
+    def on_completion_requested(self, completion_request: CompletionRequest) -> None:
+        """Handle completion requests from Monaco editor."""
+        completion_result = self.lsp.send_request(
+            "textDocument/completion",
+            {
+                "textDocument": {"uri": Path(self.filename).resolve().as_uri()},
+                "position": completion_request.position.model_dump(),
+                "context": {
+                    "triggerKind": 2,
+                    "triggerCharacter": completion_request.triggerCharacter,
+                },
+            },
+        )
+        if isinstance(completion_result, Error):
+            return
+        if completion_result.value.error is not None or completion_result.value.result is None:
+            return
+        completions = self._process_lsp_completions(completion_result.value.result)
+        js_command = (
+            f"window.showCompletions({completion_request.requestId}, {json.dumps(completions)})"
+        )
+        self._run_javascript_async(js_command)
+
+    def _process_lsp_completions(self, lsp_completions):
+        """Convert LSP completion results to Monaco format."""
+        monaco_completions = []
+        if isinstance(lsp_completions, list):
+            for i, item in enumerate(lsp_completions):
+                if isinstance(item, dict):
+                    doc_field = item.get("documentation", "")
+                    monaco_documentation = None
+                    if doc_field:
+                        if isinstance(doc_field, dict):
+                            monaco_documentation = doc_field
+                        elif isinstance(doc_field, str) and doc_field.strip():
+                            monaco_documentation = {"kind": "markdown", "value": doc_field}
+                    monaco_completion = {
+                        "label": item.get("label", ""),
+                        "insertText": item.get("insertText", item.get("label", "")),
+                        "kind": self._convert_completion_kind(item.get("kind", 1)),
+                        "documentation": monaco_documentation,
+                    }
+                    monaco_completions.append(monaco_completion)
+        elif isinstance(lsp_completions, dict):
+            if "items" in lsp_completions:
+                return self._process_lsp_completions(lsp_completions["items"])
+        return monaco_completions
+
+    def _convert_completion_kind(self, lsp_kind):
+        """Convert LSP completion kind to Monaco completion kind."""
+        # Map LSP completion kinds to Monaco kinds
+        kind_mapping = {
+            1: 17,  # Text -> Property
+            2: 11,  # Method -> Method
+            3: 11,  # Function -> Method
+            4: 4,  # Constructor -> Constructor
+            5: 7,  # Field -> Field
+            6: 6,  # Variable -> Variable
+            7: 9,  # Class -> Class
+            8: 8,  # Interface -> Interface
+            9: 10,  # Module -> Module
+            10: 17,  # Property -> Property
+            11: 12,  # Unit -> Unit
+            12: 13,  # Value -> Value
+            13: 15,  # Enum -> Enum
+            14: 1,  # Keyword -> Keyword
+            15: 2,  # Snippet -> Snippet
+            16: 19,  # Color -> Color
+            17: 20,  # File -> File
+            18: 21,  # Reference -> Reference
+        }
+        return kind_mapping.get(lsp_kind, 17)
+
     def on_content_changed(self, text: str) -> None:
         """Increment version counter and process text."""
         self.version += 1
         self.code = text
         self.lsp.set_document(self.filename, self.version, self.code)
+
+    def on_cursor_position_changed(self, line: int, column: int) -> None:
+        """Handle cursor position change notifications from the editor."""
+        self.row = line
+        self.column = column
 
     def setTheme(self, theme_selection: str) -> None:
         """

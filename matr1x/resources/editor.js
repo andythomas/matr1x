@@ -110,206 +110,63 @@ const initializeMonacoEditor = () => {
   });
 };
 
-// Register custom completion items for Python scripting
+// Register dynamic completion provider
 const registerCustomCompletions = () => {
-  const customCompletions = [
-    {
-      label: "system",
-      insertText: "system",
-      kind: monaco.languages.CompletionItemKind.Property,
-      documentation: "Represents the object of the current system.",
-    },
-    {
-      label: "meta_data",
-      insertText: "meta_data",
-      kind: monaco.languages.CompletionItemKind.Property,
-      documentation: "Dictionary containing metadata according to Dublin Core.",
-    },
-    {
-      label: 'meta_data["creator"]',
-      insertText: 'meta_data["creator"]',
-      kind: monaco.languages.CompletionItemKind.Property,
-      documentation: "The person performing this measurement.",
-    },
-    {
-      label: 'meta_data["identifier"]',
-      insertText: 'meta_data["identifier"]',
-      kind: monaco.languages.CompletionItemKind.Property,
-      documentation: "An identifier for the measurement, e.g. the sample name.",
-    },
-    {
-      label: 'meta_data["relation"]',
-      insertText: 'meta_data["relation"]',
-      kind: monaco.languages.CompletionItemKind.Property,
-      documentation: "Additonal information about the measurement identifier, e.g. an ancestor.",
-    },
-    {
-      label: 'meta_data["description"]',
-      insertText: 'meta_data["description"]',
-      kind: monaco.languages.CompletionItemKind.Property,
-      documentation: "Verbose information about the measurement.",
-    },
-    {
-      label: "devs",
-      insertText: "devs",
-      kind: monaco.languages.CompletionItemKind.Property,
-      documentation: "Dictionary of the connected devices.",
-    },
-    {
-      label: "wait(duration, until, message, silent)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: 'wait(${1:0}, until=${2:None}, message="${3:}", silent=${4:10})',
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Wait for either a duration or until a timestamp. " +
-        "Also acts as a breakpoint to pause and abort the execution. " +
-        "Print a message for wait period more than silent",
-    },
-    {
-      label: "end_script(finished)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "end_script(finished=${1:None})",
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "End script and mark as finished (True) or aborted (False) or query user (None).",
-    },
-    {
-      label: "input(query, timeout, default_value)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: 'input("${1:query}", timeout=${2:float("inf")}, default_value="${3}")',
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation: "Prompts the user for input with an optional timeout and default reply.",
-    },
-    {
-      label: "input_bool(query, timeout, default_value)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: 'input_bool("${1:query}", timeout=${2:float("inf")}, default_value="${3:yes}")',
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Prompts the user for a yes/no input with an optional timeout and default reply.",
-    },
-    {
-      label: "input_numerical(query, timeout, default_value, min_value, max_value, step, decimals)",
-      insertText:
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        'input_numerical("${1:query}", timeout=${2:float("inf")}, ' +
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        "default_value=${3:0.0}, min_value=${4:-100e9}, max_value=${5:100e9}, " +
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        "step=${6:1.0}, decimals=${7:2})",
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Prompts the user for numerical input with validation (min, max, step, decimals) " +
-        "and optional default value and timeout.",
-    },
-    {
-      label: "init_datafile(filename, comment, append, print_header, ntot)",
-      insertText:
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        'init_datafile("${1:test}", comment="${2}", append=${3:False}, ' +
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        "print_header=${4:True}, ntot=${5:None})",
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Initializes a new data file with optional comment, append mode, and header printing. " +
-        "The total entry count is used to calculate the total measurement duration.",
-    },
-    {
-      label: "measure_system(print_setpoint, print_data, print_telemetry)",
-      insertText:
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        "measure_system(print_setpoint=${1:True}, print_data=${2:True}, " +
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-        "print_telemetry=${3:True})",
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Performs a system measurement with options to print setpoint, data, and telemetry.",
-    },
-    {
-      label: "set_value(value_index, value)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "set_value(${1:0}, ${2:0})",
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Sets a system value by index (int). Please use 'help/system' for more information.",
-    },
-    {
-      label: "set_value(name, value)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: 'set_value("${1:column}", ${2:0})',
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Sets a system value by name (str). Please use 'help/system' for more information.",
-    },
-    {
-      label: "read_value(value_index)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "read_value(${1:0})",
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Reads a system value by index (int). Please use 'help/system' for more information.",
-    },
-    {
-      label: "read_value(name: str)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: 'read_value("${1:column}")',
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Reads a system value by name (str). Please use 'help/system' for more information.",
-    },
-    {
-      label: "trigger_value(value_index)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: "trigger_value(${1:0})",
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Triggers a system value by index (int). Please use 'help/system' for more information.",
-    },
-    {
-      label: "trigger_value(name)",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal value is desired
-      insertText: 'trigger_value("${1:column}")',
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      documentation:
-        "Triggers a system value by name (str). Please use 'help/system' for more information.",
-    },
-  ];
-
   monaco.languages.registerCompletionItemProvider("python", {
-    provideCompletionItems: (model, position) => {
-      const word = model.getWordUntilPosition(position);
-      const range = new monaco.Range(
-        position.lineNumber,
-        word.startColumn,
-        position.lineNumber,
-        word.endColumn,
-      );
+    provideCompletionItems: async (model, position) => {
+      const triggerChar = model.getValueInRange({
+        startLineNumber: position.lineNumber,
+        startColumn: Math.max(1, position.column - 1),
+        endLineNumber: position.lineNumber,
+        endColumn: position.column,
+      });
 
-      const suggestions = customCompletions.map((item) => ({
-        ...item,
-        range,
-      }));
+      const requestId = Date.now() + Math.random(); // Avoid collisions
 
-      return { suggestions };
+      return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          if (pendingCompletionRequests.has(requestId)) {
+            pendingCompletionRequests.delete(requestId);
+            resolve({ suggestions: [] });
+          }
+        }, 2000);
+
+        pendingCompletionRequests.set(requestId, { resolve, reject, timeoutId });
+
+        // Request completions from Python
+        if (webChannelReady && editorBackend?.handle_completion_request) {
+          try {
+            const completionData = {
+              requestId: requestId,
+              position: {
+                line: position.lineNumber,
+                character: position.column,
+              },
+              triggerCharacter: triggerChar,
+              code: model.getValue(),
+            };
+            editorBackend.handle_completion_request(JSON.stringify(completionData));
+          } catch (_error) {
+            clearTimeout(timeoutId);
+            pendingCompletionRequests.delete(requestId);
+            resolve({ suggestions: [] });
+          }
+        } else {
+          clearTimeout(timeoutId);
+          pendingCompletionRequests.delete(requestId);
+          resolve({ suggestions: [] });
+        }
+      });
     },
+    triggerCharacters: [".", "(", "[", ",", ":"],
   });
 };
 
 // Store pending hover requests
 const pendingHoverRequests = new Map();
+
+// Store pending completion requests
+const pendingCompletionRequests = new Map();
 
 // Function to be called from Python backend
 window.showHover = (requestId, content) => {
@@ -320,6 +177,18 @@ window.showHover = (requestId, content) => {
       contents: content,
     });
     pendingHoverRequests.delete(requestId);
+  }
+};
+
+// Function to be called from Python backend for completions
+window.showCompletions = (requestId, completions) => {
+  const request = pendingCompletionRequests.get(requestId);
+  if (request) {
+    clearTimeout(request.timeoutId);
+    request.resolve({
+      suggestions: completions,
+    });
+    pendingCompletionRequests.delete(requestId);
   }
 };
 
@@ -392,6 +261,23 @@ const setupContentChangeHandling = () => {
     changeTimeout = setTimeout(() => {
       triggerLinting();
     }, LINTING_DELAY_MS);
+  });
+
+  // Track cursor position changes
+  editor.onDidChangeCursorPosition((e) => {
+    if (webChannelReady && editorBackend) {
+      editorBackend.cursor_position_changed(e.position.lineNumber, e.position.column);
+    }
+  });
+
+  // Content change handling for linting (completion now handled by Monaco)
+  editor.onDidType((_text) => {
+    if (!webChannelReady || !editorBackend) {
+      return;
+    }
+
+    const code = editor.getValue();
+    editorBackend.content_changed(code);
   });
 };
 
