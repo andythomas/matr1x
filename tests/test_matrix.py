@@ -30,6 +30,7 @@ import numpy as np
 import pytest
 from matr1x import output_extension
 from matr1x.editor import Linter
+from matr1x.error_handling import Error, Success
 
 path = Path(__file__).resolve().parent
 
@@ -192,23 +193,19 @@ def test_matrix_script_ruff():
         temp_file.write(script)
         temp_file_path = temp_file.name
 
-        result = subprocess.run(
-            [
-                "ruff",
-                "check",
-                "--select",
-                ",".join(Linter.RUFF_RULES),
-                "--no-cache",
-                temp_file_path,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        ret = result.returncode
-        print(result.stdout)
-        print(result.stderr)
-    assert ret == 0
+        cmd_args = [
+            "-m",
+            "ruff",
+            "check",
+            "--select",
+            ",".join(Linter.RUFF_RULES),
+            "--no-cache",
+            temp_file_path,
+        ]
+        result = matr1x.util.run_python_cmdline(cmd_args)
+    assert isinstance(result, Success)
+    if isinstance(result, Error):
+        print(result.error)
 
 
 def test_matrix_script_dummy_merged():

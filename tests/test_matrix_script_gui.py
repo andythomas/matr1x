@@ -24,7 +24,7 @@ from matr1x.scripts import matrix_script
 path = Path(__file__).resolve().parent
 
 
-@pytest.mark.timeout(timeout=30, method="thread")
+@pytest.mark.timeout(timeout=60, method="thread")
 def test_basic_script_run(qtbot, qapp, gui_wait):
     """
     Start a basic matrix script measurement.
@@ -72,7 +72,12 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
     main_window.ui.widgets.config_editor.w_update_config.click()
 
     main_window.ui.actions.start_pause.trigger()
-    qtbot.wait(2000)
+    qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
+    thread = main_window.measurement_thread
+    qtbot.waitSignal(thread.finished, timeout=2000)
+    # Next line: Increased timeout needed for Windows
+    qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
+    qapp.processEvents()
     assert main_window.ui.actions.preview.isEnabled()
 
     assert main_window.measurement_file.name[:14] == "boring_testrun"

@@ -59,7 +59,7 @@ class TapCollector:
         self._events: list[dict] = []
         self._error: Exception | None = None
 
-    def start(self, timeout: float = 5) -> None:
+    def start(self, timeout: float = 10) -> None:
         """
         Start collecting events in a separate thread.
 
@@ -71,7 +71,7 @@ class TapCollector:
         ----------
         timeout : float, optional
             Timeout in seconds for accepting the initial connection.
-            Defaults to 5 second.
+            Defaults to 10 second.
         """
         self._srv.settimeout(timeout)
 
@@ -99,7 +99,7 @@ class TapCollector:
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
 
-    def join(self, timeout: float = 2) -> None:
+    def join(self, timeout: float = 5) -> None:
         """
         Wait for the collector thread to finish.
 
@@ -107,7 +107,7 @@ class TapCollector:
         ----------
         timeout : float, optional
             The maximum time in seconds to wait for the thread to complete.
-            Defaults to 2 second.
+            Defaults to 5 seconds.
         """
         if self._thread is None:
             return

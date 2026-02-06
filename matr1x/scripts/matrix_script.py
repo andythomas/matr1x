@@ -1374,6 +1374,7 @@ class MainWindow(QMainWindow):
                     event.ignore()
                     return
         self.save_window_state()
+        self.ui.widgets.script_edit.lsp.stop()
         self.ui.widgets.script_edit.server.stop()
         # QWebEngineView: Disconnect the webpage to prevent memory leaks
         if hasattr(self.ui.widgets.script_edit, "page") and self.ui.widgets.script_edit.page():

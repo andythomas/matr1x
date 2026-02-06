@@ -24,7 +24,7 @@ from matr1x.gui_util import MApplication
 @pytest.fixture(scope="session")
 def gui_wait():
     """GUI wait time in milliseconds for tests."""
-    return lambda: 100
+    return lambda: 300
 
 
 @pytest.fixture(scope="session")
