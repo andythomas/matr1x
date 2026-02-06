@@ -29,6 +29,7 @@ dependencies = [
     "PySide6",                                       # needed for GUI apps
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'", # needed for GUI apps
     "pygit2 >= 1.16",                                # needed for GUI apps
+    "pygit2 >= 1.19; python_version >= '3.14'",      # needed for GUI apps Py 3.14+
     "wrapt>2.0",                                     # needed for GUI apps
     "urwid>2.0",                                     # needed for GUI apps
     "monaco-assets>=0.5.1",                          # needed for matrix script
