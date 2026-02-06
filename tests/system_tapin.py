@@ -92,7 +92,7 @@ def tap() -> Generator[Callable[..., None], None, None]:
             """No-op emitter when no listener is configured."""
             return
 
-        yield noop  # type: ignore[return-value]
+        yield noop
         return
 
     def emit(

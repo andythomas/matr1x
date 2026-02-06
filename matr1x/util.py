@@ -1093,10 +1093,10 @@ def run_python_cmdline(
             creationflags=creationflags,
         )
         if result.returncode != 0:
-            return Error(result.stderr or result.stdout)  # ty: ignore[invalid-return-type]
+            return Error(result.stderr or result.stdout)
         return Success(result)
     except Exception as e:
-        return Error(e)  # ty: ignore[invalid-return-type]
+        return Error(e)
 
 
 def find_binary(binary: str) -> Result[Path, FileNotFoundError]:

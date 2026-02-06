@@ -257,7 +257,7 @@ for key in list(data.keys()):  # validate everything but matr1x
         except (ValidationError, TypeError, ValueError) as e:
             msg = format_validation_error(e, key + ".")
 try:
-    MainConfig(**config)  # ty: ignore [missing-argument] issue #247
+    MainConfig(**config)
 except (ValidationError, TypeError, ValueError) as e:
     msg += format_validation_error(e)
 if msg != "":

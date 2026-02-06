@@ -4259,7 +4259,7 @@ class FileDropMixin:
             if (isinstance(extension, re.Pattern) and extension.match(suffix)) or (
                 isinstance(extension, str) and suffix == extension
             ):
-                self.file_dropped.emit(urls[0].toLocalFile())  # type: ignore
+                self.file_dropped.emit(urls[0].toLocalFile())
                 a0.acceptProposedAction()
                 return
         QMessageBox.warning(

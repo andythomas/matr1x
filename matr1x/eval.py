@@ -757,7 +757,7 @@ def _load_text_file(
         # generate a structured array with the column names as identifier
         kwargs["names"] = header["columns"]
     try:
-        data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)  # ty: ignore[no-matching-overload]
+        data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)
     except IndexError:
         # IndexError is raised in case an incomplete header is present
         print("loadmatrix: incomplete data file header")
