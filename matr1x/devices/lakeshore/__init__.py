@@ -15,5 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for interfacing with devices from Lakeshore."""
 
+from .control import SelectLakeshoreInput, WriteLakeshoreZonePID
 from .lakeshore3xx import Lakeshore335, Lakeshore340
 from .lakeshore475 import Lakeshore475
