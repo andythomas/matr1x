@@ -53,6 +53,7 @@ from PySide6.QtCore import (
     QLocale,
     QModelIndex,
     QObject,
+    QPersistentModelIndex,
     QPoint,
     QSettings,
     QSize,
@@ -934,7 +935,12 @@ class MetaViewerWidget(QDockWidget):
 
             return None
 
-        def setData(self, index, value, role):  # type: ignore our issue #1600
+        def setData(
+            self,
+            index: QModelIndex | QPersistentModelIndex,
+            value: Any,
+            role: int = Qt.ItemDataRole.EditRole,
+        ) -> bool:
             """
             Update the data for the given index and role.
 
@@ -1097,7 +1103,7 @@ class MetaViewerWidget(QDockWidget):
             parent_item = parent.internalPointer()
             return parent_item.child_count()
 
-        def columnCount(self, index):  # type: ignore our issue #1600
+        def columnCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
             """
             Return the number of columns for the children of the given parent.
 
@@ -1294,7 +1300,7 @@ class ConfigEditWidget(MetaViewerWidget):
                 self.system_info = system_info.value
         self.update_data()  # Call the original update_data method
 
-    def update_data(self):  # type: ignore our issue #1600
+    def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
         """Update the configuration data in the widget."""
         syst_dict = {}
         reload_config()
