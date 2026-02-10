@@ -182,6 +182,7 @@ class LSPClient:
 
     def start(self) -> None:
         """Start the LSP server process."""
+        self.stop_event.clear()
         creationflags = 0
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NO_WINDOW
@@ -233,15 +234,23 @@ class LSPClient:
         timeout: float
             Timeout in seconds to wait for response.
         """
+        if self.stop_event.is_set():
+            return Error(None)
         if not self.process or not self.process.stdin:
+            return Error(None)
+        if self.process.poll() is not None:
             return Error(None)
         request_id = self.id
         message = self._build_request(method, params)
         response_queue: Queue[JsonRpcResponse | None] = Queue()
         self.pending_requests[request_id] = response_queue
         try:
-            self.process.stdin.write(message.encode())
-            self.process.stdin.flush()
+            try:
+                self.process.stdin.write(message.encode())
+                self.process.stdin.flush()
+            except (BrokenPipeError, OSError, ValueError):
+                self.logger.debug("LSP009: Failed to write request to LSP.")
+                return Error(None)
             try:
                 response = response_queue.get(timeout=timeout)
                 if response is None:
@@ -265,11 +274,18 @@ class LSPClient:
             An object or array of values to be passed as parameters to
             the defined method.
         """
+        if self.stop_event.is_set():
+            return
         if not self.process or not self.process.stdin:
             return
+        if self.process.poll() is not None:
+            return
         message = self._build_notification(method, params)
-        self.process.stdin.write(message.encode())
-        self.process.stdin.flush()
+        try:
+            self.process.stdin.write(message.encode())
+            self.process.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError):
+            self.logger.debug("LSP010: Failed to write notification to LSP.")
 
     def initialize(self) -> None:
         """Initialize the server/client communication."""

@@ -15,13 +15,12 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in matrix script."""
 
+import sys
 from pathlib import Path
 
 import matr1x.eval
 import pytest
 from matr1x.scripts import matrix_script
-
-path = Path(__file__).resolve().parent
 
 
 @pytest.mark.timeout(timeout=60, method="thread")
@@ -230,12 +229,12 @@ def test_CodeEditor(qtbot, qapp):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_status_preview_handles_carriage_return(qtbot, qapp, tmp_path):
+def test_status_preview_handles_carriage_return(qtbot, qapp, tmp_path, capsys):
     """
     Ensure carriage returns from a running script overwrite the current line.
 
-    Load a temporary script that uses system_dummy and prints a string containing
-    a carriage return, then verify the rendered output.
+    Run a temporary script that prints a string containing a carriage
+    return and verify the rendered output in the status preview.
     """
     main_window = matrix_script.MainWindow()
     main_window.show()
@@ -243,25 +242,35 @@ def test_status_preview_handles_carriage_return(qtbot, qapp, tmp_path):
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 
-    header_lines = (path / "matrix_script_gui.matrix").read_text().splitlines()[:4]
+    header_lines = (
+        (Path(__file__).resolve().parent / "matrix_script_gui.matrix").read_text().splitlines()[:4]
+    )
     carriage_script = "\n".join(
         header_lines + ['print("test\\nnot sure what to say\\ragain")', ""]
     )
     temp_script = tmp_path / "carriage_test.matrix"
     temp_script.write_text(carriage_script)
-    main_window.ui.widgets.status_preview.clear()
     main_window.load_from_filename(temp_script)
     qtbot.waitUntil(lambda: main_window.windowTitle().endswith(temp_script.name), timeout=2000)
     qapp.processEvents()
 
-    # Run script and wait for it to finish
-    main_window.ui.actions.start_pause.trigger()
-    qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
-    thread = main_window.measurement_thread
-    qtbot.waitSignal(thread.finished, timeout=2000)
-    # Next line: Increased timeout needed for Windows
-    qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
-    qapp.processEvents()
+    with capsys.disabled():
+        original_stdout = sys.stdout
+        sys.stdout = main_window.output_stream
+        try:
+            main_window.ui.actions.start_pause.trigger()
+            qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
+            thread = main_window.measurement_thread
+            qtbot.waitSignal(thread.finished, timeout=2000)
+            # Next line: Increased timeout needed for Windows
+            qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
+            qtbot.waitUntil(
+                lambda: "again" in main_window.ui.widgets.status_preview.toPlainText(),
+                timeout=100,
+            )
+            qapp.processEvents()
+        finally:
+            sys.stdout = original_stdout
 
     output_text = main_window.ui.widgets.status_preview.toPlainText()
     assert "test" in output_text
