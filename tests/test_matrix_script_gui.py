@@ -16,15 +16,45 @@
 """Test basic GUI functions in matrix script."""
 
 import sys
+from collections.abc import Generator
 from pathlib import Path
 
 import matr1x.eval
 import pytest
 from matr1x.scripts import matrix_script
 
+_MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
+
+
+@pytest.fixture(scope="module")
+def matrix_script_window(qapp) -> Generator[matrix_script.MainWindow, None, None]:
+    """Create a shared matrix-script window for this module."""
+    global _MATRIX_SCRIPT_WINDOW
+    if _MATRIX_SCRIPT_WINDOW is None:
+        _MATRIX_SCRIPT_WINDOW = matrix_script.MainWindow()
+        _MATRIX_SCRIPT_WINDOW.show()
+        qapp.processEvents()
+    yield _MATRIX_SCRIPT_WINDOW
+    _MATRIX_SCRIPT_WINDOW.close()
+    _MATRIX_SCRIPT_WINDOW = None
+
+
+@pytest.fixture(autouse=True)
+def reset_matrix_script_window(matrix_script_window, qapp) -> None:
+    """Reset state to avoid cross-test interference."""
+    window = matrix_script_window
+    if window.is_running:
+        window.abort_thread("a")
+        qapp.processEvents()
+    window.ui.widgets.script_edit.setModified(False)
+    window._reset_state(reset_metadata=True)
+    if window.ui.widgets.config_editor.isVisible():
+        window.ui.actions.config.setChecked(False)
+    qapp.processEvents()
+
 
 @pytest.mark.timeout(timeout=60, method="thread")
-def test_basic_script_run(qtbot, qapp):
+def test_basic_script_run(qtbot, qapp, matrix_script_window):
     """
     Start a basic matrix script measurement.
 
@@ -41,9 +71,7 @@ def test_basic_script_run(qtbot, qapp):
     the status is 'finished'
     10 rows of data were saved
     """
-    main_window = matrix_script.MainWindow()
-    main_window.show()
-    qtbot.addWidget(main_window)
+    main_window = matrix_script_window
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 
@@ -95,7 +123,7 @@ def test_basic_script_run(qtbot, qapp):
     assert main_window.windowTitle() == "Matrix Script"
 
 
-def test_CodeEditor_API(qtbot, qapp):
+def test_CodeEditor_API(qtbot, qapp, matrix_script_window):
     """
     Confirm the existance of all required methods.
 
@@ -107,9 +135,7 @@ def test_CodeEditor_API(qtbot, qapp):
     highlight, removeHighlight, setTheme, supportedThemes,
     enableTabCompletion, setSettables, insertText, returnIssues.
     """
-    main_window = matrix_script.MainWindow()
-    main_window.show()
-    qtbot.addWidget(main_window)
+    main_window = matrix_script_window
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     assert main_window.isVisible()
@@ -141,7 +167,7 @@ def test_CodeEditor_API(qtbot, qapp):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_CodeEditor(qtbot, qapp):
+def test_CodeEditor(qtbot, qapp, matrix_script_window):
     """
     Test to visually inspect the matrix GUI window.
 
@@ -163,9 +189,7 @@ def test_CodeEditor(qtbot, qapp):
     can insert text
     returns error for incorrect code
     """
-    main_window = matrix_script.MainWindow()
-    main_window.show()
-    qtbot.addWidget(main_window)
+    main_window = matrix_script_window
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 
@@ -229,16 +253,16 @@ def test_CodeEditor(qtbot, qapp):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_status_preview_handles_carriage_return(qtbot, qapp, tmp_path, capsys):
+def test_status_preview_handles_carriage_return(
+    qtbot, qapp, tmp_path, capsys, matrix_script_window
+):
     """
     Ensure carriage returns from a running script overwrite the current line.
 
     Run a temporary script that prints a string containing a carriage
     return and verify the rendered output in the status preview.
     """
-    main_window = matrix_script.MainWindow()
-    main_window.show()
-    qtbot.addWidget(main_window)
+    main_window = matrix_script_window
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 

@@ -867,6 +867,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.setValidExtensions([self.extension])
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
 
+        self._reset_state(reset_systems=True)
+
         # If filename is passed as command line argument
         if filename is not None:
             if self.is_valid_extension(filename):
@@ -1748,13 +1750,18 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.update_window_title()
         self.print_sweep_to_preview()
 
-    def new_file(self) -> None:
+    def new_file(self, reset_systems: bool = False) -> None:
         """
         Prepare a completely new sweep.
 
         Delete all existing sweep parameters, update the sweep grid
         accordingly and empty the sweep preview. Also reset all input
         fields to their original states.
+
+        Parameters
+        ----------
+        reset_systems : bool, optional
+            If True, also clear loaded systems and related state.
         """
         if self.dirty:
             ret = save_messagebox(self)
@@ -1764,6 +1771,39 @@ class MainWindow(FileDropMixin, QMainWindow):
                 saved = self.save_file()
                 if not saved:
                     return
+        self._reset_state(reset_systems)
+
+    def _reset_state(self, reset_systems: bool) -> None:
+        """
+        Reset UI and state to a clean baseline.
+
+        Parameters
+        ----------
+        reset_systems : bool
+            If True, also clear loaded systems and related state.
+        """
+        if reset_systems:
+            if self.populated:
+                self.reset_layout()
+                self.populated = False
+            self.ui.system_list.clear()
+            self.ui.actions.remove_system.setEnabled(False)
+            self.system = None
+            self.last_loaded_system = None
+            self.columns.name = []
+            self.columns.unit = []
+            self.columns.sign = []
+            self.columns.color = []
+            self.sweep_params = []
+            self.loop_over = []
+            self.up_down = []
+            self.repeat = []
+            self.systemFilename = ""
+            self.last_filename = None
+            self.sweep_preview.setRowCount(0)
+            self.update_window_title(dirty=False)
+            return
+
         self.sweep_params = []
         for col in range(len(self.columns.name)):
             self.sweep_params.append([])
@@ -1774,8 +1814,11 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.grid_widgets[col].updown.setChecked(False)
             self.grid_widgets[col].loopover.setCurrentIndex(0)
             self.populate_sweep_grid(col)
-        self.print_sweep_to_preview()
-        self.grid_widgets[0].start.setFocus()
+        if self.columns.name:
+            self.print_sweep_to_preview()
+            self.grid_widgets[0].start.setFocus()
+        else:
+            self.sweep_preview.setRowCount(0)
         self.last_filename = None
         self.update_window_title(dirty=False)
 

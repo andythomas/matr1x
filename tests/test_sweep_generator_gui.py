@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in sweep generator."""
 
+from collections.abc import Generator
 from pathlib import Path
 
 import numpy
@@ -25,9 +26,35 @@ from PySide6.QtWidgets import QLineEdit
 path = Path(__file__).resolve().parent
 test_sweep_file = path / "sweep_for_test.sw8"
 
+_SWEEP_GENERATOR_WINDOW: sweep_generator.MainWindow | None = None
+
+
+@pytest.fixture(scope="module")
+def sweep_generator_window(qapp) -> Generator[sweep_generator.MainWindow, None, None]:
+    """Create a shared sweep generator window for this module."""
+    global _SWEEP_GENERATOR_WINDOW
+    if _SWEEP_GENERATOR_WINDOW is None:
+        _SWEEP_GENERATOR_WINDOW = sweep_generator.MainWindow()
+        _SWEEP_GENERATOR_WINDOW.show()
+        qapp.processEvents()
+    yield _SWEEP_GENERATOR_WINDOW
+    _SWEEP_GENERATOR_WINDOW.close()
+    _SWEEP_GENERATOR_WINDOW = None
+
+
+@pytest.fixture(autouse=True)
+def reset_sweep_generator_window(sweep_generator_window, qapp) -> None:
+    """Reset state to avoid cross-test interference."""
+    window = sweep_generator_window
+    for widget in qapp.allWidgets():
+        if isinstance(widget, sweep_generator.SweepPreviewPopup):
+            widget.close()
+    window.new_file(reset_systems=True)
+    qapp.processEvents()
+
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_run(qtbot, qapp):
+def test_sweep_generator_run(qtbot, qapp, sweep_generator_window):
     """
     Start a basic sweep generator run.
 
@@ -42,9 +69,7 @@ def test_sweep_generator_run(qtbot, qapp):
     draft and compare sweep
     save and compare sweep
     """
-    main_window = sweep_generator.MainWindow()
-    main_window.show()
-    qtbot.addWidget(main_window)
+    main_window = sweep_generator_window
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     assert main_window.isVisible()
@@ -96,7 +121,7 @@ def test_sweep_generator_run(qtbot, qapp):
 
     main_window.ui.actions.sweep.trigger()
     for i in range(main_window.sweep_preview.model().rowCount()):
-        assert main_window.sweep_preview.item(i, 0).text().strip() == "-a " + str(sweep[i])  # type: ignore
+        assert main_window.sweep_preview.item(i, 0).text().strip() == "-a " + str(sweep[i])
 
     main_window.grid_widgets[1].start.setText("1")
     main_window.grid_widgets[1].end.setText("2")
@@ -122,7 +147,7 @@ def test_sweep_generator_run(qtbot, qapp):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_load(qtbot, qapp):
+def test_sweep_generator_load(qtbot, qapp, sweep_generator_window):
     """
     Start a basic sweep generator run.
 
@@ -133,9 +158,7 @@ def test_sweep_generator_load(qtbot, qapp):
     sweep_params, repeat, up_down, and loop_over are correctly loaded
     repeat, updown, and loopover widgets are correctly set
     """
-    main_window = sweep_generator.MainWindow()
-    main_window.show()
-    qtbot.addWidget(main_window)
+    main_window = sweep_generator_window
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     assert main_window.isVisible()
@@ -155,7 +178,7 @@ def test_sweep_generator_load(qtbot, qapp):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_sweep_table(qtbot, qapp):
+def test_sweep_generator_sweep_table(qtbot, qapp, sweep_generator_window):
     """
     Test changing points entry in sweep_table.
 
@@ -167,9 +190,7 @@ def test_sweep_generator_sweep_table(qtbot, qapp):
     window title becomes dirty after change
     sweep_params data is updated correctly
     """
-    main_window = sweep_generator.MainWindow()
-    main_window.show()
-    qtbot.addWidget(main_window)
+    main_window = sweep_generator_window
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     assert main_window.isVisible()

@@ -1085,6 +1085,7 @@ class MainWindow(QMainWindow):
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
+        self._reset_state(reset_metadata=True)
         check_config(matr1x.config)
         sys.stdout = self.output_stream  # all output (stdout) is written to status preview
         if filename is not None:
@@ -2225,11 +2226,29 @@ class MainWindow(QMainWindow):
                 saved = self.save_file()
                 if saved == -1:
                     return
+        self._reset_state(reset_metadata=False)
+
+    def _reset_state(self, reset_metadata: bool) -> None:
+        """
+        Reset UI and state to a clean baseline.
+
+        Parameters
+        ----------
+        reset_metadata : bool
+            If True, also clear metadata and status preview fields.
+        """
         self.systems_dirty = False
         self.last_filename = None
         self.scriptname = None
         self.ui.widgets.script_edit.setPlainText("")
         self.ui.widgets.script_edit.setModified(False)
+        if reset_metadata:
+            self.ui.widgets.status_preview.setPlainText("")
+            metadata = self.ui.widgets.metadata
+            metadata.creator.setText("")
+            metadata.identifier.setText("")
+            metadata.relation.setText("")
+            metadata.description.setText("")
 
 
 def main() -> None:
