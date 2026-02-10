@@ -27,7 +27,7 @@ test_sweep_file = path / "sweep_for_test.sw8"
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_run(qtbot, qapp, gui_wait):
+def test_sweep_generator_run(qtbot, qapp):
     """
     Start a basic sweep generator run.
 
@@ -47,12 +47,11 @@ def test_sweep_generator_run(qtbot, qapp, gui_wait):
     qtbot.addWidget(main_window)
     qtbot.waitExposed(main_window)
     qapp.processEvents()
-    qtbot.wait(gui_wait())
     assert main_window.isVisible()
 
     dummy_system = path / "../matr1x/systems/system_dummy.py"
     main_window.add_system([dummy_system])
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(lambda: main_window.ui.system_list.count() > 0, timeout=2000)
     assert main_window.windowTitle() == "Sweep Generator: *<unsaved>"
 
     main_window.update_window_title(dirty=False)
@@ -81,7 +80,13 @@ def test_sweep_generator_run(qtbot, qapp, gui_wait):
     assert widget.text() == points
 
     main_window.ui.actions.preview.trigger()
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(
+        lambda: any(
+            isinstance(w, sweep_generator.SweepPreviewPopup) and w.isVisible()
+            for w in qapp.allWidgets()
+        ),
+        timeout=2000,
+    )
     previews = [
         w
         for w in qapp.allWidgets()
@@ -117,7 +122,7 @@ def test_sweep_generator_run(qtbot, qapp, gui_wait):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_load(qtbot, qapp, gui_wait):
+def test_sweep_generator_load(qtbot, qapp):
     """
     Start a basic sweep generator run.
 
@@ -133,7 +138,6 @@ def test_sweep_generator_load(qtbot, qapp, gui_wait):
     qtbot.addWidget(main_window)
     qtbot.waitExposed(main_window)
     qapp.processEvents()
-    qtbot.wait(gui_wait())
     assert main_window.isVisible()
     assert test_sweep_file.exists()
 
@@ -151,7 +155,7 @@ def test_sweep_generator_load(qtbot, qapp, gui_wait):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_sweep_table(qtbot, qapp, gui_wait):
+def test_sweep_generator_sweep_table(qtbot, qapp):
     """
     Test changing points entry in sweep_table.
 
@@ -168,17 +172,16 @@ def test_sweep_generator_sweep_table(qtbot, qapp, gui_wait):
     qtbot.addWidget(main_window)
     qtbot.waitExposed(main_window)
     qapp.processEvents()
-    qtbot.wait(gui_wait())
     assert main_window.isVisible()
 
     dummy_system = path / "../matr1x/systems/system_dummy.py"
     main_window.add_system([dummy_system])
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(lambda: main_window.ui.system_list.count() > 0, timeout=2000)
     main_window.grid_widgets[0].start.setText("0")
     main_window.grid_widgets[0].end.setText("10")
     main_window.grid_widgets[0].points.setText("2")
     main_window.grid_widgets[0].append.click()
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(lambda: main_window.sweep_table.cellWidget(0, 2) is not None, timeout=2000)
     widget = main_window.sweep_table.cellWidget(0, 2)
     assert isinstance(widget, QLineEdit)
     assert widget.text() == "2"
@@ -193,7 +196,7 @@ def test_sweep_generator_sweep_table(qtbot, qapp, gui_wait):
     points_widget.clear()
     qtbot.keyClicks(points_widget, "3")
     points_widget.editingFinished.emit()
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(lambda: points_widget.text() == "3", timeout=2000)
     assert points_widget.text() == "3"
     assert main_window.sweep_params[0][0][2] == "3"
     assert "*" in main_window.windowTitle()

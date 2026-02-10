@@ -25,7 +25,7 @@ path = Path(__file__).resolve().parent
 
 
 @pytest.mark.timeout(timeout=60, method="thread")
-def test_basic_script_run(qtbot, qapp, gui_wait):
+def test_basic_script_run(qtbot, qapp):
     """
     Start a basic matrix script measurement.
 
@@ -47,7 +47,6 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
     qtbot.addWidget(main_window)
     qtbot.waitExposed(main_window)
     qapp.processEvents()
-    qtbot.wait(gui_wait())
 
     assert main_window.isVisible()
     base = Path(__file__).parent
@@ -67,7 +66,7 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
     metadata.description.setText(description)
 
     main_window.ui.actions.config.setChecked(True)
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(lambda: main_window.ui.widgets.config_editor.isVisible(), timeout=2000)
     assert main_window.ui.widgets.config_editor.isVisible()
     main_window.ui.widgets.config_editor.w_update_config.click()
 
@@ -93,9 +92,8 @@ def test_basic_script_run(qtbot, qapp, gui_wait):
     main_window.measurement_file.unlink()
 
     main_window.new_file()
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(lambda: main_window.windowTitle() == "Matrix Script", timeout=2000)
     assert main_window.windowTitle() == "Matrix Script"
-    qtbot.wait(gui_wait())
 
 
 def test_CodeEditor_API(qtbot, qapp):
@@ -144,7 +142,7 @@ def test_CodeEditor_API(qtbot, qapp):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_CodeEditor(qtbot, qapp, gui_wait):
+def test_CodeEditor(qtbot, qapp):
     """
     Test to visually inspect the matrix GUI window.
 
@@ -176,9 +174,8 @@ def test_CodeEditor(qtbot, qapp, gui_wait):
     code = "#print(  1 )"
     no_comment = code[1:]
     editor = main_window.ui.widgets.script_edit
-    qtbot.wait(gui_wait())
     editor.setPlainText(code)
-    qtbot.wait(5 * gui_wait())
+    qtbot.waitUntil(lambda: editor.toPlainText() == code, timeout=5000)
     return_code = editor.toPlainText()
     assert return_code == code
     editor.toggleLineComment()
@@ -219,19 +216,21 @@ def test_CodeEditor(qtbot, qapp, gui_wait):
     assert issues == 0
     error_code = "unknown(1)\n"
     editor.insertText(error_code)
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(
+        lambda: editor.toPlainText() == error_code + formatted_no_comment,
+        timeout=2000,
+    )
     return_code = editor.toPlainText()
     assert return_code == error_code + formatted_no_comment
-    qtbot.wait(1500)  # linter runs asynchronously at least every second
+    qtbot.waitUntil(lambda: editor.returnIssues() == 1, timeout=5000)
     issues = editor.returnIssues()
     assert issues == 1
 
     editor.setModified(False)
-    qtbot.wait(gui_wait())
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_status_preview_handles_carriage_return(qtbot, qapp, gui_wait, tmp_path):
+def test_status_preview_handles_carriage_return(qtbot, qapp, tmp_path):
     """
     Ensure carriage returns from a running script overwrite the current line.
 
@@ -252,7 +251,7 @@ def test_status_preview_handles_carriage_return(qtbot, qapp, gui_wait, tmp_path)
     temp_script.write_text(carriage_script)
     main_window.ui.widgets.status_preview.clear()
     main_window.load_from_filename(temp_script)
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(lambda: main_window.windowTitle().endswith(temp_script.name), timeout=2000)
     qapp.processEvents()
 
     # Run script and wait for it to finish
