@@ -265,9 +265,7 @@ class FSW8(VisaDevice):
         self.write("INP:COUP AC")  # options : AC / DC
 
         if getData:
-            # This needs to be fixed to work. Get sweep data needs a
-            # channel as a parameter
-            return self.getSweepData()  # type: ignore
+            return self.getSweepData()
 
     @synchronized
     def noise_cancellation(self, state=False):
@@ -405,17 +403,12 @@ class FSW8(VisaDevice):
         return np.array(values, dtype=precdict[p][3]).ravel()
 
     @synchronized
-    def getSweepData(self, channel):
+    def getSweepData(self):
         """
         Prepare, trigger, and retrieve sweep data.
 
         This is a convenience method to prepare and trigger the sweep and transfer
         the data afterwards.
-
-        Parameters
-        ----------
-        channel : int
-            The used channel.
 
         Returns
         -------
