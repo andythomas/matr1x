@@ -21,7 +21,6 @@ import serial
 from wrapt import synchronized
 
 from matr1x.devices.modbusdevice import ModbusDevice
-from matr1x.devices.visadevice import output_name_on_error
 
 
 class HorstManualMode(enum.Enum):
@@ -40,7 +39,6 @@ class HTMC11(ModbusDevice):
     protocol.
     """
 
-    @output_name_on_error
     def __init__(self, portname, slaveaddress, baudrate=115200):
         """
         Initialize Horst HTMC11 bakeout controller.
@@ -58,7 +56,6 @@ class HTMC11(ModbusDevice):
         self._number_of_decimals = int(self.read_register(0x1D00)) + 1
 
     @synchronized
-    @output_name_on_error
     def write_register(self, *args, **kwargs) -> None:
         """
         Write to a Modbus register using functioncode 6.

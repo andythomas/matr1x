@@ -21,11 +21,13 @@ this package is defined. It is itself based on the minimalmodbus library
 which handles all the low level communication.
 """
 
+import logging
+
 import minimalmodbus
 import serial
 from wrapt import synchronized
 
-from matr1x.devices.visadevice import output_name_on_error
+logger = logging.getLogger(__name__)
 
 
 class ModbusDevice(minimalmodbus.Instrument):
@@ -49,7 +51,6 @@ class ModbusDevice(minimalmodbus.Instrument):
         Parity setting for serial communication (default serial.PARITY_NONE)
     """
 
-    @output_name_on_error
     def __init__(
         self,
         portname: str,
@@ -57,16 +58,22 @@ class ModbusDevice(minimalmodbus.Instrument):
         baudrate: int,
         parity: str = serial.PARITY_NONE,
     ):
-        self.name = f"{type(self).__name__}@{portname}({slaveaddress})"
-        super().__init__(portname, slaveaddress)
-        self.serial.baudrate: int = baudrate
-        self.serial.parity: str = parity
+        self.name: str = f"{type(self).__name__}@{portname}({slaveaddress})"
+        try:
+            super().__init__(portname, slaveaddress)
+        except Exception:
+            logger.exception("Exception occured inside %s during init.", self.name)
+            raise
+        if self.serial is None:
+            raise ConnectionError(f"Could not open {self.name}.")  # Should never occur!
+        self.serial.baudrate = baudrate
+        self.serial.parity = parity
         # next line added to potentially prevent problems (no proof this is neeed!)
         # the drawbacks (lower speed) seem however minor!Add commentMore actions
         self.serial.close_port_after_each_call: bool = True
+        # self.close_port_after_each_call = True # This would be the intended(?!) call.
 
     @synchronized
-    @output_name_on_error
     def read_register(self, *args, **kwargs):
         """
         Read a Modbus register.
@@ -85,10 +92,19 @@ class ModbusDevice(minimalmodbus.Instrument):
         int
             Value read from register
         """
-        return super().read_register(*args, **kwargs)
+        try:
+            ret = super().read_register(*args, **kwargs)
+        except Exception:
+            logger.exception(
+                "Exception occured in % during read_register using %s and %s.",
+                self.name,
+                args,
+                kwargs,
+            )
+            raise
+        return ret
 
     @synchronized
-    @output_name_on_error
     def write_register(self, *args, **kwargs) -> None:
         """
         Write to a Modbus register.
@@ -106,4 +122,13 @@ class ModbusDevice(minimalmodbus.Instrument):
         -------
         None
         """
-        return super().write_register(*args, **kwargs)
+        try:
+            super().write_register(*args, **kwargs)
+        except Exception:
+            logger.exception(
+                "Exception occured in % during write_register using %s and %s.",
+                self.name,
+                args,
+                kwargs,
+            )
+            raise
