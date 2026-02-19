@@ -68,10 +68,8 @@ class ModbusDevice(minimalmodbus.Instrument):
             raise ConnectionError(f"Could not open {self.name}.")  # Should never occur!
         self.serial.baudrate = baudrate
         self.serial.parity = parity
-        # next line added to potentially prevent problems (no proof this is neeed!)
-        # the drawbacks (lower speed) seem however minor!Add commentMore actions
-        self.serial.close_port_after_each_call: bool = True
-        # self.close_port_after_each_call = True # This would be the intended(?!) call.
+        # Using True in the next line causes significant delays
+        self.close_port_after_each_call = False
 
     @synchronized
     def read_register(self, *args, **kwargs):
@@ -96,7 +94,7 @@ class ModbusDevice(minimalmodbus.Instrument):
             ret = super().read_register(*args, **kwargs)
         except Exception:
             logger.exception(
-                "Exception occured in % during read_register using %s and %s.",
+                "Exception occurred in %s during read_register using %s and %s.",
                 self.name,
                 args,
                 kwargs,
@@ -126,7 +124,7 @@ class ModbusDevice(minimalmodbus.Instrument):
             super().write_register(*args, **kwargs)
         except Exception:
             logger.exception(
-                "Exception occured in % during write_register using %s and %s.",
+                "Exception occurred in %s during write_register using %s and %s.",
                 self.name,
                 args,
                 kwargs,
