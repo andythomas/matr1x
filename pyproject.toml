@@ -22,7 +22,7 @@ dependencies = [
     "h5py >= 2.7.0",                                 # imported via util,
     "numpy",                                         # imported via util
     "pyobjc ; platform_system == 'Darwin'",          # imported via util
-    "decorator>=5.2.1",                              # imported via util
+    "decorator >= 5.2.1",                            # imported via util
     "pandas >= 1.0.0",                               # imported via eval,
     "psutil",                                        # imported via control/util
     "pyqtgraph >= 0.11.0",                           # needed for GUI apps
@@ -32,8 +32,10 @@ dependencies = [
     "pygit2 >= 1.19; python_version >= '3.14'",      # needed for GUI apps Py 3.14+
     "wrapt>2.0",                                     # needed for GUI apps
     "urwid>2.0",                                     # needed for GUI apps
-    "monaco-assets>=0.5.1",                          # needed for matrix script
-    "ruff>=0.13.0",                                  # needed for matrix script
+    "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
+    "pip",                                           # needed for GUI apps for desktop integration
+    "monaco-assets >= 0.5.1",                        # needed for matrix script
+    "ruff >= 0.13.0",                                # needed for matrix script
     "pyrefly",                                       # needed for matrix script
     "pymeasure",                                     # shared by several device drivers
     "pyserial",                                      # shared by several device drivers
@@ -52,6 +54,7 @@ smbus = ["smbus3 >= 0.5.5"]
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
 matrix-gui = "matr1x.scripts.matrix_gui:main"
+matrix-di = "matr1x.scripts.matrix_di:main"
 
 [project.gui-scripts]
 sweep-generator = "matr1x.scripts.sweep_generator:main"

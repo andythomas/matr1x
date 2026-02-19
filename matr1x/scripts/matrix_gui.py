@@ -67,6 +67,11 @@ from matr1x.gui_util import (
     protected_restore,
 )
 from matr1x.models import SystemInfo
+from matr1x.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.scripts import (
     MATRIX_GUI_PORT,
     sweep_generator,
@@ -367,6 +372,8 @@ class ActionGroup:
     show_log: QAction
     load: QAction
     quit: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
 
 
 @dataclass(frozen=True)
@@ -517,6 +524,8 @@ class UIBuilder:
         toggle_toolbar.setChecked(True)
         show_log = QAction("Show Log Window", self.window)
         show_log.setCheckable(True)
+        post_install = QAction("Install Desktop Integration", self.window)
+        remove_desktop_integration = QAction("Remove Desktop Integration", self.window)
         self.actions = ActionGroup(
             remove=remove,
             preview=preview,
@@ -532,6 +541,8 @@ class UIBuilder:
             show_log=show_log,
             load=load,
             quit=quit_app,
+            post_install=post_install,
+            remove_desktop_integration=remove_desktop_integration,
         )
 
     def _create_toolbar(self) -> None:
@@ -588,6 +599,9 @@ class UIBuilder:
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.about)
         help_menu.addAction(self.actions.show_log)
+        help_menu.addSeparator()
+        help_menu.addAction(self.actions.post_install)
+        help_menu.addAction(self.actions.remove_desktop_integration)
 
 
 class MainWindow(FileDropMixin, QMainWindow):
@@ -617,6 +631,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         self._on_log_window_visibility_changed(self.log_window.isVisible())
         self.ui.actions.load.triggered.connect(self.show_input_dialog)
         self.ui.actions.quit.triggered.connect(self.close)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.widgets.input_file.textChanged.connect(self.parse_system_from_inputfile)
         check_config(matr1x.config)
         self.sg: QMainWindow | None = None
@@ -630,6 +646,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
         self.settings = SaferQSettings("matr1x", "gui")
         self._cached_system_info: SystemInfo | None = None
+        check_desktop_integration()
 
     def handle_received_filename(self, filename: str) -> None:
         """

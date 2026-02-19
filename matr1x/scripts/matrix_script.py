@@ -103,6 +103,11 @@ from matr1x.gui_util import (
     save_messagebox,
 )
 from matr1x.models import SystemInfo
+from matr1x.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.util import (
     create_temp_dir_with_symlinks,
     find_binary,
@@ -612,6 +617,8 @@ class ActionGroup:
     system_help: QAction
     theme_actions: list[QAction]
     theme_group: QActionGroup
+    post_install: QAction
+    remove_desktop_integration: QAction
 
 
 @dataclass(frozen=True)
@@ -891,6 +898,8 @@ class UIBuilder:
         toggle_toolbar.setCheckable(True)
         toggle_toolbar.setChecked(True)
         system_help = QAction("Show System Help", self.window)
+        post_install = QAction("Install Desktop Integration", self.window)
+        remove_desktop_integration = QAction("Remove Desktop Integration", self.window)
 
         return ActionGroup(
             matrix_settings=matrix_settings,
@@ -927,6 +936,8 @@ class UIBuilder:
             system_help=system_help,
             theme_actions=theme_actions,
             theme_group=theme_group,
+            post_install=post_install,
+            remove_desktop_integration=remove_desktop_integration,
         )
 
     def _create_toolbar(self) -> QToolBar:
@@ -1023,6 +1034,9 @@ class UIBuilder:
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.system_help)
         help_menu.addAction(self.actions.show_log)
+        help_menu.addSeparator()
+        help_menu.addAction(self.actions.post_install)
+        help_menu.addAction(self.actions.remove_desktop_integration)
         help_menu.addAction(self.actions.about)  # This is auto-moved on a Mac
 
     def _create_gui(self) -> None:
@@ -1092,6 +1106,7 @@ class MainWindow(QMainWindow):
             self.load_from_filename(filename)
         self.update_systems()  # in case the load failed just to be sure
         print(help_text)
+        check_desktop_integration()
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
@@ -1124,6 +1139,8 @@ class MainWindow(QMainWindow):
         self.ui.actions.config.toggled.connect(self.toggle_preferences)
         self.ui.actions.system_help.triggered.connect(self.show_system_commands)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.widgets.config_editor.visibilityChanged.connect(self.ui.actions.config.setChecked)
         self.ui.widgets.dockable_metadata.visibilityChanged.connect(
             self.ui.actions.toggle_metadata.setChecked

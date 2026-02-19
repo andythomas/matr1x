@@ -36,8 +36,8 @@ import time
 from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
-from types import TracebackType
-from typing import Any, TextIO, cast, overload
+from types import ModuleType, TracebackType
+from typing import Any, Literal, TextIO, cast, overload
 
 import numpy as np
 import pygit2
@@ -3534,10 +3534,58 @@ class TerminationDialog(QMessageBox):
             return "aborted"
 
 
+def get_install_info(
+    imported_package: ModuleType,
+) -> tuple[str, str, str, Literal["not available"] | int]:
+    """
+    Receive git infos about the installed version.
+
+    Parameters
+    ----------
+    imported_package: ModuleType
+        Any module (package) that was already imported.
+
+    Returns
+    -------
+    installed_version: str,
+    commit_branch: str,
+    commit_short_sha: str,
+    commit_time: str or int
+        The version and commit info(s) of the package.
+    """
+    commit_branch = "not available"
+    commit_time = "not available"
+    commit_short_sha = "not available"
+    try:
+        repo = pygit2.Repository(imported_package.__file__)
+        commit_branch = repo.head.shorthand
+        last_commit = repo[repo.head.target]
+        commit_short_sha = str(last_commit.id)[:7]
+        commit_time = last_commit.author.time
+        if commit_branch == "HEAD":
+            # Attempt to find the remote branch
+            for ref_name in repo.references:
+                ref = repo.lookup_reference(ref_name)
+                if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
+                    commit_branch = ref.shorthand
+                    break
+    except pygit2.GitError:
+        pass
+    installed_version = package_version(imported_package.__name__)
+    return (installed_version, commit_branch, commit_short_sha, commit_time)
+
+
 class AboutBox(QMessageBox):
     """Provide an about box with install debug info."""
 
-    def __init__(self, title, icon, package, date_format, parent=None):
+    def __init__(
+        self,
+        title: str,
+        icon: QIcon,
+        package: ModuleType,
+        date_format: str,
+        parent: QWidget | None = None,
+    ):
         """
         Initialize an about box dialog with installation information.
 
@@ -3562,17 +3610,14 @@ class AboutBox(QMessageBox):
         pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
         self.setWindowTitle(title)
-
         # Get package and git information
-        (version, branch, sha, time) = self.get_install_info(package)
+        (version, branch, sha, time) = get_install_info(package)
         if time != "not available":
             date = datetime.datetime.fromtimestamp(time).strftime(date_format)
         else:
             date = time
-
         # Get Python interpreter information
         python_info = self.get_python_interpreter_info()
-
         # Get system and Qt information
         system_type = platform.system().lower()
         result = subprocess.run(
@@ -3585,7 +3630,6 @@ class AboutBox(QMessageBox):
             qmake_qt6_version = result.stdout.strip()
         else:
             qmake_qt6_version = "unavailable"
-
         text = f"""
                 <div style="text-align: left;">
                     <p><b>Git information:</b><br>
@@ -3697,29 +3741,6 @@ class AboutBox(QMessageBox):
         location = self._shorten_path(env_location)
 
         return {"description": env_description, "location": location}
-
-    def get_install_info(self, imported_package):
-        """Receive git infos about the installed version."""
-        commit_branch = "not available"
-        commit_time = "not available"
-        commit_short_sha = "not available"
-        try:
-            repo = pygit2.Repository(imported_package.__file__)
-            commit_branch = repo.head.shorthand
-            last_commit = repo[repo.head.target]
-            commit_short_sha = str(last_commit.id)[:7]
-            commit_time = last_commit.author.time
-            if commit_branch == "HEAD":
-                # Attempt to find the remote branch
-                for ref_name in repo.references:
-                    ref = repo.lookup_reference(ref_name)
-                    if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
-                        commit_branch = ref.shorthand
-                        break
-        except pygit2.GitError:
-            pass
-        installed_version = package_version(imported_package.__name__)
-        return (installed_version, commit_branch, commit_short_sha, commit_time)
 
 
 def get_matrix_icon(

@@ -83,6 +83,11 @@ from matr1x.gui_util import (
     save_messagebox,
     validator,
 )
+from matr1x.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.system import MergedSystem
 from matr1x.util import (
     create_temp_dir_with_symlinks,
@@ -522,6 +527,8 @@ class ActionGroup:
     sweep: QAction
     toggle_toolbar: QAction
     preview: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
 
 
 class UIBuilder:
@@ -583,6 +590,8 @@ class UIBuilder:
             self.window,
         )
         preview_action.setEnabled(False)
+        post_install_action = QAction("Install Desktop Integration", self.window)
+        remove_desktop_integration_action = QAction("Remove Desktop Integration", self.window)
         self.actions = ActionGroup(
             matrix_settings=matrix_settings_action,
             about=about_action,
@@ -599,6 +608,8 @@ class UIBuilder:
             sweep=sweep_action,
             toggle_toolbar=toggle_toolbar_action,
             preview=preview_action,
+            post_install=post_install_action,
+            remove_desktop_integration=remove_desktop_integration_action,
         )
 
     def _create_toolbar(self) -> None:
@@ -667,6 +678,9 @@ class UIBuilder:
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.about)
         help_menu.addAction(self.actions.show_log)
+        help_menu.addSeparator()
+        help_menu.addAction(self.actions.post_install)
+        help_menu.addAction(self.actions.remove_desktop_integration)
 
 
 class SweepPreviewPopup(QDialog):
@@ -875,6 +889,8 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.open_file(filename)
                 self.last_filename = filename
 
+        check_desktop_integration()
+
     def closeEvent(self, a0) -> None:
         """
         Store settings before closing app.
@@ -1022,6 +1038,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.sweep.triggered.connect(self.print_sweep_to_preview)
         self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.preview.triggered.connect(self.preview_sweep)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.system_list.orderChanged.connect(self.filename_changed)
         self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
         check_config(matr1x.config)
