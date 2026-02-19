@@ -22,6 +22,7 @@ for data acquisition and instrument control.
 
 import importlib
 import inspect
+import logging
 import os
 import re
 import sys
@@ -47,6 +48,8 @@ from .util import (
     module_from_path,
     save_dict_to_hdf5,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def device_query(device_handle, config_params):
@@ -81,23 +84,22 @@ def device_query(device_handle, config_params):
         try:
             if isinstance(q, (list, tuple)):
                 assert len(q) == 3, f"config_params includes an invalid entry ({q})"
-                if hasattr(device_handle, q[0]) and callable(getattr(device_handle, q[0])):
-                    method = getattr(device_handle, q[0])
-                    line = str(method(*q[1], **q[2]))
-                else:
-                    raise ValueError(
-                        f"config_params: method of entry {q} not callable or non-existent"
-                    )
+                method = getattr(device_handle, q[0])
+                if not callable(method):
+                    raise ValueError(f"config_params: method '{q[0]}' is not callable")
+                line = str(method(*q[1], **q[2]))
             elif callable(q):
                 line = q()
-            elif hasattr(device_handle, q):
-                attr = getattr(device_handle, q)
-                if callable(attr):
-                    line = attr()
-                else:
-                    line = attr
             else:
-                line = str(device_handle.query(q))
+                try:
+                    attr = getattr(device_handle, q)
+                except AttributeError:
+                    line = str(device_handle.query(q))
+                else:
+                    if callable(attr):
+                        line = attr()
+                    else:
+                        line = attr
         except Exception:
             # print device identifier upon any exception
             if hasattr(device_handle, "name"):
@@ -106,7 +108,7 @@ def device_query(device_handle, config_params):
                 devid = device_handle.__class__.__name__
             if hasattr(device_handle, "adapter"):  # it's a pymeasure Instrument
                 devid += f" {device_handle.adapter.connection.resource_name}"
-            print(f"exception during config query of {devid}")
+            logger.exception("exception during config query of %s", devid)
             raise
         retquery[k] = line
     return retquery
