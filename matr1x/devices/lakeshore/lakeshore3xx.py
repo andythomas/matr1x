@@ -27,7 +27,7 @@ import time
 from pyvisa import constants
 from wrapt import synchronized
 
-from matr1x.devices.util import listToStr, strToList
+from matr1x.devices import listToStr, strToList
 from matr1x.devices.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)
