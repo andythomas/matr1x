@@ -29,7 +29,6 @@ import mimetypes
 import numbers
 import os
 import re
-import signal
 import smtplib
 import ssl
 import sys
@@ -1384,46 +1383,6 @@ class GuiDict(UserDict, ABC):
         #     self["V1"].value = self.S["dev"].get_another_value()
 
 
-class QtGracefulKiller:
-    """Graceful killer, that handles the proper termination of Qt application."""
-
-    def __init__(self):
-        signal.signal(signal.SIGINT, self.exit_gracefully)
-        signal.signal(signal.SIGTERM, self.exit_gracefully)
-
-    def exit_gracefully(self, signam, frame):
-        """Terminates the application."""
-        print(f"Kill signal received ({signam})")
-        MApplication.quit()
-
-    def __enter__(self):
-        """Start a timer for Ctrl+C to work."""
-        self.timer = QTimer()
-        self.timer.timeout.connect(lambda: None)
-        self.timer.start(100)
-
-    def __exit__(self, exc_type, value, traceback):
-        """
-        Stop the timer when exiting the context manager.
-
-        This method is called when exiting the context manager (i.e., at the end of the
-        'with' statement). It stops the timer that was started in the __enter__ method.
-
-        Parameters
-        ----------
-        exc_type : type
-            The type of the exception that caused the context to be exited.
-            None if the context was exited without an exception.
-        value : Exception
-            The instance of the exception that caused the context to be exited.
-            None if the context was exited without an exception.
-        traceback : traceback
-            A traceback object encoding the stack trace.
-            None if the context was exited without an exception.
-        """
-        self.timer.stop()
-
-
 def linear_trend(timestamps, data, interval=60):
     """
     Calculate the linear trend of the data in the last 'interval' seconds.
@@ -1631,13 +1590,12 @@ Kill the other process ({otherpid}) before restarting.""",
     kwargs["package"] = package
     logger = logging.getLogger(__name__)
     logger.info("Starting GUI")
-    with QtGracefulKiller():
-        with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
-            sys.stdout = OutputDuplication(sys.stdout, prefix=f"{package}.{name}")
-            sys.stderr = OutputDuplication(
-                sys.stderr, prefix=f"{package}.{name}", fallbackname="stderr"
-            )
-            ret = app.exec()
+    with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
+        sys.stdout = OutputDuplication(sys.stdout, prefix=f"{package}.{name}")
+        sys.stderr = OutputDuplication(
+            sys.stderr, prefix=f"{package}.{name}", fallbackname="stderr"
+        )
+        ret = app.exec()
     logger.info("Exiting GUI")
     if lockfile:
         # clean exit, remove lockfile

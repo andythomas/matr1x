@@ -48,7 +48,6 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.control.util import QtGracefulKiller
 from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
@@ -987,10 +986,9 @@ def main() -> None:
     # background when matrix returns. see run_as_fg_process
     if hasattr(signal, "SIGTTOU"):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-    with QtGracefulKiller():
-        ex = MainWindow()
-        ex.show()
-        protected_restore(ex.restore_window_state)
-        ret = app.exec()
-        logger.info("matrix-gui exiting")
+    ex = MainWindow()
+    ex.show()
+    protected_restore(ex.restore_window_state)
+    ret = app.exec()
+    logger.info("matrix-gui exiting")
     sys.exit(ret)

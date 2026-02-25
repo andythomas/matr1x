@@ -18,7 +18,6 @@
 from .controlwindow import ControlWindow  # noqa: F401
 from .util import (  # noqa: F401
     GuiDict,
-    QtGracefulKiller,
     catchEmitError,
     control_main,
     guiObject,

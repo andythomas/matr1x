@@ -74,7 +74,6 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.control.util import QtGracefulKiller
 from matr1x.editor import CodeEditor, LSPServer
 from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
@@ -2274,16 +2273,15 @@ def main() -> None:
     app = MApplication(sys.argv)
     appname = "matrix-script"
     app.setDesktopFileName(appname)
-    with QtGracefulKiller():
-        ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
-        if config["duplicate_output_to_logfile"]:
-            sys.stdout = OutputDuplication(sys.stdout, prefix=appname)
-            sys.stderr = OutputDuplication(sys.stderr, prefix=appname, fallbackname="stderr")
-        ex.show()
-        protected_restore(ex.restore_window_state)
-        # handle MacOS specific FileOpenEvent from MApplication
-        app.connect_file_handler(ex._load_file_from_signal)
-        ret = app.exec()
+    ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
+    if config["duplicate_output_to_logfile"]:
+        sys.stdout = OutputDuplication(sys.stdout, prefix=appname)
+        sys.stderr = OutputDuplication(sys.stderr, prefix=appname, fallbackname="stderr")
+    ex.show()
+    protected_restore(ex.restore_window_state)
+    # handle MacOS specific FileOpenEvent from MApplication
+    app.connect_file_handler(ex._load_file_from_signal)
+    ret = app.exec()
     if config["duplicate_output_to_logfile"]:
         sys.stdout.close()
         sys.stderr.close()

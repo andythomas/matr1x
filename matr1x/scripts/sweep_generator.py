@@ -64,7 +64,6 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x import datetimefmt, system_directories, system_names, usersfolder
-from matr1x.control.util import QtGracefulKiller
 from matr1x.error_handling import Error, Result, Success, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
@@ -1846,13 +1845,12 @@ def main():
     install_error_handler()
     app = MApplication(sys.argv)
     app.setDesktopFileName("sweep-generator")
-    with QtGracefulKiller():
-        if len(sys.argv) < 2:
-            mw = MainWindow()
-        else:
-            mw = MainWindow(filename=Path(sys.argv[1]))
-        mw.show()
-        app.connect_file_handler(mw.open_file)  # MacOS specific FileOpenEvent
-        protected_restore(mw.restore_window_state)
-        ret = app.exec()
+    if len(sys.argv) < 2:
+        mw = MainWindow()
+    else:
+        mw = MainWindow(filename=Path(sys.argv[1]))
+    mw.show()
+    app.connect_file_handler(mw.open_file)  # MacOS specific FileOpenEvent
+    protected_restore(mw.restore_window_state)
+    ret = app.exec()
     sys.exit(ret)

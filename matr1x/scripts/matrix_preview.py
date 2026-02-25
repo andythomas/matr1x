@@ -55,7 +55,6 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.control.util import QtGracefulKiller
 from matr1x.error_handling import expect_not_none, install_error_handler
 from matr1x.eval import HeaderDict, _create_empty_header, loadmatrix
 from matr1x.gui_util import (
@@ -1308,14 +1307,13 @@ def main(file: str | None = None):
     # background when matrix returns. see run_as_fg_process
     if hasattr(signal, "SIGTTOU"):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-    with QtGracefulKiller():
-        if file is not None:
-            ex = SweepPreview(None, Path(file))
-        elif len(sys.argv) < 2:
-            ex = SweepPreview(None, None)
-        else:
-            ex = SweepPreview(None, Path(sys.argv[1]))
-        ex.show()
-        protected_restore(ex.restore_window_state)
-        ret = app.exec()
+    if file is not None:
+        ex = SweepPreview(None, Path(file))
+    elif len(sys.argv) < 2:
+        ex = SweepPreview(None, None)
+    else:
+        ex = SweepPreview(None, Path(sys.argv[1]))
+    ex.show()
+    protected_restore(ex.restore_window_state)
+    ret = app.exec()
     sys.exit(ret)

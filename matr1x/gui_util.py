@@ -29,6 +29,7 @@ import logging
 import os
 import platform
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -132,6 +133,8 @@ from . import (
     write_config,
 )
 from .eval import delta
+
+logger = logging.getLogger(__name__)
 
 # dictionary of commonly used validators
 validator = {
@@ -4026,8 +4029,48 @@ class MApplication(QApplication):
             self.setStyle("fusion")  # Enable modern mode on Windows which allows for dark mode
         self._theme_detector = ThemeDetector()
         self._theme_detector.isDarkSignal.connect(self.isDarkSignal.emit)
-        self._pending_files = []
+        self._pending_files: list[str] = []
         self._handler_connected = False
+        self._signal_timer = QTimer()
+        self._signal_timer.timeout.connect(lambda: None)
+        signal.signal(signal.SIGINT, self._exit_gracefully)
+        signal.signal(signal.SIGTERM, self._exit_gracefully)
+
+    def _exit_gracefully(self, signum: int, frame: object) -> None:
+        """
+        Handle SIGINT/SIGTERM by quitting the application.
+
+        This enables the safety precautions such as "do you want to
+        save" and similar things.
+
+        Parameters
+        ----------
+        signum : int
+            The signal number received.
+        frame : object
+            The current stack frame (unused).
+        """
+        logger.debug("Kill signal received (%s)", signum)
+        MApplication.quit()
+
+    def exec(self) -> int:
+        """
+        Run the event loop with a keepalive timer for signal handling.
+
+        Starts a periodic no-op timer so Python can process OS signals
+        (e.g. SIGINT from Ctrl+C) while Qt owns the event loop.  The
+        timer is stopped automatically when exec returns.
+
+        Returns
+        -------
+        int
+            The exit code returned by the Qt event loop.
+        """
+        self._signal_timer.start(100)
+        try:
+            return super().exec()
+        finally:
+            self._signal_timer.stop()
 
     def _list_platform_plugins(self) -> Sequence[str]:
         """
