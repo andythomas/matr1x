@@ -51,7 +51,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.error_handling import Error, Result, Success
-from matr1x.gui_util import FileDropMixin, get_application_instance
+from matr1x.gui_util import FileDropMixin, MApplication
 from matr1x.models import SystemInfo
 from matr1x.util import (
     generate_script,
@@ -1092,7 +1092,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self._highlight_timer.timeout.connect(self._apply_pending_highlight)
         self._pending_highlight_line: int | None = None
         self._current_theme: str
-        get_application_instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
+        MApplication.instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
         self.setValidExtensions(extensions)
 
     def _run_javascript(self, command: str):
@@ -1404,7 +1404,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         monaco_theme = list(CodeEditor.THEMES["Standard"].values())[0]
         for name, theme_pair in CodeEditor.THEMES.items():
             if name == theme_selection:
-                dark = get_application_instance().isDark
+                dark = MApplication.instance().isDark
                 self._current_theme = theme_selection
                 monaco_theme = list(theme_pair.values())[1 if dark else 0]
             for name, theme in theme_pair.items():

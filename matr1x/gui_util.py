@@ -4158,22 +4158,28 @@ class MApplication(QApplication):
 
         super().setDesktopFileName(name)
 
+    @classmethod
+    def instance(cls) -> "MApplication":
+        """
+        Return the MApplication instance.
 
-def get_application_instance() -> MApplication:
-    """
-    Return the MApplication instance.
+        Narrows the return type from QCoreApplication | None to
+        MApplication and raises if no instance exists yet.
 
-    This simplifies pyright static type checking.
+        Returns
+        -------
+        MApplication
+            The running application instance.
 
-    Returns
-    -------
-    MApplication
-        The instance that cannot be None.
-    """
-    app = MApplication.instance()
-    if not isinstance(app, MApplication):
-        raise InternalInvariantError("The application instance is None!")
-    return app
+        Raises
+        ------
+        InternalInvariantError
+            If no MApplication instance has been created.
+        """
+        app = super().instance()
+        if not isinstance(app, MApplication):
+            raise InternalInvariantError("The application instance is None!")
+        return app
 
 
 # Common system information functions for matrix scripts

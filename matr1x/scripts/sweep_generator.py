@@ -75,7 +75,6 @@ from matr1x.gui_util import (
     SystemListWidget,
     check_config,
     create_tray_notification,
-    get_application_instance,
     get_matrix_icon,
     open_matrix_toml,
     protected_restore,
@@ -290,7 +289,7 @@ class QLabelWithColor(QLabel):
         self.color_bright = "#DCF5D4"
         self.color_dark = "#325725"
         self._update_colors()
-        get_application_instance().isDarkSignal.connect(self._update_colors)
+        MApplication.instance().isDarkSignal.connect(self._update_colors)
 
     def _update_colors(self) -> None:
         """Change color while avoiding recursion."""
@@ -306,7 +305,7 @@ class QLabelWithColor(QLabel):
                          color: #DBDBDB;
                      }}
                  """
-        if get_application_instance().isDark:
+        if MApplication.instance().isDark:
             self.setStyleSheet(self.stylesheet_dark)
         else:
             self.setStyleSheet(self.stylesheet_bright)
@@ -632,7 +631,7 @@ class UIBuilder:
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = get_application_instance().toolbar_icon_size()
+        icon_size = MApplication.instance().toolbar_icon_size()
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
@@ -730,7 +729,7 @@ class SweepPreviewPopup(QDialog):
             symbolBrush=(65, 105, 225),
         )
         self.plt.setPen((65, 105, 225), width=3)
-        get_application_instance().isDarkSignal.connect(self.update_colors)
+        MApplication.instance().isDarkSignal.connect(self.update_colors)
         self.proxy = pg.SignalProxy(
             self.pw.getViewBox().scene().sigMouseMoved, rateLimit=30, slot=self.mouse_moved
         )
@@ -753,7 +752,7 @@ class SweepPreviewPopup(QDialog):
 
     def update_colors(self) -> None:
         """Update colors according to the theme."""
-        if get_application_instance().isDark:
+        if MApplication.instance().isDark:
             self.pw.setBackground("k")
             self.pw.getAxis("left").setPen("w")
             self.pw.getAxis("bottom").setPen("w")

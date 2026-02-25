@@ -67,9 +67,9 @@ from matr1x.error_handling import expect_not_none
 from matr1x.gui_util import (
     EmittingStream,
     LoggingWindow,
+    MApplication,
     SaferQSettings,
     check_config,
-    get_application_instance,
     open_matrix_toml,
     protected_restore,
 )
@@ -1460,7 +1460,7 @@ class ControlWindow(QMainWindow):
             self._log_stopped_event.set()
         self.activity.emit("lightgray")
         self.deactivate.emit(True)
-        qApp = get_application_instance()
+        qApp = MApplication.instance()
         qApp.processEvents()
         # stop SCPI server to reflect that something is wrong instead of
         # returning the same reading over and over

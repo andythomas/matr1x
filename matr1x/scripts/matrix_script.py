@@ -94,7 +94,6 @@ from matr1x.gui_util import (
     check_config,
     detect_shortcut,
     find_parent_of_type,
-    get_application_instance,
     get_matrix_icon,
     get_system_info,
     open_matrix_toml,
@@ -191,7 +190,7 @@ class TerminalOutput(QPlainTextEdit):
         mono_font.setPointSizeF(self.font().pointSize())
         self.setFont(mono_font)
         self.updateColors()
-        get_application_instance().isDarkSignal.connect(self.updateColors)
+        MApplication.instance().isDarkSignal.connect(self.updateColors)
 
     def updateColors(self) -> None:
         """Update terminal colors based on system theme."""
@@ -954,7 +953,7 @@ class UIBuilder:
         toolbar.setFloatable(False)
         toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
-        icon_size = get_application_instance().toolbar_icon_size()
+        icon_size = MApplication.instance().toolbar_icon_size()
         empty = QWidget()
         empty.setFixedWidth(icon_size)
         empty2 = QWidget()
@@ -1092,7 +1091,7 @@ class MainWindow(QMainWindow):
         self._output_timer.timeout.connect(self._flush_output_buffer)
         self._output_timer.setSingleShot(False)
         self._output_timer.setInterval(50)
-        get_application_instance().isDarkSignal.connect(self.update_systems)
+        MApplication.instance().isDarkSignal.connect(self.update_systems)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
         self.ui = UIBuilder(self)
         self.create_connections()
@@ -1378,7 +1377,7 @@ class MainWindow(QMainWindow):
         if (
             self.ui.widgets.script_edit.isModified() or self.systems_dirty
         ) and self.ui.widgets.script_edit.toPlainText() != "":
-            qApp = get_application_instance()
+            qApp = MApplication.instance()
             qApp.processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
@@ -1401,7 +1400,7 @@ class MainWindow(QMainWindow):
         root_logger = logging.getLogger()
         root_logger.removeHandler(self.log_window.log_handler)
         self.log_window.deleteLater()
-        qApp = get_application_instance()
+        qApp = MApplication.instance()
         qApp.processEvents()
         event.accept()
 
@@ -1677,7 +1676,7 @@ class MainWindow(QMainWindow):
         for system in self.systems:
             text = text + system + "<br>"
         text += "<br></b>These systems provide the following:<br>"
-        bg_color = "#565656" if get_application_instance().isDark else "#f0f0f0"
+        bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
         if system_info.parameters != {}:
             text += "<h3>Parameters</h3>"
             text += '<table border="1" cellpadding="5" cellspacing="0" '
@@ -1871,7 +1870,7 @@ class MainWindow(QMainWindow):
             return
         if self.run_linter() > 0:  # run linter to make sure there are no errors
             self.print_colored("Script execution was halted because of linter errors")
-            get_application_instance().processEvents()
+            MApplication.instance().processEvents()
             a = QMessageBox(parent=self)  # open a popup window to inform about the error
             a.setText("Linter error")
             a.setInformativeText("Error found in script, continue anyway?")
@@ -2206,7 +2205,7 @@ class MainWindow(QMainWindow):
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
         if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
-            qApp = get_application_instance()
+            qApp = MApplication.instance()
             qApp.processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
@@ -2234,7 +2233,7 @@ class MainWindow(QMainWindow):
         'system dirty' flag and forget last filename.
         """
         if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
-            get_application_instance().processEvents()
+            MApplication.instance().processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 return

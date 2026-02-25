@@ -59,7 +59,6 @@ from matr1x.gui_util import (
     SaferQSettings,
     check_config,
     detect_shortcut,
-    get_application_instance,
     get_matrix_icon,
     get_system_info,
     open_matrix_toml,
@@ -550,7 +549,7 @@ class UIBuilder:
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.toolbar.setFloatable(False)
-        icon_size = get_application_instance().toolbar_icon_size()
+        icon_size = MApplication.instance().toolbar_icon_size()
         empty = QWidget()
         empty.setFixedWidth(icon_size)
         empty2 = QWidget()

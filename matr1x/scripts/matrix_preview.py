@@ -66,7 +66,6 @@ from matr1x.gui_util import (
     SaferQSettings,
     SimplePlotWidget,
     check_config,
-    get_application_instance,
     get_matrix_icon,
     open_matrix_toml,
     protected_restore,
@@ -240,7 +239,7 @@ class UIBuilder:
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = get_application_instance().toolbar_icon_size()
+        icon_size = MApplication.instance().toolbar_icon_size()
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
@@ -361,7 +360,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # Only connect for root windows (parent=None) to avoid duplicate connections
-        application = get_application_instance()
+        application = MApplication.instance()
         if parent is None:
             application.connect_file_handler(self._open_file_from_signal)
         # initialize filename if available
@@ -375,7 +374,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
     def _get_maximum_screen_width(self):
         """Determine width of the biggest available screen."""
         width = 0
-        for screen in get_application_instance().screens():
+        for screen in MApplication.instance().screens():
             width = max(width, screen.geometry().width())
         return width
 
