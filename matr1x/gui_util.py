@@ -2933,6 +2933,8 @@ class OutputDuplication:
         The original stream being duplicated. If None, only log is used.
     log : TextIO
         The file object for the log file where output is additionally written.
+    _line_buffer : str
+        Buffer storing the currently active output line.
     """
 
     def __init__(
@@ -2956,11 +2958,16 @@ class OutputDuplication:
         else:
             name = fallbackname
         self.log = (Path(logfolder) / f"{prefix}-{name}.log").open("a")
+        self._line_buffer = ""
         print(f"opening log: {self.log.name}")
 
     def write(self, message: str) -> None:
-        """
+        r"""
         Write the message to both the terminal and the log file.
+
+        Log output is line-buffered and carriage-return aware:
+        intermediate ``\\r`` progress updates overwrite the active line
+        and only finalized lines (terminated by ``\\n``) are persisted.
 
         Parameters
         ----------
@@ -2969,9 +2976,20 @@ class OutputDuplication:
         """
         if self.terminal is not None:
             self.terminal.write(message)
-        if message and message != "\n":
-            self.log.write(f"{time.strftime(datetimefmt)}: ")
-        self.log.write(message.lstrip("\r"))
+
+        for char in message:
+            if char == "\r":
+                # Terminal-style overwrite: drop current in-progress line.
+                self._line_buffer = ""
+                continue
+            if char == "\n":
+                if self._line_buffer:
+                    self.log.write(f"{time.strftime(datetimefmt)}: ")
+                    self.log.write(self._line_buffer)
+                self.log.write("\n")
+                self._line_buffer = ""
+                continue
+            self._line_buffer += char
         self.flush()
 
     def flush(self) -> None:
@@ -2982,6 +3000,12 @@ class OutputDuplication:
 
     def close(self) -> None:
         """Close the log file."""
+        if self._line_buffer:
+            self.log.write(f"{time.strftime(datetimefmt)}: ")
+            self.log.write(self._line_buffer)
+            self.log.write("\n")
+            self._line_buffer = ""
+            self.log.flush()
         self.log.close()
 
     def __exit__(
