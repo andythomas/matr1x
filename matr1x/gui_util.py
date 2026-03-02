@@ -4522,6 +4522,21 @@ class _QTableLogger(logging.Handler):
         self.widget.scrollToBottom()
 
 
+class ReadOnlyTable(QTableWidget):
+    """Enable a read-only table with item copy."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+
+    def copy(self):
+        """Copy the currently selected item in the clipboard."""
+        index = self.currentIndex()
+        if index.isValid():
+            QApplication.clipboard().setText(str(index.data()))
+        return
+
+
 class LoggingWindow(QMainWindow):
     """Detached window to display logging messages."""
 
@@ -4534,21 +4549,16 @@ class LoggingWindow(QMainWindow):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         self.setWindowTitle("Log Messages")
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.CustomizeWindowHint
-            | Qt.WindowType.WindowTitleHint
-        )
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
-        self.log_table = QTableWidget()
+        self.log_table = ReadOnlyTable()
         self.log_table.setColumnCount(len(LoggingWindow.LOG_FIELDS))
         self.log_table.setHorizontalHeaderLabels(
             [field.title() for field in LoggingWindow.LOG_FIELDS]
         )
         self.log_table.setAlternatingRowColors(True)
-        self.log_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.log_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         header = self.log_table.horizontalHeader()
         header.setStretchLastSection(True)
         if len(LoggingWindow.LOG_FIELDS) >= 4:

@@ -886,7 +886,6 @@ class UIBuilder:
         autocomplete.setCheckable(True)
         autocomplete.setChecked(True)
         show_log = QAction("Show Log Window", self.window)
-        show_log.setCheckable(True)
         toggle_metadata = QAction("Show Metadata", self.window)
         toggle_metadata.setShortcut(QKeySequence("Ctrl+2"))
         toggle_metadata.setCheckable(True)
@@ -1136,7 +1135,7 @@ class MainWindow(QMainWindow):
         self.ui.actions.toggle_metadata.triggered.connect(self.toggle_metadata_view)
         self.ui.actions.config.toggled.connect(self.toggle_preferences)
         self.ui.actions.system_help.triggered.connect(self.show_system_commands)
-        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.ui.actions.show_log.triggered.connect(self.show_log_window)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.widgets.config_editor.visibilityChanged.connect(self.ui.actions.config.setChecked)
@@ -1148,7 +1147,6 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
         self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
-        self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
 
     def print_colored(self, line: str) -> None:
         """
@@ -1468,19 +1466,11 @@ class MainWindow(QMainWindow):
         else:
             self.ui.widgets.config_editor.hide()
 
-    def toggle_log_window(self) -> None:
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-
-    def _on_log_window_visibility_changed(self, visible: bool) -> None:
-        """Keep the log-window action in sync with the window state."""
-        self.ui.actions.show_log.setChecked(visible)
-        self.ui.actions.show_log.setText("Hide Log Window" if visible else "Show Log Window")
+    def show_log_window(self) -> None:
+        """Show the logging window."""
+        self.log_window.show()
+        self.log_window.raise_()
+        self.log_window.activateWindow()
 
     def _load_file_from_signal(self, filename: str) -> None:
         """Convert string to Path for opening file."""
