@@ -86,7 +86,6 @@ from .. import config, datetimefmt, logfolder, system
 from ..error_handling import InternalInvariantError
 from ..gui_util import MApplication, OutputDuplication, SaferQSettings, validator
 from ..util import normalize_cmds
-from .qwidgets import ToggleButton, matr1xProgressBar
 
 
 def catchEmitError(method):
@@ -149,6 +148,80 @@ def catchEmitError(method):
         dict(call=call, _method=method),
         __wrapped__=method,
     )
+
+
+class matr1xProgressBar(QProgressBar):
+    """
+    Overload QProgressBar to allow values between -5 and 105.
+
+    Values outside that range are indicated by a red color.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.setRange(-5, 105)
+        self.setFormat("%v")
+
+    def setValue(self, value: int) -> None:
+        """
+        Set the current value of the progress bar.
+
+        Parameters
+        ----------
+        value : int
+            The value to set for the progress bar.
+        """
+        if value > self.maximum() or value < self.minimum():
+            # change color
+            self.reset()
+            self.setStyleSheet("QProgressBar{background-color : red;}")
+        else:
+            self.setStyleSheet("QProgressBar{}")
+
+        super().setValue(value)
+
+
+class ToggleButton(QPushButton):
+    """
+    Custom QPushButton to emulate a proper toggle button.
+
+    Including the change of the button's label upon pushing.
+
+    Parameters
+    ----------
+    *args : Union[str, List[str], Tuple[str, str]]
+        Positional arguments. The first argument should be either a string
+        (single label) or a list/tuple of two strings (labels for unchecked/checked states).
+    **kwargs : dict
+        Keyword arguments to be passed to the QPushButton constructor.
+    """
+
+    def __init__(self, *args: str | list[str] | tuple[str, str], **kwargs):
+        if isinstance(args[0], (list, tuple)):
+            label = args[0][0]
+        else:
+            label = args[0]
+        super().__init__(label, **kwargs)
+        self._labels = args[0]
+        self.setCheckable(True)
+
+    def setChecked(self, state: bool) -> None:
+        """
+        Change label of toggle button.
+
+        Parameters
+        ----------
+        state : bool
+            The new checked state of the button.
+        """
+        super().setChecked(state)
+        # if it is checked
+        if isinstance(self._labels, (list, tuple)):
+            if state:
+                self.setText(self._labels[1])
+            # if it is unchecked
+            else:
+                self.setText(self._labels[0])
 
 
 class guiObject(IntEnum):

@@ -37,6 +37,7 @@ import sys
 import threading
 import time
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal, Slot
@@ -48,6 +49,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLayout,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -61,7 +63,6 @@ from PySide6.QtWidgets import (
 
 from matr1x import config as matrixconfig
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
-from matr1x.control.qwidgets import EnableAction, FullInfoAction
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.error_handling import expect_not_none
 from matr1x.gui_util import (
@@ -70,6 +71,7 @@ from matr1x.gui_util import (
     MApplication,
     SaferQSettings,
     check_config,
+    get_matrix_icon,
     open_matrix_toml,
     protected_restore,
 )
@@ -189,6 +191,169 @@ class CollapsibleBox(QWidget):
         self.content_height = self.content_widget.sizeHint().height()
         self.collapsed_height = self.sizeHint().height()  # - self.content_height
         self.combined_height = self.content_height + self.collapsed_height
+
+
+@dataclass(frozen=True)
+class ActionGroup:
+    """Actions to be utilized in the GUI."""
+
+    enable_all: QAction
+    disable_all: QAction
+    full_info_all: QAction
+    less_info_all: QAction
+    show_activity: QAction
+    show_toolbar: QAction
+    show_toml: QAction
+    show_log: QAction
+    quit: QAction
+
+
+@dataclass(frozen=True)
+class MenuGroup:
+    """The menus to be utilized in the GUI."""
+
+    file: QMenu
+    enable: QMenu
+    fullinfo: QMenu
+    view: QMenu
+    custom: QMenu
+    help: QMenu
+
+
+@dataclass(frozen=True)
+class WidgetGroup:
+    """Widgets to be used in the GUI."""
+
+    panic: QPushButton
+
+
+class UIBuilder:
+    """Provide actions."""
+
+    def __init__(self, window: QMainWindow) -> None:
+        self.window: QMainWindow = window
+        self.widgets = self._create_widgets()
+        self.actions = self._create_actions()
+        self.menus = self._create_menus()
+
+    def _create_widgets(self) -> WidgetGroup:
+        """Create the widgets."""
+        panicButton = QPushButton("Panic Button")
+        panicButton.setStyleSheet("background-color: red;")
+        panicButton.setCheckable(True)
+        return WidgetGroup(
+            panic=panicButton,
+        )
+
+    def _create_actions(self) -> ActionGroup:
+        """Create most QActions for the control."""
+        enable_all = QAction("Enable all", self.window)
+        disable_all = QAction("Disable all", self.window)
+        full_info_all = QAction("Full info all", self.window)
+        less_info_all = QAction("Less info all", self.window)
+        show_toolbar = QAction("Show Toolbar")
+        show_toolbar.setShortcut(QKeySequence("Ctrl+1"))
+        show_toolbar.setCheckable(True)
+        show_activity = QAction("Show activity", self.window)
+        show_toml = QAction("Show matrix toml", self.window)
+        show_toml.setMenuRole(QAction.MenuRole.PreferencesRole)
+        show_toml.setShortcut(QKeySequence.StandardKey.Preferences)
+        show_log = QAction("Show Log Window", self.window)
+        show_log.setCheckable(True)
+        quit_app = QAction("Quit", self.window)
+        if os.name == "nt":
+            quit_app.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
+        return ActionGroup(
+            enable_all=enable_all,
+            disable_all=disable_all,
+            full_info_all=full_info_all,
+            less_info_all=less_info_all,
+            show_toolbar=show_toolbar,
+            show_activity=show_activity,
+            show_toml=show_toml,
+            show_log=show_log,
+            quit=quit_app,
+        )
+
+    def _create_menus(self) -> MenuGroup:
+        """Create the main menu."""
+        menu = self.window.menuBar()
+        file = menu.addMenu("&File")
+        enable = menu.addMenu("&Enable")
+        fullinfo = menu.addMenu("&Full info")
+        view = menu.addMenu("&View")
+        custom = menu.addMenu("&Custom")
+        help_me = menu.addMenu("&Help")
+        return MenuGroup(
+            file=file,
+            enable=enable,
+            fullinfo=fullinfo,
+            view=view,
+            custom=custom,
+            help=help_me,
+        )
+
+
+class EnableAction(QAction):
+    """
+    A QAction subclass that automatically updates its icon based on checked state.
+
+    This action is designed for enable/disable functionality and automatically
+    updates its icon color when the checked state changes.
+    """
+
+    def __init__(self, text: str, parent: "ControlWindow"):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Enable")
+        self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        self.controlwindow: ControlWindow = parent
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """Update the icon based on checked state."""
+        if checked:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")))
+        else:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        self.controlwindow.check_enables()
+
+    def setChecked(self, a0: bool):
+        """Override setChecked to ensure icon is updated."""
+        super().setChecked(a0)
+        self._update_icon(a0)
+
+
+class FullInfoAction(QAction):
+    """
+    A QAction subclass that automatically updates its icon based on checked state.
+
+    This action is designed for full info/less info functionality and automatically
+    updates its icon (+ or -) when the checked state changes.
+    """
+
+    def __init__(self, text: str, parent: "ControlWindow"):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Full info")
+        self.setIcon(get_matrix_icon("CHAR_+"))
+        self.controlwindow: ControlWindow = parent
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """Update the icon based on checked state."""
+        if checked:
+            self.setIcon(get_matrix_icon("CHAR_-"))
+        else:
+            self.setIcon(get_matrix_icon("CHAR_+"))
+        self.controlwindow.check_full_infos()
+
+    def setChecked(self, a0: bool):
+        """Override setChecked to ensure icon is updated."""
+        super().setChecked(a0)
+        self._update_icon(a0)
 
 
 class ControlWindow(QMainWindow):
@@ -436,7 +601,7 @@ class ControlWindow(QMainWindow):
         """Restore view-related settings after menu has been created."""
         # restore toolbar visibility
         toolbar_visible = self.settings.safer_value("toolbar_visible", False, type=bool)
-        self.show_toolbar_action.setChecked(toolbar_visible)
+        self.ui.actions.show_toolbar.setChecked(toolbar_visible)
         self.set_toolbar_visible(toolbar_visible)
         # restore activity indicator location
         saved_activity_in_logger = self.settings.safer_value("activity_in_logger", True, type=bool)
@@ -450,11 +615,27 @@ class ControlWindow(QMainWindow):
         This method sets up the basic structure of the GUI by calling
         other methods to create different parts of the interface.
         """
+        self.ui = UIBuilder(self)
+        self.create_connections()
         layout = self.basicUI()
-        self.guidictUI(layout)
-        self.extra_layout(layout)
+        for guidict in self.guidicts:
+            content = guidict.create_GUI()
+            self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
+        layout.addWidget(self.ui.widgets.panic)
         self.statusloggingUI(layout)
         check_config(matrixconfig)
+
+    def create_connections(self) -> None:
+        """Connect actions and widgets with application logic."""
+        self.ui.actions.enable_all.triggered.connect(self.enable_all)
+        self.ui.actions.disable_all.triggered.connect(self.disable_all)
+        self.ui.actions.full_info_all.triggered.connect(self.full_info_all)
+        self.ui.actions.less_info_all.triggered.connect(self.less_info_all)
+        self.ui.actions.show_toolbar.triggered.connect(self.set_toolbar_visible)
+        self.ui.actions.show_toml.triggered.connect(open_matrix_toml)
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.ui.actions.quit.triggered.connect(self.close)
+        self.ui.widgets.panic.clicked.connect(self.panic)
 
     def toggle_visible(self, checked: bool, index: int) -> None:
         """
@@ -485,13 +666,13 @@ class ControlWindow(QMainWindow):
                 else:
                     off += 1
         if off < total:
-            self.disable_all_action.setEnabled(True)
+            self.ui.actions.disable_all.setEnabled(True)
         else:
-            self.disable_all_action.setEnabled(False)
+            self.ui.actions.disable_all.setEnabled(False)
         if on < total:
-            self.enable_all_action.setEnabled(True)
+            self.ui.actions.enable_all.setEnabled(True)
         else:
-            self.enable_all_action.setEnabled(False)
+            self.ui.actions.enable_all.setEnabled(False)
 
     def check_full_infos(self) -> None:
         """Determine if 'all/none full-info' should be available."""
@@ -507,13 +688,13 @@ class ControlWindow(QMainWindow):
                 else:
                     off += 1
         if off < total:
-            self.less_info_all_action.setEnabled(True)
+            self.ui.actions.less_info_all.setEnabled(True)
         else:
-            self.less_info_all_action.setEnabled(False)
+            self.ui.actions.less_info_all.setEnabled(False)
         if on < total:
-            self.full_info_all_action.setEnabled(True)
+            self.ui.actions.full_info_all.setEnabled(True)
         else:
-            self.full_info_all_action.setEnabled(False)
+            self.ui.actions.full_info_all.setEnabled(False)
 
     def enable_all(self) -> None:
         """Enable all guidicts."""
@@ -606,14 +787,14 @@ class ControlWindow(QMainWindow):
         """Toggle the visibility of the logging window."""
         if self.log_window.isVisible():
             self.log_window.hide()
-            self.show_log_action.setChecked(False)
-            self.show_log_action.setText("Show Log Window")
+            self.ui.actions.show_log.setChecked(False)
+            self.ui.actions.show_log.setText("Show Log Window")
         else:
             self.log_window.show()
             self.log_window.raise_()
             self.log_window.activateWindow()
-            self.show_log_action.setChecked(True)
-            self.show_log_action.setText("Hide Log Window")
+            self.ui.actions.show_log.setChecked(True)
+            self.ui.actions.show_log.setText("Hide Log Window")
 
     def create_menu(self) -> None:
         """
@@ -621,15 +802,7 @@ class ControlWindow(QMainWindow):
 
         Add 'Full Info', 'Enable' and 'View' menus to the main menu bar.
         """
-        menu = self.menuBar()
-        self.file_menu = menu.addMenu("&File")
-        self.enable_menu = menu.addMenu("&Enable")
-        self.fullinfo_menu = menu.addMenu("&Full info")
-        self.view_menu = menu.addMenu("&View")
-        self.custom_menu = menu.addMenu("&Custom")
-        self.help_menu = menu.addMenu("&Help")
-
-        self.file_menu.addAction(self.quit_action)
+        self.ui.menus.file.addAction(self.ui.actions.quit)
 
         self.guidict_view = []
         for i, guidict in enumerate(self.guidicts):
@@ -649,7 +822,7 @@ class ControlWindow(QMainWindow):
                 guidict.enable_switch.toggled.connect(enable_action.setChecked)
 
             guidict.toolbar.addAction(enable_action)
-            self.enable_menu.addAction(enable_action)
+            self.ui.menus.enable.addAction(enable_action)
             # View toggles
             view_action = QAction(dict_name, self)
             self.guidict_view.append(view_action)
@@ -660,7 +833,7 @@ class ControlWindow(QMainWindow):
                     checked, index
                 )
             )
-            self.view_menu.addAction(self.guidict_view[i])
+            self.ui.menus.view.addAction(self.guidict_view[i])
 
             # Full info toggles
             has_hiding = any(variable.hide for variable in guidict.values())
@@ -678,26 +851,16 @@ class ControlWindow(QMainWindow):
                 guidict.extend_switch.toggled.connect(full_info_action.setChecked)
 
             guidict.toolbar.addAction(full_info_action)
-            self.fullinfo_menu.addAction(full_info_action)
+            self.ui.menus.fullinfo.addAction(full_info_action)
             spacer = QWidget()
             spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             guidict.toolbar.addWidget(spacer)
             # Custom menu
             for action in guidict.menu_actions:
                 action.setParent(self)
-                self.custom_menu.addAction(action)
+                self.ui.menus.custom.addAction(action)
             if len(guidict.menu_actions) != 0:
-                self.custom_menu.addSeparator()
-
-        self.enable_all_action = QAction("Enable all", self)
-        self.enable_all_action.triggered.connect(self.enable_all)
-        self.disable_all_action = QAction("Disable all", self)
-        self.disable_all_action.triggered.connect(self.disable_all)
-
-        self.full_info_all_action = QAction("Full info all", self)
-        self.full_info_all_action.triggered.connect(self.full_info_all)
-        self.less_info_all_action = QAction("Less info all", self)
-        self.less_info_all_action.triggered.connect(self.less_info_all)
+                self.ui.menus.custom.addSeparator()
 
         self.activity_in_logger_action = QAction("Activity in Logger")
         self.activity_in_logger_action.setShortcut(QKeySequence("Ctrl+0"))
@@ -708,36 +871,21 @@ class ControlWindow(QMainWindow):
             lambda checked: self.set_activity_in_logger(checked)
         )
 
-        self.show_toolbar_action = QAction("Show Toolbar")
-        self.show_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
-        self.show_toolbar_action.setCheckable(True)
-        # Initial state will be set in _restore_view_settings()
-        self.show_toolbar_action.triggered.connect(self.set_toolbar_visible)
-
-        self.matrix_settings_action = QAction("Show matrix toml", self)
-        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
-        self.matrix_settings_action.triggered.connect(open_matrix_toml)
-
-        self.show_log_action = QAction("Show Log Window", self)
-        self.show_log_action.setCheckable(True)
-        self.show_log_action.triggered.connect(self.toggle_log_window)
-
         # Build the rest of the menu
-        self.enable_menu.addSeparator()
-        self.enable_menu.addAction(self.enable_all_action)
-        self.enable_menu.addAction(self.disable_all_action)
+        self.ui.menus.enable.addSeparator()
+        self.ui.menus.enable.addAction(self.ui.actions.enable_all)
+        self.ui.menus.enable.addAction(self.ui.actions.disable_all)
 
-        self.fullinfo_menu.addSeparator()
-        self.fullinfo_menu.addAction(self.full_info_all_action)
-        self.fullinfo_menu.addAction(self.less_info_all_action)
+        self.ui.menus.fullinfo.addSeparator()
+        self.ui.menus.fullinfo.addAction(self.ui.actions.full_info_all)
+        self.ui.menus.fullinfo.addAction(self.ui.actions.less_info_all)
 
-        self.view_menu.addSeparator()
-        self.view_menu.addAction(self.show_toolbar_action)
-        self.view_menu.addAction(self.activity_in_logger_action)
-        self.view_menu.addAction(self.matrix_settings_action)
+        self.ui.menus.view.addSeparator()
+        self.ui.menus.view.addAction(self.ui.actions.show_toolbar)
+        self.ui.menus.view.addAction(self.ui.actions.show_activity)
+        self.ui.menus.view.addAction(self.ui.actions.show_toml)
 
-        self.help_menu.addAction(self.show_log_action)
+        self.ui.menus.help.addAction(self.ui.actions.show_log)
 
         self.check_enables()
         self.check_full_infos()
@@ -752,12 +900,6 @@ class ControlWindow(QMainWindow):
             The main layout of the GUI.
         """
         # General menu bar items
-        self.quit_action = QAction("Quit", self)
-        if os.name == "nt":
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        self.quit_action.triggered.connect(self.close)
 
         icondir = Path(__file__).parent.parent / "scripts" / "icons"
         self.setWindowIcon(QIcon(str(icondir / "matr1x-control.png")))
@@ -770,44 +912,10 @@ class ControlWindow(QMainWindow):
         self.setCentralWidget(self.widget)
         return self.main_layout
 
-    def guidictUI(self, layout: QLayout) -> None:
-        """
-        Set up guidict columns (main part of the ControlWindow).
-
-        Parameters
-        ----------
-        layout : QLayout
-            Qt-layout of main window.
-        """
-        # construct the layout from the GUI dicts
-        for guidict in self.guidicts:
-            content = guidict.create_GUI()
-            self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
-
     @Slot()
     def needToAdjustSize(self) -> None:
         """Adjust the size of the main window."""
         self.adjustSize()
-
-    def extra_layout(self, layout: QVBoxLayout) -> None:
-        """
-        Define extra fields needed for specific control GUIs.
-
-        By default, a central panic button is provided which will signal to all
-        GUI elements to be put into a safe state.
-
-        Parameters
-        ----------
-        layout : QVBoxLayout
-            The layout to which the extra elements will be added.
-        """
-        elayout = QHBoxLayout()
-        self.panicButton = QPushButton("Panic Button")
-        self.panicButton.setStyleSheet("background-color: red;")
-        self.panicButton.setCheckable(True)
-        elayout.addWidget(self.panicButton)
-        self.panicButton.clicked.connect(self.panic)
-        layout.addLayout(elayout)
 
     def statusloggingUI(self, layout: QLayout) -> None:
         """
@@ -954,13 +1062,13 @@ class ControlWindow(QMainWindow):
         """
         if checked:
             logger.info("%s: Panic mode activated due to '%s'", time.strftime(datetimefmt), reason)
-            self.panicButton.setText(f"Panic mode activated due to '{reason}'")
-            self.panicButton.setChecked(True)
+            self.ui.widgets.panic.setText(f"Panic mode activated due to '{reason}'")
+            self.ui.widgets.panic.setChecked(True)
             for g in self.guidicts:
                 g.panic()
         else:
             for g in self.guidicts:
-                self.panicButton.setText("Panic Button")
+                self.ui.widgets.panic.setText("Panic Button")
                 g.unpanic()
 
     def output_written(self, text: str) -> None:
@@ -1410,7 +1518,7 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
         self.settings.setValue("status_visible", self.status_box.toggle_button.isChecked())
-        self.settings.setValue("toolbar_visible", self.show_toolbar_action.isChecked())
+        self.settings.setValue("toolbar_visible", self.ui.actions.show_toolbar.isChecked())
         self.settings.setValue("activity_in_logger", self.activity_in_logger_action.isChecked())
         self.settings.setValue("log_window/position", self.log_window.pos())
         self.settings.setValue("log_window/size", self.log_window.size())
