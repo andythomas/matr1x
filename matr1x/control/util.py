@@ -36,7 +36,6 @@ import time
 import traceback
 from abc import ABC, abstractmethod
 from collections import UserDict
-from collections.abc import Iterable
 from email import encoders
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
@@ -417,13 +416,12 @@ class var(QObject):
     ):
         super().__init__()
         self.variableType: type | None
-        if isinstance(dtype, Iterable):
+        if isinstance(dtype, tuple):
             self.variableType = dtype[0]
             self.outType = dtype[1]
         else:
             self.variableType = dtype
             self.outType = outType if outType is not None else dtype
-
         self._value = None
         self._unit = unit
         if self.variableType is None:
@@ -889,7 +887,7 @@ class GuiDict(UserDict, ABC):
         panic = Signal(bool, str)
         sig_error = Signal(type, Exception, str)
 
-        def __init__(self, target, interval, parent=None):
+        def __init__(self, target, interval, parent: GuiDict):
             super().__init__()
             self.target = target  # target function for the refresh loop
             self.interval = interval  # in milliseconds

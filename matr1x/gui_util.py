@@ -2638,7 +2638,9 @@ class SimplePlotWidget(QGroupBox):
             return
 
         source_x_label = source_plot.labels[1]
-        x_auto = bool(source_plot.vb.state["autoRange"][0])  # pyqtgraph keeps (xAuto, yAuto)
+        state = cast(dict, source_plot.vb.state)  # pyqtgraph is not strongly typed
+        x_auto = bool(state["autoRange"][0])
+        # pyqtgraph keeps (xAuto, yAuto)
 
         x_range = ranges[0]
 

@@ -18,7 +18,7 @@
 import logging
 import math
 import re
-from collections.abc import Sequence
+from typing import cast
 
 from wrapt import synchronized
 
@@ -390,7 +390,7 @@ class MercurySingleAxisIPS(VisaDevice):
                 val = (val, self.getDictValue("zRSet"))
         return val
 
-    def setMagnetStatus(self, state, axis=0):
+    def setMagnetStatus(self, state: int | list[int], axis=0):
         """
         Set the status of the magnet.
 
@@ -411,6 +411,7 @@ class MercurySingleAxisIPS(VisaDevice):
         """
         try:
             if -1 != axis:
+                state = cast(int, state)
                 state = int(state)
                 if 2 < state:
                     # do NOT set to 3, opens door to breaking magnet!
@@ -418,6 +419,7 @@ class MercurySingleAxisIPS(VisaDevice):
                 elif 0 > state:
                     return
             else:
+                state = cast(list[int], state)
                 if 1 != len(state):
                     return
                 for i in range(1):
@@ -430,9 +432,11 @@ class MercurySingleAxisIPS(VisaDevice):
         except ValueError:
             return
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
-        if -1 == axis and isinstance(state, Sequence):
+        if -1 == axis:
+            state = cast(list[int], state)
             self.setVal(status[state[0]], *self.workingDict["zActn"][1:])
         elif 0 == axis:
+            state = cast(int, state)
             self.setVal(status[state], *self.workingDict["zActn"][1:])
 
     def getMagnetStatus(self, axis=0):
@@ -1038,7 +1042,8 @@ class MercuryIPS(VisaDevice):
         except ValueError:
             return
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
-        if -1 == axis and isinstance(state, Sequence):
+        if -1 == axis:
+            state = cast(list[int], state)
             self.setVal(status[state[0]], *self.workingDict["xActn"][1:])
             self.setVal(status[state[1]], *self.workingDict["yActn"][1:])
             self.setVal(status[state[2]], *self.workingDict["zActn"][1:])
