@@ -83,7 +83,7 @@ from PySide6.QtWidgets import (
 
 from .. import config, datetimefmt, logfolder, system
 from ..error_handling import InternalInvariantError
-from ..gui_util import MApplication, OutputDuplication, SaferQSettings, validator
+from ..gui_util import MApplication, SaferQSettings, validator
 from ..util import normalize_cmds
 
 
@@ -1662,18 +1662,10 @@ Kill the other process ({otherpid}) before restarting.""",
     logger = logging.getLogger(__name__)
     logger.info("Starting GUI")
     with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
-        sys.stdout = OutputDuplication(sys.stdout, prefix=f"{package}.{name}")
-        sys.stderr = OutputDuplication(
-            sys.stderr, prefix=f"{package}.{name}", fallbackname="stderr"
-        )
         ret = app.exec()
     logger.info("Exiting GUI")
     if lockfile:
         # clean exit, remove lockfile
         if lockfilename.exists():
             lockfilename.unlink()
-    sys.stdout.close()
-    sys.stderr.close()
-    sys.stderr = sys.__stderr__
-    sys.stdout = sys.__stdout__
     sys.exit(ret)
