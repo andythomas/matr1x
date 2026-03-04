@@ -394,7 +394,7 @@ class var(QObject):
     log : bool or None, optional
         Boolean flag to set the default behavior in the logging config. If None,
         no checkbox is shown. If dType is None, this value is ignored.
-    init : list, optional
+    init : list | object, optional
         Initialization values. This should be a list of the same length as
         columns. If it is of non-list type its assumed to apply to all entries of
         columns equally.
@@ -412,7 +412,7 @@ class var(QObject):
         columns: list | str | int | guiObject | None = None,
         unit: str = "",
         log: bool | None = False,
-        init: list | None = None,
+        init: list | object | None = None,
         hide: bool = False,
     ):
         super().__init__()
