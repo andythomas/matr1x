@@ -252,17 +252,18 @@ class exampleDict(GuiDict):
 
     def panic(self):
         """
-        Raise an error for testing purposes.
+        Disable set buttons for testing purposes.
 
         A real controlGUI should bring all parameters to a safe state here.
         e.g. remove field from a magnet.
-
-        Raises
-        ------
-        ValueError
-            This is an error for testing purpose.
         """
-        raise ValueError("This is an error for testing purpose.")
+        self["toggle"].widgets[2].setEnabled(False)
+        self["Set"].widgets[1].setEnabled(False)
+
+    def unpanic(self):
+        """Enable set buttons to restore normal behavior."""
+        self["toggle"].widgets[2].setEnabled(True)
+        self["Set"].widgets[1].setEnabled(True)
 
 
 class exampleDict2(GuiDict):
