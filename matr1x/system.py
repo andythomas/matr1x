@@ -798,16 +798,14 @@ class System:
         # check filename and increase "extension number" to protect existing data
         extension = None
         for extension in range(1, 10000):
-            candidate_file = outfile.with_name(f"{outfile.stem}_{extension}").with_suffix(
-                file_extension
-            )
+            candidate_file = outfile.with_name(f"{outfile.name}_{extension}{file_extension}")
             if not candidate_file.exists():
                 break
         if extension is None:
             raise RuntimeError("Could not find available filename after 10000 attempts")
         # as last resort start a new file
         # append the next possible number as file extension
-        outfile = outfile.with_name(f"{outfile.stem}_{extension}").with_suffix(file_extension)
+        outfile = outfile.with_name(f"{outfile.name}_{extension}{file_extension}")
         self.filename = outfile
         self._file_mode = "w"
         return outfile
