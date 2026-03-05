@@ -33,12 +33,11 @@ import signal
 import subprocess
 import sys
 import tempfile
-import time
 from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
-from types import ModuleType, TracebackType
-from typing import Any, Literal, TextIO, cast, overload
+from types import ModuleType
+from typing import Any, Literal, cast, overload
 
 import numpy as np
 import pygit2
@@ -125,9 +124,7 @@ from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.models import MainConfig, SystemInfo, UserlibConfig
 
 from . import (
-    datetimefmt,
     get_config_dict,
-    logfolder,
     merge_dicts,
     reload_config,
     write_config,
@@ -2919,119 +2916,6 @@ class EmittingStream(QObject):
         in this implementation.
         """
         pass
-
-
-class OutputDuplication:
-    """
-    A class for duplicating print output to both the original stream and a log file.
-
-    This class is used to duplicate output from a given stream (like stdout or stderr)
-    to both the original destination and a log file. It's particularly useful for
-    preserving output in GUI applications that might crash.
-
-    Attributes
-    ----------
-    terminal : Optional[TextIO]
-        The original stream being duplicated. If None, only log is used.
-    log : TextIO
-        The file object for the log file where output is additionally written.
-    _line_buffer : str
-        Buffer storing the currently active output line.
-    """
-
-    def __init__(
-        self, stream: TextIO | None, prefix: str = "control", fallbackname: str = ""
-    ) -> None:
-        """
-        Initialize an object for output duplication into a file.
-
-        Parameters
-        ----------
-        stream : TextIO | None
-            The stream to duplicate output from. If None, only writes to the log file.
-        prefix : str, optional
-            Prefix for the log file name, by default 'control'.
-        fallbackname : str, optional
-            Fallback name for the log file if stream has no name, by default "".
-        """
-        self.terminal = stream
-        if stream is not None:
-            name = stream.name.strip("<>")
-        else:
-            name = fallbackname
-        self.log = (Path(logfolder) / f"{prefix}-{name}.log").open("a")
-        self._line_buffer = ""
-        print(f"opening log: {self.log.name}")
-
-    def write(self, message: str) -> None:
-        r"""
-        Write the message to both the terminal and the log file.
-
-        Log output is line-buffered and carriage-return aware:
-        intermediate ``\\r`` progress updates overwrite the active line
-        and only finalized lines (terminated by ``\\n``) are persisted.
-
-        Parameters
-        ----------
-        message : str
-            The message to be written.
-        """
-        if self.terminal is not None:
-            self.terminal.write(message)
-
-        for char in message:
-            if char == "\r":
-                # Terminal-style overwrite: drop current in-progress line.
-                self._line_buffer = ""
-                continue
-            if char == "\n":
-                if self._line_buffer:
-                    self.log.write(f"{time.strftime(datetimefmt)}: ")
-                    self.log.write(self._line_buffer)
-                self.log.write("\n")
-                self._line_buffer = ""
-                continue
-            self._line_buffer += char
-        self.flush()
-
-    def flush(self) -> None:
-        """Flush both the terminal and log file streams."""
-        if self.terminal is not None:
-            self.terminal.flush()
-        self.log.flush()
-
-    def close(self) -> None:
-        """Close the log file."""
-        if self._line_buffer:
-            self.log.write(f"{time.strftime(datetimefmt)}: ")
-            self.log.write(self._line_buffer)
-            self.log.write("\n")
-            self._line_buffer = ""
-            self.log.flush()
-        self.log.close()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        """
-        Exit the context manager and close the log file.
-
-        Parameters
-        ----------
-        exc_type : Optional[Type[BaseException]]
-            The type of the exception that caused the context to be exited.
-            None if no exception occurred.
-        exc_value : Optional[BaseException]
-            The instance of the exception that caused the context to be exited.
-            None if no exception occurred.
-        traceback : Optional[TracebackType]
-            A traceback object encoding the stack trace.
-            None if no exception occurred.
-        """
-        self.close()
 
 
 class MetaDataDialog(QDialog):

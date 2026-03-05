@@ -69,53 +69,11 @@ from matr1x.gui_util import (
     open_matrix_toml,
     protected_restore,
 )
-from matr1x.util import Get
+from matr1x.util import Get, StreamToLogger
 
 logger = logging.getLogger(__name__)
-printlogger = logging.getLogger("stdio")
+printlogger = logging.getLogger(__name__ + "_stdio")
 logging_package = logging
-
-
-class StreamToLogger:
-    """
-    Helper to pipe streams into a logger.
-
-    Parameters
-    ----------
-    logger: logging.Logger
-        The logger to use.
-    level: int
-        The utilized log-level
-    """
-
-    def __init__(self, logger: logging.Logger, level: int):
-        self.logger: logging.Logger = logger
-        self.level: int = level
-        self._buffer: str = ""
-
-    def write(self, message: str):
-        """
-        Write a log message considering new lines.
-
-        Parameters
-        ----------
-        message: str
-            The message to log.
-        """
-        if not message:
-            return
-        self._buffer += message
-        while "\n" in self._buffer:
-            line, self._buffer = self._buffer.split("\n", 1)
-            line = line.rstrip()
-            if line:
-                self.logger.log(self.level, line)
-
-    def flush(self):
-        """Flush the buffer."""
-        if self._buffer:
-            self.logger.log(self.level, self._buffer.rstrip())
-            self._buffer = ""
 
 
 @dataclass(frozen=True)
@@ -419,8 +377,8 @@ class ControlWindow(QMainWindow):
         self.statusloggingUI()
         check_config(matrixconfig)
         protected_restore(self._restore_gui_settings)
-        sys.stdout = StreamToLogger(logger, logging_package.INFO)
-        sys.stderr = StreamToLogger(logger, logging_package.ERROR)
+        sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
+        sys.stderr = StreamToLogger(printlogger, logging_package.ERROR)
         # merge the guidicts Systems
         if not hasattr(self, "S"):
             self.S = system.MergedSystem([g.S for g in self.guidicts])

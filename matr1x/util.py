@@ -23,6 +23,7 @@ system configuration.
 
 import codecs
 import importlib.util
+import logging
 import os
 import site
 import subprocess
@@ -44,6 +45,9 @@ from matr1x.error_handling import Error, Result, Success
 # conditional import for type checkers
 if TYPE_CHECKING:
     import types
+
+    from _typeshed import SupportsWrite
+
 
 # conditional import for non-blocking io
 if os.name == "nt":
@@ -1142,3 +1146,57 @@ def find_binary(binary: str) -> Result[Path, FileNotFoundError]:
         if not result.exists():
             return Error(FileNotFoundError(f"LSP binary not found: {result}"))
         return Success(result)
+
+
+class StreamToLogger:
+    """
+    Helper to pipe streams into a logger.
+
+    Parameters
+    ----------
+    logger: logging.Logger
+        The logger to use.
+    level: int
+        The utilized log-level.
+    duplicate_stream: SupportsWrite[str], optional
+        A second stream to write to message to.
+    """
+
+    def __init__(
+        self,
+        logger: logging.Logger,
+        level: int,
+        duplicate_stream: "SupportsWrite[str] | None" = None,
+    ):
+        self.logger: logging.Logger = logger
+        self.level: int = level
+        self._buffer: str = ""
+        self._duplicate = duplicate_stream
+
+    def write(self, message: str):
+        """
+        Write a log message considering new lines.
+
+        Parameters
+        ----------
+        message: str
+            The message to log.
+        """
+        if not message:
+            return
+        if self._duplicate:
+            print(message, file=self._duplicate)
+        self._buffer += message
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            line = line.rstrip()
+            if line:
+                self.logger.log(self.level, line)
+
+    def flush(self):
+        """Flush the buffer."""
+        if self._buffer:
+            self.logger.log(self.level, self._buffer.rstrip())
+            if self._duplicate:
+                print(self._buffer, file=self._duplicate)
+            self._buffer = ""

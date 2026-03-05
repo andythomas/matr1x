@@ -85,7 +85,6 @@ from matr1x.gui_util import (
     MApplication,
     MetaDataDialog,
     NumericalInputDialog,
-    OutputDuplication,
     SaferQSettings,
     SystemListWidget,
     TerminationDialog,
@@ -107,6 +106,7 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.util import (
+    StreamToLogger,
     create_temp_dir_with_symlinks,
     find_binary,
     generate_script,
@@ -114,6 +114,8 @@ from matr1x.util import (
 )
 
 logger = logging.getLogger(Path(__file__).name)
+printlogger = logging.getLogger(__name__ + "_stdio")
+errorlogger = logging.getLogger(__name__ + "_stderr")
 config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
 
@@ -1098,7 +1100,15 @@ class MainWindow(QMainWindow):
         self.update_window_title()
         self._reset_state(reset_metadata=True)
         check_config(matr1x.config)
-        sys.stdout = self.output_stream  # all output (stdout) is written to status preview
+        if config["duplicate_output_to_logfile"]:
+            sys.stdout = StreamToLogger(
+                printlogger, logging.INFO, duplicate_stream=self.output_stream
+            )
+            sys.stderr = StreamToLogger(
+                errorlogger, logging.ERROR, duplicate_stream=self.output_stream
+            )
+        else:
+            sys.stdout = self.output_stream  # all output (stdout) is written to status preview
         if filename is not None:
             self.load_from_filename(filename)
         self.update_systems()  # in case the load failed just to be sure
@@ -2263,17 +2273,9 @@ def main() -> None:
     appname = "matrix-script"
     app.setDesktopFileName(appname)
     ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
-    if config["duplicate_output_to_logfile"]:
-        sys.stdout = OutputDuplication(sys.stdout, prefix=appname)
-        sys.stderr = OutputDuplication(sys.stderr, prefix=appname, fallbackname="stderr")
     ex.show()
     protected_restore(ex.restore_window_state)
     # handle MacOS specific FileOpenEvent from MApplication
     app.connect_file_handler(ex._load_file_from_signal)
     ret = app.exec()
-    if config["duplicate_output_to_logfile"]:
-        sys.stdout.close()
-        sys.stderr.close()
-    sys.stderr = sys.__stderr__
-    sys.stdout = sys.__stdout__
     sys.exit(ret)
