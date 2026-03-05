@@ -113,7 +113,7 @@ from matr1x.util import (
     get_importable_module_name,
 )
 
-logger = logging.getLogger(Path(__file__).name)
+logger = logging.getLogger(__name__)
 printlogger = logging.getLogger(__name__ + "_stdio")
 errorlogger = logging.getLogger(__name__ + "_stderr")
 config = matr1x.get_config_dict("matr1x.scripts.matrix-script")

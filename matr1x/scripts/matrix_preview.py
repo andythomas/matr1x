@@ -76,7 +76,7 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 
-logger = logging.getLogger(Path(__file__).name)
+logger = logging.getLogger(__name__)
 
 if sys.platform == "win32":
     try:

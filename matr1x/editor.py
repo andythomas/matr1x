@@ -22,7 +22,6 @@ JavaScript should be used outside of this module!
 
 import ast
 import json
-import logging
 import re
 import socket
 import subprocess
@@ -51,7 +50,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.error_handling import Error, Result, Success
-from matr1x.gui_util import FileDropMixin, MApplication
+from matr1x.gui_util import FileDropMixin, LoggerMixin, MApplication
 from matr1x.models import SystemInfo
 from matr1x.util import (
     generate_script,
@@ -159,7 +158,7 @@ class LSPServer:
     parameters: list[str]
 
 
-class LSPClient:
+class LSPClient(LoggerMixin):
     """
     Allow communication to an LSP server.
 
@@ -177,7 +176,6 @@ class LSPClient:
         self.reader_thread: threading.Thread | None = None
         self.stderr_thread: threading.Thread | None = None
         self.stop_event = threading.Event()
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.opened_documents: set[str] = set()
 
     def start(self) -> None:
@@ -970,13 +968,12 @@ class EditorBackend(QObject):
         self.cursorPositionChanged.emit(line, column)
 
 
-class CodeEditorPage(QWebEnginePage):
+class CodeEditorPage(QWebEnginePage, LoggerMixin):
     """Pipe JavaScript console messages to logger."""
 
     def __init__(self, parent=None):
         """Init the logger."""
         super().__init__(parent)
-        self.logger = logging.getLogger(f"{__name__}.CodeEditorPage")
 
     def javaScriptConsoleMessage(
         self,
@@ -1012,7 +1009,7 @@ class CodeEditorPage(QWebEnginePage):
             self.logger.info("%s", message)
 
 
-class CodeEditor(FileDropMixin, QWebEngineView):
+class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
     """Code editor connected to Monaco."""
 
     contentModified = Signal(bool)
@@ -1042,7 +1039,6 @@ class CodeEditor(FileDropMixin, QWebEngineView):
 
     def __init__(self, extensions: list, lsp_server: LSPServer):
         super().__init__()
-        self.logger = logging.getLogger(f"{__name__}.CodeEditor")
         self.version = 1
         self.code: str = ""
         self.filename: str = DUMMY_LSP_FILENAME

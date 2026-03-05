@@ -104,7 +104,7 @@ if sys.platform == "win32":
     except ImportError:
         pass
 
-logger = logging.getLogger(Path(__file__).name)
+logger = logging.getLogger(__name__)
 
 
 # the next two could (should?!) also be static functions of the main window

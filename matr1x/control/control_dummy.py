@@ -16,6 +16,7 @@
 """Provides an example and test implementation of a control GUI."""
 
 import collections
+import logging
 import threading
 import time
 
@@ -47,6 +48,8 @@ from matr1x.util import Command, Get
 common_commands = {
     "*idn": Get(str, "dummy_control"),
 }
+
+logger = logging.getLogger(__name__)
 
 
 class exampleDict(GuiDict):
@@ -144,7 +147,7 @@ class exampleDict(GuiDict):
 
         Demonstrate the custom menu.
         """
-        print("Hello from a guidict.")
+        logger.info("Hello from a guidict.")
 
     def refresh(self, count):
         """

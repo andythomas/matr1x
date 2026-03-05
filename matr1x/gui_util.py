@@ -3247,7 +3247,16 @@ class NumericalInputDialog(TimeoutDialogBase):
         return self.input_spinbox.value()
 
 
-class YesNoAbortDialog(QMessageBox):
+class LoggerMixin:
+    """Add a logger for fine grained information of the origin."""
+
+    def __init_subclass__(cls, **kwargs):
+        """Generate the logger."""
+        super().__init_subclass__(**kwargs)
+        cls.logger = logging.getLogger(f"{cls.__module__}.{cls.__qualname__}")
+
+
+class YesNoAbortDialog(QMessageBox, LoggerMixin):
     """Modal dialog for boolean input for matrix-script."""
 
     def __init__(
@@ -3277,8 +3286,6 @@ class YesNoAbortDialog(QMessageBox):
         self.setWindowTitle("Question")
         self.setText(question)
         self.setIcon(QMessageBox.Icon.Question)
-
-        self.logger = logging.getLogger("YesNoAbortDialog")
 
         # Normalize default value and ensure it's either "yes" or "no"
         self.default_value = (
@@ -3385,13 +3392,17 @@ class YesNoAbortDialog(QMessageBox):
 
         # Check timeout first, but only if user didn't respond
         if self.timeout_occurred and not self.user_responded:
-            self.logger.info(
-                "Dialog timeout occurred - automatically selected: %s", self.default_value
-            )
             if self.default_value in ["yes", "no"]:
+                self.logger.info(
+                    "Dialog timeout occurred - automatically selected: %s", self.default_value
+                )
                 return self.default_value
-            # If default_value is not valid, return "yes" as a default
-            return "yes"
+            fallback_default = "yes"
+            self.logger.info(
+                "Dialog timeout occurred with invalid default value, automatically selected: %s",
+                fallback_default,
+            )
+            return fallback_default
 
         # User responded - return their choice
         if self.clickedButton() == self.yes_button:

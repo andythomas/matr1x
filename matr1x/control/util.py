@@ -33,7 +33,6 @@ import smtplib
 import ssl
 import sys
 import time
-import traceback
 from abc import ABC, abstractmethod
 from collections import UserDict
 from email import encoders
@@ -81,10 +80,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import config, datetimefmt, logfolder, system
+from .. import config, logfolder, system
 from ..error_handling import InternalInvariantError
 from ..gui_util import MApplication, SaferQSettings, validator
 from ..util import normalize_cmds
+
+logger = logging.getLogger(__name__)
 
 
 def catchEmitError(method):
@@ -111,15 +112,7 @@ def catchEmitError(method):
             # report error to the main thread if relevant part can't be disabled
             exc_type, exc_value, exc_traceback = sys.exc_info()
             pointer = method.__name__
-            # print timestamp and verbose error message to status display,
-            # make a log entry
-            timestamp = time.strftime(datetimefmt)
-            print(timestamp)
-            logger = logging.getLogger(__name__)
-            logger.info("handling error in %s: %s", pointer, repr(exc_value))
-            traceback.print_tb(exc_traceback)
-            # duplicate to stdout
-            traceback.print_tb(exc_traceback, file=sys.stdout)
+            logger.exception("Handling error in %s", pointer)
             # if the GuiDict which raised the error allows disabling lets just
             # disable it and swallow the error
             if isinstance(self, (GuiDict, GuiDict._Worker)):
@@ -127,14 +120,10 @@ def catchEmitError(method):
                     guidict = self.guidict
                 else:
                     guidict = self
-                outstr = f"Error occured inside '{guidict.__class__.__name__}'"
-                logger.info(outstr)
-                print(outstr)
+                logger.error("Error occured inside '%s'", guidict.__class__.__name__)
                 if guidict.allow_disabling:
                     guidict._dispatcher.disable_requested.emit()
-                    outstr = "Ignoring last Exception since device can be deactivated."
-                    logger.info(outstr)
-                    print(outstr)
+                    logger.info("Ignoring last Exception since device can be deactivated.")
                     return
             if hasattr(self, "sig_error"):
                 self.sig_error.emit(exc_type, exc_value, pointer)
@@ -1195,7 +1184,6 @@ class GuiDict(UserDict, ABC):
             if wait:
                 finished = self._refresh_thread.wait(2 * self.refresh_period_ms)
                 if not finished and self._refresh_thread.isRunning():
-                    logger = logging.getLogger(__name__)
                     logger.warning(
                         "GuiDict %s refresh thread did not terminate within %.2f s",
                         self.__class__.__name__,
@@ -1581,12 +1569,11 @@ def sendNotificationEmail(
             p = Popen(["sendmail", "-t"], stdin=PIPE)
             p.communicate(msg.as_bytes())
             p.wait()
-            logger = logging.getLogger(__name__)
             logger.info("notification email %s sent to %s", msgtext, address)
         else:
-            print("no email configuration found; see documentation on how to set it up")
-    except Exception as e:
-        print(f"ignoring error during sending email: {e}")
+            logger.error("no email configuration found; see documentation on how to set it up")
+    except Exception:
+        logger.exception("Ignoring error during sending email")
 
 
 def control_main(
@@ -1659,7 +1646,6 @@ Kill the other process ({otherpid}) before restarting.""",
             lockf.write(f"{os.getpid()}\n")
 
     kwargs["package"] = package
-    logger = logging.getLogger(__name__)
     logger.info("Starting GUI")
     with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
         ret = app.exec()

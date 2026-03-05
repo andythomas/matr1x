@@ -41,7 +41,7 @@ __all__ = [
     "check_desktop_integration",
 ]
 
-logger = logging.getLogger(Path(__file__).name)
+logger = logging.getLogger(__name__)
 
 project_root = Path(__file__).parent
 default_config_file = project_root / "default_matr1x.toml"

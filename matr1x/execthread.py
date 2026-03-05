@@ -32,7 +32,7 @@ from pathlib import Path
 
 __all__ = ["ExecThread"]
 
-logger = logging.getLogger("ExecThread")
+logger = logging.getLogger(__name__)
 
 
 def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime:
