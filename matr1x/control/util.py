@@ -852,7 +852,7 @@ class GuiDict(UserDict, ABC):
 
     cmds = {}
     data = {}
-    refresh_period = 1
+    refresh_period = 1.0
     allow_disabling = False
 
     class _Worker(QObject):
