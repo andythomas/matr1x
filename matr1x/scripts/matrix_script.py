@@ -149,7 +149,8 @@ input_bool(query, timeout, default_value)
 input_numerical(query, timeout, default_value, min_value, max_value, step, decimals)
 end_script(finished)
 print(*args, sep, end, file, flush)
-init_datafile(filename, comment, append, print_header, ntot)
+init_datafile(filename, comment, append, print_header, ntot,
+              reset_meta_data, reset_date)
 measure_system(print_setpoint, print_data, print_telemetry)
 
 In addition, the following variables are available. Please use help to get a list of """
