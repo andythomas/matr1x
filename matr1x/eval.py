@@ -686,7 +686,7 @@ def _process_text_file_content(filename: Path, extension: str, header: HeaderDic
         val = None
         for nheader, line in enumerate(matrix_file):
             # parse header from lines that start with hashtag
-            if "#" == line[0]:
+            if line[0] == "#":
                 key, val = _process_header_lines(line, key, val, header)
             else:
                 headerlines, should_break = _process_column_unit_lines(
@@ -914,7 +914,7 @@ def delta3p(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
       current
     """
     off = len(data) % 3
-    if 0 != off:
+    if off != 0:
         return (
             np.add(np.add(data[:-off:3], data[2:-off:3]), 2 * data[1:-off:3]) / 4,
             np.subtract(np.add(data[:-off:3], data[2:-off:3]), 2 * data[1:-off:3]) / 4,

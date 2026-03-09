@@ -351,12 +351,10 @@ class LSPClient(LoggerMixin):
                         response_queue.put_nowait(response)
                     except Exception:
                         self.logger.warning("LSP003: Exception putting response in queue.")
-                        pass
             else:
                 self.logger.warning("LSP005: id is None in response message.")
         except ValidationError:
             self.logger.warning("LSP004: Invalid response message.")
-            pass
 
     def _handle_notification(self, message: str) -> None:
         """
@@ -372,7 +370,6 @@ class LSPClient(LoggerMixin):
             # do something with the notifications later
         except ValidationError:
             self.logger.warning("LSP006: Invalid notification message.")
-            pass
 
     def _drain_stderr(self) -> None:
         """

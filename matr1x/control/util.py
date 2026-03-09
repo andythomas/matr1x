@@ -534,7 +534,7 @@ class var(QObject):
         In addition to the visible items a by default hidden checkbox will be
         added which shows and changes the logging preferences.
         """
-        fulllabel = f"{label} ({self.unit})" if "" != self.unit else label
+        fulllabel = f"{label} ({self.unit})" if self.unit != "" else label
         self.widgets: list[QWidget] = [
             QLabel(fulllabel),
         ]

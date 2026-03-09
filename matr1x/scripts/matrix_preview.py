@@ -765,18 +765,18 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.file_index = index
         self.filename = self.file_dir / self.data_files[self.file_index]
         check = self.conditional_fetch_data(True, check=True)
-        if 0 != check:
+        if check != 0:
             self.column_items = [
                 f"{name} ({unit}), shape: {shape}"
                 for name, unit, shape in zip(self.names, self.units, self.shapes)
             ]
-            if -2 == check:
+            if check == -2:
                 # file has same columns but different shapes, only change
                 # names to reflect the dimensions
                 for i in range(3):
                     for j, item in enumerate(self.column_items):
                         self.column_selector[i].setItemText(j + 1, item)
-            elif -1 == check:
+            elif check == -1:
                 # file has different columns
                 # reload interface
                 for i in range(3):
@@ -1193,7 +1193,7 @@ Please investigate the error and eventually restart matrix-preview""",
             yname = self.names[indexY]
 
             y_data = self.data[yname]
-            if self.w_transpose.isChecked() is True and 2 == dim:
+            if self.w_transpose.isChecked() is True and dim == 2:
                 y_data = y_data.T
 
             y = {
@@ -1247,7 +1247,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 # attempt to reshape
                 small_axis = min(x["shape"][0], y["shape"][0])
                 large_axis = max(x["shape"][0], y["shape"][0])
-                if 0 == large_axis % small_axis:
+                if large_axis % small_axis == 0:
                     # data can be reshaped
                     x["data"] = x["data"].reshape(small_axis, -1)
                     y["data"] = y["data"].reshape(small_axis, -1)

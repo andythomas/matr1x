@@ -106,7 +106,7 @@ class Lakeshore3xx(VisaDevice):
         """
         if depth > 5:
             logger.info("%s.query: maximal depth exceeded ('%s')", self.name, command)
-            if command.startswith("PID?") or command.startswith("RAMP?"):
+            if command.startswith(("PID?", "RAMP?")):
                 return "0,0,0"
             else:
                 return "0"
@@ -217,7 +217,7 @@ class Lakeshore3xx(VisaDevice):
         """
         try:
             setpoint = float(setpoint)
-            if 0 > setpoint or self.setlimit < setpoint:
+            if setpoint < 0 or self.setlimit < setpoint:
                 return
             self.write("SETP " + str(loop) + f",{setpoint:.5f}")
         except ValueError:
@@ -236,7 +236,7 @@ class Lakeshore3xx(VisaDevice):
         """
         try:
             setpoint = float(setpoint)
-            if 0 > setpoint or 100 < setpoint:
+            if setpoint < 0 or setpoint > 100:
                 return
             self.write("MOUT " + str(loop) + f",{setpoint:.5f}")
         except ValueError:
@@ -319,7 +319,7 @@ class Lakeshore3xx(VisaDevice):
         """
         try:
             mode = int(mode) + 1
-            if 1 > mode or 7 < mode:
+            if mode < 1 or mode > 7:
                 return
             self.write("CMODE " + str(loop) + "," + str(mode))
         except ValueError:
@@ -405,7 +405,7 @@ class Lakeshore3xx(VisaDevice):
         """
         try:
             curve = int(curve)
-            if 0 > curve and 60 < curve:
+            if curve < 0 and curve > 60:
                 return
         except ValueError:
             return
@@ -458,7 +458,7 @@ class Lakeshore3xx(VisaDevice):
         """
         try:
             curve = int(curve)
-            if 0 > curve and 60 < curve:
+            if curve < 0 and curve > 60:
                 return
         except ValueError:
             return
@@ -493,7 +493,7 @@ class Lakeshore3xx(VisaDevice):
         index = int(index)
         assert (
             len(rList) == len(tList)
-            and 20 < index
+            and index > 20
             and index < 61
             and len(name) < 16
             and len(sn) < 10
@@ -573,7 +573,7 @@ class Lakeshore335(Lakeshore3xx):
         The function tests if the range would be correctly set, i.e. 0-3.
         """
         heaterRange = int(heaterRange)
-        if 0 > heaterRange or 3 < heaterRange:
+        if heaterRange < 0 or heaterRange > 3:
             return
         self.write(f"RANGE {loop},{heaterRange}")
 
@@ -617,7 +617,7 @@ class Lakeshore335(Lakeshore3xx):
             channel_num = 2
 
         mode = int(mode)
-        if 0 > mode or 5 < mode:
+        if mode < 0 or mode > 5:
             return
         self.write(f"OUTMODE {loop},{mode},{channel_num},1")
 
@@ -730,7 +730,7 @@ class Lakeshore340(Lakeshore3xx):
         """
         try:
             int(heaterRange)
-            if 0 > heaterRange or 6 < heaterRange:
+            if heaterRange < 0 or heaterRange > 6:
                 return
             self.write("RANGE " + str(heaterRange))
         except ValueError:
@@ -762,7 +762,7 @@ class Lakeshore340(Lakeshore3xx):
         Maximum length of tList and rList is 199.
         """
         index = int(index)
-        assert len(rList) == len(tList) and 20 < index and index < 61
+        assert len(rList) == len(tList) and index > 20 and index < 61
         self.write(f"CRVHDR {index},{name},{sn},3,{self.setlimit:.1f},1")
         time.sleep(0.3)
         for i, (res, temp) in enumerate(zip(rList, tList)):

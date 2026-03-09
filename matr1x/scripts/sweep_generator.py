@@ -168,12 +168,12 @@ def calculate_sweep(
             return Error("Recursive loop, please check loop over")
         hirarchy.append(result.value)
     hCnt = max(hirarchy)
-    while 0 <= hCnt:
+    while hCnt >= 0:
         for indexS in range(lenA):
             if indexS == loop_over[indexS]:
                 # looping a column over itself is not how it's done!
                 loop_over[indexS] = -1
-            elif -1 != loop_over[indexS] and hCnt == hirarchy[indexS]:
+            elif loop_over[indexS] != -1 and hCnt == hirarchy[indexS]:
                 # start with highest hirarchy first (i.e. column which is
                 # the most fundamental)
                 col = loop_over[indexS]
@@ -1091,7 +1091,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         filenames = [
             self.ui.system_list.item(j).text() for j in range(self.ui.system_list.count())
         ]
-        if 0 == len(filenames):
+        if len(filenames) == 0:
             self.reset_layout()
             self.ui.actions.new_file.setEnabled(False)
             self.ui.actions.save.setEnabled(False)
@@ -1353,7 +1353,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         # if sweep lenghts are not multiples of each other something is wrong
         mult = []
         for i in range(len(sweep)):
-            if [] == sweep[i]:
+            if sweep[i] == []:
                 mult.append(0)
             elif max_length % len(sweep[i]):
                 error_text = (
@@ -1372,7 +1372,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         for i in range(max_length):
             string: list[str] = []
             for j, swp in enumerate(sweep):
-                if 0 != mult[j] and not i % mult[j]:
+                if mult[j] != 0 and not i % mult[j]:
                     # here the values are stretched to the correct "length" if
                     # the loop_over parameter is considered
                     if self.columns.sign[j] == self.columns.sign[j - 1] and len(sweep) > 1:
@@ -1645,7 +1645,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         selected = self.ui.system_list.selectedItems()
         if len(selected) > 0:
             self.ui.system_list.takeItem(self.ui.system_list.row(selected[0]))
-        elif 0 < self.ui.system_list.count():
+        elif self.ui.system_list.count() > 0:
             self.ui.system_list.takeItem(self.ui.system_list.count() - 1)
         else:
             return

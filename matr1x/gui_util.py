@@ -1351,7 +1351,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
         def parse_dict_and_types(d, dv, dt):
             for key, item in d.items():
-                if "_types" == key:
+                if key == "_types":
                     dt.update(d[key])
                     continue
                 elif isinstance(item, dict):
@@ -2005,7 +2005,7 @@ class SimplePlotWidget(QGroupBox):
                 # some of our default math is supposed to be used
                 x = self.default_math[self.math_mode][0](x)
                 y = self.default_math[self.math_mode][1](y)
-            elif "custom" == self.math_mode:
+            elif self.math_mode == "custom":
                 # none of the above, so we are in custom mode
                 xc = None
                 yc = None
@@ -2915,7 +2915,6 @@ class EmittingStream(QObject):
         This method is required for file-like objects but does nothing
         in this implementation.
         """
-        pass
 
 
 class MetaDataDialog(QDialog):

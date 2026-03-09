@@ -551,7 +551,7 @@ class ExecThread(threading.Thread):
         if self.recv != "" and not self.recv_flag:
             self.recv = ""
         # Format the input pattern with proper handling of empty timeout slot
-        if "" == message:
+        if message == "":
             base_message = "User input requested, see executing line for context"
         else:
             # replace newline characters with placeholders (URL-encoding)

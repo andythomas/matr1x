@@ -121,7 +121,7 @@ class TIC500(VisaDevice):
         """
         try:
             setpoint = float(setpoint)
-            if 0 > setpoint or self.setlimit < setpoint:
+            if setpoint < 0 or self.setlimit < setpoint:
                 return
             self.write(f"{channel}.PID.Setpoint {setpoint:3f}")
         except ValueError:

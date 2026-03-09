@@ -300,7 +300,7 @@ def read_value(parameter: str | int):
 
 
 def wait(
-    duration: float | int | None = None,
+    duration: float | None = None,
     until: _datetime.datetime | str | None = None,
     message: str = "",
     silent: float = 10,

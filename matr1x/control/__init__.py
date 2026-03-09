@@ -15,8 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Import helpers."""
 
-from .controlwindow import ControlWindow  # noqa: F401
-from .util import (  # noqa: F401
+from .controlwindow import ControlWindow
+from .util import (
     GuiDict,
     catchEmitError,
     control_main,

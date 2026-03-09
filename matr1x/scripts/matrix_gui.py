@@ -315,7 +315,7 @@ class GuiThread(QThread):
 
             try:
                 # fork the child
-                child = subprocess.Popen(*args, preexec_fn=new_pgid, **kwargs)
+                child = subprocess.Popen(*args, preexec_fn=new_pgid, **kwargs)  # ty: ignore [no-matching-overload]
                 # we can't set the process group id from the parent since the
                 # child will already have exec'd. and we can't SIGSTOP it before
                 # exec, see above.
@@ -786,15 +786,15 @@ class MainWindow(FileDropMixin, QMainWindow):
     def show_input_dialog(self) -> None:
         """Open a QFileDialog with filter for input files."""
         folder = self.ui.widgets.input_file.text()
-        if "" == folder:
+        if folder == "":
             folder = self.ui.widgets.output_edit.text()
-            if "" == folder:
+            if folder == "":
                 folder = matr1x.usersfolder
         # remove old pattern with next major update
         filename = QFileDialog.getOpenFileName(
             self, "Select input file", str(folder), "Sweep 8 files (*.sw8);;t files (*.*t)"
         )
-        if "" != filename[0]:
+        if filename[0] != "":
             self.ui.widgets.input_file.setText(filename[0])
             if self.ui.actions.auto_filename.isChecked():
                 input_path = Path(self.ui.widgets.input_file.text())
@@ -803,9 +803,9 @@ class MainWindow(FileDropMixin, QMainWindow):
     def show_output_dialog(self) -> None:
         """Open a QFileDialog with filter for output files."""
         folder = self.ui.widgets.output_edit.text()
-        if "" == folder:
+        if folder == "":
             folder = self.ui.widgets.input_file.text()
-            if "" == folder:
+            if folder == "":
                 folder = matr1x.usersfolder
         filename = QFileDialog.getSaveFileName(
             self,
@@ -814,7 +814,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             "Output files (*.ma8);; Old output files (*.ma7 *.ma6)",
             options=QFileDialog.Option.DontConfirmOverwrite,
         )
-        if "" != filename[0]:
+        if filename[0] != "":
             self.ui.widgets.output_edit.setText(filename[0])
 
     def start_sweep_generator(self) -> None:
@@ -936,7 +936,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         selected = self.ui.widgets.meas_list.selectedItems()
         if len(selected) > 0:
             self.ui.widgets.meas_list.takeItem(self.ui.widgets.meas_list.row(selected[0]))
-        elif 0 < self.ui.widgets.meas_list.count():  # remove last item
+        elif self.ui.widgets.meas_list.count() > 0:  # remove last item
             self.ui.widgets.meas_list.takeItem(self.ui.widgets.meas_list.count() - 1)
             self.ui.actions.start.setEnabled(False)
 

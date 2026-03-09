@@ -136,7 +136,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 except ValueError:
                     # no value was given or space was ommitted, split failed,
                     # will not do anything for that command
-                    if not "*" == cmd[0]:
+                    if not cmd[0] == "*":
                         # if what was sent was a * cmd (requires no value),
                         # then go on with parsing
                         continue
@@ -210,13 +210,13 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
             response = None
             # read until \n and decode to utf-8
             data = str(self.rfile.readline(), "utf-8").strip().lower()
-            if "" == data:
+            if data == "":
                 # empty string was passed, connection was closed
                 break
             # get response corresponding to commands
             responses = self.parse(data)
-            if 0 != len(responses):
-                if 1 < len(responses):
+            if len(responses) != 0:
+                if len(responses) > 1:
                     response = ";".join(responses)
                 else:
                     response = responses[0]

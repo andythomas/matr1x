@@ -138,7 +138,7 @@ class IsobusDevice(VisaDevice):
             if "?" in ret:
                 logger.info("%s.query: reply '?', %s, %d", self.name, msg, depth)
                 ret = self.query(msg, depth + 1, max_depth=max_depth)
-            elif "" == ret:
+            elif ret == "":
                 logger.info("%s.query: empty reply, %s, %d", self.name, msg, depth)
                 ret = self.query(msg, depth + 1, max_depth=max_depth)
             elif msg[0] not in ret:

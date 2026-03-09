@@ -1394,7 +1394,7 @@ class MainWindow(QMainWindow):
                 return
             if ret == QMessageBox.StandardButton.Save:
                 # save the file
-                if -1 == self.save_file():
+                if self.save_file() == -1:
                     # if save fails, ignore message
                     event.ignore()
                     return
@@ -1549,7 +1549,7 @@ class MainWindow(QMainWindow):
         selected = self.ui.widgets.system_list.selectedItems()
         if len(selected) > 0:
             self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.row(selected[0]))
-        elif 0 < self.ui.widgets.system_list.count():
+        elif self.ui.widgets.system_list.count() > 0:
             self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
         if self.ui.widgets.system_list.count() == 0:
             self.ui.actions.remove_system.setEnabled(False)
@@ -1865,7 +1865,7 @@ class MainWindow(QMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
-        if 0 == len(self.systems):
+        if len(self.systems) == 0:
             self.ui.actions.start_pause.setChecked(False)
             self.print_colored("No system selected")
             return
@@ -2035,7 +2035,7 @@ class MainWindow(QMainWindow):
         """
         header = ""
         system_info = self._cached_system_info
-        if 0 < len(self.systems):
+        if len(self.systems) > 0:
             # only attempt generating a header if a system is selected
             try:
                 # get settable information to put into the header
@@ -2083,7 +2083,7 @@ class MainWindow(QMainWindow):
         script = self.ui.widgets.script_edit.toPlainText().rstrip()
         newscript = header
         for i, line in enumerate(script.splitlines()):
-            if i < 4 and (line.startswith("# system ") or line.startswith("# file v")):
+            if i < 4 and (line.startswith(("# system ", "# file v"))):
                 # if there are already definitions of the system, skip them
                 continue
             newscript += line + "\n"

@@ -1149,8 +1149,8 @@ class ControlWindow(QMainWindow):
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
-        exc_value: BaseException,
-        exc_traceback: TracebackType,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
     ):
         """Stop GuiDict workers, close devices, and stop the logging thread."""
         if exc_type is not None:

@@ -111,10 +111,10 @@ class MPT200(VisaDevice):
         state : int
             The desired filament state (0=off, 1=on).
         """
-        if 0 == int(state):
+        if int(state) == 0:
             # sets register 041 to 0/False
             self.query("00110041010")
-        elif 1 == int(state):
+        elif int(state) == 1:
             # sets register 041 to 1/True
             self.query("00110041011")
 

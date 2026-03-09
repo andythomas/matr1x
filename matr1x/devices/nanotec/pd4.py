@@ -497,7 +497,7 @@ class NanotecPD4(VisaDevice):
         """
         answer = self.query("#1$")
         status = answer.replace("001$", "")
-        isMoving = 0 == (int(status) & 0b1)
+        isMoving = (int(status) & 0b1) == 0
         self.moving = isMoving
         return isMoving
 
@@ -517,7 +517,7 @@ class NanotecPD4(VisaDevice):
         answer = self.query("#1$")
         status = answer.replace("001$", "")
         print(status)
-        isPosError = 0 != (int(status) & 0b100)
+        isPosError = (int(status) & 0b100) != 0
         self.poserror = isPosError
         return isPosError
 

@@ -483,7 +483,7 @@ def main():
                 settable_names_file: list[str] = match.group(1).split(",")
             elif match := re.match(settable_units_pattern, line.strip()):
                 settable_units_file: list[str] = match.group(1).split(",")
-            if "#" != line[0]:
+            if line[0] != "#":
                 break
 
     # import self made libraries
@@ -520,7 +520,7 @@ def main():
             "Are you sure you want to continue?\n"
         )
         resp = input("Please enter (y/n): ").strip()
-        if "y" != resp:
+        if resp != "y":
             sys.exit(0)
 
     # obtain output file name and mode used to open the file

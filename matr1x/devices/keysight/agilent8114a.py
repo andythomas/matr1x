@@ -266,7 +266,6 @@ class Agilent8114A(VisaDevice):
             self.local = True
         elif state == "rem":
             self.local = False
-            pass
 
     def set_trigger(self, trig):
         """
@@ -284,15 +283,15 @@ class Agilent8114A(VisaDevice):
             One of "continuous", "triggered external", "triggered edge",
             "triggered positive", "triggered manually"
         """
-        if "continuous" == trig:
+        if trig == "continuous":
             self.write("TRIG:SOUR IMM")
-        elif "triggered external" == trig:
+        elif trig == "triggered external":
             self.write("TRIG:SOUR EXT")
-        elif "triggered edge" == trig:
+        elif trig == "triggered edge":
             self.write("TRIG:SENS EDGE")
-        elif "triggered positive" == trig:
+        elif trig == "triggered positive":
             self.write("TRIG:SLOP POS")
-        elif "triggered manually" == trig:
+        elif trig == "triggered manually":
             self.write("TRIG:SOUR MAN")
 
     def start_pulsing(self):
