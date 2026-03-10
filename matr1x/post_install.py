@@ -20,11 +20,10 @@ import json
 import logging
 import os
 import platform
-import re
 import shutil
 import subprocess
 import sys
-from importlib.metadata import distribution
+from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 
 from PySide6.QtWidgets import QMessageBox
@@ -211,34 +210,21 @@ def get_installed_file(file: str | Path, pkgname: str, pip: list) -> Path:
 
     Raises
     ------
-    SystemExit
+    FileNotFoundError
         If the package or file cannot be found.
     """
-    show_cmd = pip.copy()
-    if pip[0] == "uv":
-        show_cmd[2] = "show"
-    else:
-        show_cmd[3] = "show"
-    try:
-        pshow = subprocess.check_output(show_cmd + ["-f", pkgname])
-    except subprocess.CalledProcessError:
-        # ignore error and assume its because the requested package could not
-        # be found
-        pshow = b""
-    pshowstr = pshow.decode()
+    file = Path(file)
 
-    # get package root folder
-    m = re.search("Location: (.*)[\r]?\n", pshowstr)
-    if m is None:
-        raise FileNotFoundError(f"Python package '{pkgname}' install location not identified")
-    prefix = m.groups()[0].strip()
-    # get executables relative path
-    file_str = str(file)
-    m = re.search(rf"\n\s+(.*){file_str}[\r]?\n", pshowstr)
-    if m is None:
-        raise FileNotFoundError(f"File '{file}' of package '{pkgname}' not found")
-    filepath = Path(m.groups()[0]) / file
-    return (Path(prefix) / filepath).resolve()
+    try:
+        dist = distribution(pkgname)
+    except PackageNotFoundError:
+        raise FileNotFoundError(f"Python package '{pkgname}' not found")
+    if dist.files is None:
+        raise FileNotFoundError(f"File list for package '{pkgname}' not available")
+    for f in dist.files:
+        if str(f).endswith(str(file)):
+            return Path(str(dist.locate_file(f))).resolve()
+    raise FileNotFoundError(f"File '{file}' of package '{pkgname}' not found")
 
 
 def enable_windows_virtual_terminal_processing():
@@ -1105,7 +1091,13 @@ def remove_desktop_integration():
     """Remove the desktop integration."""
     logger.info("Perform removal of old files")
     suite_settings.setValue("di_version", "0")
-    uninstall_core_desktopintegration()
+    remove = [
+        sys.executable,
+        "-c",
+        "from matr1x.post_install import uninstall_core_desktopintegration;"
+        "uninstall_core_desktopintegration()",
+    ]
+    subprocess.run(remove)
     for pkg_name in matr1x.config:
         if "install" in matr1x.config[pkg_name]:
             guis = matr1x.config[pkg_name]["install"].get("controlguis", [])
