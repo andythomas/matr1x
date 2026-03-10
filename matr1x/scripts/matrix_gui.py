@@ -20,15 +20,14 @@ import json
 import logging
 import os
 import re
-import signal
-import socket
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 import shiboken6
-from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QThread, Signal
+from pydantic import ValidationError
+from PySide6.QtCore import QByteArray, QDateTime, QPoint, QSize, Qt, QThread, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -40,7 +39,9 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QSizePolicy,
+    QTableWidgetItem,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -56,6 +57,7 @@ from matr1x.gui_util import (
     LoggingWindow,
     MApplication,
     MetaDataDialog,
+    ReadOnlyTable,
     SaferQSettings,
     check_config,
     detect_shortcut,
@@ -71,22 +73,22 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.scripts import (
-    MATRIX_GUI_PORT,
     sweep_generator,
 )
+from matr1x.scripts.matrix import (
+    Datafile,
+    Envelope,
+    ErrorMessage,
+    Header,
+    LogMessage,
+    MeasuredValues,
+    SetValues,
+    Telemetry,
+)
 from matr1x.system import MergedSystem
-from matr1x.util import get_matrix_binary, open_and_error
+from matr1x.util import get_matrix_binary, open_and_error, telemetry_string
 
 logger = logging.getLogger(Path(__file__).name)
-
-
-def signal_handler(signal, frame):
-    """Take any keyboard interrupt in the GUI."""
-    return
-
-
-# Connect keyboard interrupt with above signal handler
-signal.signal(signal.SIGINT, signal_handler)
 
 if sys.platform == "win32":
     try:
@@ -139,7 +141,8 @@ class QueueListWidget(QListWidget):
         Parameters
         ----------
         parameters : tuple
-            The tuple to be added: (inputFile, outputFile, metadata_dict, config_dict).
+            The tuple to be added:
+            (inputFile, outputFile, metadata_dict, config_dict).
         """
         output = Path(parameters[1]).name if parameters[1] else "<use input>"
         dict_str = (
@@ -196,160 +199,107 @@ class GuiThread(QThread):
     """Execute the measurement thread."""
 
     filename_received = Signal(str)
+    telemetry_received = Signal(Telemetry)
+    tabledata_received = Signal(Envelope)
 
     def __init__(self) -> None:
         """Initialize the thread."""
         QThread.__init__(self)
+        self.proc: subprocess.Popen | None = None
 
-    def set_param(self, params: tuple, config_editor: ConfigEditWidget) -> None:
-        """Set measurement parameters and meta-data from a parameter tuple."""
+    def set_parameters(self, params: tuple, config_editor: ConfigEditWidget) -> None:
+        """Set measurement parameters and meta-data."""
         self.inputFile, self.outputFile, self.meta_data, self.config_dict = params
         self.config_editor: ConfigEditWidget = config_editor
 
-    def receive_filename(self) -> None:
-        """
-        Receive filename from command line.
-
-        Matrix checks if the file already exists and subsequently
-        changes its name. This way, no existing measurement can be
-        accidently overwritten. The name is reported back to the GUI
-        """
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("127.0.0.1", MATRIX_GUI_PORT))
-        s.listen(1)
-        conn, _ = s.accept()  # will block until a new client connects
-        # get filename which is sent by matrix
-        data = ""
-        while True:
-            datachunk = conn.recv(1024)
-            if not datachunk:
-                break
-            data += datachunk.decode()
-        conn.close()
-        self.filename_received.emit(data)
-
     def run(self) -> None:
-        """Start the command line process."""
-        # Create temporary config file from dictionary
+        """Start the command line thread."""
         tmp_config_file = None
         if hasattr(self, "config_dict") and self.config_dict:
-            # Use ConfigEditWidget's write_config method to write the dictionary
             tmp_config_file = self.config_editor.write_config(self.config_dict)
+        cmd = [get_matrix_binary(), "-i", self.inputFile, "-pj"]
+        if self.outputFile != "":
+            cmd += ["-o", self.outputFile]
+        for key, val in self.meta_data.items():
+            if key in matr1x.VALID_META_KEYS.keys() and val:
+                if matr1x.VALID_META_KEYS[key]:
+                    # only pass on allowed (editable) meta keys and only if
+                    # data is not None
+                    cmd += [f"--dc_{key.lower()}", val]
+        if tmp_config_file:
+            cmd += ["--optional-config", str(tmp_config_file)]
         try:
-            cmd = [get_matrix_binary(), "-i", self.inputFile]
-            if self.outputFile != "":
-                cmd += ["-o", self.outputFile]
-            for key, val in self.meta_data.items():
-                if key in matr1x.VALID_META_KEYS.keys() and val:
-                    if matr1x.VALID_META_KEYS[key]:
-                        # only pass on allowed (editable) meta keys and only if
-                        # data is not None
-                        cmd += [f"--dc_{key.lower()}", val]
-            if tmp_config_file:
-                cmd += ["--optional-config", str(tmp_config_file)]
-            print(subprocess.list2cmdline(cmd))
-            ret = self.run_as_fg_process(cmd)
-            print(f"matrix ended with returncode: {ret}")
+            self.proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stdin=subprocess.PIPE,
+                text=True,
+            )
+            if self.proc.stdout is not None:
+                for line in self.proc.stdout:
+                    self.process_received_data(line)
+            self.proc.wait()
+            logger.info("matrix ended with returncode: %s", self.proc.returncode)
         finally:
             if tmp_config_file and tmp_config_file.exists():
                 tmp_config_file.unlink()
 
-    def run_as_fg_process(self, *args, **kwargs):
-        # Code of this function was adapted from
-        # https://stackoverflow.com/a/66727983/3504203,
-        # it was published under CC BY-SA 4.0,
-        # https://creativecommons.org/licenses/by-sa/4.0/
-        # Modifications were made to use a primitive fallback on MS Windows.
+    def process_received_data(self, line: str) -> None:
         """
-        Catch signals correctly.
+        Process the data from the measurement thread.
 
-        The "correct" way of spawning a new subprocess:
-        signals like C-c must only go
-        to the child process, and not to this python.
-
-        the args are the same as subprocess.Popen
-
-        returns Popen().wait() value
-
-        Some side-info about "how ctrl-c works":
-        https://unix.stackexchange.com/a/149756/1321
-
-        fun fact: this function took a whole night
-                  to be figured out.
+        Parameters
+        ----------
+        line: str
+            The line that was received.
         """
-        if sys.platform == "win32":
-            # fork the child
-            child = subprocess.Popen(*args, **kwargs)
-            # get filename back
-            self.receive_filename()
-            # wait for the child to terminate
-            ret = child.wait()
-        else:
-            import termios
+        try:
+            env = Envelope.model_validate_json(line)
+        except ValidationError:
+            logger.debug("Corrupted or unknown data received: %s", line)
+            return
+        data = env.payload
+        if isinstance(data, LogMessage):
+            logger.info(data.message)
+        elif isinstance(data, Datafile):
+            self.filename_received.emit(data.datafile)
+        elif isinstance(data, Telemetry):
+            self.telemetry_received.emit(data)
+        elif isinstance(data, (SetValues, MeasuredValues, Header)):
+            self.tabledata_received.emit(env)
+        elif isinstance(data, ErrorMessage):
+            logger.error(data.error)
 
-            old_pgrp = os.tcgetpgrp(sys.stdin.fileno())
-            old_attr = termios.tcgetattr(sys.stdin.fileno())
+    def _send_stdin(self, cmd: str) -> None:
+        """
+        Write a non-blocking command to the subprocess stdin.
 
-            user_preexec_fn = kwargs.pop("preexec_fn", None)
+        Parameters
+        ----------
+        cmd : str
+            The command string to send.
+        """
+        if self.proc is not None and self.proc.stdin is not None:
+            self.proc.stdin.write(cmd)
+            self.proc.stdin.flush()
 
-            def new_pgid():
-                if user_preexec_fn:
-                    user_preexec_fn()
+    def pause(self) -> None:
+        """Pause the thread."""
+        self._send_stdin("p\n")
 
-                # set a new process group id
-                os.setpgid(os.getpid(), os.getpid())
+    def abort(self) -> None:
+        """Send abort to the thread."""
+        self._send_stdin("a\n")
 
-                # generally, the child process should stop itself
-                # before exec so the parent can set its new pgid.
-                # (setting pgid has to be done before the child execs).
-                # however, Python 'guarantee' that `preexec_fn`
-                # is run before `Popen` returns.
-                # this is because `Popen` waits for the closure of
-                # the error relay pipe '`errpipe_write`',
-                # which happens at child's exec.
-                # this is also the reason the child can't stop itself
-                # in Python's `Popen`, since the `Popen` call would never
-                # terminate then.
-                # `os.kill(os.getpid(), signal.SIGSTOP)`
+    def finish(self) -> None:
+        """Send finish to the thread."""
+        self._send_stdin("f\n")
 
-            try:
-                # fork the child
-                child = subprocess.Popen(*args, preexec_fn=new_pgid, **kwargs)  # ty: ignore [no-matching-overload]
-                # we can't set the process group id from the parent since the
-                # child will already have exec'd. and we can't SIGSTOP it before
-                # exec, see above.
-                # `os.setpgid(child.pid, child.pid)`
-
-                # set the child's process group as new foreground
-                os.tcsetpgrp(sys.stdin.fileno(), child.pid)
-                # revive the child,
-                # because it may have been stopped due to SIGTTOU or
-                # SIGTTIN when it tried using stdout/stdin
-                # after setpgid was called, and before we made it
-                # forward process by tcsetpgrp.
-                os.kill(child.pid, signal.SIGCONT)
-
-                self.receive_filename()
-
-                # wait for the child to terminate
-                ret = child.wait()
-
-            finally:
-                # we have to mask SIGTTOU because tcsetpgrp
-                # raises SIGTTOU to all current background
-                # process group members (i.e. us) when switching tty's pgrp
-                # it we didn't do that, we'd get SIGSTOP'd
-                # hdlr = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-                # signal library only works in the main thread
-                # make us tty's foreground again
-                os.tcsetpgrp(sys.stdin.fileno(), old_pgrp)
-                # now restore the handler
-                # signal.signal(signal.SIGTTOU, hdlr)
-                # restore terminal attributes
-                termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_attr)
-
-        return ret
+    def kill(self) -> None:
+        """Kill the thread."""
+        if self.proc is not None:
+            self.proc.kill()
+            logger.warning("Measurement thread was manually killed.")
 
 
 @dataclass(frozen=True)
@@ -366,6 +316,10 @@ class ActionGroup:
     save_as: QAction
     queue: QAction
     start: QAction
+    pause: QAction
+    abort: QAction
+    finish: QAction
+    kill: QAction
     toggle_toolbar: QAction
     show_log: QAction
     load: QAction
@@ -385,6 +339,9 @@ class WidgetGroup:
     meta_view: MetaDataDialog
     input_file: LabelWithSignal
     current_file: QLabel
+    progress: QLabel
+    progressbar: QProgressBar
+    table: ReadOnlyTable
 
 
 class UIBuilder:
@@ -392,16 +349,13 @@ class UIBuilder:
 
     def __init__(self, window: QMainWindow) -> None:
         self.window: QMainWindow = window
-        self.actions: ActionGroup
-        self.widgets: WidgetGroup
-        self.toolbar: QToolBar
-        self._create_actions()
-        self._create_widgets()
+        self.actions: ActionGroup = self._create_actions()
+        self.widgets: WidgetGroup = self._create_widgets()
+        self.toolbar: QToolBar = self._create_toolbar()
         self._create_gui()
-        self._create_toolbar()
         self._create_menu()
 
-    def _create_widgets(self) -> None:
+    def _create_widgets(self) -> WidgetGroup:
         """Create all UI widgets of this application."""
         self.measurements_container = QWidget()
         meas_list = QueueListWidget()
@@ -421,11 +375,20 @@ class UIBuilder:
         dockable_metadata.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         dockable_metadata.setWidget(meta_view)
         self.central_widget = QWidget()
-        self.input_label = QLabel("<b>Input: </b>")
-        self.output_label = QLabel("<b>Output: </b>")
+        self.input_label = QLabel("Input: ")
+        self.output_label = QLabel("Output: ")
         self.queue_label = QLabel("Queue")
-        self.current_label = QLabel("<b>Current: </b>")
-        self.widgets = WidgetGroup(
+        self.file_label = QLabel("Current file: ")
+        table = ReadOnlyTable()
+        table.setColumnCount(4)
+        table.setRowCount(1)
+        table.setHorizontalHeaderLabels(["Parameter", "Set value", "Readout value", "unit"])
+        width = (table.verticalHeader().width() + table.horizontalHeader().length()) * 1.04
+        table.setFixedWidth(int(width))
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        progress = QLabel("Measurement idle.")
+        progressbar = QProgressBar()
+        return WidgetGroup(
             meas_list=meas_list,
             config_editor=config_editor,
             output_edit=output_edit,
@@ -433,15 +396,23 @@ class UIBuilder:
             meta_view=meta_view,
             input_file=input_file,
             current_file=current_file,
+            progressbar=progressbar,
+            progress=progress,
+            table=table,
         )
 
     def _create_gui(self) -> None:
         """Create and set up all GUI layouts."""
-        inner_measurement_layout = QHBoxLayout()
-        inner_measurement_layout.setContentsMargins(0, 0, 0, 0)
-        inner_measurement_layout.addWidget(self.widgets.meas_list)
-        inner_measurement_layout.addWidget(self.remove_button)
-        self.measurements_container.setLayout(inner_measurement_layout)
+        measurement = QVBoxLayout()
+        measurement.addWidget(self.widgets.table)
+        measurement.addWidget(self.widgets.progress)
+        measurement.addWidget(self.widgets.progressbar)
+        queue_n_measurement = QHBoxLayout()
+        queue_n_measurement.setContentsMargins(0, 0, 0, 0)
+        queue_n_measurement.addWidget(self.widgets.meas_list, 1)
+        queue_n_measurement.addWidget(self.remove_button)
+        queue_n_measurement.addLayout(measurement, 0)
+        self.measurements_container.setLayout(queue_n_measurement)
         self.window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.widgets.config_editor)
         self.widgets.config_editor.setFloating(True)
         self.widgets.config_editor.close()
@@ -458,7 +429,7 @@ class UIBuilder:
         central_layout.addWidget(self.queue_label)
         central_layout.addWidget(self.measurements_container)
         current_line = QHBoxLayout()
-        current_line.addWidget(self.current_label)
+        current_line.addWidget(self.file_label)
         current_line.addWidget(self.widgets.current_file)
         current_line.addStretch()
         central_layout.addLayout(current_line)
@@ -468,7 +439,7 @@ class UIBuilder:
             Qt.DockWidgetArea.RightDockWidgetArea, self.widgets.dockable_metadata
         )
 
-    def _create_actions(self) -> None:
+    def _create_actions(self) -> ActionGroup:
         """Create all QActions of this application."""
         self.remove_button = QToolButton()
         self.remove_button.setStyleSheet(
@@ -480,7 +451,7 @@ class UIBuilder:
                 """
         )
         self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        remove = QAction(get_matrix_icon("CHAR_-"), "Remove", self.window)
+        remove = QAction(get_matrix_icon("CHAR_-"), "Remove\nQueue\nItem", self.window)
         self.remove_button.setDefaultAction(remove)
         load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self.window)
         load.setShortcut(QKeySequence.StandardKey.Open)
@@ -516,6 +487,20 @@ class UIBuilder:
         queue.setEnabled(False)
         start = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self.window)
         start.setEnabled(False)
+        pause = QAction(get_matrix_icon("CUSTOM_Pause"), "Pause", self.window)
+        pause.setCheckable(True)
+        pause.setChecked(False)
+        pause.setEnabled(False)
+        abort = QAction(
+            get_matrix_icon("CUSTOM_Stop", color=QColor("#B71C1C")), "Abort", self.window
+        )
+        abort.setEnabled(False)
+        finish = QAction(
+            get_matrix_icon("CUSTOM_Stop", color=QColor("#388E3C")), "Finish", self.window
+        )
+        finish.setEnabled(False)
+        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill", self.window)
+        kill.setEnabled(False)
         toggle_toolbar = QAction("Show Toolbar", self.window)
         toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         toggle_toolbar.setCheckable(True)
@@ -524,7 +509,7 @@ class UIBuilder:
         show_log.setCheckable(True)
         post_install = QAction("Install Desktop Integration", self.window)
         remove_desktop_integration = QAction("Remove Desktop Integration", self.window)
-        self.actions = ActionGroup(
+        return ActionGroup(
             remove=remove,
             preview=preview,
             matrix_settings=matrix_settings,
@@ -535,6 +520,10 @@ class UIBuilder:
             save_as=save_as,
             queue=queue,
             start=start,
+            pause=pause,
+            abort=abort,
+            finish=finish,
+            kill=kill,
             toggle_toolbar=toggle_toolbar,
             show_log=show_log,
             load=load,
@@ -543,34 +532,38 @@ class UIBuilder:
             remove_desktop_integration=remove_desktop_integration,
         )
 
-    def _create_toolbar(self) -> None:
+    def _create_toolbar(self) -> QToolBar:
         """Create the Toolbar."""
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.toolbar.setFloatable(False)
+        toolbar = QToolBar("Toolbar")
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        toolbar.setFloatable(False)
         icon_size = MApplication.instance().toolbar_icon_size()
         empty = QWidget()
         empty.setFixedWidth(icon_size)
         empty2 = QWidget()
         empty2.setFixedWidth(icon_size)
-        self.toolbar.setIconSize(QSize(icon_size, icon_size))
-        self.toolbar.addAction(self.actions.load)
-        self.toolbar.addAction(self.actions.sweep)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.actions.auto_filename)
-        self.toolbar.addAction(self.actions.save_as)
-        self.toolbar.addWidget(empty)
-        self.toolbar.addAction(self.actions.start)
-        self.toolbar.addAction(self.actions.queue)
-        self.toolbar.visibilityChanged.connect(self.actions.toggle_toolbar.setChecked)
-        self.toolbar.addWidget(empty2)
-        self.toolbar.addAction(self.actions.preview)
+        toolbar.setIconSize(QSize(icon_size, icon_size))
+        toolbar.addAction(self.actions.load)
+        toolbar.addAction(self.actions.sweep)
+        toolbar.addSeparator()
+        toolbar.addAction(self.actions.auto_filename)
+        toolbar.addAction(self.actions.save_as)
+        toolbar.addWidget(empty)
+        toolbar.addAction(self.actions.queue)
+        toolbar.addAction(self.actions.start)
+        toolbar.addAction(self.actions.pause)
+        toolbar.addAction(self.actions.abort)
+        toolbar.addAction(self.actions.finish)
+        toolbar.visibilityChanged.connect(self.actions.toggle_toolbar.setChecked)
+        toolbar.addWidget(empty2)
+        toolbar.addAction(self.actions.preview)
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addAction(self.actions.config)
-        self.window.addToolBar(self.toolbar)
+        toolbar.addWidget(spacer)
+        toolbar.addAction(self.actions.config)
+        self.window.addToolBar(toolbar)
+        return toolbar
 
     def _create_menu(self) -> None:
         """Create the menu."""
@@ -586,8 +579,12 @@ class UIBuilder:
         file_menu.addSeparator()
         file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
         control_menu = menu.addMenu("&Control")
-        control_menu.addAction(self.actions.start)
         control_menu.addAction(self.actions.queue)
+        control_menu.addAction(self.actions.start)
+        control_menu.addAction(self.actions.pause)
+        control_menu.addAction(self.actions.abort)
+        control_menu.addAction(self.actions.finish)
+        control_menu.addAction(self.actions.kill)
         control_menu.addSeparator()
         control_menu.addAction(self.actions.preview)
         view_menu = menu.addMenu("&View")
@@ -637,8 +634,14 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.running = False
         self.sys_meta_data = {}
         self.measurement_thread = GuiThread()
-        self.measurement_thread.filename_received.connect(self.handle_received_filename)
+        self.measurement_thread.filename_received.connect(self.process_filename)
+        self.measurement_thread.telemetry_received.connect(self.process_telemetry)
+        self.measurement_thread.tabledata_received.connect(self.process_tabledata)
         self.measurement_thread.finished.connect(self.process_finished)
+        self.ui.actions.pause.triggered.connect(self.measurement_thread.pause)
+        self.ui.actions.abort.triggered.connect(self.measurement_thread.abort)
+        self.ui.actions.finish.triggered.connect(self.measurement_thread.finish)
+        self.ui.actions.kill.triggered.connect(self.measurement_thread.kill)
         self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
         self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
@@ -646,7 +649,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self._cached_system_info: SystemInfo | None = None
         check_desktop_integration()
 
-    def handle_received_filename(self, filename: str) -> None:
+    def process_filename(self, filename: str) -> None:
         """
         Handle the filename from the measurement thread.
 
@@ -658,14 +661,92 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.widgets.current_file.setText(filename)
         self.ui.actions.preview.setEnabled(True)
 
+    def process_telemetry(self, telemetry: Telemetry) -> None:
+        """
+        Show the progress data.
+
+        Parameters
+        ----------
+        telemetry : TelemetryContent
+            The telemetry data received from the measurement thread.
+        """
+        self.ui.widgets.progressbar.setMaximum(telemetry.points)
+        self.ui.widgets.progressbar.setValue(telemetry.point)
+        if telemetry.remaining is not None:
+            self.ui.widgets.progress.setText(
+                telemetry_string.format(
+                    telemetry.point,
+                    telemetry.points,
+                    telemetry.elapsed,
+                    telemetry.remaining,
+                    telemetry.settime,
+                    telemetry.readtime,
+                )
+            )
+
+    def process_tabledata(self, env: Envelope) -> None:
+        """
+        Show the data in the table view.
+
+        Parameters
+        ----------
+        env: Envelope
+            The table data received from the measurement thread.
+        """
+        data = env.payload
+        if isinstance(data, Header):
+            count = len(data.columns)
+            self.ui.widgets.table.setRowCount(count)
+            for index, item in enumerate(data.columns):
+                column = QTableWidgetItem(str(item))
+                unit = QTableWidgetItem(str(data.units[index]))
+                column.setTextAlignment(
+                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                unit.setTextAlignment(
+                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                self.ui.widgets.table.setItem(index, 0, column)
+                self.ui.widgets.table.setItem(index, 3, unit)
+        elif isinstance(data, SetValues):
+            for index, item in enumerate(data.set):
+                if item is not None:
+                    value = QTableWidgetItem(str(item))
+                else:
+                    value = QTableWidgetItem("")
+                value.setTextAlignment(
+                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                self.ui.widgets.table.setItem(index, 1, value)
+        elif isinstance(data, MeasuredValues):
+            for index, item in enumerate(data.measured):
+                if item is not None:
+                    value = QTableWidgetItem(str(item))
+                else:
+                    value = QTableWidgetItem("")
+                value.setTextAlignment(
+                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                self.ui.widgets.table.setItem(index, 2, value)
+            try:
+                utc = QDateTime.fromSecsSinceEpoch(int(item), Qt.TimeSpec.UTC)
+                local = utc.toLocalTime()
+                value = QTableWidgetItem(local.toString("HH:mm:ss"))
+                value.setTextAlignment(
+                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                value.setToolTip("Converted to local time.")
+                self.ui.widgets.table.setItem(index, 2, value)
+            except Exception:
+                logger.debug("Could not convert timestamp to local time.")
+
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Close app properly."""
         if self.running:
             QMessageBox.warning(
                 QWidget(),
                 "Measurement running!",
-                """Please wait for the measurement to finish. Alternatively,
-                stop the measurement in the terminal before exiting 'Matrix GUI'!""",
+                """Please wait for the measurement to finish.""",
             )
             a0.ignore()
             return
@@ -942,10 +1023,15 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def run_next_measurement(self) -> None:
         """Run the next queued measurement."""
-        self.measurement_thread.set_param(
-            self.ui.widgets.meas_list.parameters(0), self.ui.widgets.config_editor
+        self.measurement_thread.set_parameters(
+            self.ui.widgets.meas_list.parameters(0),
+            self.ui.widgets.config_editor,
         )
         self.measurement_thread.start()
+        self.ui.actions.pause.setEnabled(True)
+        self.ui.actions.abort.setEnabled(True)
+        self.ui.actions.finish.setEnabled(True)
+        self.ui.actions.kill.setEnabled(True)
 
     def process_finished(self) -> None:
         """
@@ -955,7 +1041,17 @@ class MainWindow(FileDropMixin, QMainWindow):
         there are further measurements in the queue and runs them in
         case.
         """
+        self.ui.widgets.progressbar.setValue(0)
+        self.ui.widgets.progress.setText("Measurement idle.")
+        self.ui.widgets.table.setRowCount(1)
+        for i in range(self.ui.widgets.table.columnCount()):
+            self.ui.widgets.table.setItem(0, i, QTableWidgetItem(""))
         self.ui.widgets.meas_list.takeItem(0)
+        self.ui.actions.pause.setEnabled(False)
+        self.ui.actions.pause.setChecked(False)
+        self.ui.actions.abort.setEnabled(False)
+        self.ui.actions.finish.setEnabled(False)
+        self.ui.actions.kill.setEnabled(False)
         if self.ui.widgets.meas_list.count() > 0 and self.running is True:
             self.run_next_measurement()
         else:
@@ -981,10 +1077,6 @@ def main() -> None:
     install_error_handler()
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-gui")
-    # we need to ignore this signal here otherwise we are kicked into
-    # background when matrix returns. see run_as_fg_process
-    if hasattr(signal, "SIGTTOU"):  # signal only on POSIX compliant systems
-        signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     ex = MainWindow()
     ex.show()
     protected_restore(ex.restore_window_state)

@@ -5,5 +5,5 @@ Name=Matrix GUI
 Comment=Measurement control graphical user interface
 Exec=matrix-gui
 Icon=matr1x-matrix-gui
-Terminal=true
+Terminal=false
 Categories=Science

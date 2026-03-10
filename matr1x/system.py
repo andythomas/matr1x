@@ -1545,7 +1545,7 @@ class System:
 
         return info
 
-    def init_datafile(self, inputfile, output_filename=None):
+    def init_datafile(self, inputfile, output_filename=None) -> tuple[str, Path]:
         """
         Prepare the header of a matrix file for the matrix program.
 
@@ -1560,6 +1560,13 @@ class System:
             Filename of the inputfile to be placed in the header.
         output_filename : str, optional
             Filename of the output file.
+
+        Returns
+        -------
+        str
+            An optional message to be printed.
+        Path
+            The filename that will be used for the output.
         """
         if output_filename:
             self.filename = Path(output_filename)
@@ -1569,16 +1576,13 @@ class System:
             self._datafile_initialized = True
             if not output_filename and self._file_mode == "a":
                 # in case append is true, do not create a new header
-                print(f"Appending to datafile: {self.filename}")
-                return
-            print(f"File {self.filename} already exists, not adding header")
-            return
+                return ("Appending to datafile", self.filename)
+            return ("File already exists, not adding header", self.filename)
         # query info from the devices
         self.query_dict = self.query()
         # prepare file definitions (column header and units)
         telemetry = [list(flatten(self.columns)), list(flatten(self.units))]
         # prepare datafile
-        print(f"Creating new datafile: {self.filename}")
         if self.hdf5 is True:
             telemetry.append(list(flatten(self.dtypes)))
             telemetry.append(list(flatten(self.chunks, types=(list,))))
@@ -1627,6 +1631,7 @@ class System:
 
                 init_ascii_header(data_file, *telemetry)
         self._datafile_initialized = True
+        return ("Creating new datafile", self.filename)
 
     def take_measurement_point(self, datafilename=None):
         """

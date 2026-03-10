@@ -213,6 +213,25 @@ class TerminalOutput(QPlainTextEdit):
             self.updateColors()
         super().changeEvent(event)
 
+    def print_colored(self, line: str) -> None:
+        """
+        Print a colored text.
+
+        Afterwards, recover the original text color. Follow theme
+        changes.
+
+        Parameters
+        ----------
+        line : str
+            The line to be printed.
+        """
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        text_char_format = QTextCharFormat()
+        text_char_format.setForeground(QColor("royalblue"))
+        cursor.insertText(line, text_char_format)
+        cursor.insertText("\n", QTextCharFormat())
+
 
 if sys.platform == "win32":
     try:
@@ -1113,7 +1132,7 @@ class MainWindow(QMainWindow):
         if filename is not None:
             self.load_from_filename(filename)
         self.update_systems()  # in case the load failed just to be sure
-        print(help_text)
+        self.ui.widgets.status_preview.appendPlainText(help_text)
         check_desktop_integration()
 
     def create_connections(self) -> None:
@@ -1158,25 +1177,6 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
         self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
-
-    def print_colored(self, line: str) -> None:
-        """
-        Print a colored text.
-
-        Afterwards, recover the original text color. Follow theme
-        changes.
-
-        Parameters
-        ----------
-        line : str
-            The line to be printed.
-        """
-        cursor = self.ui.widgets.status_preview.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        emphasize = QTextCharFormat()
-        emphasize.setForeground(QColor("royalblue"))
-        cursor.insertText(line, emphasize)
-        cursor.insertText("\n", QTextCharFormat())
 
     def print_document(self) -> None:
         """Print the script."""
@@ -1601,9 +1601,9 @@ class MainWindow(QMainWindow):
                     float(params.default_value) if params.default_value else 0.0
                 )
             except ValueError:
-                print(
+                self.ui.widgets.status_preview.appendPlainText(
                     f"Warning: Invalid default_value '{params.default_value}' "
-                    "for numerical input. Using 0.0"
+                    "for numerical input. Using 0.0",
                 )
                 numerical_default_value = 0.0
 
@@ -1652,7 +1652,9 @@ class MainWindow(QMainWindow):
     def kill_thread(self) -> None:
         """Kill the thread."""
         self.measurement_thread.kill()
-        self.print_colored("Script terminated by user - file integrity might be compromised")
+        self.ui.widgets.status_preview.print_colored(
+            "Script terminated by user - file integrity might be compromised"
+        )
 
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
@@ -1843,7 +1845,7 @@ class MainWindow(QMainWindow):
         Return buttons to original state, delete the finished process.
         """
         self.enable_buttons(False)
-        self.print_colored("\nExecution finished")
+        self.ui.widgets.status_preview.print_colored("\nExecution finished")
         del self.measurement_thread
 
     def run_linter(self) -> int:
@@ -1867,10 +1869,12 @@ class MainWindow(QMainWindow):
         """
         if len(self.systems) == 0:
             self.ui.actions.start_pause.setChecked(False)
-            self.print_colored("No system selected")
+            self.ui.widgets.status_preview.print_colored("No system selected")
             return
         if self.run_linter() > 0:  # run linter to make sure there are no errors
-            self.print_colored("Script execution was halted because of linter errors")
+            self.ui.widgets.status_preview.print_colored(
+                "Script execution was halted because of linter errors"
+            )
             MApplication.instance().processEvents()
             a = QMessageBox(parent=self)  # open a popup window to inform about the error
             a.setText("Linter error")
@@ -1881,7 +1885,7 @@ class MainWindow(QMainWindow):
             if ret == QMessageBox.StandardButton.Cancel:
                 self.ui.actions.start_pause.setChecked(False)
                 return
-        self.print_colored("### Running script now")
+        self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
         meta_data = self.ui.widgets.metadata.get_metadata()
@@ -1913,7 +1917,7 @@ class MainWindow(QMainWindow):
         ]
         system_info = get_system_info(self.systems)
         if isinstance(system_info, Error):
-            print(system_info.error)
+            self.ui.widgets.status_preview.appendPlainText(system_info.error)
             self._cached_system_info = None
         else:
             self._cached_system_info = system_info.value
@@ -2009,7 +2013,7 @@ class MainWindow(QMainWindow):
         try:
             output_file = filename.open("w")
         except OSError:
-            self.print_colored("File cannot be opened")
+            self.ui.widgets.status_preview.print_colored("File cannot be opened")
             return -1
         self.scriptname = filename
         self.update_systems(update_config=False)
@@ -2063,7 +2067,7 @@ class MainWindow(QMainWindow):
                         f"{matr1x.datetimefmt}\n", time.localtime()
                     )
                 else:
-                    self.print_colored(
+                    self.ui.widgets.status_preview.print_colored(
                         "warning: settable_info is incomplete, creating basic header"
                     )
                     header += (
@@ -2075,7 +2079,7 @@ class MainWindow(QMainWindow):
                         f"{matr1x.datetimefmt}\n", time.localtime()
                     )
             except Exception as e:
-                self.print_colored(
+                self.ui.widgets.status_preview.print_colored(
                     f"error in generating settable_info from file: {e}, telemetry "
                     "header could not be generated"
                 )
@@ -2104,7 +2108,7 @@ class MainWindow(QMainWindow):
         try:
             input_file = filename.open()
         except OSError:
-            self.print_colored("File cannot be opened")
+            self.ui.widgets.status_preview.print_colored("File cannot be opened")
             return
         self.scriptname = filename
         code = ""
@@ -2127,14 +2131,16 @@ class MainWindow(QMainWindow):
                         else None
                     )
                 except KeyError:
-                    self.print_colored(
+                    self.ui.widgets.status_preview.print_colored(
                         "System that was used to generate the "
                         "script was not found in installed systems."
                         " Please check .matrix.conf file."
                     )
                     return
         else:
-            self.print_colored("No system defined in script, please choose system(s)")
+            self.ui.widgets.status_preview.print_colored(
+                "No system defined in script, please choose system(s)"
+            )
         code += line
         #
         # system columns definiton
@@ -2153,14 +2159,14 @@ class MainWindow(QMainWindow):
                 if col:
                     loaded_columns.append(col)
             if current_columns != loaded_columns:
-                self.print_colored(
+                self.ui.widgets.status_preview.print_colored(
                     "Column names have changed between generation "
                     "of script and now, please make sure that "
                     "columns are set correctly before running the "
                     "script"
                 )
         else:
-            self.print_colored(
+            self.ui.widgets.status_preview.print_colored(
                 "Could not verify column names, please verify that columns have not changed"
             )
         #
@@ -2178,14 +2184,14 @@ class MainWindow(QMainWindow):
             for unit in system_units.split(","):
                 loaded_units.append(unit.strip())
             if current_units != loaded_units:
-                self.print_colored(
+                self.ui.widgets.status_preview.print_colored(
                     "Column units have changed between generation "
                     "of script and now, please make sure that "
                     "columns are set correctly before running the "
                     "script"
                 )
         else:
-            self.print_colored(
+            self.ui.widgets.status_preview.print_colored(
                 "Could not verify column units, please verify that columns have not changed"
             )
         #

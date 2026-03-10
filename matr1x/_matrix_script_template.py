@@ -579,7 +579,8 @@ def init_datafile(
     if not append or not safe_filename.exists():
         # write header to file
         _system.dcdata["description"] = comment
-        _system.init_datafile(_scriptname or "matrix script generated")
+        msg, outputfile = _system.init_datafile(_scriptname or "matrix script generated")
+        print(f"{msg}: {outputfile}")
         print("acquired configuration, and initialized file")
     if print_header:
         _matrix_util.print_formatted_line(_matrix_util.flatten(_system.columns))

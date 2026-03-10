@@ -521,7 +521,7 @@ def macos_integration(pyexec: Path, pip: list) -> None:
             str(icns_path / "matr1x-matrix-gui.png"),
             "Matrix GUI",
             "matrix-gui",
-            ["--terminal"],
+            [],
         ),
         (
             str(icns_path / "matr1x-matrix-script.png"),

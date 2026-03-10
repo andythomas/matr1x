@@ -49,14 +49,6 @@ if TYPE_CHECKING:
     from _typeshed import SupportsWrite
 
 
-# conditional import for non-blocking io
-if os.name == "nt":
-    import msvcrt
-else:
-    import termios
-    from select import select
-
-
 from .metadata import APP_META_KEY
 
 
@@ -284,7 +276,9 @@ def module_from_path(filename: Path) -> "types.ModuleType":
     return module
 
 
-def print_formatted_line(vlist, prefix="", appendix="", column_width=10):
+def print_formatted_line(
+    vlist: list, prefix: str = "", appendix: str = "", column_width: int = 10
+):
     """
     Output a formatted line with data values.
 
@@ -532,55 +526,6 @@ def matrix_script_process(filename, meta_data={}, scriptname="", port=None, syst
             control_thread.join(timeout=1)
         # close socket
         client_socket.close()
-
-
-def flush_input():
-    """Flush the input buffer to get only fresh input later on."""
-    if sys.platform == "win32":
-        while msvcrt.kbhit():
-            msvcrt.getch()
-    else:
-        try:
-            termios.tcflush(sys.stdin, termios.TCIOFLUSH)
-        except termios.error:
-            pass  # errors in none proper terminal, e.q.  Github actions
-
-
-def nonblocking_getch(callback=None):
-    """
-    Cross-platform nonblocking implementation of getch.
-
-    In a linux terminal, enter has been pressed to trigger the getch, as
-    otherwise the stdin is not flushed.
-
-    Parameters
-    ----------
-    callback : function handle (optional)
-        should be a function that takes the character and performs some
-        action with it
-
-    Returns
-    -------
-    c : str
-      Key that has been pressed, only if callback is None
-    """
-    if sys.platform == "win32":
-        if msvcrt.kbhit():
-            # key has been pressed
-            c = msvcrt.getch().decode("utf-8")
-            if callback is None:
-                return c
-            else:
-                callback(c)
-    else:
-        if select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-            # note that enter has to be pressed in the linux terminal, as
-            # otherwise stdin is not flushed
-            c = sys.stdin.read(1)
-            if callback is None:
-                return c
-            else:
-                callback(c)
 
 
 def generate_col_index(index):

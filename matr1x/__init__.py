@@ -266,7 +266,7 @@ if msg != "":
         "Some settings will not work as intended. "
         "The following error(s) occured:\n\n"
     ) + msg
-print(msg)
+    print(msg)
 
 datetimefmt = config["matr1x"]["datetime_format"]
 

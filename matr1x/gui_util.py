@@ -4341,6 +4341,7 @@ class _LogSignalHelper(QObject):
     """Provide signals for QTableLogger without conflicts."""
 
     log_record_received = Signal(list)
+    warning_or_above_received = Signal()
 
 
 class _QTableLogger(logging.Handler):
@@ -4391,6 +4392,8 @@ class _QTableLogger(logging.Handler):
         log_line = self.format(record)
         parts = log_line.split(self.separator)
         self._signal_helper.log_record_received.emit(parts)
+        if record.levelno >= logging.WARNING:
+            self._signal_helper.warning_or_above_received.emit()
 
     def _add_log_to_table(self, parts: list[str]) -> None:
         """
@@ -4497,6 +4500,9 @@ class LoggingWindow(QMainWindow):
         self.log_handler.setFormatter(formatter)
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
+        self.log_handler._signal_helper.warning_or_above_received.connect(
+            self.show, Qt.ConnectionType.QueuedConnection
+        )
 
     def showEvent(self, event: QShowEvent) -> None:
         """Emit visibility state changes when the window shows."""

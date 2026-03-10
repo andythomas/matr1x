@@ -53,10 +53,10 @@ smbus = ["smbus3 >= 0.5.5"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
-matrix-gui = "matr1x.scripts.matrix_gui:main"
 matrix-di = "matr1x.scripts.matrix_di:main"
 
 [project.gui-scripts]
+matrix-gui = "matr1x.scripts.matrix_gui:main"
 sweep-generator = "matr1x.scripts.sweep_generator:main"
 matrix-script = "matr1x.scripts.matrix_script:main"
 matrix-preview = "matr1x.scripts.matrix_preview:main"
