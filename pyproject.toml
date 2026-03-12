@@ -33,7 +33,6 @@ dependencies = [
     "wrapt>2.0",                                     # needed for GUI apps
     "urwid>2.0",                                     # needed for GUI apps
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
-    "pip",                                           # needed for GUI apps for desktop integration
     "monaco-assets >= 0.5.1",                        # needed for matrix script
     "ruff >= 0.13.0",                                # needed for matrix script
     "pyrefly",                                       # needed for matrix script

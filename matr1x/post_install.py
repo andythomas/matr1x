@@ -157,40 +157,7 @@ def check_command(cmd: str, description: str) -> bool:
     return True
 
 
-def is_package_installed(package_name: str, pip: list) -> bool:
-    """
-    Check if a package is installed by querying pip.
-
-    Parameters
-    ----------
-    package_name : str
-        The name of the package to check.
-    pip : list
-        The path to python plus ["-m", "pip"] or the alternate executable.
-
-    Returns
-    -------
-    bool
-        True if the package is installed, False otherwise.
-    """
-    show_cmd = pip.copy()
-    if pip[0] == "uv":
-        show_cmd[2] = "show"
-    else:
-        show_cmd[3] = "show"
-    try:
-        # List installed packages and check if the package is in the output
-        result = subprocess.run(
-            show_cmd + [package_name],
-            capture_output=True,
-            check=True,
-        )
-        return result.returncode == 0
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
-def get_installed_file(file: str | Path, pkgname: str, pip: list) -> Path:
+def get_installed_file(file: str | Path, pkgname: str) -> Path:
     """
     Get the full path of an installed file from a specified package.
 
@@ -200,8 +167,6 @@ def get_installed_file(file: str | Path, pkgname: str, pip: list) -> Path:
         The name or path of the file to locate.
     pkgname : str
         The name of the package containing the file.
-    pip : list
-        The path to python plus ["-m", "pip"] or the alternate executable.
 
     Returns
     -------
@@ -214,7 +179,6 @@ def get_installed_file(file: str | Path, pkgname: str, pip: list) -> Path:
         If the package or file cannot be found.
     """
     file = Path(file)
-
     try:
         dist = distribution(pkgname)
     except PackageNotFoundError:
@@ -281,7 +245,6 @@ def create_shortcut(
     exe_name: str,
     pkgname: str,
     icon_name: str,
-    pip: list,
 ) -> None:
     """
     Create a Windows shortcut for a Matr1x application.
@@ -296,15 +259,13 @@ def create_shortcut(
         The name of the package containing the executable.
     icon_name : str
         The name of the icon file for the shortcut.
-    pip : list
-        The path to python plus ["-m", "pip"] or the alternate executable.
     """
     shortcut_path = start_menu_path / f"{name}.lnk"
-    target_path = get_installed_file(exe_name, pkgname, pip)
+    target_path = get_installed_file(exe_name, pkgname)
     if is_editable("matr1x"):
         icon_path = icns_path / icon_name
     else:
-        icon_path = get_installed_file(icon_name, "matr1x", pip)
+        icon_path = get_installed_file(icon_name, "matr1x")
 
     ps_command = f"""
     $WshShell = New-Object -comObject WScript.Shell
@@ -356,17 +317,12 @@ def create_folders() -> None:
     log_folder.mkdir(parents=True, exist_ok=True)
 
 
-def unix_integration(pip: list) -> None:
+def unix_integration() -> None:
     """
     Perform Linux/Unix/BSD integration tasks for Matr1x applications.
 
     This function installs desktop entries, icons, and MIME types for various
     Matr1x applications on Posix compatible systems.
-
-    Parameters
-    ----------
-    pip : list
-        The path to python plus ["-m", "pip"] or the alternate executable.
     """
     executables = [
         (str(icns_path / "matr1x-matrix-gui.png"), "matrix-gui"),
@@ -383,7 +339,7 @@ def unix_integration(pip: list) -> None:
 
     for icon_path, execname in executables:
         desktop_file = execname + ".desktop"
-        executable = get_installed_file(execname, "matr1x", pip)
+        executable = get_installed_file(execname, "matr1x")
         try:
             subprocess.run(xdg_install_basic_icon(icon_path), check=True)
             subprocess.run(
@@ -488,7 +444,7 @@ def unix_integration(pip: list) -> None:
     )
 
 
-def macos_integration(pyexec: Path, pip: list) -> None:
+def macos_integration(pyexec: Path) -> None:
     """
     Perform MacOs integration tasks for Matr1x applications.
 
@@ -499,8 +455,6 @@ def macos_integration(pyexec: Path, pip: list) -> None:
     ----------
     pyexec : Path
         The path to the Python executable.
-    pip : list
-        The path to python plus ["-m", "pip", "install"] or the alternate executable.
     """
     executables = [
         (
@@ -530,7 +484,7 @@ def macos_integration(pyexec: Path, pip: list) -> None:
     ]
 
     for icon_path, name, execname, extraopt in executables:
-        executable = get_installed_file(execname, "matr1x", pip)
+        executable = get_installed_file(execname, "matr1x")
         # if the '-d user' option is ever changed or made variable
         # remember to change uninstall accordingly.
         try:
@@ -574,30 +528,19 @@ def is_editable(pkg) -> bool:
     return json.loads(data).get("dir_info", {}).get("editable", False)
 
 
-def windows_integration(pip: list) -> None:
+def windows_integration() -> None:
     """
     Perform Windows integration tasks for Matr1x applications.
 
     This function creates shortcuts in the Start Menu and sets up file associations
     for various Matr1x applications on Windows systems.
-
-    Parameters
-    ----------
-    pip : list
-        The path to python plus ["-m", "pip"] or the alternate executable.
     """
     start_menu_path.mkdir(parents=True, exist_ok=True)
 
-    create_shortcut("Matrix GUI", "matrix-gui.exe", "matr1x", "matr1x-matrix-gui.ico", pip)
-    create_shortcut(
-        "Matrix Script", "matrix-script.exe", "matr1x", "matr1x-matrix-script.ico", pip
-    )
-    create_shortcut(
-        "Sweep Generator", "sweep-generator.exe", "matr1x", "matr1x-sweep-generator.ico", pip
-    )
-    create_shortcut(
-        "Matrix Preview", "matrix-preview.exe", "matr1x", "matr1x-matrix-preview.ico", pip
-    )
+    create_shortcut("Matrix GUI", "matrix-gui.exe", "matr1x", "matr1x-matrix-gui.ico")
+    create_shortcut("Matrix Script", "matrix-script.exe", "matr1x", "matr1x-matrix-script.ico")
+    create_shortcut("Matrix Preview", "matrix-preview.exe", "matr1x", "matr1x-matrix-preview.ico")
+    create_shortcut("Matrix Preview", "matrix-preview.exe", "matr1x", "matr1x-matrix-preview.ico")
 
     def get_icon_location(icon_name: str) -> Path:
         """
@@ -620,14 +563,14 @@ def windows_integration(pip: list) -> None:
         return (
             Path.cwd() / "scripts/icons" / icon_name
             if editable
-            else get_installed_file(icon_name, "matr1x", pip)
+            else get_installed_file(icon_name, "matr1x")
         )
 
     icolocation_sweep = get_icon_location("matr1x-sweep-generator.ico")
     icolocation_script = get_icon_location("matr1x-matrix-script.ico")
-    matrix_preview_exe = get_installed_file("matrix-preview.exe", "matr1x", pip)
-    matrix_script_exe = get_installed_file("matrix-script.exe", "matr1x", pip)
-    sweep_generator_exe = get_installed_file("sweep-generator.exe", "matr1x", pip)
+    matrix_preview_exe = get_installed_file("matrix-preview.exe", "matr1x")
+    matrix_script_exe = get_installed_file("matrix-script.exe", "matr1x")
+    sweep_generator_exe = get_installed_file("sweep-generator.exe", "matr1x")
 
     create_commands = f"""
     # Associate file extensions with matr1x.datafile
@@ -707,15 +650,14 @@ def core_desktop_integration() -> None:
     appropriate integration function based on the operating system.
     """
     matr1xpython = Path(sys.executable)
-    pip = [matr1xpython, "-m", "pip", "install"]
     logger.info("Perform desktop integration")
     system_type = platform.system().lower()
     if system_type == "linux" or "bsd" in system_type:
-        unix_integration(pip)
+        unix_integration()
     elif system_type == "darwin":
-        macos_integration(matr1xpython, pip)
+        macos_integration(matr1xpython)
     elif system_type == "windows":
-        windows_integration(pip)
+        windows_integration()
 
 
 def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
@@ -738,7 +680,6 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
         If any subprocess command fails during the integration process.
     """
     matr1xpython = Path(sys.executable)
-    pip = [matr1xpython, "-m", "pip", "install"]
     editable = is_editable("matr1x")
     system_type = platform.system().lower()
     for gui in guilist:
@@ -747,7 +688,7 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
             # Linux section
             try:
                 icon = icns_path / "matr1x-control.png"
-                control_gui_executable = get_installed_file(gui, pkgname, pip)
+                control_gui_executable = get_installed_file(gui, pkgname)
                 subprocess.run(
                     xdg_install_basic_icon(str(icon), size="128"),
                     check=True,
@@ -777,7 +718,7 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
         elif system_type == "darwin":
             # macOS section
             try:
-                control_gui_executable = get_installed_file(gui, pkgname, pip)
+                control_gui_executable = get_installed_file(gui, pkgname)
                 icon = icns_path / "matr1x-control.png"
                 subprocess.run(
                     [
@@ -802,8 +743,8 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
             if editable:
                 icon = icns_path / "matr1x-control.ico"
             else:
-                icon = get_installed_file("matr1x-control.ico", "matr1x", pip)
-            create_shortcut(guiname, gui + ".exe", pkgname, str(icon), pip)
+                icon = get_installed_file("matr1x-control.ico", "matr1x")
+            create_shortcut(guiname, gui + ".exe", pkgname, str(icon))
 
         else:
             logger.warning("Unsupported platform: %s", platform.system())

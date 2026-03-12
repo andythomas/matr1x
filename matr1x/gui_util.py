@@ -4186,7 +4186,7 @@ def check_config(config: dict) -> None:
             except (ValidationError, TypeError, ValueError) as e:
                 html += _format_validation_error(e, key + ".")
     try:
-        MainConfig(**config)
+        MainConfig.model_validate(config)
     except (ValidationError, TypeError, ValueError) as e:
         html += _format_validation_error(e)
     if html != "":
