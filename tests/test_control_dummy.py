@@ -31,12 +31,16 @@ import tempfile
 import time
 from importlib.metadata import entry_points
 from pathlib import Path
+from typing import cast
 
 import matr1x.eval
 import matr1x.util
 import numpy as np
 import pytest
 from matr1x import output_extension
+from matr1x.control import ControlWindow
+from matr1x.control.control_dummy import exampleDict
+from matr1x.scpi_tcpserver import SCPI_TCP_Server
 
 path = Path(__file__).resolve().parent
 
@@ -176,6 +180,47 @@ def test_environment_variable_is_set():
     """Check if the QT_QPA_PLATFORM environment variable is set to 'offscreen'."""
     assert os.getenv("QT_QPA_PLATFORM") == "offscreen"
     assert os.getenv("QT_QUICK_BACKEND") == "software"
+
+
+def test_control_window_panic_stops_and_restores_server(qapp, qtbot):
+    """Panic mode should suspend and later restore the SCPI server."""
+
+    class SpyControlWindow(ControlWindow):
+        def __init__(self) -> None:
+            super().__init__("panic-test", [exampleDict()])
+            self.start_server_calls = 0
+            self.stop_server_calls = 0
+
+        def startServer(self) -> None:
+            self.start_server_calls += 1
+            self._local_server = cast(SCPI_TCP_Server, object())
+
+        def stopServer(self) -> None:
+            self.stop_server_calls += 1
+            self._local_server = None
+
+    window = SpyControlWindow()
+    qtbot.addWidget(window)
+
+    window.running = True
+    window._local_server = cast(SCPI_TCP_Server, object())
+
+    window.panic(True, "test panic")
+
+    assert window.stop_server_calls >= 1
+    assert window._server_disabled_by_panic is True
+    assert window._local_server is None
+
+    window.panic(True, "still panicking")
+
+    assert window._server_disabled_by_panic is True
+    assert window._local_server is None
+
+    window.panic(False)
+
+    assert window.start_server_calls >= 1
+    assert window._server_disabled_by_panic is False
+    assert window._local_server is not None
 
 
 def test_matrix_script_control_dummy(start_control_dummy):

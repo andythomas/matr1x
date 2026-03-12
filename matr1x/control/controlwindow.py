@@ -313,6 +313,9 @@ class ControlWindow(QMainWindow):
         TCP port number for the control GUI SCPI server socket.
     """
 
+    # flag controlling if the SCPI server is shut-down during panic
+    stop_server_on_panic: bool = True
+
     sig_error = Signal(type, Exception, str)
     activity = Signal(str)
     deactivate = Signal(bool)
@@ -365,6 +368,7 @@ class ControlWindow(QMainWindow):
         self.sig_error.connect(self.handleError)
         # SCPI TCP server placeholders
         self._local_server: scpi_tcpserver.SCPI_TCP_Server | None = None
+        self._server_disabled_by_panic = False
         self._port = port
         # initialize data logging system
         self.S_log = system.System()
@@ -833,10 +837,26 @@ class ControlWindow(QMainWindow):
             self.ui.widgets.panic.setChecked(True)
             for g in self.guidicts:
                 g.panic()
+            if (
+                self.stop_server_on_panic
+                and not self._server_disabled_by_panic
+                and self._local_server is not None
+            ):
+                self.stopServer()
+                self._server_disabled_by_panic = True
         else:
             for g in self.guidicts:
                 self.ui.widgets.panic.setText("Panic Button")
                 g.unpanic()
+            if (
+                self.stop_server_on_panic
+                and self._server_disabled_by_panic
+                and self.running
+                and not self.terminate
+                and self._local_server is None
+            ):
+                self.startServer()
+            self._server_disabled_by_panic = False
 
     # device communication and related functions
     @catchEmitError
