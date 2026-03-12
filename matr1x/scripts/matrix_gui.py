@@ -256,7 +256,7 @@ class GuiThread(QThread):
         try:
             env = Envelope.model_validate_json(line)
         except ValidationError:
-            logger.debug("Corrupted or unknown data received: %s", line)
+            logger.warning("Corrupted or unknown data received: %s", line)
             return
         data = env.payload
         if isinstance(data, LogMessage):
