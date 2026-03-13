@@ -73,6 +73,7 @@ from matr1x.util import Get, StreamToLogger
 
 logger = logging.getLogger(__name__)
 printlogger = logging.getLogger(__name__ + "_stdio")
+errorlogger = logging.getLogger(__name__ + "_stderr")
 logging_package = logging
 
 
@@ -382,7 +383,7 @@ class ControlWindow(QMainWindow):
         check_config(matrixconfig)
         protected_restore(self._restore_gui_settings)
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
-        sys.stderr = StreamToLogger(printlogger, logging_package.ERROR)
+        sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
         # merge the guidicts Systems
         if not hasattr(self, "S"):
             self.S = system.MergedSystem([g.S for g in self.guidicts])

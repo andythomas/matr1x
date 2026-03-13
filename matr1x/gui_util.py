@@ -98,6 +98,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLayout,
     QLineEdit,
@@ -4406,10 +4407,14 @@ class _QTableLogger(logging.Handler):
         """
         if self.widget.rowCount() >= self.max_rows:
             self.widget.removeRow(0)
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
         row_position = self.widget.rowCount()
         self.widget.insertRow(row_position)
         for column, part in enumerate(parts):
-            item = QTableWidgetItem(str(part))
+            # a hard crash goes to stderr and is logged in the table
+            # -> remove the ansi sequences.
+            pure_text = ansi_escape.sub("", str(part))
+            item = QTableWidgetItem(pure_text)
             if column == self.levelname_column:
                 if part == "ERROR":
                     item.setForeground(QBrush(_QTableLogger.ERROR_COLOR))
@@ -4458,6 +4463,9 @@ class LoggingWindow(QMainWindow):
         )
         self.log_table.setAlternatingRowColors(True)
         self.log_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        self.log_table.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
         header = self.log_table.horizontalHeader()
         header.setStretchLastSection(True)
         if len(LoggingWindow.LOG_FIELDS) >= 4:
