@@ -433,6 +433,9 @@ class ControlWindow(QMainWindow):
                 self.guidicts = [guidicts]
         else:
             self.guidicts = []
+        self.guidicts = [
+            g() if (callable(g) and not isinstance(g, GuiDict)) else g for g in self.guidicts
+        ]
         # harmonize guidict entries to 'var'-objects
         for guidict in self.guidicts:
             for key, entry in guidict.items():
