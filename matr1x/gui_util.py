@@ -2898,7 +2898,7 @@ class EmittingStream(QObject):
     name = "GUIStream"
     text_written = Signal(str)
 
-    def write(self, text):
+    def write(self, text: str) -> None:
         """
         Write text to the stream and emit a signal.
 
@@ -2909,7 +2909,7 @@ class EmittingStream(QObject):
         """
         self.text_written.emit(str(text))
 
-    def flush(self):
+    def flush(self) -> None:
         """
         Flush the stream.
 

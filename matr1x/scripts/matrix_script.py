@@ -1122,10 +1122,14 @@ class MainWindow(QMainWindow):
         check_config(matr1x.config)
         if config["duplicate_output_to_logfile"]:
             sys.stdout = StreamToLogger(
-                printlogger, logging.INFO, duplicate_stream=self.output_stream
+                printlogger,
+                logging.INFO,
+                duplicate_stream=self.output_stream,
             )
             sys.stderr = StreamToLogger(
-                errorlogger, logging.ERROR, duplicate_stream=self.output_stream
+                errorlogger,
+                logging.ERROR,
+                duplicate_stream=self.output_stream,
             )
         else:
             sys.stdout = self.output_stream  # all output (stdout) is written to status preview
@@ -1770,22 +1774,31 @@ class MainWindow(QMainWindow):
         combined_text = "".join(self._output_buffer)
         self._output_buffer.clear()
 
-        if "\r" not in combined_text:
-            self.ui.widgets.status_preview.appendPlainText(combined_text)
-        else:
-            # operate on a disposable cursor so we do not move the user's cursor/selection
-            doc = self.ui.widgets.status_preview.document()
-            cursor = QTextCursor(doc)
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            for char in combined_text:
-                if char == "\r":
-                    cursor.movePosition(
-                        QTextCursor.MoveOperation.StartOfBlock,
-                        QTextCursor.MoveMode.KeepAnchor,
-                    )
-                    cursor.removeSelectedText()
-                else:
-                    cursor.insertText(char)
+        # Operate on a disposable cursor so we do not move the user's cursor/selection.
+        # Handle plain text and control characters in one path, because buffered writes
+        # can split "\r" from the text it is meant to overwrite.
+        doc = self.ui.widgets.status_preview.document()
+        cursor = QTextCursor(doc)
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.beginEditBlock()
+        parts = re.split(r"([\r\n])", combined_text)
+        for index in range(0, len(parts), 2):
+            text = parts[index]
+            if text:
+                cursor.insertText(text)
+
+            if index + 1 >= len(parts):
+                continue
+
+            if parts[index + 1] == "\r":
+                cursor.movePosition(
+                    QTextCursor.MoveOperation.StartOfBlock,
+                    QTextCursor.MoveMode.KeepAnchor,
+                )
+                cursor.removeSelectedText()
+            else:
+                cursor.insertBlock()
+        cursor.endEditBlock()
 
         if not self._output_buffer:
             self._output_timer.stop()

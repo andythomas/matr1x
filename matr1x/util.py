@@ -25,6 +25,7 @@ import codecs
 import importlib.util
 import logging
 import os
+import re
 import site
 import subprocess
 import sys
@@ -35,7 +36,7 @@ from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, TypeVar
 
 import h5py
 import numpy as np
@@ -47,6 +48,15 @@ if TYPE_CHECKING:
     import types
 
     from _typeshed import SupportsWrite
+
+    _T = TypeVar("_T", contravariant=True)
+
+    class SupportsWriteAndFlush(SupportsWrite[_T], Protocol[_T]):
+        """Provide a type for a stream that have write and flush methods."""
+
+        def flush(self) -> None:
+            """Add flush to the existing write."""
+            ...
 
 
 from .metadata import APP_META_KEY
@@ -1094,7 +1104,7 @@ def find_binary(binary: str) -> Result[Path, FileNotFoundError]:
 
 
 class StreamToLogger:
-    """
+    r"""
     Helper to pipe streams into a logger.
 
     Parameters
@@ -1104,19 +1114,22 @@ class StreamToLogger:
     level: int
         The utilized log-level.
     duplicate_stream: SupportsWrite[str], optional
-        A second stream to write to message to.
+        A second stream that receives the raw chunks exactly as they
+        were written. This is used by GUI output, where ``"\r"`` must
+        not be turned into a newline by ``print(..., file=...)``.
     """
 
     def __init__(
         self,
         logger: logging.Logger,
         level: int,
-        duplicate_stream: "SupportsWrite[str] | None" = None,
+        duplicate_stream: "SupportsWriteAndFlush[str] | None" = None,
     ):
         self.logger: logging.Logger = logger
         self.level: int = level
         self._buffer: str = ""
         self._duplicate = duplicate_stream
+        self._pending_carriage_return = False
 
     def write(self, message: str):
         """
@@ -1130,18 +1143,51 @@ class StreamToLogger:
         if not message:
             return
         if self._duplicate:
-            print(message, file=self._duplicate)
-        self._buffer += message
-        while "\n" in self._buffer:
-            line, self._buffer = self._buffer.split("\n", 1)
-            line = line.rstrip()
-            if line:
-                self.logger.log(self.level, line)
+            # Mirror the raw chunk before newline buffering so carriage
+            # returns keep their overwrite semantics in the GUI stream.
+            self._duplicate.write(message)
+            self._duplicate.flush()
+        parts = re.split(r"([\r\n])", message)
+        for index in range(0, len(parts), 2):
+            self._append_text(parts[index])
+            if index + 1 >= len(parts):
+                continue
+
+            separator = parts[index + 1]
+            if separator == "\r":
+                self._pending_carriage_return = True
+            else:
+                self._pending_carriage_return = False
+                self._log_buffer()
 
     def flush(self):
-        """Flush the buffer."""
-        if self._buffer:
-            self.logger.log(self.level, self._buffer.rstrip())
-            if self._duplicate:
-                print(self._buffer, file=self._duplicate)
+        """
+        Flush the logger buffer and the duplicate stream.
+
+        The duplicate stream already received the raw chunks in
+        ``write()``. Flushing here must therefore not write buffered
+        text a second time.
+        """
+        if self._pending_carriage_return:
             self._buffer = ""
+            self._pending_carriage_return = False
+        if self._buffer:
+            self._log_buffer()
+        if self._duplicate:
+            self._duplicate.flush()
+
+    def _log_buffer(self) -> None:
+        """Log the current buffered line if it is not empty."""
+        line = self._buffer.rstrip()
+        self._buffer = ""
+        if line:
+            self.logger.log(self.level, line)
+
+    def _append_text(self, text: str) -> None:
+        """Append text while honoring pending carriage-return overwrite state."""
+        if not text:
+            return
+        if self._pending_carriage_return:
+            self._buffer = ""
+            self._pending_carriage_return = False
+        self._buffer += text
