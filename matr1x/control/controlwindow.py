@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 
-from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal, Slot
+from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -61,6 +61,7 @@ from matr1x import config as matrixconfig
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import (
+    AutoSlot,
     LoggingWindow,
     MApplication,
     SaferQSettings,
@@ -118,7 +119,15 @@ class WidgetGroup:
 
 
 class UIBuilder:
-    """Provide actions."""
+    """
+    Build the main UI and provide actions, widgets and menus.
+
+    Parameters
+    ----------
+    window: ControlWindow
+        The Controlwindow (inherits from QMainWindow) to generate the
+        GUI for.
+    """
 
     def __init__(self, window: "ControlWindow") -> None:
         self.window: ControlWindow = window
@@ -128,7 +137,14 @@ class UIBuilder:
         self._create_gui()
 
     def _create_widgets(self) -> WidgetGroup:
-        """Create the widgets."""
+        """
+        Create the widgets.
+
+        Returns
+        -------
+        WidgetGroup
+            The widgets to be used in the GUI.
+        """
         panicButton = QPushButton("Panic Button")
         panicButton.setStyleSheet("background-color: red;")
         panicButton.setCheckable(True)
@@ -148,7 +164,14 @@ class UIBuilder:
         )
 
     def _create_actions(self) -> ActionGroup:
-        """Create most QActions for the control."""
+        """
+        Create most QActions for the control.
+
+        Returns
+        -------
+        ActionGroup
+            The actions to be used in the GUI.
+        """
         enable_all = QAction("Enable all", self.window)
         disable_all = QAction("Disable all", self.window)
         full_info_all = QAction("Full info all", self.window)
@@ -188,7 +211,14 @@ class UIBuilder:
         )
 
     def _create_menus(self) -> MenuGroup:
-        """Create the main menu."""
+        """
+        Create the main menu.
+
+        Returns
+        -------
+        MenuGroup
+            The menus to be used in the GUI.
+        """
         menu = self.window.menuBar()
         file = menu.addMenu("&File")
         enable = menu.addMenu("&Enable")
@@ -232,6 +262,13 @@ class EnableAction(QAction):
 
     This action is designed for enable/disable functionality and automatically
     updates its icon color when the checked state changes.
+
+    Parameters
+    ----------
+    text: str
+        The text of the action.
+    parent: ControlWindow
+        The parent of the action.
     """
 
     def __init__(self, text: str, parent: "ControlWindow"):
@@ -243,7 +280,14 @@ class EnableAction(QAction):
         self.toggled.connect(self._update_icon)
 
     def _update_icon(self, checked: bool):
-        """Update the icon based on checked state."""
+        """
+        Update the icon based on checked state.
+
+        Parameters
+        ----------
+        checked: bool
+            The action is checked (True) or not (False).
+        """
         if checked:
             self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")))
         else:
@@ -251,7 +295,14 @@ class EnableAction(QAction):
         self.controlwindow.check_enables()
 
     def setChecked(self, a0: bool):
-        """Override setChecked to ensure icon is updated."""
+        """
+        Override setChecked to ensure icon is updated.
+
+        Parameters
+        ----------
+        a0: bool
+            Set the checked (True) or unchecked (False).
+        """
         super().setChecked(a0)
         self._update_icon(a0)
 
@@ -262,6 +313,14 @@ class FullInfoAction(QAction):
 
     This action is designed for full info/less info functionality and automatically
     updates its icon (+ or -) when the checked state changes.
+
+
+    Parameters
+    ----------
+    text: str
+        The text of the action.
+    parent: ControlWindow
+        The parent of the action.
     """
 
     def __init__(self, text: str, parent: "ControlWindow"):
@@ -273,7 +332,14 @@ class FullInfoAction(QAction):
         self.toggled.connect(self._update_icon)
 
     def _update_icon(self, checked: bool):
-        """Update the icon based on checked state."""
+        """
+        Update the icon based on checked state.
+
+        Parameters
+        ----------
+        checked: bool
+            The action is checked (True) or not (False).
+        """
         if checked:
             self.setIcon(get_matrix_icon("CHAR_-"))
         else:
@@ -281,7 +347,14 @@ class FullInfoAction(QAction):
         self.controlwindow.check_full_infos()
 
     def setChecked(self, a0: bool):
-        """Override setChecked to ensure icon is updated."""
+        """
+        Override setChecked to ensure icon is updated.
+
+        Parameters
+        ----------
+        a0: bool
+            Set the checked (True) or unchecked (False).
+        """
         super().setChecked(a0)
         self._update_icon(a0)
 
@@ -477,9 +550,6 @@ class ControlWindow(QMainWindow):
                 class _FakeGuiDict(GuiDict):
                     data = guidict
 
-                    def refresh(self, *args, **kwargs):
-                        pass
-
                 self.guidicts[i] = _FakeGuiDict()
 
     def _restore_gui_settings(self):
@@ -533,7 +603,7 @@ class ControlWindow(QMainWindow):
         self.ui.actions.show_toml.triggered.connect(open_matrix_toml)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
         self.ui.actions.quit.triggered.connect(self.close)
-        self.ui.widgets.panic.clicked.connect(self.panic)
+        self.ui.widgets.panic.clicked.connect(lambda checked: self.panic(checked, "Panic button"))
         self.ui.actions.toggle_recorder.triggered.connect(self.toggle_data_recorder)
         self.ui.actions.select_recorder.triggered.connect(self.select_datafile)
         self.ui.actions.config_recorder.triggered.connect(self.config_data_recorder)
@@ -542,7 +612,7 @@ class ControlWindow(QMainWindow):
         self.led_color.connect(self._set_recorder_color)
 
     def set_interval(self) -> None:
-        """Set the data recorder interval."""
+        """Set the data recorder interval via a dialog window."""
         value, ok = QInputDialog.getInt(
             self,
             "Set data recorder interval",
@@ -677,9 +747,8 @@ class ControlWindow(QMainWindow):
 
         self.guidict_view = []
         for i, guidict in enumerate(self.guidicts):
-            dict_name = list(guidict.keys())[0]
             # Enable/ Disable
-            enable_action = EnableAction(dict_name, self)
+            enable_action = EnableAction(guidict.name, self)
 
             # Connect directly to GuiDict enable_switch
             enable_action.setChecked(guidict.enable_switch.isChecked())
@@ -695,7 +764,7 @@ class ControlWindow(QMainWindow):
             guidict.toolbar.addAction(enable_action)
             self.ui.menus.enable.addAction(enable_action)
             # View toggles
-            view_action = QAction(dict_name, self)
+            view_action = QAction(guidict.name, self)
             self.guidict_view.append(view_action)
             self.guidict_view[i].setCheckable(True)
             self.guidict_view[i].setChecked(True)
@@ -708,7 +777,7 @@ class ControlWindow(QMainWindow):
 
             # Full info toggles
             has_hiding = any(variable.hide for variable in guidict.values())
-            full_info_action = FullInfoAction(dict_name, self)
+            full_info_action = FullInfoAction(guidict.name, self)
 
             # Connect directly to GuiDict extend_switch
             full_info_action.setChecked(guidict.extend_switch.isChecked())
@@ -757,7 +826,7 @@ class ControlWindow(QMainWindow):
         self.check_enables()
         self.check_full_infos()
 
-    @Slot()
+    @AutoSlot
     def needToAdjustSize(self) -> None:
         """Adjust the size of the main window."""
         self.adjustSize()
@@ -822,9 +891,8 @@ class ControlWindow(QMainWindow):
             variable.copy_value()
 
     @catchEmitError
-    @Slot(bool)
-    @Slot(bool, str)
-    def panic(self, checked: bool, reason: str = "Panic button") -> None:
+    @AutoSlot
+    def panic(self, checked: bool, reason: str) -> None:
         """
         Signal panic mode to guidicts if the button is checked.
 
@@ -833,10 +901,10 @@ class ControlWindow(QMainWindow):
         checked : bool
             Whether the panic button is checked
         reason : str, optional
-            Reason for panic mode, by default "Panic button"
+            Reason for panic mode
         """
         if checked:
-            logger.info("%s: Panic mode activated due to '%s'", time.strftime(datetimefmt), reason)
+            logger.warning("Panic mode activated due to '%s'", reason)
             self.ui.widgets.panic.setText(f"Panic mode activated due to '{reason}'")
             self.ui.widgets.panic.setChecked(True)
             for g in self.guidicts:
@@ -849,6 +917,7 @@ class ControlWindow(QMainWindow):
                 self.stopServer()
                 self._server_disabled_by_panic = True
         else:
+            logger.info("Panic mode deactivated due to '%s'", reason)
             for g in self.guidicts:
                 self.ui.widgets.panic.setText("Panic Button")
                 g.unpanic()
@@ -884,7 +953,7 @@ class ControlWindow(QMainWindow):
         Parameters
         ----------
         checked : bool
-            Whether logging is enabled
+            Whether logging is enabled.
         """
         for guidict in self.guidicts:
             guidict.showlog = checked
@@ -901,7 +970,7 @@ class ControlWindow(QMainWindow):
         Parameters
         ----------
         checkstate : bool
-            Whether logging should be enabled
+            Whether logging should be enabled.
         """
         self.ui.actions.toggle_recorder.setChecked(checkstate)
         # clear system of all parameters
@@ -965,15 +1034,8 @@ class ControlWindow(QMainWindow):
             self.ui.actions.toggle_recorder.setText("Start data recorder")
             logger.info("Data recorder stopped")
 
-    def select_datafile(self, *args) -> None:
-        """
-        Allow selecting a file for the data recorder.
-
-        Parameters
-        ----------
-        *args
-            Variable length argument list
-        """
+    def select_datafile(self) -> None:
+        """Allow selecting a file for the data recorder."""
         filename = QFileDialog.getSaveFileName(
             self, "Select data file", str(logfolder), f"data recorder files (*{output_extension})"
         )[0]
@@ -1023,7 +1085,7 @@ class ControlWindow(QMainWindow):
             self.led_color.emit(QColor("lightgrey"))
             self._log_stopped_event.set()
 
-    @Slot(QColor)
+    @AutoSlot
     def _set_recorder_color(self, color: QColor) -> None:
         """
         Set the color of the data recorder led.
@@ -1037,9 +1099,16 @@ class ControlWindow(QMainWindow):
         palette.setColor(self.ui.widgets.recorder_led.backgroundRole(), color)
         self.ui.widgets.recorder_led.setPalette(palette)
 
-    @Slot(int)
+    @AutoSlot
     def _update_log_interval(self, value: int) -> None:
-        """Store the most recent logging interval for use in worker threads."""
+        """
+        Store the most recent logging interval for use in worker threads.
+
+        Parameters
+        ----------
+        value: int
+            max(1, value) will be set.
+        """
         self._log_interval = max(1, value)
         self.ui.widgets.recorder_file_label.setText(
             f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
@@ -1089,13 +1158,28 @@ class ControlWindow(QMainWindow):
         self.terminated = False
 
     def _stop_guidicts(self, wait: bool = True) -> None:
-        """Stop all guidicts and update the terminated flag."""
+        """
+        Stop all guidicts and update the terminated flag.
+
+        Parameters
+        ----------
+        wait: bool
+            Flag to make this function block up to twice the refresh
+            period or until the refresh thread ended (default is True).
+        """
         for guidict in self.guidicts:
             guidict.stop(wait=wait)
         self.terminated = True
 
     def _has_custom_refresh(self) -> bool:
-        """Return True if the subclass overrides refreshDict."""
+        """
+        Return whether the subclass overrides refreshDict.
+
+        Returns
+        -------
+        bool
+            True if the subclass overrides refreshDict.
+        """
         return type(self).refreshDict is not ControlWindow.refreshDict
 
     def _start_legacy_refresh_thread(self) -> None:
@@ -1124,7 +1208,8 @@ class ControlWindow(QMainWindow):
         Parameters
         ----------
         timeout : float, optional
-            Maximum time in seconds to wait for the thread to finish. Defaults to 5.0.
+            Maximum time in seconds to wait for the thread to finish.
+            Defaults to 5.0.
         """
         thread = self._legacy_refresh_thread
         if thread is None:
@@ -1212,7 +1297,7 @@ class ControlWindow(QMainWindow):
             self._local_server.stop()
         self._local_server = None
 
-    @Slot(str, int)
+    @AutoSlot
     def change_single_color(self, color: str, idx: int) -> None:
         """
         Change the background color of a single activity indicator.
@@ -1226,7 +1311,7 @@ class ControlWindow(QMainWindow):
         """
         self._pending_updates[idx] = color
 
-    @Slot(str)
+    @AutoSlot
     def change_color(self, color: str) -> None:
         """
         Change the background color of all activity indicators.
@@ -1256,7 +1341,7 @@ class ControlWindow(QMainWindow):
                 palette.setColor(label.backgroundRole(), QColor(color))
                 label.setPalette(palette)
 
-    @Slot(bool)
+    @AutoSlot
     def deactivate_gui(self, flag: bool) -> None:
         """
         Disable all GUI elements.
@@ -1282,7 +1367,7 @@ class ControlWindow(QMainWindow):
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
 
-    @Slot()
+    @AutoSlot
     def save_window_state(self) -> None:
         """
         Save current window and dock geometry.
@@ -1306,7 +1391,7 @@ class ControlWindow(QMainWindow):
         Parameters
         ----------
         event : QCloseEvent
-            The close event
+            The close event.
         """
         # Save window and dock states
         self.save_window_state()
@@ -1321,8 +1406,13 @@ class ControlWindow(QMainWindow):
         # Accept the close event
         super().closeEvent(a0)
 
-    @Slot(type, Exception, str)
-    def handleError(self, exc_type, exc_value, pointer):
+    @AutoSlot
+    def handleError(
+        self,
+        exc_type: type[BaseException],
+        exc_value: BaseException,
+        pointer: str,
+    ) -> None:
         """
         Signal slot to handle showing the error message and disabling the GUI.
 

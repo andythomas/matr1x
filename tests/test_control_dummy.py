@@ -216,7 +216,7 @@ def test_control_window_panic_stops_and_restores_server(qapp, qtbot):
     assert window._server_disabled_by_panic is True
     assert window._local_server is None
 
-    window.panic(False)
+    window.panic(False, "test unpanic")
 
     assert window.start_server_calls >= 1
     assert window._server_disabled_by_panic is False

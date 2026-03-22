@@ -33,8 +33,8 @@ import smtplib
 import ssl
 import sys
 import time
-from abc import ABC, abstractmethod
 from collections import UserDict
+from collections.abc import Callable, Sequence
 from email import encoders
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
@@ -45,10 +45,12 @@ from enum import IntEnum
 from operator import attrgetter
 from pathlib import Path
 from subprocess import PIPE, Popen
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import numpy
 import psutil
 from decorator import FunctionMaker
+from numpy.typing import ArrayLike
 from PySide6.QtCore import (
     QObject,
     QPoint,
@@ -80,15 +82,22 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+if TYPE_CHECKING:
+    from matr1x.control.controlwindow import ControlWindow
+from matr1x.system import System
+
 from .. import config, logfolder, system
 from ..error_handling import InternalInvariantError
 from ..gui_util import MApplication, SaferQSettings, validator
-from ..util import normalize_cmds
+from ..util import Command, normalize_cmds
 
 logger = logging.getLogger(__name__)
 
 
-def catchEmitError(method):
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def catchEmitError(method: _F) -> _F:
     """
     Define error handling decorator.
 
@@ -107,11 +116,11 @@ def catchEmitError(method):
 
     def call(self, *args, **kwargs):
         try:
-            method(self, *args, **kwargs)
+            return method(self, *args, **kwargs)
         except Exception:
             # report error to the main thread if relevant part can't be disabled
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            pointer = method.__name__
+            pointer = getattr(method, "__name__")
             logger.exception("Handling error in %s", pointer)
             # if the GuiDict which raised the error allows disabling lets just
             # disable it and swallow the error
@@ -130,11 +139,14 @@ def catchEmitError(method):
             elif hasattr(self, "parent") and self.parent:
                 self.parent.sig_error.emit(exc_type, exc_value, pointer)
 
-    return FunctionMaker.create(
-        method,
-        "return call(%(shortsignature)s)",
-        dict(call=call, _method=method),
-        __wrapped__=method,
+    return cast(
+        _F,
+        FunctionMaker.create(
+            method,
+            "return call(%(shortsignature)s)",
+            dict(call=call, _method=method),
+            __wrapped__=method,
+        ),
     )
 
 
@@ -427,7 +439,7 @@ class var(QObject):
             ]
         else:
             self.columns = columns
-        self.widgets = []
+        self.widgets: list[Any] = []
 
     def setValue(self, newValue):
         """
@@ -535,7 +547,7 @@ class var(QObject):
         added which shows and changes the logging preferences.
         """
         fulllabel = f"{label} ({self.unit})" if self.unit != "" else label
-        self.widgets: list[QWidget] = [
+        self.widgets = [
             QLabel(fulllabel),
         ]
 
@@ -810,13 +822,9 @@ class var(QObject):
         return 2
 
 
-class GuiDict(UserDict, ABC):
+class GuiDict(UserDict[str, var]):
     """
     Custom dictionary representing elements and commands of the control GUI.
-
-    Derived classes have to implement the 'refresh' method which shall read
-    updated values from the hardware and write them into the local variable
-    storage.
 
     Additionally a System object with related devices can be stored in this
     class as object variable.
@@ -850,8 +858,8 @@ class GuiDict(UserDict, ABC):
         Instrument. Otherwise likely reenabling will fail.
     """
 
-    cmds = {}
-    data = {}
+    data: dict[str, var] = {}
+    cmds: dict[str, Command] = {}
     refresh_period = 1.0
     allow_disabling = False
 
@@ -886,7 +894,7 @@ class GuiDict(UserDict, ABC):
         @Slot()
         @Slot(bool)
         @catchEmitError
-        def run(self, copy=True):
+        def run(self, copy: bool = True):
             """
             Start the worker's refresh loop.
 
@@ -913,7 +921,7 @@ class GuiDict(UserDict, ABC):
             self.activity.emit("lightgray")
 
         @catchEmitError
-        def _target(self, count):
+        def _target(self, count: int) -> None:
             """
             Encapsulate target function to emit the activity signal.
 
@@ -971,12 +979,13 @@ class GuiDict(UserDict, ABC):
         self.showlog = False
         # buffer original commands
         normalize_cmds(self.cmds)
-        self._orig_cmds = copy.deepcopy(self.cmds)
+        self._orig_cmds: dict[str, Command] = copy.deepcopy(self.cmds)
         # empty custom menu
         self.menu_actions = []
         # initialize all with None
         self._reset()
         self._dispatcher = GuiDict._GuiDispatcher(self)
+        self.name: str = next(iter(self.keys()), self.__class__.__name__)
 
     def create_GUI(self):
         """
@@ -1027,9 +1036,9 @@ class GuiDict(UserDict, ABC):
                 self.dockClosed.emit()
 
         if self.parent is not None:
-            self.dock = MyQDockWidget(list(self.keys())[0], self.parent.windowTitle())
+            self.dock = MyQDockWidget(self.name, self.parent.windowTitle())
         else:
-            self.dock = MyQDockWidget(list(self.keys())[0], "")
+            self.dock = MyQDockWidget(self.name, "")
         self.dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
@@ -1208,7 +1217,7 @@ class GuiDict(UserDict, ABC):
             cmd.reset_to_None()
 
     @catchEmitError
-    def start(self):
+    def start(self) -> None:
         """Start the refresh loop in a dedicated thread."""
         if not self.running and self.enable_switch.isChecked():
             # initialize the system
@@ -1219,7 +1228,7 @@ class GuiDict(UserDict, ABC):
             self._refresh_thread.start()
             self.running = True
 
-    def set_cmd_funcs(self, window_obj=None, system=None):
+    def set_cmd_funcs(self, window_obj: ControlWindow | None = None, system: System | None = None):
         """
         Replace setter and getter functions by an instance of Command.
 
@@ -1239,174 +1248,159 @@ class GuiDict(UserDict, ABC):
             self.cmds[name].getargs = getargs
         return self.cmds
 
-    def _create_setfunc(self, name, cmd, window_obj=None, system=None):
+    def _create_setfunc(
+        self,
+        name: str,
+        cmd: Command,
+        window_obj: ControlWindow | None = None,
+        system: System | None = None,
+    ) -> tuple[Callable | None, tuple]:
         """
         Create the setter function from the command definition.
 
         The function determines what the user intended by the specified
         cmd and generates an appropriate function.
         """
-        setargs = []
-        setfunc = None
-
-        if callable(cmd.setfunc):
-            setfunc, setargs = self._handle_callable_setfunc(cmd)
-        elif cmd.setfunc is None:
-            setfunc = None
+        if cmd.setfunc is None:
+            return None, ()
         elif isinstance(cmd.setfunc, str):
-            setfunc, setargs = self._handle_string_setfunc(name, cmd, window_obj)
+            return self._handle_string_setfunc(name, cmd, window_obj)
         elif isinstance(cmd.setfunc, (tuple, list)):
-            setfunc, setargs = self._handle_tuple_setfunc(name, cmd, system)
-        else:
-            raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
-        return setfunc, setargs
+            if system is None:
+                raise ValueError("System must be specified as 'system' keyword argument")
+            return self._handle_tuple_setfunc(name, cmd, system)
+        elif callable(cmd.setfunc):
+            return cmd.setfunc, cmd.setargs
+        raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
 
-    def _handle_callable_setfunc(self, cmd):
-        """Handle the case where setfunc is a callable."""
-        setfunc = cmd.setfunc
-        setargs = cmd.setargs
-        return setfunc, setargs
-
-    def _handle_string_setfunc(self, name, cmd, window_obj):
+    def _handle_string_setfunc(
+        self, name: str, cmd: Command, window_obj: ControlWindow | None
+    ) -> tuple[Callable | None, tuple]:
         """Handle the case where setfunc is a string."""
+        cmd.setfunc = cast(str, cmd.setfunc)
         if hasattr(self, cmd.setfunc):  # if GuiDict method or property
             attr = attrgetter(cmd.setfunc)(self)
             if callable(attr):
-                setfunc = attr
-                setargs = cmd.setargs
+                return attr, cmd.setargs
             else:
 
                 def setfunc(value, c=self, a=cmd.setfunc):
                     setattr(c, a, value)
 
-                setfunc = setfunc
-                setargs = []
+                return setfunc, ()
         elif cmd.setfunc in self:  # if GuiDict.data entry
 
             def setfunc(value, c=self.data[cmd.setfunc]):
                 setattr(c, "value", value)
 
-            setfunc = setfunc
-            setargs = []
+            return setfunc, ()
         elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
             attr = attrgetter(cmd.setfunc)(window_obj)
             if callable(attr):
-                setfunc = attr
-                setargs = []
+                return attr, ()
             else:
 
                 def setfunc(value, c=window_obj, a=cmd.setfunc):
                     setattr(c, a, value)
 
-                setfunc = setfunc
-                setargs = []
-        else:
-            raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
-        return setfunc, setargs
+                return setfunc, ()
+        raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
 
-    def _handle_tuple_setfunc(self, name, cmd, system):
+    def _handle_tuple_setfunc(
+        self, name: str, cmd: Command, system: System
+    ) -> tuple[Callable | None, tuple]:
         """Handle the case where setfunc is a tuple or list (system device)."""
-        if system is None:
-            raise ValueError("System must be specified as 'system' keyword argument")
+        cmd.setfunc = cast(tuple, cmd.setfunc)
         devname, funcname = cmd.setfunc
         attr = attrgetter(funcname)(system.devs[devname])
         if callable(attr):
-            setfunc = attr
-            setargs = cmd.setargs
+            return attr, cmd.setargs
         else:
 
             def setfunc(value, c=system.devs[devname], a=funcname):
                 setattr(c, a, value)
 
-            setfunc = setfunc
-            setargs = []
-        return setfunc, setargs
+            return setfunc, ()
 
-    def _create_getfunc(self, name, cmd, window_obj=None, system=None):
+    def _create_getfunc(
+        self,
+        name: str,
+        cmd: Command,
+        window_obj: ControlWindow | None = None,
+        system: System | None = None,
+    ) -> tuple[Callable | None, tuple]:
         """
         Create the getter function from the command definition.
 
         The function determines what the user intended by the specified
         cmd and generates an appropriate function.
         """
-        getargs = []
-        getfunc = None
-
-        if callable(cmd.getfunc):
-            getfunc, getargs = self._handle_callable_getfunc(cmd)
-        elif cmd.getfunc is None:
-            getfunc = None
+        if cmd.getfunc is None:
+            return None, ()
         elif isinstance(cmd.getfunc, str):
-            getfunc, getargs = self._handle_string_getfunc(name, cmd, window_obj, system)
+            return self._handle_string_getfunc(name, cmd, window_obj)
         elif isinstance(cmd.getfunc, (tuple, list)):
-            getfunc, getargs = self._handle_tuple_getfunc(name, cmd, system)
-        else:
-            raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
-        return getfunc, getargs
+            if system is None:
+                raise ValueError("System must be specified as 'system' keyword argument")
+            return self._handle_tuple_getfunc(name, cmd, system)
+        elif callable(cmd.getfunc):
+            return cmd.getfunc, cmd.getargs
+        raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
 
-    def _handle_callable_getfunc(self, cmd):
-        """Handle the case where getfunc is a callable."""
-        getfunc = cmd.getfunc
-        getargs = cmd.getargs
-        return getfunc, getargs
-
-    def _handle_string_getfunc(self, name, cmd, window_obj, system):
+    def _handle_string_getfunc(
+        self, name: str, cmd: Command, window_obj: ControlWindow | None
+    ) -> tuple[Callable | None, tuple]:
         """Handle the case where getfunc is a string."""
-        getargs = []
+        cmd.getfunc = cast(str, cmd.getfunc)
         if hasattr(self, cmd.getfunc):  # if GuiDict method or property
             attr = attrgetter(cmd.getfunc)(self)
             if callable(attr):
-                getfunc = attr
-                getargs = cmd.getargs
+                return attr, cmd.getargs
             else:
 
                 def getfunc(c=self, a=cmd.getfunc):
                     return getattr(c, a)
 
-                getfunc = getfunc
+                return getfunc, ()
         elif cmd.getfunc in self:  # if GuiDict.data entry
 
             def getfunc(c=self.data[cmd.getfunc]):
                 return getattr(c, "value")
 
-            getfunc = getfunc
+            return getfunc, ()
         elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
             attr = attrgetter(cmd.getfunc)(window_obj)
             if callable(attr):
-                getfunc = attr
+                return attr, ()
             else:
 
                 def getfunc(c=window_obj, a=cmd.getfunc):
                     return getattr(c, a)
 
-                getfunc = getfunc
+                return getfunc, ()
         elif cmd.dtype == str and not cmd.getargs:
 
             def getfunc(v=cmd.getfunc):
-                return cmd.dtype(v)
+                return str(v)
 
-            getfunc = getfunc
-        else:
-            raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
+            return getfunc, ()
+        raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
 
-        return getfunc, getargs
-
-    def _handle_tuple_getfunc(self, name, cmd, system):
+    def _handle_tuple_getfunc(
+        self, name: str, cmd: Command, system: System
+    ) -> tuple[Callable | None, tuple]:
         """Handle the case where getfunc is a tuple or list (system device)."""
-        if system is None:
-            raise ValueError("System must be specified as 'system' keyword argument")
+        cmd.getfunc = cast(tuple, cmd.getfunc)
         devname, funcname = cmd.getfunc
         attr = attrgetter(funcname)(system.devs[devname])
-        getargs = []
         if callable(attr):
-            getfunc = attr
-            getargs = cmd.getargs
+            return attr, cmd.getargs
         else:
 
             def getfunc(c=system.devs[devname], a=funcname):
                 return getattr(c, a)
 
-        return getfunc, getargs
+            return getfunc, ()
 
     def panic(self):
         """
@@ -1422,8 +1416,7 @@ class GuiDict(UserDict, ABC):
         self.enable_switch.setEnabled(True)
         self._panic = False
 
-    @abstractmethod
-    def refresh(self, count):
+    def refresh(self, count: int):
         """
         Update values from the device and show them in the GUI.
 
@@ -1442,7 +1435,7 @@ class GuiDict(UserDict, ABC):
         #     self["V1"].value = self.S["dev"].get_another_value()
 
 
-def linear_trend(timestamps, data, interval=60):
+def linear_trend(timestamps: ArrayLike, data: ArrayLike, interval: float = 60):
     """
     Calculate the linear trend of the data in the last 'interval' seconds.
 
@@ -1577,13 +1570,13 @@ def sendNotificationEmail(
 
 
 def control_main(
-    name,
-    window_class,
-    guidicts=None,
-    extra_cmds=None,
-    lockfile=True,
-    package="matr1x",
-    **kwargs,
+    name: str,
+    window_class: type[ControlWindow],
+    guidicts: GuiDict | type[GuiDict] | Sequence[type[GuiDict] | GuiDict] | None = None,
+    extra_cmds: dict | None = None,
+    lockfile: bool = True,
+    package: str = "matr1x",
+    **kwargs: Any,
 ):
     """
     Run main function of control GUI.
@@ -1594,21 +1587,22 @@ def control_main(
     ----------
     name : str
         Identifier string used as Window title and for the lock file.
-    window_class : ControlWindow or QMainWindow
+    window_class : ControlWindow
         Class derived from QMainWindow to be used to construct the GUI.
     guidicts : GuiDict, list or tuple of GuiDicts, optional
-        GuiDict object(s) with the definition of the GUI.
+        GuiDict class(es) with the definition of the GUI.
     extra_cmds : dict, optional
-        Dictionary with commands for the measurement interface. While most
-        commands will be connected with the GuiDicts, those which do not fit there
-        can be supplied here.
+        Dictionary with commands for the measurement interface. While
+        most commands will be connected with the GuiDicts, those which
+        do not fit there can be supplied here.
     lockfile : bool, optional
-        Boolean flag to specify if a lockfile shall be created/checked to avoid
-        multiple instances of the control GUI. Default is True.
+        Boolean flag to specify if a lockfile shall be created/checked
+        to avoid multiple instances of the control GUI. Default is True.
     package : str, optional
         Package name to identify the desktop file. Default is "matr1x".
     **kwargs : dict
-        Keyword arguments which are forwarded to the window_class constructor.
+        Keyword arguments which are forwarded to the window_class
+        constructor.
     """
     if sys.platform == "win32":
         try:

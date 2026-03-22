@@ -32,7 +32,7 @@ from pymeasure.instruments.validators import strict_discrete_set
 from matr1x.util import Get, normalize_cmds
 
 
-def makeSCPIdevice(*cmds, system=True):
+def makeSCPIdevice(*cmds, system=False):
     """
     Dynamically generate a pymeasure device for SCPI commands.
 
@@ -47,7 +47,7 @@ def makeSCPIdevice(*cmds, system=True):
         therefore must only contain unique keys.
     system : bool, optional
         Flag to decide if config_params shall be defined on the device.
-        Default is True.
+        Default is False.
 
     Returns
     -------
@@ -290,6 +290,10 @@ def makeSCPIdevice(*cmds, system=True):
         """
         return self.idn
 
+    def unused_conf_getfunc():
+        """Guard against accidentally calling the synthetic :conf getter."""
+        raise RuntimeError("Synthetic SCPI :conf getter placeholder must never be called.")
+
     attributes = dict()
     methods = {
         "__init__": constructor,
@@ -304,7 +308,14 @@ def makeSCPIdevice(*cmds, system=True):
     # add system query to config_params
     if system and ":conf" not in cmd_list:
         attributes["config_params"]["SCPIdevconf"] = "conf"
-        cmd_list[":conf"] = Get(lambda b: pickle.loads(ast.literal_eval(b)), True)
+        # The synthetic client-side :conf entry only uses dtype as the response
+        # parser. makeSCPIdevice never consults the stored getfunc here. The
+        # matching server-side :conf getter is injected by
+        # matr1x.control.controlwindow.ControlWindow.__init__.
+        cmd_list[":conf"] = Get(
+            lambda b: pickle.loads(ast.literal_eval(b)),
+            unused_conf_getfunc,
+        )
 
     for name, cmd in cmd_list.items():
         # create an pymeasure attribute for every command

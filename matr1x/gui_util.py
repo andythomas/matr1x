@@ -25,6 +25,7 @@ script and control-guis.
 """
 
 import datetime
+import inspect
 import logging
 import os
 import platform
@@ -37,7 +38,16 @@ from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Literal, cast, overload
+from typing import (
+    Any,
+    Literal,
+    ParamSpec,
+    TypeVar,
+    cast,
+    get_origin,
+    get_type_hints,
+    overload,
+)
 
 import numpy as np
 import pygit2
@@ -60,6 +70,7 @@ from PySide6.QtCore import (
     Qt,
     QTimer,
     Signal,
+    Slot,
     qVersion,
 )
 from PySide6.QtGui import (
@@ -131,6 +142,10 @@ from . import (
     write_config,
 )
 from .eval import delta
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
 
 logger = logging.getLogger(__name__)
 
@@ -4541,3 +4556,22 @@ class LoggingWindow(QMainWindow):
         """Clear the table."""
         self.log_table.clearContents()
         self.log_table.setRowCount(0)
+
+
+def AutoSlot(function: Callable[P, R]) -> Callable[P, R]:
+    """
+    Provide a Qt slot for a typed python function or method.
+
+    To have only one source of truth, the type hints generate the
+    appropriate slot automatically.
+    """
+    hints = get_type_hints(function)
+    signature = inspect.signature(function)
+    arg_types = [
+        type if get_origin(t) is type else t
+        for name in signature.parameters
+        if name != "self" and (t := hints.get(name)) is not None
+    ]
+    result_type = hints.get("return", None)
+    qt_slot = Slot(*arg_types, result=result_type)
+    return qt_slot(function)
