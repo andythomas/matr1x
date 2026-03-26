@@ -448,8 +448,8 @@ def macos_integration(pyexec: Path) -> None:
     """
     Perform MacOs integration tasks for Matr1x applications.
 
-    This function installs desktop entries, icons, and MIME types for various
-    Matr1x applications on Linux systems.
+    This function installs desktop entries, icons, and MIME types for
+    various Matr1x applications on Linux systems.
 
     Parameters
     ----------
@@ -532,8 +532,8 @@ def windows_integration() -> None:
     """
     Perform Windows integration tasks for Matr1x applications.
 
-    This function creates shortcuts in the Start Menu and sets up file associations
-    for various Matr1x applications on Windows systems.
+    This function creates shortcuts in the Start Menu and sets up file
+    associations for various Matr1x applications on Windows systems.
     """
     start_menu_path.mkdir(parents=True, exist_ok=True)
 
@@ -546,8 +546,8 @@ def windows_integration() -> None:
         """
         Get the location of an icon file.
 
-        This function determines the path of an icon file based on whether
-        the installation is editable or not.
+        This function determines the path of an icon file based on
+        whether the installation is editable or not.
 
         Parameters
         ----------
@@ -646,8 +646,9 @@ def core_desktop_integration() -> None:
     """
     Perform desktop integration for core Matr1x applications.
 
-    This function retrieves the paths of core Matr1x executables and calls the
-    appropriate integration function based on the operating system.
+    This function retrieves the paths of core Matr1x executables and
+    calls the appropriate integration function based on the operating
+    system.
     """
     matr1xpython = Path(sys.executable)
     logger.info("Perform desktop integration")
@@ -664,8 +665,8 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
     """
     Perform desktop integration for control GUIs.
 
-    This function installs desktop entries and icons for control GUI applications
-    on Linux and macOS systems.
+    This function installs desktop entries and icons for control GUI
+    applications on Linux and macOS systems.
 
     Parameters
     ----------
@@ -752,7 +753,7 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
 
 def finalize_desktop_integration() -> None:
     """
-    Finalize desktop integration by updating desktop and MIME databases on Linux.
+    Finalize desktop integration by updating databases on Linux.
 
     This function updates the desktop database, MIME database, and icon
     cache on Linux systems to ensure that newly installed applications
@@ -783,8 +784,8 @@ def attempt_remove(filename: str | Path) -> None:
     """
     Attempt to remove a file or directory.
 
-    This function tries to remove the specified file. If the file doesn't exist,
-    it silently continues without raising an error.
+    This function tries to remove the specified file. If the file
+    doesn't exist, it silently continues without raising an error.
 
     Parameters
     ----------
@@ -812,7 +813,8 @@ def uninstall_core_desktopintegration() -> None:
     Raises
     ------
     subprocess.CalledProcessError
-        If any subprocess command fails during the uninstallation process.
+        If any subprocess command fails during the uninstallation
+        process.
     """
     system_type = platform.system().lower()
 
@@ -924,17 +926,19 @@ def uninstall_core_desktopintegration() -> None:
                 ],
                 check=True,
             )
-            subprocess.run(
+            result = subprocess.run(
                 [
                     "update-mime-database",
                     str(Path.home() / ".local/share/mime"),
-                    "|",
-                    "grep",
-                    "-v",
-                    "No such file or directory",
                 ],
                 check=True,
+                capture_output=True,
+                text=True,
             )
+            for line in result.stderr.splitlines():
+                if "No such file or directory" not in line:
+                    logger.debug(line)
+
             subprocess.run(
                 [
                     "gtk-update-icon-cache",
@@ -945,7 +949,10 @@ def uninstall_core_desktopintegration() -> None:
             )
             logger.info("Updated icon cache and desktop database")
         except subprocess.CalledProcessError as e:
-            logger.error("Error during uninstall: %s", e)
+            if e.returncode == 1:
+                logger.debug("Ignoring update-desktop-database error (likely first run).")
+            else:
+                logger.error("Error during uninstall: %s", e)
 
     elif system_type == "darwin":
         # Darwin section (macOS)
@@ -1032,6 +1039,9 @@ def remove_desktop_integration():
     """Remove the desktop integration."""
     logger.info("Perform removal of old files")
     suite_settings.setValue("di_version", "0")
+    # make sure all paths exist to avoid needless error spam
+    (Path.home() / ".local/share/icons/hicolor").mkdir(parents=True, exist_ok=True)
+    (Path.home() / ".local/share/icons/Adwaita").mkdir(parents=True, exist_ok=True)
     remove = [
         sys.executable,
         "-c",
