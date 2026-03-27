@@ -59,7 +59,6 @@ from PySide6.QtCore import (
     QThread,
     QTimer,
     Signal,
-    Slot,
 )
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -81,6 +80,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from matr1x.gui_util import AutoSlot
 
 if TYPE_CHECKING:
     from matr1x.control.controlwindow import ControlWindow
@@ -891,18 +892,10 @@ class GuiDict(UserDict[str, var]):
             self.guidict: GuiDict = parent
             self._timer = QTimer()  # fake definition
 
-        @Slot()
-        @Slot(bool)
+        @AutoSlot
         @catchEmitError
-        def run(self, copy: bool = True):
-            """
-            Start the worker's refresh loop.
-
-            Parameters
-            ----------
-            copy : bool, optional
-                Whether to copy values from readout to set fields upon first run.
-            """
+        def run(self) -> None:
+            """Start the worker's refresh loop and copy readout to set fields."""
             self._timer = QTimer()
             self._timer.setInterval(self.interval)
             counter = itertools.count(1)
@@ -910,12 +903,11 @@ class GuiDict(UserDict[str, var]):
             # start refresh immediately and then again after the timer timeout
             self.target(0)
             # copy values from readout to set fields upon first run
-            if copy:
-                self.guidict._dispatcher.copy_requested.emit()
+            self.guidict._dispatcher.copy_requested.emit()
             self._timer.start()
 
-        @Slot()
-        def stop(self):
+        @AutoSlot
+        def stop(self) -> None:
             """Stop the worker's refresh loop."""
             self._timer.stop()
             self.activity.emit("lightgray")
@@ -948,12 +940,12 @@ class GuiDict(UserDict[str, var]):
             self.copy_requested.connect(self.copy_values_slot)
             self.disable_requested.connect(self.disable_guidict)
 
-        @Slot()
+        @AutoSlot
         def copy_values_slot(self) -> None:
             """Trigger a safe copy-values operation on the GUI thread."""
             self._guidict.copy_values()
 
-        @Slot()
+        @AutoSlot
         def disable_guidict(self) -> None:
             """Disable the GuiDict safely on the GUI thread."""
             self._guidict.enable_switch.setChecked(False)
@@ -1012,8 +1004,8 @@ class GuiDict(UserDict[str, var]):
                 self.disabled = False
                 self.extended = False
 
-            @Slot()
-            def saveCurrentState(self):
+            @AutoSlot
+            def saveCurrentState(self) -> None:
                 """Save current dock geometry and enable state."""
                 self.settings.beginGroup(self.windowTitle())
                 self.settings.setValue("size", self.size())

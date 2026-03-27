@@ -43,14 +43,13 @@ from PySide6.QtCore import (
     QTimer,
     QUrl,
     Signal,
-    Slot,
 )
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.error_handling import Error, Result, Success
-from matr1x.gui_util import FileDropMixin, LoggerMixin, MApplication
+from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
 from matr1x.models import SystemInfo
 from matr1x.util import (
     generate_script,
@@ -734,7 +733,7 @@ class Linter(QObject):
         "F504",
     ]
 
-    @Slot(str)
+    @AutoSlot
     def lint_code(self, code: str) -> None:
         """
         Lint Python code utilizing Ruff.
@@ -915,7 +914,7 @@ class EditorBackend(QObject):
         super().__init__(parent)
         self._is_modified = False
 
-    @Slot(bool)
+    @AutoSlot
     def content_changed(self, is_modified: bool) -> None:
         """Handle content modification notifications from the editor."""
         self._is_modified = is_modified
@@ -929,7 +928,7 @@ class EditorBackend(QObject):
         """Set the modification state."""
         self._is_modified = modified
 
-    @Slot(str)
+    @AutoSlot
     def handle_hover(self, payload: str) -> None:
         """Handle hover notifications from the Monaco editor."""
         try:
@@ -940,7 +939,7 @@ class EditorBackend(QObject):
         hover.position.character = hover.position.character + COLUMN_OFFSET - 1
         self.hoverRequested.emit(hover)
 
-    @Slot(str)
+    @AutoSlot
     def handle_completion_request(self, payload: str) -> None:
         """Handle completion requests from the Monaco editor."""
         try:
@@ -954,12 +953,12 @@ class EditorBackend(QObject):
         )
         self.completionRequested.emit(completion_request)
 
-    @Slot(str)
+    @AutoSlot
     def linting_triggered(self, text: str) -> None:
         """Handle linting trigger notifications from the editor."""
         self.contentChanged.emit(text)
 
-    @Slot(int, int)
+    @AutoSlot
     def cursor_position_changed(self, line: int, column: int) -> None:
         """Handle cursor position change notifications from the editor."""
         self.cursorPositionChanged.emit(line, column)

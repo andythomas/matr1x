@@ -40,7 +40,6 @@ from PySide6.QtCore import (
     QThread,
     QTimer,
     Signal,
-    Slot,
 )
 from PySide6.QtGui import (
     QAction,
@@ -78,6 +77,7 @@ from matr1x.editor import CodeEditor, LSPServer
 from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
+    AutoSlot,
     ConfigEditWidget,
     EmittingStream,
     FileDropMixin,
@@ -1563,8 +1563,8 @@ class MainWindow(QMainWindow):
         if self.ui.widgets.system_command_help.isVisible():
             self.show_system_commands()
 
-    @Slot(InputParameters)
-    def get_script_input(self, params: InputParameters):
+    @AutoSlot
+    def get_script_input(self, params: InputParameters) -> None:
         """
         Open a dialog and forward input to the script.
 

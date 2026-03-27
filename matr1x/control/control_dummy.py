@@ -36,7 +36,7 @@ from matr1x.control import (
 from matr1x.control import guiObject as go
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
-from matr1x.gui_util import get_matrix_icon
+from matr1x.gui_util import AutoSlot, get_matrix_icon
 from matr1x.util import Command, Get
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
@@ -343,7 +343,8 @@ class exampleDict2(GuiDict):
                 )
         self.v5 = round(30 * numpy.random.random(), 3)
 
-    def set_tooltip(self, label, tooltip):
+    @AutoSlot
+    def set_tooltip(self, label: str, tooltip: str) -> None:
         """
         Set tooltip thread safe on any widget in the first column.
 

@@ -4567,11 +4567,23 @@ def AutoSlot(function: Callable[P, R]) -> Callable[P, R]:
     """
     hints = get_type_hints(function)
     signature = inspect.signature(function)
-    arg_types = [
-        type if get_origin(t) is type else t
-        for name in signature.parameters
-        if name != "self" and (t := hints.get(name)) is not None
-    ]
-    result_type = hints.get("return", None)
-    qt_slot = Slot(*arg_types, result=result_type)
+    argument_types = []
+    for name in signature.parameters:
+        if name == "self":
+            continue
+        if name not in hints:
+            raise TypeError(f"Missing type hint for parameter '{name}'")
+        t = hints[name]
+        qt_type = type if get_origin(t) is type else t
+        argument_types.append(qt_type)
+
+    result_type = hints.get("return")
+    if result_type is type(None):
+        result_type = None
+
+    if result_type is not None:
+        qt_slot = Slot(*argument_types, result=result_type)
+    else:
+        qt_slot = Slot(*argument_types)
+
     return qt_slot(function)
