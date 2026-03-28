@@ -20,8 +20,6 @@ This module provides functionality for creating control graphical user
 interfaces or devices based on the scpi_tcp_server.
 """
 
-from __future__ import annotations
-
 import copy
 import itertools
 import logging
@@ -60,6 +58,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -125,8 +124,8 @@ def catchEmitError(method: _F) -> _F:
             logger.exception("Handling error in %s", pointer)
             # if the GuiDict which raised the error allows disabling lets just
             # disable it and swallow the error
-            if isinstance(self, (GuiDict, GuiDict._Worker)):
-                if isinstance(self, GuiDict._Worker):
+            if isinstance(self, (GuiDict, _Worker)):
+                if isinstance(self, _Worker):
                     guidict = self.guidict
                 else:
                     guidict = self
@@ -190,9 +189,10 @@ class ToggleButton(QPushButton):
 
     Parameters
     ----------
-    *args : Union[str, List[str], Tuple[str, str]]
-        Positional arguments. The first argument should be either a string
-        (single label) or a list/tuple of two strings (labels for unchecked/checked states).
+    *args : str | list[str] | tuple[str, str]]
+        Positional arguments. The first argument should be either a
+        string (single label) or a list/tuple of two strings (labels
+        for unchecked/checked states).
     **kwargs : dict
         Keyword arguments to be passed to the QPushButton constructor.
     """
@@ -245,7 +245,9 @@ class guiObject(IntEnum):
     hline = 9
 
     @classmethod
-    def getWidget(cls, label, wType, init=None):
+    def getWidget(
+        cls, label: str, wType: int | str, init: tuple | object | None = None
+    ) -> QWidget | None:
         """
         Return the widget of the correct type.
 
@@ -254,7 +256,7 @@ class guiObject(IntEnum):
         label : str
             Label of widget (used as a fallback string on the button if no init
             value is given).
-        wType : int or guiObject
+        wType : int or guiObject or str
             Can be one of:
             * str : QLabel: string used as label text.
             * 0 : QPushButton
@@ -267,7 +269,7 @@ class guiObject(IntEnum):
             * 7 : QDoubleSpinBox
             * 8 : QLabel: used as Value indicator
             * 9 : QFrame: used to generate a horizontal separator line
-        init : tuple, str, optional
+        init : tuple, object, optional
             Provides the initialization values (button label, valid ranges,
             combobox entries).
 
@@ -293,7 +295,7 @@ class guiObject(IntEnum):
         Generate a label with text "Example":
         >>> getWidget("Property", "Example")
         """
-        widget_creation_methods = {
+        widget_creation_methods: dict[Any, Callable[[Any], QWidget]] = {
             str: lambda wType: cls._create_label_widget(wType),
             guiObject.labeltext: lambda init: cls._create_labeltext_widget(init),
             guiObject.button: lambda init: QPushButton(init if init else label),
@@ -319,47 +321,47 @@ class guiObject(IntEnum):
         return None
 
     @classmethod
-    def _create_label_widget(cls, wType):
+    def _create_label_widget(cls, wType: str) -> QLabel:
         qlab = QLabel(wType)
         qlab.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         return qlab
 
     @classmethod
-    def _create_labeltext_widget(cls, init):
+    def _create_labeltext_widget(cls, init) -> QLabel:
         label = QLabel(init if init else None)
         label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         return label
 
     @classmethod
-    def _create_progressbar_widget(cls, init):
+    def _create_progressbar_widget(cls, init) -> matr1xProgressBar:
         pbar = matr1xProgressBar()
         if init:
             pbar.setValue(init)
         return pbar
 
     @classmethod
-    def _create_combobox_widget(cls, init):
+    def _create_combobox_widget(cls, init) -> QComboBox:
         qcombo = QComboBox()
         if init is not None:
             qcombo.insertItems(0, init)
         return qcombo
 
     @classmethod
-    def _create_spinbox_widget(cls, init):
+    def _create_spinbox_widget(cls, init) -> QSpinBox:
         sb = QSpinBox()
         if init is not None and len(init) == 2:
             sb.setRange(*init)
         return sb
 
     @classmethod
-    def _create_doublespinbox_widget(cls, init):
+    def _create_doublespinbox_widget(cls, init) -> QDoubleSpinBox:
         sb = QDoubleSpinBox()
         if init is not None and len(init) == 2:
             sb.setRange(*init)
         return sb
 
     @classmethod
-    def _create_hline_widget(cls, init):
+    def _create_hline_widget(cls, init) -> QFrame:
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
@@ -380,42 +382,45 @@ class var(QObject):
     Parameters
     ----------
     dType : type or tuple of (type, type) or None
-        Type of variable that is to be stored and its emitted type upon a value
-        change.
+        Type of variable that is to be stored and its emitted type upon
+        a value change.
     outType : type
-        Type the emitted value should be cast into (only present for backward
-        compatibility. should be set nowadays in the dtype argument).
-    columns : list | str | int | guiObject, optional
+        Type the emitted value should be cast into (only present for
+        backward compatibility. should be set nowadays in the dtype
+        argument).
+    columns : list | int | guiObject, optional
         GUI elements needed for this variable. Typically here are two
-        entries to view the current value in the first element and be able to
-        alter it in the second. The values should be enumerations from guiObject.
-        Will be converted to a list internally.
+        entries to view the current value in the first element and be
+        able to alter it in the second. The values should be
+        enumerations from guiObject. Will be converted to a list
+        internally.
     unit : str, optional
         Unit string used in the label and data logging.
     log : bool or None, optional
-        Boolean flag to set the default behavior in the logging config. If None,
-        no checkbox is shown. If dType is None, this value is ignored.
+        Boolean flag to set the default behavior in the logging config.
+        If None, no checkbox is shown. If dType is None, this value is
+        ignored.
     init : list | object, optional
-        Initialization values. This should be a list of the same length as
-        columns. If it is of non-list type its assumed to apply to all entries of
-        columns equally.
+        Initialization values. This should be a list of the same length
+        as columns. If it is of non-list type its assumed to apply to
+        all entries of columns equally.
     hide : bool, optional
         Flag to hide the variable in the GUI.
     """
 
-    valueChanged = Signal(object)
-    unitChanged = Signal(str)
+    valueChanged: Signal = Signal(object)
+    unitChanged: Signal = Signal(str)
 
     def __init__(
         self,
         dtype: type | tuple[type, type] | None = (float, str),
         outType: type | None = None,
-        columns: list | str | int | guiObject | None = None,
+        columns: str | list | int | guiObject | None = None,
         unit: str = "",
         log: bool | None = False,
         init: list | object | None = None,
         hide: bool = False,
-    ):
+    ) -> None:
         super().__init__()
         self.variableType: type | None
         if isinstance(dtype, tuple):
@@ -425,13 +430,14 @@ class var(QObject):
             self.variableType = dtype
             self.outType = outType if outType is not None else dtype
         self._value = None
-        self._unit = unit
+        self._unit: str = unit
         if self.variableType is None:
             self.log = None
         else:
             self.log = log
-        self.init = init
+        self.init: list | object | None = init
         self.hide = hide
+        self.columns: list[int | guiObject | str]
         if columns is None:
             self.columns = []
         elif not isinstance(columns, list):
@@ -442,7 +448,7 @@ class var(QObject):
             self.columns = columns
         self.widgets: list[Any] = []
 
-    def setValue(self, newValue):
+    def setValue(self, newValue: Any) -> None:
         """
         Set the value of the variable.
 
@@ -454,7 +460,7 @@ class var(QObject):
         self.value = newValue
 
     @property
-    def value(self):
+    def value(self) -> Any:
         """
         Get the current value of the variable.
 
@@ -466,7 +472,7 @@ class var(QObject):
         return self._value
 
     @value.setter
-    def value(self, newValue):
+    def value(self, newValue: Any) -> None:
         """
         Set the value of the variable and emit a signal if it has changed.
 
@@ -488,7 +494,7 @@ class var(QObject):
         self.valueChanged.emit(self.outType(self._value))
 
     @property
-    def unit(self):
+    def unit(self) -> str:
         """
         Get the unit of the variable.
 
@@ -500,7 +506,7 @@ class var(QObject):
         return self._unit
 
     @unit.setter
-    def unit(self, newunit):
+    def unit(self, newunit: str) -> None:
         """
         Set the unit of the variable and emit a signal.
 
@@ -512,7 +518,7 @@ class var(QObject):
         self._unit = newunit
         self.unitChanged.emit(self._unit)
 
-    def generate_widgets(self, label=""):
+    def generate_widgets(self, label: str = "") -> None:
         """
         Generate a list of Qt widgets corresponding to the label and columns.
 
@@ -587,7 +593,7 @@ class var(QObject):
             for w in self.widgets:
                 w.hide()
 
-    def updateLabel(self, newunit):
+    def updateLabel(self, newunit: str) -> None:
         """
         Update the label of the widget with a new unit.
 
@@ -606,7 +612,7 @@ class var(QObject):
             newlabel = f"{label} ({newunit})"
         widget.setText(newlabel)
 
-    def getGUIvalue(self, column=2):
+    def getGUIvalue(self, column: int = 2) -> Any:
         """
         Return the value obtained from the GUI element in the respective column.
 
@@ -646,7 +652,7 @@ class var(QObject):
             raise InternalInvariantError("variableType should not be None at this point!")
         return self.variableType(value)
 
-    def connect_signal(self):
+    def connect_signal(self) -> None:
         """Connect the valueChanged signal to the corresponding widget."""
         if len(self.widgets) >= 2 and self.variableType is not None:
             widgets1 = self.widgets[1]
@@ -721,7 +727,7 @@ class var(QObject):
                 if self.widgets[2].isCheckable():
                     self.valueChanged.connect(self.widgets[2].setChecked)
 
-    def copy_value(self):
+    def copy_value(self) -> None:
         """Copy the read values into the set field."""
         # check that a set-field exists, otherwise pass
         if len(self.columns) >= 2 and self.variableType is not None:
@@ -743,7 +749,7 @@ class var(QObject):
                 if self.value is not None:
                     raise
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Any:
         """
         Access GUI dictionary items for backward compatibility.
 
@@ -782,7 +788,7 @@ class var(QObject):
             return self.unit
         raise NotImplementedError
 
-    def __setitem__(self, idx, value):
+    def __setitem__(self, idx: int, value: Any) -> None:
         """
         Set an item in the GUI dictionary.
 
@@ -806,7 +812,7 @@ class var(QObject):
         else:
             raise NotImplementedError
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Get the length of the GUI dictionary items.
 
@@ -821,6 +827,132 @@ class var(QObject):
         if self.unit:
             return 3
         return 2
+
+
+class MyQDockWidget(QDockWidget):
+    """Modify QDockWidget to be able to track its closing."""
+
+    dockClosed: Signal = Signal()
+
+    def __init__(self, title: str, appname: str) -> None:
+        super().__init__(title)
+        self.application_name: str = appname
+        self.setObjectName(f"{appname}-{title}")
+        self.settings: SaferQSettings = SaferQSettings("matr1x", appname)
+        self.disabled: bool = False
+        self.extended: bool = False
+
+    @AutoSlot
+    def saveCurrentState(self) -> None:
+        """Save current dock geometry and enable state."""
+        self.settings.beginGroup(self.windowTitle())
+        self.settings.setValue("size", self.size())
+        self.settings.setValue("pos", self.pos())
+        self.settings.setValue("disabled", self.disabled)
+        self.settings.setValue("extended", self.extended)
+        self.settings.endGroup()
+
+    def restoreState(self) -> None:
+        """Load stored dock geometry and disable state."""
+        self.settings.beginGroup(self.windowTitle())
+        self.resize(self.settings.safer_value("size", self.size(), type=QSize))
+        self.move(self.settings.safer_value("pos", self.pos(), type=QPoint))
+        self.disabled = self.settings.safer_value("disabled", False, type=bool)
+        self.extended = self.settings.safer_value("extended", False, type=bool)
+        self.settings.endGroup()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Emit dockClosed signal when the dock is closed."""
+        super().closeEvent(event)
+        self.dockClosed.emit()
+
+
+class _GuiDispatcher(QObject):
+    """Small QObject living on the GUI thread to run widget updates safely."""
+
+    copy_requested: Signal = Signal()
+    disable_requested: Signal = Signal()
+
+    def __init__(self, guidict: "GuiDict") -> None:
+        super().__init__()
+        self._guidict: GuiDict = guidict
+        self.copy_requested.connect(self.copy_values_slot)
+        self.disable_requested.connect(self.disable_guidict)
+
+    @AutoSlot
+    def copy_values_slot(self) -> None:
+        """Trigger a safe copy-values operation on the GUI thread."""
+        self._guidict.copy_values()
+
+    @AutoSlot
+    def disable_guidict(self) -> None:
+        """Disable the GuiDict safely on the GUI thread."""
+        self._guidict.enable_switch.setChecked(False)
+
+
+class _Worker(QObject):
+    """
+    Worker object for the refresh thread.
+
+    This is needed for the QTimer to work inside the QThread.
+
+    Attributes
+    ----------
+    activity : Signal
+        Signal to indicate an iteration of the refresh timer.
+    panic : Signal
+        Signal to indicate a panic state.
+    sig_error : Signal
+        Signal to report errors.
+    """
+
+    # activity signal to indicate an iteration of the refresh timer
+    activity = Signal(str)
+    panic = Signal(bool, str)
+    sig_error = Signal(type, Exception, str)
+
+    def __init__(self, target: Callable[[int], None], interval: int, parent: "GuiDict") -> None:
+        super().__init__()
+        self.target: Callable[[int], None] = target  # target function for the refresh loop
+        self.interval: int = interval  # in milliseconds
+        self.guidict: GuiDict = parent
+        self._timer: QTimer = QTimer()  # fake definition
+
+    @AutoSlot
+    @catchEmitError
+    def run(self) -> None:
+        """Start the worker's refresh loop and copy readout to set fields."""
+        self._timer = QTimer()
+        self._timer.setInterval(self.interval)
+        counter = itertools.count(1)
+        self._timer.timeout.connect(lambda: self._target(next(counter)))
+        # start refresh immediately and then again after the timer timeout
+        self.target(0)
+        # copy values from readout to set fields upon first run
+        self.guidict._dispatcher.copy_requested.emit()
+        self._timer.start()
+
+    @AutoSlot
+    def stop(self) -> None:
+        """Stop the worker's refresh loop."""
+        self._timer.stop()
+        self.activity.emit("lightgray")
+
+    @catchEmitError
+    def _target(self, count: int) -> None:
+        """
+        Encapsulate target function to emit the activity signal.
+
+        Parameters
+        ----------
+        count : int
+            The current iteration count.
+        """
+        if count % 2:
+            self.activity.emit("green")
+        else:
+            self.activity.emit("lightgreen")
+        self.target(count)
 
 
 class GuiDict(UserDict[str, var]):
@@ -861,102 +993,16 @@ class GuiDict(UserDict[str, var]):
 
     data: dict[str, var] = {}
     cmds: dict[str, Command] = {}
-    refresh_period = 1.0
-    allow_disabling = False
+    refresh_period: float = 1.0
+    allow_disabling: bool = False
 
-    class _Worker(QObject):
-        """
-        Worker object for the refresh thread.
-
-        This is needed for the QTimer to work inside the QThread.
-
-        Attributes
-        ----------
-        activity : Signal
-            Signal to indicate an iteration of the refresh timer.
-        panic : Signal
-            Signal to indicate a panic state.
-        sig_error : Signal
-            Signal to report errors.
-        """
-
-        # activity signal to indicate an iteration of the refresh timer
-        activity = Signal(str)
-        panic = Signal(bool, str)
-        sig_error = Signal(type, Exception, str)
-
-        def __init__(self, target, interval, parent: GuiDict):
-            super().__init__()
-            self.target = target  # target function for the refresh loop
-            self.interval = interval  # in milliseconds
-            self.guidict: GuiDict = parent
-            self._timer = QTimer()  # fake definition
-
-        @AutoSlot
-        @catchEmitError
-        def run(self) -> None:
-            """Start the worker's refresh loop and copy readout to set fields."""
-            self._timer = QTimer()
-            self._timer.setInterval(self.interval)
-            counter = itertools.count(1)
-            self._timer.timeout.connect(lambda: self._target(next(counter)))
-            # start refresh immediately and then again after the timer timeout
-            self.target(0)
-            # copy values from readout to set fields upon first run
-            self.guidict._dispatcher.copy_requested.emit()
-            self._timer.start()
-
-        @AutoSlot
-        def stop(self) -> None:
-            """Stop the worker's refresh loop."""
-            self._timer.stop()
-            self.activity.emit("lightgray")
-
-        @catchEmitError
-        def _target(self, count: int) -> None:
-            """
-            Encapsulate target function to emit the activity signal.
-
-            Parameters
-            ----------
-            count : int
-                The current iteration count.
-            """
-            if count % 2:
-                self.activity.emit("green")
-            else:
-                self.activity.emit("lightgreen")
-            self.target(count)
-
-    class _GuiDispatcher(QObject):
-        """Small QObject living on the GUI thread to run widget updates safely."""
-
-        copy_requested = Signal()
-        disable_requested = Signal()
-
-        def __init__(self, guidict: GuiDict):
-            super().__init__()
-            self._guidict = guidict
-            self.copy_requested.connect(self.copy_values_slot)
-            self.disable_requested.connect(self.disable_guidict)
-
-        @AutoSlot
-        def copy_values_slot(self) -> None:
-            """Trigger a safe copy-values operation on the GUI thread."""
-            self._guidict.copy_values()
-
-        @AutoSlot
-        def disable_guidict(self) -> None:
-            """Disable the GuiDict safely on the GUI thread."""
-            self._guidict.enable_switch.setChecked(False)
-
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(self.data)
         if not hasattr(self, "S"):
-            self.S = system.System()
-        self._refresh_thread = QThread()
-        self._panic = False
-        self.refresh_worker = self._Worker(
+            self.S: System = system.System()
+        self._refresh_thread: QThread = QThread()
+        self._panic: bool = False
+        self.refresh_worker: _Worker = _Worker(
             target=self.refresh,
             interval=self.refresh_period_ms,
             parent=self,
@@ -967,8 +1013,8 @@ class GuiDict(UserDict[str, var]):
         # reference to parent object which it will save in after its assigned
         # this reference is used to raise an error on the parent if needed
         self.parent = None
-        self.running = False
-        self.showlog = False
+        self.running: bool = False
+        self.showlog: bool = False
         # buffer original commands
         normalize_cmds(self.cmds)
         self._orig_cmds: dict[str, Command] = copy.deepcopy(self.cmds)
@@ -976,10 +1022,10 @@ class GuiDict(UserDict[str, var]):
         self.menu_actions = []
         # initialize all with None
         self._reset()
-        self._dispatcher = GuiDict._GuiDispatcher(self)
+        self._dispatcher = _GuiDispatcher(self)
         self.name: str = next(iter(self.keys()), self.__class__.__name__)
 
-    def create_GUI(self):
+    def create_GUI(self) -> MyQDockWidget:
         """
         Create a QDockWidget to be attached to the main control GUI.
 
@@ -990,45 +1036,8 @@ class GuiDict(UserDict[str, var]):
         QDockWidget
             The created dock widget.
         """
-
-        class MyQDockWidget(QDockWidget):
-            """Modify QDockWidget to be able to track its closing."""
-
-            dockClosed = Signal()
-
-            def __init__(self, title, appname):
-                super().__init__(title)
-                self.application_name = appname
-                self.setObjectName(f"{appname}-{title}")
-                self.settings = SaferQSettings("matr1x", appname)
-                self.disabled = False
-                self.extended = False
-
-            @AutoSlot
-            def saveCurrentState(self) -> None:
-                """Save current dock geometry and enable state."""
-                self.settings.beginGroup(self.windowTitle())
-                self.settings.setValue("size", self.size())
-                self.settings.setValue("pos", self.pos())
-                self.settings.setValue("disabled", self.disabled)
-                self.settings.setValue("extended", self.extended)
-                self.settings.endGroup()
-
-            def restoreState(self):
-                """Load stored dock geometry and disable state."""
-                self.settings.beginGroup(self.windowTitle())
-                self.resize(self.settings.safer_value("size", self.size(), type=QSize))
-                self.move(self.settings.safer_value("pos", self.pos(), type=QPoint))
-                self.disabled = self.settings.safer_value("disabled", False, type=bool)
-                self.extended = self.settings.safer_value("extended", False, type=bool)
-                self.settings.endGroup()
-
-            def closeEvent(self, event):
-                super().closeEvent(event)
-                self.dockClosed.emit()
-
         if self.parent is not None:
-            self.dock = MyQDockWidget(self.name, self.parent.windowTitle())
+            self.dock: MyQDockWidget = MyQDockWidget(self.name, self.parent.windowTitle())
         else:
             self.dock = MyQDockWidget(self.name, "")
         self.dock.setFeatures(
@@ -1042,19 +1051,18 @@ class GuiDict(UserDict[str, var]):
         column.setSpacing(0)
 
         self.dock.setWidget(dockcontainer)
-        self.container = QWidget()
+        self.container: QWidget = QWidget()
         self.container.setContentsMargins(10, 0, 10, 10)
 
         # add top controls (hiding/enable) to the content widget
-        self.control_layout = QHBoxLayout()
-        self.toolbar = QToolBar()
+        self.control_layout: QHBoxLayout = QHBoxLayout()
+        self.toolbar: QToolBar = QToolBar()
         style = MApplication.style()
-        assert style is not None
         icon_size = style.pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.control_layout.addWidget(self.toolbar)
-        self.extend_switch = QCheckBox()
-        self.enable_switch = QCheckBox()
+        self.extend_switch: QCheckBox = QCheckBox()
+        self.enable_switch: QCheckBox = QCheckBox()
 
         has_hiding = any(variable.hide for variable in self.values())
         if has_hiding:
@@ -1071,7 +1079,7 @@ class GuiDict(UserDict[str, var]):
 
         return self.dock
 
-    def create_content(self):
+    def create_content(self) -> None:
         """
         Create the real content of the GuiDict.
 
@@ -1196,7 +1204,7 @@ class GuiDict(UserDict[str, var]):
             # reset variables and commands
             self._reset()
 
-    def _reset(self):
+    def _reset(self) -> None:
         """
         Reset all values and cmd functions to None.
 
@@ -1220,7 +1228,9 @@ class GuiDict(UserDict[str, var]):
             self._refresh_thread.start()
             self.running = True
 
-    def set_cmd_funcs(self, window_obj: ControlWindow | None = None, system: System | None = None):
+    def set_cmd_funcs(
+        self, window_obj: "ControlWindow | None" = None, system: System | None = None
+    ) -> dict[str, Command]:
         """
         Replace setter and getter functions by an instance of Command.
 
@@ -1244,7 +1254,7 @@ class GuiDict(UserDict[str, var]):
         self,
         name: str,
         cmd: Command,
-        window_obj: ControlWindow | None = None,
+        window_obj: "ControlWindow | None" = None,
         system: System | None = None,
     ) -> tuple[Callable | None, tuple]:
         """
@@ -1266,7 +1276,7 @@ class GuiDict(UserDict[str, var]):
         raise ValueError(f"could not identify '{cmd.setfunc}' of '{name}'")
 
     def _handle_string_setfunc(
-        self, name: str, cmd: Command, window_obj: ControlWindow | None
+        self, name: str, cmd: Command, window_obj: "ControlWindow | None"
     ) -> tuple[Callable | None, tuple]:
         """Handle the case where setfunc is a string."""
         cmd.setfunc = cast(str, cmd.setfunc)
@@ -1318,7 +1328,7 @@ class GuiDict(UserDict[str, var]):
         self,
         name: str,
         cmd: Command,
-        window_obj: ControlWindow | None = None,
+        window_obj: "ControlWindow | None" = None,
         system: System | None = None,
     ) -> tuple[Callable | None, tuple]:
         """
@@ -1340,7 +1350,7 @@ class GuiDict(UserDict[str, var]):
         raise ValueError(f"could not identify '{cmd.getfunc}' of '{name}'")
 
     def _handle_string_getfunc(
-        self, name: str, cmd: Command, window_obj: ControlWindow | None
+        self, name: str, cmd: Command, window_obj: "ControlWindow | None"
     ) -> tuple[Callable | None, tuple]:
         """Handle the case where getfunc is a string."""
         cmd.getfunc = cast(str, cmd.getfunc)
@@ -1394,7 +1404,7 @@ class GuiDict(UserDict[str, var]):
 
             return getfunc, ()
 
-    def panic(self):
+    def panic(self) -> None:
         """
         Enable panic mode and put everyting to a save state.
 
@@ -1403,12 +1413,12 @@ class GuiDict(UserDict[str, var]):
         self._panic = True
         self.enable_switch.setEnabled(False)
 
-    def unpanic(self):
+    def unpanic(self) -> None:
         """Make device operational again."""
         self.enable_switch.setEnabled(True)
         self._panic = False
 
-    def refresh(self, count: int):
+    def refresh(self, count: int) -> None:
         """
         Update values from the device and show them in the GUI.
 
@@ -1427,7 +1437,9 @@ class GuiDict(UserDict[str, var]):
         #     self["V1"].value = self.S["dev"].get_another_value()
 
 
-def linear_trend(timestamps: ArrayLike, data: ArrayLike, interval: float = 60):
+def linear_trend(
+    timestamps: ArrayLike, data: ArrayLike, interval: float = 60
+) -> tuple[float | None, float | None]:
     """
     Calculate the linear trend of the data in the last 'interval' seconds.
 
@@ -1563,13 +1575,13 @@ def sendNotificationEmail(
 
 def control_main(
     name: str,
-    window_class: type[ControlWindow],
+    window_class: "type[ControlWindow]",
     guidicts: GuiDict | type[GuiDict] | Sequence[type[GuiDict] | GuiDict] | None = None,
     extra_cmds: dict | None = None,
     lockfile: bool = True,
     package: str = "matr1x",
     **kwargs: Any,
-):
+) -> None:
     """
     Run main function of control GUI.
 
