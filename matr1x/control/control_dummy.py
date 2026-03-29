@@ -21,7 +21,6 @@ import threading
 import time
 
 import numpy
-from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QAction
 
 from matr1x import system
@@ -36,7 +35,7 @@ from matr1x.control import (
 from matr1x.control import guiObject as go
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
-from matr1x.gui_util import AutoSlot, get_matrix_icon
+from matr1x.gui_util import get_matrix_icon
 from matr1x.util import Command, Get
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
@@ -298,17 +297,7 @@ class exampleDict2(GuiDict):
     refresh_period = 0.1
     # allow deactivating the GuiDict which also closes all device connections
     allow_disabling = True
-    v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
-
-    class MyQObject(QObject):
-        """
-        Define Signals via QObjects.
-
-        We need an object derived from QObject here. In this example it
-        is used to set a tooltip string in a thread safe manner.
-        """
-
-        tooltip = Signal(str, str)
+    v5 = 0.0  # fake hardware value storage. Should be avoided in real GUIs
 
     def __init__(self):
         super().__init__()
@@ -316,9 +305,6 @@ class exampleDict2(GuiDict):
         N = 40  # length of all FIFO queues
         self.dataseries = collections.deque(maxlen=N)
         self.timestamps = collections.deque(maxlen=N)
-        # enable setting the tooltip
-        self.qobject = self.MyQObject()
-        self.qobject.tooltip.connect(self.set_tooltip)
 
     def refresh(self, count):
         """
@@ -337,26 +323,10 @@ class exampleDict2(GuiDict):
             # generate and update tooltip
             slope, std = linear_trend(self.timestamps, self.dataseries)
             if slope is not None and std is not None:
-                self.qobject.tooltip.emit(
-                    "V5",
-                    f"last minute \nslope: {slope / 60:.3f}mbar/min\nstd: {std:.3f} mbar",
-                )
+                self[
+                    "V5"
+                ].tooltip = f"last minute \nslope: {slope / 60:.3f}mbar/min\nstd: {std:.3f} mbar"
         self.v5 = round(30 * numpy.random.random(), 3)
-
-    @AutoSlot
-    def set_tooltip(self, label: str, tooltip: str) -> None:
-        """
-        Set tooltip thread safe on any widget in the first column.
-
-        Parameters
-        ----------
-        label : str
-            The label of the widget.
-        tooltip : str
-            The tooltip text to set.
-        """
-        if label in self:
-            self[label].widgets[1].setToolTip(tooltip)
 
 
 # define clientdevice to be used by measurement systems interfacing with this

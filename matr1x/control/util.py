@@ -410,6 +410,7 @@ class var(QObject):
 
     valueChanged: Signal = Signal(object)
     unitChanged: Signal = Signal(str)
+    tooltipChanged: Signal = Signal(str)
 
     def __init__(
         self,
@@ -431,6 +432,7 @@ class var(QObject):
             self.outType = outType if outType is not None else dtype
         self._value = None
         self._unit: str = unit
+        self._tooltip: str = ""
         if self.variableType is None:
             self.log = None
         else:
@@ -517,6 +519,31 @@ class var(QObject):
         """
         self._unit = newunit
         self.unitChanged.emit(self._unit)
+
+    @property
+    def tooltip(self) -> str:
+        """
+        Get the tooltip of the variable.
+
+        Returns
+        -------
+        str
+            The tooltip of the variable.
+        """
+        return self._tooltip
+
+    @tooltip.setter
+    def tooltip(self, newtooltip: str) -> None:
+        """
+        Set the tooltip of the variable and emit a signal.
+
+        Parameters
+        ----------
+        newtooltip : str
+            The new tooltip to set.
+        """
+        self._tooltip = newtooltip
+        self.tooltipChanged.emit(self._tooltip)
 
     def generate_widgets(self, label: str = "") -> None:
         """
@@ -718,6 +745,7 @@ class var(QObject):
                     self.valueChanged.connect(bool_wrapper)
             if isinstance(self.widgets[0], QLabel):
                 self.unitChanged.connect(self.updateLabel)
+            self.tooltipChanged.connect(widgets1.setToolTip)
 
         # automatically copy state of checkbox to togglebutton
         if len(self.widgets) >= 3:
