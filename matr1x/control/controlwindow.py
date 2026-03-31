@@ -70,7 +70,7 @@ from matr1x.gui_util import (
     open_matrix_toml,
     protected_restore,
 )
-from matr1x.util import Get, StreamToLogger
+from matr1x.util import Command, Get, StreamToLogger
 
 logger = logging.getLogger(__name__)
 printlogger = logging.getLogger(__name__ + "_stdio")
@@ -461,7 +461,7 @@ class ControlWindow(QMainWindow):
         if not hasattr(self, "S"):
             self.S = system.MergedSystem([g.S for g in self.guidicts])
         # store commands
-        self.cmd_list = {
+        self.cmd_list: dict[str, Command] = {
             ":conf": Get(
                 lambda b: pickle.loads(ast.literal_eval(b)).decode(),
                 lambda: pickle.dumps(self.S.query(), protocol=0),

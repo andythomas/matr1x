@@ -601,7 +601,7 @@ class var(QObject):
         # apply a validator
         if len(self.widgets) > 2:
             if isinstance(self.widgets[2], QLineEdit):
-                val = validator.get(self.variableType, None)
+                val = validator.get(self.variableType, None)  # ty: ignore[no-matching-overload]
                 if val:
                     self.widgets[2].setValidator(val)
 

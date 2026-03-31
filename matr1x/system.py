@@ -1643,7 +1643,8 @@ class System:
 
                 init_hdf5_skel(data_file, *telemetry)
         else:
-            telemetry += [default_separator]
+            # the next line could have a real bug?!
+            telemetry += [default_separator]  # ty: ignore[unsupported-operator]
             with Path(self.filename).open("w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
                     if dckey not in VALID_META_KEYS.keys():

@@ -40,7 +40,7 @@ def test_check_depth():
 
 def test_calculate_sweep():
     """Test calculate_sweep function with one example."""
-    sweep_parms = [[[1, 2, 2], [3, 4, 2]], [], [[-1, 1, 2]]]
+    sweep_parms: list[list[list[int | float]]] = [[[1, 2, 2], [3, 4, 2]], [], [[-1, 1, 2]]]
     loop_over = [-1, -1, 0]
     up_down = [True, False, False]
     repeat = [1, 1, 1]
@@ -56,7 +56,7 @@ def test_calculate_sweep():
 
 def test_recursion():
     """Test calculate_sweep function with more recursion."""
-    sweep_parms = [[], [], [[0, 10, 3]], [[0, 1, 2]], [[1, 2, 2]]]
+    sweep_parms: list[list[list[int | float]]] = [[], [], [[0, 10, 3]], [[0, 1, 2]], [[1, 2, 2]]]
     loop_over = [-1, -1, -1, 2, 2]
     up_down = [False, False, False, False, False]
     repeat = [1, 1, 1, 1, 1]

@@ -1033,7 +1033,7 @@ Please investigate the error and eventually restart matrix-preview""",
             # empty index selected
             return -3
 
-        data_vars = [z, x, y]
+        data_vars: list[PlotData | None] = [z, x, y]
         indices = [indexZ, indexX, indexY]
 
         for i, index in enumerate(indices):

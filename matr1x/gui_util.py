@@ -150,7 +150,7 @@ R = TypeVar("R")
 logger = logging.getLogger(__name__)
 
 # dictionary of commonly used validators
-validator = {
+validator: dict[type, QDoubleValidator | QIntValidator] = {
     float: QDoubleValidator(),
     int: QIntValidator(),
     np.uint: QIntValidator(),

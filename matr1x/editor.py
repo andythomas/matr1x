@@ -1323,7 +1323,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         )
         self._run_javascript_async(js_command)
 
-    def _process_lsp_completions(self, lsp_completions):
+    def _process_lsp_completions(self, lsp_completions: list[dict[str, str]]):
         """Convert LSP completion results to Monaco format."""
         monaco_completions = []
         if isinstance(lsp_completions, list):

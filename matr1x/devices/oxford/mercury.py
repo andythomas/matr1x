@@ -222,7 +222,7 @@ class MercurySingleAxisIPS(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )
+                )  # ty: ignore[invalid-assignment]
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
                 if dummy == "ON":
@@ -232,7 +232,7 @@ class MercurySingleAxisIPS(VisaDevice):
                 else:
                     # Must be action
                     try:
-                        self.workingDict[key][0][0] = status.index(dummy)
+                        self.workingDict[key][0][0] = status.index(dummy)  # ty: ignore[invalid-assignment]
                     except ValueError:
                         # what happened?
                         logger.info(
@@ -744,7 +744,7 @@ class MercuryIPS(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )
+                )  # ty: ignore[invalid-assignment]
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
                 if dummy == "ON":
@@ -754,7 +754,7 @@ class MercuryIPS(VisaDevice):
                 else:
                     # Must be action
                     try:
-                        self.workingDict[key][0][0] = status.index(dummy)
+                        self.workingDict[key][0][0] = status.index(dummy)  # ty: ignore[invalid-assignment]
                     except ValueError:
                         # what happened?
                         logger.info(
@@ -1329,7 +1329,7 @@ class MercuryITC(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )
+                )  # ty: ignore[invalid-assignment]
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
                 if dummy == "ON":
