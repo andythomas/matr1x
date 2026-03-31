@@ -1189,6 +1189,8 @@ Please investigate the error and eventually restart matrix-preview""",
             dim = len(self.shapes[indexY])
             if dim >= 3:
                 return -2
+            if dim == 2:
+                self.w_transpose.setVisible(True)
 
             yname = self.names[indexY]
 
