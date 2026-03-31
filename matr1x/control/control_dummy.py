@@ -306,6 +306,13 @@ class exampleDict2(GuiDict):
         self.dataseries = collections.deque(maxlen=N)
         self.timestamps = collections.deque(maxlen=N)
 
+    def create_GUI(self):
+        """Build the actual GUI."""
+        content = super().create_GUI()
+        # Capture the base text on the GUI thread before refresh uses it.
+        self._info_base = self["Info"].widgets[1].text()
+        return content
+
     def refresh(self, count):
         """
         Refresh the (fake) read-out values.
@@ -326,6 +333,9 @@ class exampleDict2(GuiDict):
                 self[
                     "V5"
                 ].tooltip = f"last minute \nslope: {slope / 60:.3f}mbar/min\nstd: {std:.3f} mbar"
+                if self.extended_visible:
+                    # Update hidden info only while the extended controls are visible.
+                    self["Info"].value = self._info_base + f"\n\nSlope: {slope / 60:.3f} mbar/min"
         self.v5 = round(30 * numpy.random.random(), 3)
 
 

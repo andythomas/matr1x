@@ -30,6 +30,7 @@ import re
 import smtplib
 import ssl
 import sys
+import threading
 import time
 from collections import UserDict
 from collections.abc import Callable, Sequence
@@ -317,6 +318,8 @@ class guiObject(IntEnum):
         creation_method = widget_creation_methods.get(widget_type)
 
         if creation_method:
+            if widget_type is str and init is None:
+                return creation_method(wType)
             return creation_method(init)
         return None
 
@@ -411,6 +414,7 @@ class var(QObject):
     valueChanged: Signal = Signal(object)
     unitChanged: Signal = Signal(str)
     tooltipChanged: Signal = Signal(str)
+    copyValueRequested: Signal = Signal()
 
     def __init__(
         self,
@@ -449,6 +453,9 @@ class var(QObject):
         else:
             self.columns = columns
         self.widgets: list[Any] = []
+        self._gui_cache: dict[int, Any] = {}
+        self._gui_cache_lock = threading.Lock()
+        self.copyValueRequested.connect(self._copy_value_slot)
 
     def setValue(self, newValue: Any) -> None:
         """
@@ -545,7 +552,7 @@ class var(QObject):
         self._tooltip = newtooltip
         self.tooltipChanged.emit(self._tooltip)
 
-    def generate_widgets(self, label: str = "") -> None:
+    def _generate_widgets(self, label: str = "") -> None:
         """
         Generate a list of Qt widgets corresponding to the label and columns.
 
@@ -615,12 +622,12 @@ class var(QObject):
             checkbox.setVisible(False)
             self.widgets.append(checkbox)
         # connect variable value with the widgets
-        self.connect_signal()
+        self._connect_signal()
         if self.hide:
             for w in self.widgets:
                 w.hide()
 
-    def updateLabel(self, newunit: str) -> None:
+    def _update_label(self, newunit: str) -> None:
         """
         Update the label of the widget with a new unit.
 
@@ -641,9 +648,12 @@ class var(QObject):
 
     def getGUIvalue(self, column: int = 2) -> Any:
         """
-        Return the value obtained from the GUI element in the respective column.
+        Return the value of the GUI element in the respective column.
 
-        The return value will be cast to the variableType.
+        On the widget-owning thread the widget is read directly. Otherwise
+        a cached GUI value is returned when available.
+
+        The return value is cast to the variableType.
 
         Parameters
         ----------
@@ -659,7 +669,33 @@ class var(QObject):
         ------
         TypeError
             If the GUI element type is unknown.
+        RuntimeError
+            If the method is called off the widget-owning thread and no
+            thread-safe value source is available.
         """
+        element = self.widgets[column]
+        if self._is_widget_threadsafe_here(element):
+            value = self._read_widget_value(column)
+            self._set_cached_gui_value(column, value)
+            return value
+
+        cached = self._get_cached_gui_value(column)
+        if cached is not None:
+            return cached
+
+        raise RuntimeError(
+            f"Thread-unsafe GUI read from column {column} of {type(element).__name__} "
+            "without cached value available."
+        )
+
+    def _is_widget_threadsafe_here(self, widget: QWidget) -> bool:
+        """Return whether direct widget access is safe in the current thread."""
+        return QThread.currentThread() == widget.thread()
+
+    def _read_widget_value(self, column: int) -> Any:
+        """Read and cast a widget value from the given column."""
+        if self.variableType is None:
+            raise InternalInvariantError("variableType should not be None at this point!")
         element = self.widgets[column]
         if isinstance(element, (QLineEdit, QLabel)):
             value = element.text()
@@ -674,12 +710,19 @@ class var(QObject):
             value = element.isChecked()
         else:
             raise TypeError(f"Unknown type of GUI element {type(element)}")
-        # cast value and return
-        if self.variableType is None:
-            raise InternalInvariantError("variableType should not be None at this point!")
         return self.variableType(value)
 
-    def connect_signal(self) -> None:
+    def _set_cached_gui_value(self, column: int, value: Any) -> None:
+        """Store a cached GUI value for thread-safe non-GUI access."""
+        with self._gui_cache_lock:
+            self._gui_cache[column] = value
+
+    def _get_cached_gui_value(self, column: int) -> Any | None:
+        """Return a cached GUI value if available."""
+        with self._gui_cache_lock:
+            return self._gui_cache.get(column)
+
+    def _connect_signal(self) -> None:
         """Connect the valueChanged signal to the corresponding widget."""
         if len(self.widgets) >= 2 and self.variableType is not None:
             widgets1 = self.widgets[1]
@@ -744,7 +787,7 @@ class var(QObject):
 
                     self.valueChanged.connect(bool_wrapper)
             if isinstance(self.widgets[0], QLabel):
-                self.unitChanged.connect(self.updateLabel)
+                self.unitChanged.connect(self._update_label)
             self.tooltipChanged.connect(widgets1.setToolTip)
 
         # automatically copy state of checkbox to togglebutton
@@ -755,8 +798,81 @@ class var(QObject):
                 if self.widgets[2].isCheckable():
                     self.valueChanged.connect(self.widgets[2].setChecked)
 
+        cache_stop = len(self.widgets)
+        if self.log is not None:
+            cache_stop -= 1
+        for _col_idx in range(1, cache_stop):
+            self._init_widget_cache(_col_idx, self.widgets[_col_idx])
+
+    def _init_widget_cache(self, col_idx: int, widget: Any) -> None:
+        """
+        Connect a widget's change signal to the GUI value cache.
+
+        Establishes a signal connection so that every change of
+        widget updates _gui_cache on the GUI thread, making the cached
+        value safe to read from any thread via getGUIvalue.
+
+        Parameters
+        ----------
+        col_idx : int
+            Index of the column.
+        widget : Any
+            The Qt widget to monitor.
+        """
+        variable_type = self.variableType
+        if variable_type is None:
+            return
+
+        def _cache(value: Any) -> None:
+            try:
+                self._set_cached_gui_value(col_idx, variable_type(value))
+            except (ValueError, TypeError):
+                pass
+
+        initial: Any
+        if isinstance(widget, QLineEdit):
+            initial = widget.text()
+            widget.textChanged.connect(_cache)
+        elif isinstance(widget, QLabel):
+            # QLabel has no user-change signal; it is only ever updated
+            # programmatically via the valueChanged signal, so we
+            # piggyback on that for cache maintenance.
+            self.valueChanged.connect(_cache)
+            if self._value is not None:
+                self._set_cached_gui_value(col_idx, variable_type(self._value))
+            return
+        elif isinstance(widget, (QSpinBox, QProgressBar, QDoubleSpinBox)):
+            initial = widget.value()
+            widget.valueChanged.connect(_cache)
+        elif isinstance(widget, QComboBox):
+            if self.variableType in (int, float):
+                initial = widget.currentIndex()
+                widget.currentIndexChanged.connect(_cache)
+            else:
+                initial = widget.currentText()
+                widget.currentTextChanged.connect(_cache)
+        elif isinstance(widget, (QCheckBox, QPushButton)):
+            initial = widget.isChecked()
+            widget.toggled.connect(_cache)
+        else:
+            return
+
+        _cache(initial)
+
     def copy_value(self) -> None:
-        """Copy the read values into the set field."""
+        """
+        Copy the read values into the set field.
+
+        Thread-safe: emits copyValueRequested, which Qt dispatches
+        to the GUI thread via a queued connection when called from a
+        worker thread, and as a direct call when already on the GUI
+        thread.
+        """
+        self.copyValueRequested.emit()
+
+    @AutoSlot
+    def _copy_value_slot(self) -> None:
+        """Perform the widget update on the GUI thread."""
         # check that a set-field exists, otherwise pass
         if len(self.columns) >= 2 and self.variableType is not None:
             try:
@@ -1030,6 +1146,7 @@ class GuiDict(UserDict[str, var]):
             self.S: System = system.System()
         self._refresh_thread: QThread = QThread()
         self._panic: bool = False
+        self._extended_visible = threading.Event()
         self.refresh_worker: _Worker = _Worker(
             target=self.refresh,
             interval=self.refresh_period_ms,
@@ -1091,6 +1208,8 @@ class GuiDict(UserDict[str, var]):
         self.control_layout.addWidget(self.toolbar)
         self.extend_switch: QCheckBox = QCheckBox()
         self.enable_switch: QCheckBox = QCheckBox()
+        self.extend_switch.toggled.connect(self._set_extended_visible)
+        self._set_extended_visible(self.extend_switch.isChecked())
 
         has_hiding = any(variable.hide for variable in self.values())
         if has_hiding:
@@ -1118,7 +1237,7 @@ class GuiDict(UserDict[str, var]):
         grid = QGridLayout(self.container)
         # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
-            variable.generate_widgets(key)
+            variable._generate_widgets(key)
             for col, widget in enumerate(variable.widgets):
                 # add widgets to the grid layout at the correct position
                 # but skip hidden checkbox
@@ -1153,6 +1272,19 @@ class GuiDict(UserDict[str, var]):
                 if isinstance(variable, var) and variable.hide:
                     for w in variable.widgets:
                         w.hide()
+
+    @property
+    def extended_visible(self) -> bool:
+        """bool: Whether hidden controls are currently shown."""
+        return self._extended_visible.is_set()
+
+    @AutoSlot
+    def _set_extended_visible(self, state: bool) -> None:
+        """Store extend-switch state in a thread-safe mirror."""
+        if state:
+            self._extended_visible.set()
+        else:
+            self._extended_visible.clear()
 
     def copy_values(self) -> None:
         """Copy the values from the first to the second column."""
