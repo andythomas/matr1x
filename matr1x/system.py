@@ -71,6 +71,22 @@ def is_config_scheme(value: object) -> TypeGuard[ConfigScheme]:
     )
 
 
+def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
+    """Query a device config string via ``query`` or ``ask``."""
+    query_method = getattr(device_handle, "query", None)
+    if callable(query_method):
+        return str(query_method(query))
+
+    ask_method = getattr(device_handle, "ask", None)
+    if callable(ask_method):
+        return str(ask_method(query))
+
+    raise AttributeError(
+        f"config_params entry {query!r} needs a device query method, "
+        "but neither query() nor ask() is available"
+    )
+
+
 def device_query(
     device_handle: VisaDevice | Instrument, config_params: ConfigParameter
 ) -> dict[str, Any]:
@@ -115,7 +131,7 @@ def device_query(
                 try:
                     attr = getattr(device_handle, q)
                 except AttributeError:
-                    line = str(device_handle.query(q))
+                    line = _query_device_config(device_handle, q)
                 else:
                     if callable(attr):
                         line = attr()
