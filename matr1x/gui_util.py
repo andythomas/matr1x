@@ -34,6 +34,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import types
 from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
@@ -43,7 +44,9 @@ from typing import (
     Literal,
     ParamSpec,
     TypeVar,
+    Union,
     cast,
+    get_args,
     get_origin,
     get_type_hints,
     overload,
@@ -4563,27 +4566,82 @@ def AutoSlot(function: Callable[P, R]) -> Callable[P, R]:
     Provide a Qt slot for a typed python function or method.
 
     To have only one source of truth, the type hints generate the
-    appropriate slot automatically.
+    appropriate slot automatically and automatically generates Qt Slot
+    overloads.
     """
+    function = inspect.unwrap(function)
     hints = get_type_hints(function)
     signature = inspect.signature(function)
-    argument_types = []
-    for name in signature.parameters:
+    params = _collect_parameters(signature, hints)
+    overloads = _build_overloads(params)
+    result_type = _normalize_result_type(hints.get("return"))
+    for args in reversed(overloads):
+        if result_type is not None:
+            function = Slot(*args, result=result_type)(function)
+        else:
+            function = Slot(*args)(function)
+    return function
+
+
+def _collect_parameters(
+    signature: inspect.Signature, hints: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Extract parameter metadata (types + default info)."""
+    params: list[dict[str, Any]] = []
+    for name, param in signature.parameters.items():
         if name == "self":
             continue
         if name not in hints:
             raise TypeError(f"Missing type hint for parameter '{name}'")
-        t = hints[name]
-        qt_type = type if get_origin(t) is type else t
-        argument_types.append(qt_type)
+        params.append(
+            {
+                "types": _expand_type(hints[name]),
+                "has_default": param.default is not inspect._empty,
+            }
+        )
+    return params
 
-    result_type = hints.get("return")
-    if result_type is type(None):
-        result_type = None
 
-    if result_type is not None:
-        qt_slot = Slot(*argument_types, result=result_type)
-    else:
-        qt_slot = Slot(*argument_types)
+def _expand_type(t: Any) -> list[type]:
+    """Expand a Python type hint into Qt-compatible types."""
+    origin = get_origin(t)
+    if origin is type:
+        return [type]
+    if origin in (Union, types.UnionType):
+        result = []
+        for arg in get_args(t):
+            result.extend(_expand_type(arg))
+        return result
+    if origin is not None:
+        return [origin]
+    return [t]
 
-    return qt_slot(function)
+
+def _build_overloads(params: list[dict]) -> list[list[type]]:
+    """Create all Qt slot overload combinations."""
+    overloads = [[]]
+    for param in params:
+        new_overloads = [base + [t] for base in overloads for t in param["types"]]
+        if param["has_default"]:
+            overloads = overloads + new_overloads
+        else:
+            overloads = new_overloads
+    seen = []
+    for o in overloads:
+        if o not in seen:
+            seen.append(o)
+    return seen
+
+
+def _normalize_result_type(t: Any) -> Any:
+    """Convert Python return annotation to Qt-compatible type."""
+    if t is type(None):
+        return None
+    if t is None:
+        return None
+    origin = get_origin(t)
+    if origin is type:
+        return type
+    if origin is not None:
+        return origin
+    return t
