@@ -276,7 +276,7 @@ def _process_key_value_pair(
     Parameters
     ----------
     content : str
-        The line content containing "key: value" format.
+        The line content containing ``key : value`` format.
     path_stack : list
         Current path in the nested dictionary structure.
     parsed_data : dict
@@ -293,7 +293,7 @@ def _process_key_value_pair(
         - is_multiline (bool): True if this starts a multiline value,
           False otherwise
     """
-    key, value = content.split(":", 1)
+    key, value = content.split(" :", 1)
     key = key.strip()
     value = value.strip()
 
@@ -324,7 +324,7 @@ def _process_top_level_key_value(line: str, parsed_data: dict) -> tuple[str | No
     Parameters
     ----------
     line : str
-        The line containing "key: value" format at top level.
+        The line containing ``key : value`` format at top level.
     parsed_data : dict
         The main dictionary where top-level data is stored.
 
@@ -339,7 +339,7 @@ def _process_top_level_key_value(line: str, parsed_data: dict) -> tuple[str | No
         - is_multiline (bool): True if this starts a multiline value,
           False otherwise
     """
-    key, value = line.split(":", 1)
+    key, value = line.split(" :", 1)
     key = key.strip()
     value = value.strip()
 
@@ -404,7 +404,7 @@ def _parse_query_string(query: str) -> dict:
             # This is a nested entry
             content = line[hash_count:].strip()
 
-            if ":" in content:
+            if " :" in content:
                 # This is a key-value pair
                 path_stack = path_stack[: hash_count - 1]
                 current_key, multiline_value, in_multiline = _process_key_value_pair(
@@ -418,7 +418,7 @@ def _parse_query_string(query: str) -> dict:
                 path_stack.append(content)
                 _get_nested_dict(parsed_data, path_stack)
 
-        elif ":" in line:
+        elif " :" in line:
             # Top-level key-value pair
             path_stack = []
             current_key, multiline_value, in_multiline = _process_top_level_key_value(
