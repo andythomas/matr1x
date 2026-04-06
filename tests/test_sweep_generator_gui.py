@@ -43,7 +43,7 @@ def sweep_generator_window(qapp) -> Generator[sweep_generator.MainWindow, None, 
 
 
 @pytest.fixture(autouse=True)
-def reset_sweep_generator_window(sweep_generator_window, qapp) -> None:
+def reset_sweep_generator_window(sweep_generator_window: sweep_generator.MainWindow, qapp) -> None:
     """Reset state to avoid cross-test interference."""
     window = sweep_generator_window
     for widget in qapp.allWidgets():
@@ -54,7 +54,7 @@ def reset_sweep_generator_window(sweep_generator_window, qapp) -> None:
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_run(qtbot, qapp, sweep_generator_window):
+def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
     """
     Start a basic sweep generator run.
 
@@ -76,13 +76,13 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window):
 
     dummy_system = path / "../matr1x/systems/system_dummy.py"
     main_window.add_system([dummy_system])
-    qtbot.waitUntil(lambda: main_window.ui.system_list.count() > 0, timeout=2000)
+    qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 0, timeout=2000)
     assert main_window.windowTitle() == "Sweep Generator: *<unsaved>"
 
     main_window.update_window_title(dirty=False)
     assert main_window.windowTitle() == "Sweep Generator"
 
-    system = main_window.ui.system_list.item(0).text()
+    system = main_window.ui.widgets.system_list.item(0).text()
     assert system == "matr1x.systems.system_dummy"
 
     start = "0"
@@ -94,13 +94,13 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window):
     main_window.grid_widgets[0].append.click()
     sweep = numpy.linspace(float(start), float(end), int(points)).tolist()
     main_window.update_window_title(dirty=False)
-    widget = main_window.sweep_table.cellWidget(0, 0)
+    widget = main_window.ui.widgets.sweep_table.cellWidget(0, 0)
     assert isinstance(widget, QLineEdit)
     assert widget.text() == start
-    widget = main_window.sweep_table.cellWidget(0, 1)
+    widget = main_window.ui.widgets.sweep_table.cellWidget(0, 1)
     assert isinstance(widget, QLineEdit)
     assert widget.text() == end
-    widget = main_window.sweep_table.cellWidget(0, 2)
+    widget = main_window.ui.widgets.sweep_table.cellWidget(0, 2)
     assert isinstance(widget, QLineEdit)
     assert widget.text() == points
 
@@ -120,8 +120,10 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window):
     assert len(previews) == 1
 
     main_window.ui.actions.sweep.trigger()
-    for i in range(main_window.sweep_preview.model().rowCount()):
-        assert main_window.sweep_preview.item(i, 0).text().strip() == "-a " + str(sweep[i])
+    for i in range(main_window.ui.widgets.sweep_preview.model().rowCount()):
+        item = main_window.ui.widgets.sweep_preview.item(i, 0)
+        assert item is not None
+        assert item.text().strip() == "-a " + str(sweep[i])
 
     main_window.grid_widgets[1].start.setText("1")
     main_window.grid_widgets[1].end.setText("2")
@@ -147,7 +149,7 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_load(qtbot, qapp, sweep_generator_window):
+def test_sweep_generator_load(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
     """
     Start a basic sweep generator run.
 
@@ -165,10 +167,10 @@ def test_sweep_generator_load(qtbot, qapp, sweep_generator_window):
     assert test_sweep_file.exists()
 
     main_window.open_file(test_sweep_file)
-    assert main_window.loop_over == [-1, -1]
-    assert main_window.up_down == [2, 0]
-    assert main_window.repeat == [2, 1]
-    assert main_window.sweep_params == [[["0", "10", "11"]], [["1", "2", "2"]]]
+    assert main_window.columns.loop_over == [-1, -1]
+    assert main_window.columns.up_down == [2, 0]
+    assert main_window.columns.repeat == [2, 1]
+    assert main_window.columns.parameter == [[["0", "10", "11"]], [["1", "2", "2"]]]
     assert main_window.grid_widgets[0].repeat.value() == 2
     assert main_window.grid_widgets[1].repeat.value() == 1
     assert main_window.grid_widgets[0].updown.isChecked() is True
@@ -178,7 +180,9 @@ def test_sweep_generator_load(qtbot, qapp, sweep_generator_window):
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_sweep_generator_sweep_table(qtbot, qapp, sweep_generator_window):
+def test_sweep_generator_sweep_table(
+    qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow
+):
     """
     Test changing points entry in sweep_table.
 
@@ -197,21 +201,23 @@ def test_sweep_generator_sweep_table(qtbot, qapp, sweep_generator_window):
 
     dummy_system = path / "../matr1x/systems/system_dummy.py"
     main_window.add_system([dummy_system])
-    qtbot.waitUntil(lambda: main_window.ui.system_list.count() > 0, timeout=2000)
+    qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 0, timeout=2000)
     main_window.grid_widgets[0].start.setText("0")
     main_window.grid_widgets[0].end.setText("10")
     main_window.grid_widgets[0].points.setText("2")
     main_window.grid_widgets[0].append.click()
-    qtbot.waitUntil(lambda: main_window.sweep_table.cellWidget(0, 2) is not None, timeout=2000)
-    widget = main_window.sweep_table.cellWidget(0, 2)
+    qtbot.waitUntil(
+        lambda: main_window.ui.widgets.sweep_table.cellWidget(0, 2) is not None, timeout=2000
+    )
+    widget = main_window.ui.widgets.sweep_table.cellWidget(0, 2)
     assert isinstance(widget, QLineEdit)
     assert widget.text() == "2"
-    assert main_window.sweep_params[0][0][2] == "2"
+    assert main_window.columns.parameter[0][0][2] == "2"
 
     main_window.update_window_title(dirty=False)
     assert "unsaved" not in main_window.windowTitle().lower()
 
-    points_widget = main_window.sweep_table.cellWidget(0, 2)
+    points_widget = main_window.ui.widgets.sweep_table.cellWidget(0, 2)
     assert isinstance(points_widget, QLineEdit)
 
     points_widget.clear()
@@ -219,7 +225,7 @@ def test_sweep_generator_sweep_table(qtbot, qapp, sweep_generator_window):
     points_widget.editingFinished.emit()
     qtbot.waitUntil(lambda: points_widget.text() == "3", timeout=2000)
     assert points_widget.text() == "3"
-    assert main_window.sweep_params[0][0][2] == "3"
+    assert main_window.columns.parameter[0][0][2] == "3"
     assert "*" in main_window.windowTitle()
 
     main_window.update_window_title(dirty=False)

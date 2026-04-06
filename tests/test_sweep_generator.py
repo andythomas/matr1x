@@ -16,50 +16,55 @@
 """Test internal functions of sweep generator."""
 
 from matr1x.error_handling import Error
-from matr1x.scripts.sweep_generator import calculate_sweep, check_depth
+from matr1x.scripts.sweep_generator import ColumnData
 
 
 def test_check_depth():
     """Test check_depth function using several examples."""
-    result = check_depth(0, [-1, -1, 1, 2])
+    data = ColumnData()
+    data.loop_over = [-1, -1, 1, 2]
+
+    result = data.check_depth(0)
     assert not isinstance(result, Error)
     assert result.value == 0
 
-    result = check_depth(1, [-1, -1, 1, 2])
+    result = data.check_depth(1)
     assert not isinstance(result, Error)
     assert result.value == 2
 
-    result = check_depth(2, [-1, -1, 1, 2])
+    result = data.check_depth(2)
     assert not isinstance(result, Error)
     assert result.value == 1
 
-    result = check_depth(3, [-1, -1, 1, 2])
+    result = data.check_depth(3)
     assert not isinstance(result, Error)
     assert result.value == 0
 
 
 def test_calculate_sweep():
     """Test calculate_sweep function with one example."""
-    sweep_parms: list[list[list[int | float]]] = [[[1, 2, 2], [3, 4, 2]], [], [[-1, 1, 2]]]
-    loop_over = [-1, -1, 0]
-    up_down = [True, False, False]
-    repeat = [1, 1, 1]
+    data = ColumnData()
+    data.parameter = [[[1, 2, 2], [3, 4, 2]], [], [[-1, 1, 2]]]
+    data.loop_over = [-1, -1, 0]
+    data.up_down = [True, False, False]
+    data.repeat = [1, 1, 1]
     expected_result = [
         [1.0, 2.0, 3.0, 4.0, 4.0, 3.0, 2.0, 1.0],
         [],
         [-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0],
     ]
-    result = calculate_sweep(sweep_parms, loop_over, up_down, repeat)
+    result = data.calculate_sweep()
     assert not isinstance(result, Error)
     assert result.value == expected_result
 
 
 def test_recursion():
     """Test calculate_sweep function with more recursion."""
-    sweep_parms: list[list[list[int | float]]] = [[], [], [[0, 10, 3]], [[0, 1, 2]], [[1, 2, 2]]]
-    loop_over = [-1, -1, -1, 2, 2]
-    up_down = [False, False, False, False, False]
-    repeat = [1, 1, 1, 1, 1]
+    data = ColumnData()
+    data.parameter = [[], [], [[0, 10, 3]], [[0, 1, 2]], [[1, 2, 2]]]
+    data.loop_over = [-1, -1, -1, 2, 2]
+    data.up_down = [False, False, False, False, False]
+    data.repeat = [1, 1, 1, 1, 1]
     expected_result = [
         [],
         [],
@@ -67,6 +72,6 @@ def test_recursion():
         [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
         [1.0, 2.0, 1.0, 2.0, 1.0, 2.0],
     ]
-    result = calculate_sweep(sweep_parms, loop_over, up_down, repeat)
+    result = data.calculate_sweep()
     assert not isinstance(result, Error)
     assert result.value == expected_result
