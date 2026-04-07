@@ -98,7 +98,7 @@ class exampleDict(GuiDict):
             dtype=bool,
             columns=[go.checkbox, go.togglebutton],
             init=[None, ("Slow", "Error")],
-            log=None,
+            log=False,
         ),
         "Set": var(None, columns=[go.button, go.button], init=["Set", "Copy"]),
     }

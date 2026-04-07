@@ -44,12 +44,14 @@ from enum import IntEnum
 from operator import attrgetter
 from pathlib import Path
 from subprocess import PIPE, Popen
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 
 import numpy
 import psutil
 from decorator import FunctionMaker
 from numpy.typing import ArrayLike
+from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 from PySide6.QtCore import (
     QObject,
     QPoint,
@@ -247,7 +249,7 @@ class guiObject(IntEnum):
 
     @classmethod
     def getWidget(
-        cls, label: str, wType: int | str, init: tuple | object | None = None
+        cls, label: str, wType: "guiObject | str | None", init: object | None = None
     ) -> QWidget | None:
         """
         Return the widget of the correct type.
@@ -309,14 +311,11 @@ class guiObject(IntEnum):
             guiObject.doublespinbox: lambda init: cls._create_doublespinbox_widget(init),
             guiObject.hline: lambda init: cls._create_hline_widget(init),
         }
-
         if isinstance(wType, str):
             widget_type = str
         else:
             widget_type = wType if not isinstance(wType, int) else guiObject(wType)
-
         creation_method = widget_creation_methods.get(widget_type)
-
         if creation_method:
             if widget_type is str and init is None:
                 return creation_method(wType)
@@ -375,6 +374,67 @@ class guiObject(IntEnum):
         return line
 
 
+class varData(BaseModel):
+    """
+    Provide a data model for the var class.
+
+    This used to store, validate and normalize the data for subsequent
+    use in the var class.
+    """
+
+    dtype: type | None
+    columns: list[str | guiObject | None] = [None, None]
+    unit: str = ""
+    log_default: bool = Field(alias="log", default=False)
+    init: list = [None, None]
+    hide: bool = False
+
+    def __init__(self, *args, **kwargs):
+        """Map positional arguments to field names."""
+        field_names = list(type(self).model_fields.keys())
+        for name, value in zip(field_names, args):
+            if name in kwargs:
+                raise TypeError(f"Multiple values for argument '{name}'")
+            kwargs[name] = value
+        super().__init__(**kwargs)
+
+    @field_validator("columns", mode="before")
+    @classmethod
+    def normalize_columns(cls, columns):
+        """Normalize columns to a list."""
+        if type(columns) is int or (
+            isinstance(columns, list) and any(type(x) is int for x in columns)
+        ):
+            raise TypeError("Only use guiObjects and no integers.")
+        if not isinstance(columns, list):
+            return [columns, None]
+        if len(columns) == 1:
+            return [columns[0], None]
+        return columns
+
+    @field_validator("init", mode="before")
+    @classmethod
+    def normalize_init(cls, init):
+        """Normalize init to a tuple."""
+        if not isinstance(init, list):
+            return [init, init]
+        if len(init) == 1:
+            return [init[0], None]
+        if len(init) != 2:
+            raise ValueError("The init list requires one or two entries.")
+        return init
+
+    @model_validator(mode="after")
+    def check_log_requires_dtype(self):
+        """Validate that log=True is only allowed if dtype is not None."""
+        if self.log_default and self.dtype is None:
+            raise PydanticCustomError(
+                "Invalid_configuration",
+                "Cannot enable logging without a defined parameter type.",
+            )
+        return self
+
+
 class var(QObject):
     """
     Variable storage for implementing with qt GUI.
@@ -384,31 +444,20 @@ class var(QObject):
 
     Parameters
     ----------
-    dType : type or tuple of (type, type) or None
-        Type of variable that is to be stored and its emitted type upon
-        a value change.
-    outType : type
-        Type the emitted value should be cast into (only present for
-        backward compatibility. should be set nowadays in the dtype
-        argument).
-    columns : list | int | guiObject, optional
-        GUI elements needed for this variable. Typically here are two
-        entries to view the current value in the first element and be
-        able to alter it in the second. The values should be
-        enumerations from guiObject. Will be converted to a list
-        internally.
+    dType : type or None
+        Type of the variable (float, int, str, ...).
+    columns : list[guiObject] | guiObject, optional
+        Reqired GUI elements, typically two entries: View the current
+        value and alter it. The values are enumerations from guiObject.
     unit : str, optional
         Unit string used in the label and data logging.
-    log : bool or None, optional
+    log_default : bool, optional, default = False
         Boolean flag to set the default behavior in the logging config.
-        If None, no checkbox is shown. If dType is None, this value is
-        ignored.
-    init : list | object, optional
-        Initialization values. This should be a list of the same length
-        as columns. If it is of non-list type its assumed to apply to
-        all entries of columns equally.
-    hide : bool, optional
-        Flag to hide the variable in the GUI.
+    init : list[object1, object2] or object
+        Initialization values for column1 and column2. A single object
+        is assumed to apply to both columns.
+    hide : bool, optional, default = False
+        Flag to mark extendable entries that are initially hidden.
     """
 
     valueChanged: Signal = Signal(object)
@@ -416,43 +465,29 @@ class var(QObject):
     tooltipChanged: Signal = Signal(str)
     copyValueRequested: Signal = Signal()
 
+    @overload
     def __init__(
         self,
-        dtype: type | tuple[type, type] | None = (float, str),
-        outType: type | None = None,
-        columns: str | list | int | guiObject | None = None,
+        dtype: type | None,
+        *,
+        columns: list[guiObject | str | None] | str | guiObject | None = None,
         unit: str = "",
         log: bool | None = False,
-        init: list | object | None = None,
+        init: object | None = None,
         hide: bool = False,
-    ) -> None:
+    ) -> None: ...
+
+    @overload
+    def __init__(self, __dtype: type | None, /) -> None: ...
+
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__()
-        self.variableType: type | None
-        if isinstance(dtype, tuple):
-            self.variableType = dtype[0]
-            self.outType = dtype[1]
-        else:
-            self.variableType = dtype
-            self.outType = outType if outType is not None else dtype
+        self._data: varData = varData(*args, **kwargs)
+        self.log = None if self._data.dtype is None else self._data.log_default
+        self.hide = self._data.hide
         self._value = None
-        self._unit: str = unit
-        self._tooltip: str = ""
-        if self.variableType is None:
-            self.log = None
-        else:
-            self.log = log
-        self.init: list | object | None = init
-        self.hide = hide
-        self.columns: list[int | guiObject | str]
-        if columns is None:
-            self.columns = []
-        elif not isinstance(columns, list):
-            self.columns = [
-                columns,
-            ]
-        else:
-            self.columns = columns
         self.widgets: list[Any] = []
+        self._tooltip: str
         self._gui_cache: dict[int, Any] = {}
         self._gui_cache_lock = threading.Lock()
         self.copyValueRequested.connect(self._copy_value_slot)
@@ -490,17 +525,13 @@ class var(QObject):
         newValue : Any
             The new value to set.
         """
+        if self._data.dtype is None:
+            return
         if newValue is None:
             self._value = None
             return
-        # cast the value to the internal type (most likely float)
-        if self.variableType is None or self.outType is None:
-            raise InternalInvariantError(
-                "Neither variableType nor outType should be None at this point!"
-            )
-        self._value = self.variableType(newValue)
-        # cast the output value to outType and emit matching signal
-        self.valueChanged.emit(self.outType(self._value))
+        self._value = self._data.dtype(newValue)
+        self.valueChanged.emit(self._value)
 
     @property
     def unit(self) -> str:
@@ -512,7 +543,7 @@ class var(QObject):
         str
             The unit of the variable.
         """
-        return self._unit
+        return self._data.unit
 
     @unit.setter
     def unit(self, newunit: str) -> None:
@@ -524,8 +555,8 @@ class var(QObject):
         newunit : str
             The new unit to set.
         """
-        self._unit = newunit
-        self.unitChanged.emit(self._unit)
+        self._data.unit = newunit
+        self.unitChanged.emit(self._data.unit)
 
     @property
     def tooltip(self) -> str:
@@ -588,36 +619,23 @@ class var(QObject):
         added which shows and changes the logging preferences.
         """
         fulllabel = f"{label} ({self.unit})" if self.unit != "" else label
-        self.widgets = [
-            QLabel(fulllabel),
-        ]
-
-        for i, widget in enumerate(self.columns):
-            if isinstance(self.init, list):
-                widgetinit = self.init[i]
-            else:
-                widgetinit = self.init
+        self.widgets = [QLabel(fulllabel)]
+        for i, widget in enumerate(self._data.columns):
+            widgetinit = self._data.init[i]
             self.widgets.append(guiObject.getWidget(label, widget, widgetinit))
-
         # set sensible default values and disable readout column
-        if len(self.widgets) > 1:
-            if isinstance(self.widgets[1], QLineEdit):
-                self.widgets[1].setReadOnly(True)
-            elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
-                self.widgets[1].setEnabled(False)
+        if isinstance(self.widgets[1], QLineEdit):
+            self.widgets[1].setReadOnly(True)
+        elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
+            self.widgets[1].setEnabled(False)
         # apply a validator
-        if len(self.widgets) > 2:
-            if isinstance(self.widgets[2], QLineEdit):
-                val = validator.get(self.variableType, None)  # ty: ignore[no-matching-overload]
-                if val:
-                    self.widgets[2].setValidator(val)
-
+        if isinstance(self.widgets[2], QLineEdit) and self._data.dtype is not None:
+            val = validator.get(self._data.dtype, None)
+            if val:
+                self.widgets[2].setValidator(val)
         # add config checkbox
-        if len(self.widgets) > 1 and self.log is not None:
-            # prepare checkbox for controlling the data logging
-            # only add if there is a value attached to the display
+        if self.log is not None:
             checkbox = QCheckBox()
-            # state of logging
             checkbox.setChecked(self.log)
             checkbox.setVisible(False)
             self.widgets.append(checkbox)
@@ -625,7 +643,8 @@ class var(QObject):
         self._connect_signal()
         if self.hide:
             for w in self.widgets:
-                w.hide()
+                if w:
+                    w.hide()
 
     def _update_label(self, newunit: str) -> None:
         """
@@ -694,7 +713,7 @@ class var(QObject):
 
     def _read_widget_value(self, column: int) -> Any:
         """Read and cast a widget value from the given column."""
-        if self.variableType is None:
+        if self._data.dtype is None:
             raise InternalInvariantError("variableType should not be None at this point!")
         element = self.widgets[column]
         if isinstance(element, (QLineEdit, QLabel)):
@@ -702,7 +721,7 @@ class var(QObject):
         elif isinstance(element, (QSpinBox, QDoubleSpinBox, QProgressBar)):
             value = element.value()
         elif isinstance(element, QComboBox):
-            if self.variableType in [int, float]:
+            if self._data.dtype in [int, float]:
                 value = element.currentIndex()
             else:
                 value = element.currentText()
@@ -710,7 +729,7 @@ class var(QObject):
             value = element.isChecked()
         else:
             raise TypeError(f"Unknown type of GUI element {type(element)}")
-        return self.variableType(value)
+        return self._data.dtype(value)
 
     def _set_cached_gui_value(self, column: int, value: Any) -> None:
         """Store a cached GUI value for thread-safe non-GUI access."""
@@ -724,44 +743,32 @@ class var(QObject):
 
     def _connect_signal(self) -> None:
         """Connect the valueChanged signal to the corresponding widget."""
-        if len(self.widgets) >= 2 and self.variableType is not None:
+        if self._data.dtype is not None:
             widgets1 = self.widgets[1]
             if isinstance(widgets1, (QLineEdit, QLabel)):
-                # Handle automatic string conversion for text widgets
-                if self.outType is str:
-                    self.valueChanged.connect(widgets1.setText)
-                else:
-                    # Create wrapper to convert non-string types to string
-                    def string_wrapper(value):
-                        widgets1.setText(str(value))
 
-                    self.valueChanged.connect(string_wrapper)
+                def string_wrapper(value):
+                    widgets1.setText(str(value))
+
+                self.valueChanged.connect(string_wrapper)
             elif isinstance(widgets1, (QSpinBox, QProgressBar)):
-                # Handle automatic int conversion for spinboxes and progress bars
-                if self.outType is int:
-                    self.valueChanged.connect(widgets1.setValue)
-                else:
-                    # Create wrapper to convert non-int types to int
-                    def int_wrapper(value):
-                        try:
-                            widgets1.setValue(int(value))
-                        except (ValueError, TypeError):
-                            pass
 
-                    self.valueChanged.connect(int_wrapper)
+                def int_wrapper(value):
+                    try:
+                        widgets1.setValue(int(value))
+                    except (ValueError, TypeError):
+                        pass
+
+                self.valueChanged.connect(int_wrapper)
             elif isinstance(widgets1, QDoubleSpinBox):
-                # Handle automatic float conversion for double spinboxes
-                if self.outType is float:
-                    self.valueChanged.connect(widgets1.setValue)
-                else:
-                    # Create wrapper to convert non-float types to float
-                    def float_wrapper(value):
-                        try:
-                            widgets1.setValue(float(value))
-                        except (ValueError, TypeError):
-                            pass
 
-                    self.valueChanged.connect(float_wrapper)
+                def float_wrapper(value):
+                    try:
+                        widgets1.setValue(float(value))
+                    except (ValueError, TypeError):
+                        pass
+
+                self.valueChanged.connect(float_wrapper)
             elif isinstance(widgets1, QComboBox):
                 # Always connect both int and str signals like the original code
                 # This allows combo boxes to be updated by either index or text
@@ -774,33 +781,24 @@ class var(QObject):
 
                 self.valueChanged.connect(combo_handler)
             elif isinstance(widgets1, QCheckBox):
-                # Handle automatic bool conversion for checkboxes
-                if self.outType is bool:
-                    self.valueChanged.connect(widgets1.setChecked)
-                else:
-                    # Create wrapper to convert non-bool types to bool
-                    def bool_wrapper(value):
-                        try:
-                            widgets1.setChecked(bool(value))
-                        except (ValueError, TypeError):
-                            pass
 
-                    self.valueChanged.connect(bool_wrapper)
+                def bool_wrapper(value):
+                    try:
+                        widgets1.setChecked(bool(value))
+                    except (ValueError, TypeError):
+                        pass
+
+                self.valueChanged.connect(bool_wrapper)
             if isinstance(self.widgets[0], QLabel):
                 self.unitChanged.connect(self._update_label)
             self.tooltipChanged.connect(widgets1.setToolTip)
 
         # automatically copy state of checkbox to togglebutton
-        if len(self.widgets) >= 3:
-            if isinstance(self.widgets[2], ToggleButton) and isinstance(
-                self.widgets[1], QCheckBox
-            ):
-                if self.widgets[2].isCheckable():
-                    self.valueChanged.connect(self.widgets[2].setChecked)
+        if isinstance(self.widgets[2], ToggleButton) and isinstance(self.widgets[1], QCheckBox):
+            if self.widgets[2].isCheckable():
+                self.valueChanged.connect(self.widgets[2].setChecked)
 
-        cache_stop = len(self.widgets)
-        if self.log is not None:
-            cache_stop -= 1
+        cache_stop = 3 if self.log is not None else 2
         for _col_idx in range(1, cache_stop):
             self._init_widget_cache(_col_idx, self.widgets[_col_idx])
 
@@ -819,7 +817,7 @@ class var(QObject):
         widget : Any
             The Qt widget to monitor.
         """
-        variable_type = self.variableType
+        variable_type = self._data.dtype
         if variable_type is None:
             return
 
@@ -845,7 +843,7 @@ class var(QObject):
             initial = widget.value()
             widget.valueChanged.connect(_cache)
         elif isinstance(widget, QComboBox):
-            if self.variableType in (int, float):
+            if self._data.dtype in (int, float):
                 initial = widget.currentIndex()
                 widget.currentIndexChanged.connect(_cache)
             else:
@@ -874,13 +872,13 @@ class var(QObject):
     def _copy_value_slot(self) -> None:
         """Perform the widget update on the GUI thread."""
         # check that a set-field exists, otherwise pass
-        if len(self.columns) >= 2 and self.variableType is not None:
+        if len(self._data.columns) >= 2 and self._data.dtype is not None:
             try:
                 if isinstance(self.widgets[2], (QLineEdit, QLabel)):
                     self.widgets[2].setText(str(self.value))
-                elif isinstance(self.widgets[2], QComboBox) and self.variableType is int:
+                elif isinstance(self.widgets[2], QComboBox) and self._data.dtype is int:
                     self.widgets[2].setCurrentIndex(self.value)
-                elif isinstance(self.widgets[2], QComboBox) and self.variableType is str:
+                elif isinstance(self.widgets[2], QComboBox) and self._data.dtype is str:
                     self.widgets[2].setCurrentText(self.value)
                 elif isinstance(self.widgets[2], QCheckBox):
                     self.widgets[2].setChecked(bool(self.value))
@@ -919,12 +917,12 @@ class var(QObject):
         if idx == 1:
             if self.widgets:
                 return self.widgets
-            if isinstance(self.columns, list):
-                return self.columns + [
+            if isinstance(self._data.columns, list):
+                return self._data.columns + [
                     self.log,
                 ]
             return [
-                self.columns,
+                self._data.columns,
             ] + [
                 self.log,
             ]
@@ -1243,7 +1241,8 @@ class GuiDict(UserDict[str, var]):
                 # but skip hidden checkbox
                 if col == 0 and row == 0:
                     continue
-                grid.addWidget(widget, row, col, 1, 1)
+                if widget:
+                    grid.addWidget(widget, row, col, 1, 1)
 
     def toggle_hidden(self, state: bool) -> None:
         """
@@ -1265,13 +1264,15 @@ class GuiDict(UserDict[str, var]):
                             and not self.showlog
                         ):
                             continue
-                        w.show()
+                        if w:
+                            w.show()
         else:
             self.dock.extended = False
             for variable in self.values():
                 if isinstance(variable, var) and variable.hide:
                     for w in variable.widgets:
-                        w.hide()
+                        if w:
+                            w.hide()
 
     @property
     def extended_visible(self) -> bool:
