@@ -186,7 +186,7 @@ def reset_matrix_script_window(matrix_script_window, qapp) -> None:
     qapp.processEvents()
 
 
-@pytest.mark.timeout(timeout=60, method="thread")
+@pytest.mark.timeout(timeout=60)
 def test_basic_script_run(qtbot, qapp, matrix_script_window):
     """
     Start a basic matrix script measurement.
@@ -299,7 +299,6 @@ def test_CodeEditor_API(qtbot, qapp, matrix_script_window):
     assert hasattr(editor, "returnIssues")
 
 
-@pytest.mark.timeout(timeout=30, method="thread")
 def test_CodeEditor(qtbot, qapp, matrix_script_window):
     """
     Test to visually inspect the matrix GUI window.
@@ -385,7 +384,6 @@ def test_CodeEditor(qtbot, qapp, matrix_script_window):
     editor.setModified(False)
 
 
-@pytest.mark.timeout(timeout=30, method="thread")
 def test_status_preview_handles_carriage_return(
     qtbot, qapp, tmp_path, capsys, matrix_script_window
 ):

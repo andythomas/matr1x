@@ -53,7 +53,6 @@ def reset_sweep_generator_window(sweep_generator_window: sweep_generator.MainWin
     qapp.processEvents()
 
 
-@pytest.mark.timeout(timeout=30, method="thread")
 def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
     """
     Start a basic sweep generator run.
@@ -148,7 +147,6 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generato
     main_window.last_filename.unlink()
 
 
-@pytest.mark.timeout(timeout=30, method="thread")
 def test_sweep_generator_load(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
     """
     Start a basic sweep generator run.
@@ -179,7 +177,6 @@ def test_sweep_generator_load(qtbot, qapp, sweep_generator_window: sweep_generat
     assert main_window.grid_widgets[1].loopover.currentText() == "None"
 
 
-@pytest.mark.timeout(timeout=30, method="thread")
 def test_sweep_generator_sweep_table(
     qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow
 ):

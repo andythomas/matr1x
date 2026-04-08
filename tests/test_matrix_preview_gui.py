@@ -17,14 +17,12 @@
 
 from pathlib import Path
 
-import pytest
 from matr1x.scripts import matrix_preview
 
 path = Path(__file__).resolve().parent
 test_ma8_file = path / "data/random_test.ma8"
 
 
-@pytest.mark.timeout(timeout=30, method="thread")
 def test_matrix_preview_run(qtbot, qapp):
     """
     Start a basic matrix preview.

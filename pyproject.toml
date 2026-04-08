@@ -71,6 +71,9 @@ build-backend = "flit_core.buildapi"
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
+timeout = 30
+timeout_method = "thread"
+session_timeout = 210
 env = [
     "QT_QPA_PLATFORM=offscreen",
     "QT_QUICK_BACKEND=software",
