@@ -264,6 +264,10 @@ class exampleDict(GuiDict):
 
     def unpanic(self):
         """Enable set buttons to restore normal behavior."""
+        if self.S.opened:
+            with self.lock:
+                # make sure one does not trigger panic mode immediately again
+                self.S.devs["dummy"].p6 = True
         self["toggle"].widgets[2].setEnabled(True)
         self["Set"].widgets[1].setEnabled(True)
 

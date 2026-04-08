@@ -41,6 +41,7 @@ from matr1x import output_extension
 from matr1x.control import ControlWindow
 from matr1x.control.control_dummy import exampleDict
 from matr1x.scpi_tcpserver import SCPI_TCP_Server
+from PySide6.QtWidgets import QMessageBox
 
 path = Path(__file__).resolve().parent
 
@@ -182,7 +183,7 @@ def test_environment_variable_is_set():
     assert os.getenv("QT_QUICK_BACKEND") == "software"
 
 
-def test_control_window_panic_stops_and_restores_server(qapp, qtbot):
+def test_control_window_panic_stops_and_restores_server(qapp, qtbot, monkeypatch):
     """Panic mode should suspend and later restore the SCPI server."""
 
     class SpyControlWindow(ControlWindow):
@@ -202,6 +203,10 @@ def test_control_window_panic_stops_and_restores_server(qapp, qtbot):
     window = SpyControlWindow()
     qtbot.addWidget(window)
 
+    def _fail_on_modal_error(*args, **kwargs):
+        raise AssertionError("panic test unexpectedly triggered the modal error dialog")
+
+    monkeypatch.setattr(QMessageBox, "critical", _fail_on_modal_error)
     window.running = True
     window._local_server = cast(SCPI_TCP_Server, object())
 
