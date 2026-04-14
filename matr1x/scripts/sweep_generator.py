@@ -986,6 +986,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         log_window: LoggingWindow | None = None,
     ):
         super().__init__()
+        self.in_pytest: bool = False
         self._owns_log_window = log_window is None
         if log_window is None:
             self.log_window = LoggingWindow(parent=self)
@@ -1031,7 +1032,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         If the script was modified without saving, a dialog asks how to
         proceed.
         """
-        if self.dirty:
+        if self.dirty and not self.in_pytest:
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 a0.ignore()
@@ -1752,7 +1753,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         reset_systems : bool, optional
             If True, also clear loaded systems and related state.
         """
-        if self.dirty:
+        if self.dirty and not self.in_pytest:
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 return

@@ -1092,6 +1092,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, filename: Path | None = None):
         super().__init__()
+        self.in_pytest = False
         self.log_window = LoggingWindow(parent=self)  # Immediately needed, not moved to widgets!
         self.log_window.hide()
         logger.info("matrix-script starting")
@@ -1388,8 +1389,10 @@ class MainWindow(QMainWindow):
                     self.systems_dirty = False
 
         if (
-            self.ui.widgets.script_edit.isModified() or self.systems_dirty
-        ) and self.ui.widgets.script_edit.toPlainText() != "":
+            (self.ui.widgets.script_edit.isModified() or self.systems_dirty)
+            and self.ui.widgets.script_edit.toPlainText() != ""
+            and not self.in_pytest
+        ):
             qApp = MApplication.instance()
             qApp.processEvents()
             ret = save_messagebox(self)

@@ -166,6 +166,7 @@ def matrix_script_window(qapp) -> Generator[matrix_script.MainWindow, None, None
     if _MATRIX_SCRIPT_WINDOW is None:
         _MATRIX_SCRIPT_WINDOW = matrix_script.MainWindow()
         _MATRIX_SCRIPT_WINDOW.show()
+        _MATRIX_SCRIPT_WINDOW.in_pytest = True
         qapp.processEvents()
     yield _MATRIX_SCRIPT_WINDOW
     _MATRIX_SCRIPT_WINDOW.close()

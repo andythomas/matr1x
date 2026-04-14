@@ -36,6 +36,7 @@ def sweep_generator_window(qapp) -> Generator[sweep_generator.MainWindow, None, 
     if _SWEEP_GENERATOR_WINDOW is None:
         _SWEEP_GENERATOR_WINDOW = sweep_generator.MainWindow()
         _SWEEP_GENERATOR_WINDOW.show()
+        _SWEEP_GENERATOR_WINDOW.in_pytest = True
         qapp.processEvents()
     yield _SWEEP_GENERATOR_WINDOW
     _SWEEP_GENERATOR_WINDOW.close()
@@ -70,7 +71,6 @@ def test_sweep_generator_systems(qtbot, qapp, sweep_generator_window: sweep_gene
     main_window.add_system([dummy_system, dummy_system2])
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 1, timeout=2000)
     main_window.delete_selected_system()
-    main_window.update_window_title(dirty=False)
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() == 1, timeout=2000)
     assert main_window.columns.filenames == ["matr1x.systems.system_dummy"]
 
