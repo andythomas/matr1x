@@ -1201,7 +1201,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         bool
             True on success and False on error during import.
         """
-        if any(sublist for sublist in self.columns.parameter):
+        if any(self.columns.parameter):
             create_tray_notification(
                 "Sweep reset", "All previous sweep parameters have been cleared.", self
             )
@@ -1209,7 +1209,6 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.ui.widgets.system_list.item(j).text()
             for j in range(self.ui.widgets.system_list.count())
         ]
-        self.columns.filenames = filenames
         if len(filenames) == 0:
             self.reset_layout()
             self.ui.actions.new_file.setEnabled(False)
@@ -1227,10 +1226,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.sweep.setEnabled(True)
         self.ui.actions.preview.setEnabled(True)
         self.ui.actions.remove_system.setEnabled(True)
-        modulestr = ""
-        # update entries in GUI list
-        for j, systemfile in enumerate(filenames):
-            self.ui.widgets.system_list.item(j).setText(systemfile)
         try:
             self.system = MergedSystem.from_files(filenames)
         except Exception as e:
@@ -1245,9 +1240,6 @@ class MainWindow(FileDropMixin, QMainWindow):
             error_text += "" + tbstr
             QMessageBox.warning(self, "Import error.", error_text.replace("\n", "<br>"))
             return False
-        for file in filenames:
-            modulestr += Path(file).stem + ","
-        # update gui using the system specifications
         self.process_system_import()
         return True
 
@@ -1299,6 +1291,10 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.columns.parameter.append(save_sweep_params[pos])
             else:
                 self.columns.parameter.append([])
+        self.columns.filenames = [
+            self.ui.widgets.system_list.item(j).text()
+            for j in range(self.ui.widgets.system_list.count())
+        ]
 
     def add2grid(
         self, widgets: LabelWidgets | ColumnWidgets, row: int = 0, column: int = 0

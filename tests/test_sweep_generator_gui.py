@@ -53,6 +53,28 @@ def reset_sweep_generator_window(sweep_generator_window: sweep_generator.MainWin
     qapp.processEvents()
 
 
+def test_sweep_generator_systems(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
+    """
+    Test if the removal of a system works properly.
+
+    Asserts
+    -------
+    The system filenames are correct after system removal
+    """
+    main_window = sweep_generator_window
+    qtbot.waitExposed(main_window)
+    qapp.processEvents()
+
+    dummy_system = path / "../matr1x/systems/system_dummy.py"
+    dummy_system2 = path / "../matr1x/systems/system_dummy_meas.py"
+    main_window.add_system([dummy_system, dummy_system2])
+    qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 1, timeout=2000)
+    main_window.delete_selected_system()
+    main_window.update_window_title(dirty=False)
+    qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() == 1, timeout=2000)
+    assert main_window.columns.filenames == ["matr1x.systems.system_dummy"]
+
+
 def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
     """
     Start a basic sweep generator run.
