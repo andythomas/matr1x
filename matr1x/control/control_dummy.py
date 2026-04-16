@@ -167,7 +167,7 @@ class exampleDict(GuiDict):
             # update hidable items also when not shown
             self["V3"].value = self.S.devs["dummy"].p5
 
-        if self["V4"].value is False:
+        if self["V4"].value is False and not self._panic:
             # emit panic signel
             self.refresh_worker.panic.emit(True, "value V4 is False")
 
@@ -259,6 +259,7 @@ class exampleDict(GuiDict):
         A real controlGUI should bring all parameters to a safe state here.
         e.g. remove field from a magnet.
         """
+        super().panic()
         self["toggle"].widgets[2].setEnabled(False)
         self["Set"].widgets[1].setEnabled(False)
 
@@ -270,6 +271,7 @@ class exampleDict(GuiDict):
                 self.S.devs["dummy"].p6 = True
         self["toggle"].widgets[2].setEnabled(True)
         self["Set"].widgets[1].setEnabled(True)
+        super().unpanic()
 
 
 class exampleDict2(GuiDict):

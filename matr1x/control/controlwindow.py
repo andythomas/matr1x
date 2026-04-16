@@ -437,6 +437,7 @@ class ControlWindow(QMainWindow):
         self.terminated = False
         self.devInit = False
         self.keep_enabled = []
+        self._guidict_enable_actions: list[EnableAction] = []
         self._log_interval = 60
         # initialize error handling
         self.sig_error.connect(self.handleError)
@@ -746,6 +747,7 @@ class ControlWindow(QMainWindow):
         self.ui.menus.file.addAction(self.ui.actions.quit)
 
         self.guidict_view = []
+        self._guidict_enable_actions = []
         for i, guidict in enumerate(self.guidicts):
             # Enable/ Disable
             enable_action = EnableAction(guidict.name, self)
@@ -763,6 +765,7 @@ class ControlWindow(QMainWindow):
 
             guidict.toolbar.addAction(enable_action)
             self.ui.menus.enable.addAction(enable_action)
+            self._guidict_enable_actions.append(enable_action)
             # View toggles
             view_action = QAction(guidict.name, self)
             self.guidict_view.append(view_action)
@@ -1355,6 +1358,18 @@ class ControlWindow(QMainWindow):
             If True, disables the GUI elements. If False, no action is taken.
         """
         if flag:
+            if self.logging:
+                self.S_log.reset()
+                self._stop_logging_thread()
+                self.logging = False
+            self.config_data_recorder(False)
+            self.ui.actions.config_recorder.setChecked(False)
+            self.ui.actions.toggle_recorder.setChecked(False)
+            self.ui.actions.toggle_recorder.setText("Start data recorder")
+            self.ui.actions.recorder_interval.setEnabled(False)
+            self.ui.actions.select_recorder.setEnabled(False)
+            self.ui.actions.config_recorder.setEnabled(False)
+            self.ui.actions.toggle_recorder.setEnabled(False)
             # disable all GUI elements but look at execption list
             for g in self.guidicts:
                 # disable all GUI elements but look at execption list
@@ -1363,7 +1378,15 @@ class ControlWindow(QMainWindow):
                 # compatibility
                 for v in g.values():
                     for widget in v.widgets:
-                        widget.setEnabled(False)
+                        if widget is not None:
+                            widget.setEnabled(False)
+                for action in g.menu_actions:
+                    action.setEnabled(False)
+            self.ui.widgets.panic.setEnabled(False)
+            self.ui.actions.enable_all.setEnabled(False)
+            self.ui.actions.disable_all.setEnabled(False)
+            for action in self._guidict_enable_actions:
+                action.setEnabled(False)
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
 
@@ -1427,6 +1450,7 @@ class ControlWindow(QMainWindow):
         """
         # stop guidicts; block briefly so worker threads actually terminate
         self.terminate = True
+        self.running = False
         self._stop_guidicts()
         self._stop_legacy_refresh_thread(timeout=0.5)
         self._log_stop_event.set()
