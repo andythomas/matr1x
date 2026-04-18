@@ -66,7 +66,17 @@ from matr1x.gui_util import (
     open_matrix_toml,
     protected_restore,
 )
-from matr1x.models import SystemInfo
+from matr1x.models import (
+    Datafile,
+    Envelope,
+    ErrorMessage,
+    Header,
+    MeasuredValues,
+    Message,
+    SetValues,
+    SystemInfo,
+    Telemetry,
+)
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
@@ -75,18 +85,8 @@ from matr1x.post_install import (
 from matr1x.scripts import (
     sweep_generator,
 )
-from matr1x.scripts.matrix import (
-    Datafile,
-    Envelope,
-    ErrorMessage,
-    Header,
-    LogMessage,
-    MeasuredValues,
-    SetValues,
-    Telemetry,
-)
 from matr1x.system import MergedSystem
-from matr1x.util import get_matrix_binary, open_and_error, telemetry_string
+from matr1x.util import get_matrix_binary, open_and_error
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -259,7 +259,7 @@ class GuiThread(QThread):
             logger.warning("Corrupted or unknown data received: %s", line)
             return
         data = env.payload
-        if isinstance(data, LogMessage):
+        if isinstance(data, Message):
             logger.info(data.message)
         elif isinstance(data, Datafile):
             self.filename_received.emit(data.datafile)
@@ -673,16 +673,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.widgets.progressbar.setMaximum(telemetry.points)
         self.ui.widgets.progressbar.setValue(telemetry.point)
         if telemetry.remaining is not None:
-            self.ui.widgets.progress.setText(
-                telemetry_string.format(
-                    telemetry.point,
-                    telemetry.points,
-                    telemetry.elapsed,
-                    telemetry.remaining,
-                    telemetry.settime,
-                    telemetry.readtime,
-                )
-            )
+            self.ui.widgets.progress.setText(str(telemetry))
 
     def process_tabledata(self, env: Envelope) -> None:
         """
@@ -962,7 +953,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         if systemfile:
             system_info = get_system_info(systemfile)
             if isinstance(system_info, Error):
-                print(system_info.error)
+                print(system_info.error)  # noqa: T201
                 self._cached_system_info = None
             else:
                 self._cached_system_info = system_info.value

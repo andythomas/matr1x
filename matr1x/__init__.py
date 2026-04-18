@@ -105,7 +105,7 @@ def load_config(optional_config_path: Path | None = None):
                 optional_config = tomllib.load(f)
                 config = merge_dicts(config, optional_config)
         else:
-            print(f"Warning: Optional config file not found: {optional_config_path}")
+            print(f"Warning: Optional config file not found: {optional_config_path}")  # noqa: T201
 
     return config
 
@@ -266,7 +266,7 @@ if msg != "":
         "Some settings will not work as intended. "
         "The following error(s) occured:\n\n"
     ) + msg
-    print(msg)
+    print(msg)  # noqa: T201
 
 datetimefmt = config["matr1x"]["datetime_format"]
 
@@ -309,7 +309,7 @@ else:
 # expand eventual home
 _systems_directory = _systems_directory.expanduser()
 if not _systems_directory.is_dir():
-    print("matrix.conf: option matr1x/systems_directory is invalid, using fallback")
+    print("matrix.conf: option matr1x/systems_directory is invalid, using fallback")  # noqa: T201
     # use fallback option
     _systems_directory = Path(__file__).resolve().parent / "systems"
 
@@ -338,6 +338,6 @@ for section in config:
                 system_names.append(f"{section}-systems")
                 system_directories.append(sysdir)
             else:
-                print(
+                print(  # noqa: T201
                     f"matrix.conf: option {section}/systems_directory has invalid value '{sysdir}'"
                 )

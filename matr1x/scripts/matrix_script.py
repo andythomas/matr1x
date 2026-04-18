@@ -24,13 +24,13 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from os.path import normpath
 from pathlib import Path
 from typing import TypeVar
 
 import shiboken6
+from pydantic import ValidationError
 from PySide6.QtCore import (
     QByteArray,
     QEvent,
@@ -99,7 +99,19 @@ from matr1x.gui_util import (
     protected_restore,
     save_messagebox,
 )
-from matr1x.models import SystemInfo
+from matr1x.models import (
+    Datafile,
+    Envelope,
+    Header,
+    InputParameters,
+    LineNumber,
+    MeasuredValues,
+    Message,
+    Modifier,
+    SetValues,
+    SystemInfo,
+    Telemetry,
+)
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
@@ -111,6 +123,7 @@ from matr1x.util import (
     find_binary,
     generate_script,
     get_importable_module_name,
+    get_script_prefix_offset,
 )
 
 logger = logging.getLogger(__name__)
@@ -243,37 +256,10 @@ if sys.platform == "win32":
         pass
 
 
-@dataclass(frozen=True)
-class InputParameters:
-    """Parameters for script input requests."""
-
-    query: str
-    input_type: str
-    timeout: float = float("inf")
-    default_value: str = ""
-    min_value: float | None = None
-    max_value: float | None = None
-    step: float | None = None
-    decimals: int | None = None
-
-
 class ScriptThread(QThread):
     """Control and the thread running the measurements."""
 
-    PATTERN_LINENO = r"__lineno(-?\d+)__"
-    PATTERN_FILENAME = r"__//(.*)//__"
-    PATTERN_INPUT = (
-        r"__input_(?P<type>[^:]+):(?P<strlabel>[^:]+)(?::(?P<timeout>[^:]*))"
-        r"?(?::(?P<default>[^:]*))?(?::(?P<min>[^:]*))?(?::(?P<max>[^:]*))"
-        r"?(?::(?P<step>[^:]*))?(?::(?P<decimals>[^:]*))?__"
-    )
-
-    # signal initiating user input from the GUI.
-    input_signal = Signal(InputParameters)
-    # signal to report the currently executing line number to the editor.
-    lineno_signal = Signal(int)
-    # signal to report the filename of the file that is written by the process
-    filename_signal = Signal(str)
+    data_received = Signal(Envelope)
 
     def __init__(
         self,
@@ -356,188 +342,27 @@ class ScriptThread(QThread):
         try:  # if thread is still alive, kill it
             os.kill(pid, 0)
             self.proc.kill()
-            print("Force killed thread! Please verify all devices are")
-            print("operational before starting another script.")
-        except OSError:
-            print("Thread terminated gracefully.")  # this will likely not happen
-
-    def safe_parse(
-        self, value: str, param_name: str, converter: Callable[[str], R], default: T
-    ) -> R | T:
-        """
-        Safely parse a string.
-
-        Use a converter callable with error handling and a default
-        return value.
-
-        Parameters
-        ----------
-        value : str
-            The string value to parse.
-        param_name : str
-            Name of the parameter for error reporting.
-        converter : e.g. float, int
-            Function to convert string to desired type.
-        default : T
-            Default value to return if parsing yields a value error.
-
-        Returns
-        -------
-        Usually a subset of float | int | None
-            Parsed value of type "converter" or type "default" if
-            parsing fails.
-        """
-        try:
-            return converter(value)
-        except ValueError:
-            print(f"Warning: Invalid {param_name} value received: {value}")
-            return default
-
-    def _handle_line_number(self, line: str) -> str:
-        """
-        Handle line number pattern extraction and emission.
-
-        Parameters
-        ----------
-        line : str
-            Input line to process for line number patterns.
-
-        Returns
-        -------
-        str
-            Line with line number patterns removed.
-        """
-        if match := re.search(self.PATTERN_LINENO, line):
-            digits = int(match.group(1))
-            if digits >= 0:
-                self.lineno_signal.emit(digits)
-            line = re.sub(self.PATTERN_LINENO, "", line)
-        return line
-
-    def _handle_filename(self, line: str) -> str:
-        """
-        Handle filename pattern extraction and emission.
-
-        Parameters
-        ----------
-        line : str
-            Input line to process for filename patterns.
-
-        Returns
-        -------
-        str
-            Line with filename patterns removed.
-        """
-        if match := re.search(self.PATTERN_FILENAME, line):
-            path = match.group(1)
-            self.filename_signal.emit(path)
-            line = re.sub(self.PATTERN_FILENAME, "", line)
-        return line
-
-    def _handle_input_request(self, line: str) -> str:
-        """
-        Handle input request pattern extraction and emission.
-
-        Parameters
-        ----------
-        line : str
-            Input line to process for input request patterns.
-
-        Returns
-        -------
-        str
-            Line with input request patterns removed.
-        """
-        if match := re.search(self.PATTERN_INPUT, line):
-            input_params = self._parse_input_parameters(match)
-
-            logger.info(
-                "Requesting input type: %s, Query: %s, Timeout: %g, Default: %s, "
-                "Min: %s, Max: %s, Step: %s",
-                input_params.input_type,
-                input_params.query,
-                input_params.timeout,
-                input_params.default_value,
-                input_params.min_value,
-                input_params.max_value,
-                input_params.step,
+            text = (
+                "Force killed thread! Please verify all devices are\n"
+                "operational before starting another script.\n"
             )
+        except OSError:
+            text = "Thread terminated gracefully."
+        self.process_received_data(Message(message=text).model_dump_json())
 
-            self.input_signal.emit(input_params)
-            line = re.sub(self.PATTERN_INPUT, "", line)
-        return line
-
-    def _parse_input_parameters(self, match: re.Match) -> InputParameters:
-        """
-        Parse input parameters from regex match groups.
-
-        Parameters
-        ----------
-        match : re.Match
-            Regex match object containing input parameter groups.
-
-        Returns
-        -------
-        InputParameters
-            Parsed input parameters with type, query, timeout, defaults,
-            and numerical constraints.
-        """
-        input_type = match.group("type")
-        strlabel = match.group("strlabel").replace("%0A", "\n")
-
-        # Parse optional parameters
-        timeout = float("inf")
-        if timeout_str := match.group("timeout"):
-            timeout = self.safe_parse(timeout_str, "timeout", float, float("inf"))
-
-        default_value = match.group("default") or ""
-
-        # Parse numerical parameters
-        min_value = max_value = step = decimals = None
-        if input_type == "numerical":
-            if min_str := match.group("min"):
-                min_value = self.safe_parse(min_str, "min", float, None)
-            if max_str := match.group("max"):
-                max_value = self.safe_parse(max_str, "max", float, None)
-            if step_str := match.group("step"):
-                step = self.safe_parse(step_str, "step", float, None)
-            if decimals_str := match.group("decimals"):
-                decimals = self.safe_parse(decimals_str, "decimals", int, None)
-
-        return InputParameters(
-            query=strlabel,
-            input_type=input_type,
-            timeout=timeout,
-            default_value=default_value,
-            min_value=min_value,
-            max_value=max_value,
-            step=step,
-            decimals=decimals,
-        )
-
-    def recv_line(self, inp: str) -> None:
-        """
-        Receive a line from the input and handle it accordingly.
-
-        From inp the current executing line or an input request are
-        attemped to find, all other input is printed.
-
-        TODO: not tolerant against split strings, i.e. if sent string
-        is longer than 1024, one can expect a problematic behavior.
-        Migrate to ZMQ and directly pass strings as python objects?
-        """
+    def process_received_data(self, inp: str) -> None:
+        """Receive a line from the input and handle it accordingly."""
         lines = inp.split(os.linesep)
         for i, line in enumerate(lines[:-1]):
-            # add \"\\n\" to all but the last element in split
-            # (last element contains everything after last "\n")
             lines[i] += "\n"
-
         for line in lines:
-            line = self._handle_line_number(line)
-            line = self._handle_input_request(line)
-            line = self._handle_filename(line)
-            if line:
-                print(line, end="")
+            try:
+                env = Envelope.model_validate_json(line)
+            except ValidationError:
+                if line.strip():
+                    print(line, end="")  # noqa: T201
+                continue
+            self.data_received.emit(env)
 
     def run(self) -> None:
         """
@@ -592,9 +417,9 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
                     if len(datachunk) > 0:
                         while datachunk[-1] != "\0":
                             datachunk += self.conn.recv(8192).decode()
-                        self.recv_line(datachunk.replace("\0", ""))
+                        self.process_received_data(datachunk.replace("\0", ""))
                 except OSError:
-                    print("OS error in thread communication.")
+                    self.process_received_data("OS error in thread communication.\n")
             self.conn.close()
             self.temp_config.unlink()
 
@@ -1098,6 +923,7 @@ class MainWindow(QMainWindow):
         logger.info("matrix-script starting")
         self.systems: list[str]
         self.scriptname: Path | None = None
+        self.line_offset = get_script_prefix_offset()
         self.measurement_file: Path
         self.systems_dirty = False
         self.last_loaded_file: Path | None = None
@@ -1106,7 +932,7 @@ class MainWindow(QMainWindow):
         self.last_filename: Path | None = None
         self.settings = SaferQSettings("matr1x", "script")
         self.output_stream = EmittingStream()
-        self.output_stream.text_written.connect(self.output_written)
+        self.output_stream.text_written.connect(self.write_output)
         self._cached_system_info: SystemInfo | None = None
         self._output_buffer: list[str] = []
         self._output_timer = QTimer()
@@ -1115,25 +941,14 @@ class MainWindow(QMainWindow):
         self._output_timer.setInterval(50)
         MApplication.instance().isDarkSignal.connect(self.update_systems)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
-        self.ui = UIBuilder(self)
+        self.ui: UIBuilder = UIBuilder(self)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
         self._reset_state(reset_metadata=True)
         check_config(matr1x.config)
-        if config["duplicate_output_to_logfile"]:
-            sys.stdout = StreamToLogger(
-                printlogger,
-                logging.INFO,
-                duplicate_stream=self.output_stream,
-            )
-            sys.stderr = StreamToLogger(
-                errorlogger,
-                logging.ERROR,
-                duplicate_stream=self.output_stream,
-            )
-        else:
-            sys.stdout = self.output_stream  # all output (stdout) is written to status preview
+        sys.stdout = StreamToLogger(printlogger, logging.INFO)
+        sys.stderr = StreamToLogger(errorlogger, logging.ERROR)
         if filename is not None:
             self.load_from_filename(filename)
         self.update_systems()  # in case the load failed just to be sure
@@ -1182,6 +997,25 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
         self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
+
+    @AutoSlot
+    def process_data(self, env: Envelope) -> None:
+        """Process the data from the measurement thread."""
+        data = env.payload
+        if isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)):
+            if data.to_stdout:
+                self.write_output(str(data) + "\n")
+        elif isinstance(data, LineNumber):
+            self.ui.widgets.script_edit.highlight(data.line - self.line_offset)
+        elif isinstance(data, Datafile):
+            self.update_filename(data.datafile)
+        elif isinstance(data, InputParameters):
+            self.get_script_input(data)
+        elif isinstance(data, Message):
+            if data.modifier == Modifier.DELETE_CURRENT_LINE:
+                self.write_output("\r" + data.message + data.end)
+            else:
+                self.write_output(data.message + data.end)
 
     def print_document(self) -> None:
         """Print the script."""
@@ -1578,6 +1412,8 @@ class MainWindow(QMainWindow):
             input_type, timeout, default_value, min_value, max_value,
             step, and decimals.
         """
+        if params.timeout is None:
+            params.timeout = float("inf")
         if params.input_type == "string":
             dialog = TextInputDialog(
                 params.query,
@@ -1755,7 +1591,7 @@ class MainWindow(QMainWindow):
         # Mark that the help dialog has been shown at least once
         self._help_dialog_shown = True
 
-    def output_written(self, text: str) -> None:
+    def write_output(self, text: str) -> None:
         """
         Buffer text and update GUI periodically to prevent crashes.
 
@@ -1909,10 +1745,9 @@ class MainWindow(QMainWindow):
         self.measurement_thread = ScriptThread(
             meta_data, script, self.scriptname, temp_config, self.systems
         )
-        self.measurement_thread.lineno_signal.connect(self.ui.widgets.script_edit.highlight)
-        self.measurement_thread.input_signal.connect(self.get_script_input)
-        self.measurement_thread.filename_signal.connect(self.update_filename)
         self.measurement_thread.finished.connect(self.process_finished)
+        self.measurement_thread.data_received.connect(self.process_data)
+
         logger.info("The following user script is started:\n%s", user_script)
         self.measurement_thread.start()
         self.enable_buttons(True)

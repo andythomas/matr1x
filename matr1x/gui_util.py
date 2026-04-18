@@ -403,7 +403,7 @@ class SystemListWidget(QListWidget):
         for index in range(self.count()):
             existing = self.item(index).text()
             if item == existing:
-                print(f"{item} is already added and was omitted.")
+                print(f"{item} is already added and was omitted.")  # noqa: T201
                 return
         super().addItem(item)
 
@@ -1313,7 +1313,7 @@ class ConfigEditWidget(MetaViewerWidget):
         if hasattr(self, "full_system_list") and self.full_system_list:
             system_info = get_system_info(self.full_system_list)
             if isinstance(system_info, Error):
-                print(system_info.error)
+                print(system_info.error)  # noqa: T201
                 self.system_info = None
             else:
                 self.system_info = system_info.value
@@ -4320,7 +4320,7 @@ def protected_restore(restore_settings: Callable[[], None]):
     try:
         restore_settings()
     except Exception as e:
-        print(
+        print(  # noqa: T201
             f"\n{e}\nRestoring the settings resulted in an unexpected issue. "
             f"This caused all settings to be reset."
         )

@@ -760,7 +760,7 @@ def _load_text_file(
         data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)
     except IndexError:
         # IndexError is raised in case an incomplete header is present
-        print("loadmatrix: incomplete data file header")
+        print("loadmatrix: incomplete data file header")  # noqa: T201
         return header, np.empty(0)
 
     if replace_None:
@@ -835,7 +835,7 @@ def loadmatrix(
 
     if print_header is True:
         # generate list of tuples with index and column name
-        print(list(enumerate(header["columns"])))
+        print(list(enumerate(header["columns"])))  # noqa: T201
 
     return header, data
 

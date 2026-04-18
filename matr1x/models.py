@@ -15,10 +15,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Validate (some) of the config options for better error messages."""
 
+import math
+from enum import IntFlag
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError
+
+from matr1x.util import flatten, get_formatted_line
 
 
 def format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
@@ -187,3 +191,136 @@ class SystemInfo(BaseModel):
     parameters: dict[str, SystemParameter]
     methods: dict[str, SystemMethod]
     config: dict[str, Any]
+
+
+# --- measurement data for matrix and matrix-script
+
+
+class Header(BaseModel):
+    """Model for the header of a measurement output."""
+
+    columns: list
+    units: list
+    to_stdout: bool | None = None
+
+    def __str__(self) -> str:
+        """Return a string representation of the header."""
+        lines = [
+            get_formatted_line(flatten(self.columns)),
+            get_formatted_line(flatten(self.units)),
+        ]
+        return "\n".join(lines)
+
+
+class SetValues(BaseModel):
+    """Model for the set values."""
+
+    set: list
+    to_stdout: bool | None = None
+
+    def __str__(self) -> str:
+        """Return a string representation of the set values."""
+        return get_formatted_line(flatten(self.set), prefix="Set : ")
+
+
+class MeasuredValues(BaseModel):
+    """Model for the measured values."""
+
+    measured: list
+    to_stdout: bool | None = None
+
+    def __str__(self) -> str:
+        """Return a string representation of the measured values."""
+        return get_formatted_line(flatten(self.measured), prefix="Meas: ")
+
+
+class Telemetry(BaseModel):
+    """Model for the telemetry data."""
+
+    point: int
+    points: int
+    elapsed: float
+    remaining: float | None
+    settime: float | None
+    readtime: float | None
+    to_stdout: bool | None = None
+
+    def __str__(self) -> str:
+        """Return a string representation of the telemetry data."""
+        remaining = self.remaining or math.nan
+        return (
+            f" {self.point}/{self.points} - "
+            f"elapsed: {self.elapsed:.1f}m - "
+            f"remaining: {remaining:.1f}m - "
+            f"set/read: {self.settime:.1f}s/{self.readtime:.1f}s"
+        )
+
+
+class Modifier(IntFlag):
+    """A set of modifiers for message handling."""
+
+    NONE = 0
+    DELETE_CURRENT_LINE = 1
+
+
+class Message(BaseModel):
+    """Model for messages."""
+
+    message: str
+    end: str = "\n"
+    to_logfile: bool | None = None
+    to_comment: bool | None = None
+    modifier: Modifier = Modifier.NONE
+
+
+class ErrorMessage(BaseModel):
+    """Model for the error message."""
+
+    error: str
+
+
+class LineNumber(BaseModel):
+    """Model for the line number data."""
+
+    line: int
+
+
+class Datafile(BaseModel):
+    """Model for the datafile."""
+
+    datafile: str
+
+
+class InputParameters(BaseModel):
+    """Parameters for script input requests."""
+
+    query: str
+    input_type: str
+    timeout: float | None = float("inf")
+    default_value: str = ""
+    min_value: float | None = None
+    max_value: float | None = None
+    step: float | None = None
+    decimals: int | None = None
+
+
+MeasurementData = (
+    Header
+    | SetValues
+    | MeasuredValues
+    | Telemetry
+    | Message
+    | ErrorMessage
+    | Datafile
+    | LineNumber
+    | InputParameters
+)
+
+
+class Envelope(RootModel[MeasurementData]):
+    """Simplify received data handling."""
+
+    @property
+    def payload(self) -> MeasurementData:
+        """Return the parsed payload."""
+        return self.root

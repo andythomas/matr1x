@@ -1014,7 +1014,7 @@ class ControlWindow(QMainWindow):
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             msg, outputfile = self.S_log.init_datafile("matrix script generated")
-            print(f"{msg}: {outputfile}")
+            print(f"{msg}: {outputfile}")  # noqa: T201
             # turn off config and set data
             self.config_data_recorder(False)
             self.ui.actions.config_recorder.setEnabled(False)
