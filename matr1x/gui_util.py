@@ -25,19 +25,32 @@ script and control-guis.
 """
 
 import datetime
+import inspect
 import logging
 import os
 import platform
 import re
+import signal
 import subprocess
 import sys
 import tempfile
-import time
+import types
 from collections.abc import Callable, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
-from types import TracebackType
-from typing import Any, TextIO, cast, overload
+from types import ModuleType
+from typing import (
+    Any,
+    Literal,
+    ParamSpec,
+    TypeVar,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+    overload,
+)
 
 import numpy as np
 import pygit2
@@ -53,12 +66,14 @@ from PySide6.QtCore import (
     QLocale,
     QModelIndex,
     QObject,
+    QPersistentModelIndex,
     QPoint,
     QSettings,
     QSize,
     Qt,
     QTimer,
     Signal,
+    Slot,
     qVersion,
 )
 from PySide6.QtGui import (
@@ -97,6 +112,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLayout,
     QLineEdit,
@@ -123,17 +139,21 @@ from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.models import MainConfig, SystemInfo, UserlibConfig
 
 from . import (
-    datetimefmt,
     get_config_dict,
-    logfolder,
     merge_dicts,
     reload_config,
     write_config,
 )
 from .eval import delta
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+logger = logging.getLogger(__name__)
+
 # dictionary of commonly used validators
-validator = {
+validator: dict[type, QDoubleValidator | QIntValidator] = {
     float: QDoubleValidator(),
     int: QIntValidator(),
     np.uint: QIntValidator(),
@@ -934,7 +954,12 @@ class MetaViewerWidget(QDockWidget):
 
             return None
 
-        def setData(self, index, value, role):  # type: ignore our issue #1600
+        def setData(
+            self,
+            index: QModelIndex | QPersistentModelIndex,
+            value: Any,
+            role: int = Qt.ItemDataRole.EditRole,
+        ) -> bool:
             """
             Update the data for the given index and role.
 
@@ -1097,7 +1122,7 @@ class MetaViewerWidget(QDockWidget):
             parent_item = parent.internalPointer()
             return parent_item.child_count()
 
-        def columnCount(self, index):  # type: ignore our issue #1600
+        def columnCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
             """
             Return the number of columns for the children of the given parent.
 
@@ -1294,7 +1319,7 @@ class ConfigEditWidget(MetaViewerWidget):
                 self.system_info = system_info.value
         self.update_data()  # Call the original update_data method
 
-    def update_data(self):  # type: ignore our issue #1600
+    def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
         """Update the configuration data in the widget."""
         syst_dict = {}
         reload_config()
@@ -1345,7 +1370,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
         def parse_dict_and_types(d, dv, dt):
             for key, item in d.items():
-                if "_types" == key:
+                if key == "_types":
                     dt.update(d[key])
                     continue
                 elif isinstance(item, dict):
@@ -1999,7 +2024,7 @@ class SimplePlotWidget(QGroupBox):
                 # some of our default math is supposed to be used
                 x = self.default_math[self.math_mode][0](x)
                 y = self.default_math[self.math_mode][1](y)
-            elif "custom" == self.math_mode:
+            elif self.math_mode == "custom":
                 # none of the above, so we are in custom mode
                 xc = None
                 yc = None
@@ -2629,7 +2654,9 @@ class SimplePlotWidget(QGroupBox):
             return
 
         source_x_label = source_plot.labels[1]
-        x_auto = bool(source_plot.vb.state["autoRange"][0])  # pyqtgraph keeps (xAuto, yAuto)
+        state = cast(dict, source_plot.vb.state)  # pyqtgraph is not strongly typed
+        x_auto = bool(state["autoRange"][0])
+        # pyqtgraph keeps (xAuto, yAuto)
 
         x_range = ranges[0]
 
@@ -2889,7 +2916,7 @@ class EmittingStream(QObject):
     name = "GUIStream"
     text_written = Signal(str)
 
-    def write(self, text):
+    def write(self, text: str) -> None:
         """
         Write text to the stream and emit a signal.
 
@@ -2900,103 +2927,13 @@ class EmittingStream(QObject):
         """
         self.text_written.emit(str(text))
 
-    def flush(self):
+    def flush(self) -> None:
         """
         Flush the stream.
 
         This method is required for file-like objects but does nothing
         in this implementation.
         """
-        pass
-
-
-class OutputDuplication:
-    """
-    A class for duplicating print output to both the original stream and a log file.
-
-    This class is used to duplicate output from a given stream (like stdout or stderr)
-    to both the original destination and a log file. It's particularly useful for
-    preserving output in GUI applications that might crash.
-
-    Attributes
-    ----------
-    terminal : Optional[TextIO]
-        The original stream being duplicated. If None, only log is used.
-    log : TextIO
-        The file object for the log file where output is additionally written.
-    """
-
-    def __init__(
-        self, stream: TextIO | None, prefix: str = "control", fallbackname: str = ""
-    ) -> None:
-        """
-        Initialize an object for output duplication into a file.
-
-        Parameters
-        ----------
-        stream : TextIO | None
-            The stream to duplicate output from. If None, only writes to the log file.
-        prefix : str, optional
-            Prefix for the log file name, by default 'control'.
-        fallbackname : str, optional
-            Fallback name for the log file if stream has no name, by default "".
-        """
-        self.terminal = stream
-        if stream is not None:
-            name = stream.name.strip("<>")
-        else:
-            name = fallbackname
-        self.log = (Path(logfolder) / f"{prefix}-{name}.log").open("a")
-        print(f"opening log: {self.log.name}")
-
-    def write(self, message: str) -> None:
-        """
-        Write the message to both the terminal and the log file.
-
-        Parameters
-        ----------
-        message : str
-            The message to be written.
-        """
-        if self.terminal is not None:
-            self.terminal.write(message)
-        if message and message != "\n":
-            self.log.write(f"{time.strftime(datetimefmt)}: ")
-        self.log.write(message.lstrip("\r"))
-        self.flush()
-
-    def flush(self) -> None:
-        """Flush both the terminal and log file streams."""
-        if self.terminal is not None:
-            self.terminal.flush()
-        self.log.flush()
-
-    def close(self) -> None:
-        """Close the log file."""
-        self.log.close()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        """
-        Exit the context manager and close the log file.
-
-        Parameters
-        ----------
-        exc_type : Optional[Type[BaseException]]
-            The type of the exception that caused the context to be exited.
-            None if no exception occurred.
-        exc_value : Optional[BaseException]
-            The instance of the exception that caused the context to be exited.
-            None if no exception occurred.
-        traceback : Optional[TracebackType]
-            A traceback object encoding the stack trace.
-            None if no exception occurred.
-        """
-        self.close()
 
 
 class MetaDataDialog(QDialog):
@@ -3328,7 +3265,16 @@ class NumericalInputDialog(TimeoutDialogBase):
         return self.input_spinbox.value()
 
 
-class YesNoAbortDialog(QMessageBox):
+class LoggerMixin:
+    """Add a logger for fine grained information of the origin."""
+
+    def __init_subclass__(cls, **kwargs):
+        """Generate the logger."""
+        super().__init_subclass__(**kwargs)
+        cls.logger = logging.getLogger(f"{cls.__module__}.{cls.__qualname__}")
+
+
+class YesNoAbortDialog(QMessageBox, LoggerMixin):
     """Modal dialog for boolean input for matrix-script."""
 
     def __init__(
@@ -3358,8 +3304,6 @@ class YesNoAbortDialog(QMessageBox):
         self.setWindowTitle("Question")
         self.setText(question)
         self.setIcon(QMessageBox.Icon.Question)
-
-        self.logger = logging.getLogger("YesNoAbortDialog")
 
         # Normalize default value and ensure it's either "yes" or "no"
         self.default_value = (
@@ -3466,13 +3410,17 @@ class YesNoAbortDialog(QMessageBox):
 
         # Check timeout first, but only if user didn't respond
         if self.timeout_occurred and not self.user_responded:
-            self.logger.info(
-                "Dialog timeout occurred - automatically selected: %s", self.default_value
-            )
             if self.default_value in ["yes", "no"]:
+                self.logger.info(
+                    "Dialog timeout occurred - automatically selected: %s", self.default_value
+                )
                 return self.default_value
-            # If default_value is not valid, return "yes" as a default
-            return "yes"
+            fallback_default = "yes"
+            self.logger.info(
+                "Dialog timeout occurred with invalid default value, automatically selected: %s",
+                fallback_default,
+            )
+            return fallback_default
 
         # User responded - return their choice
         if self.clickedButton() == self.yes_button:
@@ -3528,10 +3476,58 @@ class TerminationDialog(QMessageBox):
             return "aborted"
 
 
+def get_install_info(
+    imported_package: ModuleType,
+) -> tuple[str, str, str, Literal["not available"] | int]:
+    """
+    Receive git infos about the installed version.
+
+    Parameters
+    ----------
+    imported_package: ModuleType
+        Any module (package) that was already imported.
+
+    Returns
+    -------
+    installed_version: str,
+    commit_branch: str,
+    commit_short_sha: str,
+    commit_time: str or int
+        The version and commit info(s) of the package.
+    """
+    commit_branch = "not available"
+    commit_time = "not available"
+    commit_short_sha = "not available"
+    try:
+        repo = pygit2.Repository(imported_package.__file__)
+        commit_branch = repo.head.shorthand
+        last_commit = repo[repo.head.target]
+        commit_short_sha = str(last_commit.id)[:7]
+        commit_time = last_commit.author.time
+        if commit_branch == "HEAD":
+            # Attempt to find the remote branch
+            for ref_name in repo.references:
+                ref = repo.lookup_reference(ref_name)
+                if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
+                    commit_branch = ref.shorthand
+                    break
+    except pygit2.GitError:
+        pass
+    installed_version = package_version(imported_package.__name__)
+    return (installed_version, commit_branch, commit_short_sha, commit_time)
+
+
 class AboutBox(QMessageBox):
     """Provide an about box with install debug info."""
 
-    def __init__(self, title, icon, package, date_format, parent=None):
+    def __init__(
+        self,
+        title: str,
+        icon: QIcon,
+        package: ModuleType,
+        date_format: str,
+        parent: QWidget | None = None,
+    ):
         """
         Initialize an about box dialog with installation information.
 
@@ -3556,17 +3552,14 @@ class AboutBox(QMessageBox):
         pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
         self.setWindowTitle(title)
-
         # Get package and git information
-        (version, branch, sha, time) = self.get_install_info(package)
+        (version, branch, sha, time) = get_install_info(package)
         if time != "not available":
             date = datetime.datetime.fromtimestamp(time).strftime(date_format)
         else:
             date = time
-
         # Get Python interpreter information
         python_info = self.get_python_interpreter_info()
-
         # Get system and Qt information
         system_type = platform.system().lower()
         result = subprocess.run(
@@ -3579,7 +3572,6 @@ class AboutBox(QMessageBox):
             qmake_qt6_version = result.stdout.strip()
         else:
             qmake_qt6_version = "unavailable"
-
         text = f"""
                 <div style="text-align: left;">
                     <p><b>Git information:</b><br>
@@ -3691,29 +3683,6 @@ class AboutBox(QMessageBox):
         location = self._shorten_path(env_location)
 
         return {"description": env_description, "location": location}
-
-    def get_install_info(self, imported_package):
-        """Receive git infos about the installed version."""
-        commit_branch = "not available"
-        commit_time = "not available"
-        commit_short_sha = "not available"
-        try:
-            repo = pygit2.Repository(imported_package.__file__)
-            commit_branch = repo.head.shorthand
-            last_commit = repo[repo.head.target]
-            commit_short_sha = str(last_commit.id)[:7]
-            commit_time = last_commit.author.time
-            if commit_branch == "HEAD":
-                # Attempt to find the remote branch
-                for ref_name in repo.references:
-                    ref = repo.lookup_reference(ref_name)
-                    if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
-                        commit_branch = ref.shorthand
-                        break
-        except pygit2.GitError:
-            pass
-        installed_version = package_version(imported_package.__name__)
-        return (installed_version, commit_branch, commit_short_sha, commit_time)
 
 
 def get_matrix_icon(
@@ -3999,8 +3968,48 @@ class MApplication(QApplication):
             self.setStyle("fusion")  # Enable modern mode on Windows which allows for dark mode
         self._theme_detector = ThemeDetector()
         self._theme_detector.isDarkSignal.connect(self.isDarkSignal.emit)
-        self._pending_files = []
+        self._pending_files: list[str] = []
         self._handler_connected = False
+        self._signal_timer = QTimer()
+        self._signal_timer.timeout.connect(lambda: None)
+        signal.signal(signal.SIGINT, self._exit_gracefully)
+        signal.signal(signal.SIGTERM, self._exit_gracefully)
+
+    def _exit_gracefully(self, signum: int, frame: object) -> None:
+        """
+        Handle SIGINT/SIGTERM by quitting the application.
+
+        This enables the safety precautions such as "do you want to
+        save" and similar things.
+
+        Parameters
+        ----------
+        signum : int
+            The signal number received.
+        frame : object
+            The current stack frame (unused).
+        """
+        logger.debug("Kill signal received (%s)", signum)
+        MApplication.quit()
+
+    def exec(self) -> int:
+        """
+        Run the event loop with a keepalive timer for signal handling.
+
+        Starts a periodic no-op timer so Python can process OS signals
+        (e.g. SIGINT from Ctrl+C) while Qt owns the event loop.  The
+        timer is stopped automatically when exec returns.
+
+        Returns
+        -------
+        int
+            The exit code returned by the Qt event loop.
+        """
+        self._signal_timer.start(100)
+        try:
+            return super().exec()
+        finally:
+            self._signal_timer.stop()
 
     def _list_platform_plugins(self) -> Sequence[str]:
         """
@@ -4088,22 +4097,28 @@ class MApplication(QApplication):
 
         super().setDesktopFileName(name)
 
+    @classmethod
+    def instance(cls) -> "MApplication":
+        """
+        Return the MApplication instance.
 
-def get_application_instance() -> MApplication:
-    """
-    Return the MApplication instance.
+        Narrows the return type from QCoreApplication | None to
+        MApplication and raises if no instance exists yet.
 
-    This simplifies pyright static type checking.
+        Returns
+        -------
+        MApplication
+            The running application instance.
 
-    Returns
-    -------
-    MApplication
-        The instance that cannot be None.
-    """
-    app = MApplication.instance()
-    if not isinstance(app, MApplication):
-        raise InternalInvariantError("The application instance is None!")
-    return app
+        Raises
+        ------
+        InternalInvariantError
+            If no MApplication instance has been created.
+        """
+        app = super().instance()
+        if not isinstance(app, MApplication):
+            raise InternalInvariantError("The application instance is None!")
+        return app
 
 
 # Common system information functions for matrix scripts
@@ -4190,7 +4205,7 @@ def check_config(config: dict) -> None:
             except (ValidationError, TypeError, ValueError) as e:
                 html += _format_validation_error(e, key + ".")
     try:
-        MainConfig(**config)
+        MainConfig.model_validate(config)
     except (ValidationError, TypeError, ValueError) as e:
         html += _format_validation_error(e)
     if html != "":
@@ -4345,6 +4360,7 @@ class _LogSignalHelper(QObject):
     """Provide signals for QTableLogger without conflicts."""
 
     log_record_received = Signal(list)
+    warning_or_above_received = Signal()
 
 
 class _QTableLogger(logging.Handler):
@@ -4395,6 +4411,8 @@ class _QTableLogger(logging.Handler):
         log_line = self.format(record)
         parts = log_line.split(self.separator)
         self._signal_helper.log_record_received.emit(parts)
+        if record.levelno >= logging.WARNING:
+            self._signal_helper.warning_or_above_received.emit()
 
     def _add_log_to_table(self, parts: list[str]) -> None:
         """
@@ -4407,10 +4425,14 @@ class _QTableLogger(logging.Handler):
         """
         if self.widget.rowCount() >= self.max_rows:
             self.widget.removeRow(0)
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
         row_position = self.widget.rowCount()
         self.widget.insertRow(row_position)
         for column, part in enumerate(parts):
-            item = QTableWidgetItem(str(part))
+            # a hard crash goes to stderr and is logged in the table
+            # -> remove the ansi sequences.
+            pure_text = ansi_escape.sub("", str(part))
+            item = QTableWidgetItem(pure_text)
             if column == self.levelname_column:
                 if part == "ERROR":
                     item.setForeground(QBrush(_QTableLogger.ERROR_COLOR))
@@ -4420,6 +4442,21 @@ class _QTableLogger(logging.Handler):
                     item.setForeground(QBrush(_QTableLogger.DEBUG_COLOR))
             self.widget.setItem(row_position, column, item)
         self.widget.scrollToBottom()
+
+
+class ReadOnlyTable(QTableWidget):
+    """Enable a read-only table with item copy."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+
+    def copy(self):
+        """Copy the currently selected item in the clipboard."""
+        index = self.currentIndex()
+        if index.isValid():
+            QApplication.clipboard().setText(str(index.data()))
+        return
 
 
 class LoggingWindow(QMainWindow):
@@ -4434,21 +4471,19 @@ class LoggingWindow(QMainWindow):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         self.setWindowTitle("Log Messages")
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.CustomizeWindowHint
-            | Qt.WindowType.WindowTitleHint
-        )
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
-        self.log_table = QTableWidget()
+        self.log_table = ReadOnlyTable()
         self.log_table.setColumnCount(len(LoggingWindow.LOG_FIELDS))
         self.log_table.setHorizontalHeaderLabels(
             [field.title() for field in LoggingWindow.LOG_FIELDS]
         )
         self.log_table.setAlternatingRowColors(True)
-        self.log_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.log_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        self.log_table.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
         header = self.log_table.horizontalHeader()
         header.setStretchLastSection(True)
         if len(LoggingWindow.LOG_FIELDS) >= 4:
@@ -4491,6 +4526,9 @@ class LoggingWindow(QMainWindow):
         self.log_handler.setFormatter(formatter)
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
+        self.log_handler._signal_helper.warning_or_above_received.connect(
+            self.show, Qt.ConnectionType.QueuedConnection
+        )
 
     def showEvent(self, event: QShowEvent) -> None:
         """Emit visibility state changes when the window shows."""
@@ -4521,3 +4559,89 @@ class LoggingWindow(QMainWindow):
         """Clear the table."""
         self.log_table.clearContents()
         self.log_table.setRowCount(0)
+
+
+def AutoSlot(function: Callable[P, R]) -> Callable[P, R]:
+    """
+    Provide a Qt slot for a typed python function or method.
+
+    To have only one source of truth, the type hints generate the
+    appropriate slot automatically and automatically generates Qt Slot
+    overloads.
+    """
+    function = inspect.unwrap(function)
+    hints = get_type_hints(function)
+    signature = inspect.signature(function)
+    params = _collect_parameters(signature, hints)
+    overloads = _build_overloads(params)
+    result_type = _normalize_result_type(hints.get("return"))
+    for args in reversed(overloads):
+        if result_type is not None:
+            function = Slot(*args, result=result_type)(function)
+        else:
+            function = Slot(*args)(function)
+    return function
+
+
+def _collect_parameters(
+    signature: inspect.Signature, hints: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Extract parameter metadata (types + default info)."""
+    params: list[dict[str, Any]] = []
+    for name, param in signature.parameters.items():
+        if name == "self":
+            continue
+        if name not in hints:
+            raise TypeError(f"Missing type hint for parameter '{name}'")
+        params.append(
+            {
+                "types": _expand_type(hints[name]),
+                "has_default": param.default is not inspect._empty,
+            }
+        )
+    return params
+
+
+def _expand_type(t: Any) -> list[type]:
+    """Expand a Python type hint into Qt-compatible types."""
+    origin = get_origin(t)
+    if origin is type:
+        return [type]
+    if origin in (Union, types.UnionType):
+        result = []
+        for arg in get_args(t):
+            result.extend(_expand_type(arg))
+        return result
+    if origin is not None:
+        return [origin]
+    return [t]
+
+
+def _build_overloads(params: list[dict]) -> list[list[type]]:
+    """Create all Qt slot overload combinations."""
+    overloads = [[]]
+    for param in params:
+        new_overloads = [base + [t] for base in overloads for t in param["types"]]
+        if param["has_default"]:
+            overloads = overloads + new_overloads
+        else:
+            overloads = new_overloads
+    seen = []
+    for o in overloads:
+        if o not in seen:
+            seen.append(o)
+    return seen
+
+
+def _normalize_result_type(t: Any) -> Any:
+    """Convert Python return annotation to Qt-compatible type."""
+    if t is type(None):
+        return None
+    if t is None:
+        return None
+    origin = get_origin(t)
+    if origin is type:
+        return type
+    if origin is not None:
+        return origin
+    return t

@@ -57,7 +57,6 @@ class UserlibInstallConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     controlguis: list[str] | None = None
-    options: list[str] | None = None
     root_path: Path | None = None
 
 
@@ -76,8 +75,6 @@ class Matr1xInstallConfig(BaseModel):
     controlguis: list[str] | None = None
     create_directories: bool
     desktopintegration: bool
-    options: list[str] | None = None
-    pip_options: str
     root_path: Path
 
 

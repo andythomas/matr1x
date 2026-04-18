@@ -27,15 +27,18 @@ import sys
 import time
 import traceback
 from ast import literal_eval
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, fields
+from functools import cached_property
 from math import floor
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any
 
 import numpy
 import pyqtgraph as pg
 import shiboken6
+from pydantic import BaseModel, Field
 from PySide6.QtCore import QByteArray, QObject, QPoint, QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFocusEvent, QKeySequence, QMouseEvent
 from PySide6.QtWidgets import (
@@ -47,9 +50,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLayout,
     QLineEdit,
     QMainWindow,
     QMenu,
+    QMenuBar,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -64,10 +69,16 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x import datetimefmt, system_directories, system_names, usersfolder
-from matr1x.control.util import QtGracefulKiller
-from matr1x.error_handling import Error, Result, Success, install_error_handler
+from matr1x.error_handling import (
+    Error,
+    InternalInvariantError,
+    Result,
+    Success,
+    install_error_handler,
+)
 from matr1x.gui_util import (
     AboutBox,
+    AutoSlot,
     CustomViewBox,
     FileDropMixin,
     LoggingWindow,
@@ -76,12 +87,16 @@ from matr1x.gui_util import (
     SystemListWidget,
     check_config,
     create_tray_notification,
-    get_application_instance,
     get_matrix_icon,
     open_matrix_toml,
     protected_restore,
     save_messagebox,
     validator,
+)
+from matr1x.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
 )
 from matr1x.system import MergedSystem
 from matr1x.util import (
@@ -101,178 +116,267 @@ if sys.platform == "win32":
     except ImportError:
         pass
 
-logger = logging.getLogger(Path(__file__).name)
+logger = logging.getLogger(__name__)
 
 
-# the next two could (should?!) also be static functions of the main window
-def calculate_sweep(
-    sweep_parameters: list[list[list[float | int]]],
-    loop_over: list[int],
-    up_down: list[bool],
-    repeat: list[int],
-) -> Result[list[list[float]], str]:
-    """
-    Generate a list of sweeps defined by given parameters.
+@dataclass(frozen=True)
+class DataFile:
+    """Container for data file information."""
 
-    Parameters
-    ----------
-    sweep_parameters : list
-        List of lists containing the sweep parameters (as 3 item list).
-    loop_over : list
-        List of integers (<len(loop_over)) defining the looping scheme.
-    up_down : list
-        List of bools defining if the sweep is going both ways.
-    repeat : list
-        List of integers defining how often the sweep ranges are repeated.
-
-    Returns
-    -------
-    list
-        List of sweeps that contains all parameters that are to be set. Individual
-        sweeps from columns still need to be stretched to equal length (sparse).
-        Otherwise, loop over is not handled properly.
-    """
-    lenA = len(sweep_parameters)
-    if len(loop_over) != lenA or len(up_down) != lenA or len(repeat) != lenA:
-        return Error("The length of the arrays is not equal.")
-    sweeps: list[list[float]] = []
-    for indexS, parmSets in zip(range(lenA), sweep_parameters):
-        i = 0
-        sweeps.append([])
-        while i < repeat[indexS]:
-            tempSweep = []
-            for parm in parmSets:
-                # generate the sweepRange using np.linspace, has to be list
-                # so += works
-
-                sweepRange = numpy.linspace(float(parm[0]), float(parm[1]), int(parm[2]))
-                if any(numpy.isnan(sweepRange)) or any(numpy.isinf(sweepRange)):
-                    return Error("Inf or Nan in sweep, check parameters")
-                tempSweep += list(sweepRange)
-            if up_down[indexS]:
-                # if up down is true, add the reversed sweep to the sweep
-                tempSweep += list(reversed(tempSweep))
-            sweeps[indexS] += tempSweep
-            i += 1
-    # check if there are loops of loops and detect hirarchy so we
-    # can properly generate the sweep
-    hirarchy = []
-    for i in range(lenA):
-        result = check_depth(i, loop_over)
-        if isinstance(result, Error):
-            # Recursive loop, you should really not do that!
-            # (i.e. don't loop col(a) over col(b) over col(a)!)
-            return Error("Recursive loop, please check loop over")
-        hirarchy.append(result.value)
-    hCnt = max(hirarchy)
-    while 0 <= hCnt:
-        for indexS in range(lenA):
-            if indexS == loop_over[indexS]:
-                # looping a column over itself is not how it's done!
-                loop_over[indexS] = -1
-            elif -1 != loop_over[indexS] and hCnt == hirarchy[indexS]:
-                # start with highest hirarchy first (i.e. column which is
-                # the most fundamental)
-                col = loop_over[indexS]
-                tempSweep = sweeps[indexS].copy()
-                # copy the initial sweep to be looped
-                for j in range(len(sweeps[col]) - 1):
-                    # for each element in the looped over column append the
-                    # initial sweep
-                    sweeps[indexS] += tempSweep
-                loop_over[indexS] = -1
-        hCnt -= 1
-    return Success(sweeps)
+    header: str
+    lines: list[str]
 
 
-def check_depth(index: int, array: list, depth: int = 0) -> Result[int, int]:
-    """
-    Recursive function to determine the hierarchical depth of an item in an array.
-
-    This function checks how deeply nested an item is within a given array structure.
-    It recursively follows references until it reaches the deepest level or detects
-    a circular reference.
-
-    Parameters
-    ----------
-    index : int
-        Index of the item in array for which the hierarchy is to be determined.
-    array : list
-        The array defining the hierarchy.
-    depth : int, optional
-        Recursion depth, does not need to be set when calling the function.
-
-    Returns
-    -------
-    int
-        Hierarchy of the item index within the given array.
-    """
-    if depth > 50:
-        # break the recursion, something went wrong
-        return Error(-1)
-    if index in array:
-        cnt = len([i for i, x in enumerate(array) if x == index])
-        # adds the position of the occurences of the index to a list
-        if cnt > 1:
-            # multiple occurences of index in array
-            d: list[int] = []
-            occ = -1
-            for _ in range(cnt):
-                # follow all branches of the occurences to get the actual
-                # maximum hirarchy of the occurence
-                occ = array.index(index, occ + 1)
-                item = check_depth(occ, array, depth + 1)
-                if isinstance(item, Error):
-                    return Error(-1)
-                d.append(item.value)
-            return Success(max(d))
-        return check_depth(array.index(index), array, depth + 1)
-
-    # if no more occurence is in the array, then return the current depth
-    return Success(depth)
-
-
-@dataclass
-class ColumnData:
+class ColumnData(BaseModel):
     """Container for column data."""
 
-    name: list[str]
-    unit: list[str]
-    sign: list[str]
-    color: list[bool]
+    name: list[str] = Field(default_factory=list)
+    unit: list[str] = Field(default_factory=list)
+    sign: list[str] = Field(default_factory=list)
+
+    parameter: list[list[list[float | int | str]]] = Field(default_factory=list)
+    loop_over: list[int] = Field(default_factory=list)
+    up_down: list[int] = Field(default_factory=list)
+    repeat: list[int] = Field(default_factory=list)
+
+    filenames: list[str] = Field(default_factory=list)
+
+    def __setattr__(self, name: str, value: Any):
+        """Invalidate the caches when updates occur."""
+        super().__setattr__(name, value)
+        if name == "sign":
+            self.__dict__.pop("color", None)
+
+    @cached_property
+    def color(self) -> list[bool]:
+        """Calculate the color based on the sign of the parameter."""
+        if not self.sign:
+            return []
+        colors = [True]
+        for prev, curr in zip(self.sign, self.sign[1:]):
+            colors.append(colors[-1] if curr == prev else not colors[-1])
+        return colors
+
+    def generate_file(self, version: int = 8) -> Result[DataFile, str]:
+        """Generate a sweep file for the given version."""
+        sweep = self.calculate_sweep()
+        if isinstance(sweep, Error):
+            return Error(f"Sweep generation failed: {sweep.error}")
+        sweep = sweep.value
+        if sweep == []:
+            return Success(DataFile(header="", lines=[]))
+        max_length = self._determine_max_length(sweep)
+        if isinstance(max_length, Error):
+            return Error(f"Max length determination failed: {max_length.error}")
+        max_length = max_length.value
+        multiplier = self._generate_stretch(sweep, max_length)
+        if isinstance(multiplier, Error):
+            return Error(f"Stretch generation failed: {multiplier.error}")
+        multiplier = multiplier.value
+        header = self._generate_header()
+        lines = self._generate_body(sweep, max_length, multiplier)
+        return Success(DataFile(header=header, lines=lines))
+
+    def _generate_header(self) -> str:
+        """Generate the header of the sweep file."""
+        timestamp = time.strftime(f"{datetimefmt} \n", time.localtime())
+        header = (
+            f"# v8 input file for matrix program generated by sweep-generator\n"
+            f"# system filename : {','.join(self.filenames)}\n"
+            f"# settable columns : {','.join(self.name)}\n"
+            f"# settable units : {','.join(self.unit)}\n"
+            f"# settable column label : {','.join(self.sign)}\n"
+            f"# params : {self.parameter}\n"
+            f"# loop_over : {self.loop_over}\n"
+            f"# up_down : {self.up_down}\n"
+            f"# repeat : {self.repeat}\n"
+            f"# time stamp : {timestamp}"
+        )
+        return header
+
+    def _generate_body(
+        self, sweep: list[list[float]], max_length: int, multiplier: list[int]
+    ) -> list[str]:
+        """Generate the body of the sweep file."""
+        lines = []
+        for i in range(max_length):
+            parts = []
+            for j, (swp, m) in enumerate(zip(sweep, multiplier)):
+                if m == 0 or i % m != 0:
+                    parts.append("   ")
+                    continue
+                idx = floor(i / m)
+                value = swp[idx]
+                same_parameter = j > 0 and self.sign[j] == self.sign[j - 1] and len(sweep) > 1
+                if same_parameter:
+                    parts.append(str(value))
+                else:
+                    parts.append(f"-{self.sign[j]} {value}")
+                parts.append("   ")
+            lines.append("".join(parts))
+        return lines
+
+    def _determine_max_length(self, sweep: list[list[float]]) -> Result[int, str]:
+        """Validate that all sweeps in a group are of equal length."""
+        max_length = []
+        for i in range(len(sweep)):
+            if self.sign[i] == self.sign[i - 1] and len(sweep[i]) != len(sweep[i - 1]):
+                error_text = "Not all parameters for that instrument have the same length."
+                error_text += "Please correct your sweep parameters in instrument "
+                error_text += f"{self.sign[i]} "
+                error_text += f" -> {self.name[i]}. If a parameter accepts multiple "
+                error_text += (
+                    "values, the different values for that parameter must have the same length."
+                )
+                return Error(f"Parameter length different! {error_text}")
+            max_length.append(len(sweep[i]))
+        return Success(max(max_length))
+
+    def _generate_stretch(self, sweep: list[list[float]], max_length: int) -> Result[list, str]:
+        """Calculate necessary multiplicators to stretch the sweeps."""
+        # if sweep lenghts are not multiples of each other something is wrong
+        mult = []
+        for i in range(len(sweep)):
+            if sweep[i] == []:
+                mult.append(0)
+            elif max_length % len(sweep[i]):
+                error_text = (
+                    "Sweep_parameters seem unsuitable for measurements, lengths not multiples. "
+                )
+                error_text += "Check that loops are set correctly."
+                return Error(f"Sweep parameters incompatible! {error_text}")
+            else:
+                mult.append(max_length / len(sweep[i]))
+        return Success(mult)
+
+    def clear(self) -> None:
+        """Delete all fields and invalidate the color cache."""
+        for field_name in type(self).model_fields:
+            value = getattr(self, field_name)
+            value.clear()
+        self.__dict__.pop("color", None)
+
+    def calculate_sweep(self) -> Result[list[list[float]], str]:
+        """
+        Generate a list of sweeps defined by given parameters.
+
+        Returns
+        -------
+        list
+            List of sweeps that contains all parameters that are to be
+            set.
+        """
+        loop_over = self.loop_over.copy()
+        lenA = len(self.parameter)
+        if lenA == 0:
+            return Success([])
+        if len(loop_over) != lenA or len(self.up_down) != lenA or len(self.repeat) != lenA:
+            return Error("The length of the arrays is not equal.")
+        sweeps: list[list[float]] = []
+        for indexS, parmSets in zip(range(lenA), self.parameter):
+            i = 0
+            sweeps.append([])
+            while i < self.repeat[indexS]:
+                tempSweep = []
+                for parm in parmSets:
+                    # generate the sweepRange using np.linspace, has to be list
+                    # so += works
+
+                    sweepRange = numpy.linspace(float(parm[0]), float(parm[1]), int(parm[2]))
+                    if any(numpy.isnan(sweepRange)) or any(numpy.isinf(sweepRange)):
+                        return Error("Inf or Nan in sweep, check parameters")
+                    tempSweep += list(sweepRange)
+                if self.up_down[indexS]:
+                    # if up down is true, add the reversed sweep to the sweep
+                    tempSweep += list(reversed(tempSweep))
+                sweeps[indexS] += tempSweep
+                i += 1
+        # check if there are loops of loops and detect hirarchy so we
+        # can properly generate the sweep
+        hirarchy = []
+        for i in range(lenA):
+            result = self.check_depth(i)
+            if isinstance(result, Error):
+                # Recursive loop, you should really not do that!
+                # (i.e. don't loop col(a) over col(b) over col(a)!)
+                return Error("Recursive loop, please check loop over")
+            hirarchy.append(result.value)
+        hCnt = max(hirarchy)
+        while hCnt >= 0:
+            for indexS in range(lenA):
+                if indexS == loop_over[indexS]:
+                    # looping a column over itself is not how it's done!
+                    loop_over[indexS] = -1
+                elif loop_over[indexS] != -1 and hCnt == hirarchy[indexS]:
+                    # start with highest hirarchy first (i.e. column which is
+                    # the most fundamental)
+                    col = loop_over[indexS]
+                    tempSweep = sweeps[indexS].copy()
+                    # copy the initial sweep to be looped
+                    for j in range(len(sweeps[col]) - 1):
+                        # for each element in the looped over column append the
+                        # initial sweep
+                        sweeps[indexS] += tempSweep
+                    loop_over[indexS] = -1
+            hCnt -= 1
+        return Success(sweeps)
+
+    def check_depth(self, index: int, depth: int = 0) -> Result[int, int]:
+        """
+        Determine the hierarchical depth of an item in an array.
+
+        This function checks how deeply nested an item is within a given
+        array structure. It recursively follows references until it
+        reaches the deepest level or detects a circular reference.
+
+        Parameters
+        ----------
+        index : int
+            Index of the item in array for which the hierarchy is to be determined.
+        array : list
+            The array defining the hierarchy.
+        depth : int, optional
+            Recursion depth, does not need to be set when calling the function.
+
+        Returns
+        -------
+        int
+            Hierarchy of the item index within the given array.
+        """
+        if depth > 50:
+            return Error(-1)
+        occurrences = [i for i, x in enumerate(self.loop_over) if x == index]
+        if not occurrences:
+            return Success(depth)
+        depths = []
+        for pos in occurrences:
+            result = self.check_depth(pos, depth + 1)
+            if isinstance(result, Error):
+                return Error(-1)
+            depths.append(result.value)
+        return Success(max(depths))
 
 
-class CheckBoxFocus(QCheckBox):
+class FocusInMixin:
+    """Add focusInEvent to QWidgets without it."""
+
+    focusIn = Signal()
+
+    def focusInEvent(self, e: QFocusEvent) -> None:
+        super().focusInEvent(e)  # ty: ignore[unresolved-attribute]
+        self.focusIn.emit()
+
+
+class CheckBoxFocus(FocusInMixin, QCheckBox):
     """Reimplement CheckBox with focusInEvent."""
 
-    focusIn = Signal()
 
-    def focusInEvent(self, e: QFocusEvent) -> None:
-        """Handle focus in event and emit custom signal."""
-        super().focusInEvent(e)
-        self.focusIn.emit()
-
-
-class LineEditFocus(QLineEdit):
+class LineEditFocus(FocusInMixin, QLineEdit):
     """Reimplement LineEdit with focusInEvent."""
 
-    focusIn = Signal()
 
-    def focusInEvent(self, e: QFocusEvent) -> None:
-        """Handle focus in event and emit custom signal."""
-        super().focusInEvent(e)
-        self.focusIn.emit()
-
-
-class SpinBoxFocus(QSpinBox):
+class SpinBoxFocus(FocusInMixin, QSpinBox):
     """Reimplement QSpinBox with focusInEvent."""
-
-    focusIn = Signal()
-
-    def focusInEvent(self, e: QFocusEvent) -> None:
-        """Handle focus in event and emit custom signal."""
-        super().focusInEvent(e)
-        self.focusIn.emit()
 
 
 class QLabelWithColor(QLabel):
@@ -286,7 +390,7 @@ class QLabelWithColor(QLabel):
         self.color_bright = "#DCF5D4"
         self.color_dark = "#325725"
         self._update_colors()
-        get_application_instance().isDarkSignal.connect(self._update_colors)
+        MApplication.instance().isDarkSignal.connect(self._update_colors)
 
     def _update_colors(self) -> None:
         """Change color while avoiding recursion."""
@@ -302,7 +406,7 @@ class QLabelWithColor(QLabel):
                          color: #DBDBDB;
                      }}
                  """
-        if get_application_instance().isDark:
+        if MApplication.instance().isDark:
             self.setStyleSheet(self.stylesheet_dark)
         else:
             self.setStyleSheet(self.stylesheet_bright)
@@ -369,37 +473,45 @@ class ColumnWidgets:
 
 
 class ColumnGenerator(QObject):
-    """Generate the sweep labels and columns."""
+    """
+    Generate the sweep column widgets.
 
-    widget_modified = Signal()
-    select_grid_column = Signal(int)
-    append = Signal(int)
+    Parameters
+    ----------
+    columns: ColumnData
+        The properties of the columns (name, unit, sign, color).
+    column: int
+        Index of the current column in the MainWindow.
+    """
 
-    def __init__(
-        self,
-        columns: ColumnData,
-        column: int = 0,
-    ):
-        """
-        Generate the general labels and the widgets for each column.
+    widget_modified: Signal = Signal()
+    select_grid_column: Signal = Signal(int)
+    append: Signal = Signal(int)
+    up_down_changed: Signal = Signal()
+    repeat_changed: Signal = Signal()
+    loop_over_changed: Signal = Signal()
 
-        Parameters
-        ----------
-        columns: ColumnData
-            The properties of the columns (name, unit, sign, color).
-        column: int
-            The current column in the MainWindow.
-        """
+    def __init__(self, columns: ColumnData, column: int):
         super().__init__()
-        self.columns = columns
-        self.column = column
-        self.column_widgets: ColumnWidgets = self.create_widgets()
+        self.columns: ColumnData = columns
+        self.column: int = column
+        self.column_widgets: ColumnWidgets = self._create_widgets()
 
+    @staticmethod
+    def label_widgets() -> LabelWidgets:
+        """
+        Create the header label widgets for the sweep grid.
+
+        Returns
+        -------
+        LabelWidgets
+            A dataclass containing all header label widgets.
+        """
         placeholder = QWidget()
         placeholder.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         placeholder.setFixedSize(0, 0)
 
-        self.label_widgets: LabelWidgets = LabelWidgets(
+        return LabelWidgets(
             column=QLabel("Column"),
             nameunit=QLabel("Name (Unit)"),
             start=QLabel("Start value"),
@@ -412,7 +524,7 @@ class ColumnGenerator(QObject):
             loopover=QLabel("Loop over"),
         )
 
-    def create_widgets(self) -> ColumnWidgets:
+    def _create_widgets(self) -> ColumnWidgets:
         """
         Create all widgets for the column.
 
@@ -453,9 +565,7 @@ class ColumnGenerator(QObject):
         points_widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
 
         append_widget = QPushButton("+")
-        temp_widget = QLineEdit(None)
-        size = temp_widget.sizeHint().height()
-        temp_widget.deleteLater()
+        size = QLineEdit().sizeHint().height()
         append_widget.setFixedSize(size, int(2.9 * size))
         append_widget.clicked.connect(lambda: self.widget_modified.emit())
         append_widget.clicked.connect(lambda: self.append.emit(self.column))
@@ -465,6 +575,7 @@ class ColumnGenerator(QObject):
         repeat_widget.setAlignment(Qt.AlignmentFlag.AlignRight)
         repeat_widget.valueChanged.connect(lambda: self.widget_modified.emit())
         repeat_widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
+        repeat_widget.valueChanged.connect(lambda: self.repeat_changed.emit())
 
         arrow_icon = get_matrix_icon(
             "CUSTOM_Updown",
@@ -478,6 +589,7 @@ class ColumnGenerator(QObject):
         updown_widget = CheckBoxFocus()
         updown_widget.stateChanged.connect(lambda: self.widget_modified.emit())
         updown_widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
+        updown_widget.stateChanged.connect(lambda: self.up_down_changed.emit())
 
         loopover_widget = QComboBox()
         loopover_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -488,6 +600,7 @@ class ColumnGenerator(QObject):
         loopover_widget.activated.connect(lambda: self.select_grid_column.emit(self.column))
         columns = ["None"] + [name.strip() for name in self.columns.name]
         loopover_widget.addItems(columns)
+        loopover_widget.currentIndexChanged.connect(lambda: self.loop_over_changed.emit())
 
         return ColumnWidgets(
             column=column_widget,
@@ -501,6 +614,16 @@ class ColumnGenerator(QObject):
             updown=updown_widget,
             loopover=loopover_widget,
         )
+
+
+@dataclass
+class WidgetGroup:
+    """Non-column widgets to be used in the GUI."""
+
+    sweep_preview: QTableWidget
+    sweep_table: QTableWidget
+    central_widget: QWidget
+    system_list: SystemListWidget
 
 
 @dataclass
@@ -522,132 +645,157 @@ class ActionGroup:
     sweep: QAction
     toggle_toolbar: QAction
     preview: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
+
+    def __iter__(self) -> Iterator[QAction]:
+        for f in fields(self):
+            yield getattr(self, f.name)
 
 
 class UIBuilder:
     """Create actions, toolbar and menu."""
 
-    def __init__(self, window: QMainWindow):
-        self.window: QMainWindow = window
-        self.actions: ActionGroup
-        self.toolbar: QToolBar
-        self.system_list: SystemListWidget
-        self._create_actions()
-        self._create_toolbar()
-        self._create_menu()
+    def __init__(self, menu_bar: QMenuBar):
+        self.widgets: WidgetGroup = self._create_widgets()
+        self.actions: ActionGroup = self._create_actions()
+        self.toolbar: QToolBar = self._create_toolbar()
+        self._create_menu(menu_bar)
+        self.grid: QGridLayout = self._create_gui()
 
-    def _create_actions(self) -> None:
+    def _create_widgets(self) -> WidgetGroup:
+        """Create all widgets."""
+        sweep_table = QTableWidget()
+        sweep_table.setColumnCount(4)
+        sweep_table.setHorizontalHeaderLabels(["Start", "Stop", "Points", "Delete"])
+        header = sweep_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        sweep_table.verticalHeader().hide()
+
+        sweep_preview = QTableWidget()
+        sweep_preview.setColumnCount(1)
+        sweep_preview.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        sweep_preview.setAlternatingRowColors(True)
+        sweep_preview.setHorizontalHeaderLabels(["Preview of the generated sweep-parameters"])
+        header = sweep_preview.horizontalHeader()
+        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
+        table_width = sweep_preview.viewport().width()
+        sweep_preview.setColumnWidth(0, table_width)
+
+        system_list = SystemListWidget()
+        system_list.setMinimumHeight(50)
+        system_list.setMaximumHeight(50)
+
+        return WidgetGroup(
+            sweep_preview=sweep_preview,
+            sweep_table=sweep_table,
+            central_widget=QWidget(),
+            system_list=system_list,
+        )
+
+    def _create_actions(self) -> ActionGroup:
         """Create all actions."""
-        matrix_settings_action = QAction("Show matrix toml", self.window)
-        matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
-        about_action = QAction("About", self.window)
-        about_action.setMenuRole(QAction.MenuRole.AboutRole)
-        show_log_action = QAction("Show Log Window", self.window)
-        show_log_action.setCheckable(True)
-        new_file_action = QAction(get_matrix_icon("SP_FileIcon"), "New", self.window)
-        new_file_action.setShortcut(QKeySequence.StandardKey.New)
-        new_file_action.setEnabled(False)
-        load_action = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self.window)
-        load_action.setShortcut(QKeySequence.StandardKey.Open)
-        add_system_action = QAction(
-            get_matrix_icon("CHAR_+", QColor("RoyalBlue")), "Add System", self.window
-        )
-        remove_system_action = QAction(
-            get_matrix_icon("CHAR_-", QColor("RoyalBlue")), "Remove System", self.window
-        )
-        remove_system_action.setEnabled(False)
-        save_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save", self.window)
-        save_action.setShortcut(QKeySequence.StandardKey.Save)
-        save_action.setEnabled(False)
-        save_as_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self.window)
-        save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        append_action = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append", self.window)
-        append_to_action = QAction(
-            get_matrix_icon("SP_DialogSaveButton"), "Append To...", self.window
-        )
-        quit_action = QAction("Quit", self.window)
+        matrix_settings = QAction("Show matrix toml")
+        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
+        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
+        about = QAction("About")
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+        show_log = QAction("Show Log Window")
+        show_log.setCheckable(True)
+        new_file = QAction(get_matrix_icon("SP_FileIcon"), "New")
+        new_file.setShortcut(QKeySequence.StandardKey.New)
+        new_file.setEnabled(False)
+        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
+        load.setShortcut(QKeySequence.StandardKey.Open)
+        add_system = QAction(get_matrix_icon("CHAR_+", QColor("RoyalBlue")), "Add System")
+        remove_system = QAction(get_matrix_icon("CHAR_-", QColor("RoyalBlue")), "Remove System")
+        remove_system.setEnabled(False)
+        save = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save")
+        save.setShortcut(QKeySequence.StandardKey.Save)
+        save.setEnabled(False)
+        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...")
+        save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
+        append = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append")
+        append_to = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append To...")
+        quit_action = QAction("Quit")
         if os.name == "nt":
             quit_action.setShortcut(QKeySequence.StandardKey.Close)
         else:
             quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        sweep_action = QAction(get_matrix_icon("SP_BrowserReload"), "Draft Sweep", self.window)
-        sweep_action.setEnabled(False)
-        toggle_toolbar_action = QAction("Show Toolbar", self.window)
-        toggle_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
-        toggle_toolbar_action.setCheckable(True)
-        toggle_toolbar_action.setChecked(True)
-        preview_action = QAction(
-            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")),
-            "Preview",
-            self.window,
+        sweep = QAction(get_matrix_icon("SP_BrowserReload"), "Draft Sweep")
+        sweep.setEnabled(False)
+        toggle_toolbar = QAction("Show Toolbar")
+        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
+        toggle_toolbar.setCheckable(True)
+        toggle_toolbar.setChecked(True)
+        preview = QAction(
+            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview"
         )
-        preview_action.setEnabled(False)
-        self.actions = ActionGroup(
-            matrix_settings=matrix_settings_action,
-            about=about_action,
-            show_log=show_log_action,
-            new_file=new_file_action,
-            load=load_action,
-            add_system=add_system_action,
-            remove_system=remove_system_action,
-            save=save_action,
-            save_as=save_as_action,
-            append=append_action,
-            append_to=append_to_action,
+        preview.setEnabled(False)
+        return ActionGroup(
+            matrix_settings=matrix_settings,
+            about=about,
+            show_log=show_log,
+            new_file=new_file,
+            load=load,
+            add_system=add_system,
+            remove_system=remove_system,
+            save=save,
+            save_as=save_as,
+            append=append,
+            append_to=append_to,
             quit=quit_action,
-            sweep=sweep_action,
-            toggle_toolbar=toggle_toolbar_action,
-            preview=preview_action,
+            sweep=sweep,
+            toggle_toolbar=toggle_toolbar,
+            preview=preview,
+            post_install=QAction("Install Desktop Integration"),
+            remove_desktop_integration=QAction("Remove Desktop Integration"),
         )
 
-    def _create_toolbar(self) -> None:
+    def _create_toolbar(self) -> QToolBar:
         """Create the toolbar."""
-        self.system_list = SystemListWidget(self.window)
-        self.system_list.setMinimumHeight(50)
-        self.system_list.setMaximumHeight(50)
-        self.save_button = QToolButton()
-        self.save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.save_button.setIcon(get_matrix_icon("SP_DialogSaveButton"))
-        self.save_button.setText("Save")
-        self.save_button.setDefaultAction(self.actions.save)
-        self.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        save_pulldown = QMenu(self.window)
+        save_button = QToolButton()
+        save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        save_button.setIcon(get_matrix_icon("SP_DialogSaveButton"))
+        save_button.setText("Save")
+        save_button.setDefaultAction(self.actions.save)
+        save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        save_pulldown = QMenu(save_button)
         save_pulldown.addAction(self.actions.save_as)
         save_pulldown.addAction(self.actions.append)
         save_pulldown.addAction(self.actions.append_to)
-        self.save_button.setMenu(save_pulldown)
+        save_button.setMenu(save_pulldown)
 
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFloatable(False)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = get_application_instance().toolbar_icon_size()
-        self.toolbar.setIconSize(QSize(icon_size, icon_size))
-        self.toolbar.setAllowedAreas(
-            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
-        )
-        self.toolbar.addAction(self.actions.new_file)
-        self.toolbar.addAction(self.actions.load)
-        self.toolbar.addWidget(self.save_button)
-        self.toolbar.addAction(self.actions.sweep)
+        toolbar = QToolBar("Toolbar")
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        toolbar.setFloatable(False)
+        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        icon_size = MApplication.instance().toolbar_icon_size()
+        toolbar.setIconSize(QSize(icon_size, icon_size))
+        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
+        toolbar.addAction(self.actions.new_file)
+        toolbar.addAction(self.actions.load)
+        toolbar.addWidget(save_button)
+        toolbar.addAction(self.actions.sweep)
         empty = QWidget()
         empty.setFixedWidth(icon_size)
         empty2 = QWidget()
         empty2.setFixedWidth(icon_size)
-        self.toolbar.addWidget(empty)
-        self.toolbar.addAction(self.actions.preview)
-        self.toolbar.addWidget(empty2)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.actions.add_system)
-        self.toolbar.addWidget(self.system_list)
-        self.toolbar.addAction(self.actions.remove_system)
-        self.window.addToolBar(self.toolbar)
+        toolbar.addWidget(empty)
+        toolbar.addAction(self.actions.preview)
+        toolbar.addWidget(empty2)
+        toolbar.addSeparator()
+        toolbar.addAction(self.actions.add_system)
+        toolbar.addWidget(self.widgets.system_list)
+        toolbar.addAction(self.actions.remove_system)
+        return toolbar
 
-    def _create_menu(self) -> None:
+    def _create_menu(self, menu_bar: QMenuBar) -> None:
         """Create the main menu."""
-        menu = self.window.menuBar()
-        file_menu = menu.addMenu("&File")
+        file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(self.actions.new_file)
         file_menu.addAction(self.actions.load)
         file_menu.addSeparator()
@@ -659,19 +807,36 @@ class UIBuilder:
         file_menu.addAction(self.actions.remove_system)
         file_menu.addSeparator()
         file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
-        control_menu = menu.addMenu("&Control")
+        control_menu = menu_bar.addMenu("&Control")
         control_menu.addAction(self.actions.sweep)
-        view_menu = menu.addMenu("&View")
+        view_menu = menu_bar.addMenu("&View")
         view_menu.addAction(self.actions.toggle_toolbar)
         view_menu.addAction(self.actions.matrix_settings)
-        help_menu = menu.addMenu("&Help")
+        help_menu = menu_bar.addMenu("&Help")
         help_menu.addAction(self.actions.about)
         help_menu.addAction(self.actions.show_log)
+        help_menu.addSeparator()
+        help_menu.addAction(self.actions.post_install)
+        help_menu.addAction(self.actions.remove_desktop_integration)
+
+    def _create_gui(self) -> QGridLayout:
+        """Create and set up the main GUI."""
+        grid = QGridLayout()
+        grid.setVerticalSpacing(5)
+        grid.setHorizontalSpacing(10)
+        lower_view = QHBoxLayout()
+        lower_view.addWidget(self.widgets.sweep_preview)
+        lower_view.addWidget(self.widgets.sweep_table)
+        central_layout = QVBoxLayout()
+        central_layout.addLayout(grid)
+        central_layout.addLayout(lower_view)
+        self.widgets.central_widget.setLayout(central_layout)
+        return grid
 
 
 class SweepPreviewPopup(QDialog):
     """
-    Show the sweep as list and as plot in a pop-up.
+    Show the sweep as list and plot in a pop-up.
 
     Parameters
     ----------
@@ -687,21 +852,22 @@ class SweepPreviewPopup(QDialog):
         self,
         parent: QWidget | None,
         index: int,
-        sweep: list[list[float]],
         col: ColumnData,
     ):
         super().__init__(parent)
-        self.sweep = sweep
-        self.columns = col
-
-        self.data_table = QTableWidget()
+        self.columns: ColumnData = col
+        sweep = self.columns.calculate_sweep()
+        if isinstance(sweep, Error):
+            InternalInvariantError("SweepPreviewPopup should not be called with an Error.")
+        else:
+            self.sweep = sweep.value
+        self.data_table: QTableWidget = QTableWidget()
         self.data_table.setColumnCount(1)
         self.data_table.setAlternatingRowColors(True)
         self.data_table.setHorizontalHeaderLabels(["Value"])
         header = self.data_table.horizontalHeader()
         header.setSectionResizeMode(0, header.ResizeMode.Stretch)
-        self.posLabel = QLabel(f"x: {0:e}\ny: {0:e}")
-
+        self.posLabel: QLabel = QLabel(f"x: {0:e}\ny: {0:e}")
         comboBox = QComboBox()
         columns = []
         for c, cs in zip(self.columns.name, self.columns.sign):
@@ -709,20 +875,18 @@ class SweepPreviewPopup(QDialog):
         comboBox.addItems(columns)
         comboBox.setCurrentIndex(index)
         comboBox.currentIndexChanged.connect(self.indexChanged)
-
         self.vb = CustomViewBox()
-        self.pw = pg.PlotWidget(viewBox=self.vb, name="plot1", enableMenu=False)
+        self.pw: pg.PlotWidget = pg.PlotWidget(viewBox=self.vb, name="plot1", enableMenu=False)
         self.plt = self.pw.plot(
             symbolPen=(65, 105, 225),
             symbolBrush=(65, 105, 225),
         )
         self.plt.setPen((65, 105, 225), width=3)
-        get_application_instance().isDarkSignal.connect(self.update_colors)
+        MApplication.instance().isDarkSignal.connect(self.update_colors)
         self.proxy = pg.SignalProxy(
             self.pw.getViewBox().scene().sigMouseMoved, rateLimit=30, slot=self.mouse_moved
         )
         self.update_colors()
-
         self.plot_list_range_x(index)
         self.update_data_table(index)
 
@@ -740,7 +904,7 @@ class SweepPreviewPopup(QDialog):
 
     def update_colors(self) -> None:
         """Update colors according to the theme."""
-        if get_application_instance().isDark:
+        if MApplication.instance().isDark:
             self.pw.setBackground("k")
             self.pw.getAxis("left").setPen("w")
             self.pw.getAxis("bottom").setPen("w")
@@ -790,7 +954,6 @@ class SweepPreviewPopup(QDialog):
         self.pw.getAxis("left").textWidth = 0
         length = len(self.sweep[index])
         self.plt.setData(x=numpy.linspace(0, length, length), y=self.sweep[index], symbol="o")
-
         self.pw.setLabel("bottom", "index")
         self.pw.setLabel(
             "left",
@@ -799,7 +962,18 @@ class SweepPreviewPopup(QDialog):
 
 
 class MainWindow(FileDropMixin, QMainWindow):
-    """Define main layout, run everything."""
+    """
+    Run the logic of the sweep generator.
+
+    Parameters
+    ----------
+    filename : str
+        Sweep file to load for editing.
+    system : str
+        Path to system(s) for which an input file should be generated.
+    inputcb : function handle
+        Callback function used to return the filename of the generated file.
+    """
 
     extension = ".sw8"
     window_title_dirty = Signal()
@@ -811,19 +985,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         inputcb: Callable[[str], None] | None = None,
         log_window: LoggingWindow | None = None,
     ):
-        """
-        Init the main window.
-
-        Parameters
-        ----------
-        filename : str
-            Sweep file to load for editing.
-        system : str
-            Path to system(s) for which an input file should be generated.
-        inputcb : function handle
-            Callback function used to return the filename of the generated file.
-        """
         super().__init__()
+        self.in_pytest: bool = False
         self._owns_log_window = log_window is None
         if log_window is None:
             self.log_window = LoggingWindow(parent=self)
@@ -832,42 +995,31 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.log_window = log_window
         logger.info("sweep-generator starting")
 
-        self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
-
-        # file handling helpers
         self.system: MergedSystem | None = system
         self.inputcb: Callable[[str], None] | None = inputcb
         self.last_loaded_system: str | None = None
         self.last_filename: Path | None = None
         self.dirty: bool = False
+        self.columns: ColumnData = ColumnData()
         self.shortcut_dir: TemporaryDirectory | None = None
+        self.settings: SaferQSettings = SaferQSettings("matr1x", "sweep-generator")
+        self.preview_column: int = 0
+        self.populated: bool = False
+        self.grid_widgets: list[ColumnWidgets]
 
-        self.settings = SaferQSettings("matr1x", "sweep-generator")
-
-        self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
-
-        self.columns = ColumnData(name=[], unit=[], sign=[], color=[])
-
-        # sweep variables
-        self.loop_over = []
-        self.up_down = []
-        self.repeat = []
-        self.sweep_params = []
-        self.systemFilename = ""
-
-        # gui variables
-        self.preview_column = 0
-
-        # initialize generic (system independent) part of ui
-        self.outputList: list
-        self.populated = False
-        self.init_ui()
-
+        self.setWindowTitle("Sweep Generator")
+        self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
+        self.ui: UIBuilder = UIBuilder(self.menuBar())
+        self.setCentralWidget(self.ui.widgets.central_widget)
+        self.addToolBar(self.ui.toolbar)
+        for action in self.ui.actions:
+            action.setParent(self)
         self.setAcceptDrops(True)
         self.setValidExtensions([self.extension])
-        self.file_dropped.connect(lambda file: self.open_file(Path(file)))
+        self.create_connections()
+        check_config(matr1x.config)
+        check_desktop_integration()
 
-        # If filename is passed as command line argument
         if filename is not None:
             if self.is_valid_extension(filename):
                 self.open_file(filename)
@@ -880,15 +1032,14 @@ class MainWindow(FileDropMixin, QMainWindow):
         If the script was modified without saving, a dialog asks how to
         proceed.
         """
-        if self.dirty:
+        if self.dirty and not self.in_pytest:
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 a0.ignore()
                 return
             if ret == QMessageBox.StandardButton.Save:
                 if not self.save_file():
-                    # if save fails, do not close.
-                    a0.ignore()
+                    a0.ignore()  # if save fails, do not close.
                     return
         self.save_window_state()
         if self._owns_log_window:
@@ -913,7 +1064,7 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def restore_window_state(self) -> None:
         """
-        Restore application configuration to look similar to the previous use.
+        Restore application configuration from previous use.
 
         Main window geometry and toolbar placement are restored.
         """
@@ -943,10 +1094,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         checked: bool
             Show (True) or hide (False) the toolbar.
         """
-        if checked:
-            self.ui.toolbar.show()
-        else:
-            self.ui.toolbar.hide()
+        self.ui.toolbar.show() if checked else self.ui.toolbar.hide()
 
     def toggle_log_window(self) -> None:
         """Toggle the visibility of the logging window."""
@@ -958,56 +1106,19 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.log_window.activateWindow()
 
     def _on_log_window_visibility_changed(self, visible: bool) -> None:
-        """Keep the 'Show Log Window' action state in sync with the window."""
-        action = self.ui.actions.show_log
-        action.setChecked(visible)
-        action.setText("Hide Log Window" if visible else "Show Log Window")
+        """Keep the 'Show Log Window' action state in sync."""
+        self.ui.actions.show_log.setChecked(visible)
+        self.ui.actions.show_log.setText("Hide Log Window" if visible else "Show Log Window")
 
-    def init_ui(self) -> None:
-        """Generate the main GUI."""
-        self.setWindowTitle("Sweep Generator")
-        # Start the layout
-        self.grid = QGridLayout()
-        self.grid.setVerticalSpacing(5)
-        self.grid.setHorizontalSpacing(10)
-        main_layout = QVBoxLayout()
-        main_layout.addLayout(self.grid)
-        self.utility_layout = QVBoxLayout()
-        main_layout.addLayout(self.utility_layout)
-        self.main_widget = QWidget()
-        self.main_widget.setLayout(main_layout)
-        self.setCentralWidget(self.main_widget)
-        # generate sweep grid labels and layout
-        self.sweep_table = QTableWidget()
-        self.sweep_table.setColumnCount(4)
-        self.sweep_table.setHorizontalHeaderLabels(["Start", "Stop", "Points", "Delete"])
-        header = self.sweep_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.sweep_table.verticalHeader().hide()
-        self.sweep_preview = QTableWidget()
-        self.sweep_preview.setColumnCount(1)
-        self.sweep_preview.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.sweep_preview.setAlternatingRowColors(True)
-        self.sweep_preview.setHorizontalHeaderLabels(["Preview of the generated sweep-parameters"])
-        header = self.sweep_preview.horizontalHeader()
-        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
-        table_width = self.sweep_preview.viewport().width()
-        self.sweep_preview.setColumnWidth(0, table_width)
-        central_view = QHBoxLayout()
-        central_view.addWidget(self.sweep_preview)
-        central_view.addWidget(self.sweep_table)
-        self.utility_layout.addLayout(central_view)
-        self.ui = UIBuilder(self)
+    def create_connections(self) -> None:
+        """Connect actions and widgets with application logic."""
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
         self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
         self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
         self._on_log_window_visibility_changed(self.log_window.isVisible())
         self.ui.actions.new_file.triggered.connect(self.new_file)
-        self.ui.actions.load.triggered.connect(self.gui_from_sweep)
+        self.ui.actions.load.triggered.connect(self.load_file)
         self.ui.actions.add_system.triggered.connect(self.add_system)
         self.ui.actions.remove_system.triggered.connect(self.delete_selected_system)
         self.ui.actions.save.triggered.connect(self.save_file)
@@ -1017,12 +1128,15 @@ class MainWindow(FileDropMixin, QMainWindow):
             lambda: self.save_file(append=True, dialog=True)
         )
         self.ui.actions.quit.triggered.connect(self.close)
-        self.ui.actions.sweep.triggered.connect(self.print_sweep_to_preview)
+        self.ui.actions.sweep.triggered.connect(self.generate_datafile)
         self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.preview.triggered.connect(self.preview_sweep)
-        self.ui.system_list.orderChanged.connect(self.filename_changed)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
+        self.ui.widgets.system_list.orderChanged.connect(self.on_filename_changed)
         self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
-        check_config(matr1x.config)
+        self.file_dropped.connect(lambda file: self.open_file(Path(file)))
+        self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
 
     def info_box(self) -> None:
         """Display an 'about this app' widget."""
@@ -1049,15 +1163,37 @@ class MainWindow(FileDropMixin, QMainWindow):
     def reset_layout(self) -> None:
         """Reset layout to clean state."""
         if self.populated:
-            self.sweep_params = []
-            self.columns.name.clear()
-            self.columns.unit.clear()
-            self.columns.sign.clear()
-            self.clear_layout(self.grid)
-            self.sweep_table.setRowCount(0)
-            self.sweep_preview.setRowCount(0)
+            self.columns.clear()
+            self.clear_layout(self.ui.grid)
+            self.ui.widgets.sweep_table.setRowCount(0)
+            self.ui.widgets.sweep_preview.setRowCount(0)
 
-    def filename_changed(self) -> bool:
+    @AutoSlot
+    def on_up_down_changed(self) -> None:
+        """Handle up/down widget state changes."""
+        up_down = []
+        for col in range(len(self.columns.name)):
+            updownstate = self.grid_widgets[col].updown.checkState()
+            up_down.append(2) if updownstate == Qt.CheckState.Checked else up_down.append(0)
+        self.columns.up_down = up_down
+
+    @AutoSlot
+    def on_repeat_changed(self) -> None:
+        """Handle repeat widget state changes."""
+        repeat = []
+        for col in range(len(self.columns.name)):
+            repeat.append(self.grid_widgets[col].repeat.value())
+        self.columns.repeat = repeat
+
+    @AutoSlot
+    def on_loop_over_changed(self) -> None:
+        """Handle loop over widget state changes."""
+        loop_over = []
+        for col in range(len(self.columns.name)):
+            loop_over.append(self.grid_widgets[col].loopover.currentIndex() - 1)
+        self.columns.loop_over = loop_over
+
+    def on_filename_changed(self) -> bool:
         """
         Import new system because a filename changed.
 
@@ -1066,14 +1202,15 @@ class MainWindow(FileDropMixin, QMainWindow):
         bool
             True on success and False on error during import.
         """
-        if any(sublist for sublist in self.sweep_params):
+        if any(self.columns.parameter):
             create_tray_notification(
                 "Sweep reset", "All previous sweep parameters have been cleared.", self
             )
         filenames = [
-            self.ui.system_list.item(j).text() for j in range(self.ui.system_list.count())
+            self.ui.widgets.system_list.item(j).text()
+            for j in range(self.ui.widgets.system_list.count())
         ]
-        if 0 == len(filenames):
+        if len(filenames) == 0:
             self.reset_layout()
             self.ui.actions.new_file.setEnabled(False)
             self.ui.actions.save.setEnabled(False)
@@ -1090,11 +1227,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.sweep.setEnabled(True)
         self.ui.actions.preview.setEnabled(True)
         self.ui.actions.remove_system.setEnabled(True)
-        modulestr = ""
-        # update entries in GUI list
-        for j, systemfile in enumerate(filenames):
-            self.ui.system_list.item(j).setText(systemfile)
-        self.systemFilename = ",".join(filenames)
         try:
             self.system = MergedSystem.from_files(filenames)
         except Exception as e:
@@ -1109,23 +1241,14 @@ class MainWindow(FileDropMixin, QMainWindow):
             error_text += "" + tbstr
             QMessageBox.warning(self, "Import error.", error_text.replace("\n", "<br>"))
             return False
-        for file in filenames:
-            modulestr += Path(file).stem + ","
-        # update gui using the system specifications
         self.process_system_import()
         return True
 
     def process_system_import(self) -> None:
         """Process specified system imports and populate layout."""
         if self.system is None:
-            QMessageBox.warning(
-                self,
-                "Import error!",
-                "No system files given.",
-            )
-            return
+            raise InternalInvariantError("System should not be None at this point.")
         if len(self.system.columns) != len(self.system.units):
-            # simple sanity check
             QMessageBox.warning(
                 self,
                 "Import error!",
@@ -1133,14 +1256,24 @@ class MainWindow(FileDropMixin, QMainWindow):
             )
             return
         self.reset_layout()
-        # store old columns
+        self._apply_system_to_columns()
+        self.populate_layout()
+        self.populated = True
+
+    def _apply_system_to_columns(self) -> None:
+        """
+        Update column data to match the current system.
+
+        Derives column names, units and signs from the system's settable
+        columns. Sweep parameters for columns that exist in both the old
+        and the new system are preserved; all other columns start empty.
+        """
+        if self.system is None:
+            raise InternalInvariantError("System should not be None at this point.")
         old_cols = self.columns.name
-        # Initalize sweep lists
         self.columns.sign = []
-        # generate list of settable parameters
         settables, self.columns.name, self.columns.unit = self.system.settable_columns()
         for i, (settable, col) in enumerate(zip(settables, self.system.columns)):
-            # add a column for each settable parameter in the system
             if settable is True:
                 if isinstance(col, (tuple, list)):
                     # if parameter has multiple values, add multiple columns
@@ -1148,29 +1281,25 @@ class MainWindow(FileDropMixin, QMainWindow):
                         self.columns.sign.append(generate_col_index(i))
                 else:
                     self.columns.sign.append(generate_col_index(i))
-
-        self.columns.color = self._generate_alternating_colors()
-
-        # columns are initialized, get already available columns from
-        # the old columns, save the sweep params and their new location
         save_sweep_params = {}
         for index, old_col in enumerate(old_cols):
             if old_col in self.columns.name:
                 newloc = self.columns.name.index(old_col)
-                save_sweep_params[newloc] = self.sweep_params[index]
-        # generate empty list of list for the sweep parameters
-        self.sweep_params = []
+                save_sweep_params[newloc] = self.columns.parameter[index]
+        self.columns.parameter = []
         for pos in range(len(self.columns.name)):
-            if pos in save_sweep_params.keys():
-                # if parameter was already defined before, keep sweep params
-                self.sweep_params.append(save_sweep_params[pos])
+            if pos in save_sweep_params:
+                self.columns.parameter.append(save_sweep_params[pos])
             else:
-                # otherwise, set empty list
-                self.sweep_params.append([])
-        self.populate_layout()
-        self.populated = True
+                self.columns.parameter.append([])
+        self.columns.filenames = [
+            self.ui.widgets.system_list.item(j).text()
+            for j in range(self.ui.widgets.system_list.count())
+        ]
 
-    def add2grid(self, widgets: LabelWidgets | ColumnWidgets, row: int = 0, column: int = 0):
+    def add2grid(
+        self, widgets: LabelWidgets | ColumnWidgets, row: int = 0, column: int = 0
+    ) -> None:
         """
         Add widgets to grid.
 
@@ -1189,8 +1318,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             The column of the parameters, which is the same as the grid.
         """
         row = row * 5
-        self.grid.addWidget(widgets.column, row, column)
-        self.grid.addWidget(widgets.nameunit, row + 1, column)
+        self.ui.grid.addWidget(widgets.column, row, column)
+        self.ui.grid.addWidget(widgets.nameunit, row + 1, column)
         parameters = QVBoxLayout()
         parameters.setSpacing(3)
         parameters.addWidget(widgets.start)
@@ -1201,7 +1330,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         quart.addLayout(parameters)
         quart.addWidget(widgets.append)
         widgets.append.setDisabled(True)
-        self.grid.addLayout(quart, row + 2, column)
+        self.ui.grid.addLayout(quart, row + 2, column)
         modifiers = QHBoxLayout()
         modifiers.setSpacing(5)
         if not isinstance(widgets.updown, QLabel):
@@ -1210,44 +1339,25 @@ class MainWindow(FileDropMixin, QMainWindow):
             modifiers.addWidget(widgets.repeat)
         modifiers.addWidget(widgets.doublearrow)
         modifiers.addWidget(widgets.updown)
-        self.grid.addLayout(modifiers, row + 3, column)
+        self.ui.grid.addLayout(modifiers, row + 3, column)
         combobox = QVBoxLayout()
         combobox.addWidget(widgets.loopover)
         combobox.addWidget(QLabel(" "))
-        self.grid.addLayout(combobox, row + 4, column)
-
-    def _generate_alternating_colors(self) -> list[bool]:
-        """
-        Generate alternating colors for column entries.
-
-        Returns
-        -------
-        list[bool]
-            True and False alternate when entry differs from previous.
-        """
-        colors = []
-        if len(self.columns.sign) > 0:
-            current_color = True
-            last_sign = self.columns.sign[0]
-            colors.append(current_color)
-            for i in range(1, len(self.columns.sign)):
-                if self.columns.sign[i] != last_sign:
-                    current_color = not current_color
-                    last_sign = self.columns.sign[i]
-                colors.append(current_color)
-        return colors
+        self.ui.grid.addLayout(combobox, row + 4, column)
 
     def populate_layout(self) -> None:
         """Populate sweep control and data fields."""
         self.grid_widgets = []
-        column_generator = ColumnGenerator(self.columns)
-        self.add2grid(column_generator.label_widgets)
+        self.add2grid(ColumnGenerator.label_widgets())
 
         for column in range(len(self.columns.name)):
             column_generator = ColumnGenerator(self.columns, column)
             column_generator.widget_modified.connect(self.window_title_dirty.emit)
             column_generator.select_grid_column.connect(self.populate_sweep_grid)
             column_generator.append.connect(self.append_sweep_col)
+            column_generator.up_down_changed.connect(self.on_up_down_changed)
+            column_generator.repeat_changed.connect(self.on_repeat_changed)
+            column_generator.loop_over_changed.connect(self.on_loop_over_changed)
             sweep_widgets = column_generator.column_widgets
             sweep_widgets.start.textChanged.connect(
                 lambda text, col=column: self.update_append(text, col)
@@ -1262,10 +1372,14 @@ class MainWindow(FileDropMixin, QMainWindow):
 
         max_column_width = self.grid_widgets[0].loopover.minimumSizeHint().width()
         # calculate how many columns fit the screen horizontally
-        max_width = max_column_width + self.grid.horizontalSpacing()
-        left, top, right, bottom = self.grid.getContentsMargins()  # type: ignore
+        max_width = max_column_width + self.ui.grid.horizontalSpacing()
+        left, top, right, bottom = self.ui.grid.getContentsMargins()  # ty: ignore[not-iterable]
         screen_width = self.screen().availableGeometry().width() - left - right
         column_fit = screen_width // max_width - 1
+
+        self.on_up_down_changed()
+        self.on_loop_over_changed()
+        self.on_repeat_changed()
 
         for column in range(len(self.columns.name)):
             row = (column + 1) // (column_fit + 1)
@@ -1291,86 +1405,31 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.grid_widgets[column].append.setEnabled(False)
 
     def preview_sweep(self) -> None:
-        """Display a popup with the sweep given in the column (as plot and list)."""
-        sweep = self.generate_sweep()
-        if sweep is None:
+        """Display a popup with the sweep given in the column."""
+        sweep = self.columns.calculate_sweep()
+        if isinstance(sweep, Error):
+            QMessageBox.warning(self, "Cannot preview sweep:", f"{sweep.error}")
             return
-        popup = SweepPreviewPopup(
-            self,
-            self.preview_column,
-            sweep,
-            self.columns,
-        )
-        popup.show()
+        SweepPreviewPopup(self, self.preview_column, self.columns)
 
-    def print_sweep_to_preview(self) -> None:
-        """Print the complete set of sweeps to self.sweep_preview."""
-        sweep = self.generate_sweep()
-        if sweep is None:
-            return
-        # get length of longest sweep and
-        # make sure all sweeps in a group are of equal length
-        # this is how the looping over different column is implemented here
-        max_length = []
-        for i in range(len(sweep)):
-            # make sure that values that belong to the same parameter have the
-            # same length
-            if self.columns.sign[i] == self.columns.sign[i - 1] and len(sweep[i]) != len(
-                sweep[i - 1]
-            ):
-                error_text = "Not all parameters for that instrument have the same length."
-                error_text += "Please correct your sweep parameters in instrument "
-                error_text += f"{self.columns.sign[i]} "
-                error_text += f" -> {self.columns.name[i]}. If a parameter accepts multiple "
-                error_text += (
-                    "values, the different values for that parameter must have the same length."
-                )
-                QMessageBox.warning(self, "Parameter error!", error_text)
-                return
-            max_length.append(len(sweep[i]))
+    def generate_datafile(self) -> Result[DataFile, str]:
+        """
+        Print the complete set of sweeps to self.sweep_preview.
 
-        max_length = max(max_length)
-
-        # calculate necessary multiplicators to stretch the sweeps
-        # if sweep lenghts are not multiples of each other something is wrong
-        mult = []
-        for i in range(len(sweep)):
-            if [] == sweep[i]:
-                mult.append(0)
-            elif max_length % len(sweep[i]):
-                error_text = (
-                    "Sweep_parameters seem unsuitable for measurements, lengths not multiples. "
-                )
-                error_text += "Check that loops are set correctly."
-                QMessageBox.warning(self, "Sweep parameters incompatible!", error_text)
-                return
-            else:
-                mult.append(max_length / len(sweep[i]))
-
-        # initialize outputList, here the strings for the lines will be input
-        # this is equivalent to what goes into the file
-        self.outputList = []
-        self.sweep_preview.setRowCount(max_length)
-        for i in range(max_length):
-            string: list[str] = []
-            for j, swp in enumerate(sweep):
-                if 0 != mult[j] and not i % mult[j]:
-                    # here the values are stretched to the correct "length" if
-                    # the loop_over parameter is considered
-                    if self.columns.sign[j] == self.columns.sign[j - 1] and len(sweep) > 1:
-                        # Parameter has multiple values
-                        string.append(str(swp[floor(i / mult[j])]))
-                    else:
-                        # Parameter has single value
-                        string.append(
-                            "-" + self.columns.sign[j] + " " + str(swp[floor(i / mult[j])])
-                        )
-                string.append("   ")
-            line = "".join(string)
+        Returns
+        -------
+        bool
+            True if the sweep was printed successfully, False otherwise.
+        """
+        result = self.columns.generate_file()
+        if isinstance(result, Error):
+            QMessageBox.warning(self, "Cannot generate sweep:", f"{result.error}")
+            return result
+        self.ui.widgets.sweep_preview.setRowCount(len(result.value.lines))
+        for i, line in enumerate(result.value.lines):
             value = QTableWidgetItem(line[:1000])
-            self.sweep_preview.setItem(i, 0, value)
-            # replace excess spaces from file and print, could be removed
-            self.outputList.append(line.replace("   ", " ") + "\n")
+            self.ui.widgets.sweep_preview.setItem(i, 0, value)
+        return result
 
     def update_window_title(self, dirty: bool = False) -> None:
         """
@@ -1407,42 +1466,23 @@ class MainWindow(FileDropMixin, QMainWindow):
         bool
             Saved (True) or errored (False)
         """
-        self.print_sweep_to_preview()
+        result = self.generate_datafile()
+        if isinstance(result, Error):
+            QMessageBox.warning(self, "No sweep!", "No data generated, no file saved.")
+            return False
         if filename.suffix != self.extension:
             filename = filename.with_suffix(self.extension)
         try:
-            if append:
-                outputFile = filename.open("a")
-            else:
-                outputFile = filename.open("w")
-        except OSError:
-            QMessageBox.warning(self, "Error!", "File can not be opened.")
+            mode = "a" if append else "w"
+            with filename.open(mode) as outputFile:
+                if not append:
+                    outputFile.write(result.value.header)
+                for line in result.value.lines:
+                    # replace excess spaces from file and print, could be removed
+                    outputFile.write(line.replace("   ", " ") + "\n")
+        except OSError as e:
+            QMessageBox.warning(self, "Error!", f"File can not be opened: {e}")
             return False
-        # get telemetry and append to file
-        timestamp = time.strftime(f"{datetimefmt} \n", time.localtime())
-        if not append:
-            outputFile.write("# v8 input file for matrix program generated by sweep-generator")
-            outputFile.write("\n# system filename : ")
-            outputFile.write(self.systemFilename)
-            outputFile.write("\n# settable columns : ")
-            outputFile.write(",".join(self.columns.name))
-            outputFile.write("\n# settable units : ")
-            outputFile.write(",".join(self.columns.unit))
-            outputFile.write("\n# settable column label : ")
-            outputFile.write(",".join(self.columns.sign))
-            outputFile.write("\n# params : ")
-            outputFile.write(str(self.sweep_params))
-            outputFile.write("\n# loop_over : ")
-            outputFile.write(str(self.loop_over))
-            outputFile.write("\n# up_down : ")
-            outputFile.write(str(self.up_down))
-            outputFile.write("\n# repeat : ")
-            outputFile.write(str(self.repeat))
-            outputFile.write("\n# time stamp : ")
-            outputFile.write(timestamp)
-        for line in self.outputList:
-            outputFile.write(line)
-        outputFile.close()
         self.last_filename = filename
         self.update_window_title(dirty=False)
         if self.inputcb is not None:
@@ -1489,23 +1529,18 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def append_sweep_col(self, column: int) -> None:
         """
-        Add defined sweep parameters to self.sweep_params and populate sweep table.
+        Add defined sweep parameters to self.columns.parameter and populate sweep table.
 
         Parameters
         ----------
         column : int
             The column index (0-based).
         """
-        param_set = []
-        param_set.append(self.grid_widgets[column].start.text())
-        param_set.append(self.grid_widgets[column].end.text())
-        param_set.append(self.grid_widgets[column].points.text())
-        self.sweep_params[column].append(param_set)
-        self.grid_widgets[column].start.setText("")
-        self.grid_widgets[column].end.setText("")
-        self.grid_widgets[column].points.setText("")
-        # update the sweep grid for the active column (should now display
-        # the new parameter set)
+        cw = self.grid_widgets[column]
+        self.columns.parameter[column].append([cw.start.text(), cw.end.text(), cw.points.text()])
+        cw.start.setText("")
+        cw.end.setText("")
+        cw.points.setText("")
         self.populate_sweep_grid(column)
 
     def populate_sweep_grid(self, actual_column: int) -> None:
@@ -1529,9 +1564,9 @@ class MainWindow(FileDropMixin, QMainWindow):
             else:
                 col_sign_label.setFrameStyle(QLabel.Shape.NoFrame)
                 col_nameunit.setFrameStyle(QLabel.Shape.NoFrame)
-        self.sweep_table.setRowCount(len(self.sweep_params[actual_column]))
+        self.ui.widgets.sweep_table.setRowCount(len(self.columns.parameter[actual_column]))
 
-        for row, param_set in enumerate(self.sweep_params[actual_column]):
+        for row, param_set in enumerate(self.columns.parameter[actual_column]):
             for i in range(3):
                 line_edit = QLineEdit(self)
                 line_edit.setText(str(param_set[i]))
@@ -1543,14 +1578,16 @@ class MainWindow(FileDropMixin, QMainWindow):
                     lambda line_edit=line_edit,
                     actual_column=actual_column,
                     row=row,
-                    i=i: self.sweep_params[actual_column][row].__setitem__(i, line_edit.text())
+                    i=i: self.columns.parameter[actual_column][row].__setitem__(
+                        i, line_edit.text()
+                    )
                 )
                 line_edit.textChanged.connect(lambda: self.window_title_dirty.emit())
                 line_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
-                self.sweep_table.setCellWidget(row, i, line_edit)
+                self.ui.widgets.sweep_table.setCellWidget(row, i, line_edit)
             delete_button = QPushButton("-")
             delete_button.clicked.connect(
-                lambda _, actual_column=actual_column, row=row: self.remove_sweep_param(
+                lambda _, actual_column=actual_column, row=row: self.remove_sweep_parameter(
                     actual_column, row
                 )
             )
@@ -1560,11 +1597,11 @@ class MainWindow(FileDropMixin, QMainWindow):
             layout.addWidget(delete_button)
             layout.setContentsMargins(5, 5, 5, 5)
             layout.setAlignment(delete_button, Qt.AlignmentFlag.AlignCenter)
-            self.sweep_table.setCellWidget(row, 3, wrapper)
+            self.ui.widgets.sweep_table.setCellWidget(row, 3, wrapper)
 
-    def remove_sweep_param(self, col: int, row: int) -> None:
+    def remove_sweep_parameter(self, col: int, row: int) -> None:
         """
-        Remove a set of linspace parameters from sweep_params at the correct position.
+        Remove a set of linspace parameters from columns.parameter at the correct position.
 
         Parameters
         ----------
@@ -1573,19 +1610,17 @@ class MainWindow(FileDropMixin, QMainWindow):
         row : int
             The row of the table to be deleted.
         """
-        del self.sweep_params[col][row]
+        del self.columns.parameter[col][row]
         self.populate_sweep_grid(col)
 
-    def clear_layout(self, layout) -> None:
+    def clear_layout(self, layout: QLayout) -> None:
         """Clear all child widgets from layout."""
         while layout.count():
             item = layout.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
-            elif item.spacerItem():
-                pass
-            else:
-                self.clear_layout(item)
+            if widget := item.widget():
+                widget.deleteLater()
+            elif child_layout := item.layout():
+                self.clear_layout(child_layout)
 
     def add_system(self, filenames: list | None = None) -> None:
         """
@@ -1612,66 +1647,32 @@ class MainWindow(FileDropMixin, QMainWindow):
             filename = str(Path(filename).resolve())
             module_name = get_importable_module_name(filename)
             if module_name:
-                self.ui.system_list.addItem(module_name)
+                self.ui.widgets.system_list.addItem(module_name)
             else:
-                self.ui.system_list.addItem(filename)
+                self.ui.widgets.system_list.addItem(filename)
         self.window_title_dirty.emit()
-        if not self.filename_changed():
+        if not self.on_filename_changed():
             for filename in filenames:
-                self.ui.system_list.takeItem(self.ui.system_list.count() - 1)
-        if self.ui.system_list.count() != 0:
+                self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
+        if self.ui.widgets.system_list.count() != 0:
             self.ui.actions.remove_system.setEnabled(True)
 
     def delete_selected_system(self) -> None:
         """Remove selected or last system from the system list."""
-        selected = self.ui.system_list.selectedItems()
+        selected = self.ui.widgets.system_list.selectedItems()
         if len(selected) > 0:
-            self.ui.system_list.takeItem(self.ui.system_list.row(selected[0]))
-        elif 0 < self.ui.system_list.count():
-            self.ui.system_list.takeItem(self.ui.system_list.count() - 1)
+            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.row(selected[0]))
+        elif self.ui.widgets.system_list.count() > 0:
+            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
         else:
             return
-        if self.ui.system_list.count() == 0:
+        if self.ui.widgets.system_list.count() == 0:
             self.ui.actions.remove_system.setEnabled(False)
-        self.filename_changed()
+        self.on_filename_changed()
         self.window_title_dirty.emit()
 
-    def generate_sweep(self) -> list[list[float]] | None:
-        """
-        GUI functionality to populate all lists necessary for sweep generation.
-
-        After that generates the sweep from the parameters (still needs
-        to be stretched)
-        """
-        self.loop_over = []
-        self.up_down = []
-        self.repeat = []
-
-        for col in range(len(self.columns.name)):
-            self.loop_over.append(self.grid_widgets[col].loopover.currentIndex() - 1)
-            updownstate = self.grid_widgets[col].updown.checkState()
-            if updownstate == Qt.CheckState.Checked:
-                self.up_down.append(2)
-            else:
-                self.up_down.append(0)
-            self.repeat.append(self.grid_widgets[col].repeat.value())
-
-        # all lists are up to date, now generate sweep lists
-        sweep = calculate_sweep(
-            self.sweep_params, self.loop_over.copy(), self.up_down, self.repeat
-        )
-        if isinstance(sweep, Error):
-            QMessageBox.warning(
-                self,
-                "Sweep generation failed:",
-                f"{sweep.error}",
-            )
-            return
-        return sweep.value
-
-    def gui_from_sweep(self) -> None:
+    def load_file(self) -> None:
         """Open a QFileDialog to open an existing sweep file."""
-        # get filename from dialog
         prefilled_file = self.last_filename if self.last_filename is not None else usersfolder
         filename = QFileDialog.getOpenFileName(
             self,
@@ -1701,13 +1702,13 @@ class MainWindow(FileDropMixin, QMainWindow):
             "# up_down : ": [],
             "# repeat : ": [],
         }
-        self.ui.system_list.clear()
+        self.ui.widgets.system_list.clear()
         with Path(filename).open() as infile:
             for line in infile:
                 regex = r"^# [Ss]ystem filename : (.+)"
                 if match := re.match(regex, line.strip()):
-                    self.ui.system_list.addItems(match.group(1).split(","))
-                    if not self.filename_changed():
+                    self.ui.widgets.system_list.addItems(match.group(1).split(","))
+                    if not self.on_filename_changed():
                         return
                 for key in params.keys():
                     if key in line:
@@ -1718,45 +1719,41 @@ class MainWindow(FileDropMixin, QMainWindow):
         # is used. Otherwise they just load. Delete the this backward compatibility for Matrix v9.
         # Andy 20250306
         if len(params.values()) == 5:  # old filename
-            (
-                self.sweep_params,
-                self.loop_over,
-                functions,
-                self.up_down,
-                self.repeat,
-            ) = params.values()
+            (parameter, loop_over, functions, up_down, repeat) = params.values()
         else:
-            (self.sweep_params, self.loop_over, self.up_down, self.repeat) = params.values()
+            (parameter, loop_over, up_down, repeat) = params.values()
             functions = None
         if functions and any(function != "None" for function in functions):
             warning_text = (
                 "This file uses the removed 'function' functionality."
                 "Please use matrix-script. File did not load!"
             )
-            QMessageBox.warning(
-                self,
-                "Open file error.",
-                warning_text,
-            )
+            QMessageBox.warning(self, "Open file error.", warning_text)
             return
+        self.columns.parameter = parameter
         # initialize layout with values specified in file
         for col in range(len(self.columns.name)):
-            self.grid_widgets[col].loopover.setCurrentIndex(self.loop_over[col] + 1)
-            self.grid_widgets[col].updown.setCheckState(Qt.CheckState(self.up_down[col]))
-            self.grid_widgets[col].repeat.setValue(self.repeat[col])
+            self.grid_widgets[col].loopover.setCurrentIndex(loop_over[col] + 1)
+            self.grid_widgets[col].updown.setCheckState(Qt.CheckState(up_down[col]))
+            self.grid_widgets[col].repeat.setValue(repeat[col])
         self.last_filename = Path(filename)
         self.update_window_title()
-        self.print_sweep_to_preview()
+        self.generate_datafile()
 
-    def new_file(self) -> None:
+    def new_file(self, reset_systems: bool = False) -> None:
         """
         Prepare a completely new sweep.
 
         Delete all existing sweep parameters, update the sweep grid
         accordingly and empty the sweep preview. Also reset all input
         fields to their original states.
+
+        Parameters
+        ----------
+        reset_systems : bool, optional
+            If True, also clear loaded systems and related state.
         """
-        if self.dirty:
+        if self.dirty and not self.in_pytest:
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 return
@@ -1764,9 +1761,34 @@ class MainWindow(FileDropMixin, QMainWindow):
                 saved = self.save_file()
                 if not saved:
                     return
-        self.sweep_params = []
+        self._reset_state(reset_systems)
+
+    def _reset_state(self, reset_systems: bool) -> None:
+        """
+        Reset UI and state to a clean baseline.
+
+        Parameters
+        ----------
+        reset_systems : bool
+            If True, also clear loaded systems and related state.
+        """
+        if reset_systems:
+            if self.populated:
+                self.reset_layout()
+                self.populated = False
+            self.ui.widgets.system_list.clear()
+            self.ui.actions.remove_system.setEnabled(False)
+            self.system = None
+            self.last_loaded_system = None
+            self.columns.clear()
+            self.last_filename = None
+            self.ui.widgets.sweep_preview.setRowCount(0)
+            self.update_window_title(dirty=False)
+            return
+
+        self.columns.parameter = []
         for col in range(len(self.columns.name)):
-            self.sweep_params.append([])
+            self.columns.parameter.append([])
             self.grid_widgets[col].start.setText("")
             self.grid_widgets[col].end.setText("")
             self.grid_widgets[col].points.setText("")
@@ -1774,8 +1796,11 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.grid_widgets[col].updown.setChecked(False)
             self.grid_widgets[col].loopover.setCurrentIndex(0)
             self.populate_sweep_grid(col)
-        self.print_sweep_to_preview()
-        self.grid_widgets[0].start.setFocus()
+        if self.columns.name:
+            self.generate_datafile()
+            self.grid_widgets[0].start.setFocus()
+        else:
+            self.ui.widgets.sweep_preview.setRowCount(0)
         self.last_filename = None
         self.update_window_title(dirty=False)
 
@@ -1785,13 +1810,9 @@ def main():
     install_error_handler()
     app = MApplication(sys.argv)
     app.setDesktopFileName("sweep-generator")
-    with QtGracefulKiller():
-        if len(sys.argv) < 2:
-            mw = MainWindow()
-        else:
-            mw = MainWindow(filename=Path(sys.argv[1]))
-        mw.show()
-        app.connect_file_handler(mw.open_file)  # MacOS specific FileOpenEvent
-        protected_restore(mw.restore_window_state)
-        ret = app.exec()
+    main_window = MainWindow() if len(sys.argv) < 2 else MainWindow(filename=Path(sys.argv[1]))
+    main_window.show()
+    app.connect_file_handler(main_window.open_file)  # MacOS specific FileOpenEvent
+    protected_restore(main_window.restore_window_state)
+    ret = app.exec()
     sys.exit(ret)

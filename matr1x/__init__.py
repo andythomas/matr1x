@@ -257,7 +257,7 @@ for key in list(data.keys()):  # validate everything but matr1x
         except (ValidationError, TypeError, ValueError) as e:
             msg = format_validation_error(e, key + ".")
 try:
-    MainConfig(**config)
+    MainConfig.model_validate(config)
 except (ValidationError, TypeError, ValueError) as e:
     msg += format_validation_error(e)
 if msg != "":
@@ -266,7 +266,7 @@ if msg != "":
         "Some settings will not work as intended. "
         "The following error(s) occured:\n\n"
     ) + msg
-print(msg)
+    print(msg)
 
 datetimefmt = config["matr1x"]["datetime_format"]
 

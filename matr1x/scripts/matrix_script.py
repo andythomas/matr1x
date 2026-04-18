@@ -40,7 +40,6 @@ from PySide6.QtCore import (
     QThread,
     QTimer,
     Signal,
-    Slot,
 )
 from PySide6.QtGui import (
     QAction,
@@ -74,11 +73,11 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.control.util import QtGracefulKiller
 from matr1x.editor import CodeEditor, LSPServer
 from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
+    AutoSlot,
     ConfigEditWidget,
     EmittingStream,
     FileDropMixin,
@@ -86,7 +85,6 @@ from matr1x.gui_util import (
     MApplication,
     MetaDataDialog,
     NumericalInputDialog,
-    OutputDuplication,
     SaferQSettings,
     SystemListWidget,
     TerminationDialog,
@@ -95,7 +93,6 @@ from matr1x.gui_util import (
     check_config,
     detect_shortcut,
     find_parent_of_type,
-    get_application_instance,
     get_matrix_icon,
     get_system_info,
     open_matrix_toml,
@@ -103,14 +100,22 @@ from matr1x.gui_util import (
     save_messagebox,
 )
 from matr1x.models import SystemInfo
+from matr1x.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.util import (
+    StreamToLogger,
     create_temp_dir_with_symlinks,
     find_binary,
     generate_script,
     get_importable_module_name,
 )
 
-logger = logging.getLogger(Path(__file__).name)
+logger = logging.getLogger(__name__)
+printlogger = logging.getLogger(__name__ + "_stdio")
+errorlogger = logging.getLogger(__name__ + "_stderr")
 config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
 
@@ -144,7 +149,8 @@ input_bool(query, timeout, default_value)
 input_numerical(query, timeout, default_value, min_value, max_value, step, decimals)
 end_script(finished)
 print(*args, sep, end, file, flush)
-init_datafile(filename, comment, append, print_header, ntot)
+init_datafile(filename, comment, append, print_header, ntot,
+              reset_meta_data, reset_date)
 measure_system(print_setpoint, print_data, print_telemetry)
 
 In addition, the following variables are available. Please use help to get a list of """
@@ -187,7 +193,7 @@ class TerminalOutput(QPlainTextEdit):
         mono_font.setPointSizeF(self.font().pointSize())
         self.setFont(mono_font)
         self.updateColors()
-        get_application_instance().isDarkSignal.connect(self.updateColors)
+        MApplication.instance().isDarkSignal.connect(self.updateColors)
 
     def updateColors(self) -> None:
         """Update terminal colors based on system theme."""
@@ -206,6 +212,25 @@ class TerminalOutput(QPlainTextEdit):
         if event.type() == event.Type.PaletteChange:
             self.updateColors()
         super().changeEvent(event)
+
+    def print_colored(self, line: str) -> None:
+        """
+        Print a colored text.
+
+        Afterwards, recover the original text color. Follow theme
+        changes.
+
+        Parameters
+        ----------
+        line : str
+            The line to be printed.
+        """
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        text_char_format = QTextCharFormat()
+        text_char_format.setForeground(QColor("royalblue"))
+        cursor.insertText(line, text_char_format)
+        cursor.insertText("\n", QTextCharFormat())
 
 
 if sys.platform == "win32":
@@ -612,6 +637,8 @@ class ActionGroup:
     system_help: QAction
     theme_actions: list[QAction]
     theme_group: QActionGroup
+    post_install: QAction
+    remove_desktop_integration: QAction
 
 
 @dataclass(frozen=True)
@@ -881,7 +908,6 @@ class UIBuilder:
         autocomplete.setCheckable(True)
         autocomplete.setChecked(True)
         show_log = QAction("Show Log Window", self.window)
-        show_log.setCheckable(True)
         toggle_metadata = QAction("Show Metadata", self.window)
         toggle_metadata.setShortcut(QKeySequence("Ctrl+2"))
         toggle_metadata.setCheckable(True)
@@ -891,6 +917,8 @@ class UIBuilder:
         toggle_toolbar.setCheckable(True)
         toggle_toolbar.setChecked(True)
         system_help = QAction("Show System Help", self.window)
+        post_install = QAction("Install Desktop Integration", self.window)
+        remove_desktop_integration = QAction("Remove Desktop Integration", self.window)
 
         return ActionGroup(
             matrix_settings=matrix_settings,
@@ -927,6 +955,8 @@ class UIBuilder:
             system_help=system_help,
             theme_actions=theme_actions,
             theme_group=theme_group,
+            post_install=post_install,
+            remove_desktop_integration=remove_desktop_integration,
         )
 
     def _create_toolbar(self) -> QToolBar:
@@ -944,7 +974,7 @@ class UIBuilder:
         toolbar.setFloatable(False)
         toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
-        icon_size = get_application_instance().toolbar_icon_size()
+        icon_size = MApplication.instance().toolbar_icon_size()
         empty = QWidget()
         empty.setFixedWidth(icon_size)
         empty2 = QWidget()
@@ -1023,6 +1053,9 @@ class UIBuilder:
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.system_help)
         help_menu.addAction(self.actions.show_log)
+        help_menu.addSeparator()
+        help_menu.addAction(self.actions.post_install)
+        help_menu.addAction(self.actions.remove_desktop_integration)
         help_menu.addAction(self.actions.about)  # This is auto-moved on a Mac
 
     def _create_gui(self) -> None:
@@ -1059,6 +1092,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, filename: Path | None = None):
         super().__init__()
+        self.in_pytest = False
         self.log_window = LoggingWindow(parent=self)  # Immediately needed, not moved to widgets!
         self.log_window.hide()
         logger.info("matrix-script starting")
@@ -1079,18 +1113,32 @@ class MainWindow(QMainWindow):
         self._output_timer.timeout.connect(self._flush_output_buffer)
         self._output_timer.setSingleShot(False)
         self._output_timer.setInterval(50)
-        get_application_instance().isDarkSignal.connect(self.update_systems)
+        MApplication.instance().isDarkSignal.connect(self.update_systems)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
         self.ui = UIBuilder(self)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
+        self._reset_state(reset_metadata=True)
         check_config(matr1x.config)
-        sys.stdout = self.output_stream  # all output (stdout) is written to status preview
+        if config["duplicate_output_to_logfile"]:
+            sys.stdout = StreamToLogger(
+                printlogger,
+                logging.INFO,
+                duplicate_stream=self.output_stream,
+            )
+            sys.stderr = StreamToLogger(
+                errorlogger,
+                logging.ERROR,
+                duplicate_stream=self.output_stream,
+            )
+        else:
+            sys.stdout = self.output_stream  # all output (stdout) is written to status preview
         if filename is not None:
             self.load_from_filename(filename)
         self.update_systems()  # in case the load failed just to be sure
-        print(help_text)
+        self.ui.widgets.status_preview.appendPlainText(help_text)
+        check_desktop_integration()
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
@@ -1122,7 +1170,9 @@ class MainWindow(QMainWindow):
         self.ui.actions.toggle_metadata.triggered.connect(self.toggle_metadata_view)
         self.ui.actions.config.toggled.connect(self.toggle_preferences)
         self.ui.actions.system_help.triggered.connect(self.show_system_commands)
-        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.ui.actions.show_log.triggered.connect(self.show_log_window)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.widgets.config_editor.visibilityChanged.connect(self.ui.actions.config.setChecked)
         self.ui.widgets.dockable_metadata.visibilityChanged.connect(
             self.ui.actions.toggle_metadata.setChecked
@@ -1132,26 +1182,6 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
         self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
-        self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
-
-    def print_colored(self, line: str) -> None:
-        """
-        Print a colored text.
-
-        Afterwards, recover the original text color. Follow theme
-        changes.
-
-        Parameters
-        ----------
-        line : str
-            The line to be printed.
-        """
-        cursor = self.ui.widgets.status_preview.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        emphasize = QTextCharFormat()
-        emphasize.setForeground(QColor("royalblue"))
-        cursor.insertText(line, emphasize)
-        cursor.insertText("\n", QTextCharFormat())
 
     def print_document(self) -> None:
         """Print the script."""
@@ -1359,9 +1389,11 @@ class MainWindow(QMainWindow):
                     self.systems_dirty = False
 
         if (
-            self.ui.widgets.script_edit.isModified() or self.systems_dirty
-        ) and self.ui.widgets.script_edit.toPlainText() != "":
-            qApp = get_application_instance()
+            (self.ui.widgets.script_edit.isModified() or self.systems_dirty)
+            and self.ui.widgets.script_edit.toPlainText() != ""
+            and not self.in_pytest
+        ):
+            qApp = MApplication.instance()
             qApp.processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
@@ -1369,7 +1401,7 @@ class MainWindow(QMainWindow):
                 return
             if ret == QMessageBox.StandardButton.Save:
                 # save the file
-                if -1 == self.save_file():
+                if self.save_file() == -1:
                     # if save fails, ignore message
                     event.ignore()
                     return
@@ -1384,7 +1416,7 @@ class MainWindow(QMainWindow):
         root_logger = logging.getLogger()
         root_logger.removeHandler(self.log_window.log_handler)
         self.log_window.deleteLater()
-        qApp = get_application_instance()
+        qApp = MApplication.instance()
         qApp.processEvents()
         event.accept()
 
@@ -1452,19 +1484,11 @@ class MainWindow(QMainWindow):
         else:
             self.ui.widgets.config_editor.hide()
 
-    def toggle_log_window(self) -> None:
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-
-    def _on_log_window_visibility_changed(self, visible: bool) -> None:
-        """Keep the log-window action in sync with the window state."""
-        self.ui.actions.show_log.setChecked(visible)
-        self.ui.actions.show_log.setText("Hide Log Window" if visible else "Show Log Window")
+    def show_log_window(self) -> None:
+        """Show the logging window."""
+        self.log_window.show()
+        self.log_window.raise_()
+        self.log_window.activateWindow()
 
     def _load_file_from_signal(self, filename: str) -> None:
         """Convert string to Path for opening file."""
@@ -1532,7 +1556,7 @@ class MainWindow(QMainWindow):
         selected = self.ui.widgets.system_list.selectedItems()
         if len(selected) > 0:
             self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.row(selected[0]))
-        elif 0 < self.ui.widgets.system_list.count():
+        elif self.ui.widgets.system_list.count() > 0:
             self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
         if self.ui.widgets.system_list.count() == 0:
             self.ui.actions.remove_system.setEnabled(False)
@@ -1542,8 +1566,8 @@ class MainWindow(QMainWindow):
         if self.ui.widgets.system_command_help.isVisible():
             self.show_system_commands()
 
-    @Slot(InputParameters)
-    def get_script_input(self, params: InputParameters):
+    @AutoSlot
+    def get_script_input(self, params: InputParameters) -> None:
         """
         Open a dialog and forward input to the script.
 
@@ -1584,9 +1608,9 @@ class MainWindow(QMainWindow):
                     float(params.default_value) if params.default_value else 0.0
                 )
             except ValueError:
-                print(
+                self.ui.widgets.status_preview.appendPlainText(
                     f"Warning: Invalid default_value '{params.default_value}' "
-                    "for numerical input. Using 0.0"
+                    "for numerical input. Using 0.0",
                 )
                 numerical_default_value = 0.0
 
@@ -1635,7 +1659,9 @@ class MainWindow(QMainWindow):
     def kill_thread(self) -> None:
         """Kill the thread."""
         self.measurement_thread.kill()
-        self.print_colored("Script terminated by user - file integrity might be compromised")
+        self.ui.widgets.status_preview.print_colored(
+            "Script terminated by user - file integrity might be compromised"
+        )
 
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
@@ -1660,7 +1686,7 @@ class MainWindow(QMainWindow):
         for system in self.systems:
             text = text + system + "<br>"
         text += "<br></b>These systems provide the following:<br>"
-        bg_color = "#565656" if get_application_instance().isDark else "#f0f0f0"
+        bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
         if system_info.parameters != {}:
             text += "<h3>Parameters</h3>"
             text += '<table border="1" cellpadding="5" cellspacing="0" '
@@ -1751,22 +1777,31 @@ class MainWindow(QMainWindow):
         combined_text = "".join(self._output_buffer)
         self._output_buffer.clear()
 
-        if "\r" not in combined_text:
-            self.ui.widgets.status_preview.appendPlainText(combined_text)
-        else:
-            # operate on a disposable cursor so we do not move the user's cursor/selection
-            doc = self.ui.widgets.status_preview.document()
-            cursor = QTextCursor(doc)
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            for char in combined_text:
-                if char == "\r":
-                    cursor.movePosition(
-                        QTextCursor.MoveOperation.StartOfBlock,
-                        QTextCursor.MoveMode.KeepAnchor,
-                    )
-                    cursor.removeSelectedText()
-                else:
-                    cursor.insertText(char)
+        # Operate on a disposable cursor so we do not move the user's cursor/selection.
+        # Handle plain text and control characters in one path, because buffered writes
+        # can split "\r" from the text it is meant to overwrite.
+        doc = self.ui.widgets.status_preview.document()
+        cursor = QTextCursor(doc)
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.beginEditBlock()
+        parts = re.split(r"([\r\n])", combined_text)
+        for index in range(0, len(parts), 2):
+            text = parts[index]
+            if text:
+                cursor.insertText(text)
+
+            if index + 1 >= len(parts):
+                continue
+
+            if parts[index + 1] == "\r":
+                cursor.movePosition(
+                    QTextCursor.MoveOperation.StartOfBlock,
+                    QTextCursor.MoveMode.KeepAnchor,
+                )
+                cursor.removeSelectedText()
+            else:
+                cursor.insertBlock()
+        cursor.endEditBlock()
 
         if not self._output_buffer:
             self._output_timer.stop()
@@ -1826,7 +1861,7 @@ class MainWindow(QMainWindow):
         Return buttons to original state, delete the finished process.
         """
         self.enable_buttons(False)
-        self.print_colored("\nExecution finished")
+        self.ui.widgets.status_preview.print_colored("\nExecution finished")
         del self.measurement_thread
 
     def run_linter(self) -> int:
@@ -1848,13 +1883,15 @@ class MainWindow(QMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
-        if 0 == len(self.systems):
+        if len(self.systems) == 0:
             self.ui.actions.start_pause.setChecked(False)
-            self.print_colored("No system selected")
+            self.ui.widgets.status_preview.print_colored("No system selected")
             return
         if self.run_linter() > 0:  # run linter to make sure there are no errors
-            self.print_colored("Script execution was halted because of linter errors")
-            get_application_instance().processEvents()
+            self.ui.widgets.status_preview.print_colored(
+                "Script execution was halted because of linter errors"
+            )
+            MApplication.instance().processEvents()
             a = QMessageBox(parent=self)  # open a popup window to inform about the error
             a.setText("Linter error")
             a.setInformativeText("Error found in script, continue anyway?")
@@ -1864,7 +1901,7 @@ class MainWindow(QMainWindow):
             if ret == QMessageBox.StandardButton.Cancel:
                 self.ui.actions.start_pause.setChecked(False)
                 return
-        self.print_colored("### Running script now")
+        self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
         meta_data = self.ui.widgets.metadata.get_metadata()
@@ -1896,7 +1933,7 @@ class MainWindow(QMainWindow):
         ]
         system_info = get_system_info(self.systems)
         if isinstance(system_info, Error):
-            print(system_info.error)
+            self.ui.widgets.status_preview.appendPlainText(system_info.error)
             self._cached_system_info = None
         else:
             self._cached_system_info = system_info.value
@@ -1992,7 +2029,7 @@ class MainWindow(QMainWindow):
         try:
             output_file = filename.open("w")
         except OSError:
-            self.print_colored("File cannot be opened")
+            self.ui.widgets.status_preview.print_colored("File cannot be opened")
             return -1
         self.scriptname = filename
         self.update_systems(update_config=False)
@@ -2018,7 +2055,7 @@ class MainWindow(QMainWindow):
         """
         header = ""
         system_info = self._cached_system_info
-        if 0 < len(self.systems):
+        if len(self.systems) > 0:
             # only attempt generating a header if a system is selected
             try:
                 # get settable information to put into the header
@@ -2046,7 +2083,7 @@ class MainWindow(QMainWindow):
                         f"{matr1x.datetimefmt}\n", time.localtime()
                     )
                 else:
-                    self.print_colored(
+                    self.ui.widgets.status_preview.print_colored(
                         "warning: settable_info is incomplete, creating basic header"
                     )
                     header += (
@@ -2058,7 +2095,7 @@ class MainWindow(QMainWindow):
                         f"{matr1x.datetimefmt}\n", time.localtime()
                     )
             except Exception as e:
-                self.print_colored(
+                self.ui.widgets.status_preview.print_colored(
                     f"error in generating settable_info from file: {e}, telemetry "
                     "header could not be generated"
                 )
@@ -2066,7 +2103,7 @@ class MainWindow(QMainWindow):
         script = self.ui.widgets.script_edit.toPlainText().rstrip()
         newscript = header
         for i, line in enumerate(script.splitlines()):
-            if i < 4 and (line.startswith("# system ") or line.startswith("# file v")):
+            if i < 4 and (line.startswith(("# system ", "# file v"))):
                 # if there are already definitions of the system, skip them
                 continue
             newscript += line + "\n"
@@ -2087,7 +2124,7 @@ class MainWindow(QMainWindow):
         try:
             input_file = filename.open()
         except OSError:
-            self.print_colored("File cannot be opened")
+            self.ui.widgets.status_preview.print_colored("File cannot be opened")
             return
         self.scriptname = filename
         code = ""
@@ -2110,14 +2147,16 @@ class MainWindow(QMainWindow):
                         else None
                     )
                 except KeyError:
-                    self.print_colored(
+                    self.ui.widgets.status_preview.print_colored(
                         "System that was used to generate the "
                         "script was not found in installed systems."
                         " Please check .matrix.conf file."
                     )
                     return
         else:
-            self.print_colored("No system defined in script, please choose system(s)")
+            self.ui.widgets.status_preview.print_colored(
+                "No system defined in script, please choose system(s)"
+            )
         code += line
         #
         # system columns definiton
@@ -2136,14 +2175,14 @@ class MainWindow(QMainWindow):
                 if col:
                     loaded_columns.append(col)
             if current_columns != loaded_columns:
-                self.print_colored(
+                self.ui.widgets.status_preview.print_colored(
                     "Column names have changed between generation "
                     "of script and now, please make sure that "
                     "columns are set correctly before running the "
                     "script"
                 )
         else:
-            self.print_colored(
+            self.ui.widgets.status_preview.print_colored(
                 "Could not verify column names, please verify that columns have not changed"
             )
         #
@@ -2161,14 +2200,14 @@ class MainWindow(QMainWindow):
             for unit in system_units.split(","):
                 loaded_units.append(unit.strip())
             if current_units != loaded_units:
-                self.print_colored(
+                self.ui.widgets.status_preview.print_colored(
                     "Column units have changed between generation "
                     "of script and now, please make sure that "
                     "columns are set correctly before running the "
                     "script"
                 )
         else:
-            self.print_colored(
+            self.ui.widgets.status_preview.print_colored(
                 "Could not verify column units, please verify that columns have not changed"
             )
         #
@@ -2189,7 +2228,7 @@ class MainWindow(QMainWindow):
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
         if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
-            qApp = get_application_instance()
+            qApp = MApplication.instance()
             qApp.processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
@@ -2217,7 +2256,7 @@ class MainWindow(QMainWindow):
         'system dirty' flag and forget last filename.
         """
         if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
-            get_application_instance().processEvents()
+            MApplication.instance().processEvents()
             ret = save_messagebox(self)
             if ret == QMessageBox.StandardButton.Cancel:
                 return
@@ -2225,11 +2264,29 @@ class MainWindow(QMainWindow):
                 saved = self.save_file()
                 if saved == -1:
                     return
+        self._reset_state(reset_metadata=False)
+
+    def _reset_state(self, reset_metadata: bool) -> None:
+        """
+        Reset UI and state to a clean baseline.
+
+        Parameters
+        ----------
+        reset_metadata : bool
+            If True, also clear metadata and status preview fields.
+        """
         self.systems_dirty = False
         self.last_filename = None
         self.scriptname = None
         self.ui.widgets.script_edit.setPlainText("")
         self.ui.widgets.script_edit.setModified(False)
+        if reset_metadata:
+            self.ui.widgets.status_preview.setPlainText("")
+            metadata = self.ui.widgets.metadata
+            metadata.creator.setText("")
+            metadata.identifier.setText("")
+            metadata.relation.setText("")
+            metadata.description.setText("")
 
 
 def main() -> None:
@@ -2238,19 +2295,10 @@ def main() -> None:
     app = MApplication(sys.argv)
     appname = "matrix-script"
     app.setDesktopFileName(appname)
-    with QtGracefulKiller():
-        ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
-        if config["duplicate_output_to_logfile"]:
-            sys.stdout = OutputDuplication(sys.stdout, prefix=appname)
-            sys.stderr = OutputDuplication(sys.stderr, prefix=appname, fallbackname="stderr")
-        ex.show()
-        protected_restore(ex.restore_window_state)
-        # handle MacOS specific FileOpenEvent from MApplication
-        app.connect_file_handler(ex._load_file_from_signal)
-        ret = app.exec()
-    if config["duplicate_output_to_logfile"]:
-        sys.stdout.close()
-        sys.stderr.close()
-    sys.stderr = sys.__stderr__
-    sys.stdout = sys.__stdout__
+    ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
+    ex.show()
+    protected_restore(ex.restore_window_state)
+    # handle MacOS specific FileOpenEvent from MApplication
+    app.connect_file_handler(ex._load_file_from_signal)
+    ret = app.exec()
     sys.exit(ret)

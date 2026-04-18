@@ -43,4 +43,3 @@ visadebug = false
 root_path = "core_library/"
 create_directories = false
 desktopintegration = true
-pip_options = "-q"

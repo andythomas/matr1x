@@ -26,4 +26,61 @@ Instruments from pymeasure are fully compatible to be used within matr1x
 systems.
 """
 
+from collections.abc import Callable
+from typing import Any, TypeVar, overload
+
+T = TypeVar("T")
+
 scpiPORTdrivers = 8888
+
+
+def listToStr(floatList: list[float]) -> str:
+    """
+    Convert a list of numeric values to a comma separated string.
+
+    Parameters
+    ----------
+    floatList: list[float]
+        The list of floats to convert.
+
+    Returns
+    -------
+    str
+        The comma separated string.
+    """
+    return ",".join(str(r) for r in floatList)
+
+
+T = TypeVar("T")
+
+
+@overload
+def strToList(string: str) -> list[float]: ...
+@overload
+def strToList(string: str, dtype: Callable[[str], T]) -> list[T]: ...
+
+
+def strToList(
+    string: str,
+    dtype: Callable[[str], Any] = float,
+) -> list[Any]:
+    """
+    Convert a comma separated string of values into a list.
+
+    The datatype of the values is cast to dtype.
+
+    Parameters
+    ----------
+    string: str
+        The comma separated string.
+    dtype: T
+        The desired datatype of the values.
+
+    Returns
+    -------
+    list[T]
+        The list of dtypes.
+    """
+    string = string.strip("[")
+    string = string.strip("]")
+    return [dtype(r) for r in string.split(",")]

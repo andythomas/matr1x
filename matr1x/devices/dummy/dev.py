@@ -21,7 +21,7 @@ from matr1x import scpi_tcpserver
 from matr1x.devices.scpi_dev import makeSCPIdevice
 from matr1x.util import Command, Get, Set
 
-cmd_list = {
+cmd_list: dict[str, Command] = {
     "*idn": Get(str, lambda: "dummy_device name\nwith newline"),
     ":p1": Command(str, "_p1", "_p1"),
     ":p2": Command(float, "_p2", "_p2"),
@@ -77,13 +77,13 @@ class dummy(dummy_dev):
         for cmd in self.cmd_list.values():
             # replace with real functions. This is more comprehensively
             # implemented in GuiDict.set_cmd_funcs
-            if cmd.getfunc is not None and not callable(cmd.getfunc):
+            if isinstance(cmd.getfunc, str):
                 attr = getattr(self, cmd.getfunc)
                 if callable(attr):
                     cmd.getfunc = attr
                 else:
                     cmd.getfunc = lambda a=cmd.getfunc: getattr(self, a)
-            if cmd.setfunc is not None and not callable(cmd.setfunc):
+            if isinstance(cmd.setfunc, str):
                 attr = getattr(self, cmd.setfunc)
                 if callable(attr):
                     cmd.setfunc = attr

@@ -37,158 +37,326 @@ import sys
 import threading
 import time
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
+from types import TracebackType
 
-from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence, QTextCursor
+from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
-    QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
-    QLayout,
     QMainWindow,
+    QMenu,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
-    QSpinBox,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from matr1x import config as matrixconfig
 from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
-from matr1x.control.qwidgets import EnableAction, FullInfoAction
 from matr1x.control.util import GuiDict, catchEmitError, var
-from matr1x.error_handling import expect_not_none
 from matr1x.gui_util import (
-    EmittingStream,
+    AutoSlot,
     LoggingWindow,
+    MApplication,
     SaferQSettings,
     check_config,
-    get_application_instance,
+    get_matrix_icon,
     open_matrix_toml,
     protected_restore,
 )
-from matr1x.util import Get
+from matr1x.util import Command, Get, StreamToLogger
 
-logger = logging.getLogger(Path(__file__).name)
+logger = logging.getLogger(__name__)
+printlogger = logging.getLogger(__name__ + "_stdio")
+errorlogger = logging.getLogger(__name__ + "_stderr")
+logging_package = logging
 
 
-class CollapsibleBox(QWidget):
+@dataclass(frozen=True)
+class ActionGroup:
+    """Actions to be utilized in the GUI."""
+
+    enable_all: QAction
+    disable_all: QAction
+    full_info_all: QAction
+    less_info_all: QAction
+    show_toolbar: QAction
+    show_toml: QAction
+    show_log: QAction
+    quit: QAction
+    recorder_interval: QAction
+    select_recorder: QAction
+    config_recorder: QAction
+    toggle_recorder: QAction
+
+
+@dataclass(frozen=True)
+class MenuGroup:
+    """The menus to be utilized in the GUI."""
+
+    file: QMenu
+    enable: QMenu
+    fullinfo: QMenu
+    view: QMenu
+    data_recorder: QMenu
+    custom: QMenu
+    help: QMenu
+
+
+@dataclass(frozen=True)
+class WidgetGroup:
+    """Widgets to be used in the GUI."""
+
+    panic: QPushButton
+    recorder_file_label: QLabel
+    recorder_led: QLabel
+
+
+class UIBuilder:
     """
-    A collapsible box widget that can be expanded or collapsed.
+    Build the main UI and provide actions, widgets and menus.
 
-    This widget provides a toggleable section with a title button and content area.
-    When expanded, it shows the content; when collapsed, it hides the content.
-
-    Attributes
+    Parameters
     ----------
-        redraw_activity (Signal): Signal emitted when the box is expanded or collapsed.
+    window: ControlWindow
+        The Controlwindow (inherits from QMainWindow) to generate the
+        GUI for.
     """
 
-    # code inspired from
-    # https://github.com/MichaelVoelkel/qt-collapsible-section/blob/master/Section.py
-    redraw_activity = Signal(bool)
+    def __init__(self, window: "ControlWindow") -> None:
+        self.window: ControlWindow = window
+        self.widgets: WidgetGroup = self._create_widgets()
+        self.actions: ActionGroup = self._create_actions()
+        self.menus: MenuGroup = self._create_menus()
+        self._create_gui()
 
-    def __init__(self, title: str = "", parent: QWidget | None = None) -> None:
+    def _create_widgets(self) -> WidgetGroup:
         """
-        Initialize the CollapsibleBox widget.
+        Create the widgets.
 
-        Parameters
-        ----------
-        title : str, optional
-            The title of the collapsible box, by default ""
-        parent : QWidget, optional
-            The parent widget, by default None
+        Returns
+        -------
+        WidgetGroup
+            The widgets to be used in the GUI.
         """
-        super().__init__(parent)
-        self.toggle_button = QToolButton(self)
-        self.header_line = QFrame(self)
-        self.content_widget = QScrollArea(self)
-        self.main_layout = QVBoxLayout()
-
-        self.toggle_button.setStyleSheet("QToolButton {border: none;}")
-        self.toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
-        self.toggle_button.setText(title)
-        self.toggle_button.setCheckable(True)
-        self.toggle_button.setChecked(False)
-
-        self.header_line.setFrameShape(QFrame.Shape.HLine)
-        self.header_line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.header_line.setSizePolicy(
-            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Maximum
+        panicButton = QPushButton("Panic Button")
+        panicButton.setStyleSheet("background-color: red;")
+        panicButton.setCheckable(True)
+        label = QLabel("")
+        indicator_width = 17
+        led = QLabel(" ")
+        led.setFixedWidth(indicator_width)
+        led.setFixedHeight(10)
+        led.setAutoFillBackground(True)
+        palette = led.palette()
+        palette.setColor(led.backgroundRole(), QColor("lightgray"))
+        led.setPalette(palette)
+        return WidgetGroup(
+            panic=panicButton,
+            recorder_file_label=label,
+            recorder_led=led,
         )
 
-        self.content_widget.setSizePolicy(
-            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed
-        )
-
-        # start out collapsed
-        self.content_widget.setMaximumHeight(0)
-        self.content_widget.setMinimumHeight(0)
-
-        self.main_layout.setSpacing(0)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-
-        hline = QHBoxLayout()
-        hline.addWidget(self.toggle_button, 0, alignment=Qt.AlignmentFlag.AlignLeft)
-        hline.addWidget(self.header_line)
-        self.main_layout.addLayout(hline)
-        self.main_layout.addWidget(self.content_widget)
-        self.setLayout(self.main_layout)
-
-        self.toggle_button.toggled.connect(self.toggle)
-
-    def toggle(self, collapsed: bool) -> None:
+    def _create_actions(self) -> ActionGroup:
         """
-        Toggle the visibility of the content widget.
+        Create most QActions for the control.
 
-        Parameters
-        ----------
-        collapsed : bool
-            True if the widget is being expanded, False if being collapsed
+        Returns
+        -------
+        ActionGroup
+            The actions to be used in the GUI.
         """
-        if collapsed:
-            self.toggle_button.setArrowType(Qt.ArrowType.DownArrow)
-            self.content_widget.setMaximumHeight(self.content_height + 1000)
-            self.content_widget.setVisible(True)
-            self.setMinimumHeight(self.collapsed_height)
-            self.setMaximumHeight(self.combined_height + 1000)
-            self.content_widget.setSizePolicy(
-                QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
-            )
+        enable_all = QAction("Enable all", self.window)
+        disable_all = QAction("Disable all", self.window)
+        full_info_all = QAction("Full info all", self.window)
+        less_info_all = QAction("Less info all", self.window)
+        show_toolbar = QAction("Show Toolbar")
+        show_toolbar.setShortcut(QKeySequence("Ctrl+1"))
+        show_toolbar.setCheckable(True)
+        show_toml = QAction("Show matrix toml", self.window)
+        show_toml.setMenuRole(QAction.MenuRole.PreferencesRole)
+        show_toml.setShortcut(QKeySequence.StandardKey.Preferences)
+        show_log = QAction("Show Log Window", self.window)
+        show_log.setCheckable(True)
+        quit_app = QAction("Quit", self.window)
+        if os.name == "nt":
+            quit_app.setShortcut(QKeySequence.StandardKey.Close)
         else:
-            self.content_widget.setSizePolicy(
-                QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed
-            )
-            self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
-            self.content_widget.setMaximumHeight(0)
-            self.setMinimumHeight(self.collapsed_height)
-            self.setMaximumHeight(self.collapsed_height)
-            self.content_widget.setVisible(False)
-        self.updateGeometry()
-        self.redraw_activity.emit(collapsed)
+            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
+        data_recorder_interval = QAction("Set interval", self.window)
+        select_recorder = QAction("Select output file", self.window)
+        config_recorder = QAction("Modify config")
+        config_recorder.setCheckable(True)
+        toggle_recorder = QAction("Start data recorder", self.window)
+        toggle_recorder.setCheckable(True)
+        return ActionGroup(
+            enable_all=enable_all,
+            disable_all=disable_all,
+            full_info_all=full_info_all,
+            less_info_all=less_info_all,
+            show_toolbar=show_toolbar,
+            show_toml=show_toml,
+            show_log=show_log,
+            quit=quit_app,
+            recorder_interval=data_recorder_interval,
+            select_recorder=select_recorder,
+            config_recorder=config_recorder,
+            toggle_recorder=toggle_recorder,
+        )
 
-    def setContentLayout(self, layout: QLayout) -> None:
+    def _create_menus(self) -> MenuGroup:
         """
-        Set the layout for the content widget.
+        Create the main menu.
+
+        Returns
+        -------
+        MenuGroup
+            The menus to be used in the GUI.
+        """
+        menu = self.window.menuBar()
+        file = menu.addMenu("&File")
+        enable = menu.addMenu("&Enable")
+        fullinfo = menu.addMenu("&Full info")
+        view = menu.addMenu("&View")
+        data_recorder = menu.addMenu("&Data recorder")
+        custom = menu.addMenu("&Custom")
+        help_me = menu.addMenu("&Help")
+        return MenuGroup(
+            file=file,
+            enable=enable,
+            fullinfo=fullinfo,
+            view=view,
+            custom=custom,
+            data_recorder=data_recorder,
+            help=help_me,
+        )
+
+    def _create_gui(self) -> None:
+        """Create and set up the main GUI."""
+        widget = QWidget()
+        widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
+        layout.addStretch()
+        self.window.setCentralWidget(widget)
+        for guidict in self.window.guidicts:
+            content = guidict.create_GUI()
+            self.window.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
+        layout.addWidget(self.widgets.panic)
+        line = QHBoxLayout()
+        line.addWidget(self.widgets.recorder_led)
+        line.addWidget(self.widgets.recorder_file_label)
+        line.addStretch()
+        layout.addLayout(line)
+
+
+class EnableAction(QAction):
+    """
+    A QAction subclass that automatically updates its icon based on checked state.
+
+    This action is designed for enable/disable functionality and automatically
+    updates its icon color when the checked state changes.
+
+    Parameters
+    ----------
+    text: str
+        The text of the action.
+    parent: ControlWindow
+        The parent of the action.
+    """
+
+    def __init__(self, text: str, parent: "ControlWindow"):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Enable")
+        self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        self.controlwindow: ControlWindow = parent
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """
+        Update the icon based on checked state.
 
         Parameters
         ----------
-        layout : QLayout
-            The layout to be set for the content widget
+        checked: bool
+            The action is checked (True) or not (False).
         """
-        lay = self.content_widget.layout()
-        del lay
-        self.content_widget.setLayout(layout)
-        self.content_height = self.content_widget.sizeHint().height()
-        self.collapsed_height = self.sizeHint().height()  # - self.content_height
-        self.combined_height = self.content_height + self.collapsed_height
+        if checked:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")))
+        else:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        self.controlwindow.check_enables()
+
+    def setChecked(self, a0: bool):
+        """
+        Override setChecked to ensure icon is updated.
+
+        Parameters
+        ----------
+        a0: bool
+            Set the checked (True) or unchecked (False).
+        """
+        super().setChecked(a0)
+        self._update_icon(a0)
+
+
+class FullInfoAction(QAction):
+    """
+    A QAction subclass that automatically updates its icon based on checked state.
+
+    This action is designed for full info/less info functionality and automatically
+    updates its icon (+ or -) when the checked state changes.
+
+
+    Parameters
+    ----------
+    text: str
+        The text of the action.
+    parent: ControlWindow
+        The parent of the action.
+    """
+
+    def __init__(self, text: str, parent: "ControlWindow"):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Full info")
+        self.setIcon(get_matrix_icon("CHAR_+"))
+        self.controlwindow: ControlWindow = parent
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """
+        Update the icon based on checked state.
+
+        Parameters
+        ----------
+        checked: bool
+            The action is checked (True) or not (False).
+        """
+        if checked:
+            self.setIcon(get_matrix_icon("CHAR_-"))
+        else:
+            self.setIcon(get_matrix_icon("CHAR_+"))
+        self.controlwindow.check_full_infos()
+
+    def setChecked(self, a0: bool):
+        """
+        Override setChecked to ensure icon is updated.
+
+        Parameters
+        ----------
+        a0: bool
+            Set the checked (True) or unchecked (False).
+        """
+        super().setChecked(a0)
+        self._update_icon(a0)
 
 
 class ControlWindow(QMainWindow):
@@ -219,9 +387,14 @@ class ControlWindow(QMainWindow):
         TCP port number for the control GUI SCPI server socket.
     """
 
+    # flag controlling if the SCPI server is shut-down during panic
+    stop_server_on_panic: bool = True
+
     sig_error = Signal(type, Exception, str)
     activity = Signal(str)
     deactivate = Signal(bool)
+    log_interval_changed = Signal(int)
+    led_color = Signal(QColor)
 
     def __init__(
         self,
@@ -236,23 +409,21 @@ class ControlWindow(QMainWindow):
         # work around a bug in PyQt which can cause a segfault after a Python
         # exception. see issue #357
         os.environ["QT_NO_FT_CACHE"] = "1"
-
         super().__init__(parent=parent)
-
         # Initialize logging window
         self.log_window = LoggingWindow(parent=self)
         self.log_window.hide()
         logger.info("Control window '%s' starting", name)
-
         self.setWindowTitle(name)
+        icondir = Path(__file__).parent.parent / "scripts" / "icons"
+        self.setWindowIcon(QIcon(str(icondir / "matr1x-control.png")))
         self.settings = SaferQSettings(package, name)
         # initialize parameters
         self.running = False
         self.logging = False
         filename = f"{package}.{name}_{time.strftime(datetimefmt)}{output_extension}"
         if os.name == "nt":
-            # Windows does not like : in filenames
-            filename = filename.replace(":", "")
+            filename = filename.replace(":", "")  # Windows does not like : in filenames
         self.logfile: Path = Path(logfolder) / filename
         self._log_stop_event = threading.Event()
         self._log_interval_updated = threading.Event()
@@ -266,38 +437,32 @@ class ControlWindow(QMainWindow):
         self.terminated = False
         self.devInit = False
         self.keep_enabled = []
-        self.activity_layout: QHBoxLayout
+        self._guidict_enable_actions: list[EnableAction] = []
         self._log_interval = 60
         # initialize error handling
         self.sig_error.connect(self.handleError)
         # SCPI TCP server placeholders
         self._local_server: scpi_tcpserver.SCPI_TCP_Server | None = None
+        self._server_disabled_by_panic = False
         self._port = port
         # initialize data logging system
         self.S_log = system.System()
         self.S_log.__name__ = f"{package}.{name}_control_logging_system"
         # initialize data logging dictionaries
-        if guidicts:
-            if isinstance(guidicts, (list, tuple)):
-                self.guidicts = list(guidicts)
-            else:
-                self.guidicts = [guidicts]
-        else:
-            self.guidicts = []
-        self._harmonize_guidicts()
-        # initialize GUI
-        self.initUI()
+        self.guidicts: list[GuiDict]
+        self._harmonize_guidicts(guidicts)
+        self.ui = UIBuilder(self)
+        self.create_connections()
+        self.statusloggingUI()
+        check_config(matrixconfig)
         protected_restore(self._restore_gui_settings)
-        # set outputStream as stdout (i.e. all output is written to status)
-        self.output_stream = EmittingStream()
-        self.output_stream.text_written.connect(self.output_written)
-        sys.stdout = self.output_stream
-
+        sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
+        sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
         # merge the guidicts Systems
         if not hasattr(self, "S"):
             self.S = system.MergedSystem([g.S for g in self.guidicts])
         # store commands
-        self.cmd_list = {
+        self.cmd_list: dict[str, Command] = {
             ":conf": Get(
                 lambda b: pickle.loads(ast.literal_eval(b)).decode(),
                 lambda: pickle.dumps(self.S.query(), protocol=0),
@@ -305,28 +470,20 @@ class ControlWindow(QMainWindow):
         }
         if extra_cmds:
             self.cmd_list.update(extra_cmds)
-
-        # add the menu bar
         self.create_menu()
-
-        # restore toolbar and activity indicator states after menu creation
         protected_restore(self._restore_view_settings)
-
-        # show the GUI
         self.show()
-
         # connect signals so that at least one dock remains visible! (needs to be done after show!)
         for g in self.guidicts:
             g.dock.topLevelChanged.connect(self.needToAdjustSize)
-
         # enable logging if requested by arguments
         self._run_log_on_start = False
         if logging:
             self._run_log_on_start = True
             if not isinstance(logging, bool) and isinstance(logging, numbers.Number):
-                self.interval.setValue(logging)
+                self.log_interval_changed.emit(logging)
 
-    def _harmonize_guidicts(self):
+    def _harmonize_guidicts(self, guidicts):
         """
         Harmonize the GuiDict entries to a consistent format.
 
@@ -343,6 +500,16 @@ class ControlWindow(QMainWindow):
         This method also sets parent references on all guidicts and connects their
         error signals to the main error handler.
         """
+        if guidicts:
+            if isinstance(guidicts, (list, tuple)):
+                self.guidicts = list(guidicts)
+            else:
+                self.guidicts = [guidicts]
+        else:
+            self.guidicts = []
+        self.guidicts = [
+            g() if (callable(g) and not isinstance(g, GuiDict)) else g for g in self.guidicts
+        ]
         # harmonize guidict entries to 'var'-objects
         for guidict in self.guidicts:
             for key, entry in guidict.items():
@@ -384,9 +551,6 @@ class ControlWindow(QMainWindow):
                 class _FakeGuiDict(GuiDict):
                     data = guidict
 
-                    def refresh(self, *args, **kwargs):
-                        pass
-
                 self.guidicts[i] = _FakeGuiDict()
 
     def _restore_gui_settings(self):
@@ -402,11 +566,6 @@ class ControlWindow(QMainWindow):
 
         The settings are loaded from QSettings storage that was initialized
         during the class construction.
-
-        Notes
-        -----
-        This method is called during initialization of the ControlWindow
-        and should not be called directly.
         """
         # restore settings of GuiDicts
         for g in self.guidicts:
@@ -420,10 +579,6 @@ class ControlWindow(QMainWindow):
         self.restoreState(
             self.settings.safer_value("windowState", self.saveState(), type=QByteArray)
         )
-        # restore status visibility
-        self.status_box.toggle_button.setChecked(
-            self.settings.safer_value("status_visible", False, type=bool)
-        )
         # restore log window geometry
         self.log_window.move(
             self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
@@ -436,25 +591,39 @@ class ControlWindow(QMainWindow):
         """Restore view-related settings after menu has been created."""
         # restore toolbar visibility
         toolbar_visible = self.settings.safer_value("toolbar_visible", False, type=bool)
-        self.show_toolbar_action.setChecked(toolbar_visible)
+        self.ui.actions.show_toolbar.setChecked(toolbar_visible)
         self.set_toolbar_visible(toolbar_visible)
-        # restore activity indicator location
-        saved_activity_in_logger = self.settings.safer_value("activity_in_logger", True, type=bool)
-        self.set_activity_in_logger(saved_activity_in_logger)
 
-    # GUI functions
-    def initUI(self) -> None:
-        """
-        Initialize GUI -> needs to be extended by subclasses.
+    def create_connections(self) -> None:
+        """Connect actions and widgets with application logic."""
+        self.ui.actions.enable_all.triggered.connect(self.enable_all)
+        self.ui.actions.disable_all.triggered.connect(self.disable_all)
+        self.ui.actions.full_info_all.triggered.connect(self.full_info_all)
+        self.ui.actions.less_info_all.triggered.connect(self.less_info_all)
+        self.ui.actions.show_toolbar.triggered.connect(self.set_toolbar_visible)
+        self.ui.actions.show_toml.triggered.connect(open_matrix_toml)
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.ui.actions.quit.triggered.connect(self.close)
+        self.ui.widgets.panic.clicked.connect(lambda checked: self.panic(checked, "Panic button"))
+        self.ui.actions.toggle_recorder.triggered.connect(self.toggle_data_recorder)
+        self.ui.actions.select_recorder.triggered.connect(self.select_datafile)
+        self.ui.actions.config_recorder.triggered.connect(self.config_data_recorder)
+        self.ui.actions.recorder_interval.triggered.connect(self.set_interval)
+        self.log_interval_changed.connect(self._update_log_interval)
+        self.led_color.connect(self._set_recorder_color)
 
-        This method sets up the basic structure of the GUI by calling
-        other methods to create different parts of the interface.
-        """
-        layout = self.basicUI()
-        self.guidictUI(layout)
-        self.extra_layout(layout)
-        self.statusloggingUI(layout)
-        check_config(matrixconfig)
+    def set_interval(self) -> None:
+        """Set the data recorder interval via a dialog window."""
+        value, ok = QInputDialog.getInt(
+            self,
+            "Set data recorder interval",
+            "Enter interval (s):",
+            value=self._log_interval,
+            minValue=1,
+            maxValue=24 * 3600 + 1,
+        )
+        if ok:
+            self.log_interval_changed.emit(value)
 
     def toggle_visible(self, checked: bool, index: int) -> None:
         """
@@ -485,13 +654,13 @@ class ControlWindow(QMainWindow):
                 else:
                     off += 1
         if off < total:
-            self.disable_all_action.setEnabled(True)
+            self.ui.actions.disable_all.setEnabled(True)
         else:
-            self.disable_all_action.setEnabled(False)
+            self.ui.actions.disable_all.setEnabled(False)
         if on < total:
-            self.enable_all_action.setEnabled(True)
+            self.ui.actions.enable_all.setEnabled(True)
         else:
-            self.enable_all_action.setEnabled(False)
+            self.ui.actions.enable_all.setEnabled(False)
 
     def check_full_infos(self) -> None:
         """Determine if 'all/none full-info' should be available."""
@@ -507,13 +676,13 @@ class ControlWindow(QMainWindow):
                 else:
                     off += 1
         if off < total:
-            self.less_info_all_action.setEnabled(True)
+            self.ui.actions.less_info_all.setEnabled(True)
         else:
-            self.less_info_all_action.setEnabled(False)
+            self.ui.actions.less_info_all.setEnabled(False)
         if on < total:
-            self.full_info_all_action.setEnabled(True)
+            self.ui.actions.full_info_all.setEnabled(True)
         else:
-            self.full_info_all_action.setEnabled(False)
+            self.ui.actions.full_info_all.setEnabled(False)
 
     def enable_all(self) -> None:
         """Enable all guidicts."""
@@ -541,52 +710,6 @@ class ControlWindow(QMainWindow):
             if has_hiding:
                 guidict.extend_switch.setChecked(False)
 
-    def set_activity_in_logger(self, in_logger: bool) -> None:
-        """
-        Set the location of activity indicators.
-
-        Parameters
-        ----------
-        in_logger : bool
-            If True, show activity indicators in the logger area.
-            If False, show activity indicators in individual toolbars.
-        """
-        widgets: list[QWidget] = []
-        # Determine current state by checking where activity indicators actually are
-        current_state = self.activity_layout.count() > 0
-
-        # Only do work if state is actually changing
-        if current_state == in_logger:
-            return
-
-        if not in_logger:  # Move from logger to toolbars
-            for i in range(self.activity_layout.count()):
-                item = self.activity_layout.itemAt(i)
-                w = expect_not_none(item.widget(), "No widget was returned.")
-                widgets.append(w)
-            for i, widget in enumerate(widgets):
-                widget.setFixedHeight(10)
-                self.guidicts[i].toolbar.addWidget(widget)
-                empty = QWidget()
-                empty.setFixedWidth(10)
-                self.guidicts[i].toolbar.addWidget(empty)
-        else:  # Move from toolbars to logger
-            for guidict in self.guidicts:
-                items = len(guidict.toolbar.actions())
-                for i, action in enumerate(guidict.toolbar.actions()):
-                    if i == items - 2:
-                        widgets.append(guidict.toolbar.widgetForAction(action))
-                        guidict.toolbar.removeAction(action)
-                    if i == items - 1:
-                        guidict.toolbar.removeAction(action)
-            for widget in widgets:
-                widget.setFixedHeight(30)
-                self.activity_layout.addWidget(widget)
-                widget.show()
-
-        # Update action state to reflect new location
-        self.activity_in_logger_action.setChecked(in_logger)
-
     def set_toolbar_visible(self, visible: bool) -> None:
         """
         Set the visibility of all toolbars.
@@ -606,14 +729,14 @@ class ControlWindow(QMainWindow):
         """Toggle the visibility of the logging window."""
         if self.log_window.isVisible():
             self.log_window.hide()
-            self.show_log_action.setChecked(False)
-            self.show_log_action.setText("Show Log Window")
+            self.ui.actions.show_log.setChecked(False)
+            self.ui.actions.show_log.setText("Show Log Window")
         else:
             self.log_window.show()
             self.log_window.raise_()
             self.log_window.activateWindow()
-            self.show_log_action.setChecked(True)
-            self.show_log_action.setText("Hide Log Window")
+            self.ui.actions.show_log.setChecked(True)
+            self.ui.actions.show_log.setText("Hide Log Window")
 
     def create_menu(self) -> None:
         """
@@ -621,21 +744,13 @@ class ControlWindow(QMainWindow):
 
         Add 'Full Info', 'Enable' and 'View' menus to the main menu bar.
         """
-        menu = self.menuBar()
-        self.file_menu = menu.addMenu("&File")
-        self.enable_menu = menu.addMenu("&Enable")
-        self.fullinfo_menu = menu.addMenu("&Full info")
-        self.view_menu = menu.addMenu("&View")
-        self.custom_menu = menu.addMenu("&Custom")
-        self.help_menu = menu.addMenu("&Help")
-
-        self.file_menu.addAction(self.quit_action)
+        self.ui.menus.file.addAction(self.ui.actions.quit)
 
         self.guidict_view = []
+        self._guidict_enable_actions = []
         for i, guidict in enumerate(self.guidicts):
-            dict_name = list(guidict.keys())[0]
             # Enable/ Disable
-            enable_action = EnableAction(dict_name, self)
+            enable_action = EnableAction(guidict.name, self)
 
             # Connect directly to GuiDict enable_switch
             enable_action.setChecked(guidict.enable_switch.isChecked())
@@ -649,9 +764,10 @@ class ControlWindow(QMainWindow):
                 guidict.enable_switch.toggled.connect(enable_action.setChecked)
 
             guidict.toolbar.addAction(enable_action)
-            self.enable_menu.addAction(enable_action)
+            self.ui.menus.enable.addAction(enable_action)
+            self._guidict_enable_actions.append(enable_action)
             # View toggles
-            view_action = QAction(dict_name, self)
+            view_action = QAction(guidict.name, self)
             self.guidict_view.append(view_action)
             self.guidict_view[i].setCheckable(True)
             self.guidict_view[i].setChecked(True)
@@ -660,11 +776,11 @@ class ControlWindow(QMainWindow):
                     checked, index
                 )
             )
-            self.view_menu.addAction(self.guidict_view[i])
+            self.ui.menus.view.addAction(self.guidict_view[i])
 
             # Full info toggles
             has_hiding = any(variable.hide for variable in guidict.values())
-            full_info_action = FullInfoAction(dict_name, self)
+            full_info_action = FullInfoAction(guidict.name, self)
 
             # Connect directly to GuiDict extend_switch
             full_info_action.setChecked(guidict.extend_switch.isChecked())
@@ -678,179 +794,72 @@ class ControlWindow(QMainWindow):
                 guidict.extend_switch.toggled.connect(full_info_action.setChecked)
 
             guidict.toolbar.addAction(full_info_action)
-            self.fullinfo_menu.addAction(full_info_action)
+            self.ui.menus.fullinfo.addAction(full_info_action)
             spacer = QWidget()
             spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             guidict.toolbar.addWidget(spacer)
             # Custom menu
             for action in guidict.menu_actions:
                 action.setParent(self)
-                self.custom_menu.addAction(action)
+                self.ui.menus.custom.addAction(action)
             if len(guidict.menu_actions) != 0:
-                self.custom_menu.addSeparator()
+                self.ui.menus.custom.addSeparator()
 
-        self.enable_all_action = QAction("Enable all", self)
-        self.enable_all_action.triggered.connect(self.enable_all)
-        self.disable_all_action = QAction("Disable all", self)
-        self.disable_all_action.triggered.connect(self.disable_all)
+        for i, widget in enumerate(self.activityIndicator):
+            self.guidicts[i].toolbar.addWidget(widget)
+            empty = QWidget()
+            empty.setFixedWidth(10)
+            self.guidicts[i].toolbar.addWidget(empty)
 
-        self.full_info_all_action = QAction("Full info all", self)
-        self.full_info_all_action.triggered.connect(self.full_info_all)
-        self.less_info_all_action = QAction("Less info all", self)
-        self.less_info_all_action.triggered.connect(self.less_info_all)
-
-        self.activity_in_logger_action = QAction("Activity in Logger")
-        self.activity_in_logger_action.setShortcut(QKeySequence("Ctrl+0"))
-        self.activity_in_logger_action.setCheckable(True)
-        # Default to True (activity indicators start in logger)
-        self.activity_in_logger_action.setChecked(True)
-        self.activity_in_logger_action.triggered.connect(
-            lambda checked: self.set_activity_in_logger(checked)
-        )
-
-        self.show_toolbar_action = QAction("Show Toolbar")
-        self.show_toolbar_action.setShortcut(QKeySequence("Ctrl+1"))
-        self.show_toolbar_action.setCheckable(True)
-        # Initial state will be set in _restore_view_settings()
-        self.show_toolbar_action.triggered.connect(self.set_toolbar_visible)
-
-        self.matrix_settings_action = QAction("Show matrix toml", self)
-        self.matrix_settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.matrix_settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
-        self.matrix_settings_action.triggered.connect(open_matrix_toml)
-
-        self.show_log_action = QAction("Show Log Window", self)
-        self.show_log_action.setCheckable(True)
-        self.show_log_action.triggered.connect(self.toggle_log_window)
-
-        # Build the rest of the menu
-        self.enable_menu.addSeparator()
-        self.enable_menu.addAction(self.enable_all_action)
-        self.enable_menu.addAction(self.disable_all_action)
-
-        self.fullinfo_menu.addSeparator()
-        self.fullinfo_menu.addAction(self.full_info_all_action)
-        self.fullinfo_menu.addAction(self.less_info_all_action)
-
-        self.view_menu.addSeparator()
-        self.view_menu.addAction(self.show_toolbar_action)
-        self.view_menu.addAction(self.activity_in_logger_action)
-        self.view_menu.addAction(self.matrix_settings_action)
-
-        self.help_menu.addAction(self.show_log_action)
+        self.ui.menus.enable.addSeparator()
+        self.ui.menus.enable.addAction(self.ui.actions.enable_all)
+        self.ui.menus.enable.addAction(self.ui.actions.disable_all)
+        self.ui.menus.fullinfo.addSeparator()
+        self.ui.menus.fullinfo.addAction(self.ui.actions.full_info_all)
+        self.ui.menus.fullinfo.addAction(self.ui.actions.less_info_all)
+        self.ui.menus.view.addSeparator()
+        self.ui.menus.view.addAction(self.ui.actions.show_toolbar)
+        self.ui.menus.view.addAction(self.ui.actions.show_toml)
+        self.ui.menus.data_recorder.addAction(self.ui.actions.recorder_interval)
+        self.ui.menus.data_recorder.addAction(self.ui.actions.select_recorder)
+        self.ui.menus.data_recorder.addAction(self.ui.actions.config_recorder)
+        self.ui.menus.data_recorder.addAction(self.ui.actions.toggle_recorder)
+        self.ui.menus.help.addAction(self.ui.actions.show_log)
 
         self.check_enables()
         self.check_full_infos()
 
-    def basicUI(self) -> QVBoxLayout:
-        """
-        Declare main GUI components, set icon and general menu action.
-
-        Returns
-        -------
-        QVBoxLayout
-            The main layout of the GUI.
-        """
-        # General menu bar items
-        self.quit_action = QAction("Quit", self)
-        if os.name == "nt":
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        self.quit_action.triggered.connect(self.close)
-
-        icondir = Path(__file__).parent.parent / "scripts" / "icons"
-        self.setWindowIcon(QIcon(str(icondir / "matr1x-control.png")))
-        self.widget = QWidget()
-        self.widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-        self.main_layout = QVBoxLayout()
-
-        self.widget.setLayout(self.main_layout)
-        self.main_layout.addStretch()
-        self.setCentralWidget(self.widget)
-        return self.main_layout
-
-    def guidictUI(self, layout: QLayout) -> None:
-        """
-        Set up guidict columns (main part of the ControlWindow).
-
-        Parameters
-        ----------
-        layout : QLayout
-            Qt-layout of main window.
-        """
-        # construct the layout from the GUI dicts
-        for guidict in self.guidicts:
-            content = guidict.create_GUI()
-            self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
-
-    @Slot()
+    @AutoSlot
     def needToAdjustSize(self) -> None:
         """Adjust the size of the main window."""
         self.adjustSize()
 
-    def extra_layout(self, layout: QVBoxLayout) -> None:
-        """
-        Define extra fields needed for specific control GUIs.
-
-        By default, a central panic button is provided which will signal to all
-        GUI elements to be put into a safe state.
-
-        Parameters
-        ----------
-        layout : QVBoxLayout
-            The layout to which the extra elements will be added.
-        """
-        elayout = QHBoxLayout()
-        self.panicButton = QPushButton("Panic Button")
-        self.panicButton.setStyleSheet("background-color: red;")
-        self.panicButton.setCheckable(True)
-        elayout.addWidget(self.panicButton)
-        self.panicButton.clicked.connect(self.panic)
-        layout.addLayout(elayout)
-
-    def statusloggingUI(self, layout: QLayout) -> None:
+    def statusloggingUI(self) -> None:
         """
         Set up status and logging user interface.
 
         This method creates and configures the widgets for status display
         and logging controls.
-
-        Parameters
-        ----------
-        layout : QLayout
-            The layout to which the status and logging UI will be added.
         """
-        self.status_box = CollapsibleBox("Logging and Status", parent=self)
-        self.status_box.redraw_activity.connect(self.readjustSize)
-        layout.addWidget(self.status_box)
-
         # initialize common widgets
-        self.status = QPlainTextEdit(self)
-        self.status.setReadOnly(True)
-        self.keep_enabled.append(self.status)
         self.activityIndicator = []
         self._pending_updates = {}  # {idx: color}
-        self.activity_layout = QHBoxLayout()
-        self.activity_layout.setSpacing(0)
         indicator_width = 17
         if len(self.guidicts) * indicator_width > 200:
             indicator_width = int(200 / len(self.guidicts))
         for idx, guidict in enumerate(self.guidicts):
             ql = QLabel(" ")
             ql.setFixedWidth(indicator_width)
-            ql.setFixedHeight(30)
-            ql.setAutoFillBackground(True)  # Add this
+            ql.setFixedHeight(10)
+            ql.setAutoFillBackground(True)
             palette = ql.palette()
             palette.setColor(ql.backgroundRole(), QColor("lightgray"))
             ql.setPalette(palette)
-            ql.setToolTip(guidict.dock.windowTitle())
             self.activityIndicator.append(ql)
             guidict.refresh_worker.activity.connect(
                 lambda c, idx=idx: self.change_single_color(c, idx)
             )
             guidict.refresh_worker.panic.connect(self.panic)
-            self.activity_layout.addWidget(ql)
 
         # Timer to process pending updates
         self._process_timer = QTimer()
@@ -859,64 +868,10 @@ class ControlWindow(QMainWindow):
 
         self.activity.connect(self.change_color)
         self.deactivate.connect(self.deactivate_gui)
-        self.togglelog = QPushButton("start log")
-        self.togglelog.setCheckable(True)
-        self.togglelog.setMaximumWidth(120)
-        selectlog = QPushButton("select log file")
-        selectlog.setMaximumWidth(140)
-        self.configlog = QPushButton("show log config")
-        self.configlog.setCheckable(True)
 
-        self.loglabel = QLabel(self.logfile.name)
-        self.loglabel.setMaximumWidth(250)
-        self.loglabel.setWordWrap(True)
-        interval_label = QLabel("log interval (s):")
-        self.interval = QSpinBox()
-        self.interval.setRange(1, 24 * 3600 + 1)
-        self.interval.setValue(60)
-        self.interval.setMaximumWidth(70)
-        self._log_interval = self.interval.value()
-        self.interval.valueChanged.connect(self._update_log_interval)
-        clearlog = QPushButton("Clear Output")
-        self.togglelog.clicked.connect(self.toggleLog)
-        selectlog.clicked.connect(self.selectLog)
-        self.configlog.clicked.connect(self.configLog)
-        clearlog.clicked.connect(self.status.clear)
-
-        # add status and logging widgets
-        self.status_grid = QHBoxLayout()
-        leftcolumn = QVBoxLayout()
-        self.status_grid.addLayout(leftcolumn)
-        line1 = QHBoxLayout()
-        leftcolumn.addLayout(line1)
-        line1.addLayout(self.activity_layout)
-        line1.addStretch()
-        line2 = QHBoxLayout()
-        leftcolumn.addLayout(line2)
-        line2.addWidget(interval_label)
-        line2.addWidget(self.interval)
-        line2.addStretch()
-        line3 = QHBoxLayout()
-        leftcolumn.addLayout(line3)
-        line3.addWidget(self.configlog)
-        line3.addStretch()
-        line4 = QHBoxLayout()
-        leftcolumn.addLayout(line4)
-        line4.addWidget(selectlog)
-        line4.addWidget(self.togglelog)
-        line4.addStretch()
-        leftcolumn.addWidget(self.loglabel)
-        leftcolumn.addStretch()
-        lastline = QHBoxLayout()
-        leftcolumn.addLayout(lastline)
-        lastline.addStretch()
-        lastline.addWidget(clearlog)
-
-        rightcolumn = QVBoxLayout()
-        rightcolumn.addWidget(self.status)
-        self.status_grid.addLayout(rightcolumn, stretch=1)
-        self.status_box.setContentLayout(self.status_grid)
-        self.status_box.toggle(False)
+        self.ui.widgets.recorder_file_label.setText(
+            f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
+        )
 
     @staticmethod
     def copyValues(copyDict: dict) -> None:
@@ -939,9 +894,8 @@ class ControlWindow(QMainWindow):
             variable.copy_value()
 
     @catchEmitError
-    @Slot(bool)
-    @Slot(bool, str)
-    def panic(self, checked: bool, reason: str = "Panic button") -> None:
+    @AutoSlot
+    def panic(self, checked: bool, reason: str) -> None:
         """
         Signal panic mode to guidicts if the button is checked.
 
@@ -950,59 +904,35 @@ class ControlWindow(QMainWindow):
         checked : bool
             Whether the panic button is checked
         reason : str, optional
-            Reason for panic mode, by default "Panic button"
+            Reason for panic mode
         """
         if checked:
-            logger.info("%s: Panic mode activated due to '%s'", time.strftime(datetimefmt), reason)
-            self.panicButton.setText(f"Panic mode activated due to '{reason}'")
-            self.panicButton.setChecked(True)
+            logger.warning("Panic mode activated due to '%s'", reason)
+            self.ui.widgets.panic.setText(f"Panic mode activated due to '{reason}'")
+            self.ui.widgets.panic.setChecked(True)
             for g in self.guidicts:
                 g.panic()
+            if (
+                self.stop_server_on_panic
+                and not self._server_disabled_by_panic
+                and self._local_server is not None
+            ):
+                self.stopServer()
+                self._server_disabled_by_panic = True
         else:
+            logger.info("Panic mode deactivated due to '%s'", reason)
             for g in self.guidicts:
-                self.panicButton.setText("Panic Button")
+                self.ui.widgets.panic.setText("Panic Button")
                 g.unpanic()
-
-    def output_written(self, text: str) -> None:
-        """
-        Append the most recent text to the end of the display.
-
-        Ensures that the cursor remains at the end.
-
-        Parameters
-        ----------
-        text : str
-            Text to be appended
-        """
-        if text.strip("\n") != "":
-            self.status.appendPlainText(text.strip("\n"))
-            try:
-                self.status.moveCursor(QTextCursor.MoveOperation.End)
-            except Exception:  # upon cleanup after exception this can fail
-                pass
-
-    @Slot(bool)
-    def readjustSize(self, expanding: bool = False) -> None:
-        """
-        Resize window when the status and logging tab is minimized.
-
-        Parameters
-        ----------
-        expanding : bool, optional
-            Whether the window is expanding, by default False
-        """
-        self.widget.adjustSize()
-        if not expanding:
-            # if we are shrinking the window and disabling the control, hide
-            # the logging-config buttons
-            self.configLog(False)
-            self.configlog.setChecked(False)
-            # make window smaller in vertial direction
-            minw, maxw = self.minimumWidth(), self.maximumWidth()
-            self.setFixedWidth(self.width())
-            self.adjustSize()
-            self.setMinimumWidth(minw)
-            self.setMaximumWidth(maxw)
+            if (
+                self.stop_server_on_panic
+                and self._server_disabled_by_panic
+                and self.running
+                and not self.terminate
+                and self._local_server is None
+            ):
+                self.startServer()
+            self._server_disabled_by_panic = False
 
     # device communication and related functions
     @catchEmitError
@@ -1019,14 +949,14 @@ class ControlWindow(QMainWindow):
                 self.S.set()
             self.devInit = True
 
-    def configLog(self, checked: bool) -> None:
+    def config_data_recorder(self, checked: bool) -> None:
         """
         Configure logging settings for GUI elements.
 
         Parameters
         ----------
         checked : bool
-            Whether logging is enabled
+            Whether logging is enabled.
         """
         for guidict in self.guidicts:
             guidict.showlog = checked
@@ -1036,16 +966,16 @@ class ControlWindow(QMainWindow):
                 if len(v.widgets) > 2 and (v.widgets[0].isHidden() is False and v.log is not None):
                     v.widgets[-1].setVisible(checked)
 
-    def toggleLog(self, checkstate: bool) -> None:
+    def toggle_data_recorder(self, checkstate: bool) -> None:
         """
         Toggle data logging on or off.
 
         Parameters
         ----------
         checkstate : bool
-            Whether logging should be enabled
+            Whether logging should be enabled.
         """
-        self.togglelog.setChecked(checkstate)
+        self.ui.actions.toggle_recorder.setChecked(checkstate)
         # clear system of all parameters
         self.S_log.clear_parameters()
         # add timestamp to system
@@ -1063,12 +993,19 @@ class ControlWindow(QMainWindow):
                             f"dict{i}/{key}", "", getter=lambda v=variable: v.value
                         )
         if len(self.S_log.parameters) == 1:
-            print("No logging parameters were selected")
+            QMessageBox.warning(
+                None,
+                "Select parameters first!",
+                "No parameters are selected for the data recorder.",
+            )
+            self.ui.actions.toggle_recorder.setChecked(False)
             return
         if self.logging is False:
             # generate new log filename
             self.logfile = self.S_log.generate_datafilename(outputfile=self.logfile)
-            self.loglabel.setText(self.logfile.name)
+            self.ui.widgets.recorder_file_label.setText(
+                f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
+            )
             # initialize system
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
@@ -1076,40 +1013,34 @@ class ControlWindow(QMainWindow):
             self.S_log.dcdata["date"] = time.strftime(datetimefmt, time.localtime())
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
-            self.S_log.init_datafile("matrix script generated")
+            msg, outputfile = self.S_log.init_datafile("matrix script generated")
+            print(f"{msg}: {outputfile}")
             # turn off config and set data
-            self.configLog(False)
-            self.configlog.setEnabled(False)
-            self.configlog.setChecked(False)
-            self.togglelog.setText("data log running")
+            self.config_data_recorder(False)
+            self.ui.actions.config_recorder.setEnabled(False)
+            self.ui.actions.config_recorder.setChecked(False)
+            self.ui.actions.toggle_recorder.setText("Stop data recorder")
             # start thread
             self._log_stop_event.clear()
             self._log_stopped_event.clear()
             self._log_thread = threading.Thread(target=self.loggingFunc, daemon=True)
             self._log_thread.start()
             self.logging = True
-            print(f"{time.strftime(datetimefmt)}: data logging started")
+            logger.info("Data recorder started")
 
-        elif self.logging is True:
+        else:
             self.S_log.reset()
             self._stop_logging_thread()
             self.logging = False
             # reset GUI
-            self.configlog.setEnabled(True)
-            self.togglelog.setText("start data log")
-            print(f"{time.strftime(datetimefmt)}: data logging stopped")
+            self.ui.actions.config_recorder.setEnabled(True)
+            self.ui.actions.toggle_recorder.setText("Start data recorder")
+            logger.info("Data recorder stopped")
 
-    def selectLog(self, *args) -> None:
-        """
-        Allow selecting a logfile.
-
-        Parameters
-        ----------
-        *args
-            Variable length argument list
-        """
+    def select_datafile(self) -> None:
+        """Allow selecting a file for the data recorder."""
         filename = QFileDialog.getSaveFileName(
-            self, "Select log file", str(logfolder), f"data log files (*{output_extension})"
+            self, "Select data file", str(logfolder), f"data recorder files (*{output_extension})"
         )[0]
 
         # If no file was selected, keep the current logfile
@@ -1121,16 +1052,18 @@ class ControlWindow(QMainWindow):
 
         # If logging is running, stop it first
         if was_logging:
-            self.toggleLog(False)
+            self.toggle_data_recorder(False)
 
         # Update the logfile
         self.logfile = Path(filename)
         self.logfile = self.logfile.with_suffix(output_extension)
-        self.loglabel.setText(self.logfile.name)
+        self.ui.widgets.recorder_file_label.setText(
+            f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
+        )
 
         # If logging was running, restart it with the new file
         if was_logging:
-            self.toggleLog(True)
+            self.toggle_data_recorder(True)
 
     @catchEmitError
     def loggingFunc(self) -> None:
@@ -1145,16 +1078,44 @@ class ControlWindow(QMainWindow):
                 if cnt == 0:
                     self.S_log.trigger()
                     self.S_log.take_measurement_point(self.logfile)
+                    self.led_color.emit(QColor("lightgreen"))
+                else:
+                    self.led_color.emit(QColor("green"))
                 cnt = (cnt + 1) % interval
                 if self._log_stop_event.wait(1):
                     break
         finally:
+            self.led_color.emit(QColor("lightgrey"))
             self._log_stopped_event.set()
 
-    @Slot(int)
+    @AutoSlot
+    def _set_recorder_color(self, color: QColor) -> None:
+        """
+        Set the color of the data recorder led.
+
+        Parameters
+        ----------
+        color: QColor
+            The color to be set.
+        """
+        palette = self.ui.widgets.recorder_led.palette()
+        palette.setColor(self.ui.widgets.recorder_led.backgroundRole(), color)
+        self.ui.widgets.recorder_led.setPalette(palette)
+
+    @AutoSlot
     def _update_log_interval(self, value: int) -> None:
-        """Store the most recent logging interval for use in worker threads."""
+        """
+        Store the most recent logging interval for use in worker threads.
+
+        Parameters
+        ----------
+        value: int
+            max(1, value) will be set.
+        """
         self._log_interval = max(1, value)
+        self.ui.widgets.recorder_file_label.setText(
+            f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
+        )
         self._log_interval_updated.set()
 
     def _stop_logging_thread(self, timeout: float = 2.0) -> None:
@@ -1196,17 +1157,32 @@ class ControlWindow(QMainWindow):
                 guidict.start()
             max_period = max(max_period, guidict.refresh_period)
         if self._run_log_on_start:
-            QTimer.singleShot(int(max_period * 1000), lambda: self.toggleLog(True))
+            QTimer.singleShot(int(max_period * 1000), lambda: self.toggle_data_recorder(True))
         self.terminated = False
 
     def _stop_guidicts(self, wait: bool = True) -> None:
-        """Stop all guidicts and update the terminated flag."""
+        """
+        Stop all guidicts and update the terminated flag.
+
+        Parameters
+        ----------
+        wait: bool
+            Flag to make this function block up to twice the refresh
+            period or until the refresh thread ended (default is True).
+        """
         for guidict in self.guidicts:
             guidict.stop(wait=wait)
         self.terminated = True
 
     def _has_custom_refresh(self) -> bool:
-        """Return True if the subclass overrides refreshDict."""
+        """
+        Return whether the subclass overrides refreshDict.
+
+        Returns
+        -------
+        bool
+            True if the subclass overrides refreshDict.
+        """
         return type(self).refreshDict is not ControlWindow.refreshDict
 
     def _start_legacy_refresh_thread(self) -> None:
@@ -1235,7 +1211,8 @@ class ControlWindow(QMainWindow):
         Parameters
         ----------
         timeout : float, optional
-            Maximum time in seconds to wait for the thread to finish. Defaults to 5.0.
+            Maximum time in seconds to wait for the thread to finish.
+            Defaults to 5.0.
         """
         thread = self._legacy_refresh_thread
         if thread is None:
@@ -1251,7 +1228,7 @@ class ControlWindow(QMainWindow):
     def __enter__(self):
         """Initialize devices, start GuiDict workers, and launch the SCPI server."""
         # initialize devices
-        print(f"{time.strftime(datetimefmt)}: initializing devices")
+        logger.info("Initializing devices")
         self.connectDev()
 
         # start guidicts if devices initialized successfully
@@ -1282,10 +1259,15 @@ class ControlWindow(QMainWindow):
             self.running = True
             self.startServer()
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ):
         """Stop GuiDict workers, close devices, and stop the logging thread."""
         if exc_type is not None:
-            print(exc_type, exc_value, exc_traceback)
+            logger.exception("Unhandled exception in context manager")
 
         self.stopServer()
         if self.running is True:
@@ -1318,7 +1300,7 @@ class ControlWindow(QMainWindow):
             self._local_server.stop()
         self._local_server = None
 
-    @Slot(str, int)
+    @AutoSlot
     def change_single_color(self, color: str, idx: int) -> None:
         """
         Change the background color of a single activity indicator.
@@ -1332,7 +1314,7 @@ class ControlWindow(QMainWindow):
         """
         self._pending_updates[idx] = color
 
-    @Slot(str)
+    @AutoSlot
     def change_color(self, color: str) -> None:
         """
         Change the background color of all activity indicators.
@@ -1362,7 +1344,7 @@ class ControlWindow(QMainWindow):
                 palette.setColor(label.backgroundRole(), QColor(color))
                 label.setPalette(palette)
 
-    @Slot(bool)
+    @AutoSlot
     def deactivate_gui(self, flag: bool) -> None:
         """
         Disable all GUI elements.
@@ -1376,6 +1358,18 @@ class ControlWindow(QMainWindow):
             If True, disables the GUI elements. If False, no action is taken.
         """
         if flag:
+            if self.logging:
+                self.S_log.reset()
+                self._stop_logging_thread()
+                self.logging = False
+            self.config_data_recorder(False)
+            self.ui.actions.config_recorder.setChecked(False)
+            self.ui.actions.toggle_recorder.setChecked(False)
+            self.ui.actions.toggle_recorder.setText("Start data recorder")
+            self.ui.actions.recorder_interval.setEnabled(False)
+            self.ui.actions.select_recorder.setEnabled(False)
+            self.ui.actions.config_recorder.setEnabled(False)
+            self.ui.actions.toggle_recorder.setEnabled(False)
             # disable all GUI elements but look at execption list
             for g in self.guidicts:
                 # disable all GUI elements but look at execption list
@@ -1384,34 +1378,32 @@ class ControlWindow(QMainWindow):
                 # compatibility
                 for v in g.values():
                     for widget in v.widgets:
-                        widget.setEnabled(False)
-            for i in reversed(range(self.status_grid.count())):
-                w = self.status_grid.itemAt(i).widget()
-                if w:
-                    w.setEnabled(False)
+                        if widget is not None:
+                            widget.setEnabled(False)
+                for action in g.menu_actions:
+                    action.setEnabled(False)
+            self.ui.widgets.panic.setEnabled(False)
+            self.ui.actions.enable_all.setEnabled(False)
+            self.ui.actions.disable_all.setEnabled(False)
+            for action in self._guidict_enable_actions:
+                action.setEnabled(False)
             for widget in self.keep_enabled:
                 widget.setEnabled(True)
 
-    @Slot()
+    @AutoSlot
     def save_window_state(self) -> None:
         """
         Save current window and dock geometry.
 
-        This method saves the current size, position, and state of the window,
-        as well as the visibility of the status box, toolbar visibility state,
-        and activity indicator location. These settings will be reloaded upon
-        restart of the Control GUI.
-
-        Note:
-        This method is automatically called from closeEvent() when the window
-        is closed to ensure settings are always saved.
+        This method saves the current size, position, and state of the
+        window, as well as the visibility of the status box and toolbar
+        visibility state. These settings will be reloaded upon restart
+        of the Control GUI.
         """
         self.settings.setValue("size", self.size())
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
-        self.settings.setValue("status_visible", self.status_box.toggle_button.isChecked())
-        self.settings.setValue("toolbar_visible", self.show_toolbar_action.isChecked())
-        self.settings.setValue("activity_in_logger", self.activity_in_logger_action.isChecked())
+        self.settings.setValue("toolbar_visible", self.ui.actions.show_toolbar.isChecked())
         self.settings.setValue("log_window/position", self.log_window.pos())
         self.settings.setValue("log_window/size", self.log_window.size())
 
@@ -1422,7 +1414,7 @@ class ControlWindow(QMainWindow):
         Parameters
         ----------
         event : QCloseEvent
-            The close event
+            The close event.
         """
         # Save window and dock states
         self.save_window_state()
@@ -1437,8 +1429,13 @@ class ControlWindow(QMainWindow):
         # Accept the close event
         super().closeEvent(a0)
 
-    @Slot(type, Exception, str)
-    def handleError(self, exc_type, exc_value, pointer):
+    @AutoSlot
+    def handleError(
+        self,
+        exc_type: type[BaseException],
+        exc_value: BaseException,
+        pointer: str,
+    ) -> None:
         """
         Signal slot to handle showing the error message and disabling the GUI.
 
@@ -1453,6 +1450,7 @@ class ControlWindow(QMainWindow):
         """
         # stop guidicts; block briefly so worker threads actually terminate
         self.terminate = True
+        self.running = False
         self._stop_guidicts()
         self._stop_legacy_refresh_thread(timeout=0.5)
         self._log_stop_event.set()
@@ -1460,7 +1458,7 @@ class ControlWindow(QMainWindow):
             self._log_stopped_event.set()
         self.activity.emit("lightgray")
         self.deactivate.emit(True)
-        qApp = get_application_instance()
+        qApp = MApplication.instance()
         qApp.processEvents()
         # stop SCPI server to reflect that something is wrong instead of
         # returning the same reading over and over

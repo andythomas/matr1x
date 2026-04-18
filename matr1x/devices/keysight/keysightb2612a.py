@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for controlling Keysight B2961 power supply devices."""
 
-from matr1x.devices.util import strToList
+from matr1x.devices import strToList
 from matr1x.devices.visadevice import VisaDevice
 
 

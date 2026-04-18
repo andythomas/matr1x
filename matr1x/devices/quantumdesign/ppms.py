@@ -58,8 +58,8 @@ class PPMS:
         self.MAX_TEMPERATURE = max_temperature
         self.MAX_FIELD_RATE = max_field_rate  # max field rate in T/min
 
-        self._start = 0
-        self._client = None
+        self._start: float = 0
+        self._client: mpv.Client | None = None
 
     def close(self):
         """Close the connection to the PPMS client."""
@@ -67,9 +67,10 @@ class PPMS:
             self._client.close_client()
 
     @synchronized
-    def _get_client(self):
+    def _get_client(self) -> mpv.Client:
         now = time.time()
-        if (now - self._start) > 30 * 60:
+        # next line is both true on first run but helps the type checker
+        if (now - self._start) > 30 * 60 or self._client is None:
             if self._client is not None:
                 self._client.close_client()
             client = mpv.Client(host=self.host)
@@ -264,7 +265,7 @@ class PPMS:
         """
         # This needs to be fixed to work. Get set temperature needs a
         # rate as a parameter
-        self.set_temperature(setpoint)  # type: ignore
+        self.set_temperature(setpoint)
         client = self._get_client()
         client.wait_for(1, 1000000, client.temperature.waitfor)
 
@@ -320,7 +321,7 @@ class PPMS:
             return True
 
     @synchronized
-    def set_temperature(self, setpoint, rate):
+    def set_temperature(self, setpoint: float, rate: float = 1):
         """
         Set the temperature setpoint.
 
@@ -333,8 +334,8 @@ class PPMS:
         ----------
         setpoint : float
             The temperature setpoint in Kelvin.
-        rate : float
-            The temperature ramp rate in Kelvin per minute.
+        rate : float (optional)
+            The temperature ramp rate in Kelvin per minute, default = 1.
         """
         if not self.check_temperature(setpoint):
             return

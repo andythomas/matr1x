@@ -15,6 +15,4 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #
-"""Set the TCP ports of the GUI applications."""
-
-MATRIX_GUI_PORT = 54329
+"""Provide the scripts for measurements."""

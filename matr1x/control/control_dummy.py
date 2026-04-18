@@ -16,11 +16,11 @@
 """Provides an example and test implementation of a control GUI."""
 
 import collections
+import logging
 import threading
 import time
 
 import numpy
-from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QAction
 
 from matr1x import system
@@ -47,6 +47,8 @@ from matr1x.util import Command, Get
 common_commands = {
     "*idn": Get(str, "dummy_control"),
 }
+
+logger = logging.getLogger(__name__)
 
 
 class exampleDict(GuiDict):
@@ -96,7 +98,7 @@ class exampleDict(GuiDict):
             dtype=bool,
             columns=[go.checkbox, go.togglebutton],
             init=[None, ("Slow", "Error")],
-            log=None,
+            log=False,
         ),
         "Set": var(None, columns=[go.button, go.button], init=["Set", "Copy"]),
     }
@@ -144,7 +146,7 @@ class exampleDict(GuiDict):
 
         Demonstrate the custom menu.
         """
-        print("Hello from a guidict.")
+        logger.info("Hello from a guidict.")
 
     def refresh(self, count):
         """
@@ -165,7 +167,7 @@ class exampleDict(GuiDict):
             # update hidable items also when not shown
             self["V3"].value = self.S.devs["dummy"].p5
 
-        if self["V4"].value is False:
+        if self["V4"].value is False and not self._panic:
             # emit panic signel
             self.refresh_worker.panic.emit(True, "value V4 is False")
 
@@ -252,17 +254,24 @@ class exampleDict(GuiDict):
 
     def panic(self):
         """
-        Raise an error for testing purposes.
+        Disable set buttons for testing purposes.
 
         A real controlGUI should bring all parameters to a safe state here.
         e.g. remove field from a magnet.
-
-        Raises
-        ------
-        ValueError
-            This is an error for testing purpose.
         """
-        raise ValueError("This is an error for testing purpose.")
+        super().panic()
+        self["toggle"].widgets[2].setEnabled(False)
+        self["Set"].widgets[1].setEnabled(False)
+
+    def unpanic(self):
+        """Enable set buttons to restore normal behavior."""
+        if self.S.opened:
+            with self.lock:
+                # make sure one does not trigger panic mode immediately again
+                self.S.devs["dummy"].p6 = True
+        self["toggle"].widgets[2].setEnabled(True)
+        self["Set"].widgets[1].setEnabled(True)
+        super().unpanic()
 
 
 class exampleDict2(GuiDict):
@@ -294,17 +303,7 @@ class exampleDict2(GuiDict):
     refresh_period = 0.1
     # allow deactivating the GuiDict which also closes all device connections
     allow_disabling = True
-    v5 = 0  # fake hardware value storage. Should be avoided in real GUIs
-
-    class MyQObject(QObject):
-        """
-        Define Signals via QObjects.
-
-        We need an object derived from QObject here. In this example it
-        is used to set a tooltip string in a thread safe manner.
-        """
-
-        tooltip = Signal(str, str)
+    v5 = 0.0  # fake hardware value storage. Should be avoided in real GUIs
 
     def __init__(self):
         super().__init__()
@@ -312,9 +311,13 @@ class exampleDict2(GuiDict):
         N = 40  # length of all FIFO queues
         self.dataseries = collections.deque(maxlen=N)
         self.timestamps = collections.deque(maxlen=N)
-        # enable setting the tooltip
-        self.qobject = self.MyQObject()
-        self.qobject.tooltip.connect(self.set_tooltip)
+
+    def create_GUI(self):
+        """Build the actual GUI."""
+        content = super().create_GUI()
+        # Capture the base text on the GUI thread before refresh uses it.
+        self._info_base = self["Info"].widgets[1].text()
+        return content
 
     def refresh(self, count):
         """
@@ -333,25 +336,13 @@ class exampleDict2(GuiDict):
             # generate and update tooltip
             slope, std = linear_trend(self.timestamps, self.dataseries)
             if slope is not None and std is not None:
-                self.qobject.tooltip.emit(
-                    "V5",
-                    f"last minute \nslope: {slope / 60:.3f}mbar/min\nstd: {std:.3f} mbar",
-                )
+                self[
+                    "V5"
+                ].tooltip = f"last minute \nslope: {slope / 60:.3f}mbar/min\nstd: {std:.3f} mbar"
+                if self.extended_visible:
+                    # Update hidden info only while the extended controls are visible.
+                    self["Info"].value = self._info_base + f"\n\nSlope: {slope / 60:.3f} mbar/min"
         self.v5 = round(30 * numpy.random.random(), 3)
-
-    def set_tooltip(self, label, tooltip):
-        """
-        Set tooltip thread safe on any widget in the first column.
-
-        Parameters
-        ----------
-        label : str
-            The label of the widget.
-        tooltip : str
-            The tooltip text to set.
-        """
-        if label in self:
-            self[label].widgets[1].setToolTip(tooltip)
 
 
 # define clientdevice to be used by measurement systems interfacing with this
@@ -365,7 +356,7 @@ def main():
     control_main(
         "dummy",
         ControlWindow,
-        guidicts=(exampleDict(), exampleDict2()),
+        guidicts=(exampleDict, exampleDict2),
         extra_cmds=common_commands,
         # use specific port to allow running next to other controlGUIs
         port=8897,

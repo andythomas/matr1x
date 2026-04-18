@@ -18,7 +18,7 @@
 import logging
 import math
 import re
-from collections.abc import Sequence
+from typing import cast
 
 from wrapt import synchronized
 
@@ -150,7 +150,7 @@ class MercurySingleAxisIPS(VisaDevice):
         str
             Response from the device
         """
-        if "" == address:
+        if address == "":
             self.write(command)
         else:
             if signal is True:
@@ -222,17 +222,17 @@ class MercurySingleAxisIPS(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )
+                )  # ty: ignore[invalid-assignment]
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
-                if "ON" == dummy:
+                if dummy == "ON":
                     self.workingDict[key][0][0] = True
-                elif "OFF" == dummy:
+                elif dummy == "OFF":
                     self.workingDict[key][0][0] = False
                 else:
                     # Must be action
                     try:
-                        self.workingDict[key][0][0] = status.index(dummy)
+                        self.workingDict[key][0][0] = status.index(dummy)  # ty: ignore[invalid-assignment]
                     except ValueError:
                         # what happened?
                         logger.info(
@@ -356,11 +356,11 @@ class MercurySingleAxisIPS(VisaDevice):
         -----
         Values outside the allowed range will be clamped.
         """
-        if 0 > rate:
+        if rate < 0:
             rate = 0
         elif self.maxrate < rate:
             rate = self.maxrate
-        if 0 == axis:
+        if axis == 0:
             self.setVal(rate, *self.workingDict["zRSet"][1:])
 
     def getMagneticFieldRate(self, axis=0, setp=False):
@@ -380,17 +380,17 @@ class MercurySingleAxisIPS(VisaDevice):
             Current rate value(s), and setpoint(s) if requested
         """
         val = None
-        if -1 == axis:
+        if axis == -1:
             val = [self.getDictValue("zRate")]
             if setp is True:
                 val += [self.getDictValue("zRSet")]
-        elif 0 == axis:
+        elif axis == 0:
             val = self.getDictValue("zRate")
             if setp is True:
                 val = (val, self.getDictValue("zRSet"))
         return val
 
-    def setMagnetStatus(self, state, axis=0):
+    def setMagnetStatus(self, state: int | list[int], axis=0):
         """
         Set the status of the magnet.
 
@@ -410,29 +410,33 @@ class MercurySingleAxisIPS(VisaDevice):
         Status 3 (CLMP) is disallowed as it could damage the magnet.
         """
         try:
-            if -1 != axis:
+            if axis != -1:
+                state = cast(int, state)
                 state = int(state)
-                if 2 < state:
+                if state > 2:
                     # do NOT set to 3, opens door to breaking magnet!
                     return
-                elif 0 > state:
+                elif state < 0:
                     return
             else:
-                if 1 != len(state):
+                state = cast(list[int], state)
+                if len(state) != 1:
                     return
                 for i in range(1):
                     state[i] = int(state[i])
-                    if 2 < state[i]:
+                    if state[i] > 2:
                         # do NOT set to 3, opens door to breaking magnet!
                         return
-                    elif 0 > state[i]:
+                    elif state[i] < 0:
                         return
         except ValueError:
             return
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
-        if -1 == axis and isinstance(state, Sequence):
+        if axis == -1:
+            state = cast(list[int], state)
             self.setVal(status[state[0]], *self.workingDict["zActn"][1:])
-        elif 0 == axis:
+        elif axis == 0:
+            state = cast(int, state)
             self.setVal(status[state], *self.workingDict["zActn"][1:])
 
     def getMagnetStatus(self, axis=0):
@@ -453,9 +457,9 @@ class MercurySingleAxisIPS(VisaDevice):
             2 - RTOZ (Ramp to zero)
             3 - CLMP (Clamped, when current is 0)
         """
-        if -1 == axis:
+        if axis == -1:
             return [self.getDictValue("zActn")]
-        elif 0 == axis:
+        elif axis == 0:
             return self.getDictValue("zActn")
 
     def getVoltage(self):
@@ -671,7 +675,7 @@ class MercuryIPS(VisaDevice):
         str
             Response from the device
         """
-        if "" == address:
+        if address == "":
             return self.query(command)
         elif signal is True:
             return self.query("READ:" + address + ":SIG" + command + "?")
@@ -740,17 +744,17 @@ class MercuryIPS(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )
+                )  # ty: ignore[invalid-assignment]
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
-                if "ON" == dummy:
+                if dummy == "ON":
                     self.workingDict[key][0][0] = True
-                elif "OFF" == dummy:
+                elif dummy == "OFF":
                     self.workingDict[key][0][0] = False
                 else:
                     # Must be action
                     try:
-                        self.workingDict[key][0][0] = status.index(dummy)
+                        self.workingDict[key][0][0] = status.index(dummy)  # ty: ignore[invalid-assignment]
                     except ValueError:
                         # what happened?
                         logger.info(
@@ -886,7 +890,7 @@ class MercuryIPS(VisaDevice):
             List with three entries containing field values [x, y, z] in Tesla.
             Values exceeding the boundaries will be clamped.
         """
-        assert 3 == len(fields)
+        assert len(fields) == 3
         xval, yval, zval = fields
         valid, (xv, yv, zv) = self.checkFields(xval, yval, zval)
         if valid is False:
@@ -940,13 +944,13 @@ class MercuryIPS(VisaDevice):
             - x, y axes: 0 to 0.5 T/min
             - z axis: 0 to 1 T/min
         """
-        assert 3 == len(values)
+        assert len(values) == 3
         for i, val in enumerate(values):
-            if 0 > val:
+            if val < 0:
                 values[i] = 0
-            elif 0.5 < val and i != 2:
+            elif val > 0.5 and i != 2:
                 values[i] = 0.5
-            elif 1 < val and i == 2:
+            elif val > 1 and i == 2:
                 values[i] = 1
         self.setVal(values[0], *self.workingDict["xRSet"][1:])
         self.setVal(values[1], *self.workingDict["yRSet"][1:])
@@ -970,7 +974,7 @@ class MercuryIPS(VisaDevice):
             If axis is 0, 1, or 2, returns rate for that axis (and setpoint if requested)
         """
         val = None
-        if -1 == axis:
+        if axis == -1:
             val = [
                 self.getDictValue("xRate"),
                 self.getDictValue("yRate"),
@@ -982,15 +986,15 @@ class MercuryIPS(VisaDevice):
                     self.getDictValue("yRSet"),
                     self.getDictValue("zRSet"),
                 ]
-        elif 0 == axis:
+        elif axis == 0:
             val = self.getDictValue("xRate")
             if setp is True:
                 val = (val, self.getDictValue("xRSet"))
-        elif 1 == axis:
+        elif axis == 1:
             val = self.getDictValue("yRate")
             if setp is True:
                 val = (val, self.getDictValue("yRSet"))
-        elif 2 == axis:
+        elif axis == 2:
             val = self.getDictValue("zRate")
             if setp is True:
                 val = (val, self.getDictValue("zRSet"))
@@ -1018,35 +1022,36 @@ class MercuryIPS(VisaDevice):
         Status 3 (CLMP) is disallowed as it could damage the magnet.
         """
         try:
-            if -1 != axis:
+            if axis != -1:
                 state = int(state)
-                if 2 < state:
+                if state > 2:
                     # do NOT set to 3, opens door to breaking magnet!
                     return
-                elif 0 > state:
+                elif state < 0:
                     return
             else:
-                if 3 != len(state):
+                if len(state) != 3:
                     return
                 for i in range(3):
                     state[i] = int(state[i])
-                    if 2 < state[i]:
+                    if state[i] > 2:
                         # do NOT set to 3, opens door to breaking magnet!
                         return
-                    elif 0 > state[i]:
+                    elif state[i] < 0:
                         return
         except ValueError:
             return
         status = ["HOLD", "RTOS", "RTOZ", "CLMP"]
-        if -1 == axis and isinstance(state, Sequence):
+        if axis == -1:
+            state = cast(list[int], state)
             self.setVal(status[state[0]], *self.workingDict["xActn"][1:])
             self.setVal(status[state[1]], *self.workingDict["yActn"][1:])
             self.setVal(status[state[2]], *self.workingDict["zActn"][1:])
-        elif 0 == axis:
+        elif axis == 0:
             self.setVal(status[state], *self.workingDict["xActn"][1:])
-        elif 1 == axis:
+        elif axis == 1:
             self.setVal(status[state], *self.workingDict["yActn"][1:])
-        elif 2 == axis:
+        elif axis == 2:
             self.setVal(status[state], *self.workingDict["zActn"][1:])
 
     def getMagnetStatus(self, axis=-1):
@@ -1068,17 +1073,17 @@ class MercuryIPS(VisaDevice):
             3 - CLMP (Clamped, when current is 0)
             If axis is -1, returns a list of statuses for all three axes.
         """
-        if -1 == axis:
+        if axis == -1:
             return [
                 self.getDictValue("xActn"),
                 self.getDictValue("yActn"),
                 self.getDictValue("zActn"),
             ]
-        elif 0 == axis:
+        elif axis == 0:
             return self.getDictValue("xActn")
-        elif 1 == axis:
+        elif axis == 1:
             return self.getDictValue("yActn")
-        elif 2 == axis:
+        elif axis == 2:
             return self.getDictValue("zActn")
 
     def getLevels(self):
@@ -1229,7 +1234,7 @@ class MercuryITC(VisaDevice):
         str
             Response from the device
         """
-        if "" == address:
+        if address == "":
             return self.query(command)
         elif signal is True:
             return self.query("READ:" + address + ":SIG" + command + "?")
@@ -1324,12 +1329,12 @@ class MercuryITC(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )
+                )  # ty: ignore[invalid-assignment]
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
-                if "ON" == dummy:
+                if dummy == "ON":
                     self.workingDict[key][0][0] = True
-                elif "OFF" == dummy:
+                elif dummy == "OFF":
                     self.workingDict[key][0][0] = False
                 else:
                     # what happened?
@@ -1407,9 +1412,9 @@ class MercuryITC(VisaDevice):
             Temperature setpoint in Kelvin (limited to 0-300K range)
         """
         # Limit TVTI to 300K
-        if 0 > val:
+        if val < 0:
             val = 0
-        elif 300 < val:
+        elif val > 300:
             val = 300
         self.setVal(val, *self.workingDict["TSet"][1:])
 
@@ -1443,9 +1448,9 @@ class MercuryITC(VisaDevice):
             Needle valve opening percentage (0-100%)
         """
         # Limit NV between 0 and 100%
-        if 0 > val:
+        if val < 0:
             val = 0
-        elif 100 < val:
+        elif val > 100:
             val = 100
         self.setVal(val, *self.workingDict["FSet"][1:])
 
@@ -1521,7 +1526,7 @@ class MercuryITC(VisaDevice):
             Negative values will be clamped to 0.
         """
         for parm in pid:
-            if 0 > parm:
+            if parm < 0:
                 parm = 0
         self.setVal(pid[0], *self.workingDict["P"][1:])
         self.setVal(pid[1], *self.workingDict["I"][1:])

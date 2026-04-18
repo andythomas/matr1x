@@ -14,27 +14,30 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module containing the System class definition and corresponding utility functions.
+Module containing the System class definition and utility functions.
 
-This module provides the core System class and related utility functions
-for data acquisition and instrument control.
+These can be used for data acquisition and instrument control.
 """
 
 import importlib
 import inspect
+import logging
 import os
 import re
 import sys
 import time
 import warnings
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from operator import attrgetter
 from pathlib import Path
+from typing import Any, TypeGuard, TypeVar
 
 import h5py
 import numpy as np
 from pymeasure.instruments import Instrument
+
+from matr1x.devices.visadevice import VisaDevice
 
 from . import VALID_META_KEYS, datetimefmt, get_config_dict, output_extension
 from .util import (
@@ -48,8 +51,45 @@ from .util import (
     save_dict_to_hdf5,
 )
 
+logger = logging.getLogger(__name__)
 
-def device_query(device_handle, config_params):
+ConfigScheme = tuple[str, tuple, dict[str, Any]]
+ConfigValue = str | Callable[[], Any] | ConfigScheme
+ConfigParameter = dict[str, ConfigValue]
+
+T = TypeVar("T")
+
+
+def is_config_scheme(value: object) -> TypeGuard[ConfigScheme]:
+    """Return True if the value is a valid ConfigScheme tuple."""
+    return (
+        type(value) is tuple
+        and len(value) == 3
+        and isinstance(value[0], str)
+        and isinstance(value[1], tuple)
+        and isinstance(value[2], dict)
+    )
+
+
+def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
+    """Query a device config string via ``query`` or ``ask``."""
+    query_method = getattr(device_handle, "query", None)
+    if callable(query_method):
+        return str(query_method(query))
+
+    ask_method = getattr(device_handle, "ask", None)
+    if callable(ask_method):
+        return str(ask_method(query))
+
+    raise AttributeError(
+        f"config_params entry {query!r} needs a device query method, "
+        "but neither query() nor ask() is available"
+    )
+
+
+def device_query(
+    device_handle: VisaDevice | Instrument, config_params: ConfigParameter
+) -> dict[str, Any]:
     """
     Query the current configuration of the device.
 
@@ -58,55 +98,56 @@ def device_query(device_handle, config_params):
     device_handle : VisaDevice or pymeasure device
         Must be an open device that implements the query function.
     config_params : dict
-        Dictionary must adhere to the following format. Key is descriptor which
-        is used to identify the parameter. The corresponding values must be one
-        of:
+        Dictionary must adhere to the following format. Key is
+        descriptor which is used to identify the parameter. The
+        corresponding values must be one of:
 
         * An attribute or method name (if callable without arguments of
           the device object)
         * A callable function (without arguments)
         * A query string for the device
-        * A list of the following scheme [method_name : str, args : tuple,
-          kwargs : dict]
+        * A list of the following scheme
+        [method_name : str, args : tuple, kwargs : dict]
 
     Returns
     -------
     dict
-        A dictionary of dictionaries containing the configuration of each device.
-        Keys of outer dictionary are device names, keys of the inner dictionary
-        are parameters that were queried.
+        A dictionary of dictionaries containing the configuration. The
+        keys of are the parameters that were queried.
     """
-    retquery = {}
+    if hasattr(device_handle, "name"):
+        device_id = device_handle.name
+    else:
+        device_id = device_handle.__class__.__name__
+    adapter = getattr(device_handle, "adapter", None)
+    connection = getattr(adapter, "connection", None)
+    resource_name = getattr(connection, "resource_name", None)
+    if resource_name:
+        device_id += f" {resource_name}"
+    retquery: dict[str, Any] = {}
     for k, q in config_params.items():
         try:
-            if isinstance(q, (list, tuple)):
-                assert len(q) == 3, f"config_params includes an invalid entry ({q})"
-                if hasattr(device_handle, q[0]) and callable(getattr(device_handle, q[0])):
-                    method = getattr(device_handle, q[0])
-                    line = str(method(*q[1], **q[2]))
+            if isinstance(q, str) and not callable(q):
+                try:
+                    attr = getattr(device_handle, q)
+                except AttributeError:
+                    line = _query_device_config(device_handle, q)
                 else:
-                    raise ValueError(
-                        f"config_params: method of entry {q} not callable or non-existent"
-                    )
-            elif callable(q):
+                    if callable(attr):
+                        line = attr()
+                    else:
+                        line = attr
+            elif callable(q) and not isinstance(q, tuple) and not isinstance(q, str):
                 line = q()
-            elif hasattr(device_handle, q):
-                attr = getattr(device_handle, q)
-                if callable(attr):
-                    line = attr()
-                else:
-                    line = attr
+            elif is_config_scheme(q) and not callable(q):
+                method = getattr(device_handle, q[0])
+                if not callable(method):
+                    raise ValueError(f"config_params: method '{q[0]}' is not callable")
+                line = str(method(*q[1], **q[2]))
             else:
-                line = str(device_handle.query(q))
+                raise ValueError(f"config_params: Ambiguous class of {q!r}")
         except Exception:
-            # print device identifier upon any exception
-            if hasattr(device_handle, "name"):
-                devid = device_handle.name
-            else:
-                devid = device_handle.__class__.__name__
-            if hasattr(device_handle, "adapter"):  # it's a pymeasure Instrument
-                devid += f" {device_handle.adapter.connection.resource_name}"
-            print(f"exception during config query of {devid}")
+            logger.exception("exception during config query of %s", device_id)
             raise
         retquery[k] = line
     return retquery
@@ -116,65 +157,64 @@ class Parameter:
     """
     Define a measurement parameter.
 
-    This class describes one parameter in matrix. It can define a single or
-    multiple columns of the measurement.
+    This class describes one parameter in matrix. It can define a
+    single or multiple columns of the measurement.
 
     Parameters
     ----------
     name : str or list of str
-        Name of the column(s) as string or list of strings.
-        If this is a list, make sure unit, default and chunks have same length.
+        Name of the column(s) as string or list of strings. If this is
+        a list, make sure unit, default and chunks have same length.
     unit : str or list of str
         Unit of the column(s) as string or list of strings.
     default : float or list of floats, optional
-        Default value for parameter. If not None this value is always used unless
-        another value is specified in the measurement.
+        Default value for parameter. If not None this value is always
+        used unless another value is specified in the measurement.
         If None (default), no default value is set/used.
     dtypes : str or list of str, optional
-        Dtype specified for saving into hdf5 files, not used for ascii files.
-        Default value is "f8" (8 byte float).
+        Dtype specified for saving into hdf5 files, not used for ascii
+        files. Default value is "f8" (8 byte float).
     chunks : int or list of int, optional
-        Length of the readback value. If a list is returned for a single
-        parameter, set to the length of that list.
-        If None (default), a chunk of 1 is assumed (readback of parameter is
-        single float).
+        Length of the readback value. If a list is returned for a
+        single parameter, set to the length of that list.
+        If None (default), a chunk of 1 is assumed (readback of
+        parameter is single float).
     setter : callable, str, or list, optional
         Function which should be called to set the values.
         Must be one of:
 
         * A callable function with the call signature
-          `func(value, *args, **kwargs)`. For optional arguments and kwargs see
-          setter_args/setter_kwargs.
-        * A string with a system method/property name. If it corresponds to a
-          method its call signature and arguments must be equal to the callable
-          function above.
-        * A list of the following scheme [device_name : str,
-          method_name : str,
-          args : tuple,
-          kwargs : dict]. The args and kwargs entries are deprecated and should
-          be replaced by the setter_args, setter_kwargs parameters.
+          `func(value, *args, **kwargs)`. For optional arguments and
+          kwargs see setter_args/setter_kwargs.
+        * A string with a system method/property name. If it
+          corresponds to a method its call signature and arguments must
+          be equal to the callable function above.
+        * A list of the following scheme
+          [device_name : str, method_name : str, args : tuple, kwargs : dict].
+          The args and kwargs entries are deprecated and should be
+          replaced by the setter_args, setter_kwargs parameters.
     getter : callable, str, or list, optional
         Function which should be called to fetch the values.
         Must be one of:
 
         * A callable function with the call signature
-          `func(*args, **kwargs)`. The arguments and kwargs are optional and can
-          be supplied via getter_args/getter_kwargs.
-        * A string with a system method/property name. If it corresponds to a
-          method its call signature and arguments must be equal to the callable
-          function above.
-        * A list of the following scheme [device_name : str,
-          method_name : str,
-          args : tuple,
-          kwargs : dict]. The args and kwargs entries are deprecated and should
-          be replaced by the getter_args, getter_kwargs parameters.
+          `func(*args, **kwargs)`. The arguments and kwargs are
+          optional and can be supplied via getter_args/getter_kwargs.
+        * A string with a system method/property name. If it
+          corresponds to a method its call signature and arguments must
+          be equal to the callable function above.
+        * A list of the following scheme
+          [device_name : str, method_name : str, args : tuple, kwargs : dict].
+          The args and kwargs entries are deprecated and should be
+          replaced by the getter_args, getter_kwargs parameters.
     trigger : callable, str, or list, optional
-        Takes a trigger function. The options are equal to the getter options. For
-        the optional arguments and kwargs use trigger_args/trigger_kwargs.
+        Takes a trigger function. The options are equal to the getter
+        options. For the optional arguments and kwargs use
+        trigger_args/trigger_kwargs.
     label : str, optional
-        Parameters label if different from name. This might be in particular
-        needed if an automatically generated label from a name-list is not
-        describing the content very well.
+        Parameters label if different from name. This might be in
+        particular needed if an automatically generated label from a
+        name-list is not describing the content very well.
 
     Attributes
     ----------
@@ -190,21 +230,21 @@ class Parameter:
 
     def __init__(
         self,
-        name,
-        unit,
+        name: str | list[str],
+        unit: str | list[str],
         setter=None,
         getter=None,
-        default=None,
-        dtypes=None,
+        default: float | list[float] | None = None,
+        dtypes: str | list[str] | None = None,
         chunks=None,
         trigger=None,
-        setter_args=None,
-        setter_kwargs=None,
-        getter_args=None,
-        getter_kwargs=None,
-        trigger_args=None,
-        trigger_kwargs=None,
-        label=None,
+        setter_args: tuple[Any] | list[Any] | None = None,
+        setter_kwargs: dict[str, Any] | None = None,
+        getter_args: tuple[Any] | list[Any] | None = None,
+        getter_kwargs: dict[str, Any] | None = None,
+        trigger_args: tuple[Any] | list[Any] | None = None,
+        trigger_kwargs: dict[str, Any] | None = None,
+        label: str | None = None,
     ):
         # general error checking
         if any([isinstance(name, (list, tuple)), isinstance(unit, (list, tuple))]):
@@ -236,19 +276,21 @@ class Parameter:
         self.getter = getter
         self.trigger = trigger
         # store optional function args/kwargs
-        self.setter_args = setter_args
-        self.setter_kwargs = setter_kwargs
-        self.getter_args = getter_args
-        self.getter_kwargs = getter_kwargs
-        self.trigger_args = trigger_args
-        self.trigger_kwargs = trigger_kwargs
+        self.setter_args: tuple[Any] | list[Any] | None = setter_args
+        self.setter_kwargs: dict[str, Any] | None = setter_kwargs
+        self.getter_args: tuple[Any] | list[Any] | None = getter_args
+        self.getter_kwargs: dict[str, Any] | None = getter_kwargs
+        self.trigger_args: tuple[Any] | list[Any] | None = trigger_args
+        self.trigger_kwargs: dict[str, Any] | None = trigger_kwargs
         # set identifiers
-        self.unit = self.verify(unit, str)
-        self.name = self.verify(name, str)
+        self.unit: str | list[str] = self.verify(unit, str)
+        self.name: str | list[str] = self.verify(name, str)
+        self.label: str
         if label:
             self.label = self.make_command_line_compatible(label)
         else:
             self.label = self.make_command_line_compatible(self.name)
+        self.dtypes: str | list[str] | None
         if dtypes is None:
             # initialize dtypes to default value if unspecified
             if isinstance(self.unit, (list, tuple)):
@@ -258,6 +300,7 @@ class Parameter:
         else:
             self.dtypes = self.verify(dtypes, str)
         # generate defaults or set to None
+        self.default: float | list[float] | None
         if default is not None:
             # make sure default are all floats or raise error
             self.default = self.verify(default, (int, float))
@@ -277,25 +320,30 @@ class Parameter:
                 # cannot work with nested lists as required for multi
                 # dimensional chunked columns
                 self.chunks = []
-                for chunk in chunks:
-                    self.chunks.append(self.verify(chunk, int))
+                if isinstance(chunks, list):
+                    for chunk in chunks:
+                        self.chunks.append(self.verify(chunk, int))
+                else:
+                    ValueError(f"Invalid type, expected list for chunks, but received {chunks}.")
             else:
                 self.chunks = self.verify(chunks, int)
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         """Define comparison function for sorting."""
-        if "timeUTC" in other.name:
-            return True
+        if isinstance(other, Parameter):
+            if "timeUTC" in other.name:
+                return True
         return False
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Define equivalence of parameters."""
-        if self.name == other.name and self.unit == other.unit:
-            return True
+        if isinstance(other, Parameter):
+            if self.name == other.name and self.unit == other.unit:
+                return True
         return False
 
     @staticmethod
-    def make_command_line_compatible(s):
+    def make_command_line_compatible(s: str | list[str]) -> str:
         """
         Convert input string(s) to command line argument format.
 
@@ -324,7 +372,7 @@ class Parameter:
         # Handle empty string fallback
         return s if s else "arg"
 
-    def verify(self, param, cast):
+    def verify(self, param: T, cast: type[T] | tuple[type[T], ...]) -> T:
         """
         Verify param is of correct type or raise error.
 
@@ -346,17 +394,17 @@ class Parameter:
             If param is not of the correct type.
         """
         if isinstance(param, (list, tuple)):
-            if all(isinstance(val, (list, tuple)) for val in param):
-                return param
-            if all(isinstance(val, cast) for val in param):
-                return param
-        else:
-            if isinstance(param, cast):
-                return param
-        raise ValueError(
-            "At least one element is not of type "
-            f"{cast.__name__ if not isinstance(cast, tuple) else cast}"
-        )
+            for val in param:
+                if isinstance(val, (list, tuple)):
+                    raise ValueError("Nested sequences are not allowed")
+                if not isinstance(val, cast):
+                    raise ValueError(f"Invalid type, expected {cast}")
+            return param
+
+        if isinstance(param, cast):
+            return param
+
+        raise ValueError(f"Invalid type, expected {cast}")
 
 
 class System:
@@ -409,7 +457,7 @@ class System:
         # define merged system reference
         self.merged_system: MergedSystem | None = None
         # initialize lists for later use
-        self.parameters = []
+        self.parameters: list[Parameter] = []
 
         # initialize devices dict
         self.devs = {}
@@ -421,7 +469,7 @@ class System:
         self.system_config_params = {}
 
         # initialize HDF5 flag
-        self._hdf5 = False
+        self._hdf5: bool = False
         # data filename variables
         self._filename: Path | None = None
         self._file_mode = "w"
@@ -460,7 +508,7 @@ class System:
         self._filename = value
 
     @classmethod
-    def from_file(cls, filename):
+    def from_file(cls, filename: Path) -> "System":
         """
         Load a system from a file.
 
@@ -476,7 +524,7 @@ class System:
         System
             System as defined in the file.
         """
-        normfilename = Path(filename).expanduser()
+        normfilename = filename.expanduser()
         if normfilename.is_file():
             # create module from path, automatically reloads module
             mod = module_from_path(normfilename)
@@ -516,7 +564,7 @@ class System:
         return system
 
     @property
-    def hdf5(self):
+    def hdf5(self) -> bool:
         """
         Get whether the system requires or uses HDF5 format for data storage.
 
@@ -564,20 +612,20 @@ class System:
 
     def add_param(
         self,
-        name,
-        unit,
+        name: str | list[str],
+        unit: str | list[str],
         setter=None,
         getter=None,
-        default=None,
-        dtype=None,
+        default: float | list[float] | None = None,
+        dtype: str | list[str] | None = None,
         chunks=None,
         trigger=None,
-        setter_args=None,
-        setter_kwargs=None,
-        getter_args=None,
-        getter_kwargs=None,
-        trigger_args=None,
-        trigger_kwargs=None,
+        setter_args: tuple[Any] | list[Any] | None = None,
+        setter_kwargs: dict[str, Any] | None = None,
+        getter_args: tuple[Any] | list[Any] | None = None,
+        getter_kwargs: dict[str, Any] | None = None,
+        trigger_args: tuple[Any] | list[Any] | None = None,
+        trigger_kwargs: dict[str, Any] | None = None,
     ):
         """
         Add a parameter to the list of parameters.
@@ -612,7 +660,7 @@ class System:
         name : str
             Unique device name, will be dictionary key.
         descriptor : object
-            Device instance (must not be initialized nor opened).
+            Device instance (must neither be initialized nor opened).
         args : tuple, optional
             Tuple containing args passed upon device initialization.
         kwargs : dict, optional
@@ -635,7 +683,7 @@ class System:
             self.system_config_params[name] = config_params
 
     @property
-    def columns(self) -> list[str]:
+    def columns(self) -> list[str | list[str]]:
         """
         Return a list of column names extracted from parameters.
 
@@ -659,7 +707,7 @@ class System:
         return [parm.label for parm in self.parameters]
 
     @property
-    def units(self) -> list[str]:
+    def units(self) -> list[str | list[str]]:
         """
         Return a list of units extracted from parameters.
 
@@ -695,7 +743,7 @@ class System:
         return [parm.chunks for parm in self.parameters]
 
     @property
-    def dtypes(self) -> list[str | list | tuple]:
+    def dtypes(self) -> list[str | list[str] | None]:
         """
         Return a list of dtypes extracted from parameters.
 
@@ -796,23 +844,21 @@ class System:
         # check filename and increase "extension number" to protect existing data
         extension = None
         for extension in range(1, 10000):
-            candidate_file = outfile.with_name(f"{outfile.stem}_{extension}").with_suffix(
-                file_extension
-            )
+            candidate_file = outfile.with_name(f"{outfile.name}_{extension}{file_extension}")
             if not candidate_file.exists():
                 break
         if extension is None:
             raise RuntimeError("Could not find available filename after 10000 attempts")
         # as last resort start a new file
         # append the next possible number as file extension
-        outfile = outfile.with_name(f"{outfile.stem}_{extension}").with_suffix(file_extension)
+        outfile = outfile.with_name(f"{outfile.name}_{extension}{file_extension}")
         self.filename = outfile
         self._file_mode = "w"
         return outfile
 
-    def clear_parameters(self):
+    def clear_parameters(self) -> None:
         """Clear all system parameters."""
-        del self.parameters
+        # del self.parameters
         self.parameters = []
 
     def _inform_exception(self, i, func, action):
@@ -876,13 +922,12 @@ class System:
         TypeError
             If column cannot be identified.
         """
-        if isinstance(i, int):
-            idx = i
-        elif i in self.columns:
+        if isinstance(i, str) and i in self.columns:
             idx = self.columns.index(i)
+        elif isinstance(i, int) and i < len(self.columns):
+            idx = i
         else:
-            raise TypeError(f"column '{i}' could not be identified")
-
+            raise ValueError(f"Invalid index or name: {i}")
         setter = self.parameters[idx].setter
         args = self.parameters[idx].setter_args
         kwargs = self.parameters[idx].setter_kwargs
@@ -995,7 +1040,7 @@ class System:
                 parent = getattr(parent, attr)
             setattr(parent, final_attr, value)
 
-    def trigger_value(self, i):
+    def trigger_value(self, i: str | int) -> None:
         """
         Trigger devices specified in column i if trigger function is provided.
 
@@ -1004,10 +1049,12 @@ class System:
         i : int or str
             Index or name of parameter that is supposed to be triggered.
         """
-        if i in self.columns:
+        if isinstance(i, str) and i in self.columns:
             idx = self.columns.index(i)
-        else:
+        elif isinstance(i, int) and i < len(self.columns):
             idx = i
+        else:
+            raise ValueError(f"Invalid index or name: {i}")
         trigger = self.parameters[idx].trigger
         args = self.parameters[idx].trigger_args
         kwargs = self.parameters[idx].trigger_kwargs
@@ -1137,12 +1184,12 @@ class System:
             ret = attr
         return ret
 
-    def trigger(self):
+    def trigger(self) -> None:
         """Trigger measurements of all parameters in the system."""
         for i in range(len(self.columns)):
             self.trigger_value(i)
 
-    def read_value(self, i):
+    def read_value(self, i: str | int) -> Any:
         """
         Fetch readout value of parameter using the getter.
 
@@ -1161,10 +1208,12 @@ class System:
             The readout from the device/parameter getter. If getter is None,
             returns "nan" or a list of "nan" values.
         """
-        if i in self.columns:
+        if isinstance(i, str) and i in self.columns:
             idx = self.columns.index(i)
-        else:
+        elif isinstance(i, int) and i < len(self.columns):
             idx = i
+        else:
+            raise ValueError(f"Invalid index or name: {i}")
         getter = self.parameters[idx].getter
         args = self.parameters[idx].getter_args
         kwargs = self.parameters[idx].getter_kwargs
@@ -1180,11 +1229,11 @@ class System:
                 raise
         else:
             # if get func is None, return "nan" or list of "nan"
-            if isinstance(self.parameters[i].name, (list, tuple)):
-                return ["nan"] * len(self.parameters[i].name)
+            if isinstance(self.parameters[idx].name, (list, tuple)):
+                return ["nan"] * len(self.parameters[idx].name)
             return "nan"
 
-    def set(self, *args, **kwargs):
+    def set(self, *args, **kwargs) -> None:
         """
         Handle device opening/initialization.
 
@@ -1223,7 +1272,7 @@ class System:
                 pass
         self.opened = True
 
-    def query(self):
+    def query(self) -> dict[str, dict[str, Any]]:
         """
         Query all devices to read their configuration state.
 
@@ -1246,7 +1295,7 @@ class System:
         """
         if self.opened is False:
             raise ValueError("System must be set before query can be called")
-        retquery = {}
+        retquery: dict[str, dict[str, Any]] = {}
         # iterate over devices to get their config
         for key, dev in self.devs.items():
             # get device
@@ -1286,7 +1335,7 @@ class System:
 
         return retquery
 
-    def reset(self, *args, **kwargs):
+    def reset(self, *args, **kwargs) -> None:
         """
         General reset function for deinitialization of system.
 
@@ -1311,7 +1360,7 @@ class System:
                 dev.read_very_eager()
         self.opened = False
 
-    def close(self):
+    def close(self) -> None:
         """
         Close device connections and restore the virgin system.
 
@@ -1327,7 +1376,7 @@ class System:
         # reset devs dictionary to allow reopening
         self.devs.update(self._devs_init)
 
-    def settable_columns(self):
+    def settable_columns(self) -> tuple[list[bool], list[str], list[str]]:
         """
         Obtain the settable columns of the system.
 
@@ -1343,9 +1392,11 @@ class System:
         flattened_settable_units : list
             List of strings containing the units of the settable columns.
         """
-        settables = [(False if par.setter is None else True) for par in self.parameters]
-        flattened_settable_names = []
-        flattened_settable_units = []
+        settables: list[bool] = [
+            (False if par.setter is None else True) for par in self.parameters
+        ]
+        flattened_settable_names: list[str] = []
+        flattened_settable_units: list[str] = []
         for names, units, settable in zip(self.columns, self.units, settables):
             if settable is True:
                 if isinstance(names, (list, tuple)):
@@ -1357,7 +1408,9 @@ class System:
                     flattened_settable_units.append(units)
         return (settables, flattened_settable_names, flattened_settable_units)
 
-    def _add_method_info_to_dict(self, obj, info_dict, prefix="System"):
+    def _add_method_info_to_dict(
+        self, obj: "System", info_dict: dict[str, Any], prefix: str = "System"
+    ) -> None:
         """
         Add methods and variables from an object to a dictionary.
 
@@ -1377,13 +1430,12 @@ class System:
         """
         # Find methods used as parameter getters/setters
         parameter_methods = set()
-        if hasattr(obj, "parameters"):
-            for param in obj.parameters:
-                # Check if setter/getter is a string (method name) and add to exclusion list
-                if isinstance(param.setter, str):
-                    parameter_methods.add(param.setter)
-                if isinstance(param.getter, str):
-                    parameter_methods.add(param.getter)
+        for param in obj.parameters:
+            # Check if setter/getter is a string (method name) and add to exclusion list
+            if isinstance(param.setter, str):
+                parameter_methods.add(param.setter)
+            if isinstance(param.getter, str):
+                parameter_methods.add(param.getter)
 
         for key in dir(obj):
             if (
@@ -1430,7 +1482,9 @@ class System:
                         "description": f"{prefix} variable{value_str}",
                     }
 
-    def grab_information(self, settables=False):
+    def grab_information(
+        self, settables: bool = False
+    ) -> dict[str, Any] | tuple[list[bool], list[str], list[str]]:
         """
         Obtain meta information from the system.
 
@@ -1545,7 +1599,7 @@ class System:
 
         return info
 
-    def init_datafile(self, inputfile, output_filename=None):
+    def init_datafile(self, inputfile: str) -> tuple[str, Path]:
         """
         Prepare the header of a matrix file for the matrix program.
 
@@ -1558,27 +1612,29 @@ class System:
         ----------
         inputfile : str
             Filename of the inputfile to be placed in the header.
-        output_filename : str, optional
+        output_filename : Path, optional
             Filename of the output file.
+
+        Returns
+        -------
+        str
+            An optional message to be printed.
+        Path
+            The filename that will be used for the output.
         """
-        if output_filename:
-            self.filename = Path(output_filename)
         if not isinstance(self.filename, Path):
             raise TypeError("filename must be initialized as Path object")
         if self.filename.exists():
             self._datafile_initialized = True
-            if not output_filename and self._file_mode == "a":
+            if self._file_mode == "a":
                 # in case append is true, do not create a new header
-                print(f"Appending to datafile: {self.filename}")
-                return
-            print(f"File {self.filename} already exists, not adding header")
-            return
+                return ("Appending to datafile", self.filename)
+            return ("File already exists, not adding header", self.filename)
         # query info from the devices
         self.query_dict = self.query()
         # prepare file definitions (column header and units)
         telemetry = [list(flatten(self.columns)), list(flatten(self.units))]
         # prepare datafile
-        print(f"Creating new datafile: {self.filename}")
         if self.hdf5 is True:
             telemetry.append(list(flatten(self.dtypes)))
             telemetry.append(list(flatten(self.chunks, types=(list,))))
@@ -1603,7 +1659,8 @@ class System:
 
                 init_hdf5_skel(data_file, *telemetry)
         else:
-            telemetry += [default_separator]
+            # the next line could have a real bug?!
+            telemetry += [default_separator]  # ty: ignore[unsupported-operator]
             with Path(self.filename).open("w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
                     if dckey not in VALID_META_KEYS.keys():
@@ -1627,14 +1684,15 @@ class System:
 
                 init_ascii_header(data_file, *telemetry)
         self._datafile_initialized = True
+        return ("Creating new datafile", self.filename)
 
-    def take_measurement_point(self, datafilename=None):
+    def take_measurement_point(self, datafilename: Path | None = None):
         """
         Take one reading from all devices and save it to the datafile.
 
         Parameters
         ----------
-        datafilename : str or None, optional
+        datafilename : Path, optional
             Filename where to save the measurement. If not specified, the
             internally stored filename is used.
 
@@ -1643,7 +1701,7 @@ class System:
         list
             List of values read from the devices.
         """
-        dfilename = Path(datafilename) if datafilename else self.filename
+        dfilename = datafilename or self.filename
         if not isinstance(dfilename, Path):
             raise TypeError("datafilename must be specified or initialized")
         if self.hdf5:
@@ -1686,7 +1744,7 @@ class System:
         # return device readout as list
         return return_list
 
-    def add_comment(self, message: str, datafilename=None) -> None:
+    def add_comment(self, message: str) -> None:
         """
         Add comment to the datafile.
 
@@ -1694,15 +1752,12 @@ class System:
         ----------
         message : str
             Comment string to be added to the datafile.
-        datafilename : str or None, optional
-            Filename where to save the measurement. If not specified, the
-            internally stored filename is used.
 
         Returns
         -------
         None
         """
-        dfilename = Path(datafilename) if datafilename else self.filename
+        dfilename = self.filename
         if not isinstance(dfilename, Path):
             # if not valid datafile was initialized do nothing.
             return
@@ -1737,7 +1792,7 @@ class System:
                 comment = "\n## ".join(message.splitlines())
                 datafile.write(f"{comment}\n")
 
-    def _write_status(self, status: str, datafilename=None) -> None:
+    def _write_status(self, status: str) -> None:
         """
         Write measurement status to the data file.
 
@@ -1745,10 +1800,8 @@ class System:
         ----------
         status : str
             The status message to be written.
-        datafilename : str, optional
-            The name of the data file to write to. If None, uses the internally stored filename.
         """
-        dfilename = datafilename if datafilename else self.filename
+        dfilename = self.filename
 
         if dfilename is None:
             # if not valid datafile was initialized do nothing.
@@ -1769,38 +1822,39 @@ class MergedSystem(System):
     """
     Defines a measurement setup/system of multiple individual systems.
 
-    Gracefully combines the systems into one system instance, so that "mobile"
-    parts of a system can be used together with multiple "stationary" systems.
-    An example of this is e.g. a cryostat and different sets of measurement
-    devices (one for DC and one for AC measurements).
+    Gracefully combines the systems into one system instance, so that
+    "mobile" parts of a system can be used together with multiple
+    "stationary" systems. An example of this is e.g. a cryostat and
+    different sets of measurement devices (one for DC and one for AC
+    measurements).
 
-    If duplicate parameters are found, they are removed. Parameters remain
-    unsorted apart from the timeUTC parameter (used to delay the trigger after
-    setting all values).
+    If duplicate parameters are found, they are removed. Parameters
+    remain unsorted apart from the timeUTC parameter (used to delay the
+    trigger after setting all values).
 
     Refer to parent System for further attributes.
 
     Parameters
     ----------
-    systems : list
-        List of system instances that should be combined into the merged system.
+    systems : list[System]
+        List of system instances that should be combined into the
+        merged system.
 
     Attributes
     ----------
-    subsys : list
-        Contains the individual System instances that go into the merged system.
+    subsys : list[System]
+        Contains the individual System instances that go into the
+        merged system.
     """
 
-    def __init__(self, systems):
-        # save subsystems into system
-        self.subsys = systems
+    def __init__(self, systems: list[System]):
+        self.subsys: list[System] = systems
         # initialize superclass
         # here self.subsys is already used when initializing the
         # filename, so this needs to come here
         super().__init__()
         self._filename: Path | None = None
-        # define __name__
-        self.__name__ = ",".join([subsys.__name__ for subsys in self.subsys])
+        self.__name__: str = ",".join([subsys.__name__ for subsys in self.subsys])
         # merge devices, config_dicts, config and parameters
         for subsys in self.subsys:
             self.devs = {**self.devs, **subsys.devs}
@@ -1808,8 +1862,11 @@ class MergedSystem(System):
                 **self.system_config_params,
                 **subsys.system_config_params,
             }
-            self.config = {**self.config, **subsys.config}
-            self.sensitive_config = {**self.sensitive_config, **subsys.sensitive_config}
+            self.config: dict[str, Any] = {**self.config, **subsys.config}
+            self.sensitive_config: dict[str, Any] = {
+                **self.sensitive_config,
+                **subsys.sensitive_config,
+            }
             self.parameters += subsys.parameters
             subsys.merged_system = self
         self._merge_dcdata()
@@ -1829,7 +1886,7 @@ class MergedSystem(System):
             self.add_param("timeUTC", "s", default=None, setter=time.sleep, getter=time.time)
 
     @classmethod
-    def from_files(cls, system_filenames):
+    def from_files(cls, system_filenames: Iterable[str | Path]) -> "MergedSystem":
         """
         Merge multiple systems and return a MergedSystem instance.
 
@@ -1839,7 +1896,7 @@ class MergedSystem(System):
 
         Parameters
         ----------
-        system_filenames : list
+        system_filenames : list[str | Path]
             List of system paths that should be merged.
 
         Returns
@@ -1848,14 +1905,14 @@ class MergedSystem(System):
             MergedSystem instance that contains the description of all
             subsystems.
         """
-        systems = []
+        systems: list[System] = []
         for filename in system_filenames:
             # import the individual systems
-            systems.append(System.from_file(filename))
+            systems.append(System.from_file(Path(filename)))
         # return merged system
         return cls(systems)
 
-    def __getattr__(self, attr):
+    def __getattr__(self, attr: str) -> Any:
         """
         Return methods/variables from subsystems if they do not exist in the MergedSystem.
 
@@ -1892,7 +1949,8 @@ class MergedSystem(System):
         """
         Set the filename property.
 
-        This method is needed to keep the filename on the subsystems in sync.
+        This method is needed to keep the filename on the subsystems in
+        sync.
 
         Parameters
         ----------
@@ -1905,12 +1963,12 @@ class MergedSystem(System):
         self._filename = value
 
     @property
-    def _datafile_initialized(self):
+    def _datafile_initialized(self) -> bool:
         """Datafile initialized flag property getter."""
         return all(subsys._datafile_initialized for subsys in self.subsys)
 
     @_datafile_initialized.setter
-    def _datafile_initialized(self, value):
+    def _datafile_initialized(self, value: bool):
         """
         Set the datafile initialized property.
 
@@ -1924,7 +1982,7 @@ class MergedSystem(System):
         for subsys in self.subsys:
             subsys._datafile_initialized = value
 
-    def _merge_dcdata(self):
+    def _merge_dcdata(self) -> None:
         class OrderedSetList:
             def __init__(self):
                 self.items = []
@@ -1952,12 +2010,14 @@ class MergedSystem(System):
         # set correct timestamp, overwrites value
         self.dcdata["date"] = time.strftime(f"{datetimefmt}", time.localtime())
 
-    def _check_hdf5(self):
+    def _check_hdf5(self) -> None:
         """Check whether one of the systems requires HDF5."""
         for subsys in self.subsys:
             self.hdf5 = self.hdf5 or subsys.hdf5
 
-    def grab_information(self, settables=False):
+    def grab_information(
+        self, settables: bool = False
+    ) -> tuple[list[bool], list[str], list[str]] | dict:
         """
         Obtain meta information from the merged system.
 

@@ -385,7 +385,6 @@ class CryogenicPS(VisaDevice):
 
         Note: Currently not implemented.
         """
-        pass
 
 
 class CryogenicBipolarPS(VisaDevice):
@@ -745,4 +744,3 @@ class CryogenicBipolarPS(VisaDevice):
 
         Note: Currently not implemented.
         """
-        pass

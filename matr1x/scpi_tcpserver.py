@@ -72,6 +72,136 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         self.normkeys = [self._normalize_cmd(cmd) for cmd in self.server.cmd_list]
         self.cmdvalues = list(self.server.cmd_list.values())
 
+    def _handle_get_cmd(self, cmd: str) -> str | bytes | None:
+        """
+        Handle a get (query) command and return the result.
+
+        Parameters
+        ----------
+        cmd : str
+            The query command string (contains '?').
+
+        Returns
+        -------
+        str | bytes | None
+            The response value, or None if there is no valid getter.
+        """
+        # normalize command to have same format as keys in cmd_list
+        normcmd = self._normalize_cmd(cmd)
+        # identify query command in command list
+        try:
+            idx = self.normkeys.index(normcmd)
+        except ValueError:
+            print(
+                f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
+                f"sent from {self.client_address}"
+            )
+            # prepare a response since a response will be expected
+            return cmd + " not recognized"
+        # Call the getter command and return read value as str.
+        # For lists, the values are separated by commas.
+        # Will also work for returning lists of lists if the other
+        # side interprets the value correctly (e.g. with
+        # ast.literal_eval).
+        # get command specifications
+        c = self.cmdvalues[idx]
+
+        if c.getfunc is None:
+            # no getter is set
+            logger.debug("getter is None for command: %s", cmd)
+            return "None"
+        if callable(c.getfunc):
+            if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
+                return ",".join(str(r) for r in c.getfunc(*c.getargs))
+            elif c.dtype is bytes:
+                return c.getfunc(*c.getargs)
+            else:
+                return str(c.getfunc(*c.getargs))
+        logger.debug("no valid getter for command: %s", cmd)
+
+    def _handle_set_cmd(self, cmd: str) -> str | None:
+        """
+        Handle a set command and return the acknowledgement.
+
+        Parameters
+        ----------
+        cmd : str
+            The set command string (does not contain '?').
+
+        Returns
+        -------
+        str | None
+            The ASCII acknowledge character on success, or None if the
+            command could not be processed.
+        """
+        value = ""
+        # split at the first space, to separate command from value
+        try:
+            cmd, value = cmd.split(" ", 1)
+        except ValueError:
+            # no value was given or space was ommitted, split failed,
+            # will not do anything for that command
+            if not cmd[0] == "*":
+                # if what was sent was a * cmd (requires no value),
+                # then go on with parsing
+                return
+        # normalize command to fit to cmd_list
+        normcmd = self._normalize_cmd(cmd)
+        # identify command
+        try:
+            idx = self.normkeys.index(normcmd)
+        except ValueError:
+            print(
+                f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
+                f"sent from {self.client_address}"
+            )
+            return
+        # get command specifications
+        c = self.cmdvalues[idx]
+        if c.setfunc is None:
+            logger.debug("'None' setter for command: %s", cmd)
+            # return "acknowledgement" anyways to allow to continue
+            # also see comment few lines above why this is in addition needed.
+            return "\x06"
+        try:
+            # for listed values, split value into individual
+            # values and cast to approprated "subtypes"
+            if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
+                values = value.split(",")
+                castval = []
+                for i, tp in enumerate(c.dtype):
+                    if tp is bool:
+                        # cast bool via int to avoid wrong
+                        # results
+                        castval.append(bool(int(values[i])))
+                    else:
+                        castval.append(tp(values[i]))
+            elif c.dtype is None:
+                # exclude none for typecasting
+                pass
+            else:
+                # typecast single value
+                if c.dtype is bool:
+                    castval = bool(int(value))
+                else:
+                    castval = c.dtype(value)
+            # Call the set command with value and the
+            # additional parameters specified in the
+            # cmd_list
+            if callable(c.setfunc):
+                if c.dtype is None:
+                    c.setfunc(*c.setargs)
+                else:
+                    c.setfunc(castval, *c.setargs)
+                # send back ASCII acknowledge character
+                # this is crucial on Linux where the
+                # request/reply pattern has to be strictly
+                # obeyed, otherwise some ~40ms delay is caused.
+                return "\x06"
+        except (IndexError, TypeError, ValueError):
+            # in case of incorrectly sent command do nothing
+            pass
+
     def parse(self, data):
         """
         Determine reply for received data.
@@ -86,117 +216,17 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         list
             List of responses for the received commands.
         """
-        response = []
+        response: list[str | bytes] = []
         # multiple cmds support, separate commands with ;
         cmds = data.strip().split(";")
         for cmd in cmds:
             logger.debug("received command: %s", cmd)
-            # cmd is a get request
             if "?" in cmd:
-                # normalize command to have same format as keys in cmd_list
-                normcmd = self._normalize_cmd(cmd)
-                # identify query command in command list
-                try:
-                    idx = self.normkeys.index(normcmd)
-                except ValueError:
-                    print(
-                        f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
-                        f"sent from {self.client_address}"
-                    )
-                    # prepare a response since a response will be expected
-                    response.append(cmd + " not recognized")
-                else:
-                    # Call the getter command and append read value as str to
-                    # response. For lists, the values are separated by commas.
-                    # Will also work for returning lists of lists if the other
-                    # side interprets the value correctly (e.g. with
-                    # ast.literal_eval).
-                    # get command specifications
-                    c = self.cmdvalues[idx]
-
-                    if c.getfunc is None:
-                        # no getter is set
-                        logger.debug("getter is None for command: %s", cmd)
-                        response.append("None")
-                        continue
-                    if callable(c.getfunc):
-                        if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
-                            response.append(",".join(str(r) for r in c.getfunc(*c.getargs)))
-                        elif c.dtype is bytes:
-                            response.append(c.getfunc(*c.getargs))
-                        else:
-                            response.append(str(c.getfunc(*c.getargs)))
-                    else:
-                        logger.debug("no valid getter for command: %s", cmd)
-            # cmd is a set request
+                result = self._handle_get_cmd(cmd)
             else:
-                # split at the first space, to separate command from value
-                try:
-                    cmd, value = cmd.split(" ", 1)
-                except ValueError:
-                    # no value was given or space was ommitted, split failed,
-                    # will not do anything for that command
-                    if not "*" == cmd[0]:
-                        # if what was sent was a * cmd (requires no value),
-                        # then go on with parsing
-                        continue
-                # normalize command to fit to cmd_list
-                normcmd = self._normalize_cmd(cmd)
-                # identify command
-                try:
-                    idx = self.normkeys.index(normcmd)
-                except ValueError:
-                    print(
-                        f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
-                        f"sent from {self.client_address}"
-                    )
-                else:
-                    # get command specifications
-                    c = self.cmdvalues[idx]
-                    if c.setfunc is not None:
-                        try:
-                            # for listed values, split value into individual
-                            # values and cast to approprated "subtypes"
-                            if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
-                                values = value.split(",")
-                                castval = []
-                                for i, tp in enumerate(c.dtype):
-                                    if tp is bool:
-                                        # cast bool via int to avoid wrong
-                                        # results
-                                        castval.append(bool(int(values[i])))
-                                    else:
-                                        castval.append(tp(values[i]))
-                            elif c.dtype is None:
-                                # exclude none for typecasting
-                                pass
-                            else:
-                                # typecast single value
-                                if c.dtype is bool:
-                                    castval = bool(int(value))
-                                else:
-                                    castval = c.dtype(value)
-                            # Call the set command with value and the
-                            # additional parameters specified in the
-                            # cmd_list
-                            if callable(c.setfunc):
-                                if c.dtype is None:
-                                    c.setfunc(*c.setargs)
-                                else:
-                                    c.setfunc(castval, *c.setargs)
-                                # send back ASCII acknowledge character
-                                # this is crucial on Linux where the
-                                # request/reply pattern has to be strictly
-                                # obeyed, otherwise some ~40ms delay is caused.
-                                response.append("\x06")
-                        except (IndexError, TypeError, ValueError):
-                            # in case of incorrectly sent command do nothing
-                            pass
-                    else:
-                        logger.debug("'None' setter for command: %s", cmd)
-                        # return "acknowledgement" anyways to allow to continue
-                        # also see comment few lines above why this is in addition needed.
-                        response.append("\x06")
+                result = self._handle_set_cmd(cmd)
+            if result is not None:
+                response.append(result)
         return response
 
     def handle(self):
@@ -210,13 +240,13 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
             response = None
             # read until \n and decode to utf-8
             data = str(self.rfile.readline(), "utf-8").strip().lower()
-            if "" == data:
+            if data == "":
                 # empty string was passed, connection was closed
                 break
             # get response corresponding to commands
             responses = self.parse(data)
-            if 0 != len(responses):
-                if 1 < len(responses):
+            if len(responses) != 0:
+                if len(responses) > 1:
                     response = ";".join(responses)
                 else:
                     response = responses[0]

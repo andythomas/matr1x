@@ -151,9 +151,9 @@ class BOSS(VisaDevice):
         mode : int
             0 for current mode, 1 for voltage mode.
         """
-        if 0 == mode:
+        if mode == 0:
             self.query("SI")
-        elif 1 == mode:
+        elif mode == 1:
             self.query("SV")
 
     def getControl(self):

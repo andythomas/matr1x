@@ -143,7 +143,7 @@ class VisaDevice:
             except TypeError:
                 # Use a default number of commands per second from the config
                 cmdpers = self._config["cmdpers"]
-            if 0 == cmdpers:
+            if cmdpers == 0:
                 # prevent division by 0
                 cmdpers = 1
             self.timedelay = 1.0 / cmdpers

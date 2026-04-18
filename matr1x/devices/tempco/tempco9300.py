@@ -20,7 +20,6 @@ import enum
 import serial
 
 from matr1x.devices.modbusdevice import ModbusDevice
-from matr1x.devices.visadevice import output_name_on_error
 
 
 class TempcoMode(enum.Enum):
@@ -62,7 +61,6 @@ class Tempco9300(ModbusDevice):
     protocol.
     """
 
-    @output_name_on_error
     def __init__(self, portname: str, slaveaddress: int, baudrate: int = 38400):
         """
         Initialize Tempco 9300 temperature controller.

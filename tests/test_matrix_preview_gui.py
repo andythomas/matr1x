@@ -17,15 +17,13 @@
 
 from pathlib import Path
 
-import pytest
 from matr1x.scripts import matrix_preview
 
 path = Path(__file__).resolve().parent
 test_ma8_file = path / "data/random_test.ma8"
 
 
-@pytest.mark.timeout(timeout=30, method="thread")
-def test_matrix_preview_run(qtbot, qapp, gui_wait):
+def test_matrix_preview_run(qtbot, qapp):
     """
     Start a basic matrix preview.
 
@@ -40,11 +38,13 @@ def test_matrix_preview_run(qtbot, qapp, gui_wait):
     qtbot.addWidget(main_window)
     qtbot.waitExposed(main_window)
     qapp.processEvents()
-    qtbot.wait(gui_wait())
     assert main_window.isVisible()
 
     main_window.open_file(test_ma8_file)
-    qtbot.wait(gui_wait())
+    qtbot.waitUntil(
+        lambda: main_window.filename is not None and main_window.spw.isVisible(),
+        timeout=2000,
+    )
     assert main_window.filename is not None
     assert main_window.filename.name == test_ma8_file.name
     assert main_window.spw.isVisible()

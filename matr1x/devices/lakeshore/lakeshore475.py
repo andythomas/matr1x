@@ -185,10 +185,10 @@ class Lakeshore475(VisaDevice):
             self.write("*RST")
         if autoRange is True:
             self.write("AUTO 1")
-        elif range_val is not None and 0 < range_val and 6 > range_val:
+        elif range_val is not None and range_val > 0 and range_val < 6:
             self.write("AUTO 0")
             self.write("RANGE " + str(range_val))
-        if dcRes is not None and 0 < dcRes and 4 > dcRes:
+        if dcRes is not None and dcRes > 0 and dcRes < 4:
             self.write("RDGMODE 1," + str(dcRes) + ",1,1,1")
-        if fUnit is not None and 0 < fUnit and 5 > fUnit:
+        if fUnit is not None and fUnit > 0 and fUnit < 5:
             self.write("UNIT " + str(fUnit))

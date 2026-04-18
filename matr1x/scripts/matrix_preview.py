@@ -55,8 +55,6 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x import gui_util
-from matr1x.control.util import QtGracefulKiller
 from matr1x.error_handling import expect_not_none, install_error_handler
 from matr1x.eval import HeaderDict, _create_empty_header, loadmatrix
 from matr1x.gui_util import (
@@ -64,15 +62,21 @@ from matr1x.gui_util import (
     FileDropMixin,
     LoggingWindow,
     MApplication,
+    MetaViewerWidget,
     SaferQSettings,
+    SimplePlotWidget,
     check_config,
-    get_application_instance,
     get_matrix_icon,
     open_matrix_toml,
     protected_restore,
 )
+from matr1x.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 
-logger = logging.getLogger(Path(__file__).name)
+logger = logging.getLogger(__name__)
 
 if sys.platform == "win32":
     try:
@@ -139,6 +143,8 @@ class ActionGroup:
     toggle_toolbar: QAction
     meta: QAction
     show_log: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
 
 
 class UIBuilder:
@@ -206,6 +212,8 @@ class UIBuilder:
         meta.setCheckable(True)
         show_log = QAction("Show Log Window", self.window)
         show_log.setCheckable(True)
+        post_install = QAction("Run post installation", self.window)
+        remove_desktop_integration = QAction("Remove desktop integration")
         self.actions = ActionGroup(
             new=new,
             load=load,
@@ -221,6 +229,8 @@ class UIBuilder:
             toggle_toolbar=toggle_toolbar,
             meta=meta,
             show_log=show_log,
+            post_install=post_install,
+            remove_desktop_integration=remove_desktop_integration,
         )
 
     def _create_toolbar(self) -> None:
@@ -229,7 +239,7 @@ class UIBuilder:
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.toolbar.setFloatable(False)
         self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = get_application_instance().toolbar_icon_size()
+        icon_size = MApplication.instance().toolbar_icon_size()
         self.toolbar.setIconSize(QSize(icon_size, icon_size))
         self.toolbar.setAllowedAreas(
             Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
@@ -284,6 +294,9 @@ class UIBuilder:
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.about)
         help_menu.addAction(self.actions.show_log)
+        help_menu.addSeparator()
+        help_menu.addAction(self.actions.post_install)
+        help_menu.addAction(self.actions.remove_desktop_integration)
 
 
 class SweepPreview(FileDropMixin, QMainWindow):
@@ -328,7 +341,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.w_plot2d: QCheckBox  # 2D plotting checkbox
         self.w_plot2d_comp: QCheckBox  # 2D complex plotting checkbox
         self.w_transpose: QCheckBox  # Transpose checkbox
-        self.spw: gui_util.SimplePlotWidget  # Simple plot widget
+        self.spw: SimplePlotWidget
         self.iv: pyqtgraph.ImageView | None = None  # Image view widget
         self.column_items: list[str] = []  # Column descriptions for current file
 
@@ -342,12 +355,12 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.init_basic_ui()
         # allow to store the settings
         self.settings = SaferQSettings("matr1x", "preview")
-        self.meta_viewer = gui_util.MetaViewerWidget(self.header)
+        self.meta_viewer = MetaViewerWidget(self.header)
         self.setup_meta_viewer()
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # Only connect for root windows (parent=None) to avoid duplicate connections
-        application = get_application_instance()
+        application = MApplication.instance()
         if parent is None:
             application.connect_file_handler(self._open_file_from_signal)
         # initialize filename if available
@@ -356,11 +369,12 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.setAcceptDrops(True)
         self.setValidExtensions(list(self.allowed_extensions))
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
+        check_desktop_integration()
 
     def _get_maximum_screen_width(self):
         """Determine width of the biggest available screen."""
         width = 0
-        for screen in get_application_instance().screens():
+        for screen in MApplication.instance().screens():
             width = max(width, screen.geometry().width())
         return width
 
@@ -552,6 +566,8 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.meta.triggered.connect(self.toggle_meta)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
 
     def setup_meta_viewer(self) -> None:
         """Configure the metadata view dock widget."""
@@ -633,7 +649,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.w_transpose.setVisible(False)
         self.w_transpose.toggled.connect(self.transpose_toggled)
 
-        self.spw = gui_util.SimplePlotWidget(self.raise_error, self.index_callback)
+        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
         # minimum height of plot widget, could be removed but then
         # window always needs to be resized
         self.spw.setMinimumHeight(350)
@@ -749,18 +765,18 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.file_index = index
         self.filename = self.file_dir / self.data_files[self.file_index]
         check = self.conditional_fetch_data(True, check=True)
-        if 0 != check:
+        if check != 0:
             self.column_items = [
                 f"{name} ({unit}), shape: {shape}"
                 for name, unit, shape in zip(self.names, self.units, self.shapes)
             ]
-            if -2 == check:
+            if check == -2:
                 # file has same columns but different shapes, only change
                 # names to reflect the dimensions
                 for i in range(3):
                     for j, item in enumerate(self.column_items):
                         self.column_selector[i].setItemText(j + 1, item)
-            elif -1 == check:
+            elif check == -1:
                 # file has different columns
                 # reload interface
                 for i in range(3):
@@ -1017,7 +1033,7 @@ Please investigate the error and eventually restart matrix-preview""",
             # empty index selected
             return -3
 
-        data_vars = [z, x, y]
+        data_vars: list[PlotData | None] = [z, x, y]
         indices = [indexZ, indexX, indexY]
 
         for i, index in enumerate(indices):
@@ -1173,11 +1189,13 @@ Please investigate the error and eventually restart matrix-preview""",
             dim = len(self.shapes[indexY])
             if dim >= 3:
                 return -2
+            if dim == 2:
+                self.w_transpose.setVisible(True)
 
             yname = self.names[indexY]
 
             y_data = self.data[yname]
-            if self.w_transpose.isChecked() is True and 2 == dim:
+            if self.w_transpose.isChecked() is True and dim == 2:
                 y_data = y_data.T
 
             y = {
@@ -1231,7 +1249,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 # attempt to reshape
                 small_axis = min(x["shape"][0], y["shape"][0])
                 large_axis = max(x["shape"][0], y["shape"][0])
-                if 0 == large_axis % small_axis:
+                if large_axis % small_axis == 0:
                     # data can be reshaped
                     x["data"] = x["data"].reshape(small_axis, -1)
                     y["data"] = y["data"].reshape(small_axis, -1)
@@ -1290,14 +1308,13 @@ def main(file: str | None = None):
     # background when matrix returns. see run_as_fg_process
     if hasattr(signal, "SIGTTOU"):  # signal only on POSIX compliant systems
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-    with QtGracefulKiller():
-        if file is not None:
-            ex = SweepPreview(None, Path(file))
-        elif len(sys.argv) < 2:
-            ex = SweepPreview(None, None)
-        else:
-            ex = SweepPreview(None, Path(sys.argv[1]))
-        ex.show()
-        protected_restore(ex.restore_window_state)
-        ret = app.exec()
+    if file is not None:
+        ex = SweepPreview(None, Path(file))
+    elif len(sys.argv) < 2:
+        ex = SweepPreview(None, None)
+    else:
+        ex = SweepPreview(None, Path(sys.argv[1]))
+    ex.show()
+    protected_restore(ex.restore_window_state)
+    ret = app.exec()
     sys.exit(ret)

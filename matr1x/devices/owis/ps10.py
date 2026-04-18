@@ -197,7 +197,7 @@ class Ps10(VisaDevice):
             Movement mode, must be either "ABSOL" or "RELAT"
         """
         # first read out was ABSOL
-        assert "ABSOL" == mode or "RELAT" == mode
+        assert mode == "ABSOL" or mode == "RELAT"
         self.write(mode + "1")
 
     def getMode(self):
@@ -224,7 +224,7 @@ class Ps10(VisaDevice):
         steps : int
             Target position in steps
         """
-        if -100000000 < int(steps) and 100000000 > int(steps):
+        if int(steps) > -100000000 and int(steps) < 100000000:
             self.write(f"PSET1={int(steps):d}")
             # start movement
             self.write("PGO1")
@@ -263,7 +263,7 @@ class Ps10(VisaDevice):
             True if the motor is moving, False otherwise
         """
         ret = self.query_int("?VACT1")
-        if 0 == ret:
+        if ret == 0:
             return False
         return True
 

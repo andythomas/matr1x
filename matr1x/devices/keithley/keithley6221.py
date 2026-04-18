@@ -442,7 +442,7 @@ class Keithley6221(VisaDevice):
         -------
         None
         """
-        if 0 == int(self.query("SOUR:PDEL:ARM?")):
+        if int(self.query("SOUR:PDEL:ARM?")) == 0:
             self.write("SOUR:PDEL:ARM")
         self.write("INIT:IMM")
         self.query("*OPC?")
@@ -456,7 +456,7 @@ class Keithley6221(VisaDevice):
         -------
         None
         """
-        if 0 == int(self.query("SOUR:DELT:ARM?")):
+        if int(self.query("SOUR:DELT:ARM?")) == 0:
             self.write("SOUR:DELT:ARM")
             time.sleep(5)
         self.write("INIT:IMM")

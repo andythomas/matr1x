@@ -304,7 +304,7 @@ class BSC103(VisaDevice):
                     f"{msg.respLen:d} bytes expected",
                     warning=True,
                 )
-            if msg.msgID + 1 != resp.msgID and 0x0464 != resp.msgID:
+            if msg.msgID + 1 != resp.msgID and resp.msgID != 0x0464:
                 self.printDebug(
                     f"Warning!: msgID of response({hex(resp.msgID):s}) does not match "
                     f"msgID of request",

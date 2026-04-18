@@ -300,7 +300,7 @@ def read_value(parameter: str | int):
 
 
 def wait(
-    duration: float | int | None = None,
+    duration: float | None = None,
     until: _datetime.datetime | str | None = None,
     message: str = "",
     silent: float = 10,
@@ -508,6 +508,18 @@ devs = _system.devs
 
 # switch meta data to append state
 _system.dcdata.append = True
+_initial_meta_data = dict(_system.dcdata)
+
+
+def _reset_meta_data_to_initial() -> None:
+    """Reset metadata to the values captured at script start."""
+    append_state = _system.dcdata.append
+    _system.dcdata.append = False
+    try:
+        for key, value in _initial_meta_data.items():
+            _system.dcdata[key] = value
+    finally:
+        _system.dcdata.append = append_state
 
 
 def init_datafile(
@@ -516,6 +528,8 @@ def init_datafile(
     append: bool = False,
     print_header: bool = True,
     ntot: int | None = None,
+    reset_meta_data: bool = True,
+    reset_date: bool = True,
 ) -> None:
     """
     Initialize the datafile for the matrix_script measurement.
@@ -539,10 +553,21 @@ def init_datafile(
     ntot : int, optional
         Total number of expected datapoints for estimation of remaining
         measurement time.
+    reset_meta_data : bool, optional
+        If True, reset metadata to the values captured at script start
+        before creating a new file.
+    reset_date : bool, optional
+        If True, refresh ``meta_data["date"]`` to the current time
+        before creating a new file.
     """
     _interrupt(0, system=_system)  # equivalent to @_breakpoint with transparent signature
     _show_lineno()
     global _ntot, _npoints, _starttime
+
+    if reset_meta_data:
+        _reset_meta_data_to_initial()
+    if reset_date:
+        _system.dcdata["date"] = _time.strftime(f"{_matr1x.datetimefmt}", _time.localtime())
 
     _ntot = ntot
     _npoints = 0  # reset the number of measurement points
@@ -554,7 +579,8 @@ def init_datafile(
     if not append or not safe_filename.exists():
         # write header to file
         _system.dcdata["description"] = comment
-        _system.init_datafile(_scriptname or "matrix script generated")
+        msg, outputfile = _system.init_datafile(_scriptname or "matrix script generated")
+        print(f"{msg}: {outputfile}")
         print("acquired configuration, and initialized file")
     if print_header:
         _matrix_util.print_formatted_line(_matrix_util.flatten(_system.columns))

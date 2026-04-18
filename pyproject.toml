@@ -22,7 +22,7 @@ dependencies = [
     "h5py >= 2.7.0",                                 # imported via util,
     "numpy",                                         # imported via util
     "pyobjc ; platform_system == 'Darwin'",          # imported via util
-    "decorator>=5.2.1",                              # imported via util
+    "decorator >= 5.2.1",                            # imported via util
     "pandas >= 1.0.0",                               # imported via eval,
     "psutil",                                        # imported via control/util
     "pyqtgraph >= 0.11.0",                           # needed for GUI apps
@@ -32,8 +32,9 @@ dependencies = [
     "pygit2 >= 1.19; python_version >= '3.14'",      # needed for GUI apps Py 3.14+
     "wrapt>2.0",                                     # needed for GUI apps
     "urwid>2.0",                                     # needed for GUI apps
-    "monaco-assets>=0.5.1",                          # needed for matrix script
-    "ruff>=0.13.0",                                  # needed for matrix script
+    "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
+    "monaco-assets >= 0.5.1",                        # needed for matrix script
+    "ruff >= 0.13.0",                                # needed for matrix script
     "pyrefly",                                       # needed for matrix script
     "pymeasure",                                     # shared by several device drivers
     "pyserial",                                      # shared by several device drivers
@@ -51,9 +52,10 @@ smbus = ["smbus3 >= 0.5.5"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
-matrix-gui = "matr1x.scripts.matrix_gui:main"
+matrix-di = "matr1x.scripts.matrix_di:main"
 
 [project.gui-scripts]
+matrix-gui = "matr1x.scripts.matrix_gui:main"
 sweep-generator = "matr1x.scripts.sweep_generator:main"
 matrix-script = "matr1x.scripts.matrix_script:main"
 matrix-preview = "matr1x.scripts.matrix_preview:main"
@@ -69,6 +71,9 @@ build-backend = "flit_core.buildapi"
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
+timeout = 30
+timeout_method = "thread"
+session_timeout = 210
 env = [
     "QT_QPA_PLATFORM=offscreen",
     "QT_QUICK_BACKEND=software",
@@ -87,5 +92,5 @@ dev = [
     "sphinx>=7.4.7",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
-    "ty==0.0.13",
+    "ty==0.0.26",
 ]

@@ -195,7 +195,7 @@ class IPS120_switchheater(IsobusDevice):
         """
         # verify magnet is in non persistent mode first
         swhtr = self.getSwitchHeater()
-        if 2 == swhtr:
+        if swhtr == 2:
             # magnet is persistent with field inside, first remove field
             # set magnet on hold
             self.setMagnetStatus(0)
@@ -212,7 +212,7 @@ class IPS120_switchheater(IsobusDevice):
             # turn on switch heater
             self.setSwitchHeater(True)
             # now magnet is in non persistent mode
-        elif 0 == swhtr:
+        elif swhtr == 0:
             # switch heater is off but no field in magnet
             # turn on switch heater
             self.setSwitchHeater(True)
@@ -275,7 +275,7 @@ class IPS120_switchheater(IsobusDevice):
         rate : float
             Field ramp rate in T/min (between 0 and max_rate)
         """
-        if 0 > rate:
+        if rate < 0:
             rate = 0
         elif self.max_rate < rate:
             rate = self.max_rate
@@ -350,10 +350,10 @@ class IPS120_switchheater(IsobusDevice):
         statedict = {0: "Hold", 1: "Ramp to Setpoint", 2: "Ramp to Zero"}
         try:
             state = int(state)
-            if 2 < state:
+            if state > 2:
                 # do NOT set to 3, opens door to breaking magnet!
                 return
-            elif 0 > state:
+            elif state < 0:
                 return
         except ValueError:
             return

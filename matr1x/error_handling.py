@@ -38,7 +38,7 @@ from threading import ExceptHookArgs
 from types import TracebackType
 from typing import Any, Generic, TypeAlias, TypeVar, final
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +53,8 @@ def _show_error_messagebox(
     /,
 ) -> None:
     """Show a QMessageBox for any uncaught exception."""
-    app = QApplication.instance()
-
     formatted = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    logger.error("Unhandled exception:\n%s", formatted)
-
-    if app is None:
-        print("Unhandled exception:", formatted, file=sys.stderr)
-        return
+    logger.exception("Unhandled exception.")
 
     msg = QMessageBox()
     msg.setIcon(QMessageBox.Icon.Critical)

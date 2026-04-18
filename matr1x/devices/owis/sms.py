@@ -353,7 +353,7 @@ class SMS(VisaDevice):
             True if the axis is moving, False otherwise.
         """
         ret = self.query("B")
-        return "j" == ret[3 + 3 * ax]
+        return ret[3 + 3 * ax] == "j"
 
     def get_pos(self, ax=0):
         """

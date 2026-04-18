@@ -22,7 +22,6 @@ JavaScript should be used outside of this module!
 
 import ast
 import json
-import logging
 import re
 import socket
 import subprocess
@@ -44,14 +43,13 @@ from PySide6.QtCore import (
     QTimer,
     QUrl,
     Signal,
-    Slot,
 )
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.error_handling import Error, Result, Success
-from matr1x.gui_util import FileDropMixin, get_application_instance
+from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
 from matr1x.models import SystemInfo
 from matr1x.util import (
     generate_script,
@@ -159,7 +157,7 @@ class LSPServer:
     parameters: list[str]
 
 
-class LSPClient:
+class LSPClient(LoggerMixin):
     """
     Allow communication to an LSP server.
 
@@ -177,11 +175,11 @@ class LSPClient:
         self.reader_thread: threading.Thread | None = None
         self.stderr_thread: threading.Thread | None = None
         self.stop_event = threading.Event()
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.opened_documents: set[str] = set()
 
     def start(self) -> None:
         """Start the LSP server process."""
+        self.stop_event.clear()
         creationflags = 0
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NO_WINDOW
@@ -233,15 +231,23 @@ class LSPClient:
         timeout: float
             Timeout in seconds to wait for response.
         """
+        if self.stop_event.is_set():
+            return Error(None)
         if not self.process or not self.process.stdin:
+            return Error(None)
+        if self.process.poll() is not None:
             return Error(None)
         request_id = self.id
         message = self._build_request(method, params)
         response_queue: Queue[JsonRpcResponse | None] = Queue()
         self.pending_requests[request_id] = response_queue
         try:
-            self.process.stdin.write(message.encode())
-            self.process.stdin.flush()
+            try:
+                self.process.stdin.write(message.encode())
+                self.process.stdin.flush()
+            except (BrokenPipeError, OSError, ValueError):
+                self.logger.debug("LSP009: Failed to write request to LSP.")
+                return Error(None)
             try:
                 response = response_queue.get(timeout=timeout)
                 if response is None:
@@ -265,11 +271,18 @@ class LSPClient:
             An object or array of values to be passed as parameters to
             the defined method.
         """
+        if self.stop_event.is_set():
+            return
         if not self.process or not self.process.stdin:
             return
+        if self.process.poll() is not None:
+            return
         message = self._build_notification(method, params)
-        self.process.stdin.write(message.encode())
-        self.process.stdin.flush()
+        try:
+            self.process.stdin.write(message.encode())
+            self.process.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError):
+            self.logger.debug("LSP010: Failed to write notification to LSP.")
 
     def initialize(self) -> None:
         """Initialize the server/client communication."""
@@ -337,12 +350,10 @@ class LSPClient:
                         response_queue.put_nowait(response)
                     except Exception:
                         self.logger.warning("LSP003: Exception putting response in queue.")
-                        pass
             else:
                 self.logger.warning("LSP005: id is None in response message.")
         except ValidationError:
             self.logger.warning("LSP004: Invalid response message.")
-            pass
 
     def _handle_notification(self, message: str) -> None:
         """
@@ -358,7 +369,6 @@ class LSPClient:
             # do something with the notifications later
         except ValidationError:
             self.logger.warning("LSP006: Invalid notification message.")
-            pass
 
     def _drain_stderr(self) -> None:
         """
@@ -723,7 +733,7 @@ class Linter(QObject):
         "F504",
     ]
 
-    @Slot(str)
+    @AutoSlot
     def lint_code(self, code: str) -> None:
         """
         Lint Python code utilizing Ruff.
@@ -904,7 +914,7 @@ class EditorBackend(QObject):
         super().__init__(parent)
         self._is_modified = False
 
-    @Slot(bool)
+    @AutoSlot
     def content_changed(self, is_modified: bool) -> None:
         """Handle content modification notifications from the editor."""
         self._is_modified = is_modified
@@ -918,7 +928,7 @@ class EditorBackend(QObject):
         """Set the modification state."""
         self._is_modified = modified
 
-    @Slot(str)
+    @AutoSlot
     def handle_hover(self, payload: str) -> None:
         """Handle hover notifications from the Monaco editor."""
         try:
@@ -929,7 +939,7 @@ class EditorBackend(QObject):
         hover.position.character = hover.position.character + COLUMN_OFFSET - 1
         self.hoverRequested.emit(hover)
 
-    @Slot(str)
+    @AutoSlot
     def handle_completion_request(self, payload: str) -> None:
         """Handle completion requests from the Monaco editor."""
         try:
@@ -943,24 +953,23 @@ class EditorBackend(QObject):
         )
         self.completionRequested.emit(completion_request)
 
-    @Slot(str)
+    @AutoSlot
     def linting_triggered(self, text: str) -> None:
         """Handle linting trigger notifications from the editor."""
         self.contentChanged.emit(text)
 
-    @Slot(int, int)
+    @AutoSlot
     def cursor_position_changed(self, line: int, column: int) -> None:
         """Handle cursor position change notifications from the editor."""
         self.cursorPositionChanged.emit(line, column)
 
 
-class CodeEditorPage(QWebEnginePage):
+class CodeEditorPage(QWebEnginePage, LoggerMixin):
     """Pipe JavaScript console messages to logger."""
 
     def __init__(self, parent=None):
         """Init the logger."""
         super().__init__(parent)
-        self.logger = logging.getLogger(f"{__name__}.CodeEditorPage")
 
     def javaScriptConsoleMessage(
         self,
@@ -996,7 +1005,7 @@ class CodeEditorPage(QWebEnginePage):
             self.logger.info("%s", message)
 
 
-class CodeEditor(FileDropMixin, QWebEngineView):
+class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
     """Code editor connected to Monaco."""
 
     contentModified = Signal(bool)
@@ -1026,7 +1035,6 @@ class CodeEditor(FileDropMixin, QWebEngineView):
 
     def __init__(self, extensions: list, lsp_server: LSPServer):
         super().__init__()
-        self.logger = logging.getLogger(f"{__name__}.CodeEditor")
         self.version = 1
         self.code: str = ""
         self.filename: str = DUMMY_LSP_FILENAME
@@ -1076,7 +1084,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         self._highlight_timer.timeout.connect(self._apply_pending_highlight)
         self._pending_highlight_line: int | None = None
         self._current_theme: str
-        get_application_instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
+        MApplication.instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
         self.setValidExtensions(extensions)
 
     def _run_javascript(self, command: str):
@@ -1315,7 +1323,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         )
         self._run_javascript_async(js_command)
 
-    def _process_lsp_completions(self, lsp_completions):
+    def _process_lsp_completions(self, lsp_completions: list[dict[str, str]]):
         """Convert LSP completion results to Monaco format."""
         monaco_completions = []
         if isinstance(lsp_completions, list):
@@ -1388,7 +1396,7 @@ class CodeEditor(FileDropMixin, QWebEngineView):
         monaco_theme = list(CodeEditor.THEMES["Standard"].values())[0]
         for name, theme_pair in CodeEditor.THEMES.items():
             if name == theme_selection:
-                dark = get_application_instance().isDark
+                dark = MApplication.instance().isDark
                 self._current_theme = theme_selection
                 monaco_theme = list(theme_pair.values())[1 if dark else 0]
             for name, theme in theme_pair.items():
