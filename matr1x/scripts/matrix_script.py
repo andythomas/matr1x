@@ -761,11 +761,11 @@ class UIBuilder:
         system_list.setMaximumHeight(50)
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
-        lsp_name = "pyrefly"
+        lsp_name = "ty"
         lsp_binary = find_binary(lsp_name)
         if isinstance(lsp_binary, Error):
             raise lsp_binary.error
-        lsp_parameters = ["lsp"]
+        lsp_parameters = ["server"]
         lsp_server = LSPServer(binary=str(lsp_binary.value), parameters=lsp_parameters)
         script_edit = CodeEditor([self.window.extension], lsp_server)
         system_command_help = QDialog(self.window)
