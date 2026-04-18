@@ -66,6 +66,7 @@ from matr1x.gui_util import (
     SaferQSettings,
     SimplePlotWidget,
     check_config,
+    clear_layout,
     get_matrix_icon,
     open_matrix_toml,
     protected_restore,
@@ -684,18 +685,16 @@ class SweepPreview(FileDropMixin, QMainWindow):
             # do not duplicate the items next time
             self.ui_initialized = True
 
-    def clear_ui(self):
+    def clear_ui(self) -> None:
         """Clear the UI."""
         for i in reversed(range(2, self.grid.count())):
             item = self.grid.takeAt(i)
-            widget = item.widget()
-            if widget is not None:
+            if item is None:
+                continue
+            if widget := item.widget():
                 widget.deleteLater()
-            else:
-                for j in range(item.layout().count()):
-                    expect_not_none(
-                        item.layout().takeAt(0).widget(), "The requested item manages no widget!"
-                    ).deleteLater()
+            elif layout := item.layout():
+                clear_layout(layout)
 
     def toggle_meta(self, state):
         """Toggle the meta data view."""

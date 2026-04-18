@@ -50,7 +50,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLayout,
     QLineEdit,
     QMainWindow,
     QMenu,
@@ -86,6 +85,7 @@ from matr1x.gui_util import (
     SaferQSettings,
     SystemListWidget,
     check_config,
+    clear_layout,
     create_tray_notification,
     get_matrix_icon,
     open_matrix_toml,
@@ -1164,7 +1164,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         """Reset layout to clean state."""
         if self.populated:
             self.columns.clear()
-            self.clear_layout(self.ui.grid)
+            clear_layout(self.ui.grid)
             self.ui.widgets.sweep_table.setRowCount(0)
             self.ui.widgets.sweep_preview.setRowCount(0)
 
@@ -1575,11 +1575,8 @@ class MainWindow(FileDropMixin, QMainWindow):
                 else:
                     line_edit.setValidator(validator[float])
                 line_edit.editingFinished.connect(
-                    lambda line_edit=line_edit,
-                    actual_column=actual_column,
-                    row=row,
-                    i=i: self.columns.parameter[actual_column][row].__setitem__(
-                        i, line_edit.text()
+                    lambda line_edit=line_edit, actual_column=actual_column, row=row, i=i: (
+                        self.columns.parameter[actual_column][row].__setitem__(i, line_edit.text())
                     )
                 )
                 line_edit.textChanged.connect(lambda: self.window_title_dirty.emit())
@@ -1612,15 +1609,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         del self.columns.parameter[col][row]
         self.populate_sweep_grid(col)
-
-    def clear_layout(self, layout: QLayout) -> None:
-        """Clear all child widgets from layout."""
-        while layout.count():
-            item = layout.takeAt(0)
-            if widget := item.widget():
-                widget.deleteLater()
-            elif child_layout := item.layout():
-                self.clear_layout(child_layout)
 
     def add_system(self, filenames: list | None = None) -> None:
         """

@@ -4645,3 +4645,14 @@ def _normalize_result_type(t: Any) -> Any:
     if origin is not None:
         return origin
     return t
+
+
+def clear_layout(layout: QLayout) -> None:
+    """Clear all child widgets from layout."""
+    while layout.count():
+        item = layout.takeAt(0)
+        if item is not None:
+            if widget := item.widget():
+                widget.deleteLater()
+            elif child_layout := item.layout():
+                clear_layout(child_layout)
