@@ -220,30 +220,25 @@ class TerminalOutput(QPlainTextEdit):
         )
         self.setPalette(palette)
 
-    def changeEvent(self, event: QEvent) -> None:
-        """Detect theme change event."""
-        if event.type() == event.Type.PaletteChange:
-            self.updateColors()
-        super().changeEvent(event)
-
     def print_colored(self, line: str) -> None:
         """
         Print a colored text.
-
-        Afterwards, recover the original text color. Follow theme
-        changes.
 
         Parameters
         ----------
         line : str
             The line to be printed.
         """
+        scrollbar = self.verticalScrollBar()
+        at_bottom = scrollbar.value() == scrollbar.maximum()
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
         text_char_format = QTextCharFormat()
         text_char_format.setForeground(QColor("royalblue"))
         cursor.insertText(line, text_char_format)
         cursor.insertText("\n", QTextCharFormat())
+        if at_bottom:
+            self.moveCursor(QTextCursor.MoveOperation.End)
 
 
 if sys.platform == "win32":
@@ -1616,6 +1611,9 @@ class MainWindow(QMainWindow):
         # Operate on a disposable cursor so we do not move the user's cursor/selection.
         # Handle plain text and control characters in one path, because buffered writes
         # can split "\r" from the text it is meant to overwrite.
+        edit = self.ui.widgets.status_preview
+        scrollbar = edit.verticalScrollBar()
+        at_bottom = scrollbar.value() == scrollbar.maximum()
         doc = self.ui.widgets.status_preview.document()
         cursor = QTextCursor(doc)
         cursor.movePosition(QTextCursor.MoveOperation.End)
@@ -1638,7 +1636,8 @@ class MainWindow(QMainWindow):
             else:
                 cursor.insertBlock()
         cursor.endEditBlock()
-
+        if at_bottom:
+            edit.moveCursor(QTextCursor.MoveOperation.End)
         if not self._output_buffer:
             self._output_timer.stop()
 
