@@ -35,7 +35,7 @@ dependencies = [
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
     "monaco-assets >= 0.5.1",                        # needed for matrix script
     "ruff >= 0.13.0",                                # needed for matrix script
-    "ty==0.0.26",                                       # needed for matrix script
+    "ty == 0.0.31",                                  # needed for matrix script
     "pymeasure",                                     # shared by several device drivers
     "pyserial",                                      # shared by several device drivers
     "pyvisa",                                        # shared by several device drivers
@@ -92,5 +92,4 @@ dev = [
     "sphinx>=7.4.7",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
-    "ty==0.0.26",
 ]

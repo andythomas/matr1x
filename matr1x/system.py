@@ -38,6 +38,7 @@ import numpy as np
 from pymeasure.instruments import Instrument
 
 from matr1x.devices.visadevice import VisaDevice
+from matr1x.error_handling import InternalInvariantError
 
 from . import VALID_META_KEYS, datetimefmt, get_config_dict, output_extension
 from .util import (
@@ -1392,20 +1393,20 @@ class System:
         flattened_settable_units : list
             List of strings containing the units of the settable columns.
         """
-        settables: list[bool] = [
-            (False if par.setter is None else True) for par in self.parameters
-        ]
+        settables: list[bool] = [par.setter is not None for par in self.parameters]
         flattened_settable_names: list[str] = []
         flattened_settable_units: list[str] = []
         for names, units, settable in zip(self.columns, self.units, settables):
-            if settable is True:
-                if isinstance(names, (list, tuple)):
-                    for name, unit in zip(names, units):
-                        flattened_settable_names.append(name)
-                        flattened_settable_units.append(unit)
-                else:
-                    flattened_settable_names.append(names)
-                    flattened_settable_units.append(units)
+            if not settable:
+                continue
+            if isinstance(names, (list, tuple)) and isinstance(units, (list, tuple)):
+                flattened_settable_names.extend(names)
+                flattened_settable_units.extend(units)
+            elif isinstance(names, str) and isinstance(units, str):
+                flattened_settable_names.append(names)
+                flattened_settable_units.append(units)
+            else:
+                InternalInvariantError("Columns and units should be of the same type.")
         return (settables, flattened_settable_names, flattened_settable_units)
 
     def _add_method_info_to_dict(
