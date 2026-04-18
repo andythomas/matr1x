@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Provides a base class for creating control GUIs for data acquisition systems.
+Provide a base class for creating control GUIs for data acquisition systems.
 
 This module includes functionality for:
 - Setting up a GUI with collapsible sections
