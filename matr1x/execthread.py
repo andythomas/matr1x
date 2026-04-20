@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-execution thread control for matrix-script.
+Execution thread control for matrix-script.
 
 This module includes class definitions used for execution of the matrix-script process.
 """
