@@ -247,7 +247,7 @@ class ExecThread(threading.Thread):
         self.script = script
         self.meta_data = meta_data
         self.scriptname = scriptname
-        self.systems: list[str] = systems
+        self.system: MergedSystem = MergedSystem.from_files(systems)
         self.stop_status = Status()
         self.pause_flag = False
         self.interrupt_flag = False
@@ -293,7 +293,7 @@ class ExecThread(threading.Thread):
         self.stop_status.finished = state
         self.interrupt_flag = True
 
-    def interrupt(self, *, system: MergedSystem, duration=None, until=None, message="", silent=10):
+    def interrupt(self, *, duration=None, until=None, message="", silent=10):
         """
         Pauses execution for a specified duration.
 
@@ -301,9 +301,6 @@ class ExecThread(threading.Thread):
 
         Parameters
         ----------
-        system : MergedSystem
-            System object to log comments if a pause or interrupt occurs.
-
         duration : float or int, optional
             The number of seconds to sleep. If specified, the
             function will sleep for this duration.
@@ -340,7 +337,7 @@ class ExecThread(threading.Thread):
                 text = (
                     f"Waiting {sleep_time:.0f} seconds{msg} until {end_time.strftime('%H:%M:%S')}"
                 )
-                self.report(Message(message=text), system=system)
+                self.report(Message(message=text))
 
         elif until is not None:
             end_time = _parse_until_time(until, now)
@@ -350,8 +347,8 @@ class ExecThread(threading.Thread):
                     f"Specified wait until time {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                     "is in the past. Continuing immediately."
                 )
-                self.report(Message(message=text), system=system)
-                self.check_for_interrupt_and_pause(system)
+                self.report(Message(message=text))
+                self.check_for_interrupt_and_pause()
                 return
 
             sleep_time = (end_time - now).total_seconds()
@@ -365,19 +362,17 @@ class ExecThread(threading.Thread):
                     f"Waiting until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                     f"(in {sleeptstr} seconds){msg}"
                 )
-                self.report(Message(message=text), system=system)
+                self.report(Message(message=text))
 
         else:
             raise ValueError("Either `duration` or `until` must be provided.")
 
         # Perform the wait with pause handling
-        self._execute_sleep(sleep_time, end_time, duration is not None, silent, msg, system)
+        self._execute_sleep(sleep_time, end_time, duration is not None, silent, msg)
         # Ensure interrupt and pause checks are called at least once, even if `sleep_time` is 0
-        self.check_for_interrupt_and_pause(system)
+        self.check_for_interrupt_and_pause()
 
-    def _execute_sleep(
-        self, sleep_time, end_time, is_duration, silent, message, system: MergedSystem
-    ):
+    def _execute_sleep(self, sleep_time, end_time, is_duration, silent, message):
         """
         Handle sleeping with interrupt and pause checks.
 
@@ -393,8 +388,6 @@ class ExecThread(threading.Thread):
             Threshold for showing status messages.
         message : str
             Message to display during waiting.
-        system :
-            System object to log comments if a pause or interrupt occurs.
         """
         start_time = time.time()
         pause_duration = 0  # Tracks cumulative pause duration for duration-based waits
@@ -407,10 +400,10 @@ class ExecThread(threading.Thread):
 
             # Check for interruption or pause
             pause_start = time.time()  # Record when the pause starts
-            if self.check_for_interrupt_and_pause(system):
+            if self.check_for_interrupt_and_pause():
                 if not is_duration and end_time and datetime.now() >= end_time:
                     text = "\nThe target time passed during pause. Continuing immediately."
-                    self.report(Message(message=text), system=system)
+                    self.report(Message(message=text))
                     return
                 elif is_duration:
                     # Calculate pause duration and extend end_time accordingly
@@ -423,7 +416,7 @@ class ExecThread(threading.Thread):
                     # Recalculate sleep_time after adjusting for pause
                     sleep_time = (end_time - datetime.now()).total_seconds()
                     text = f"\nResuming wait for {sleep_time:.0f} seconds{message}."
-                    self.report(Message(message=text), system=system)
+                    self.report(Message(message=text))
                 else:
                     # For "until" wait, recalculate based on the current end_time
                     sleep_time = max(0, (end_time - datetime.now()).total_seconds())
@@ -431,7 +424,7 @@ class ExecThread(threading.Thread):
                         f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                         f"({sleep_time:.0f} seconds remaining)."
                     )
-                    self.report(Message(message=text), system=system)
+                    self.report(Message(message=text))
 
             # Sleep in precise intervals, adjusting each time
             if sleep_time > 1:
@@ -452,19 +445,11 @@ class ExecThread(threading.Thread):
                 break
 
         if initial_sleep_time > silent:
-            self.report(
-                Message(message="Waiting done", modifier=Modifier.DELETE_CURRENT_LINE),
-                system=system,
-            )
+            self.report(Message(message="Waiting done", modifier=Modifier.DELETE_CURRENT_LINE))
 
-    def check_for_interrupt_and_pause(self, system: MergedSystem):
+    def check_for_interrupt_and_pause(self):
         """
         Check for interrupt and pause flags and take appropriate action.
-
-        Parameters
-        ----------
-        system :
-            System class providing add_comment to write a message to the datafile.
 
         Returns
         -------
@@ -481,11 +466,11 @@ class ExecThread(threading.Thread):
         # not decorated themselves. (e.g. system.add_comment)
         if self.interrupt_flag:
             # script will be aborted
-            system.add_comment("measurement aborted on user request")
+            self.system.add_comment("measurement aborted on user request")
             self.interrupt_flag = False
             raise KeyboardInterrupt("Execution interrupted by user.")
         if self.pause_flag:
-            system.add_comment("measurement paused on user request")
+            self.system.add_comment("measurement paused on user request")
             while self.pause_flag and not self.interrupt_flag:
                 # execution paused, wait for 100ms and recheck
                 time.sleep(0.1)
@@ -496,7 +481,6 @@ class ExecThread(threading.Thread):
         self,
         *,
         message: str = "",
-        system: MergedSystem,
         input_type: str = "string",
         timeout: float = float("inf"),
         default_value: str | float = "",
@@ -517,9 +501,6 @@ class ExecThread(threading.Thread):
         message : str, optional
             Message to display to user requesting input. Default is
             empty string.
-        system : object, optional
-            System object that can be interrupted/paused. Default is
-            None.
         input_type : str, optional
             Type of input expected. Default is "string".
         timeout : float, optional
@@ -560,7 +541,7 @@ class ExecThread(threading.Thread):
             if (time.time() - t0) > 60:
                 self.report(Message(message="still waiting for user input", to_comment=False))
                 t0 = time.time()
-            self.check_for_interrupt_and_pause(system)
+            self.check_for_interrupt_and_pause()
         # remove trailling line feed
         ret = self.recv.strip()
         # print output
@@ -596,7 +577,7 @@ class ExecThread(threading.Thread):
             self.recv_flag = False
         self.recv += inp
 
-    def report(self, data: MeasurementData, *, system: MergedSystem | None = None) -> None:
+    def report(self, data: MeasurementData) -> None:
         """
         Report data currently written by the matrix-script script.
 
@@ -604,19 +585,16 @@ class ExecThread(threading.Thread):
         ----------
         data : ScriptData
             The data to report.
-        system : MergedSystem or None, optional
-            The system if print_to_comment is be used. Default is None.
         """
         if self.socket is None:
             return
         if isinstance(data, Message):
-            if system and (
-                data.to_comment is True
-                or (config["print_to_comment"] and data.to_comment is not False)
+            if data.to_comment is True or (
+                config["print_to_comment"] and data.to_comment is not False
             ):
-                system.add_comment(data.message)
+                self.system.add_comment(data.message)
             if data.to_logfile is True or (
-                config["duplicate_output_to_logfile"] and data.to_comment is not False
+                config["duplicate_output_to_logfile"] and data.to_logfile is not False
             ):
                 logger.info(data.message.lstrip("\n"))
         if isinstance(data, (Header, SetValues, MeasuredValues, Telemetry)):
@@ -647,7 +625,7 @@ class ExecThread(threading.Thread):
                     "_meta_data": self.meta_data,
                     "_scriptname": self.scriptname,
                     "_script": self.script,
-                    "_systems": self.systems,
+                    "_system": self.system,
                 }
                 exec(self.script, _vars)
             except Exception:

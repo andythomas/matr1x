@@ -44,7 +44,6 @@ from matr1x.models import MeasuredValues as _MeasuredValues
 from matr1x.models import Message as _Message
 from matr1x.models import SetValues as _SetValues
 from matr1x.models import Telemetry as _Telemetry
-from matr1x.system import MergedSystem as _MergedSystem
 
 if _typing.TYPE_CHECKING:
     from matr1x.execthread import ExecThread
@@ -63,12 +62,10 @@ if _typing.TYPE_CHECKING:
     _meta_data = _thread_api._exec_thread.meta_data
     _scriptname = _thread_api._exec_thread.scriptname
     _script = _thread_api._exec_thread.script
-    _systems = _thread_api._exec_thread.systems
+    _system = _thread_api._exec_thread.system
 
 # load config section from toml file
 _config = _matr1x.get_config_dict("matr1x.scripts.matrix-script")
-
-_system: _MergedSystem = _MergedSystem.from_files(_systems)
 
 # pass meta information
 for _key, _value in _meta_data.items():
@@ -169,7 +166,7 @@ def _breakpoint(wrapped, instance, args, kwargs):
 
         instance._calling = True
         try:
-            _interrupt(duration=0, system=_system)
+            _interrupt(duration=0)
             result = wrapped(*args, **kwargs)
         finally:
             instance._calling = False
@@ -185,7 +182,7 @@ def _breakpoint(wrapped, instance, args, kwargs):
 
         wrapped._calling = True
         try:
-            _interrupt(duration=0, system=_system)
+            _interrupt(duration=0)
             result = wrapped(*args, **kwargs)
         finally:
             wrapped._calling = False
@@ -350,7 +347,7 @@ def wait(
     if duration and until:
         _report(_Message(message=f"until ({until}) argument of the wait function will be ignored"))
         until = None
-    _interrupt(duration=duration, until=until, message=message, silent=silent, system=_system)
+    _interrupt(duration=duration, until=until, message=message, silent=silent)
 
 
 def input(query: str, timeout: float = float("inf"), default_value: str = "") -> str:  # noqa: A001
@@ -372,7 +369,7 @@ def input(query: str, timeout: float = float("inf"), default_value: str = "") ->
         User input.
     """
     _show_lineno()
-    return _input(message=query, system=_system, timeout=timeout, default_value=default_value)
+    return _input(message=query, timeout=timeout, default_value=default_value)
 
 
 def input_bool(query: str, timeout: float = float("inf"), default_value: str = "yes") -> bool:
@@ -394,13 +391,7 @@ def input_bool(query: str, timeout: float = float("inf"), default_value: str = "
         True if the user answers yes, False otherwise.
     """
     _show_lineno()
-    ret = _input(
-        message=query,
-        system=_system,
-        input_type="bool",
-        timeout=timeout,
-        default_value=default_value,
-    )
+    ret = _input(message=query, input_type="bool", timeout=timeout, default_value=default_value)
     if ret == "yes":
         return True
     return False
@@ -443,7 +434,6 @@ def input_numerical(
     _show_lineno()
     ret = _input(
         message=query,
-        system=_system,
         input_type="numerical",
         timeout=timeout,
         default_value=default_value,
@@ -565,7 +555,7 @@ def init_datafile(
         If True, refresh ``meta_data["date"]`` to the current time
         before creating a new file.
     """
-    _interrupt(duration=0, system=_system)  # equivalent to @_breakpoint with transparent signature
+    _interrupt(duration=0)  # equivalent to @_breakpoint with transparent signature
     _show_lineno()
     global _ntot, _npoints, _starttime
 
@@ -619,7 +609,7 @@ def measure_system(
     list
         List of measured values.
     """
-    _interrupt(duration=0, system=_system)  # equivalent to @_breakpoint with transparent signature
+    _interrupt(duration=0)  # equivalent to @_breakpoint with transparent signature
     _show_lineno()
     global _preset, _npoints
     _npoints += 1
@@ -665,7 +655,7 @@ except KeyboardInterrupt:
         _reset_kwargs["status"] = "aborted"
     else:
         # finished is None, so ask what is supposed to happen
-        _reset_kwargs["status"] = _input(message="", system=_system, input_type="__end_script__")
+        _reset_kwargs["status"] = _input(message="", input_type="__end_script__")
 except Exception as e:
     _report(_Message(message="script exited with error:"))
     # get traceback information and format accordingly
