@@ -125,72 +125,12 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
     raise ValueError("Timestamp format not recognized.")
 
 
-class Unbuffered:
-    r"""
-    Implements a wrapper on stdout to make sure data is passed on immediately.
+class ZeroFramed(io.TextIOWrapper):
+    r"""Wraps a socket stream with \0 after every write for framing."""
 
-    This wrapper terminates messages with \0 to allow using \n
-    in print conventionally without breaking the formatting.
-    """
-
-    def __init__(self, stream):
-        """
-        Initialize the Unbuffered wrapper.
-
-        Parameters
-        ----------
-        stream : file-like object
-            The stream to wrap.
-        """
-        self.stream = stream
-
-    def write(self, data):
-        """
-        Write data to the stream.
-
-        Parameters
-        ----------
-        data : str
-            Data to write.
-
-        Returns
-        -------
-        None
-        """
-        self.stream.write(data + "\0")
-        self.stream.flush()
-
-    def writelines(self, datas):
-        """
-        Write multiple lines to the stream.
-
-        Parameters
-        ----------
-        datas : iterable of str
-            Lines to write.
-
-        Returns
-        -------
-        None
-        """
-        self.stream.writelines(datas)
-        self.stream.flush()
-
-    def __getattr__(self, attr):
-        """
-        Get attribute from the underlying stream.
-
-        Parameters
-        ----------
-        attr : str
-            Attribute name.
-
-        Returns
-        -------
-        Any
-            The attribute value.
-        """
-        return getattr(self.stream, attr)
+    def write(self, s: str) -> int:
+        """Append null byte as message delimiter and write to stream."""
+        return super().write(s + "\0")
 
 
 @dataclass
@@ -256,8 +196,8 @@ class ExecThread(threading.Thread):
         self.socket = socket
         if self.socket is not None:
             # pass on all stdout to socket
-            file = self.socket.makefile("w", buffering=None)
-            sys.stdout = Unbuffered(file)
+            raw = self.socket.makefile("wb", buffering=0)
+            sys.stdout = ZeroFramed(raw, write_through=True)
 
     def pause(self, state):
         """
