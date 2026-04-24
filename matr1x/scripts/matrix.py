@@ -47,8 +47,6 @@ from matr1x.models import (
     Envelope,
     ErrorMessage,
     Header,
-    InputParameters,
-    LineNumber,
     MeasuredValues,
     MeasurementData,
     Message,
@@ -125,14 +123,7 @@ def parse_cmd_line() -> argparse.Namespace:
         action="store_true",
         help="use plain output instead of the urwid library",
     )
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "-q",
-        "--quiet",
-        action="store_true",
-        help="produce reduced output (no measurement data), requires plain",
-    )
-    group.add_argument(
+    parser.add_argument(
         "-j",
         "--json",
         action="store_true",
@@ -152,84 +143,13 @@ def parse_cmd_line() -> argparse.Namespace:
 
     if options.json and not options.plain:
         parser.error("--json can only be used together with --plain")
-    if options.quiet and not options.plain:
-        parser.error("--quiet can only be used together with --plain")
     if os.name == "nt" and not options.plain:
         options.plain = True  # enforce plain interface on Windows because urwid would fail
 
     return options
 
 
-class MeasurementDispatcher:
-    """Dispatches measurement data for further processing."""
-
-    def receive(self, data: str) -> None:
-        """Validate the received data and send to dispatcher."""
-        try:
-            env = Envelope.model_validate_json(data)
-        except ValidationError:
-            self.unknown_data(data)
-            return
-        payload = env.payload
-        self.dispatch(payload)
-
-    def dispatch(self, payload: MeasurementData) -> None:
-        """
-        Dispatch the payload to the appropriate function.
-
-        Defaults to no-op in this base class.
-        """
-        if isinstance(payload, Header):
-            self.header(payload)
-        elif isinstance(payload, SetValues):
-            self.set_values(payload)
-        elif isinstance(payload, MeasuredValues):
-            self.measured_values(payload)
-        elif isinstance(payload, Telemetry):
-            self.telemetry(payload)
-        elif isinstance(payload, Message):
-            self.message(payload)
-        elif isinstance(payload, ErrorMessage):
-            self.error_message(payload)
-        elif isinstance(payload, LineNumber):
-            self.line_number(payload)
-        elif isinstance(payload, Datafile):
-            self.datafile(payload)
-        elif isinstance(payload, InputParameters):
-            self.input_parameters(payload)
-
-    def unknown_data(self, data: str) -> None:
-        """Handle unknown or corrupted data."""
-
-    def header(self, header: Header) -> None:
-        """Process a header payload."""
-
-    def set_values(self, set_values: SetValues) -> None:
-        """Process a set values payload."""
-
-    def measured_values(self, measured_values: MeasuredValues) -> None:
-        """Process a measured values payload."""
-
-    def telemetry(self, telemetry: Telemetry) -> None:
-        """Process a telemetry payload."""
-
-    def message(self, message: Message) -> None:
-        """Process a message payload."""
-
-    def error_message(self, error_message: ErrorMessage) -> None:
-        """Process an error message payload."""
-
-    def line_number(self, line_number: LineNumber) -> None:
-        """Process a line number payload."""
-
-    def datafile(self, datafile: Datafile) -> None:
-        """Process a datafile payload."""
-
-    def input_parameters(self, input_parameters: InputParameters) -> None:
-        """Process an input parameters payload."""
-
-
-class BaseMeasurement(MeasurementDispatcher):
+class PlainMeasurement:
     """Base class for all dispatchers."""
 
     def __init__(self):
@@ -324,40 +244,34 @@ class BaseMeasurement(MeasurementDispatcher):
                     break
         return 0
 
-
-class JSONMeasurement(BaseMeasurement):
-    """Dispatches measurement data with JSON output."""
+    def receive(self, data: str) -> None:
+        """Validate the received data and send to dispatcher."""
+        try:
+            env = Envelope.model_validate_json(data)
+        except ValidationError:
+            self.unknown_data(data)
+            return
+        payload = env.payload
+        self.dispatch(payload)
 
     def dispatch(self, payload: MeasurementData) -> None:
-        """Dump and print the payload as JSON."""
-        print(payload.model_dump_json())  # noqa: T201
-        if isinstance(payload, ErrorMessage):
-            sys.exit(1)
-
-
-class QuietMeasurement(BaseMeasurement):
-    """Dispatches measurement data with reduced output."""
+        """Dispatch the payload to the appropriate function."""
+        if isinstance(payload, Header):
+            self.header(payload)
+        elif isinstance(payload, SetValues):
+            self.set_values(payload)
+        elif isinstance(payload, MeasuredValues):
+            self.measured_values(payload)
+        elif isinstance(payload, Telemetry):
+            self.telemetry(payload)
+        elif isinstance(payload, Message):
+            self.message(payload)
+        elif isinstance(payload, ErrorMessage):
+            self.error_message(payload)
 
     def unknown_data(self, data: str) -> None:
         """Print unknown or corrupted data."""
         print(data)  # noqa: T201
-
-    def measured_values(self, measured_values: MeasuredValues) -> None:
-        """Process a dot for every datapoint."""
-        print(".", end="", flush=True)  # noqa: T201
-
-    def message(self, message: Message) -> None:
-        """Print a message."""
-        print(message.message)  # noqa: T201
-
-    def error_message(self, error_message: ErrorMessage) -> NoReturn:
-        """Print an error message and exit."""
-        print(f"matrix: error: {error_message.error}")  # noqa: T201
-        sys.exit(1)
-
-
-class PlainMeasurement(QuietMeasurement):
-    """Dispatches measurement data with plain output."""
 
     def header(self, header: Header) -> None:
         """Print a formatted header."""
@@ -375,8 +289,27 @@ class PlainMeasurement(QuietMeasurement):
         """Print formatted telemetry."""
         print(telemetry)  # noqa: T201
 
+    def message(self, message: Message) -> None:
+        """Print a message."""
+        print(message.message)  # noqa: T201
 
-class UrwidMeasurement(QuietMeasurement):
+    def error_message(self, error_message: ErrorMessage) -> NoReturn:
+        """Print an error message and exit."""
+        print(f"matrix: error: {error_message.error}")  # noqa: T201
+        sys.exit(1)
+
+
+class JSONMeasurement(PlainMeasurement):
+    """Dispatches measurement data with JSON output."""
+
+    def dispatch(self, payload: MeasurementData) -> None:
+        """Dump and print the payload as JSON."""
+        print(payload.model_dump_json())  # noqa: T201
+        if isinstance(payload, ErrorMessage):
+            sys.exit(1)
+
+
+class UrwidMeasurement(PlainMeasurement):
     """Dispatch messages for an urwid-based measurement."""
 
     def prepare(self) -> None:
@@ -501,6 +434,9 @@ class UrwidMeasurement(QuietMeasurement):
                 self.loop.screen_size = None
         self.loop.draw_screen()
         return 0
+
+    def header(self, header: Header) -> None:
+        """Set no plain header in the urwid measurement."""
 
     def set_values(self, set_values: SetValues) -> None:
         """Set the values in the urwid measurement."""
@@ -695,7 +631,7 @@ def measurementloop(
 
 
 def reset_system_and_exit(
-    dispatcher: MeasurementDispatcher,
+    dispatcher: PlainMeasurement,
     system: MergedSystem,
     reset_kwargs: dict,
     exit_code: int,
@@ -735,7 +671,7 @@ def reset_system_and_exit(
 
 
 def read_inputfile_header(
-    inputfile: str, dispatcher: MeasurementDispatcher
+    inputfile: str, dispatcher: PlainMeasurement
 ) -> tuple[list[str] | None, list[str] | None, list[str] | None]:
     """
     Read system file and column metadata from the input file header.
@@ -779,7 +715,7 @@ def verify_columns(
     settable_names_file: list[str] | None,
     settable_units_file: list[str] | None,
     options: argparse.Namespace,
-    dispatcher: MeasurementDispatcher,
+    dispatcher: PlainMeasurement,
 ) -> None:
     """
     Verify that the system columns match those of the input file.
@@ -827,8 +763,6 @@ def main() -> None:
     if options.plain:
         if options.json:
             measurement = JSONMeasurement()
-        elif options.quiet:
-            measurement = QuietMeasurement()
         else:
             measurement = PlainMeasurement()
     else:
