@@ -1007,36 +1007,23 @@ class MainWindow(QMainWindow):
         self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
 
-    def log_multiline(self, logger: logging.Logger, message: str, level=logging.INFO):
-        """Log a multi-line message to the given logger."""
-        for line in message.splitlines():
-            logger.log(level, line)
-
     @AutoSlot
     def process_data(self, env: Envelope) -> None:
         """Process the data from the measurement thread."""
         data = env.payload
-        if isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)):
-            if data.to_stdout:
-                self.write_output(str(data) + "\n")
-                if config["duplicate_output_to_logfile"]:
-                    self.log_multiline(logger, str(data))
+        if isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)) and data.to_stdout:
+            self.write_output(str(data) + "\n")
         elif isinstance(data, LineNumber):
             self.ui.widgets.script_edit.highlight(data.line - self.line_offset)
         elif isinstance(data, Datafile):
             self.update_filename(data.datafile)
         elif isinstance(data, InputParameters):
-            logger.info(data)
             self.get_script_input(data)
         elif isinstance(data, Message):
             if data.modifier == Modifier.DELETE_CURRENT_LINE:
                 self.write_output("\r" + data.message + data.end)
             else:
                 self.write_output(data.message + data.end)
-            if data.to_logfile is True or (
-                config["duplicate_output_to_logfile"] and data.to_logfile is not False
-            ):
-                self.log_multiline(logger, data.message.lstrip("\n"))
 
     def print_document(self) -> None:
         """Print the script."""
