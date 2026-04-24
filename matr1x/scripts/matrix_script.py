@@ -23,6 +23,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from os.path import normpath
@@ -127,8 +128,7 @@ from matr1x.util import (
 )
 
 logger = logging.getLogger(__name__)
-printlogger = logging.getLogger(__name__ + "_stdio")
-errorlogger = logging.getLogger(__name__ + "_stderr")
+scriptlogger = logging.getLogger(__name__ + "_subprocess")
 config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
 
 
@@ -359,6 +359,14 @@ class ScriptThread(QThread):
                 continue
             self.data_received.emit(env)
 
+    def relay_subprocess_output(self, stream, is_error: bool):
+        """Relay stdout and stderr of the subprocess to the logger."""
+        for line in iter(stream.readline, b""):
+            if is_error:
+                scriptlogger.error(line.decode().strip())
+            else:
+                scriptlogger.info(line.decode().strip())
+
     def run(self) -> None:
         """
         Run the subprocess.
@@ -397,24 +405,30 @@ mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
                 [sys.executable, "-c", cmd],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 bufsize=0,
             )
-            # accept a connection from the subprocess
-            # will block until a new client connects, might want to use select
-            # here to make sure the subprocess actually connects?
             self.conn, address = s.accept()
-            # wait until the subprocess terminates and pipe its stdout to the
-            # user window
+            threading.Thread(
+                target=self.relay_subprocess_output, args=(self.proc.stdout, False), daemon=True
+            ).start()
+            threading.Thread(
+                target=self.relay_subprocess_output, args=(self.proc.stderr, True), daemon=True
+            ).start()
+            buffer = ""
             while self.proc.poll() is None:
                 try:
-                    datachunk = self.conn.recv(8192).decode()
-                    if len(datachunk) > 0:
-                        while datachunk[-1] != "\0":
-                            datachunk += self.conn.recv(8192).decode()
-                        self.process_received_data(datachunk.replace("\0", ""))
+                    chunk = self.conn.recv(8192)
+                    if not chunk:
+                        break  # connection closed
+                    buffer += chunk.decode()
+                    while "\0" in buffer:
+                        msg, buffer = buffer.split("\0", 1)
+                        if msg:
+                            self.process_received_data(msg)
                 except OSError:
                     self.process_received_data("OS error in thread communication.\n")
+                    break
             self.conn.close()
             self.temp_config.unlink()
 
@@ -942,8 +956,8 @@ class MainWindow(QMainWindow):
         self.update_window_title()
         self._reset_state(reset_metadata=True)
         check_config(matr1x.config)
-        sys.stdout = StreamToLogger(printlogger, logging.INFO)
-        sys.stderr = StreamToLogger(errorlogger, logging.ERROR)
+        sys.stdout = StreamToLogger(logger, logging.INFO)
+        sys.stderr = StreamToLogger(logger, logging.ERROR)
         if filename is not None:
             self.load_from_filename(filename)
         self.update_systems()  # in case the load failed just to be sure
@@ -993,6 +1007,11 @@ class MainWindow(QMainWindow):
         self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
 
+    def log_multiline(self, logger: logging.Logger, message: str, level=logging.INFO):
+        """Log a multi-line message to the given logger."""
+        for line in message.splitlines():
+            logger.log(level, line)
+
     @AutoSlot
     def process_data(self, env: Envelope) -> None:
         """Process the data from the measurement thread."""
@@ -1000,17 +1019,24 @@ class MainWindow(QMainWindow):
         if isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)):
             if data.to_stdout:
                 self.write_output(str(data) + "\n")
+                if config["duplicate_output_to_logfile"]:
+                    self.log_multiline(logger, str(data))
         elif isinstance(data, LineNumber):
             self.ui.widgets.script_edit.highlight(data.line - self.line_offset)
         elif isinstance(data, Datafile):
             self.update_filename(data.datafile)
         elif isinstance(data, InputParameters):
+            logger.info(data)
             self.get_script_input(data)
         elif isinstance(data, Message):
             if data.modifier == Modifier.DELETE_CURRENT_LINE:
                 self.write_output("\r" + data.message + data.end)
             else:
                 self.write_output(data.message + data.end)
+            if data.to_logfile is True or (
+                config["duplicate_output_to_logfile"] and data.to_logfile is not False
+            ):
+                self.log_multiline(logger, data.message.lstrip("\n"))
 
     def print_document(self) -> None:
         """Print the script."""
@@ -1722,7 +1748,9 @@ class MainWindow(QMainWindow):
             self.ui.actions.start_pause.setChecked(False)
             self.ui.widgets.status_preview.print_colored("No system selected")
             return
-        if self.run_linter() > 0:  # run linter to make sure there are no errors
+        if (
+            self.run_linter() > 0 and not self.in_pytest
+        ):  # run linter to make sure there are no errors
             self.ui.widgets.status_preview.print_colored(
                 "Script execution was halted because of linter errors"
             )

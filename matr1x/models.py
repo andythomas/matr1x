@@ -303,6 +303,14 @@ class InputParameters(BaseModel):
     step: float | None = None
     decimals: int | None = None
 
+    def __str__(self) -> str:
+        """Return a string representation of the input parameters."""
+        return (
+            f"Requesting input type: {self.input_type}, Query: {self.query}, "
+            f"Timeout: {self.timeout}, Default: {self.default_value}, Min: {self.min_value},"
+            f" Max: {self.max_value}, Step: {self.step}"
+        )
+
 
 MeasurementData = (
     Header

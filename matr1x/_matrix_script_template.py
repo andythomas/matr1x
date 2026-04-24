@@ -13,7 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""INTERNAL TEMPLATE FILE - DO NOT RUN OR IMORT DIRECTLY.
+"""
+INTERNAL TEMPLATE FILE - DO NOT RUN OR IMPORT DIRECTLY.
 
 This file is a template used by matr1x.util.generate_script() to create
 executable scripts for matrix-script. It contains placeholder variables
@@ -44,6 +45,7 @@ from matr1x.models import MeasuredValues as _MeasuredValues
 from matr1x.models import Message as _Message
 from matr1x.models import SetValues as _SetValues
 from matr1x.models import Telemetry as _Telemetry
+from matr1x.system import MergedSystem as _MergedSystem
 
 if _typing.TYPE_CHECKING:
     from matr1x.execthread import ExecThread
@@ -80,7 +82,7 @@ _preset = _starttime
 _reset_kwargs = {}
 
 
-def _configure_execution_path(scriptname: str | _Path):
+def _configure_execution_path(scriptname: str | _Path) -> None:
     """Change execution path if requested in config."""
     script_path = _Path(scriptname)
     if _config["script_path"] == "<script-location>":
@@ -92,7 +94,7 @@ def _configure_execution_path(scriptname: str | _Path):
             _os.chdir(config_path)
 
 
-def _configure_script_storing(system, script):
+def _configure_script_storing(system: _MergedSystem, script: str) -> None:
     """Store user script if requested in config."""
     if _config["store_script_in_datafile"]:
         prefix, suffix = _matrix_util.generate_script_prefix_suffix()
@@ -107,7 +109,7 @@ def _configure_script_storing(system, script):
             )
 
 
-def _find_caller_frame():
+def _find_caller_frame() -> _types.FrameType | None:
     """Find the frame of the actual caller, skip decorator frames."""
     # stepping twice back on frame, since the inner most frame is from
     # this and the second one is from the _lineno decorator/function.
@@ -143,8 +145,7 @@ def _lineno_decorator(wrapped, instance, args, kwargs):
 
 def _show_lineno() -> None:
     """Report the executing line number back to the GUI."""
-    frame = _find_caller_frame()
-    if frame:
+    if frame := _find_caller_frame():
         caller_filename = frame.f_code.co_filename
         if caller_filename == "<string>":
             # report line only if called directly from script
@@ -189,7 +190,7 @@ def _breakpoint(wrapped, instance, args, kwargs):
     return result
 
 
-def _inject_decorator(instance, decorator):
+def _inject_decorator(instance, decorator) -> None:
     """Inject decorator into instance methods."""
     for attr_name in dir(instance):
         if attr_name in ["add_comment", "_print"]:
@@ -204,7 +205,7 @@ def _inject_decorator(instance, decorator):
             setattr(instance, attr_name, decorated_attr)
 
 
-def _reset_setvalues():
+def _reset_setvalues() -> None:
     """Reset the setvalues variable."""
     global _setvalues
     _setvalues = []

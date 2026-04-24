@@ -16,33 +16,21 @@
 """
 Execution thread control for matrix-script.
 
-This module includes class definitions used for execution of the matrix-script process.
+This module includes function and variable definitions used for
+execution of the matrix-script process.
 """
 
-import io
 import logging
 import re
 import socket
-import sys
 import threading
 import time
-import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from matr1x import get_config_dict
-from matr1x.models import (
-    Header,
-    InputParameters,
-    MeasuredValues,
-    MeasurementData,
-    Message,
-    Modifier,
-    SetValues,
-    Telemetry,
-)
+from matr1x.models import InputParameters, MeasurementData, Message, Modifier
 from matr1x.system import MergedSystem
-from matr1x.util import flatten, get_formatted_line
 
 __all__ = ["ExecThread"]
 
@@ -71,8 +59,6 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
     ------
     ValueError
         If the until format is not recognized.
-    TypeError
-        If until is not a string or datetime object.
     """
     if isinstance(until, datetime):
         return until
@@ -125,14 +111,6 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
     raise ValueError("Timestamp format not recognized.")
 
 
-class ZeroFramed(io.TextIOWrapper):
-    r"""Wraps a socket stream with \0 after every write for framing."""
-
-    def write(self, s: str) -> int:
-        """Append null byte as message delimiter and write to stream."""
-        return super().write(s + "\0")
-
-
 @dataclass
 class Status:
     finished: bool | None = None
@@ -142,8 +120,8 @@ class ExecThread(threading.Thread):
     """
     Thread that handles the execution of the measurement script.
 
-    The thread is designed to be killable, allowing for graceful termination
-    of the script execution.
+    The thread is designed to be killable, allowing for graceful
+    termination of the script execution.
 
     Attributes
     ----------
@@ -168,7 +146,8 @@ class ExecThread(threading.Thread):
         systems: list[str],
         /,
     ):
-        """Initialize the execution thread.
+        """
+        Initialize the execution thread.
 
         Parameters
         ----------
@@ -192,14 +171,10 @@ class ExecThread(threading.Thread):
         self.pause_flag = False
         self.interrupt_flag = False
         self.recv_flag = False
-        self.recv = ""
+        self.recv: str = ""
         self.socket = socket
-        if self.socket is not None:
-            # pass on all stdout to socket
-            raw = self.socket.makefile("wb", buffering=0)
-            sys.stdout = ZeroFramed(raw, write_through=True)
 
-    def pause(self, state):
+    def pause(self, state: bool) -> None:
         """
         Pause the execution at the breakpoint.
 
@@ -207,16 +182,12 @@ class ExecThread(threading.Thread):
         ----------
         state : bool
             True to pause, False to resume.
-
-        Returns
-        -------
-        None
         """
         self.pause_flag = bool(state)
         if state is True:
             self.report(Message(message="\npaused", to_comment=False))
 
-    def stop(self, state: bool | None = None):
+    def stop(self, state: bool | None = None) -> None:
         """
         Set the interrupt flag, to stop execution at next breakpoint.
 
@@ -224,16 +195,19 @@ class ExecThread(threading.Thread):
         ----------
         state : bool or None, optional
             The state to set for stop_status.finished.
-
-        Returns
-        -------
-        None
         """
         self.pause_flag = False
         self.stop_status.finished = state
         self.interrupt_flag = True
 
-    def interrupt(self, *, duration=None, until=None, message="", silent=10):
+    def interrupt(
+        self,
+        *,
+        duration: float | None = None,
+        until: str | datetime | None = None,
+        message: str = "",
+        silent: float = 10,
+    ):
         """
         Pauses execution for a specified duration.
 
@@ -241,20 +215,17 @@ class ExecThread(threading.Thread):
 
         Parameters
         ----------
-        duration : float or int, optional
+        duration : float, optional
             The number of seconds to sleep. If specified, the
             function will sleep for this duration.
-
         until : str or datetime, optional
             A target time or relative time string. It can be:
             - An absolute timestamp in a format like "YYYY-MM-DD HH:MM:SS" or "HH:MM".
             - A relative time string starting with '+' followed by a number and a unit
             (e.g., "+24h" for 24 hours, "+30m" for 30 minutes, "+1d" for 1 day).
             - A `datetime` object representing a specific time.
-
         message : str, optional
             Message to display during the wait.
-
         silent : float, optional
             Time threshold above which to display messages about the wait.
 
@@ -263,9 +234,6 @@ class ExecThread(threading.Thread):
         ValueError
             If neither `duration` nor `until` is provided,
             or if the `until` format is not recognized.
-
-        TypeError
-            If `until` is not a string or `datetime` object.
         """
         now = datetime.now()
         msg = "" if not message else f" ({message})"
@@ -312,7 +280,9 @@ class ExecThread(threading.Thread):
         # Ensure interrupt and pause checks are called at least once, even if `sleep_time` is 0
         self.check_for_interrupt_and_pause()
 
-    def _execute_sleep(self, sleep_time, end_time, is_duration, silent, message):
+    def _execute_sleep(
+        self, sleep_time: float, end_time: datetime, is_duration: bool, silent: float, message: str
+    ):
         """
         Handle sleeping with interrupt and pause checks.
 
@@ -387,7 +357,7 @@ class ExecThread(threading.Thread):
         if initial_sleep_time > silent:
             self.report(Message(message="Waiting done", modifier=Modifier.DELETE_CURRENT_LINE))
 
-    def check_for_interrupt_and_pause(self):
+    def check_for_interrupt_and_pause(self) -> bool:
         """
         Check for interrupt and pause flags and take appropriate action.
 
@@ -490,7 +460,7 @@ class ExecThread(threading.Thread):
         return ret
 
     # callback function that handles the input
-    def handle_input(self, inp):
+    def handle_input(self, inp: str) -> None:
         """
         Handle input that is passed to the thread.
 
@@ -533,67 +503,23 @@ class ExecThread(threading.Thread):
                 config["print_to_comment"] and data.to_comment is not False
             ):
                 self.system.add_comment(data.message)
-            if data.to_logfile is True or (
-                config["duplicate_output_to_logfile"] and data.to_logfile is not False
-            ):
-                logger.info(data.message.lstrip("\n"))
-        if isinstance(data, (Header, SetValues, MeasuredValues, Telemetry)):
-            if data.to_stdout and config["duplicate_output_to_logfile"]:
-                if isinstance(data, (Telemetry, SetValues, MeasuredValues)):
-                    logger.info(data)
-                elif isinstance(data, Header):
-                    logger.info(get_formatted_line(flatten(data.columns)))
-                    logger.info(get_formatted_line(flatten(data.units)))
-
-        print(data.model_dump_json(), flush=True)  # noqa: T201
+        self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
 
     def run(self):
-        """
-        Run the script and provide meaningful error information.
-
-        This method executes the script and handles any errors that
-        occur during execution, providing detailed error
-        information.
-        """
+        """Run the script and allow to cancel at the start."""
         try:
-            try:
-                _vars = {
-                    "_interrupt": self.interrupt,
-                    "_status": self.stop_status,
-                    "_report": self.report,
-                    "_input": self.input,
-                    "_meta_data": self.meta_data,
-                    "_scriptname": self.scriptname,
-                    "_script": self.script,
-                    "_system": self.system,
-                }
-                exec(self.script, _vars)
-            except Exception:
-                # This catches errors during template initialization or cleanup,
-                # not user script errors (those are handled in the template itself)
-                self.report(
-                    Message(message="script initialization/cleanup error:", to_comment=False)
-                )
-
-                # Get the traceback and improve the file context
-                tb_str = io.StringIO()
-                traceback.print_exc(file=tb_str)
-                tb_output = tb_str.getvalue()
-
-                # Replace <string> with more descriptive context
-                lines = tb_output.split("\n")
-                for i, line in enumerate(lines):
-                    if 'File "<string>"' in line and ", line " in line:
-                        # Extract line number from the traceback
-                        match = re.search(r"line (\d+)", line)
-                        if match:
-                            line_num = int(match.group(1))
-                            # Add template context
-                            replacement = f'File "<template script, line {line_num}>"'
-                            lines[i] = line.replace('File "<string>"', replacement)
-
-                self.report(Message(message="\n".join(lines)))
+            _vars = {
+                "_interrupt": self.interrupt,
+                "_status": self.stop_status,
+                "_report": self.report,
+                "_input": self.input,
+                "_meta_data": self.meta_data,
+                "_scriptname": self.scriptname,
+                "_script": self.script,
+                "_system": self.system,
+            }
+            exec(self.script, _vars)
         except KeyboardInterrupt:
             self.report(
-                Message(message="script interrupted during initialization", to_comment=False)
+                Message(message="Script interrupted during initialization", to_comment=False)
             )

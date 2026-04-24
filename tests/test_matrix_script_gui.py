@@ -66,6 +66,7 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainW
     Asserts
     -------
     main window is visible
+    no error occured during the run
     preview action is enabled
     name fits the init_datafile
     a file was created
@@ -106,6 +107,7 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainW
     # Next line: Increased timeout needed for Windows
     qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
     qapp.processEvents()
+    assert not main_window.log_window.isVisible()
     assert main_window.ui.actions.preview.isEnabled()
 
     assert main_window.measurement_file.name[:14] == "boring_testrun"
