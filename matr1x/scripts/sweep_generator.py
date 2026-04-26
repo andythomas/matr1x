@@ -981,7 +981,7 @@ class MainWindow(FileDropMixin, QMainWindow):
     def __init__(
         self,
         filename: Path | None = None,
-        system=None,
+        *,
         inputcb: Callable[[str], None] | None = None,
         log_window: LoggingWindow | None = None,
     ):
@@ -995,7 +995,6 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.log_window = log_window
         logger.info("sweep-generator starting")
 
-        self.system: MergedSystem | None = system
         self.inputcb: Callable[[str], None] | None = inputcb
         self.last_loaded_system: str | None = None
         self.last_filename: Path | None = None
@@ -1228,7 +1227,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.preview.setEnabled(True)
         self.ui.actions.remove_system.setEnabled(True)
         try:
-            self.system = MergedSystem.from_files(filenames)
+            system = MergedSystem.from_files(filenames)
         except Exception as e:
             if isinstance(e, ModuleNotFoundError):
                 error_text = '<p style="color:red">Please check the path to the system files and '
@@ -1241,26 +1240,20 @@ class MainWindow(FileDropMixin, QMainWindow):
             error_text += "" + tbstr
             QMessageBox.warning(self, "Import error.", error_text.replace("\n", "<br>"))
             return False
-        self.process_system_import()
-        return True
-
-    def process_system_import(self) -> None:
-        """Process specified system imports and populate layout."""
-        if self.system is None:
-            raise InternalInvariantError("System should not be None at this point.")
-        if len(self.system.columns) != len(self.system.units):
+        if len(system.columns) != len(system.units):
             QMessageBox.warning(
                 self,
                 "Import error!",
                 "Lists with columns, units and settables of unequal length, check system file.",
             )
-            return
+            return False
         self.reset_layout()
-        self._apply_system_to_columns()
+        self._apply_system_to_columns(system)
         self.populate_layout()
         self.populated = True
+        return True
 
-    def _apply_system_to_columns(self) -> None:
+    def _apply_system_to_columns(self, system: MergedSystem) -> None:
         """
         Update column data to match the current system.
 
@@ -1268,12 +1261,10 @@ class MainWindow(FileDropMixin, QMainWindow):
         columns. Sweep parameters for columns that exist in both the old
         and the new system are preserved; all other columns start empty.
         """
-        if self.system is None:
-            raise InternalInvariantError("System should not be None at this point.")
         old_cols = self.columns.name
         self.columns.sign = []
-        settables, self.columns.name, self.columns.unit = self.system.settable_columns()
-        for i, (settable, col) in enumerate(zip(settables, self.system.columns)):
+        settables, self.columns.name, self.columns.unit = system.settable_columns()
+        for i, (settable, col) in enumerate(zip(settables, system.columns)):
             if settable is True:
                 if isinstance(col, (tuple, list)):
                     # if parameter has multiple values, add multiple columns
@@ -1766,7 +1757,6 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.populated = False
             self.ui.widgets.system_list.clear()
             self.ui.actions.remove_system.setEnabled(False)
-            self.system = None
             self.last_loaded_system = None
             self.columns.clear()
             self.last_filename = None
