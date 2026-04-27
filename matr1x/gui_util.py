@@ -68,6 +68,7 @@ from PySide6.QtCore import (
     QObject,
     QPersistentModelIndex,
     QPoint,
+    QPropertyAnimation,
     QSettings,
     QSize,
     Qt,
@@ -125,7 +126,6 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QStyle,
     QStyledItemDelegate,
-    QSystemTrayIcon,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -138,12 +138,7 @@ from PySide6.QtWidgets import (
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.models import MainConfig, SystemInfo, UserlibConfig
 
-from . import (
-    get_config_dict,
-    merge_dicts,
-    reload_config,
-    write_config,
-)
+from . import get_config_dict, merge_dicts, reload_config, write_config
 from .eval import delta
 
 P = ParamSpec("P")
@@ -3714,7 +3709,6 @@ def get_matrix_icon(
     # Get the included Qt icon
     if name.startswith("SP_"):
         style = QApplication.style()
-        assert style is not None
         icon = style.standardIcon(getattr(QStyle.StandardPixmap, name))
         return icon
     # Use the original matrix icons
@@ -3875,26 +3869,63 @@ def save_messagebox(instance) -> int:
     return msg.exec()
 
 
-def create_tray_notification(title: str, message: str, instance) -> None:
+class Notifier(QWidget):
     """
-    Show a platform independent desktop notification.
+    An animated layout that shows a message with an icon.
 
     Parameters
     ----------
-    title : str
-        The title of the notification.
-    message : str
-        The message of the notification.
+    logger : logging.Logger
+        The logger to use for logging messages.
     """
-    instance._tray_icon = QSystemTrayIcon()
-    main_window = instance.window()
-    if isinstance(main_window, QMainWindow):
-        icon = main_window.windowIcon()
-    else:
-        icon = QIcon()
-    instance._tray_icon.setIcon(icon)
-    instance._tray_icon.show()
-    instance._tray_icon.showMessage(title, message, QSystemTrayIcon.MessageIcon.Warning)
+
+    def __init__(self, logger: logging.Logger):
+        """Initialize the notification widget."""
+        super().__init__()
+        self._logger = logger
+        self.setMaximumHeight(0)
+        self.setVisible(False)
+        self._content = QHBoxLayout()
+        self._content.setContentsMargins(0, 0, 0, 0)
+        self._icon = QLabel()
+        self._text = QLabel()
+        self._content.addWidget(self._icon)
+        self._content.addWidget(self._text)
+        self._content.addStretch()
+        self.setLayout(self._content)
+
+    def show_message(self, message: str, level: int = logging.INFO):
+        """Show a message text and appropriate icon."""
+        if level >= logging.ERROR:
+            icon_name = "SP_MessageBoxCritical"
+        elif level >= logging.WARNING:
+            icon_name = "SP_MessageBoxWarning"
+        else:
+            icon_name = "SP_MessageBoxInformation"
+        size = MApplication.instance().toolbar_icon_size()
+        self._icon.setPixmap(get_matrix_icon(icon_name).pixmap(size, size))
+        self._text.setText(message)
+        self._logger.log(level, message)
+        self.show_animated()
+
+    def show_animated(self):
+        """Show the notification and hide after 3s."""
+        self.setVisible(True)
+        self.anim = QPropertyAnimation(self, b"maximumHeight")
+        self.anim.setDuration(250)
+        self.anim.setStartValue(0)
+        self.anim.setEndValue(int(self.sizeHint().height()))
+        self.anim.start()
+        QTimer.singleShot(3000, self.hide_animated)
+
+    def hide_animated(self):
+        """Hide the notification."""
+        self.anim = QPropertyAnimation(self, b"maximumHeight")
+        self.anim.setDuration(250)
+        self.anim.setStartValue(self.maximumHeight())
+        self.anim.setEndValue(0)
+        self.anim.finished.connect(lambda: self.setVisible(False))
+        self.anim.start()
 
 
 class ThemeDetector(QWidget):
@@ -4360,7 +4391,7 @@ class _LogSignalHelper(QObject):
     """Provide signals for QTableLogger without conflicts."""
 
     log_record_received = Signal(list)
-    warning_or_above_received = Signal()
+    error_received = Signal()
 
 
 class _QTableLogger(logging.Handler):
@@ -4411,8 +4442,8 @@ class _QTableLogger(logging.Handler):
         log_line = self.format(record)
         parts = log_line.split(self.separator)
         self._signal_helper.log_record_received.emit(parts)
-        if record.levelno >= logging.WARNING:
-            self._signal_helper.warning_or_above_received.emit()
+        if record.levelno > logging.WARNING:
+            self._signal_helper.error_received.emit()
 
     def _add_log_to_table(self, parts: list[str]) -> None:
         """
@@ -4526,7 +4557,7 @@ class LoggingWindow(QMainWindow):
         self.log_handler.setFormatter(formatter)
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
-        self.log_handler._signal_helper.warning_or_above_received.connect(
+        self.log_handler._signal_helper.error_received.connect(
             self.show, Qt.ConnectionType.QueuedConnection
         )
 

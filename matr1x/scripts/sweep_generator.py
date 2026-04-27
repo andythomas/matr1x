@@ -82,11 +82,11 @@ from matr1x.gui_util import (
     FileDropMixin,
     LoggingWindow,
     MApplication,
+    Notifier,
     SaferQSettings,
     SystemListWidget,
     check_config,
     clear_layout,
-    create_tray_notification,
     get_matrix_icon,
     open_matrix_toml,
     protected_restore,
@@ -624,6 +624,7 @@ class WidgetGroup:
     sweep_table: QTableWidget
     central_widget: QWidget
     system_list: SystemListWidget
+    notifier: Notifier
 
 
 @dataclass
@@ -689,11 +690,14 @@ class UIBuilder:
         system_list.setMinimumHeight(50)
         system_list.setMaximumHeight(50)
 
+        notifier = Notifier(logger)
+
         return WidgetGroup(
             sweep_preview=sweep_preview,
             sweep_table=sweep_table,
             central_widget=QWidget(),
             system_list=system_list,
+            notifier=notifier,
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -828,6 +832,7 @@ class UIBuilder:
         lower_view.addWidget(self.widgets.sweep_preview)
         lower_view.addWidget(self.widgets.sweep_table)
         central_layout = QVBoxLayout()
+        central_layout.addWidget(self.widgets.notifier)
         central_layout.addLayout(grid)
         central_layout.addLayout(lower_view)
         self.widgets.central_widget.setLayout(central_layout)
@@ -1202,8 +1207,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             True on success and False on error during import.
         """
         if any(self.columns.parameter):
-            create_tray_notification(
-                "Sweep reset", "All previous sweep parameters have been cleared.", self
+            self.ui.widgets.notifier.show_message(
+                "All previous sweep parameters have been cleared.", logging.WARNING
             )
         filenames = [
             self.ui.widgets.system_list.item(j).text()
