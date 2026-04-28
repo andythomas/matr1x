@@ -114,7 +114,7 @@ def get_package_path(package_name: str) -> Path | None:
     return None
 
 
-def get_importable_module_name(filename_str: str) -> str | bool:
+def get_importable_module_name(filename_str: str | Path) -> str | bool:
     """
     Get importable module name if filename point to an installed module.
 
@@ -123,7 +123,7 @@ def get_importable_module_name(filename_str: str) -> str | bool:
 
     Parameters
     ----------
-    filename : str
+    filename : str or Path
         Path to the file.
 
     Returns
@@ -174,7 +174,7 @@ def get_importable_module_name(filename_str: str) -> str | bool:
 
 def create_temp_dir_with_symlinks(
     names: Sequence[str], targets: Sequence[str | Path]
-) -> TemporaryDirectory:
+) -> TemporaryDirectory[str]:
     """
     Create temporary directory with symlinks.
 

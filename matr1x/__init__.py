@@ -48,7 +48,7 @@ from pydantic import ValidationError
 from . import pymeasure_threading_fix
 from .metadata import VALID_META_KEYS
 from .models import MainConfig, UserlibConfig, format_validation_error
-from .util import get_package_path
+from .util import create_temp_dir_with_symlinks, get_package_path
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -313,10 +313,10 @@ if not _systems_directory.is_dir():
     # use fallback option
     _systems_directory = Path(__file__).resolve().parent / "systems"
 
-system_names = [
+system_names: list[str] = [
     "matr1x-systems",
 ]
-system_directories = [
+system_directories: list[Path] = [
     _systems_directory,
 ]
 for section in config:
@@ -341,3 +341,8 @@ for section in config:
                 print(  # noqa: T201
                     f"matrix.conf: option {section}/systems_directory has invalid value '{sysdir}'"
                 )
+if len(system_names) > 1:
+    temp = create_temp_dir_with_symlinks(system_names, system_directories)
+    resolved_directory = Path(temp.name) / system_names[-1]
+else:
+    resolved_directory = system_directories[-1]

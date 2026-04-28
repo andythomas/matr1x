@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy
 import pytest
 from matr1x.scripts import sweep_generator
+from matr1x.util import get_importable_module_name
 from PySide6.QtWidgets import QLineEdit
 
 path = Path(__file__).resolve().parent
@@ -66,9 +67,11 @@ def test_sweep_generator_systems(qtbot, qapp, sweep_generator_window: sweep_gene
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 
-    dummy_system = path / "../matr1x/systems/system_dummy.py"
-    dummy_system2 = path / "../matr1x/systems/system_dummy_meas.py"
-    main_window.add_system([dummy_system, dummy_system2])
+    mod = get_importable_module_name((path / "../matr1x/systems/system_dummy.py").resolve())
+    mod2 = get_importable_module_name((path / "../matr1x/systems/system_dummy_meas.py").resolve())
+    main_window.ui.widgets.system_list.addItem(mod)
+    main_window.ui.widgets.system_list.addItem(mod2)
+    main_window.update_systems()
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 1, timeout=2000)
     main_window.delete_selected_system()
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() == 1, timeout=2000)
@@ -95,8 +98,9 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generato
     qapp.processEvents()
     assert main_window.isVisible()
 
-    dummy_system = path / "../matr1x/systems/system_dummy.py"
-    main_window.add_system([dummy_system])
+    module = get_importable_module_name((path / "../matr1x/systems/system_dummy.py").resolve())
+    main_window.ui.widgets.system_list.addItem(module)
+    main_window.update_systems()
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 0, timeout=2000)
     assert main_window.windowTitle() == "Sweep Generator: *<unsaved>"
 
@@ -218,8 +222,9 @@ def test_sweep_generator_sweep_table(
     qapp.processEvents()
     assert main_window.isVisible()
 
-    dummy_system = path / "../matr1x/systems/system_dummy.py"
-    main_window.add_system([dummy_system])
+    module = get_importable_module_name((path / "../matr1x/systems/system_dummy.py").resolve())
+    main_window.ui.widgets.system_list.addItem(module)
+    main_window.update_systems()
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 0, timeout=2000)
     main_window.grid_widgets[0].start.setText("0")
     main_window.grid_widgets[0].end.setText("10")

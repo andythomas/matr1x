@@ -137,6 +137,7 @@ from PySide6.QtWidgets import (
 
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.models import MainConfig, SystemInfo, UserlibConfig
+from matr1x.util import get_importable_module_name
 
 from . import get_config_dict, merge_dicts, reload_config, write_config
 from .eval import delta
@@ -401,6 +402,22 @@ class SystemListWidget(QListWidget):
                 print(f"{item} is already added and was omitted.")  # noqa: T201
                 return
         super().addItem(item)
+
+    def add_systems(self, base: Path) -> Result[list[str], str]:
+        """Select and add system files(s)."""
+        filenames = QFileDialog.getOpenFileNames(
+            self, "Select system file(s) to add", str(base), "system files (system*.py)"
+        )[0]
+        if filenames == []:
+            return Error("No file selected.")
+        for filename in filenames:
+            filename = str(Path(filename).resolve())
+            module_name = get_importable_module_name(filename)
+            if module_name:
+                self.addItem(module_name)
+            else:
+                self.addItem(filename)
+        return Success(filenames)
 
 
 class MetaViewerWidget(QDockWidget):

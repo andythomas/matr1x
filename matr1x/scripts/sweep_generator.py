@@ -32,7 +32,6 @@ from dataclasses import dataclass, fields
 from functools import cached_property
 from math import floor
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any
 
 import numpy
@@ -67,7 +66,7 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x import datetimefmt, system_directories, system_names, usersfolder
+from matr1x import datetimefmt, resolved_directory, usersfolder
 from matr1x.error_handling import (
     Error,
     InternalInvariantError,
@@ -99,11 +98,7 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.system import MergedSystem
-from matr1x.util import (
-    create_temp_dir_with_symlinks,
-    generate_col_index,
-    get_importable_module_name,
-)
+from matr1x.util import generate_col_index
 
 __all__ = ["MainWindow"]
 
@@ -1001,11 +996,10 @@ class MainWindow(FileDropMixin, QMainWindow):
         logger.info("sweep-generator starting")
 
         self.inputcb: Callable[[str], None] | None = inputcb
-        self.last_loaded_system: str | None = None
+        self.last_loaded_system: Path = resolved_directory
         self.last_filename: Path | None = None
         self.dirty: bool = False
         self.columns: ColumnData = ColumnData()
-        self.shortcut_dir: TemporaryDirectory | None = None
         self.settings: SaferQSettings = SaferQSettings("matr1x", "sweep-generator")
         self.preview_column: int = 0
         self.populated: bool = False
@@ -1137,7 +1131,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.preview.triggered.connect(self.preview_sweep)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
-        self.ui.widgets.system_list.orderChanged.connect(self.on_filename_changed)
+        self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
         self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
         self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
@@ -1197,7 +1191,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             loop_over.append(self.grid_widgets[col].loopover.currentIndex() - 1)
         self.columns.loop_over = loop_over
 
-    def on_filename_changed(self) -> bool:
+    def update_systems(self) -> bool:
         """
         Import new system because a filename changed.
 
@@ -1214,6 +1208,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.ui.widgets.system_list.item(j).text()
             for j in range(self.ui.widgets.system_list.count())
         ]
+        self.window_title_dirty.emit()
         if len(filenames) == 0:
             self.reset_layout()
             self.ui.actions.new_file.setEnabled(False)
@@ -1606,40 +1601,19 @@ class MainWindow(FileDropMixin, QMainWindow):
         del self.columns.parameter[col][row]
         self.populate_sweep_grid(col)
 
-    def add_system(self, filenames: list | None = None) -> None:
+    def add_system(self) -> None:
         """
         Add a system file to the system list and initiate import.
 
         Opens a QFileDialog with filter system*.py.
         """
-        directory = system_directories[-1]
-        if not self.shortcut_dir and len(system_names) > 1:
-            self.shortcut_dir = create_temp_dir_with_symlinks(system_names, system_directories)
-        if self.shortcut_dir:
-            directory = Path(self.shortcut_dir.name) / system_names[-1]
-        if self.last_loaded_system:
-            directory = Path(self.last_loaded_system).parent
-        # get filenames from dialog
-        if not filenames:
-            filenames = QFileDialog.getOpenFileNames(
-                self, "Select system file", str(directory), "system files (system*.py)"
-            )[0]
-        if filenames == []:
+        ret = self.ui.widgets.system_list.add_systems(self.last_loaded_system)
+        if isinstance(ret, Error):
             return
-        for filename in filenames:
-            self.last_loaded_system = filename
-            filename = str(Path(filename).resolve())
-            module_name = get_importable_module_name(filename)
-            if module_name:
-                self.ui.widgets.system_list.addItem(module_name)
-            else:
-                self.ui.widgets.system_list.addItem(filename)
-        self.window_title_dirty.emit()
-        if not self.on_filename_changed():
-            for filename in filenames:
+        self.last_loaded_system = Path(ret.value[-1])
+        if not self.update_systems():
+            for _ in ret.value:
                 self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
-        if self.ui.widgets.system_list.count() != 0:
-            self.ui.actions.remove_system.setEnabled(True)
 
     def delete_selected_system(self) -> None:
         """Remove selected or last system from the system list."""
@@ -1650,10 +1624,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
         else:
             return
-        if self.ui.widgets.system_list.count() == 0:
-            self.ui.actions.remove_system.setEnabled(False)
-        self.on_filename_changed()
-        self.window_title_dirty.emit()
+        self.update_systems()
 
     def load_file(self) -> None:
         """Open a QFileDialog to open an existing sweep file."""
@@ -1692,7 +1663,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 regex = r"^# [Ss]ystem filename : (.+)"
                 if match := re.match(regex, line.strip()):
                     self.ui.widgets.system_list.addItems(match.group(1).split(","))
-                    if not self.on_filename_changed():
+                    if not self.update_systems():
                         return
                 for key in params.keys():
                     if key in line:
@@ -1762,7 +1733,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.populated = False
             self.ui.widgets.system_list.clear()
             self.ui.actions.remove_system.setEnabled(False)
-            self.last_loaded_system = None
+            self.last_loaded_system = resolved_directory
             self.columns.clear()
             self.last_filename = None
             self.ui.widgets.sweep_preview.setRowCount(0)

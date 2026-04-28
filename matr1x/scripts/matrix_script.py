@@ -74,6 +74,7 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+from matr1x import resolved_directory
 from matr1x.editor import CodeEditor, LSPServer
 from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
@@ -120,10 +121,8 @@ from matr1x.post_install import (
 )
 from matr1x.util import (
     StreamToLogger,
-    create_temp_dir_with_symlinks,
     find_binary,
     generate_script,
-    get_importable_module_name,
     get_script_prefix_offset,
 )
 
@@ -935,7 +934,7 @@ class MainWindow(QMainWindow):
         self.line_offset = get_script_prefix_offset()
         self.measurement_file: Path
         self.systems_dirty = False
-        self.last_loaded_file: Path | None = None
+        self.last_loaded_system: Path = resolved_directory
         self.is_running = False
         self.shortcut_dir: tempfile.TemporaryDirectory[str] | None = None
         self.last_filename: Path | None = None
@@ -1352,49 +1351,16 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.setFilename(lsp_name)
 
     def add_system(self) -> None:
-        """
-        Add a system file to the system list.
-
-        Opens a QFileDialog with filter system*.py. Update help if need
-        be.
-        """
-        directory = matr1x.system_directories[-1]
-        if not self.shortcut_dir and len(matr1x.system_names) > 1:
-            self.shortcut_dir = create_temp_dir_with_symlinks(
-                matr1x.system_names, matr1x.system_directories
-            )
-        if self.shortcut_dir:
-            directory = Path(self.shortcut_dir.name) / matr1x.system_names[-1]
-        if self.last_loaded_file:
-            directory = self.last_loaded_file.parent
-        # get filenames from dialog
-        filenames = QFileDialog.getOpenFileNames(
-            self, "Select system file to add", str(directory), "system files (system*.py)"
-        )[0]
-        if filenames == []:
+        """Add system file(s) and update accordingly."""
+        ret = self.ui.widgets.system_list.add_systems(self.last_loaded_system)
+        if isinstance(ret, Error):
             return
-        for filename in filenames:
-            self.last_loaded_file = Path(filename)
-            filename = str(Path(filename).resolve())
-            module_name = get_importable_module_name(filename)
-            if module_name:
-                self.ui.widgets.system_list.addItem(module_name)
-            else:
-                self.ui.widgets.system_list.addItem(filename)
+        self.last_loaded_system = Path(ret.value[-1])
         self.ui.actions.remove_system.setEnabled(True)
-        self.systems_dirty = True
-        self.update_window_title()
         self.update_systems()
-        if self.ui.widgets.system_command_help.isVisible():
-            self.show_system_commands()
 
     def delete_selected_system(self) -> None:
-        """
-        Remove selected system from system_list.
-
-        If no selection is active the last system will be removed.
-        Update help if need be.
-        """
+        """Remove system and update accordingly."""
         selected = self.ui.widgets.system_list.selectedItems()
         if len(selected) > 0:
             self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.row(selected[0]))
@@ -1402,11 +1368,7 @@ class MainWindow(QMainWindow):
             self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
         if self.ui.widgets.system_list.count() == 0:
             self.ui.actions.remove_system.setEnabled(False)
-        self.systems_dirty = True
-        self.update_window_title()
         self.update_systems()
-        if self.ui.widgets.system_command_help.isVisible():
-            self.show_system_commands()
 
     @AutoSlot
     def get_script_input(self, params: InputParameters) -> None:
@@ -1775,6 +1737,8 @@ class MainWindow(QMainWindow):
         update_config: bool
             Whether to update the config editor.
         """
+        self.systems_dirty = True
+        self.update_window_title()
         self.systems = [
             # use normpath here since there is no pathlib equivalent
             normpath(self.ui.widgets.system_list.item(j).text())
@@ -1796,6 +1760,8 @@ class MainWindow(QMainWindow):
             self.ui.widgets.config_editor.update_data()
         # Update system commands with cached info
         self.update_system_commands()
+        if self.ui.widgets.system_command_help.isVisible():
+            self.show_system_commands()
         self.run_linter()
 
     def _extract_settable_info(
