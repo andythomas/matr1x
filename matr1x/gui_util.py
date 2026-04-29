@@ -4178,7 +4178,7 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
                 sys.executable,
                 "-c",
                 "import json; from matr1x.system import MergedSystem;"
-                f"print(json.dumps(MergedSystem.from_files({systems})."
+                f"print(json.dumps(MergedSystem.from_files({systems}).value."
                 "grab_information()))",
             ],
             capture_output=True,
