@@ -38,7 +38,7 @@ import numpy as np
 from pymeasure.instruments import Instrument
 
 from matr1x.devices.visadevice import VisaDevice
-from matr1x.error_handling import InternalInvariantError
+from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 
 from . import VALID_META_KEYS, datetimefmt, get_config_dict, output_extension
 from .util import (
@@ -509,11 +509,12 @@ class System:
         self._filename = value
 
     @classmethod
-    def from_file(cls, filename: Path) -> "System":
+    def from_file(cls, filename: Path) -> Result["System", str]:
         """
         Load a system from a file.
 
-        If a file with the given name cannot be found the system installed files are searched.
+        If a file with the given name cannot be found the system
+        installed files are searched.
 
         Parameters
         ----------
@@ -522,47 +523,50 @@ class System:
 
         Returns
         -------
-        System
-            System as defined in the file.
+        System or ErrorMessage
+            System as defined in the file or an error string.
         """
         normfilename = filename.expanduser()
+
         if normfilename.is_file():
-            # create module from path, automatically reloads module
-            mod = module_from_path(normfilename)
-        else:  # no file found, try installed system files
+            try:
+                mod = module_from_path(normfilename)
+            except PermissionError:
+                return Error("System file is not readable.")
+        else:
             if normfilename.suffix == ".py":
                 normfilename = normfilename.stem
             normfilestr = str(normfilename)
+            candidates = [normfilestr, f"matr1x.systems.{normfilestr}"]
+            for name in candidates:
+                try:
+                    if name in sys.modules:
+                        mod = importlib.reload(sys.modules[name])
+                    else:
+                        mod = importlib.import_module(name)
+                    break
 
-            try:
-                # load module, or reload if exists
-                if normfilestr in sys.modules:
-                    # force reimport of system
-                    mod = sys.modules[normfilestr]
-                    importlib.reload(mod)
-                else:
-                    mod = importlib.import_module(normfilestr)
-            except ModuleNotFoundError:
-                # try matr1x system as fallback
-                modname = "matr1x.systems." + normfilestr
-                if modname in sys.modules:
-                    mod = sys.modules[modname]
-                    importlib.reload(mod)
-                else:
-                    mod = importlib.import_module("." + normfilestr, "matr1x.systems")
-        # get new (v8 System instance)
-        try:
-            system = getattr(mod, "system")
-        except AttributeError:
-            # try old variable name (v7 and older)
-            system = getattr(mod, "sys")
+                except ModuleNotFoundError as e:
+                    if e.name != name:
+                        return Error("Import error please check the system.")
+                    continue
+            else:
+                return Error(
+                    f"Could neither import '{normfilestr}' nor 'matr1x.systems.{normfilestr}'"
+                )
+        # get new (v8 System instance
+        system = getattr(mod, "system", None)
+        if not system:
+            system = getattr(mod, "sys", None)
             warnings.warn(
                 "Using deprecated variable name 'sys' - please update to use 'system' instead",
                 DeprecationWarning,
             )
+        if not isinstance(system, System):
+            return Error("The 'system' variable is not a valid System instance.")
         # set the name of the system to reflect the filename
         system.__name__ = str(normfilename)
-        return system
+        return Success(system)
 
     @property
     def hdf5(self) -> bool:
@@ -1887,7 +1891,7 @@ class MergedSystem(System):
             self.add_param("timeUTC", "s", default=None, setter=time.sleep, getter=time.time)
 
     @classmethod
-    def from_files(cls, system_filenames: Iterable[str | Path]) -> "MergedSystem":
+    def from_files(cls, system_filenames: Iterable[str | Path]) -> Result["MergedSystem", str]:
         """
         Merge multiple systems and return a MergedSystem instance.
 
@@ -1902,16 +1906,17 @@ class MergedSystem(System):
 
         Returns
         -------
-        MergedSystem
+        MergedSystem or str.
             MergedSystem instance that contains the description of all
-            subsystems.
+            subsystems or an error message.
         """
         systems: list[System] = []
         for filename in system_filenames:
-            # import the individual systems
-            systems.append(System.from_file(Path(filename)))
-        # return merged system
-        return cls(systems)
+            system = System.from_file(Path(filename))
+            if isinstance(system, Error):
+                return Error(system.error)
+            systems.append(system.value)
+        return Success(cls(systems))
 
     def __getattr__(self, attr: str) -> Any:
         """

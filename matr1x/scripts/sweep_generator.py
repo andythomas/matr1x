@@ -25,7 +25,6 @@ import os
 import re
 import sys
 import time
-import traceback
 from ast import literal_eval
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields
@@ -1226,29 +1225,12 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.sweep.setEnabled(True)
         self.ui.actions.preview.setEnabled(True)
         self.ui.actions.remove_system.setEnabled(True)
-        try:
-            system = MergedSystem.from_files(filenames)
-        except Exception as e:
-            if isinstance(e, ModuleNotFoundError):
-                error_text = '<p style="color:red">Please check the path to the system files and '
-                error_text += "whether all required dependencies are present.</p>"
-            else:
-                error_text = "The following error was raised during system "
-                error_text += "import, please check the system for errors.\n\n"
-            tbinfo = traceback.format_exception(type(e), e, e.__traceback__)
-            tbstr = "".join(tbinfo)
-            error_text += "" + tbstr
-            QMessageBox.warning(self, "Import error.", error_text.replace("\n", "<br>"))
-            return False
-        if len(system.columns) != len(system.units):
-            QMessageBox.warning(
-                self,
-                "Import error!",
-                "Lists with columns, units and settables of unequal length, check system file.",
-            )
+        system = MergedSystem.from_files(filenames)
+        if isinstance(system, Error):
+            QMessageBox.warning(self, "System file error.", system.error)
             return False
         self.reset_layout()
-        self._apply_system_to_columns(system)
+        self._apply_system_to_columns(system.value)
         self.populate_layout()
         self.populated = True
         return True
@@ -1459,7 +1441,9 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         result = self.generate_datafile()
         if isinstance(result, Error):
-            QMessageBox.warning(self, "No sweep!", "No data generated, no file saved.")
+            self.ui.widgets.notifier.show_message(
+                "No data generated, no file saved.", logging.INFO
+            )
             return False
         if filename.suffix != self.extension:
             filename = filename.with_suffix(self.extension)
@@ -1472,7 +1456,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                     # replace excess spaces from file and print, could be removed
                     outputFile.write(line.replace("   ", " ") + "\n")
         except OSError as e:
-            QMessageBox.warning(self, "Error!", f"File can not be opened: {e}")
+            QMessageBox.warning(self, "Error!", f"File can not be written: {e}")
             return False
         self.last_filename = filename
         self.update_window_title(dirty=False)
@@ -1657,19 +1641,23 @@ class MainWindow(FileDropMixin, QMainWindow):
             "# up_down : ": [],
             "# repeat : ": [],
         }
-        self.ui.widgets.system_list.clear()
-        with Path(filename).open() as infile:
-            for line in infile:
-                regex = r"^# [Ss]ystem filename : (.+)"
-                if match := re.match(regex, line.strip()):
-                    self.ui.widgets.system_list.addItems(match.group(1).split(","))
-                    if not self.update_systems():
-                        return
-                for key in params.keys():
-                    if key in line:
-                        # read the parameters from the corresponding line
-                        line = line.strip().replace(key, "")
-                        params[key] = literal_eval(line)
+        try:
+            with Path(filename).open() as infile:
+                self.ui.widgets.system_list.clear()
+                for line in infile:
+                    regex = r"^# [Ss]ystem filename : (.+)"
+                    if match := re.match(regex, line.strip()):
+                        self.ui.widgets.system_list.addItems(match.group(1).split(","))
+                        if not self.update_systems():
+                            return
+                    for key in params.keys():
+                        if key in line:
+                            # read the parameters from the corresponding line
+                            line = line.strip().replace(key, "")
+                            params[key] = literal_eval(line)
+        except PermissionError:
+            QMessageBox.warning(self, "Permission error.", "No permission to open the sweep file.")
+            return
         # 'Functions' is depracated. Old files read and issue a warning if the functionality
         # is used. Otherwise they just load. Delete the this backward compatibility for Matrix v9.
         # Andy 20250306
@@ -1683,7 +1671,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 "This file uses the removed 'function' functionality."
                 "Please use matrix-script. File did not load!"
             )
-            QMessageBox.warning(self, "Open file error.", warning_text)
+            QMessageBox.warning(self, "Deprecation error.", warning_text)
             return
         self.columns.parameter = parameter
         # initialize layout with values specified in file

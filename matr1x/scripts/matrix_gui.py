@@ -924,28 +924,19 @@ class MainWindow(FileDropMixin, QMainWindow):
                 if line.strip() and not line.strip().startswith("#"):
                     # should not occur
                     QMessageBox.warning(
-                        self,
-                        "System file error!",
-                        "No system specified in input file.",
+                        self, "System file error!", "No system specified in input file."
                     )
                     return
             else:
                 QMessageBox.warning(
-                    self,
-                    "System file error!",
-                    "No system specified in input file.",
+                    self, "System file error!", "No system specified in input file."
                 )
                 return
-        try:
-            system = MergedSystem.from_files(systemfile)
-        except ModuleNotFoundError:
-            QMessageBox.warning(self, "System file error!", "System file does not exist.")
+        system = MergedSystem.from_files(systemfile)
+        if isinstance(system, Error):
+            QMessageBox.warning(self, "System file error!", system.error)
             return
-        except PermissionError:
-            QMessageBox.warning(
-                self, "System file error!", "Insufficient permissions for system file."
-            )
-            return
+        system = system.value
         self.sys_meta_data = system.dcdata
         configurable = [system for system in systemfile if not Path(system.strip()).exists()]
         # Get system information using subprocess (cache for reuse)

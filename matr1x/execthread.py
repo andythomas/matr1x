@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from matr1x import get_config_dict
+from matr1x.error_handling import Error, InternalInvariantError
 from matr1x.models import (
     Header,
     InputParameters,
@@ -175,7 +176,10 @@ class ExecThread(threading.Thread):
         self.script = script
         self.meta_data = meta_data
         self.scriptname = scriptname
-        self.system: MergedSystem = MergedSystem.from_files(systems)
+        system = MergedSystem.from_files(systems)
+        if isinstance(system, Error):
+            raise InternalInvariantError("Systems should not contain errors at this point.")
+        self.system: MergedSystem = system.value
         self.stop_status = Status()
         self.pause_flag = False
         self.interrupt_flag = False

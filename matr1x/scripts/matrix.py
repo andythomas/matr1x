@@ -777,13 +777,11 @@ def main() -> None:
         resolved_systemfile = systemfile_header
     else:
         measurement.dispatch(ErrorMessage(error="no system file specified"))
-
-    try:
-        system = MergedSystem.from_files(resolved_systemfile)
-    except ModuleNotFoundError:
-        measurement.dispatch(ErrorMessage(error="system file does not exist"))
-    except PermissionError:
-        measurement.dispatch(ErrorMessage(error="system file not readable"))
+    system = MergedSystem.from_files(resolved_systemfile)
+    if isinstance(system, Error):
+        measurement.dispatch(ErrorMessage(error=system.error))
+        sys.exit(1)
+    system = system.value
     verify_columns(system, settable_names_file, settable_units_file, options, measurement)
     output_filename = system.generate_datafilename(
         options.outputfile, options.inputfile, options.append
