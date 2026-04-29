@@ -1030,14 +1030,9 @@ class MainWindow(FileDropMixin, QMainWindow):
         proceed.
         """
         if self.dirty and not self.in_pytest:
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+            if not save_messagebox(self, self.save_file):
                 a0.ignore()
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                if not self.save_file():
-                    a0.ignore()  # if save fails, do not close.
-                    return
         self.save_window_state()
         if self._owns_log_window:
             root_logger = logging.getLogger()
@@ -1612,6 +1607,9 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def load_file(self) -> None:
         """Open a QFileDialog to open an existing sweep file."""
+        if self.dirty and not self.in_pytest:
+            if not save_messagebox(self, self.save_file):
+                return
         prefilled_file = self.last_filename if self.last_filename is not None else usersfolder
         filename = QFileDialog.getOpenFileName(
             self,
@@ -1697,13 +1695,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             If True, also clear loaded systems and related state.
         """
         if self.dirty and not self.in_pytest:
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+            if not save_messagebox(self, self.save_file):
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                saved = self.save_file()
-                if not saved:
-                    return
         self._reset_state(reset_systems)
 
     def _reset_state(self, reset_systems: bool) -> None:

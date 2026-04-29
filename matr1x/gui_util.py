@@ -3857,7 +3857,7 @@ def detect_shortcut(event, shortcut):
         return False
 
 
-def save_messagebox(instance) -> int:
+def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
     """
     Show a messagebox to query file save.
 
@@ -3866,8 +3866,8 @@ def save_messagebox(instance) -> int:
 
     Returns
     -------
-    return : int
-        The choice as a QMessageBox.StandardButton enum.
+    return : bool
+        The file was saved (True) or not (False).
     """
     msg = QMessageBox(parent=instance)
     msg.setIcon(QMessageBox.Icon.Question)
@@ -3879,11 +3879,15 @@ def save_messagebox(instance) -> int:
         | QMessageBox.StandardButton.Cancel
     )
     discard = msg.button(QMessageBox.StandardButton.Discard)
-    assert discard is not None
     discard.setText("Don't Save")
-    # Is this the best default button?
     msg.setDefaultButton(QMessageBox.StandardButton.Save)
-    return msg.exec()
+    ret = msg.exec()
+    if ret == QMessageBox.StandardButton.Cancel:
+        return False
+    if ret == QMessageBox.StandardButton.Save:
+        if not save_cb():
+            return False
+    return True
 
 
 class Notifier(QWidget):

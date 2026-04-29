@@ -1234,18 +1234,8 @@ class MainWindow(QMainWindow):
             and self.ui.widgets.script_edit.toPlainText() != ""
             and not self.in_pytest
         ):
-            qApp = MApplication.instance()
-            qApp.processEvents()
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
-                event.ignore()
+            if not save_messagebox(self, self.save_file):
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                # save the file
-                if self.save_file() == -1:
-                    # if save fails, ignore message
-                    event.ignore()
-                    return
         self.save_window_state()
         self.ui.widgets.script_edit.lsp.stop()
         self.ui.widgets.script_edit.server.stop()
@@ -1257,8 +1247,6 @@ class MainWindow(QMainWindow):
         root_logger = logging.getLogger()
         root_logger.removeHandler(self.log_window.log_handler)
         self.log_window.deleteLater()
-        qApp = MApplication.instance()
-        qApp.processEvents()
         event.accept()
 
     def info_box(self) -> None:
@@ -1793,14 +1781,14 @@ class MainWindow(QMainWindow):
 
         return (indexes, columns, units)
 
-    def save_file_as(self) -> int:
+    def save_file_as(self) -> bool:
         """
         Ask for the filename and calls write_file().
 
         Returns
         -------
-        int
-            0 (Sucess) or -1 (Error).
+        bool
+            True (Sucess) or False (Error).
         """
         filename = QFileDialog.getSaveFileName(
             self,
@@ -1810,11 +1798,11 @@ class MainWindow(QMainWindow):
         )
         filename = Path(filename[0])
         if filename == Path():
-            return -1
+            return False
         else:
             return self.write_file(filename)
 
-    def save_file(self) -> int:
+    def save_file(self) -> bool:
         """
         Try to save under the last name and call write_file().
 
@@ -1822,30 +1810,30 @@ class MainWindow(QMainWindow):
 
         Returns
         -------
-        int
-            0 (Sucess) or -1 (Error).
+        bool
+            True (Sucess) or False (Error).
         """
         if not self.last_filename:
             return self.save_file_as()
         else:
             return self.write_file(self.last_filename)
 
-    def write_file(self, filename: Path) -> int:
+    def write_file(self, filename: Path) -> bool:
         """
         Save script to file and write system information to header.
 
         Returns
         -------
-        int
-            0 (Sucess) or -1 (Error).
+        bool
+            True (Sucess) or False (Error).
         """
         if filename.suffix != self.extension:
             filename = filename.with_suffix(self.extension)
         try:
             output_file = filename.open("w")
         except OSError:
-            self.ui.widgets.status_preview.print_colored("File cannot be opened")
-            return -1
+            self.ui.widgets.status_preview.print_colored("File cannot be written.")
+            return False
         self.scriptname = filename
         self.update_systems(update_config=False)
         # set new script in editor and save it to the file
@@ -1857,7 +1845,7 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.setModified(False)
         self.systems_dirty = False
         self.update_window_title()
-        return 0
+        return True
 
     def generate_save_content(self) -> str:
         """
@@ -2042,17 +2030,9 @@ class MainWindow(QMainWindow):
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
-        if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
-            qApp = MApplication.instance()
-            qApp.processEvents()
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+        if (self.ui.widgets.script_edit.isModified() or self.systems_dirty) and not self.in_pytest:
+            if not save_messagebox(self, self.save_file):
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                saved = self.save_file()
-                if saved == -1:
-                    return
-        # Now, proceed opeing the file
         filename = QFileDialog.getOpenFileName(
             self,
             "Select filename to open",
@@ -2064,21 +2044,10 @@ class MainWindow(QMainWindow):
             self.load_from_filename(filename)
 
     def new_file(self) -> None:
-        """
-        Start over with a blank script.
-
-        Ask the user to write unsaved changes to a file, remove the
-        'system dirty' flag and forget last filename.
-        """
-        if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
-            MApplication.instance().processEvents()
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+        """Start over with a blank script."""
+        if (self.ui.widgets.script_edit.isModified() or self.systems_dirty) and not self.in_pytest:
+            if not save_messagebox(self, self.save_file):
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                saved = self.save_file()
-                if saved == -1:
-                    return
         self._reset_state(reset_metadata=False)
 
     def _reset_state(self, reset_metadata: bool) -> None:
