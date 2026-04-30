@@ -114,64 +114,6 @@ def get_package_path(package_name: str) -> Path | None:
     return None
 
 
-def get_importable_module_name(filename_str: str | Path) -> str | bool:
-    """
-    Get importable module name if filename point to an installed module.
-
-    If the filename does not correspond to an installed Python (sub)module
-    this method returns False.
-
-    Parameters
-    ----------
-    filename : str or Path
-        Path to the file.
-
-    Returns
-    -------
-    str or bool
-        Module name if importable, False otherwise.
-    """
-    # Normalize the path
-    filename = Path(filename_str).absolute()
-
-    # Check if the file exists and is a Python file or
-    # a directory with __init__.py
-    if filename.suffix == ".py" and filename.is_file():
-        module_path = filename.with_suffix("")
-    elif filename.is_dir() and (filename / "__init__.py").is_file():
-        module_path = filename
-    else:
-        return False
-
-    # Find the most specific base path in sys.path that matches
-    # the start of the module_path
-    best_match = None
-    best_len = 0
-
-    for base_path in sys.path:
-        base_path = str(Path(base_path).absolute())
-
-        if str(module_path).startswith(base_path) and len(base_path) > best_len:
-            best_match = base_path
-            best_len = len(base_path)
-
-    if best_match:
-        # Remove the base_path from the module_path and convert to module name
-        relative_path = module_path.relative_to(best_match)
-        module_name = str(relative_path).replace(os.sep, ".")
-
-        # Check if the module is installed
-        try:
-            spec = importlib.util.find_spec(module_name)
-            if spec is not None:
-                return module_name
-            return False
-        except ImportError:
-            return False
-    else:
-        return False
-
-
 def create_temp_dir_with_symlinks(
     names: Sequence[str], targets: Sequence[str | Path]
 ) -> TemporaryDirectory[str]:

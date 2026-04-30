@@ -26,7 +26,6 @@ import tempfile
 import threading
 import time
 from dataclasses import dataclass
-from os.path import normpath
 from pathlib import Path
 from typing import TypeVar
 
@@ -74,7 +73,6 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x import resolved_directory
 from matr1x.editor import CodeEditor, LSPServer
 from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
@@ -88,7 +86,6 @@ from matr1x.gui_util import (
     MetaDataDialog,
     NumericalInputDialog,
     SaferQSettings,
-    SystemListWidget,
     TerminationDialog,
     TextInputDialog,
     YesNoAbortDialog,
@@ -119,6 +116,7 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
+from matr1x.scripts.shared_classes import NotifierMessage, SystemListWidget
 from matr1x.util import (
     StreamToLogger,
     find_binary,
@@ -929,12 +927,9 @@ class MainWindow(QMainWindow):
         self.log_window = LoggingWindow(parent=self)  # Immediately needed, not moved to widgets!
         self.log_window.hide()
         logger.info("matrix-script starting")
-        self.systems: list[str]
         self.scriptname: Path | None = None
         self.line_offset = get_script_prefix_offset()
         self.measurement_file: Path
-        self.systems_dirty = False
-        self.last_loaded_system: Path = resolved_directory
         self.is_running = False
         self.shortcut_dir: tempfile.TemporaryDirectory[str] | None = None
         self.last_filename: Path | None = None
@@ -947,7 +942,6 @@ class MainWindow(QMainWindow):
         self._output_timer.timeout.connect(self._flush_output_buffer)
         self._output_timer.setSingleShot(False)
         self._output_timer.setInterval(50)
-        MApplication.instance().isDarkSignal.connect(self.update_systems)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
         self.ui: UIBuilder = UIBuilder(self)
         self.create_connections()
@@ -959,7 +953,6 @@ class MainWindow(QMainWindow):
         sys.stderr = StreamToLogger(logger, logging.ERROR)
         if filename is not None:
             self.load_from_filename(filename)
-        self.update_systems()  # in case the load failed just to be sure
         self.ui.widgets.status_preview.appendPlainText(help_text)
         check_desktop_integration()
 
@@ -971,8 +964,8 @@ class MainWindow(QMainWindow):
         self.ui.actions.load.triggered.connect(self.load_from_file)
         self.ui.actions.save.triggered.connect(self.save_file)
         self.ui.actions.save_as.triggered.connect(self.save_file_as)
-        self.ui.actions.add_system.triggered.connect(self.add_system)
-        self.ui.actions.remove_system.triggered.connect(self.delete_selected_system)
+        self.ui.actions.add_system.triggered.connect(self.ui.widgets.system_list.query_systems)
+        self.ui.actions.remove_system.triggered.connect(self.ui.widgets.system_list.delete_systems)
         self.ui.actions.print.triggered.connect(self.print_document)
         self.ui.actions.quit_app.triggered.connect(self.close)
         self.ui.actions.find.triggered.connect(self.ui.widgets.script_edit.show_find)
@@ -1003,7 +996,11 @@ class MainWindow(QMainWindow):
         self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
         self.ui.widgets.script_edit.contentModified.connect(self.update_window_title)
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
-        self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
+        self.ui.widgets.system_list.changed.connect(self.update_systems)
+        self.ui.widgets.system_list.message.connect(self.show_message)
+        self.ui.widgets.system_list.changed.connect(
+            lambda: self.ui.widgets.script_edit.setModified(True)
+        )
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
 
     @AutoSlot
@@ -1023,6 +1020,11 @@ class MainWindow(QMainWindow):
                 self.write_output("\r" + data.message + data.end)
             else:
                 self.write_output(data.message + data.end)
+
+    def show_message(self, message: NotifierMessage):
+        """Show a message text and log."""
+        self.ui.widgets.status_preview.print_colored(message.text)
+        logger.log(message.level, message.text)
 
     def print_document(self) -> None:
         """Print the script."""
@@ -1193,9 +1195,9 @@ class MainWindow(QMainWindow):
         """
         if self.ui.widgets.system_list.hasFocus():
             if detect_shortcut(event, QKeySequence(QKeySequence.StandardKey.Delete)):
-                self.delete_selected_system()
+                self.ui.widgets.system_list.delete_systems()
             if detect_shortcut(event, QKeySequence(Qt.Key.Key_Backspace)):
-                self.delete_selected_system()
+                self.ui.widgets.system_list.delete_systems()
         super().keyPressEvent(event)
 
     def closeEvent(self, event: QEvent) -> None:
@@ -1220,17 +1222,8 @@ class MainWindow(QMainWindow):
             )
             event.ignore()
             return
-        if self.systems_dirty and self.scriptname is not None:
-            # if no file is given, nothing is saved
-            self.update_systems(update_config=False)
-            newscript = self.generate_save_content()
-            with Path(self.scriptname).open() as f:
-                saved_text = f.read()
-                if saved_text == newscript:
-                    self.systems_dirty = False
-
         if (
-            (self.ui.widgets.script_edit.isModified() or self.systems_dirty)
+            self.ui.widgets.script_edit.isModified()
             and self.ui.widgets.script_edit.toPlainText() != ""
             and not self.in_pytest
         ):
@@ -1326,37 +1319,17 @@ class MainWindow(QMainWindow):
     def update_window_title(self) -> None:
         """Indicate if the file was edited with an asterisk."""
         text = "Matrix Script"
-        if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
+        if self.ui.widgets.script_edit.isModified():
             text += ": *"
         elif self.scriptname:
             text += ": "
         if self.scriptname:
             text += self.scriptname.name
-        elif self.ui.widgets.script_edit.isModified() or self.systems_dirty:
+        elif self.ui.widgets.script_edit.isModified():
             text += "<unsaved>"
         self.setWindowTitle(text)
         lsp_name = self.scriptname.name if self.scriptname else None
         self.ui.widgets.script_edit.setFilename(lsp_name)
-
-    def add_system(self) -> None:
-        """Add system file(s) and update accordingly."""
-        ret = self.ui.widgets.system_list.add_systems(self.last_loaded_system)
-        if isinstance(ret, Error):
-            return
-        self.last_loaded_system = Path(ret.value[-1])
-        self.ui.actions.remove_system.setEnabled(True)
-        self.update_systems()
-
-    def delete_selected_system(self) -> None:
-        """Remove system and update accordingly."""
-        selected = self.ui.widgets.system_list.selectedItems()
-        if len(selected) > 0:
-            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.row(selected[0]))
-        elif self.ui.widgets.system_list.count() > 0:
-            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
-        if self.ui.widgets.system_list.count() == 0:
-            self.ui.actions.remove_system.setEnabled(False)
-        self.update_systems()
 
     @AutoSlot
     def get_script_input(self, params: InputParameters) -> None:
@@ -1459,7 +1432,7 @@ class MainWindow(QMainWindow):
 
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
-        if len(self.systems) == 0:
+        if len(self.ui.widgets.system_list.systems) == 0:
             text = "<p style='margin: 20px;'><b>No system file selected!</b></p>"
             text += "<p style='margin: 20px;'>"
             text += "Please add a system file using the 'Add System' button or File menu.</p>"
@@ -1477,7 +1450,7 @@ class MainWindow(QMainWindow):
             self.ui.widgets.system_command_text_edit.setText("Could not parse the system file(s)!")
             return
         text = "The following systems were selected:<br><b>"
-        for system in self.systems:
+        for system in self.ui.widgets.system_list.systems:
             text = text + system + "<br>"
         text += "<br></b>These systems provide the following:<br>"
         bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
@@ -1681,7 +1654,7 @@ class MainWindow(QMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
-        if len(self.systems) == 0:
+        if len(self.ui.widgets.system_list.systems) == 0:
             self.ui.actions.start_pause.setChecked(False)
             self.ui.widgets.status_preview.print_colored("No system selected")
             return
@@ -1707,7 +1680,7 @@ class MainWindow(QMainWindow):
         meta_data = self.ui.widgets.metadata.get_metadata()
         temp_config = self.ui.widgets.config_editor.write_config()
         self.measurement_thread = ScriptThread(
-            meta_data, script, self.scriptname, temp_config, self.systems
+            meta_data, script, self.scriptname, temp_config, self.ui.widgets.system_list.systems
         )
         self.measurement_thread.finished.connect(self.process_finished)
         self.measurement_thread.data_received.connect(self.process_data)
@@ -1725,25 +1698,22 @@ class MainWindow(QMainWindow):
         update_config: bool
             Whether to update the config editor.
         """
-        self.systems_dirty = True
-        self.update_window_title()
-        self.systems = [
-            # use normpath here since there is no pathlib equivalent
-            normpath(self.ui.widgets.system_list.item(j).text())
-            for j in range(self.ui.widgets.system_list.count())
-        ]
-        system_info = get_system_info(self.systems)
+        if len(self.ui.widgets.system_list.systems) > 0:
+            self.ui.actions.remove_system.setEnabled(True)
+        system_info = get_system_info(self.ui.widgets.system_list.systems)
         if isinstance(system_info, Error):
             self.ui.widgets.status_preview.appendPlainText(system_info.error)
             self._cached_system_info = None
         else:
             self._cached_system_info = system_info.value
         # only systems that are part of matrix or ifwlib can be configured via files
-        configurable = [system for system in self.systems if not Path(system).exists()]
+        configurable = [
+            system for system in self.ui.widgets.system_list.systems if not Path(system).exists()
+        ]
         matr1x.reload_config()
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
-            self.ui.widgets.config_editor.set_full_system_list(self.systems)
+            self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
             self.ui.widgets.config_editor.set_system_info(self._cached_system_info)
             self.ui.widgets.config_editor.update_data()
         # Update system commands with cached info
@@ -1843,7 +1813,6 @@ class MainWindow(QMainWindow):
         output_file.close()
         self.last_filename = filename
         self.ui.widgets.script_edit.setModified(False)
-        self.systems_dirty = False
         self.update_window_title()
         return True
 
@@ -1858,7 +1827,7 @@ class MainWindow(QMainWindow):
         """
         header = ""
         system_info = self._cached_system_info
-        if len(self.systems) > 0:
+        if len(self.ui.widgets.system_list.systems) > 0:
             # only attempt generating a header if a system is selected
             try:
                 # get settable information to put into the header
@@ -1871,7 +1840,7 @@ class MainWindow(QMainWindow):
                     # write matrix file header
                     header += (
                         "# system def : "
-                        + ",".join(repr(s).strip("'") for s in self.systems)
+                        + ",".join(repr(s).strip("'") for s in self.ui.widgets.system_list.systems)
                         + "\n"
                     )
 
@@ -1891,7 +1860,7 @@ class MainWindow(QMainWindow):
                     )
                     header += (
                         "# system def : "
-                        + ",".join(repr(s).strip("'") for s in self.systems)
+                        + ",".join(repr(s).strip("'") for s in self.ui.widgets.system_list.systems)
                         + "\n"
                     )
                     header += "# file v8, time stamp : " + time.strftime(
@@ -2021,7 +1990,6 @@ class MainWindow(QMainWindow):
         input_file.close()
         self.ui.widgets.script_edit.setPlainText(code)
         self.ui.widgets.script_edit.setModified(False)
-        self.systems_dirty = False
         self.last_filename = filename
         self.update_window_title()
         if self.ui.widgets.system_list.count() > 0:
@@ -2030,7 +1998,7 @@ class MainWindow(QMainWindow):
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
-        if (self.ui.widgets.script_edit.isModified() or self.systems_dirty) and not self.in_pytest:
+        if self.ui.widgets.script_edit.isModified() and not self.in_pytest:
             if not save_messagebox(self, self.save_file):
                 return
         filename = QFileDialog.getOpenFileName(
@@ -2045,7 +2013,7 @@ class MainWindow(QMainWindow):
 
     def new_file(self) -> None:
         """Start over with a blank script."""
-        if (self.ui.widgets.script_edit.isModified() or self.systems_dirty) and not self.in_pytest:
+        if self.ui.widgets.script_edit.isModified() and not self.in_pytest:
             if not save_messagebox(self, self.save_file):
                 return
         self._reset_state(reset_metadata=False)
@@ -2059,7 +2027,6 @@ class MainWindow(QMainWindow):
         reset_metadata : bool
             If True, also clear metadata and status preview fields.
         """
-        self.systems_dirty = False
         self.last_filename = None
         self.scriptname = None
         self.ui.widgets.script_edit.setPlainText("")

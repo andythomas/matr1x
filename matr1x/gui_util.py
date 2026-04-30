@@ -68,7 +68,6 @@ from PySide6.QtCore import (
     QObject,
     QPersistentModelIndex,
     QPoint,
-    QPropertyAnimation,
     QSettings,
     QSize,
     Qt,
@@ -117,7 +116,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLayout,
     QLineEdit,
-    QListWidget,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -137,7 +135,6 @@ from PySide6.QtWidgets import (
 
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.models import MainConfig, SystemInfo, UserlibConfig
-from matr1x.util import get_importable_module_name
 
 from . import get_config_dict, merge_dicts, reload_config, write_config
 from .eval import delta
@@ -345,79 +342,6 @@ class FileLineEdit(QLineEdit):
             # pass value to callback
             if len(dialog.selectedFiles()) > 0:
                 self.callback(dialog.selectedFiles()[0])
-
-
-class SystemListWidget(QListWidget):
-    """
-    A custom QListWidget that allows drag-and-drop reordering of items.
-
-    This widget emits a signal when the order of items changes due to drag-and-drop operations.
-
-    Attributes
-    ----------
-        orderChanged (Signal): Signal emitted when the order of items changes.
-    """
-
-    orderChanged = Signal()  # Custom signal for order changes
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """
-        Initialize the SystemListWidget.
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-        """
-        super().__init__(*args, **kwargs)
-        self.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        # Enable drag-and-drop sorting
-        self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
-
-    def dropEvent(self, event: QDropEvent) -> None:
-        """
-        Handle the drop event for drag-and-drop operations.
-
-        This method is called when an item is dropped after being dragged. It updates
-        the order of items and emits the orderChanged signal.
-
-        Args:
-            event (QDropEvent): The drop event object.
-        """
-        # Call the base class drop event to handle the reordering
-        super().dropEvent(event)
-        self.orderChanged.emit()  # Emit the custom signal when the order changes
-
-    def addItem(self, item) -> None:
-        """
-        Add item but avoid duplicates.
-
-        Parameters
-        ----------
-        item
-            The item, i.e. system file to be added.
-        """
-        for index in range(self.count()):
-            existing = self.item(index).text()
-            if item == existing:
-                print(f"{item} is already added and was omitted.")  # noqa: T201
-                return
-        super().addItem(item)
-
-    def add_systems(self, base: Path) -> Result[list[str], str]:
-        """Select and add system files(s)."""
-        filenames = QFileDialog.getOpenFileNames(
-            self, "Select system file(s) to add", str(base), "system files (system*.py)"
-        )[0]
-        if filenames == []:
-            return Error("No file selected.")
-        for filename in filenames:
-            filename = str(Path(filename).resolve())
-            module_name = get_importable_module_name(filename)
-            if module_name:
-                self.addItem(module_name)
-            else:
-                self.addItem(filename)
-        return Success(filenames)
 
 
 class MetaViewerWidget(QDockWidget):
@@ -3888,65 +3812,6 @@ def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
         if not save_cb():
             return False
     return True
-
-
-class Notifier(QWidget):
-    """
-    An animated layout that shows a message with an icon.
-
-    Parameters
-    ----------
-    logger : logging.Logger
-        The logger to use for logging messages.
-    """
-
-    def __init__(self, logger: logging.Logger):
-        """Initialize the notification widget."""
-        super().__init__()
-        self._logger = logger
-        self.setMaximumHeight(0)
-        self.setVisible(False)
-        self._content = QHBoxLayout()
-        self._content.setContentsMargins(0, 0, 0, 0)
-        self._icon = QLabel()
-        self._text = QLabel()
-        self._content.addWidget(self._icon)
-        self._content.addWidget(self._text)
-        self._content.addStretch()
-        self.setLayout(self._content)
-
-    def show_message(self, message: str, level: int = logging.INFO):
-        """Show a message text and appropriate icon."""
-        if level >= logging.ERROR:
-            icon_name = "SP_MessageBoxCritical"
-        elif level >= logging.WARNING:
-            icon_name = "SP_MessageBoxWarning"
-        else:
-            icon_name = "SP_MessageBoxInformation"
-        size = MApplication.instance().toolbar_icon_size()
-        self._icon.setPixmap(get_matrix_icon(icon_name).pixmap(size, size))
-        self._text.setText(message)
-        self._logger.log(level, message)
-        self.show_animated()
-
-    def show_animated(self):
-        """Show the notification and hide after 3s."""
-        self.setVisible(True)
-        self.anim = QPropertyAnimation(self, b"maximumHeight")
-        self.anim.setDuration(250)
-        self.anim.setStartValue(0)
-        self.anim.setEndValue(int(self.sizeHint().height()))
-        self.anim.start()
-        QTimer.singleShot(3000, self.hide_animated)
-
-    def hide_animated(self):
-        """Hide the notification."""
-        self.anim = QPropertyAnimation(self, b"maximumHeight")
-        self.anim.setDuration(250)
-        self.anim.setStartValue(self.maximumHeight())
-        self.anim.setEndValue(0)
-        self.anim.finished.connect(lambda: self.setVisible(False))
-        self.anim.start()
 
 
 class ThemeDetector(QWidget):

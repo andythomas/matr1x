@@ -65,7 +65,7 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x import datetimefmt, resolved_directory, usersfolder
+from matr1x import datetimefmt, usersfolder
 from matr1x.error_handling import (
     Error,
     InternalInvariantError,
@@ -80,9 +80,7 @@ from matr1x.gui_util import (
     FileDropMixin,
     LoggingWindow,
     MApplication,
-    Notifier,
     SaferQSettings,
-    SystemListWidget,
     check_config,
     clear_layout,
     get_matrix_icon,
@@ -96,6 +94,7 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
+from matr1x.scripts.shared_classes import Notifier, NotifierMessage, SystemListWidget
 from matr1x.system import MergedSystem
 from matr1x.util import generate_col_index
 
@@ -995,7 +994,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         logger.info("sweep-generator starting")
 
         self.inputcb: Callable[[str], None] | None = inputcb
-        self.last_loaded_system: Path = resolved_directory
         self.last_filename: Path | None = None
         self.dirty: bool = False
         self.columns: ColumnData = ColumnData()
@@ -1111,8 +1109,8 @@ class MainWindow(FileDropMixin, QMainWindow):
         self._on_log_window_visibility_changed(self.log_window.isVisible())
         self.ui.actions.new_file.triggered.connect(self.new_file)
         self.ui.actions.load.triggered.connect(self.load_file)
-        self.ui.actions.add_system.triggered.connect(self.add_system)
-        self.ui.actions.remove_system.triggered.connect(self.delete_selected_system)
+        self.ui.actions.add_system.triggered.connect(self.ui.widgets.system_list.query_systems)
+        self.ui.actions.remove_system.triggered.connect(self.ui.widgets.system_list.delete_systems)
         self.ui.actions.save.triggered.connect(self.save_file)
         self.ui.actions.save_as.triggered.connect(lambda: self.save_file(dialog=True))
         self.ui.actions.append.triggered.connect(lambda: self.save_file(append=True))
@@ -1125,10 +1123,11 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.preview.triggered.connect(self.preview_sweep)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
-        self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
+        self.ui.widgets.system_list.changed.connect(self.update_systems)
         self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
         self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
+        self.ui.widgets.system_list.message.connect(self.ui.widgets.notifier.show_message)
 
     def info_box(self) -> None:
         """Display an 'about this app' widget."""
@@ -1196,12 +1195,11 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         if any(self.columns.parameter):
             self.ui.widgets.notifier.show_message(
-                "All previous sweep parameters have been cleared.", logging.WARNING
+                NotifierMessage(
+                    "All previous sweep parameters have been cleared.", logging.WARNING
+                )
             )
-        filenames = [
-            self.ui.widgets.system_list.item(j).text()
-            for j in range(self.ui.widgets.system_list.count())
-        ]
+        filenames = self.ui.widgets.system_list.systems
         self.window_title_dirty.emit()
         if len(filenames) == 0:
             self.reset_layout()
@@ -1260,10 +1258,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.columns.parameter.append(save_sweep_params[pos])
             else:
                 self.columns.parameter.append([])
-        self.columns.filenames = [
-            self.ui.widgets.system_list.item(j).text()
-            for j in range(self.ui.widgets.system_list.count())
-        ]
+        self.columns.filenames = self.ui.widgets.system_list.systems
 
     def add2grid(
         self, widgets: LabelWidgets | ColumnWidgets, row: int = 0, column: int = 0
@@ -1437,7 +1432,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         result = self.generate_datafile()
         if isinstance(result, Error):
             self.ui.widgets.notifier.show_message(
-                "No data generated, no file saved.", logging.INFO
+                NotifierMessage("No data generated, no file saved.")
             )
             return False
         if filename.suffix != self.extension:
@@ -1580,31 +1575,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         del self.columns.parameter[col][row]
         self.populate_sweep_grid(col)
 
-    def add_system(self) -> None:
-        """
-        Add a system file to the system list and initiate import.
-
-        Opens a QFileDialog with filter system*.py.
-        """
-        ret = self.ui.widgets.system_list.add_systems(self.last_loaded_system)
-        if isinstance(ret, Error):
-            return
-        self.last_loaded_system = Path(ret.value[-1])
-        if not self.update_systems():
-            for _ in ret.value:
-                self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
-
-    def delete_selected_system(self) -> None:
-        """Remove selected or last system from the system list."""
-        selected = self.ui.widgets.system_list.selectedItems()
-        if len(selected) > 0:
-            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.row(selected[0]))
-        elif self.ui.widgets.system_list.count() > 0:
-            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
-        else:
-            return
-        self.update_systems()
-
     def load_file(self) -> None:
         """Open a QFileDialog to open an existing sweep file."""
         if self.dirty and not self.in_pytest:
@@ -1714,7 +1684,6 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.populated = False
             self.ui.widgets.system_list.clear()
             self.ui.actions.remove_system.setEnabled(False)
-            self.last_loaded_system = resolved_directory
             self.columns.clear()
             self.last_filename = None
             self.ui.widgets.sweep_preview.setRowCount(0)
