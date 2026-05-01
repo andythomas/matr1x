@@ -107,7 +107,6 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
-    QFormLayout,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -2870,96 +2869,6 @@ class EmittingStream(QObject):
         This method is required for file-like objects but does nothing
         in this implementation.
         """
-
-
-class MetaDataDialog(QDialog):
-    """Create a dialog able to handle meta data input for file headers."""
-
-    def __init__(self, initial_values: dict[str, Any] | None = None) -> None:
-        """
-        Initialize the meta data dialog with optional initial values.
-
-        Parameters
-        ----------
-        initial_values : Optional[Dict[str, Any]]
-            Optional dictionary with initial values for the fields.
-        """
-        super().__init__()
-
-        self.setWindowTitle("Dublin Core Metadata Input")
-
-        # Create a QVBoxLayout instance
-        layout = QVBoxLayout()
-        # Create a QFormLayout for organized input fields
-        form_layout = QFormLayout()
-
-        # Dublin Core Elements
-        self.creator = QLineEdit()
-        self.identifier = QLineEdit()
-        self.relation = QLineEdit()
-        self.description = QTextEdit()
-
-        # Load initial values if provided
-        if initial_values:
-            self.load_initial_values(initial_values)
-
-        # Add form elements to layout
-        form_layout.addRow("Creator/User:", self.creator)
-        form_layout.addRow("Identifier/Sample:", self.identifier)
-        form_layout.addRow("Relation:", self.relation)
-
-        # Add the form layout to the main layout
-        layout.addLayout(form_layout)
-        layout.addWidget(QLabel("Description:"))
-        layout.addWidget(self.description)
-
-        # Set the main layout for the dialog
-        self.setLayout(layout)
-
-    def load_initial_values(self, values: dict[str, Any]) -> None:
-        """
-        Load initial values into the dialog fields.
-
-        Parameters
-        ----------
-        values : Dict[str, Any]
-            Dictionary with initial values for the fields.
-        """
-        self.creator.setText(values.get("creator", ""))
-        self.identifier.setText(values.get("identifier", ""))
-        self.relation.setText(values.get("relation", ""))
-        self.description.setPlainText(values.get("description", ""))
-
-    def get_metadata(self) -> dict[str, str]:
-        """
-        Get the metadata entered in the dialog.
-
-        Returns
-        -------
-        Dict[str, str]
-            Dictionary with metadata values.
-        """
-        return {
-            "creator": self.creator.text(),
-            "identifier": self.identifier.text(),
-            "relation": self.relation.text(),
-            "description": self.description.toPlainText(),
-        }
-
-    def setEnabled(self, state: bool) -> None:
-        """
-        Accept or prohibit user inputs.
-
-        Parameters
-        ----------
-        state : bool
-            Accept (True) or block (False) input.
-        """
-        self.creator.setEnabled(state)
-        self.identifier.setEnabled(state)
-        self.relation.setEnabled(state)
-        self.description.setEnabled(state)
-        QDialog.setEnabled(self, state)
 
 
 class TimeoutDialogBase(QDialog):

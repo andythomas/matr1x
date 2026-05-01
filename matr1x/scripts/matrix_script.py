@@ -83,7 +83,6 @@ from matr1x.gui_util import (
     FileDropMixin,
     LoggingWindow,
     MApplication,
-    MetaDataDialog,
     NumericalInputDialog,
     SaferQSettings,
     TerminationDialog,
@@ -116,7 +115,12 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts.shared_classes import NotifierMessage, SystemListWidget
+from matr1x.scripts.shared_classes import (
+    MetaData,
+    MetaDataDialog,
+    NotifierMessage,
+    SystemListWidget,
+)
 from matr1x.util import (
     StreamToLogger,
     find_binary,
@@ -255,7 +259,7 @@ class ScriptThread(QThread):
 
     def __init__(
         self,
-        meta_data: dict[str, str],
+        metadata: MetaData,
         script: str,
         fallbackname: Path | None,
         temp_config: Path,
@@ -282,7 +286,7 @@ class ScriptThread(QThread):
         super().__init__()
         self.proc: subprocess.Popen | None = None
         self.conn: socket.socket | None = None
-        self.meta_data: dict[str, str] = meta_data
+        self.meta_data: MetaData = metadata
         self.script: str = script
         self.datafilefallback: str = str(fallbackname) if fallbackname else ""
         self.temp_config: Path = temp_config
@@ -477,7 +481,7 @@ class WidgetGroup:
     """Widgets to be used in the GUI."""
 
     dockable_metadata: QDockWidget
-    metadata: MetaDataDialog
+    meta_view: MetaDataDialog
     system_list: SystemListWidget
     status_preview: TerminalOutput
     script_edit: CodeEditor
@@ -625,7 +629,7 @@ class UIBuilder:
 
         return WidgetGroup(
             dockable_metadata=dockable_metadata,
-            metadata=metadata,
+            meta_view=metadata,
             system_list=system_list,
             status_preview=status_preview,
             script_edit=script_edit,
@@ -947,7 +951,6 @@ class MainWindow(QMainWindow):
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
-        self._reset_state(reset_metadata=True)
         check_config(matr1x.config)
         sys.stdout = StreamToLogger(logger, logging.INFO)
         sys.stderr = StreamToLogger(logger, logging.ERROR)
@@ -1623,7 +1626,7 @@ class MainWindow(QMainWindow):
         self.ui.actions.system_help.setEnabled(not flag)
         self.ui.actions.add_system.setEnabled(not flag)
         self.ui.actions.remove_system.setEnabled(not flag)
-        self.ui.widgets.metadata.setEnabled(not flag)
+        self.ui.widgets.meta_view.setEnabled(not flag)
 
     def process_finished(self) -> None:
         """
@@ -1677,10 +1680,10 @@ class MainWindow(QMainWindow):
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
-        meta_data = self.ui.widgets.metadata.get_metadata()
+        metadata = self.ui.widgets.meta_view.metadata
         temp_config = self.ui.widgets.config_editor.write_config()
         self.measurement_thread = ScriptThread(
-            meta_data, script, self.scriptname, temp_config, self.ui.widgets.system_list.systems
+            metadata, script, self.scriptname, temp_config, self.ui.widgets.system_list.systems
         )
         self.measurement_thread.finished.connect(self.process_finished)
         self.measurement_thread.data_received.connect(self.process_data)
@@ -2016,28 +2019,10 @@ class MainWindow(QMainWindow):
         if self.ui.widgets.script_edit.isModified() and not self.in_pytest:
             if not save_messagebox(self, self.save_file):
                 return
-        self._reset_state(reset_metadata=False)
-
-    def _reset_state(self, reset_metadata: bool) -> None:
-        """
-        Reset UI and state to a clean baseline.
-
-        Parameters
-        ----------
-        reset_metadata : bool
-            If True, also clear metadata and status preview fields.
-        """
         self.last_filename = None
         self.scriptname = None
         self.ui.widgets.script_edit.setPlainText("")
         self.ui.widgets.script_edit.setModified(False)
-        if reset_metadata:
-            self.ui.widgets.status_preview.setPlainText("")
-            metadata = self.ui.widgets.metadata
-            metadata.creator.setText("")
-            metadata.identifier.setText("")
-            metadata.relation.setText("")
-            metadata.description.setText("")
 
 
 def main() -> None:

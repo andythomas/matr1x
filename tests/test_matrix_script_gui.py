@@ -48,8 +48,9 @@ def reset_matrix_script_window(matrix_script_window: matrix_script.MainWindow, q
     if window.is_running:
         window.abort_thread("a")
         qapp.processEvents()
-    window.ui.widgets.script_edit.setModified(False)
-    window._reset_state(reset_metadata=True)
+    window.new_file()
+    window.ui.widgets.status_preview.setPlainText("")
+    window.ui.widgets.meta_view.clear()
     if window.ui.widgets.config_editor.isVisible():
         window.ui.actions.config.setChecked(False)
     qapp.processEvents()
@@ -85,7 +86,7 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainW
     main_window.load_from_filename(inputfile)
     assert main_window.windowTitle() == "Matrix Script: " + script_filename
 
-    metadata = main_window.ui.widgets.metadata
+    metadata = main_window.ui.widgets.meta_view
     creator = "Power User"
     metadata.creator.setText(creator)
     identifier = "np20250929b"

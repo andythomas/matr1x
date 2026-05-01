@@ -20,15 +20,28 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import final
+from typing import TypedDict, final
 
 from PySide6.QtCore import QPropertyAnimation, QTimer, Signal
 from PySide6.QtGui import QDropEvent
-from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QLabel, QListWidget, QWidget
+from PySide6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from matr1x import resolved_directory
 from matr1x.error_handling import Success
 from matr1x.gui_util import MApplication, get_matrix_icon, get_system_info
+
+__all__ = ["MetaDataDialog", "Notifier", "NotifierMessage", "SystemListWidget", "MetaData"]
 
 
 @dataclass(frozen=True)
@@ -202,3 +215,53 @@ class SystemListWidget(QListWidget):
         _, relative = max(matches, key=lambda x: x[0])
         module_name = ".".join(relative.parts)
         return module_name if importlib.util.find_spec(module_name) else None
+
+
+@final
+class MetaData(TypedDict):
+    """Typed dictionary for metadata values."""
+
+    creator: str
+    identifier: str
+    relation: str
+    description: str
+
+
+@final
+class MetaDataDialog(QDialog):
+    """Create a dialog able to handle meta data input for file headers."""
+
+    def __init__(self) -> None:
+        """Initialize the meta data dialog."""
+        super().__init__()
+        self.setWindowTitle("Dublin Core Metadata Input")
+        self.creator: QLineEdit = QLineEdit()
+        self.identifier: QLineEdit = QLineEdit()
+        self.relation: QLineEdit = QLineEdit()
+        self.description: QTextEdit = QTextEdit()
+        form_layout = QFormLayout()
+        form_layout.addRow("Creator/User:", self.creator)
+        form_layout.addRow("Identifier/Sample:", self.identifier)
+        form_layout.addRow("Relation:", self.relation)
+        layout = QVBoxLayout()
+        layout.addLayout(form_layout)
+        layout.addWidget(QLabel("Description:"))
+        layout.addWidget(self.description)
+        self.setLayout(layout)
+
+    @property
+    def metadata(self) -> MetaData:
+        """Get the metadata entered in the dialog."""
+        return {
+            "creator": self.creator.text(),
+            "identifier": self.identifier.text(),
+            "relation": self.relation.text(),
+            "description": self.description.toPlainText(),
+        }
+
+    def clear(self) -> None:
+        """Clear all input fields."""
+        self.creator.clear()
+        self.identifier.clear()
+        self.relation.clear()
+        self.description.clear()

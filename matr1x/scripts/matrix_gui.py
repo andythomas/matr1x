@@ -56,7 +56,6 @@ from matr1x.gui_util import (
     FileDropMixin,
     LoggingWindow,
     MApplication,
-    MetaDataDialog,
     ReadOnlyTable,
     SaferQSettings,
     check_config,
@@ -85,6 +84,7 @@ from matr1x.post_install import (
 from matr1x.scripts import (
     sweep_generator,
 )
+from matr1x.scripts.shared_classes import MetaDataDialog
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error
 
@@ -963,9 +963,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         if not Path(inputFile).exists():
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
             return
-        metadata = self.ui.widgets.meta_view.get_metadata()
-        for key in metadata.keys():
-            self.sys_meta_data[key] = metadata[key]
+        self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
         # create parameter set for measurement, make sure to copy the meta data
         config_dict = self.ui.widgets.config_editor.get_config_dict()
         parameters = (
