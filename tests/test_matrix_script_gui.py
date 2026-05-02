@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in matrix script."""
 
-import sys
 from collections.abc import Generator
 from pathlib import Path
 
@@ -281,23 +280,17 @@ def test_status_preview_handles_carriage_return(
     qtbot.waitUntil(lambda: main_window.windowTitle().endswith(temp_script.name), timeout=2000)
     qapp.processEvents()
 
-    with capsys.disabled():
-        original_stdout = sys.stdout
-        sys.stdout = main_window.output_stream
-        try:
-            main_window.ui.actions.start_pause.trigger()
-            qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
-            thread = main_window.measurement_thread
-            qtbot.waitSignal(thread.finished, timeout=2000)
-            # Next line: Increased timeout needed for Windows
-            qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
-            qtbot.waitUntil(
-                lambda: "again" in main_window.ui.widgets.status_preview.toPlainText(),
-                timeout=100,
-            )
-            qapp.processEvents()
-        finally:
-            sys.stdout = original_stdout
+    main_window.ui.actions.start_pause.trigger()
+    qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
+    thread = main_window.measurement_thread
+    qtbot.waitSignal(thread.finished, timeout=2000)
+    # Next line: Increased timeout needed for Windows
+    qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
+    qtbot.waitUntil(
+        lambda: "again" in main_window.ui.widgets.status_preview.toPlainText(),
+        timeout=100,
+    )
+    qapp.processEvents()
 
     output_text = main_window.ui.widgets.status_preview.toPlainText()
     assert "test" in output_text
