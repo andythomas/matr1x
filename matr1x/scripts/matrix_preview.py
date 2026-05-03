@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLayout,
     QMainWindow,
+    QMenuBar,
     QMessageBox,
     QSizePolicy,
     QToolBar,
@@ -149,73 +150,67 @@ class ActionGroup:
 
 
 class UIBuilder:
-    """Create actions, toolbar and menu."""
+    """Create the GUI elements."""
 
-    def __init__(self, window: QMainWindow):
-        self.window: QMainWindow = window
-        self.actions: ActionGroup
-        self.toolbar: QToolBar
+    def __init__(self):
+        self.actions: ActionGroup = self._create_actions()
+        # widgets
+        self.toolbar: QToolBar = self._create_toolbar()
+        # gui
         self.file_selector: QComboBox
+        self.menubar: QMenuBar = self._create_menu()
 
-    def setup_ui(self) -> None:
-        """Set up actions, toolbar, and menu."""
-        self._create_actions()
-        self._create_toolbar()
-        self._create_menu()
-
-    def _create_actions(self) -> None:
+    def _create_actions(self) -> ActionGroup:
         """Create all required actions."""
-        new = QAction(get_matrix_icon("SP_FileIcon"), "New window", self.window)
+        new = QAction(get_matrix_icon("SP_FileIcon"), "New window")
         new.setShortcut(QKeySequence.StandardKey.New)
-        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self.window)
+        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setShortcut(QKeySequence.StandardKey.Open)
-        previous = QAction(get_matrix_icon("SP_ArrowLeft"), "Previous", self.window)
+        previous = QAction(get_matrix_icon("SP_ArrowLeft"), "Previous")
         cmd_left_shortcut = QKeySequence(
             QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Left)
         )
         previous.setShortcut(cmd_left_shortcut)
         previous.setEnabled(False)
-        next_file = QAction(get_matrix_icon("SP_ArrowRight"), "Next", self.window)
+        next_file = QAction(get_matrix_icon("SP_ArrowRight"), "Next")
         cmd_right_shortcut = QKeySequence(
             QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Right)
         )
         next_file.setShortcut(cmd_right_shortcut)
         next_file.setEnabled(False)
-        export_png = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save png", self.window)
+        export_png = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save png")
         export_png.setEnabled(False)
         export_png.setShortcut(QKeySequence.StandardKey.Save)
-        export_data = QAction(
-            get_matrix_icon("SP_FileDialogDetailedView"), "Save txt", self.window
-        )
+        export_data = QAction(get_matrix_icon("SP_FileDialogDetailedView"), "Save txt")
         export_data.setEnabled(False)
-        auto_update = QAction(get_matrix_icon("SP_BrowserReload"), "Auto Update", self.window)
+        auto_update = QAction(get_matrix_icon("SP_BrowserReload"), "Auto Update")
         auto_update.setEnabled(False)
         auto_update.setCheckable(True)
-        update = QAction(get_matrix_icon("CHAR_U", QColor("RoyalBlue")), "Update", self.window)
+        update = QAction(get_matrix_icon("CHAR_U", QColor("RoyalBlue")), "Update")
         update.setEnabled(False)
-        quit_app = QAction("Quit", self.window)
+        quit_app = QAction("Quit")
         if os.name == "nt":
             quit_app.setShortcut(QKeySequence.StandardKey.Close)
         else:
             quit_app.setShortcut(QKeySequence.StandardKey.Quit)
-        matrix_settings = QAction("Show matrix toml", self.window)
+        matrix_settings = QAction("Show matrix toml")
         matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
         matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
-        about = QAction("About", self.window)
+        about = QAction("About")
         about.setMenuRole(QAction.MenuRole.AboutRole)
-        toggle_toolbar = QAction("Show Toolbar", self.window)
+        toggle_toolbar = QAction("Show Toolbar")
         toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         toggle_toolbar.setCheckable(True)
         toggle_toolbar.setChecked(True)
-        meta = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata", self.window)
+        meta = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata")
         meta.setShortcut(QKeySequence("Ctrl+2"))
         meta.setEnabled(False)
         meta.setCheckable(True)
-        show_log = QAction("Show Log Window", self.window)
+        show_log = QAction("Show Log Window")
         show_log.setCheckable(True)
-        post_install = QAction("Run post installation", self.window)
+        post_install = QAction("Run post installation")
         remove_desktop_integration = QAction("Remove desktop integration")
-        self.actions = ActionGroup(
+        return ActionGroup(
             new=new,
             load=load,
             previous=previous,
@@ -234,44 +229,42 @@ class UIBuilder:
             remove_desktop_integration=remove_desktop_integration,
         )
 
-    def _create_toolbar(self) -> None:
+    def _create_toolbar(self) -> QToolBar:
         """Create the main toolbar."""
-        self.toolbar = QToolBar("Toolbar")
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.toolbar.setFloatable(False)
-        self.toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        toolbar = QToolBar("Toolbar")
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        toolbar.setFloatable(False)
+        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         icon_size = MApplication.instance().toolbar_icon_size()
-        self.toolbar.setIconSize(QSize(icon_size, icon_size))
-        self.toolbar.setAllowedAreas(
-            Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea
-        )
-        self.toolbar.addAction(self.actions.load)
-        self.window.addToolBar(self.toolbar)
-        self.toolbar.visibilityChanged.connect(self.actions.toggle_toolbar.setChecked)
-        self.toolbar.addAction(self.actions.export_png)
-        self.toolbar.addAction(self.actions.export_data)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.actions.update)
-        self.toolbar.addAction(self.actions.auto_update)
+        toolbar.setIconSize(QSize(icon_size, icon_size))
+        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
+        toolbar.addAction(self.actions.load)
+        toolbar.visibilityChanged.connect(self.actions.toggle_toolbar.setChecked)
+        toolbar.addAction(self.actions.export_png)
+        toolbar.addAction(self.actions.export_data)
+        toolbar.addSeparator()
+        toolbar.addAction(self.actions.update)
+        toolbar.addAction(self.actions.auto_update)
         empty = QWidget()
         empty.setFixedWidth(icon_size)
-        self.toolbar.addWidget(empty)
+        toolbar.addWidget(empty)
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.actions.previous)
+        toolbar.addWidget(spacer)
+        toolbar.addSeparator()
+        toolbar.addAction(self.actions.previous)
         self.file_selector = QComboBox()
         self.file_selector.setEnabled(False)
         self.file_selector.setMinimumContentsLength(50)
-        self.toolbar.addWidget(self.file_selector)
-        self.toolbar.addAction(self.actions.next)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.actions.meta)
+        toolbar.addWidget(self.file_selector)
+        toolbar.addAction(self.actions.next)
+        toolbar.addSeparator()
+        toolbar.addAction(self.actions.meta)
+        return toolbar
 
-    def _create_menu(self) -> None:
+    def _create_menu(self) -> QMenuBar:
         """Create the main menu."""
-        menu = self.window.menuBar()
+        menu = QMenuBar()
         file_menu = menu.addMenu("&File")
         file_menu.addAction(self.actions.new)
         file_menu.addSeparator()
@@ -298,6 +291,7 @@ class UIBuilder:
         help_menu.addSeparator()
         help_menu.addAction(self.actions.post_install)
         help_menu.addAction(self.actions.remove_desktop_integration)
+        return menu
 
 
 class SweepPreview(FileDropMixin, QMainWindow):
@@ -547,12 +541,15 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.grid.addWidget(self.w_status, 6, 0, 1, -1)
         self.widget.setLayout(self.grid)
         self.setCentralWidget(self.widget)
-        # create Actions and Toolbar
-        self.ui = UIBuilder(self)
-        self.ui.setup_ui()
+        self.ui = UIBuilder()
+        self.setMenuBar(self.ui.menubar)
+        self.addToolBar(self.ui.toolbar)
         self.show()
         check_config(matr1x.config)
+        self._create_connections()
 
+    def _create_connections(self):
+        """Connect actions with application logic."""
         self.ui.actions.new.triggered.connect(self.create_new_preview)
         self.ui.actions.load.triggered.connect(self.load_button_pressed)
         self.ui.actions.previous.triggered.connect(self.previous_file)

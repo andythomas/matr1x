@@ -65,6 +65,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMenu,
+    QMenuBar,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -911,24 +912,13 @@ class WidgetGroup:
 
 
 class UIBuilder:
-    """
-    Create the GUI.
+    """Create the GUI elements."""
 
-    In particular, widgets, actions, the toolbar, the menu and the final
-    layout of the application.
-
-    Parameters
-    ----------
-    window: MainWindow
-        The reference the the main application class.
-    """
-
-    def __init__(self, window: "MainWindow"):
-        self.window: MainWindow = window
+    def __init__(self):
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
         self.toolbar: QToolBar = self._create_toolbar()
-        self._create_menu()
+        self.menubar: QMenuBar = self._create_menu()
         self._create_gui()
 
     def _standard_action(self, name: str, display_name: str | None = None) -> QAction:
@@ -952,7 +942,7 @@ class UIBuilder:
         """
         if not display_name:
             display_name = name
-        action = QAction(display_name, self.window)
+        action = QAction(display_name)
         action.setShortcut(getattr(QKeySequence.StandardKey, name))
         method_name = name[:1].lower() + name[1:]
         action.triggered.connect(lambda checked, method=method_name: self._standard_method(method))
@@ -991,7 +981,7 @@ class UIBuilder:
         WidgetGroup
             The dataclass with all the widgets.
         """
-        dockable_metadata = QDockWidget("Metadata", self.window)
+        dockable_metadata = QDockWidget("Metadata")
         metadata = MetaDataDialog()
         dockable_metadata.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
@@ -1002,9 +992,6 @@ class UIBuilder:
             QDockWidget.DockWidgetFeature.DockWidgetClosable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
-        self.window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, config_editor)
-        config_editor.setFloating(True)
-        config_editor.close()
         system_list = SystemListWidget()
         system_list.setMinimumHeight(50)
         system_list.setMaximumHeight(50)
@@ -1016,8 +1003,8 @@ class UIBuilder:
             raise lsp_binary.error
         lsp_parameters = ["server"]
         lsp_server = LSPServer(binary=str(lsp_binary.value), parameters=lsp_parameters)
-        script_edit = CodeEditor([self.window.extension], lsp_server)
-        system_command_help = QDialog(self.window)
+        script_edit = CodeEditor(lsp_server)
+        system_command_help = QDialog()
         box_layout = QVBoxLayout()
         system_command_text_edit = QTextEdit()
         system_command_text_edit.setReadOnly(True)
@@ -1034,8 +1021,8 @@ class UIBuilder:
         stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         stop_button.setIcon(get_matrix_icon("CUSTOM_Stop"))
         stop_button.setText("Abort")
-        splitter = QSplitter(self.window)
-        central_widget = CentralWidget(self.window)
+        splitter = QSplitter()
+        central_widget = CentralWidget()
         python_info = QLabel(f"Python {platform.python_version()}")
         python_info.setToolTip(f"Python: {sys.version}")
         lsp_info = QLabel(f"LSP: {lsp_name}")
@@ -1067,35 +1054,35 @@ class UIBuilder:
         ActionGroup
             The dataclass with all the actions.
         """
-        matrix_settings = QAction("Show matrix toml", self.window)
+        matrix_settings = QAction("Show matrix toml")
         matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
         matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
-        about = QAction("About", self.window)
+        about = QAction("About")
         about.setMenuRole(QAction.MenuRole.AboutRole)
-        config_action = QAction(get_matrix_icon("CHAR_≡"), "Device config", self.window)
+        config_action = QAction(get_matrix_icon("CHAR_≡"), "Device config")
         config_action.setToolTip("Show the devices preferences/ configuration.")
         config_action.setCheckable(True)
-        new_file = QAction(get_matrix_icon("SP_FileIcon"), "New", self.window)
+        new_file = QAction(get_matrix_icon("SP_FileIcon"), "New")
         new_file.setShortcut(QKeySequence.StandardKey.New)
-        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self.window)
+        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setToolTip("Open a script file.")
         load.setShortcut(QKeySequence.StandardKey.Open)
-        save = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save", self.window)
+        save = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save")
         save.setToolTip("Save the under the current filename.")
         save.setShortcut(QKeySequence.StandardKey.Save)
-        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self.window)
+        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...")
         save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.widgets.save_button.setDefaultAction(save)
         self.widgets.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        save_pulldown = QMenu(self.window)
+        save_pulldown = QMenu()
         save_pulldown.addAction(save_as)
         self.widgets.save_button.setMenu(save_pulldown)
-        add_system = QAction(get_matrix_icon("CHAR_+"), "Add System", self.window)
+        add_system = QAction(get_matrix_icon("CHAR_+"), "Add System")
         add_system.setToolTip("Add a matrix system file.")
-        remove_system = QAction(get_matrix_icon("CHAR_-"), "Remove System", self.window)
+        remove_system = QAction(get_matrix_icon("CHAR_-"), "Remove System")
         remove_system.setEnabled(False)
         remove_system.setToolTip("Remove the selected or last matrix system file.")
-        quit_app = QAction("Quit", self.window)
+        quit_app = QAction("Quit")
         if os.name == "nt":
             quit_app.setShortcut(QKeySequence.StandardKey.Close)
         else:
@@ -1106,45 +1093,44 @@ class UIBuilder:
         copy = self._standard_action("Copy")
         paste = self._standard_action("Paste")
         caption = "Toggle Line Comment\t" + config["shortcuts"]["line_comment_display"]
-        line_comment = QAction(caption, self.window)
+        line_comment = QAction(caption)
         line_comment.setShortcut(QKeySequence(config["shortcuts"]["line_comment_shortcut"]))
         zoom_in = self._standard_action("ZoomIn", "Zoom in")
         zoom_out = self._standard_action("ZoomOut", "Zoom Out")
-        print_action = QAction("Print", self.window)
+        print_action = QAction("Print")
         print_action.setShortcut(QKeySequence.StandardKey.Print)
-        find = QAction("Find", self.window)
+        find = QAction("Find")
         find.setShortcut(QKeySequence.StandardKey.Find)
-        start_pause = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self.window)
+        start_pause = QAction(get_matrix_icon("CUSTOM_Play"), "Start")
         start_pause.setToolTip("Execute the script.")
         start_pause.setCheckable(True)
-        stop = QAction(get_matrix_icon("CUSTOM_Stop"), "Stop", self.window)
+        stop = QAction(get_matrix_icon("CUSTOM_Stop"), "Stop")
         stop.setToolTip("Stop the script and query status.")
         stop.setEnabled(False)
-        abort = QAction(get_matrix_icon("CUSTOM_Stop"), "Abort", self.window)
+        abort = QAction(get_matrix_icon("CUSTOM_Stop"), "Abort")
         abort.setEnabled(False)
-        finish = QAction(get_matrix_icon("CUSTOM_Stop"), "Finish", self.window)
+        finish = QAction(get_matrix_icon("CUSTOM_Stop"), "Finish")
         finish.setEnabled(False)
         self.widgets.stop_button.setDefaultAction(stop)
         self.widgets.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        stop_pulldown = QMenu(self.window)
+        stop_pulldown = QMenu()
         stop_pulldown.addAction(abort)
         stop_pulldown.addAction(finish)
         self.widgets.stop_button.setMenu(stop_pulldown)
-        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill", self.window)
+        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
         kill.setEnabled(False)
         preview = QAction(
             get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")),
             "Preview",
-            self.window,
         )
         preview.setEnabled(False)
-        pep8 = QAction("Format with ruff", self.window)
+        pep8 = QAction("Format with ruff")
         pep8.setShortcut(QKeySequence("Ctrl+8"))
         theme_actions = []
-        theme_group = QActionGroup(self.window)
+        theme_group = QActionGroup(MApplication.instance())
         theme_group.setExclusionPolicy(QActionGroup.ExclusionPolicy.Exclusive)
         for theme in self.widgets.script_edit.supportedThemes():
-            action = QAction(theme, self.window)
+            action = QAction(theme)
             action.setCheckable(True)
             if theme == self.widgets.script_edit.supportedThemes()[0]:
                 action.setChecked(True)
@@ -1153,21 +1139,21 @@ class UIBuilder:
             )
             theme_group.addAction(action)
             theme_actions.append(action)
-        autocomplete = QAction("Tab completion", self.window)
+        autocomplete = QAction("Tab completion")
         autocomplete.setCheckable(True)
         autocomplete.setChecked(True)
-        show_log = QAction("Show Log Window", self.window)
-        toggle_metadata = QAction("Show Metadata", self.window)
+        show_log = QAction("Show Log Window")
+        toggle_metadata = QAction("Show Metadata")
         toggle_metadata.setShortcut(QKeySequence("Ctrl+2"))
         toggle_metadata.setCheckable(True)
         toggle_metadata.setChecked(True)
-        toggle_toolbar = QAction("Show Toolbar", self.window)
+        toggle_toolbar = QAction("Show Toolbar")
         toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         toggle_toolbar.setCheckable(True)
         toggle_toolbar.setChecked(True)
-        system_help = QAction("Show System Help", self.window)
-        post_install = QAction("Install Desktop Integration", self.window)
-        remove_desktop_integration = QAction("Remove Desktop Integration", self.window)
+        system_help = QAction("Show System Help")
+        post_install = QAction("Install Desktop Integration")
+        remove_desktop_integration = QAction("Remove Desktop Integration")
 
         return ActionGroup(
             matrix_settings=matrix_settings,
@@ -1217,7 +1203,6 @@ class UIBuilder:
         QToolBar
             The (main) toolbar.
         """
-        main_window = self.window
         toolbar = QToolBar("Toolbar")
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setFloatable(False)
@@ -1246,12 +1231,11 @@ class UIBuilder:
         toolbar.addAction(self.actions.remove_system)
         toolbar.addSeparator()
         toolbar.addAction(self.actions.config)
-        main_window.addToolBar(toolbar)
         return toolbar
 
-    def _create_menu(self) -> None:
+    def _create_menu(self) -> QMenuBar:
         """Create the main menu."""
-        menu = self.window.menuBar()
+        menu = QMenuBar()
         file = menu.addMenu("&File")
         file.addAction(self.actions.new_file)
         file.addAction(self.actions.load)
@@ -1306,10 +1290,10 @@ class UIBuilder:
         help_menu.addAction(self.actions.post_install)
         help_menu.addAction(self.actions.remove_desktop_integration)
         help_menu.addAction(self.actions.about)  # This is auto-moved on a Mac
+        return menu
 
     def _create_gui(self) -> None:
         """Create and set up the main GUI."""
-        self.window.setCentralWidget(self.widgets.central_widget)
         layout = QVBoxLayout(self.widgets.central_widget)
         layout.setSpacing(6)
         layout.setContentsMargins(11, 4, 11, 11)
@@ -1322,9 +1306,6 @@ class UIBuilder:
         infobar.addWidget(QLabel("  |  "))
         infobar.addWidget(self.widgets.lsp_info)
         layout.addLayout(infobar, 0)
-        self.window.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.widgets.dockable_metadata
-        )
 
 
 class MainWindow(QMainWindow):
@@ -1359,7 +1340,17 @@ class MainWindow(QMainWindow):
         self._output_timer.setSingleShot(False)
         self._output_timer.setInterval(50)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
-        self.ui: UIBuilder = UIBuilder(self)
+        self.ui: UIBuilder = UIBuilder()
+        self.ui.widgets.script_edit.setValidExtensions([self.extension])
+        self.setMenuBar(self.ui.menubar)
+        self.addToolBar(self.ui.toolbar)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.ui.widgets.config_editor)
+        self.ui.widgets.config_editor.setFloating(True)
+        self.ui.widgets.config_editor.close()
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.dockable_metadata
+        )
+        self.setCentralWidget(self.ui.widgets.central_widget)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()

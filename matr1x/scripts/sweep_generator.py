@@ -26,8 +26,8 @@ import re
 import sys
 import time
 from ast import literal_eval
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass, fields
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import cached_property
 from math import floor
 from pathlib import Path
@@ -642,19 +642,15 @@ class ActionGroup:
     post_install: QAction
     remove_desktop_integration: QAction
 
-    def __iter__(self) -> Iterator[QAction]:
-        for f in fields(self):
-            yield getattr(self, f.name)
-
 
 class UIBuilder:
-    """Create actions, toolbar and menu."""
+    """Create the GUI elements."""
 
-    def __init__(self, menu_bar: QMenuBar):
+    def __init__(self):
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
         self.toolbar: QToolBar = self._create_toolbar()
-        self._create_menu(menu_bar)
+        self.menubar: QMenuBar = self._create_menu()
         self.grid: QGridLayout = self._create_gui()
 
     def _create_widgets(self) -> WidgetGroup:
@@ -790,8 +786,9 @@ class UIBuilder:
         toolbar.addAction(self.actions.remove_system)
         return toolbar
 
-    def _create_menu(self, menu_bar: QMenuBar) -> None:
+    def _create_menu(self) -> QMenuBar:
         """Create the main menu."""
+        menu_bar = QMenuBar()
         file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(self.actions.new_file)
         file_menu.addAction(self.actions.load)
@@ -815,6 +812,7 @@ class UIBuilder:
         help_menu.addSeparator()
         help_menu.addAction(self.actions.post_install)
         help_menu.addAction(self.actions.remove_desktop_integration)
+        return menu_bar
 
     def _create_gui(self) -> QGridLayout:
         """Create and set up the main GUI."""
@@ -1004,11 +1002,10 @@ class MainWindow(FileDropMixin, QMainWindow):
 
         self.setWindowTitle("Sweep Generator")
         self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
-        self.ui: UIBuilder = UIBuilder(self.menuBar())
+        self.ui: UIBuilder = UIBuilder()
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.addToolBar(self.ui.toolbar)
-        for action in self.ui.actions:
-            action.setParent(self)
+        self.setMenuBar(self.ui.menubar)
         self.setAcceptDrops(True)
         self.setValidExtensions([self.extension])
         self.create_connections()

@@ -1033,7 +1033,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                 port += 1
         raise RuntimeError("No free ports available")
 
-    def __init__(self, extensions: list, lsp_server: LSPServer):
+    def __init__(self, lsp_server: LSPServer):
         super().__init__()
         self.version = 1
         self.code: str = ""
@@ -1085,7 +1085,6 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self._pending_highlight_line: int | None = None
         self._current_theme: str
         MApplication.instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
-        self.setValidExtensions(extensions)
 
     def _run_javascript(self, command: str):
         """Execute JavaScript command and return result synchronously."""

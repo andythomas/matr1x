@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMenu,
+    QMenuBar,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -107,6 +108,7 @@ class MenuGroup:
     data_recorder: QMenu
     custom: QMenu
     help: QMenu
+    menu: QMenuBar
 
 
 @dataclass(frozen=True)
@@ -116,21 +118,13 @@ class WidgetGroup:
     panic: QPushButton
     recorder_file_label: QLabel
     recorder_led: QLabel
+    central_widget: QWidget
 
 
 class UIBuilder:
-    """
-    Build the main UI and provide actions, widgets and menus.
+    """Create the GUI elements."""
 
-    Parameters
-    ----------
-    window: ControlWindow
-        The Controlwindow (inherits from QMainWindow) to generate the
-        GUI for.
-    """
-
-    def __init__(self, window: "ControlWindow") -> None:
-        self.window: ControlWindow = window
+    def __init__(self) -> None:
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
         self.menus: MenuGroup = self._create_menus()
@@ -157,10 +151,13 @@ class UIBuilder:
         palette = led.palette()
         palette.setColor(led.backgroundRole(), QColor("lightgray"))
         led.setPalette(palette)
+        central_widget = QWidget()
+        central_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         return WidgetGroup(
             panic=panicButton,
             recorder_file_label=label,
             recorder_led=led,
+            central_widget=central_widget,
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -172,28 +169,28 @@ class UIBuilder:
         ActionGroup
             The actions to be used in the GUI.
         """
-        enable_all = QAction("Enable all", self.window)
-        disable_all = QAction("Disable all", self.window)
-        full_info_all = QAction("Full info all", self.window)
-        less_info_all = QAction("Less info all", self.window)
+        enable_all = QAction("Enable all")
+        disable_all = QAction("Disable all")
+        full_info_all = QAction("Full info all")
+        less_info_all = QAction("Less info all")
         show_toolbar = QAction("Show Toolbar")
         show_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         show_toolbar.setCheckable(True)
-        show_toml = QAction("Show matrix toml", self.window)
+        show_toml = QAction("Show matrix toml")
         show_toml.setMenuRole(QAction.MenuRole.PreferencesRole)
         show_toml.setShortcut(QKeySequence.StandardKey.Preferences)
-        show_log = QAction("Show Log Window", self.window)
+        show_log = QAction("Show Log Window")
         show_log.setCheckable(True)
-        quit_app = QAction("Quit", self.window)
+        quit_app = QAction("Quit")
         if os.name == "nt":
             quit_app.setShortcut(QKeySequence.StandardKey.Close)
         else:
             quit_app.setShortcut(QKeySequence.StandardKey.Quit)
-        data_recorder_interval = QAction("Set interval", self.window)
-        select_recorder = QAction("Select output file", self.window)
+        data_recorder_interval = QAction("Set interval")
+        select_recorder = QAction("Select output file")
         config_recorder = QAction("Modify config")
         config_recorder.setCheckable(True)
-        toggle_recorder = QAction("Start data recorder", self.window)
+        toggle_recorder = QAction("Start data recorder")
         toggle_recorder.setCheckable(True)
         return ActionGroup(
             enable_all=enable_all,
@@ -219,7 +216,7 @@ class UIBuilder:
         MenuGroup
             The menus to be used in the GUI.
         """
-        menu = self.window.menuBar()
+        menu = QMenuBar()
         file = menu.addMenu("&File")
         enable = menu.addMenu("&Enable")
         fullinfo = menu.addMenu("&Full info")
@@ -228,6 +225,7 @@ class UIBuilder:
         custom = menu.addMenu("&Custom")
         help_me = menu.addMenu("&Help")
         return MenuGroup(
+            menu=menu,
             file=file,
             enable=enable,
             fullinfo=fullinfo,
@@ -239,21 +237,15 @@ class UIBuilder:
 
     def _create_gui(self) -> None:
         """Create and set up the main GUI."""
-        widget = QWidget()
-        widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout()
-        widget.setLayout(layout)
         layout.addStretch()
-        self.window.setCentralWidget(widget)
-        for guidict in self.window.guidicts:
-            content = guidict.create_GUI()
-            self.window.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         layout.addWidget(self.widgets.panic)
         line = QHBoxLayout()
         line.addWidget(self.widgets.recorder_led)
         line.addWidget(self.widgets.recorder_file_label)
         line.addStretch()
         layout.addLayout(line)
+        self.widgets.central_widget.setLayout(layout)
 
 
 class EnableAction(QAction):
@@ -451,7 +443,12 @@ class ControlWindow(QMainWindow):
         # initialize data logging dictionaries
         self.guidicts: list[GuiDict]
         self._harmonize_guidicts(guidicts)
-        self.ui = UIBuilder(self)
+        self.ui = UIBuilder()
+        self.setMenuBar(self.ui.menus.menu)
+        self.setCentralWidget(self.ui.widgets.central_widget)
+        for guidict in self.guidicts:
+            content = guidict.create_GUI()
+            self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         self.create_connections()
         self.statusloggingUI()
         check_config(matrixconfig)

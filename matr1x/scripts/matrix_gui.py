@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenuBar,
     QMessageBox,
     QProgressBar,
     QSizePolicy,
@@ -81,9 +82,7 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts import (
-    sweep_generator,
-)
+from matr1x.scripts import sweep_generator
 from matr1x.scripts.shared_classes import MetaDataDialog
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error
@@ -342,22 +341,22 @@ class WidgetGroup:
     progress: QLabel
     progressbar: QProgressBar
     table: ReadOnlyTable
+    central_widget: QWidget
+    measurements_container: QWidget
 
 
 class UIBuilder:
-    """Build the GUI and provide widgets and actions."""
+    """Create the GUI elements."""
 
-    def __init__(self, window: QMainWindow) -> None:
-        self.window: QMainWindow = window
+    def __init__(self) -> None:
         self.actions: ActionGroup = self._create_actions()
         self.widgets: WidgetGroup = self._create_widgets()
         self.toolbar: QToolBar = self._create_toolbar()
         self._create_gui()
-        self._create_menu()
+        self.menubar = self._create_menubar()
 
     def _create_widgets(self) -> WidgetGroup:
         """Create all UI widgets of this application."""
-        self.measurements_container = QWidget()
         meas_list = QueueListWidget()
         config_editor = ConfigEditWidget()
         config_editor.setFeatures(
@@ -367,18 +366,13 @@ class UIBuilder:
         output_edit = QLineEdit()
         input_file = LabelWithSignal()
         current_file = QLabel()
-        dockable_metadata = QDockWidget("Metadata", self.window)
+        dockable_metadata = QDockWidget("Metadata")
         meta_view = MetaDataDialog()
         dockable_metadata.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
         dockable_metadata.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         dockable_metadata.setWidget(meta_view)
-        self.central_widget = QWidget()
-        self.input_label = QLabel("Input: ")
-        self.output_label = QLabel("Output: ")
-        self.queue_label = QLabel("Queue")
-        self.file_label = QLabel("Current file: ")
         table = ReadOnlyTable()
         table.setColumnCount(4)
         table.setRowCount(1)
@@ -388,6 +382,8 @@ class UIBuilder:
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         progress = QLabel("Measurement idle.")
         progressbar = QProgressBar()
+        central_widget = QWidget()
+        measurements_container = QWidget()
         return WidgetGroup(
             meas_list=meas_list,
             config_editor=config_editor,
@@ -399,6 +395,8 @@ class UIBuilder:
             progressbar=progressbar,
             progress=progress,
             table=table,
+            central_widget=central_widget,
+            measurements_container=measurements_container,
         )
 
     def _create_gui(self) -> None:
@@ -412,32 +410,25 @@ class UIBuilder:
         queue_n_measurement.addWidget(self.widgets.meas_list, 1)
         queue_n_measurement.addWidget(self.remove_button)
         queue_n_measurement.addLayout(measurement, 0)
-        self.measurements_container.setLayout(queue_n_measurement)
-        self.window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.widgets.config_editor)
-        self.widgets.config_editor.setFloating(True)
-        self.widgets.config_editor.close()
+        self.widgets.measurements_container.setLayout(queue_n_measurement)
         central_layout = QVBoxLayout()
         input_line = QHBoxLayout()
-        input_line.addWidget(self.input_label)
+        input_line.addWidget(QLabel("Input: "))
         input_line.addWidget(self.widgets.input_file)
         input_line.addStretch()
         central_layout.addLayout(input_line)
         output_line = QHBoxLayout()
-        output_line.addWidget(self.output_label)
+        output_line.addWidget(QLabel("Output: "))
         output_line.addWidget(self.widgets.output_edit)
         central_layout.addLayout(output_line)
-        central_layout.addWidget(self.queue_label)
-        central_layout.addWidget(self.measurements_container)
+        central_layout.addWidget(QLabel("Queue"))
+        central_layout.addWidget(self.widgets.measurements_container)
         current_line = QHBoxLayout()
-        current_line.addWidget(self.file_label)
+        current_line.addWidget(QLabel("Current file: "))
         current_line.addWidget(self.widgets.current_file)
         current_line.addStretch()
         central_layout.addLayout(current_line)
-        self.central_widget.setLayout(central_layout)
-        self.window.setCentralWidget(self.central_widget)
-        self.window.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.widgets.dockable_metadata
-        )
+        self.widgets.central_widget.setLayout(central_layout)
 
     def _create_actions(self) -> ActionGroup:
         """Create all QActions of this application."""
@@ -451,64 +442,56 @@ class UIBuilder:
                 """
         )
         self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        remove = QAction(get_matrix_icon("CHAR_-"), "Remove\nQueue\nItem", self.window)
+        remove = QAction(get_matrix_icon("CHAR_-"), "Remove\nQueue\nItem")
         self.remove_button.setDefaultAction(remove)
-        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self.window)
+        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setShortcut(QKeySequence.StandardKey.Open)
-        quit_app = QAction("Quit", self.window)
+        quit_app = QAction("Quit")
         if os.name == "nt":
             quit_app.setShortcut(QKeySequence.StandardKey.Close)
         else:
             quit_app.setShortcut(QKeySequence.StandardKey.Quit)
         preview = QAction(
-            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")),
-            "Preview",
-            self.window,
+            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview"
         )
         preview.setEnabled(False)
-        matrix_settings = QAction("Show matrix toml", self.window)
+        matrix_settings = QAction("Show matrix toml")
         matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
         matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
         matrix_settings.triggered.connect(open_matrix_toml)
-        about = QAction("About", self.window)
+        about = QAction("About")
         about.setMenuRole(QAction.MenuRole.AboutRole)
-        config = QAction(get_matrix_icon("CHAR_≡"), "Device config", self.window)
+        config = QAction(get_matrix_icon("CHAR_≡"), "Device config")
         config.setCheckable(True)
         sweep = QAction(
-            get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")),
-            "Generator",
-            self.window,
+            get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")), "Generator"
         )
-        auto_filename = QAction(get_matrix_icon("SP_DriveHDIcon"), "Auto-filename", self.window)
+        auto_filename = QAction(get_matrix_icon("SP_DriveHDIcon"), "Auto-filename")
         auto_filename.setCheckable(True)
-        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self.window)
+        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...")
         save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
-        queue = QAction(get_matrix_icon("CHAR_+"), "Queue", self.window)
+        queue = QAction(get_matrix_icon("CHAR_+"), "Queue")
         queue.setEnabled(False)
-        start = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self.window)
+        start = QAction(get_matrix_icon("CUSTOM_Play"), "Start")
         start.setEnabled(False)
-        pause = QAction(get_matrix_icon("CUSTOM_Pause"), "Pause", self.window)
+        pause = QAction(get_matrix_icon("CUSTOM_Pause"), "Pause")
         pause.setCheckable(True)
         pause.setChecked(False)
         pause.setEnabled(False)
-        abort = QAction(
-            get_matrix_icon("CUSTOM_Stop", color=QColor("#B71C1C")), "Abort", self.window
-        )
+        abort = QAction(get_matrix_icon("CUSTOM_Stop", color=QColor("#B71C1C")), "Abort")
         abort.setEnabled(False)
-        finish = QAction(
-            get_matrix_icon("CUSTOM_Stop", color=QColor("#388E3C")), "Finish", self.window
-        )
+        finish = QAction(get_matrix_icon("CUSTOM_Stop", color=QColor("#388E3C")), "Finish")
         finish.setEnabled(False)
-        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill", self.window)
+        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
         kill.setEnabled(False)
-        toggle_toolbar = QAction("Show Toolbar", self.window)
+        toggle_toolbar = QAction("Show Toolbar")
         toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         toggle_toolbar.setCheckable(True)
         toggle_toolbar.setChecked(True)
-        show_log = QAction("Show Log Window", self.window)
+        show_log = QAction("Show Log Window")
         show_log.setCheckable(True)
-        post_install = QAction("Install Desktop Integration", self.window)
-        remove_desktop_integration = QAction("Remove Desktop Integration", self.window)
+        post_install = QAction("Install Desktop Integration")
+        remove_desktop_integration = QAction("Remove Desktop Integration")
         return ActionGroup(
             remove=remove,
             preview=preview,
@@ -562,13 +545,12 @@ class UIBuilder:
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         toolbar.addWidget(spacer)
         toolbar.addAction(self.actions.config)
-        self.window.addToolBar(toolbar)
         return toolbar
 
-    def _create_menu(self) -> None:
-        """Create the menu."""
-        menu = self.window.menuBar()
-        file_menu = menu.addMenu("&File")
+    def _create_menubar(self) -> QMenuBar:
+        """Create the menubar."""
+        menubar = QMenuBar()
+        file_menu = menubar.addMenu("&File")
         file_menu.addAction(self.actions.load)
         file_menu.addAction(self.actions.sweep)
         file_menu.addSeparator()
@@ -578,7 +560,7 @@ class UIBuilder:
         file_menu.addAction(self.actions.remove)
         file_menu.addSeparator()
         file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
-        control_menu = menu.addMenu("&Control")
+        control_menu = menubar.addMenu("&Control")
         control_menu.addAction(self.actions.queue)
         control_menu.addAction(self.actions.start)
         control_menu.addAction(self.actions.pause)
@@ -587,16 +569,17 @@ class UIBuilder:
         control_menu.addAction(self.actions.kill)
         control_menu.addSeparator()
         control_menu.addAction(self.actions.preview)
-        view_menu = menu.addMenu("&View")
+        view_menu = menubar.addMenu("&View")
         view_menu.addAction(self.actions.toggle_toolbar)
         view_menu.addAction(self.actions.matrix_settings)
         view_menu.addAction(self.actions.config)
-        help_menu = menu.addMenu("&Help")
+        help_menu = menubar.addMenu("&Help")
         help_menu.addAction(self.actions.about)
         help_menu.addAction(self.actions.show_log)
         help_menu.addSeparator()
         help_menu.addAction(self.actions.post_install)
         help_menu.addAction(self.actions.remove_desktop_integration)
+        return menubar
 
 
 class MainWindow(FileDropMixin, QMainWindow):
@@ -609,7 +592,31 @@ class MainWindow(FileDropMixin, QMainWindow):
         logger.info("matrix-gui starting")
         self.setWindowTitle("Matrix GUI")
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-gui.png"))
-        self.ui = UIBuilder(self)
+        self.ui = UIBuilder()
+        self.setMenuBar(self.ui.menubar)
+        self.addToolBar(self.ui.toolbar)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.ui.widgets.config_editor)
+        self.ui.widgets.config_editor.setFloating(True)
+        self.ui.widgets.config_editor.close()
+        self.setCentralWidget(self.ui.widgets.central_widget)
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.dockable_metadata
+        )
+        check_config(matr1x.config)
+        self.sg: QMainWindow | None = None
+        self.running = False
+        self.sys_meta_data = {}
+        self.measurement_thread = GuiThread()
+        self._create_connections()
+        self.setAcceptDrops(True)
+        self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
+        self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
+        self.settings = SaferQSettings("matr1x", "gui")
+        self._cached_system_info: SystemInfo | None = None
+        check_desktop_integration()
+
+    def _create_connections(self) -> None:
+        """Connect actions and widgets with application logic."""
         self.ui.actions.remove.triggered.connect(self.remove_measurement)
         self.ui.actions.preview.triggered.connect(self.open_preview)
         self.ui.actions.about.triggered.connect(self.info_box)
@@ -629,11 +636,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.widgets.input_file.textChanged.connect(self.parse_system_from_inputfile)
-        check_config(matr1x.config)
-        self.sg: QMainWindow | None = None
-        self.running = False
-        self.sys_meta_data = {}
-        self.measurement_thread = GuiThread()
         self.measurement_thread.filename_received.connect(self.process_filename)
         self.measurement_thread.telemetry_received.connect(self.process_telemetry)
         self.measurement_thread.tabledata_received.connect(self.process_tabledata)
@@ -642,12 +644,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.abort.triggered.connect(self.measurement_thread.abort)
         self.ui.actions.finish.triggered.connect(self.measurement_thread.finish)
         self.ui.actions.kill.triggered.connect(self.measurement_thread.kill)
-        self.setAcceptDrops(True)
-        self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
-        self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
-        self.settings = SaferQSettings("matr1x", "gui")
-        self._cached_system_info: SystemInfo | None = None
-        check_desktop_integration()
 
     def process_filename(self, filename: str) -> None:
         """
