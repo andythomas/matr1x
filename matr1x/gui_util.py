@@ -1438,29 +1438,19 @@ class ConfigEditWidget(MetaViewerWidget):
 
         return normalize_dict(config_dict)
 
-    def write_config(self, config_dict: dict[str, Any] | None = None) -> Path:
+    def write_config(self) -> Path:
+        """Write the configuration to a temporary file."""
+        return self.write_config_dict(self.get_config_dict())
+
+    @staticmethod
+    def write_config_dict(config_dict: dict[str, Any]) -> Path:
         """
-        Write config data to a temporary file using matr1x.write_config.
+        Write a configuration dictionary to a temporary file.
 
         The configuration data is normalized and written to a named temporary
         file. This file persists after the function returns and can be used
         as an optional configuration file.
-
-        Parameters
-        ----------
-        config_dict : dict, optional
-            Configuration dictionary to write. If None, extracts configuration
-            from the tree view using get_config_dict().
-
-        Returns
-        -------
-        Path
-            Path to the temporary file containing the written configuration.
         """
-        if config_dict is None:
-            config_dict = self.get_config_dict()
-
-        # Create a temporary file
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".toml") as tmpfile:
             temp_file = Path(tmpfile.name)
             write_config(config_dict, temp_file)  # Use matr1x's write_config

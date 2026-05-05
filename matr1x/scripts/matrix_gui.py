@@ -15,14 +15,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Provide a graphical user interface for matrix measurements."""
 
-import hashlib
-import json
 import logging
 import os
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 import shiboken6
@@ -117,81 +116,69 @@ class LabelWithSignal(QLabel):
         self.textChanged.emit(a0)
 
 
-class QueueListWidget(QListWidget):
-    """
-    A list widget that stores a dictionary for each row.
+@dataclass(frozen=True)
+class QueueListItem:
+    """The parameters of an item of the measurement queue."""
 
-    This list of dict is used to handle the measurement queue and store
-    the line to show in the list view.
-    """
+    input_file: str
+    output_file: str
+    metadata: dict
+    config: dict
+
+    @cached_property
+    def list_entry(self) -> str:
+        """Return a human-readable representation of the list entry."""
+        output = Path(self.output_file).name if self.output_file else "<use input>"
+        return f"Input: {Path(self.input_file).name} - Output: {output}"
+
+
+class QueueListWidget(QListWidget):
+    """A widget that stores the parameters for each row."""
+
+    changed: Signal = Signal()
 
     def __init__(self) -> None:
-        """Initialize the list widget with an empty list."""
         super().__init__()
-        self.data_list = []
         self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         self.setAlternatingRowColors(True)
-        self.model().rowsMoved.connect(self.update_data_order)
 
-    def add_parameters(self, parameters: tuple) -> None:
-        """
-        Add a set of parameters.
+    def add_parameters(self, parameters: QueueListItem) -> None:
+        """Add a set of parameters."""
+        item = QListWidgetItem(parameters.list_entry)
+        item.setData(Qt.ItemDataRole.UserRole, parameters)
+        self.addItem(item)
 
-        Parameters
-        ----------
-        parameters : tuple
-            The tuple to be added:
-            (inputFile, outputFile, metadata_dict, config_dict).
-        """
-        output = Path(parameters[1]).name if parameters[1] else "<use input>"
-        dict_str = (
-            parameters[0]
-            + parameters[1]
-            + json.dumps(parameters[2], sort_keys=True)
-            + json.dumps(parameters[3], sort_keys=True)
-        )
-        hash_value = hashlib.sha256(dict_str.encode()).hexdigest()[:6]
-        list_entry = f"Input: {Path(parameters[0]).name} - Output: {output} - Id: {hash_value}"
-        param_dict = {"parameters": parameters, "listview": list_entry}
-        self.data_list.append(param_dict)
-        list_item = QListWidgetItem(list_entry)
-        super().addItem(list_item)
+    def addItem(self, item: QListWidgetItem | str) -> None:
+        """Add an item to the list widget."""
+        super().addItem(item)
+        self.changed.emit()
 
     def takeItem(self, row: int) -> QListWidgetItem:
-        """
-        Delete the item.
+        """Delete the item."""
+        item = super().takeItem(row)
+        self.changed.emit()
+        return item
 
-        Parameters
-        ----------
-        row : int
-            The row to be deleted.
-        """
-        self.data_list.pop(row)
-        return super().takeItem(row)
+    def parameters(self, row: int) -> QueueListItem:
+        """Get the parameters for a matrix run of the given row."""
+        item = self.item(row)
+        return item.data(Qt.ItemDataRole.UserRole)
 
-    def update_data_order(self) -> None:
-        """Update the list of dicts based on the list widget."""
-        new_order = []
-        for i in range(self.count()):
-            item = self.item(i)
-            assert item is not None
-            new_order.append(item.text())
-        self.data_list.sort(key=lambda x: new_order.index(x["listview"]))
+    def keyPressEvent(self, a0: QKeyEvent) -> None:
+        """Allow to modify systems list with keyboard shortcuts."""
+        if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)):
+            self.remove_measurement()
+        elif detect_shortcut(a0, QKeySequence(Qt.Key.Key_Backspace)):
+            self.remove_measurement()
+        super().keyPressEvent(a0)
 
-    def parameters(self, row: int) -> tuple:
-        """
-        Get the parameters for a matrix run.
-
-        Parameters
-        ----------
-        row : int
-            The row to query.
-
-        Returns
-        -------
-        The input parameters for the thread.
-        """
-        return self.data_list[row]["parameters"]
+    def remove_measurement(self) -> None:
+        """Remove selected or last item from measurement list."""
+        selected = self.selectedItems()
+        if selected:
+            self.takeItem(self.row(selected[0]))
+        elif self.count():
+            self.takeItem(self.count() - 1)
 
 
 class GuiThread(QThread):
@@ -206,20 +193,19 @@ class GuiThread(QThread):
         QThread.__init__(self)
         self.proc: subprocess.Popen | None = None
 
-    def set_parameters(self, params: tuple, config_editor: ConfigEditWidget) -> None:
-        """Set measurement parameters and meta-data."""
-        self.inputFile, self.outputFile, self.meta_data, self.config_dict = params
-        self.config_editor: ConfigEditWidget = config_editor
+    def set_parameters(self, parameters: QueueListItem) -> None:
+        """Set measurement files, metadata and config."""
+        self.parameters: QueueListItem = parameters
 
     def run(self) -> None:
         """Start the command line thread."""
         tmp_config_file = None
         if hasattr(self, "config_dict") and self.config_dict:
-            tmp_config_file = self.config_editor.write_config(self.config_dict)
-        cmd = [get_matrix_binary(), "-i", self.inputFile, "-pj"]
-        if self.outputFile != "":
-            cmd += ["-o", self.outputFile]
-        for key, val in self.meta_data.items():
+            tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
+        cmd = [get_matrix_binary(), "-i", self.parameters.input_file, "-pj"]
+        if self.parameters.output_file != "":
+            cmd += ["-o", self.parameters.output_file]
+        for key, val in self.parameters.metadata.items():
             if key in matr1x.VALID_META_KEYS.keys() and val:
                 if matr1x.VALID_META_KEYS[key]:
                     # only pass on allowed (editable) meta keys and only if
@@ -342,7 +328,7 @@ class WidgetGroup:
     progressbar: QProgressBar
     table: ReadOnlyTable
     central_widget: QWidget
-    measurements_container: QWidget
+    current_measurement: QLineEdit
 
 
 class UIBuilder:
@@ -383,7 +369,8 @@ class UIBuilder:
         progress = QLabel("Measurement idle.")
         progressbar = QProgressBar()
         central_widget = QWidget()
-        measurements_container = QWidget()
+        current_measurement = QLineEdit()
+        current_measurement.setReadOnly(True)
         return WidgetGroup(
             meas_list=meas_list,
             config_editor=config_editor,
@@ -396,7 +383,7 @@ class UIBuilder:
             progress=progress,
             table=table,
             central_widget=central_widget,
-            measurements_container=measurements_container,
+            current_measurement=current_measurement,
         )
 
     def _create_gui(self) -> None:
@@ -405,12 +392,16 @@ class UIBuilder:
         measurement.addWidget(self.widgets.table)
         measurement.addWidget(self.widgets.progress)
         measurement.addWidget(self.widgets.progressbar)
+        queue_n_current_measurement = QVBoxLayout()
+        queue_n_current_measurement.addWidget(self.widgets.current_measurement)
+        queue_n_current_measurement.addWidget(self.widgets.meas_list, 1)
         queue_n_measurement = QHBoxLayout()
         queue_n_measurement.setContentsMargins(0, 0, 0, 0)
-        queue_n_measurement.addWidget(self.widgets.meas_list, 1)
+        queue_n_measurement.addLayout(queue_n_current_measurement, 1)
         queue_n_measurement.addWidget(self.remove_button)
         queue_n_measurement.addLayout(measurement, 0)
-        self.widgets.measurements_container.setLayout(queue_n_measurement)
+        measurements_container = QWidget()
+        measurements_container.setLayout(queue_n_measurement)
         central_layout = QVBoxLayout()
         input_line = QHBoxLayout()
         input_line.addWidget(QLabel("Input: "))
@@ -422,7 +413,7 @@ class UIBuilder:
         output_line.addWidget(self.widgets.output_edit)
         central_layout.addLayout(output_line)
         central_layout.addWidget(QLabel("Queue"))
-        central_layout.addWidget(self.widgets.measurements_container)
+        central_layout.addWidget(measurements_container)
         current_line = QHBoxLayout()
         current_line.addWidget(QLabel("Current file: "))
         current_line.addWidget(self.widgets.current_file)
@@ -617,7 +608,7 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def _create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
-        self.ui.actions.remove.triggered.connect(self.remove_measurement)
+        self.ui.actions.remove.triggered.connect(self.ui.widgets.meas_list.remove_measurement)
         self.ui.actions.preview.triggered.connect(self.open_preview)
         self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.config.toggled.connect(self.toggle_preferences)
@@ -644,6 +635,15 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.abort.triggered.connect(self.measurement_thread.abort)
         self.ui.actions.finish.triggered.connect(self.measurement_thread.finish)
         self.ui.actions.kill.triggered.connect(self.measurement_thread.kill)
+        self.ui.widgets.meas_list.changed.connect(self.measurement_list_changed)
+
+    def measurement_list_changed(self) -> None:
+        """Update the data order when the measurement list is changed."""
+        if not self.running:
+            if self.ui.widgets.meas_list.count() > 0:
+                self.ui.actions.start.setEnabled(True)
+            else:
+                self.ui.actions.start.setEnabled(False)
 
     def process_filename(self, filename: str) -> None:
         """
@@ -740,7 +740,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         if self.sg is not None:
             self.sg.close()
         while self.ui.widgets.meas_list.count() > 0:
-            self.remove_measurement()
+            self.ui.widgets.meas_list.remove_measurement()
         self.save_window_state()
         root_logger = logging.getLogger()
         root_logger.removeHandler(self.log_window.log_handler)
@@ -955,18 +955,16 @@ class MainWindow(FileDropMixin, QMainWindow):
     def queue_measurement(self) -> None:
         """Queue a measurement into the measurement menu."""
         inputFile = self.ui.widgets.input_file.text()
-        outputFile = self.ui.widgets.output_edit.text()
         if not Path(inputFile).exists():
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
             return
         self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
         # create parameter set for measurement, make sure to copy the meta data
-        config_dict = self.ui.widgets.config_editor.get_config_dict()
-        parameters = (
-            inputFile,
-            outputFile,
-            self.sys_meta_data.copy(),
-            config_dict,
+        parameters = QueueListItem(
+            input_file=inputFile,
+            output_file=self.ui.widgets.output_edit.text(),
+            metadata=self.sys_meta_data.copy(),
+            config=self.ui.widgets.config_editor.get_config_dict(),
         )
         self.ui.widgets.meas_list.add_parameters(parameters)
         if not self.running:
@@ -977,32 +975,16 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.running = True
         self.ui.actions.preview.setEnabled(False)
         self.ui.actions.start.setEnabled(False)
+        self.ui.widgets.progress.setText("Measurement started.")
         self.run_next_measurement()
-
-    def keyPressEvent(self, a0: QKeyEvent) -> None:
-        """Allow to modify systems list with keyboard shortcuts."""
-        if self.ui.widgets.meas_list.hasFocus():
-            if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)):
-                self.remove_measurement()
-            if detect_shortcut(a0, QKeySequence(Qt.Key.Key_Backspace)):
-                self.remove_measurement()
-        super().keyPressEvent(a0)
-
-    def remove_measurement(self) -> None:
-        """Remove selected or last item from measurement list."""
-        selected = self.ui.widgets.meas_list.selectedItems()
-        if len(selected) > 0:
-            self.ui.widgets.meas_list.takeItem(self.ui.widgets.meas_list.row(selected[0]))
-        elif self.ui.widgets.meas_list.count() > 0:  # remove last item
-            self.ui.widgets.meas_list.takeItem(self.ui.widgets.meas_list.count() - 1)
-            self.ui.actions.start.setEnabled(False)
 
     def run_next_measurement(self) -> None:
         """Run the next queued measurement."""
-        self.measurement_thread.set_parameters(
-            self.ui.widgets.meas_list.parameters(0),
-            self.ui.widgets.config_editor,
+        self.measurement_thread.set_parameters(self.ui.widgets.meas_list.parameters(0))
+        self.ui.widgets.current_measurement.setText(
+            self.ui.widgets.meas_list.parameters(0).list_entry
         )
+        self.ui.widgets.meas_list.takeItem(0)
         self.measurement_thread.start()
         self.ui.actions.pause.setEnabled(True)
         self.ui.actions.abort.setEnabled(True)
@@ -1022,7 +1004,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.widgets.table.setRowCount(1)
         for i in range(self.ui.widgets.table.columnCount()):
             self.ui.widgets.table.setItem(0, i, QTableWidgetItem(""))
-        self.ui.widgets.meas_list.takeItem(0)
+        self.ui.widgets.current_measurement.setText("")
         self.ui.actions.pause.setEnabled(False)
         self.ui.actions.pause.setChecked(False)
         self.ui.actions.abort.setEnabled(False)
