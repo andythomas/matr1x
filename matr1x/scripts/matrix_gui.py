@@ -26,7 +26,7 @@ from pathlib import Path
 
 import shiboken6
 from pydantic import ValidationError
-from PySide6.QtCore import QByteArray, QDateTime, QPoint, QSize, Qt, QThread, Signal
+from PySide6.QtCore import QByteArray, QDateTime, QPoint, QSize, Qt, QThread, QTimeZone, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -199,9 +199,7 @@ class GuiThread(QThread):
 
     def run(self) -> None:
         """Start the command line thread."""
-        tmp_config_file = None
-        if hasattr(self, "config_dict") and self.config_dict:
-            tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
+        tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
         cmd = [get_matrix_binary(), "-i", self.parameters.input_file, "-pj"]
         if self.parameters.output_file != "":
             cmd += ["-o", self.parameters.output_file]
@@ -211,8 +209,7 @@ class GuiThread(QThread):
                     # only pass on allowed (editable) meta keys and only if
                     # data is not None
                     cmd += [f"--dc_{key.lower()}", val]
-        if tmp_config_file:
-            cmd += ["--optional-config", str(tmp_config_file)]
+        cmd += ["--optional-config", str(tmp_config_file)]
         try:
             self.proc = subprocess.Popen(
                 cmd,
@@ -226,7 +223,7 @@ class GuiThread(QThread):
             self.proc.wait()
             logger.info("matrix ended with returncode: %s", self.proc.returncode)
         finally:
-            if tmp_config_file and tmp_config_file.exists():
+            if tmp_config_file.exists():
                 tmp_config_file.unlink()
 
     def process_received_data(self, line: str) -> None:
@@ -716,7 +713,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 )
                 self.ui.widgets.table.setItem(index, 2, value)
             try:
-                utc = QDateTime.fromSecsSinceEpoch(int(item), Qt.TimeSpec.UTC)
+                utc = QDateTime.fromSecsSinceEpoch(int(item), QTimeZone.utc())
                 local = utc.toLocalTime()
                 value = QTableWidgetItem(local.toString("HH:mm:ss"))
                 value.setTextAlignment(
