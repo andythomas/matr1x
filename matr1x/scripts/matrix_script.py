@@ -909,6 +909,8 @@ class WidgetGroup:
     central_widget: CentralWidget
     python_info: QLabel
     lsp_info: QLabel
+    save_pulldown: QMenu
+    stop_pulldown: QMenu
 
 
 class UIBuilder:
@@ -1027,6 +1029,8 @@ class UIBuilder:
         python_info.setToolTip(f"Python: {sys.version}")
         lsp_info = QLabel(f"LSP: {lsp_name}")
         lsp_info.setToolTip(f"{lsp_binary.value}")
+        save_pulldown = QMenu()
+        stop_pulldown = QMenu()
 
         return WidgetGroup(
             dockable_metadata=dockable_metadata,
@@ -1043,6 +1047,8 @@ class UIBuilder:
             central_widget=central_widget,
             python_info=python_info,
             lsp_info=lsp_info,
+            save_pulldown=save_pulldown,
+            stop_pulldown=stop_pulldown,
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -1074,9 +1080,8 @@ class UIBuilder:
         save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.widgets.save_button.setDefaultAction(save)
         self.widgets.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        save_pulldown = QMenu()
-        save_pulldown.addAction(save_as)
-        self.widgets.save_button.setMenu(save_pulldown)
+        self.widgets.save_pulldown.addAction(save_as)
+        self.widgets.save_button.setMenu(self.widgets.save_pulldown)
         add_system = QAction(get_matrix_icon("CHAR_+"), "Add System")
         add_system.setToolTip("Add a matrix system file.")
         remove_system = QAction(get_matrix_icon("CHAR_-"), "Remove System")
@@ -1113,10 +1118,9 @@ class UIBuilder:
         finish.setEnabled(False)
         self.widgets.stop_button.setDefaultAction(stop)
         self.widgets.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        stop_pulldown = QMenu()
-        stop_pulldown.addAction(abort)
-        stop_pulldown.addAction(finish)
-        self.widgets.stop_button.setMenu(stop_pulldown)
+        self.widgets.stop_pulldown.addAction(abort)
+        self.widgets.stop_pulldown.addAction(finish)
+        self.widgets.stop_button.setMenu(self.widgets.stop_pulldown)
         kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
         kill.setEnabled(False)
         preview = QAction(
