@@ -1363,6 +1363,8 @@ class MainWindow(QMainWindow):
         sys.stderr = StreamToLogger(logger, logging.ERROR)
         if filename is not None:
             self.load_from_filename(filename)
+        else:
+            self.update_systems()
         self.ui.widgets.status_preview.appendPlainText(help_text)
         check_desktop_integration()
 
@@ -1841,19 +1843,6 @@ class MainWindow(QMainWindow):
 
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
-        if len(self.ui.widgets.system_list.systems) == 0:
-            text = "<p style='margin: 20px;'><b>No system file selected!</b></p>"
-            text += "<p style='margin: 20px;'>"
-            text += "Please add a system file using the 'Add System' button or File menu.</p>"
-            text += "<p style='margin: 20px;'>"
-            text += "Once a system is loaded, this dialog will show information about:</p>"
-            text += "<ul style='margin-left: 40px;'>"
-            text += "<li>Available parameters that can be set or read</li>"
-            text += "<li>Connected devices and their configurations</li>"
-            text += "<li>System methods and variables</li>"
-            text += "</ul>"
-            self.ui.widgets.system_command_text_edit.setText(text)
-            return
         system_info = self._cached_system_info
         if system_info is None:
             self.ui.widgets.system_command_text_edit.setText("Could not parse the system file(s)!")
@@ -2063,10 +2052,6 @@ class MainWindow(QMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
-        if len(self.ui.widgets.system_list.systems) == 0:
-            self.ui.actions.start_pause.setChecked(False)
-            self.ui.widgets.status_preview.print_colored("No system selected")
-            return
         if (
             self.run_linter() > 0 and not self.in_pytest
         ):  # run linter to make sure there are no errors
@@ -2236,8 +2221,7 @@ class MainWindow(QMainWindow):
         """
         header = ""
         system_info = self._cached_system_info
-        if len(self.ui.widgets.system_list.systems) > 0:
-            # only attempt generating a header if a system is selected
+        if system_info is not None:
             try:
                 # get settable information to put into the header
                 # (columns/units)
@@ -2320,7 +2304,8 @@ class MainWindow(QMainWindow):
             system_line = line.replace("# system def : ", "").strip()
             for syst in system_line.split(","):
                 try:
-                    self.ui.widgets.system_list.addItem(syst)
+                    if system_line:
+                        self.ui.widgets.system_list.addItem(syst)
                     self.update_systems()
                     settable_info = (
                         self._extract_settable_info(self._cached_system_info)

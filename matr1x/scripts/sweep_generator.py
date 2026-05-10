@@ -700,19 +700,20 @@ class UIBuilder:
         show_log.setCheckable(True)
         new_file = QAction(get_matrix_icon("SP_FileIcon"), "New")
         new_file.setShortcut(QKeySequence.StandardKey.New)
-        new_file.setEnabled(False)
         load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setShortcut(QKeySequence.StandardKey.Open)
         add_system = QAction(get_matrix_icon("CHAR_+", QColor("RoyalBlue")), "Add System")
         remove_system = QAction(get_matrix_icon("CHAR_-", QColor("RoyalBlue")), "Remove System")
-        remove_system.setEnabled(False)
         save = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save")
         save.setShortcut(QKeySequence.StandardKey.Save)
         save.setEnabled(False)
         save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...")
         save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
+        save_as.setEnabled(False)
         append = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append")
         append_to = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append To...")
+        append.setEnabled(False)
+        append_to.setEnabled(False)
         quit_action = QAction("Quit")
         if os.name == "nt":
             quit_action.setShortcut(QKeySequence.StandardKey.Close)
@@ -965,10 +966,10 @@ class MainWindow(FileDropMixin, QMainWindow):
     ----------
     filename : str
         Sweep file to load for editing.
-    system : str
-        Path to system(s) for which an input file should be generated.
     inputcb : function handle
         Callback function used to return the filename of the generated file.
+    log_window : LoggingWindow, optional
+        Logging window to use for displaying log messages.
     """
 
     extension = ".sw8"
@@ -997,7 +998,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.columns: ColumnData = ColumnData()
         self.settings: SaferQSettings = SaferQSettings("matr1x", "sweep-generator")
         self.preview_column: int = 0
-        self.populated: bool = False
         self.grid_widgets: list[ColumnWidgets]
 
         self.setWindowTitle("Sweep Generator")
@@ -1016,6 +1016,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             if self.is_valid_extension(filename):
                 self.open_file(filename)
                 self.last_filename = filename
+        else:
+            self.update_systems()
 
     def closeEvent(self, a0) -> None:
         """
@@ -1125,6 +1127,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
         self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
         self.ui.widgets.system_list.message.connect(self.ui.widgets.notifier.show_message)
+        self.ui.widgets.system_list.changed.connect(lambda: self.update_window_title(dirty=True))
 
     def info_box(self) -> None:
         """Display an 'about this app' widget."""
@@ -1150,11 +1153,10 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def reset_layout(self) -> None:
         """Reset layout to clean state."""
-        if self.populated:
-            self.columns.clear()
-            clear_layout(self.ui.grid)
-            self.ui.widgets.sweep_table.setRowCount(0)
-            self.ui.widgets.sweep_preview.setRowCount(0)
+        self.columns.clear()
+        clear_layout(self.ui.grid)
+        self.ui.widgets.sweep_table.setRowCount(0)
+        self.ui.widgets.sweep_preview.setRowCount(0)
 
     @AutoSlot
     def on_up_down_changed(self) -> None:
@@ -1197,24 +1199,10 @@ class MainWindow(FileDropMixin, QMainWindow):
                 )
             )
         filenames = self.ui.widgets.system_list.systems
-        self.window_title_dirty.emit()
         if len(filenames) == 0:
-            self.reset_layout()
-            self.ui.actions.new_file.setEnabled(False)
-            self.ui.actions.save.setEnabled(False)
-            self.ui.actions.save_as.setEnabled(False)
-            self.ui.actions.append.setEnabled(False)
-            self.ui.actions.sweep.setEnabled(False)
-            self.ui.actions.preview.setEnabled(False)
             self.ui.actions.remove_system.setEnabled(False)
-            return False
-        self.ui.actions.new_file.setEnabled(True)
-        self.ui.actions.save.setEnabled(True)
-        self.ui.actions.save_as.setEnabled(True)
-        self.ui.actions.append.setEnabled(True)
-        self.ui.actions.sweep.setEnabled(True)
-        self.ui.actions.preview.setEnabled(True)
-        self.ui.actions.remove_system.setEnabled(True)
+        else:
+            self.ui.actions.remove_system.setEnabled(True)
         system = MergedSystem.from_files(filenames)
         if isinstance(system, Error):
             QMessageBox.warning(self, "System file error.", system.error)
@@ -1222,7 +1210,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.reset_layout()
         self._apply_system_to_columns(system.value)
         self.populate_layout()
-        self.populated = True
         return True
 
     def _apply_system_to_columns(self, system: MergedSystem) -> None:
@@ -1503,7 +1490,16 @@ class MainWindow(FileDropMixin, QMainWindow):
         cw.start.setText("")
         cw.end.setText("")
         cw.points.setText("")
+        self.sweep_available(True)
         self.populate_sweep_grid(column)
+
+    def sweep_available(self, available: bool) -> None:
+        """Change actions based on sweep availability."""
+        self.ui.actions.sweep.setEnabled(available)
+        self.ui.actions.save.setEnabled(available)
+        self.ui.actions.save_as.setEnabled(available)
+        self.ui.actions.append.setEnabled(available)
+        self.ui.actions.append_to.setEnabled(available)
 
     def populate_sweep_grid(self, actual_column: int) -> None:
         """
@@ -1558,6 +1554,11 @@ class MainWindow(FileDropMixin, QMainWindow):
             layout.setAlignment(delete_button, Qt.AlignmentFlag.AlignCenter)
             self.ui.widgets.sweep_table.setCellWidget(row, 3, wrapper)
 
+        if self.columns.parameter[actual_column]:
+            self.ui.actions.preview.setEnabled(True)
+        else:
+            self.ui.actions.preview.setEnabled(False)
+
     def remove_sweep_parameter(self, col: int, row: int) -> None:
         """
         Remove a set of linspace parameters from columns.parameter at the correct position.
@@ -1570,6 +1571,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             The row of the table to be deleted.
         """
         del self.columns.parameter[col][row]
+        if not any(self.columns.parameter):
+            self.sweep_available(False)
         self.populate_sweep_grid(col)
 
     def load_file(self) -> None:
@@ -1676,9 +1679,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             If True, also clear loaded systems and related state.
         """
         if reset_systems:
-            if self.populated:
-                self.reset_layout()
-                self.populated = False
+            self.reset_layout()
             self.ui.widgets.system_list.clear()
             self.ui.actions.remove_system.setEnabled(False)
             self.columns.clear()
