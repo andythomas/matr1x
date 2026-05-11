@@ -127,6 +127,18 @@ class Matr1xScriptsConfig(BaseModel):
     matrix_script: Matr1xScriptsMatrix_ScriptConfig = Field(alias="matrix-script")
 
 
+class Matr1xEmailConfig(BaseModel):
+    """Allow validation of [matr1x.email]."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    smtp_server: str
+    smtp_user: str
+    password: str
+    fromemail: str
+    smtp_port: int = 465
+
+
 class Matr1xConfig(BaseModel):
     """Allow validation of [matr1x]."""
 
@@ -140,6 +152,7 @@ class Matr1xConfig(BaseModel):
     install: Matr1xInstallConfig
     devices: Matr1xDevicesConfig
     scripts: Matr1xScriptsConfig
+    email: Matr1xEmailConfig | None = None
     systems: Any
 
 
