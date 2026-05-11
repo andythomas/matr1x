@@ -516,7 +516,7 @@ class ElabSystem(System):
             response = itemsApi.post_item_with_http_info(body=body)
             locationHeaderInResponse = response[2].get("Location")
             item_id = int(locationHeaderInResponse.split("/").pop())
-            itemsApi.patch_item(item_id, body={"title": name})
+            itemsApi.patch_item(body={"title": name}, id=item_id)
             print(f"created ElabFTW resource with name {name}")
         except ApiException as e:
             print(f"Exception when calling ItemsApi: {e}\n")
