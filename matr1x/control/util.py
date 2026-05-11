@@ -127,13 +127,13 @@ def catchEmitError(method: _F) -> _F:
             logger.exception("Handling error in %s", pointer)
             # if the GuiDict which raised the error allows disabling lets just
             # disable it and swallow the error
-            if isinstance(self, (GuiDict, _Worker)):
-                if isinstance(self, _Worker):
-                    guidict = self.guidict
-                else:
-                    guidict = self
-                logger.error("Error occured inside '%s'", guidict.__class__.__name__)
-                if guidict.allow_disabling:
+            guidict = getattr(self, "guidict", None)
+            if guidict is None and hasattr(self, "_dispatcher"):
+                guidict = self
+
+            if guidict is not None and hasattr(guidict, "_dispatcher"):
+                logger.error("Error occurred inside '%s'", guidict.__class__.__name__)
+                if getattr(guidict, "allow_disabling", False):
                     guidict._dispatcher.disable_requested.emit()
                     logger.info("Ignoring last Exception since device can be deactivated.")
                     return
@@ -1060,8 +1060,8 @@ class _Worker(QObject):
         self.guidict: GuiDict = parent
         self._timer: QTimer = QTimer()  # fake definition
 
-    @AutoSlot
     @catchEmitError
+    @AutoSlot
     def run(self) -> None:
         """Start the worker's refresh loop and copy readout to set fields."""
         self._timer = QTimer()
@@ -1359,11 +1359,26 @@ class GuiDict(UserDict[str, var]):
                         self.__class__.__name__,
                         2 * self.refresh_period_ms / 1000,
                     )
-            self.restoreFeatures()
-            self.S.reset()
-            self.S.close()
-            # reset variables and commands
-            self._reset()
+
+        # Ensure UI reflects stopped state if it was still checked.
+        # This covers cases where stop() is called due to a crash or panic.
+        if self.allow_disabling and self.enable_switch.isChecked():
+            # Signal unchecking back to the GUI thread. Using the dispatcher
+            # ensures this works even when called from a worker thread.
+            self._dispatcher.disable_requested.emit()
+
+        # Ensure cleanup even if start() failed halfway or stop was called
+        # multiple times.
+        if hasattr(self, "S"):
+            try:
+                self.S.reset()
+                self.S.close()
+            except Exception:
+                logger.exception("Error during System cleanup in GuiDict.stop()")
+
+        self.restoreFeatures()
+        # reset variables and commands
+        self._reset()
 
     def _reset(self) -> None:
         """
@@ -1386,8 +1401,8 @@ class GuiDict(UserDict[str, var]):
             # convert command function names to executables
             self.set_cmd_funcs(window_obj=self.parent, system=self.S)
             self.restoreFeatures()
-            self._refresh_thread.start()
             self.running = True
+            self._refresh_thread.start()
 
     def set_cmd_funcs(
         self, window_obj: "ControlWindow | None" = None, system: System | None = None
