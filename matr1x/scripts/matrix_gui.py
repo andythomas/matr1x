@@ -73,7 +73,6 @@ from matr1x.models import (
     MeasuredValues,
     Message,
     SetValues,
-    SystemInfo,
     Telemetry,
 )
 from matr1x.post_install import (
@@ -600,7 +599,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
         self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
         self.settings = SaferQSettings("matr1x", "gui")
-        self._cached_system_info: SystemInfo | None = None
         check_desktop_integration()
 
     def _create_connections(self) -> None:
@@ -933,19 +931,18 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.sys_meta_data = system.dcdata
         configurable = [system for system in systemfile if not Path(system.strip()).exists()]
         # Get system information using subprocess (cache for reuse)
-        self._cached_system_info = None
         if systemfile:
             system_info = get_system_info(systemfile)
             if isinstance(system_info, Error):
                 print(system_info.error)  # noqa: T201
-                self._cached_system_info = None
+                system_info = None
             else:
-                self._cached_system_info = system_info.value
+                system_info = system_info.value
         matr1x.reload_config()
         self.ui.widgets.config_editor.set_systemfile(configurable)
         if systemfile != self.ui.widgets.config_editor.full_system_list:
             self.ui.widgets.config_editor.set_full_system_list(systemfile)
-            self.ui.widgets.config_editor.set_system_info(self._cached_system_info)
+            self.ui.widgets.config_editor.set_system_info(system_info)
             self.ui.widgets.config_editor.update_data()
         self.ui.actions.queue.setEnabled(True)
 

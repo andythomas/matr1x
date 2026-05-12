@@ -48,8 +48,8 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
-from matr1x.error_handling import Error, Result, Success
-from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
+from matr1x.error_handling import Error, InternalInvariantError, Result, Success
+from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication, get_system_info
 from matr1x.models import SystemInfo
 from matr1x.util import (
     generate_script,
@@ -520,15 +520,14 @@ class LSPClient(LoggerMixin):
 class Matr1xFunctionChecker(ast.NodeVisitor):
     """Implements ast-based function checker for matr1x functions."""
 
-    def __init__(self, system_info: SystemInfo | None):
+    def __init__(self, system_info: SystemInfo):
         self.indexes = []
         self.settables = []
         self.columns = []
-        if system_info is not None:
-            for key, data in system_info.parameters.items():
-                self.indexes.append(str(data.index))
-                self.settables.append(data.settable)
-                self.columns.append(data.name)
+        for key, data in system_info.parameters.items():
+            self.indexes.append(str(data.index))
+            self.settables.append(data.settable)
+            self.columns.append(data.name)
         self.errors: int = 0
         self.lineno: int
         self.col: int
@@ -697,11 +696,14 @@ class Linter(QObject):
 
     def __init__(self):
         super().__init__()
-        self.system_info: SystemInfo | None = None
+        system_info = get_system_info([])
+        if isinstance(system_info, Error):
+            raise InternalInvariantError("System list should work for an empty list.")
+        self.system_info: SystemInfo = system_info.value
         self.current_diagnostics_count = 0
         self.issues: int = 0
 
-    def update_settables(self, system_info: SystemInfo | None):
+    def update_settables(self, system_info: SystemInfo):
         """
         Update the SystemInfo object used for value checking.
 
@@ -778,14 +780,11 @@ class Linter(QObject):
             The generated script to check for value errors.
         """
         try:
-            if self.system_info is not None:
-                tree = ast.parse(script, filename="script")
-                checker = Matr1xFunctionChecker(self.system_info)
-                checker.set_script(script)
-                checker.visit(tree)
-                return checker.returnDiagnostics()
-            else:
-                return []
+            tree = ast.parse(script, filename="script")
+            checker = Matr1xFunctionChecker(self.system_info)
+            checker.set_script(script)
+            checker.visit(tree)
+            return checker.returnDiagnostics()
         except Exception:
             return []
 
@@ -1428,7 +1427,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         """
         self._run_javascript(f"window.enableTabCompletion({str(enable).lower()})")
 
-    def setSettables(self, system_info: SystemInfo | None) -> None:
+    def setSettables(self, system_info: SystemInfo) -> None:
         """
         Receive the system info and update Monaco.
 

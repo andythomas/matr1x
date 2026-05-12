@@ -38,7 +38,7 @@ import numpy as np
 from pymeasure.instruments import Instrument
 
 from matr1x.devices.visadevice import VisaDevice
-from matr1x.error_handling import Error, InternalInvariantError, Result, Success
+from matr1x.error_handling import Error, Result, Success
 
 from . import VALID_META_KEYS, datetimefmt, get_config_dict, output_extension
 from .util import (
@@ -1381,38 +1381,6 @@ class System:
         # reset devs dictionary to allow reopening
         self.devs.update(self._devs_init)
 
-    def settable_columns(self) -> tuple[list[bool], list[str], list[str]]:
-        """
-        Obtain the settable columns of the system.
-
-        Used by matrix and matrix_script to verify that the input file/input script
-        was generated with the same system as the one that is currently used.
-
-        Returns
-        -------
-        settables : list
-            List of booleans describing whether a parameter is settable or not.
-        flattened_settable_names : list
-            List of strings containing the names of the settable columns.
-        flattened_settable_units : list
-            List of strings containing the units of the settable columns.
-        """
-        settables: list[bool] = [par.setter is not None for par in self.parameters]
-        flattened_settable_names: list[str] = []
-        flattened_settable_units: list[str] = []
-        for names, units, settable in zip(self.columns, self.units, settables):
-            if not settable:
-                continue
-            if isinstance(names, (list, tuple)) and isinstance(units, (list, tuple)):
-                flattened_settable_names.extend(names)
-                flattened_settable_units.extend(units)
-            elif isinstance(names, str) and isinstance(units, str):
-                flattened_settable_names.append(names)
-                flattened_settable_units.append(units)
-            else:
-                InternalInvariantError("Columns and units should be of the same type.")
-        return (settables, flattened_settable_names, flattened_settable_units)
-
     def _add_method_info_to_dict(
         self, obj: "System", info_dict: dict[str, Any], prefix: str = "System"
     ) -> None:
@@ -1487,39 +1455,17 @@ class System:
                         "description": f"{prefix} variable{value_str}",
                     }
 
-    def grab_information(
-        self, settables: bool = False
-    ) -> dict[str, Any] | tuple[list[bool], list[str], list[str]]:
+    def grab_information(self) -> dict[str, Any]:
         """
         Obtain meta information from the system.
 
-        Depending on settables, returns either a human-readable description of
-        the system (devices and parameters) or the number of settable columns.
-
-        This function is used by matrix_script to verify the system still
-        corresponds to the definition with which the script was created.
-        Additionally, it is used to generate the help string.
-
-        Parameters
-        ----------
-        settables : bool, optional
-            Controls whether to return the settable columns of the system (if
-            True) or a human-readable string with the system definition (if
-            False). Default is False.
-
         Returns
         -------
-        system_descriptor : dict or tuple
-            If settables is False, returns a dictionary with the list of devices
-            and parameters available in the system (name + index) as well as
+        system_descriptor : dict
+            Returns a dictionary with the list of devices and parameters
+            available in the system (name + index) as well as
             custom-defined system methods and variables (if any).
-            If settables is True, returns a tuple containing information about
-            the settable columns of the system.
         """
-        if settables is True:
-            # return only settables
-            return self.settable_columns()
-
         # generate dictionary from devices, parameters, methods and config
         info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}}
 
@@ -2021,52 +1967,30 @@ class MergedSystem(System):
         for subsys in self.subsys:
             self.hdf5 = self.hdf5 or subsys.hdf5
 
-    def grab_information(
-        self, settables: bool = False
-    ) -> tuple[list[bool], list[str], list[str]] | dict:
+    def grab_information(self) -> dict:
         """
         Obtain meta information from the merged system.
 
-        Returns system information, methods and parameters from all subsystems.
-
-        Parameters
-        ----------
-        settables : bool, optional
-            Controls whether to return the settable columns of the system (if
-            True) or the dictionary with information (if False). Default is False.
-
         Returns
         -------
-        system_descriptor : dict or tuple
-            If settables is False, returns a dictionary with methods and parameters.
-            If settables is True, returns a tuple containing information about
-            the settable columns of the system.
+        system_descriptor : dict
+            System information, methods and parameters from all
+            subsystems.
         """
-        if settables is True:
-            # return only settables
-            return self.settable_columns()
-
-        # Dictionary to store all information
         info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}}
-
-        # Add information from the base System class
-        base_info = super().grab_information(settables)
-        if isinstance(base_info, dict):
-            # Merge the categorized dictionaries
-            if "devices" in base_info:
-                info["devices"].update(base_info["devices"])
-            if "parameters" in base_info:
-                info["parameters"].update(base_info["parameters"])
-            if "methods" in base_info:
-                info["methods"].update(base_info["methods"])
-            # Skip config from base class to avoid duplication -
-            # we'll add individual subsystem configs below
-
-        # Add information from all subsystems
+        base_info = super().grab_information()
+        # Merge the categorized dictionaries
+        if "devices" in base_info:
+            info["devices"].update(base_info["devices"])
+        if "parameters" in base_info:
+            info["parameters"].update(base_info["parameters"])
+        if "methods" in base_info:
+            info["methods"].update(base_info["methods"])
+        # Skip config from base class to avoid duplication -
+        # we'll add individual subsystem configs below
         for subsys in self.subsys:
             self._add_method_info_to_dict(subsys, info, prefix="Subsystem")
 
-            # Add config information from each subsystem
             subsys_config = subsys.config
             if subsys_config:
                 subsys_name = getattr(subsys, "__name__", str(subsys.__class__.__name__))

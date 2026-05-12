@@ -51,6 +51,7 @@ from matr1x.models import (
     MeasurementData,
     Message,
     SetValues,
+    SystemInfo,
     Telemetry,
 )
 from matr1x.system import MergedSystem
@@ -732,7 +733,9 @@ def verify_columns(
     settable_units_file : list[str] or None
         Settable units read from the input file header.
     """
-    _, settable_names, settable_units = system.settable_columns()
+    flat_parameters = SystemInfo.model_validate(system.grab_information()).flat_parameters
+    settable_names = [p.name for p in flat_parameters if p.settable]
+    settable_units = [p.unit for p in flat_parameters if p.settable]
     if settable_names != settable_names_file or settable_units != settable_units_file:
         dispatcher.dispatch(Message(message=str(settable_names) + str(settable_names_file)))
         dispatcher.dispatch(Message(message=str(settable_units) + str(settable_units_file)))

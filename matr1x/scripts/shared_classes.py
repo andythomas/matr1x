@@ -38,8 +38,9 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x import resolved_directory
-from matr1x.error_handling import Success
+from matr1x.error_handling import Error, InternalInvariantError, Success
 from matr1x.gui_util import MApplication, get_matrix_icon, get_system_info
+from matr1x.models import SystemInfo
 
 __all__ = ["MetaDataDialog", "Notifier", "NotifierMessage", "SystemListWidget", "MetaData"]
 
@@ -123,6 +124,10 @@ class SystemListWidget(QListWidget):
         """Initialize the class with sorting enabled."""
         super().__init__()
         self._base_directory: Path = resolved_directory
+        system_info = get_system_info([])
+        if isinstance(system_info, Error):
+            raise InternalInvariantError("System list should work for an empty list.")
+        self._cached_system_info: SystemInfo = system_info.value
         self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
 
     @property
@@ -135,31 +140,38 @@ class SystemListWidget(QListWidget):
         before = self.systems
         super().dropEvent(event)
         if before != self.systems:
-            self.changed.emit()
+            self.systems_changed()
 
     def delete_systems(self) -> None:
         """Remove selected or last system in the list."""
         selected = self.selectedItems()
         if len(selected) > 0:
             self.takeItem(self.row(selected[0]))
-            self.changed.emit()
+            self.systems_changed()
         elif self.count() > 0:
             self.takeItem(self.count() - 1)
-            self.changed.emit()
+            self.systems_changed()
 
     def add_systems(self, filenames: list[str]) -> None:
         """Add files but avoid duplicates."""
         added = False
         existing = {self.item(i).text() for i in range(self.count())}
         for filename in filenames:
-            filename = Path(filename).resolve()
-            module_name = self.get_importable_module_name(filename)
+            try:
+                module = importlib.util.find_spec(filename)
+            except ModuleNotFoundError:
+                module = None
+            if module is None:
+                filename = Path(filename).resolve()
+                module_name = self.get_importable_module_name(filename)
+            else:
+                module_name = module.name
             candidate = str(module_name if module_name is not None else filename)
             if candidate in existing:
                 msg = NotifierMessage(f"{candidate} is already present and was omitted.")
                 self.message.emit(msg)
                 continue
-            if not self.test_import(filename):
+            if not self.test_import(candidate):
                 msg = NotifierMessage(
                     f"{candidate} could not import and was omitted.", level=logging.ERROR
                 )
@@ -168,14 +180,27 @@ class SystemListWidget(QListWidget):
             super().addItem(candidate)
             added = True
             existing.add(candidate)
-            self._base_directory = filename
+            self._base_directory = Path(filename)
         if added:
-            self.changed.emit()
+            self.systems_changed()
+
+    def systems_changed(self) -> None:
+        """Load system info and emit changed signal."""
+        system_info = get_system_info(self.systems)
+        if isinstance(system_info, Error):
+            raise InternalInvariantError("System list should work if systems work individually.")
+        self._cached_system_info = system_info.value
+        self.changed.emit()
+
+    @property
+    def system_info(self) -> SystemInfo:
+        """Return the (cached) system info."""
+        return self._cached_system_info
 
     @staticmethod
-    def test_import(filename: Path) -> bool:
+    def test_import(filename: str) -> bool:
         """Test if a filename can be imported."""
-        ret = get_system_info([str(filename)])
+        ret = get_system_info([filename])
         return True if isinstance(ret, Success) else False
 
     def query_systems(self) -> None:

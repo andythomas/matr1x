@@ -205,6 +205,26 @@ class SystemInfo(BaseModel):
     methods: dict[str, SystemMethod]
     config: dict[str, Any]
 
+    @property
+    def flat_parameters(self) -> list[SystemParameter]:
+        """Returns a flat list of parameters."""
+        result: list[SystemParameter] = []
+        for parameter in self.parameters.values():
+            settable = parameter.settable
+            name_parts = [n.strip() for n in parameter.name.split(",")]
+            unit_parts = [u.strip() for u in parameter.unit.split(",")]
+            for name, unit in zip(name_parts, unit_parts):
+                result.append(
+                    SystemParameter(
+                        name=name,
+                        unit=unit,
+                        description=parameter.description,
+                        index=parameter.index,
+                        settable=settable,
+                    )
+                )
+        return result
+
 
 # --- measurement data for matrix and matrix-script
 

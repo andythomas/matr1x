@@ -93,7 +93,6 @@ from matr1x.gui_util import (
     detect_shortcut,
     find_parent_of_type,
     get_matrix_icon,
-    get_system_info,
     open_matrix_toml,
     protected_restore,
     save_messagebox,
@@ -108,7 +107,6 @@ from matr1x.models import (
     Message,
     Modifier,
     SetValues,
-    SystemInfo,
     Telemetry,
 )
 from matr1x.post_install import (
@@ -1337,7 +1335,6 @@ class MainWindow(QMainWindow):
         self.shortcut_dir: tempfile.TemporaryDirectory[str] | None = None
         self.last_filename: Path | None = None
         self.settings = SaferQSettings("matr1x", "script")
-        self._cached_system_info: SystemInfo | None = None
         self._output_buffer: list[str] = []
         self._output_timer = QTimer()
         self._output_timer.timeout.connect(self._flush_output_buffer)
@@ -1652,6 +1649,7 @@ class MainWindow(QMainWindow):
         root_logger = logging.getLogger()
         root_logger.removeHandler(self.log_window.log_handler)
         self.log_window.deleteLater()
+        self.ui.widgets.system_command_help.close()
         event.accept()
 
     def info_box(self) -> None:
@@ -1843,10 +1841,7 @@ class MainWindow(QMainWindow):
 
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
-        system_info = self._cached_system_info
-        if system_info is None:
-            self.ui.widgets.system_command_text_edit.setText("Could not parse the system file(s)!")
-            return
+        system_info = self.ui.widgets.system_list.system_info
         text = "The following systems were selected:<br><b>"
         for system in self.ui.widgets.system_list.systems:
             text = text + system + "<br>"
@@ -2042,7 +2037,7 @@ class MainWindow(QMainWindow):
         int
             The number of issues.
         """
-        self.ui.widgets.script_edit.setSettables(self._cached_system_info)
+        self.ui.widgets.script_edit.setSettables(self.ui.widgets.system_list.system_info)
         return self.ui.widgets.script_edit.returnIssues()
 
     def start_process(self) -> None:
@@ -2094,12 +2089,6 @@ class MainWindow(QMainWindow):
         """
         if len(self.ui.widgets.system_list.systems) > 0:
             self.ui.actions.remove_system.setEnabled(True)
-        system_info = get_system_info(self.ui.widgets.system_list.systems)
-        if isinstance(system_info, Error):
-            self.ui.widgets.status_preview.appendPlainText(system_info.error)
-            self._cached_system_info = None
-        else:
-            self._cached_system_info = system_info.value
         # only systems that are part of matrix or ifwlib can be configured via files
         configurable = [
             system for system in self.ui.widgets.system_list.systems if not Path(system).exists()
@@ -2108,42 +2097,13 @@ class MainWindow(QMainWindow):
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
-            self.ui.widgets.config_editor.set_system_info(self._cached_system_info)
+            self.ui.widgets.config_editor.set_system_info(self.ui.widgets.system_list.system_info)
             self.ui.widgets.config_editor.update_data()
         # Update system commands with cached info
         self.update_system_commands()
         if self.ui.widgets.system_command_help.isVisible():
             self.show_system_commands()
         self.run_linter()
-
-    def _extract_settable_info(
-        self, system_info: SystemInfo
-    ) -> tuple[list[int], list[str], list[str]]:
-        """
-        Extract settable information from system info.
-
-        Parameters
-        ----------
-        system_info: SystemInfo
-            The system info object with the parameters to evaluate.
-        """
-        indexes = []
-        columns = []
-        units = []
-        for parameter in system_info.parameters.values():
-            if ", " in parameter.name:
-                name_parts = [name.strip() for name in parameter.name.split(", ")]
-                unit_parts = [unit.strip() for unit in parameter.unit.split(", ")]
-                for name, unit in zip(name_parts, unit_parts):
-                    indexes.append(parameter.index)
-                    columns.append(name)
-                    units.append(unit)
-            else:
-                indexes.append(parameter.index)
-                columns.append(parameter.name)
-                units.append(parameter.unit)
-
-        return (indexes, columns, units)
 
     def save_file_as(self) -> bool:
         """
@@ -2219,60 +2179,21 @@ class MainWindow(QMainWindow):
         str
             The script including the generated header.
         """
-        header = ""
-        system_info = self._cached_system_info
-        if system_info is not None:
-            try:
-                # get settable information to put into the header
-                # (columns/units)
-                settable_info = (
-                    self._extract_settable_info(system_info) if system_info is not None else None
-                )
-
-                if settable_info is not None and len(settable_info) >= 3:
-                    # write matrix file header
-                    header += (
-                        "# system def : "
-                        + ",".join(repr(s).strip("'") for s in self.ui.widgets.system_list.systems)
-                        + "\n"
-                    )
-
-                    # Extract column names and units from settable_info
-                    # settable_info = (indexes, columns, units)
-                    column_names = [str(col).strip() for col in settable_info[1]]
-                    units = [str(unit).strip() for unit in settable_info[2]]
-
-                    header += "# system names : " + ",".join(column_names) + "\n"
-                    header += "# system units : " + ",".join(units) + "\n"
-                    header += "# file v8, time stamp : " + time.strftime(
-                        f"{matr1x.datetimefmt}\n", time.localtime()
-                    )
-                else:
-                    self.ui.widgets.status_preview.print_colored(
-                        "warning: settable_info is incomplete, creating basic header"
-                    )
-                    header += (
-                        "# system def : "
-                        + ",".join(repr(s).strip("'") for s in self.ui.widgets.system_list.systems)
-                        + "\n"
-                    )
-                    header += "# file v8, time stamp : " + time.strftime(
-                        f"{matr1x.datetimefmt}\n", time.localtime()
-                    )
-            except Exception as e:
-                self.ui.widgets.status_preview.print_colored(
-                    f"error in generating settable_info from file: {e}, telemetry "
-                    "header could not be generated"
-                )
-        # take out script and remove trailling newlines
+        system_list = self.ui.widgets.system_list
+        flat_parameters = system_list.system_info.flat_parameters
+        header_lines = [
+            "# system def : " + ",".join(str(s) for s in system_list.systems),
+            "# system names : " + ",".join(p.name for p in flat_parameters),
+            "# system units : " + ",".join(p.unit for p in flat_parameters),
+            "# file v8, time stamp : " + time.strftime(matr1x.datetimefmt, time.localtime()),
+        ]
         script = self.ui.widgets.script_edit.toPlainText().rstrip()
-        newscript = header
-        for i, line in enumerate(script.splitlines()):
-            if i < 4 and (line.startswith(("# system ", "# file v"))):
-                # if there are already definitions of the system, skip them
-                continue
-            newscript += line + "\n"
-        return newscript
+        body_lines = [
+            line
+            for i, line in enumerate(script.splitlines())
+            if not (i < 4 and line.startswith(("# system ", "# file v")))
+        ]
+        return "\n".join(header_lines + body_lines) + "\n"
 
     def load_from_filename(self, filename: Path) -> None:
         """
@@ -2294,7 +2215,6 @@ class MainWindow(QMainWindow):
         self.scriptname = filename
         code = ""
         self.ui.widgets.system_list.clear()
-        settable_info = None
         #
         # system files
         #
@@ -2302,23 +2222,12 @@ class MainWindow(QMainWindow):
         if "# system def : " in line:
             # load system from definition in file
             system_line = line.replace("# system def : ", "").strip()
-            for syst in system_line.split(","):
-                try:
-                    if system_line:
-                        self.ui.widgets.system_list.addItem(syst)
-                    self.update_systems()
-                    settable_info = (
-                        self._extract_settable_info(self._cached_system_info)
-                        if self._cached_system_info is not None
-                        else None
-                    )
-                except KeyError:
-                    self.ui.widgets.status_preview.print_colored(
-                        "System that was used to generate the "
-                        "script was not found in installed systems."
-                        " Please check .matrix.conf file."
-                    )
-                    return
+            systems = [s.strip() for s in system_line.split(",") if s.strip()]
+            self.ui.widgets.system_list.add_systems(systems)
+            system_info = self.ui.widgets.system_list.system_info
+            flat_parameters = system_info.flat_parameters
+            column_names = [p.name for p in flat_parameters]
+            units = [p.unit for p in flat_parameters]
         else:
             self.ui.widgets.status_preview.print_colored(
                 "No system defined in script, please choose system(s)"
@@ -2331,9 +2240,9 @@ class MainWindow(QMainWindow):
         code += line
         # make sure that system column definition agrees with
         # current system
-        if "# system names : " in line and settable_info is not None and len(settable_info) >= 2:
+        if "# system names : " in line:
             system_names = line.strip().replace("# system names : ", "")
-            current_columns = [str(col).strip() for col in settable_info[1]]
+            current_columns = [str(col).strip() for col in column_names]
             # Handle both "," and ", " as separators since compound columns use ", "
             loaded_columns = []
             for col in system_names.split(","):
@@ -2358,9 +2267,9 @@ class MainWindow(QMainWindow):
         code += line
         # make sure that system unit definition agrees with
         # current system
-        if "# system units : " in line and settable_info is not None and len(settable_info) >= 3:
+        if "# system units : " in line:
             system_units = line.strip().replace("# system units : ", "")
-            current_units = [str(unit).strip() for unit in settable_info[2]]
+            current_units = [str(unit).strip() for unit in units]
             # Handle both "," and ", " as separators since compound columns use ", "
             loaded_units = []
             for unit in system_units.split(","):

@@ -89,13 +89,13 @@ from matr1x.gui_util import (
     save_messagebox,
     validator,
 )
+from matr1x.models import SystemInfo
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
 from matr1x.scripts.shared_classes import Notifier, NotifierMessage, SystemListWidget
-from matr1x.system import MergedSystem
 from matr1x.util import generate_col_index
 
 __all__ = ["MainWindow"]
@@ -1203,34 +1203,24 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.ui.actions.remove_system.setEnabled(False)
         else:
             self.ui.actions.remove_system.setEnabled(True)
-        system = MergedSystem.from_files(filenames)
-        if isinstance(system, Error):
-            QMessageBox.warning(self, "System file error.", system.error)
-            return False
         self.reset_layout()
-        self._apply_system_to_columns(system.value)
+        self._apply_system_info_to_columns(self.ui.widgets.system_list.system_info)
         self.populate_layout()
         return True
 
-    def _apply_system_to_columns(self, system: MergedSystem) -> None:
+    def _apply_system_info_to_columns(self, system_info: SystemInfo) -> None:
         """
         Update column data to match the current system.
 
-        Derives column names, units and signs from the system's settable
-        columns. Sweep parameters for columns that exist in both the old
-        and the new system are preserved; all other columns start empty.
+        Derives column names, units, and signs from the flattened
+        parameters. Sweep parameters for columns that exist in both the
+        old and new system are preserved; all other columns start empty.
         """
         old_cols = self.columns.name
-        self.columns.sign = []
-        settables, self.columns.name, self.columns.unit = system.settable_columns()
-        for i, (settable, col) in enumerate(zip(settables, system.columns)):
-            if settable is True:
-                if isinstance(col, (tuple, list)):
-                    # if parameter has multiple values, add multiple columns
-                    for c in col:
-                        self.columns.sign.append(generate_col_index(i))
-                else:
-                    self.columns.sign.append(generate_col_index(i))
+        settable_parameters = [p for p in system_info.flat_parameters if p.settable]
+        self.columns.name = [p.name for p in settable_parameters]
+        self.columns.unit = [p.unit for p in settable_parameters]
+        self.columns.sign = [generate_col_index(p.index) for p in settable_parameters]
         save_sweep_params = {}
         for index, old_col in enumerate(old_cols):
             if old_col in self.columns.name:
@@ -1615,7 +1605,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 for line in infile:
                     regex = r"^# [Ss]ystem filename : (.+)"
                     if match := re.match(regex, line.strip()):
-                        self.ui.widgets.system_list.addItems(match.group(1).split(","))
+                        self.ui.widgets.system_list.add_systems(match.group(1).split(","))
                         if not self.update_systems():
                             return
                     for key in params.keys():
