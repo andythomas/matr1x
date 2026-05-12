@@ -52,6 +52,11 @@ from typing import (
     overload,
 )
 
+if sys.version_info >= (3, 12):
+    from typing import TypeAliasType
+else:
+    TypeAliasType = None
+
 import numpy as np
 import pygit2
 import pyqtgraph
@@ -3943,6 +3948,9 @@ def _collect_parameters(
 
 def _expand_type(t: Any) -> list[type]:
     """Expand a Python type hint into Qt-compatible types."""
+    # Special handling for Python 3.12+ TypeAliasType (e.g., numpy.typing.ArrayLike)
+    if TypeAliasType is not None and isinstance(t, TypeAliasType):
+        return _expand_type(t.__value__)
     origin = get_origin(t)
     if origin is type:
         return [type]
@@ -3978,6 +3986,9 @@ def _normalize_result_type(t: Any) -> Any:
         return None
     if t is None:
         return None
+    # Special handling for Python 3.12+ TypeAliasType
+    if TypeAliasType is not None and isinstance(t, TypeAliasType):
+        return _normalize_result_type(t.__value__)
     origin = get_origin(t)
     if origin is type:
         return type
