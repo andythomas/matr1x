@@ -92,7 +92,7 @@ if TYPE_CHECKING:
 
 from matr1x.system import System
 
-from .. import config, logfolder, system
+from .. import config, logfolder
 from ..error_handling import InternalInvariantError
 from ..gui_util import MApplication, SaferQSettings, validator
 from ..util import Command, normalize_cmds
@@ -1284,7 +1284,7 @@ class GuiDict(UserDict[str, var]):
     def __init__(self) -> None:
         super().__init__(self.data)
         if not hasattr(self, "S"):
-            self.S: System = system.System()
+            self.S = System()
         self._refresh_thread: QThread = QThread()
         self._panic: bool = False
         self._extended_visible = threading.Event()

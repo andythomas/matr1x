@@ -24,7 +24,6 @@ import numpy
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QDoubleSpinBox, QProgressBar
 
-from matr1x import system
 from matr1x.control import (
     ControlWindow,
     GuiDict,
@@ -38,6 +37,7 @@ from matr1x.control import guiObject as go
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
 from matr1x.gui_util import get_matrix_icon
+from matr1x.system import System
 from matr1x.util import Command, Get
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
@@ -139,7 +139,7 @@ class exampleDict(GuiDict):
             init=["Set", "Copy"],
         ),
     }
-    S = system.System(name="dummy")
+    S = System(name="dummy")
     S.add_dev(
         "dummy",
         dummy,
