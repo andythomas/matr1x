@@ -18,6 +18,7 @@
 from .controlwindow import ControlWindow
 from .util import (
     GuiDict,
+    MethodBundle,
     catchEmitError,
     control_main,
     guiObject,

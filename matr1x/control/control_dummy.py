@@ -22,11 +22,13 @@ import time
 
 import numpy
 from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QDoubleSpinBox, QProgressBar
 
 from matr1x import system
 from matr1x.control import (
     ControlWindow,
     GuiDict,
+    MethodBundle,
     catchEmitError,
     control_main,
     linear_trend,
@@ -50,6 +52,17 @@ common_commands = {
 
 logger = logging.getLogger(__name__)
 
+# A MethodBundle can also be defined outside of a GuiDict to be reused.
+one_decimal = MethodBundle()
+
+
+def set_decimals(widget: QDoubleSpinBox) -> None:
+    """Set the number of decimals for a QDoubleSpinBox to 1."""
+    widget.setDecimals(1)
+
+
+one_decimal.add_setup_method(set_decimals)
+
 
 class exampleDict(GuiDict):
     """
@@ -63,6 +76,25 @@ class exampleDict(GuiDict):
     in the label and included in the logging file. The logging
     preference for the parameter is set by the boolean "log" parameter.
     """
+
+    color_bar = MethodBundle()
+
+    @staticmethod
+    def update_progress_color(*, widget: QProgressBar, value: int) -> None:
+        """Change the color of a progressbar with its value."""
+        color = "red" if value < 20 else "green"
+        widget.setStyleSheet(f"""
+            QProgressBar {{
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                background-color: palette(base);
+                text-align: center;
+            }}
+            QProgressBar::chunk {{
+                background-color: {color};
+                border-radius: 3px;
+            }}
+        """)
 
     cmds = {
         ":v1": Command(str, "setV1", "V1"),
@@ -88,6 +120,7 @@ class exampleDict(GuiDict):
             unit="%",
             init=[0, (0, 100)],
             hide=True,
+            modify=[color_bar, one_decimal],
         ),
         "V4": var(
             dtype=bool,
@@ -100,7 +133,11 @@ class exampleDict(GuiDict):
             init=[None, ("Slow", "Error")],
             log=False,
         ),
-        "Set": var(None, columns=[go.button, go.button], init=["Set", "Copy"]),
+        "Set": var(
+            None,
+            columns=[go.button, go.button],
+            init=["Set", "Copy"],
+        ),
     }
     S = system.System(name="dummy")
     S.add_dev(
@@ -113,6 +150,8 @@ class exampleDict(GuiDict):
     def __init__(self):
         super().__init__()
         self.lock = threading.Lock()
+        # setup methods or change handlers of MethodBundle defined in the class scope.
+        self.color_bar.add_change_handler(self.update_progress_color)
 
     def create_GUI(self):
         """
@@ -136,8 +175,6 @@ class exampleDict(GuiDict):
         self["Set"].widgets[2].clicked.connect(self.copy_values)
         # connect the toggle buttons to the corresponding functions
         self["toggle"].widgets[2].clicked.connect(self.set_toggle)
-        # adjust some widgets details
-        self["V3"].widgets[2].setDecimals(1)
         return content
 
     def print_function(self) -> None:
