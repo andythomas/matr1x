@@ -21,6 +21,7 @@ executable scripts for matrix-script. It contains placeholder variables
 and markers that must be replaced before execution.
 """
 
+import builtins as _builtins
 import datetime as _datetime
 import inspect as _inspect
 import math as _math
@@ -193,7 +194,7 @@ def _breakpoint(wrapped, instance, args, kwargs):
 def _inject_decorator(instance, decorator) -> None:
     """Inject decorator into instance methods."""
     for attr_name in dir(instance):
-        if attr_name in ["add_comment", "_print"]:
+        if attr_name in ["add_comment", "report"]:
             # exclude this methods from decoration since they are
             # potentially called from inside the decorator. anything
             # called inside the _interrupt function should be added
@@ -466,9 +467,9 @@ def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False
     """
     Print the message and optionally forward it to the datafile.
 
-    The arguments are identical to the Python print builtin. The
-    behavior of this function depends on the config option
-    matr1x.scripts.matrix-script.print_to_comment.
+    When 'file' is None (default), the output is sent to the reporting
+    system. Depending on project configuration, this output may be
+    automatically recorded as a comment in the measurement datafile.
 
     Parameters
     ----------
@@ -479,13 +480,14 @@ def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False
     end: str
         String appended after the last value, default a newline.
     file
-        A file-like object (stream); defaults to the output widget.
+        A file-like object (stream); defaults to the GUI/CLI output.
+        Note: Output to custom streams is NOT recorded in the datafile.
     flush
         Whether to forcibly flush the stream.
     """
     _show_lineno()
     if file:
-        _system._print(*args, sep=sep, end=end, file=file, flush=flush)
+        _builtins.print(*args, sep=sep, end=end, file=file, flush=flush)
     else:
         message_text = sep.join(str(arg) for arg in args)
         _report(_Message(message=message_text, end=end))

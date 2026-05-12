@@ -25,6 +25,7 @@ import re
 import socket
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -545,6 +546,7 @@ class ExecThread(threading.Thread):
                 "_script": self.script,
                 "_system": self.system,
             }
+            self.system.report: Callable[[MeasurementData], None] = self.report
             exec(self.script, _vars)
         except KeyboardInterrupt:
             self.report(

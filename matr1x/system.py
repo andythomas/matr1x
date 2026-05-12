@@ -39,6 +39,7 @@ from pymeasure.instruments import Instrument
 
 from matr1x.devices.visadevice import VisaDevice
 from matr1x.error_handling import Error, Result, Success
+from matr1x.models import MeasurementData
 
 from . import VALID_META_KEYS, datetimefmt, get_config_dict, output_extension
 from .util import (
@@ -759,24 +760,20 @@ class System:
         """
         return [parm.dtypes for parm in self.parameters]
 
-    def _print(self, *args, **kwargs):
+    def report(self, data: MeasurementData) -> None:
         """
-        Extend builtin print by optional adding the printout to the datafile.
+        Report data through the communication layer.
 
-        The behavior of this function depends on the config option
-        matr1x.scripts.matrix-script.print_to_comment
+        For this to function the method needs to be injected into the MergedSystem.
 
         Parameters
         ----------
-        *args : tuple
-            Arguments to pass to print function.
-        **kwargs : dict
-            Keyword arguments to pass to print function.
+        data : MeasurementData
+            The data to report.
         """
-        if self._config["print_to_comment"] and self._datafile_initialized:
-            message = " ".join(str(arg) for arg in args)
-            self.add_comment(message.lstrip("\r"))
-        print(*args, **kwargs)  # noqa: T201
+        # Defer to merged_system if it is present
+        if self.merged_system:
+            self.merged_system.report(data)
 
     def generate_datafilename(
         self, outputfile: str | Path = "", inputfile: str | Path = "", append=False
