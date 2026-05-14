@@ -248,23 +248,33 @@ class Header(BaseModel):
 class SetValues(BaseModel):
     """Model for the set values."""
 
-    set: list
+    set_values: list
     to_stdout: bool | None = None
+
+    def __init__(self, values: list | None = None, **data: Any):
+        if values is not None:
+            data["set_values"] = values
+        super().__init__(**data)
 
     def __str__(self) -> str:
         """Return a string representation of the set values."""
-        return get_formatted_line(flatten(self.set), prefix="Set : ")
+        return get_formatted_line(flatten(self.set_values), prefix="Set : ")
 
 
 class MeasuredValues(BaseModel):
     """Model for the measured values."""
 
-    measured: list
+    measured_values: list
     to_stdout: bool | None = None
+
+    def __init__(self, values: list | None = None, **data: Any):
+        if values is not None:
+            data["measured_values"] = values
+        super().__init__(**data)
 
     def __str__(self) -> str:
         """Return a string representation of the measured values."""
-        return get_formatted_line(flatten(self.measured), prefix="Meas: ")
+        return get_formatted_line(flatten(self.measured_values), prefix="Meas: ")
 
 
 class Telemetry(BaseModel):
@@ -305,11 +315,21 @@ class Message(BaseModel):
     to_comment: bool | None = None
     modifier: Modifier = Modifier.NONE
 
+    def __init__(self, message: str | None = None, **data: Any):
+        if message is not None:
+            data["message"] = message
+        super().__init__(**data)
+
 
 class ErrorMessage(BaseModel):
     """Model for the error message."""
 
     error: str
+
+    def __init__(self, error: str | None = None, **data: Any):
+        if error is not None:
+            data["error"] = error
+        super().__init__(**data)
 
 
 class LineNumber(BaseModel):
@@ -317,11 +337,21 @@ class LineNumber(BaseModel):
 
     line: int
 
+    def __init__(self, line: int | None = None, **data: Any):
+        if line is not None:
+            data["line"] = line
+        super().__init__(**data)
+
 
 class Datafile(BaseModel):
     """Model for the datafile."""
 
     datafile: str
+
+    def __init__(self, datafile: str | None = None, **data: Any):
+        if datafile is not None:
+            data["datafile"] = datafile
+        super().__init__(**data)
 
 
 class InputParameters(BaseModel):

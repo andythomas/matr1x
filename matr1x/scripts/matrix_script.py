@@ -757,7 +757,7 @@ class ScriptThread(QThread):
             )
         except OSError:
             text = "Thread terminated gracefully."
-        self.process_received_data(Message(message=text).model_dump_json())
+        self.process_received_data(Message(text).model_dump_json())
 
     def process_received_data(self, inp: str) -> None:
         """Receive a line from the input and handle it accordingly."""

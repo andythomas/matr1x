@@ -105,9 +105,7 @@ def _configure_script_storing(system: _MergedSystem, script: str) -> None:
         if "user script" not in system.system_config_params:
             system.system_config_params["user script"] = user_script
         else:
-            _report(
-                _Message(message="'user script' key already present in system, not overwriting!")
-            )
+            _report(_Message("'user script' key already present in system, not overwriting!"))
 
 
 def _find_caller_frame() -> _types.FrameType | None:
@@ -150,7 +148,7 @@ def _show_lineno() -> None:
         caller_filename = frame.f_code.co_filename
         if caller_filename == "<string>":
             # report line only if called directly from script
-            _report(_LineNumber(line=frame.f_lineno))
+            _report(_LineNumber(frame.f_lineno))
 
 
 @_wrapt.decorator
@@ -347,7 +345,7 @@ def wait(
         until = duration
         duration = None
     if duration and until:
-        _report(_Message(message=f"until ({until}) argument of the wait function will be ignored"))
+        _report(_Message(f"until ({until}) argument of the wait function will be ignored"))
         until = None
     _interrupt(duration=duration, until=until, message=message, silent=silent)
 
@@ -490,7 +488,7 @@ def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False
         _builtins.print(*args, sep=sep, end=end, file=file, flush=flush)
     else:
         message_text = sep.join(str(arg) for arg in args)
-        _report(_Message(message=message_text, end=end))
+        _report(_Message(message_text, end=end))
 
 
 # load execution path of scripts and change to this directory
@@ -498,7 +496,7 @@ _configure_execution_path(_scriptname)
 # optionally set user script to be stored in data file
 _configure_script_storing(_system, _script)
 # initialize system and put devs into namespace
-_report(_Message(message="setting system"))
+_report(_Message("setting system"))
 # system.set is called before the filename is set. So, we have no
 # arguments here -> this is a difference to matrix
 _system.set()
@@ -578,10 +576,10 @@ def init_datafile(
         # write header to file
         _system.dcdata["description"] = comment
         msg, outputfile = _system.init_datafile(_scriptname or "matrix script generated")
-        _report(_Message(message=f"{msg}: {outputfile}"))
-        _report(_Message(message="acquired configuration, and initialized file"))
+        _report(_Message(f"{msg}: {outputfile}"))
+        _report(_Message("acquired configuration, and initialized file"))
     _report(_Header(columns=_system.columns, units=_system.units, to_stdout=print_header))
-    _report(_Datafile(datafile=str(safe_filename.resolve())))
+    _report(_Datafile(str(safe_filename.resolve())))
 
 
 # wrap system.trigger and system.take_measurement_point into
@@ -619,11 +617,11 @@ def measure_system(
     preread = _time.time()
     if not _system.filename:
         init_datafile("")
-    _report(_SetValues(set=_setvalues, to_stdout=print_setpoint))
+    _report(_SetValues(_setvalues, to_stdout=print_setpoint))
     _reset_setvalues()
     _system.trigger()
     return_list = _system.take_measurement_point()
-    _report(_MeasuredValues(measured=return_list, to_stdout=print_data))
+    _report(_MeasuredValues(return_list, to_stdout=print_data))
     elapsed = _time.time() - _starttime
     remaining = (elapsed / _npoints * _ntot - elapsed) / 60 if _ntot else _math.nan
     _report(
@@ -649,7 +647,7 @@ try:
     # USER_SCRIPT_INSERTION_POINT
 # ==== END USER SCRIPT AREA ====
 except KeyboardInterrupt:
-    _report(_Message(message="\nscript has been aborted by user."))
+    _report(_Message("\nscript has been aborted by user."))
     # mark script as aborted per default once abort is called
     if _status.finished:
         _reset_kwargs["status"] = "finished"
@@ -660,7 +658,7 @@ except KeyboardInterrupt:
         # finished is None, so ask what is supposed to happen
         _reset_kwargs["status"] = _input(message="", input_type="__end_script__")
 except Exception as e:
-    _report(_Message(message="script exited with error:"))
+    _report(_Message("script exited with error:"))
     # get traceback information and format accordingly
     exc_type, exc_value, exc_traceback = _sys.exc_info()
 
@@ -696,16 +694,16 @@ except Exception as e:
         except Exception:
             tbstr = tbstr.replace('File "<string>"', '"<script>"')
 
-        _report(_Message(message=tbstr))
+        _report(_Message(tbstr))
 
         # Check adjusted line instead of original line
         if adjusted_line < 1:
-            _report(_Message(message=" error during device initialization"))
+            _report(_Message(" error during device initialization"))
     else:
         # No line number found in traceback
         tbstr = tbstr.replace('File "<string>"', '"<script>"')
-        _report(_Message(message=tbstr))
-        _report(_Message(message=" error during device initialization"))
+        _report(_Message(tbstr))
+        _report(_Message(" error during device initialization"))
 
     _reset_kwargs["status"] = "errored"
     if exc_type is None:
@@ -718,5 +716,5 @@ if "status" not in _reset_kwargs.keys():
 # the reset function is called at the script end only, but we
 # nevertheless specify the last datafile name to be as close as possible
 # to the behavior of matrix
-_report(_Message(message="resetting system"))
+_report(_Message("resetting system"))
 _system.reset(**_reset_kwargs)

@@ -199,7 +199,7 @@ class ExecThread(threading.Thread):
         """
         self.pause_flag = bool(state)
         if state is True:
-            self.report(Message(message="\npaused", to_comment=False))
+            self.report(Message("\npaused", to_comment=False))
 
     def stop(self, state: bool | None = None) -> None:
         """
@@ -259,7 +259,7 @@ class ExecThread(threading.Thread):
                 text = (
                     f"Waiting {sleep_time:.0f} seconds{msg} until {end_time.strftime('%H:%M:%S')}"
                 )
-                self.report(Message(message=text))
+                self.report(Message(text))
 
         elif until is not None:
             end_time = _parse_until_time(until, now)
@@ -269,7 +269,7 @@ class ExecThread(threading.Thread):
                     f"Specified wait until time {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                     "is in the past. Continuing immediately."
                 )
-                self.report(Message(message=text))
+                self.report(Message(text))
                 self.check_for_interrupt_and_pause()
                 return
 
@@ -284,7 +284,7 @@ class ExecThread(threading.Thread):
                     f"Waiting until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                     f"(in {sleeptstr} seconds){msg}"
                 )
-                self.report(Message(message=text))
+                self.report(Message(text))
 
         else:
             raise ValueError("Either `duration` or `until` must be provided.")
@@ -327,7 +327,7 @@ class ExecThread(threading.Thread):
             if self.check_for_interrupt_and_pause():
                 if not is_duration and end_time and datetime.now() >= end_time:
                     text = "\nThe target time passed during pause. Continuing immediately."
-                    self.report(Message(message=text))
+                    self.report(Message(text))
                     return
                 elif is_duration:
                     # Calculate pause duration and extend end_time accordingly
@@ -340,7 +340,7 @@ class ExecThread(threading.Thread):
                     # Recalculate sleep_time after adjusting for pause
                     sleep_time = (end_time - datetime.now()).total_seconds()
                     text = f"\nResuming wait for {sleep_time:.0f} seconds{message}."
-                    self.report(Message(message=text))
+                    self.report(Message(text))
                 else:
                     # For "until" wait, recalculate based on the current end_time
                     sleep_time = max(0, (end_time - datetime.now()).total_seconds())
@@ -348,14 +348,14 @@ class ExecThread(threading.Thread):
                         f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                         f"({sleep_time:.0f} seconds remaining)."
                     )
-                    self.report(Message(message=text))
+                    self.report(Message(text))
 
             # Sleep in precise intervals, adjusting each time
             if sleep_time > 1:
                 if initial_sleep_time > silent:
                     self.report(
                         Message(
-                            message=f"{int(sleep_time)} seconds remaining",
+                            f"{int(sleep_time)} seconds remaining",
                             end="",
                             to_comment=False,
                             to_logfile=False,
@@ -369,7 +369,7 @@ class ExecThread(threading.Thread):
                 break
 
         if initial_sleep_time > silent:
-            self.report(Message(message="Waiting done", modifier=Modifier.DELETE_CURRENT_LINE))
+            self.report(Message("Waiting done", modifier=Modifier.DELETE_CURRENT_LINE))
 
     def check_for_interrupt_and_pause(self) -> bool:
         """
@@ -463,7 +463,7 @@ class ExecThread(threading.Thread):
         while self.recv == "" or self.recv_flag is True:
             time.sleep(0.1)
             if (time.time() - t0) > 60:
-                self.report(Message(message="still waiting for user input", to_comment=False))
+                self.report(Message("still waiting for user input", to_comment=False))
                 t0 = time.time()
             self.check_for_interrupt_and_pause()
         # remove trailling line feed
@@ -549,6 +549,4 @@ class ExecThread(threading.Thread):
             self.system.report: Callable[[MeasurementData], None] = self.report
             exec(self.script, _vars)
         except KeyboardInterrupt:
-            self.report(
-                Message(message="Script interrupted during initialization", to_comment=False)
-            )
+            self.report(Message("Script interrupted during initialization", to_comment=False))

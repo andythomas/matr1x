@@ -691,7 +691,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.ui.widgets.table.setItem(index, 0, column)
                 self.ui.widgets.table.setItem(index, 3, unit)
         elif isinstance(data, SetValues):
-            for index, item in enumerate(data.set):
+            for index, item in enumerate(data.set_values):
                 if item is not None:
                     value = QTableWidgetItem(str(item))
                 else:
@@ -701,7 +701,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 )
                 self.ui.widgets.table.setItem(index, 1, value)
         elif isinstance(data, MeasuredValues):
-            for index, item in enumerate(data.measured):
+            for index, item in enumerate(data.measured_values):
                 if item is not None:
                     value = QTableWidgetItem(str(item))
                 else:

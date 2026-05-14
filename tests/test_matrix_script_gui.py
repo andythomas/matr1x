@@ -314,9 +314,9 @@ def test_delete_current_line(
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     messages = []
-    messages.append(Message(message="To print", end=""))
-    messages.append(Message(message="or not to print", modifier=Modifier.DELETE_CURRENT_LINE))
-    messages.append(Message(message="that is the question"))
+    messages.append(Message("To print", end=""))
+    messages.append(Message("or not to print", modifier=Modifier.DELETE_CURRENT_LINE))
+    messages.append(Message("that is the question"))
     for message in messages:
         env = Envelope.model_validate_json(message.model_dump_json())
         main_window.process_data(env)

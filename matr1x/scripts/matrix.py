@@ -221,22 +221,20 @@ class PlainMeasurement:
         """
         key = self._nonblocking_getch()
         if key and key.lower() in ("q", "a", "f"):
-            self.dispatch(Message(message="Note: aborted with {key} after {points} points\n\n\n"))
+            self.dispatch(Message("Note: aborted with {key} after {points} points\n\n\n"))
             self._system.add_comment(
                 f"measurement aborted by keyboard input after {points} points"
             )
             return abortmap[key.lower()]
         if key in ("p", "P"):
-            self.dispatch(Message(message="paused - continue with 'p'\n"))
+            self.dispatch(Message("paused - continue with 'p'\n"))
             self._system.add_comment("measurement paused by keyboard input")
             # wait for unpause with p
             while True:
                 time.sleep(0.1)
                 key = self._nonblocking_getch()
                 if key and key.lower() in ("q", "a", "f"):
-                    self.dispatch(
-                        Message(message=f"Note: aborted with {key} after {points} points\n\n\n")
-                    )
+                    self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
                     self._system.add_comment(
                         f"measurement aborted by keyboard input after {points} points"
                     )
@@ -274,29 +272,29 @@ class PlainMeasurement:
         """Print unknown or corrupted data."""
         print(data)  # noqa: T201
 
-    def header(self, header: Header) -> None:
+    def header(self, data: Header) -> None:
         """Print a formatted header."""
-        print(header)  # noqa: T201
+        print(data)  # noqa: T201
 
-    def set_values(self, set_values: SetValues) -> None:
+    def set_values(self, data: SetValues) -> None:
         """Print formatted set values."""
-        print(set_values)  # noqa: T201
+        print(data)  # noqa: T201
 
-    def measured_values(self, measured_values: MeasuredValues) -> None:
+    def measured_values(self, data: MeasuredValues) -> None:
         """Print formatted measured values."""
-        print(measured_values)  # noqa: T201
+        print(data)  # noqa: T201
 
-    def telemetry(self, telemetry: Telemetry) -> None:
+    def telemetry(self, data: Telemetry) -> None:
         """Print formatted telemetry."""
-        print(telemetry)  # noqa: T201
+        print(data)  # noqa: T201
 
-    def message(self, message: Message) -> None:
+    def message(self, data: Message) -> None:
         """Print a message."""
-        print(message.message)  # noqa: T201
+        print(data.message)  # noqa: T201
 
-    def error_message(self, error_message: ErrorMessage) -> NoReturn:
+    def error_message(self, data: ErrorMessage) -> NoReturn:
         """Print an error message and exit."""
-        print(f"matrix: error: {error_message.error}")  # noqa: T201
+        print(f"matrix: error: {data.error}")  # noqa: T201
         sys.exit(1)
 
 
@@ -436,27 +434,25 @@ class UrwidMeasurement(PlainMeasurement):
         self.loop.draw_screen()
         return 0
 
-    def header(self, header: Header) -> None:
+    def header(self, data: Header) -> None:
         """Set no plain header in the urwid measurement."""
 
-    def set_values(self, set_values: SetValues) -> None:
+    def set_values(self, data: SetValues) -> None:
         """Set the values in the urwid measurement."""
-        setvalues = set_values.set
-        for i, setv in enumerate(flatten(setvalues)):
-            if setv is not None:
-                self.setval[i].set_text(str(setv))
+        for i, val in enumerate(flatten(data.set_values)):
+            if val is not None:
+                self.setval[i].set_text(str(val))
         self.loop.draw_screen()
 
-    def measured_values(self, measured_values: MeasuredValues) -> None:
+    def measured_values(self, data: MeasuredValues) -> None:
         """Set the measured values in the urwid measurement."""
-        return_list = measured_values.measured
-        for i, ret in enumerate(return_list):
-            self.readval[i].set_text(str(ret))
+        for i, val in enumerate(data.measured_values):
+            self.readval[i].set_text(str(val))
         self.loop.draw_screen()
 
-    def telemetry(self, telemetry: Telemetry) -> None:
+    def telemetry(self, data: Telemetry) -> None:
         """Set the telemetry in the urwid measurement."""
-        self.telemetry_text.set_text(str(telemetry))
+        self.telemetry_text.set_text(str(data))
         self.loop.draw_screen()
 
 
@@ -607,12 +603,12 @@ def measurementloop(
             else:
                 setvalues.append(setv)
 
-        datacb(SetValues(set=flatten(setvalues)))
+        datacb(SetValues(flatten(setvalues)))
         preread = time.time()
         if datapoint[-1] == 1:  # logpoint argument
             system.trigger()
             return_list = system.take_measurement_point()
-            datacb(MeasuredValues(measured=return_list))
+            datacb(MeasuredValues(return_list))
 
         elapsed = time.time() - starttime
         datacb(
@@ -661,12 +657,12 @@ def reset_system_and_exit(
         True for immediate error exits.
     """
     if error_message:
-        dispatcher.dispatch(Message(message=error_message))
+        dispatcher.dispatch(Message(error_message))
     if immediate_error:
         reset_kwargs["status"] = "errored"
         if exception:
             system.add_comment(f"Matrix errored: {type(exception).__name__}: {exception}")
-    dispatcher.dispatch(Message(message="resetting devices"))
+    dispatcher.dispatch(Message("resetting devices"))
     system.reset(**reset_kwargs)
     sys.exit(exit_code)
 
@@ -694,7 +690,7 @@ def read_inputfile_header(
 
     with open_and_error(inputfile, "r") as f:
         if isinstance(f, Error):
-            dispatcher.dispatch(ErrorMessage(error=str(f.error)))
+            dispatcher.dispatch(ErrorMessage(str(f.error)))
         for line in f.value:
             system_pattern = r"^# [Ss]ystem filename : (.+)"
             settable_names_pattern = r"^# [Ss]ettable columns : (.+)"
@@ -737,16 +733,14 @@ def verify_columns(
     settable_names = [p.name for p in flat_parameters if p.settable]
     settable_units = [p.unit for p in flat_parameters if p.settable]
     if settable_names != settable_names_file or settable_units != settable_units_file:
-        dispatcher.dispatch(Message(message=str(settable_names) + str(settable_names_file)))
-        dispatcher.dispatch(Message(message=str(settable_units) + str(settable_units_file)))
+        dispatcher.dispatch(Message(str(settable_names) + str(settable_names_file)))
+        dispatcher.dispatch(Message(str(settable_units) + str(settable_units_file)))
         if options.json:
-            dispatcher.dispatch(
-                ErrorMessage(error="System columns do not match input file columns.")
-            )
+            dispatcher.dispatch(ErrorMessage("System columns do not match input file columns."))
         else:
             dispatcher.dispatch(
                 Message(
-                    message="System seems to have changed since the input file was generated."
+                    "System seems to have changed since the input file was generated."
                     " The input file might lead to unexpected values being set! "
                     "Are you sure you want to continue?\n"
                 )
@@ -779,33 +773,31 @@ def main() -> None:
     elif systemfile_header is not None:
         resolved_systemfile = systemfile_header
     else:
-        measurement.dispatch(ErrorMessage(error="no system file specified"))
+        measurement.dispatch(ErrorMessage("no system file specified"))
     system = MergedSystem.from_files(resolved_systemfile)
     if isinstance(system, Error):
-        measurement.dispatch(ErrorMessage(error=system.error))
+        measurement.dispatch(ErrorMessage(system.error))
         sys.exit(1)
     system = system.value
     verify_columns(system, settable_names_file, settable_units_file, options, measurement)
     output_filename = system.generate_datafilename(
         options.outputfile, options.inputfile, options.append
     )
-    measurement.dispatch(Datafile(datafile=str(output_filename)))
+    measurement.dispatch(Datafile(str(output_filename)))
     for key, editable in VALID_META_KEYS.items():
         if editable:
             opt_val = getattr(options, f"dc_{key.lower()}")
             if opt_val is not None:
                 system.dcdata[key] = opt_val
-    measurement.dispatch(Message(message="setting devices"))
+    measurement.dispatch(Message("setting devices"))
     system.set(input_file=options.inputfile, output_file=output_filename)
     reset_kwargs = {"input_file": options.inputfile, "output_file": output_filename}
     ret = 0
     try:
-        measurement.dispatch(
-            Message(message="devices set, acquiring configuration and writing header")
-        )
+        measurement.dispatch(Message("devices set, acquiring configuration and writing header"))
         try:
             msg, outputfile = system.init_datafile(options.inputfile)
-            measurement.dispatch(Message(message=f"{msg}: {outputfile}"))
+            measurement.dispatch(Message(f"{msg}: {outputfile}"))
         except OSError as e:
             reset_system_and_exit(
                 measurement,
@@ -826,7 +818,7 @@ def main() -> None:
                 e,
                 immediate_error=True,
             )
-        measurement.dispatch(Message(message="entering loop now"))
+        measurement.dispatch(Message("entering loop now"))
         measurement.set_system(system)
         measurement.set_inputfile(options.inputfile)
         if isinstance(measurement, UrwidMeasurement):
@@ -837,27 +829,27 @@ def main() -> None:
             if os.name != "nt":
                 control_string += " and enter"
             if sys.stdout.isatty():
-                measurement.dispatch(Message(message=control_string))
+                measurement.dispatch(Message(control_string))
         try:
             ret = measurement.run()
         except KeyboardInterrupt as e:
             measurement.dispatch(
                 Message(
-                    message="Received keyboard interrupt, file may be corrupt!\n"
+                    "Received keyboard interrupt, file may be corrupt!\n"
                     + "Some devices may be in unknown state. Check traceback!\n"
                     + "Traceback of error:\n"
                 )
             )
             traceback.print_tb(e.__traceback__)
             ret = 1
-        measurement.dispatch(Message(message=measurement.msg))
+        measurement.dispatch(Message(measurement.msg))
         if ret == 1:
             x = input(
                 "Shall the termination of the sequence lead to "
                 "marking the datafile as aborted? (Y/n)"
             )
             if x.lower().startswith("y") or x == "":
-                measurement.dispatch(Message(message="marking file as aborted"))
+                measurement.dispatch(Message("marking file as aborted"))
                 reset_kwargs["status"] = "aborted"
         if ret == 2:
             reset_kwargs["status"] = "aborted"
