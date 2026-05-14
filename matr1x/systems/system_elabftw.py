@@ -31,6 +31,7 @@ from elabapi_python.rest import ApiException
 from jinja2 import Template
 
 from matr1x import get_config_dict
+from matr1x.models import Message
 from matr1x.system import MergedSystem, System
 
 logger = logging.getLogger(__name__)
@@ -199,9 +200,11 @@ class ElabSystem(System):
         configuration = elabapi_python.Configuration()
 
         if self.sensitive_config["host"] is None or self.sensitive_config["api_key"] is None:
-            print(
-                "ElabFTW connection host or API key not found in the TOML config, make "
-                "sure host address and API key of the server are specified."
+            self.report(
+                Message(
+                    "ElabFTW connection host or API key not found in the TOML config, make "
+                    "sure host address and API key of the server are specified."
+                )
             )
             raise Exception(
                 "ElabFTW host or API key not found in the TOML config, make sure "
@@ -226,13 +229,20 @@ class ElabSystem(System):
             info_client.get_info()
         except Exception:
             if self.config["require_server"]:
-                print(
-                    "ElabFTW connection could not be established but is configured to be required."
+                self.report(
+                    Message(
+                        "ElabFTW connection could not be established "
+                        "but is configured to be required."
+                    )
                 )
                 raise Exception("ElabFTW connection could not be established")
             else:
-                print("ElabFTW connection could not be established")
-                print("no labbook entry will be created, but we continue.")
+                self.report(
+                    Message(
+                        "ElabFTW connection could not be established\n"
+                        "no labbook entry will be created, but we continue."
+                    )
+                )
                 # disable api_client for rest of run to be more smooth
                 self.api_client = None
         for key in ["identifier", "relation"]:
@@ -304,7 +314,9 @@ class ElabSystem(System):
             ):
                 self.add_attachment(self.filename, "Data file")
             else:
-                print(f"File size ({file_size_mb:.2f} MB) exceeds the limit. Not uploading.")
+                self.report(
+                    Message(f"File size ({file_size_mb:.2f} MB) exceeds the limit. Not uploading.")
+                )
 
     def _render_template(self, template: str) -> str:
         """
@@ -363,7 +375,7 @@ class ElabSystem(System):
         try:
             response = userApi.read_users()
         except ApiException as e:
-            print(f"Exception when calling UsersApi->readUsers: {e}\n")
+            self.report(Message(f"Exception when calling UsersApi->readUsers: {e}\n"))
             return None
 
         names = [user["fullname"] for user in response]
@@ -417,8 +429,11 @@ class ElabSystem(System):
         try:
             response = catApi.read_team_experiments_categories(self._team_id)
         except ApiException as e:
-            print(
-                f"Exception during ExperimentsCategoriesApi->readTeamExperimentsCategories: {e}\n"
+            self.report(
+                Message(
+                    "Exception during ExperimentsCategoriesApi->"
+                    f"readTeamExperimentsCategories: {e}\n"
+                )
             )
         # find id for search category
         result_id = next((item.id for item in response if item.title == category_name), None)
@@ -444,7 +459,11 @@ class ElabSystem(System):
         try:
             response = expstatusApi.read_team_experiments_status(self._team_id)
         except ApiException as e:
-            print(f"Exception when calling ExperimentsStatusApi->readTeamExperimentsStatus: {e}\n")
+            self.report(
+                Message(
+                    f"Exception when calling ExperimentsStatusApi->readTeamExperimentsStatus: {e}\n"
+                )
+            )
             return None
         return next((item.id for item in response if item.title == status), None)
 
@@ -468,8 +487,11 @@ class ElabSystem(System):
             # Read all resources categories that are accessible.
             response = itemsTypesApi.read_items_types()
         except ApiException as e:
-            print(
-                f"Exception when calling ItemsTypesResourcesTemplatesApi->read_item_types: {e}\n"
+            self.report(
+                Message(
+                    "Exception when calling ItemsTypesResourcesTemplatesApi->"
+                    f"read_item_types: {e}\n"
+                )
             )
             return None
         # find id for search category
@@ -517,9 +539,9 @@ class ElabSystem(System):
             locationHeaderInResponse = response[2].get("Location")
             item_id = int(locationHeaderInResponse.split("/").pop())
             itemsApi.patch_item(body={"title": name}, id=item_id)
-            print(f"created ElabFTW resource with name {name}")
+            self.report(Message(f"created ElabFTW resource with name {name}"))
         except ApiException as e:
-            print(f"Exception when calling ItemsApi: {e}\n")
+            self.report(Message(f"Exception when calling ItemsApi: {e}\n"))
         if item_id is None:
             raise ValueError("Failed to create resource - itemId is None")
         return item_id
@@ -544,12 +566,16 @@ class ElabSystem(System):
         try:
             response = itemsApi.read_items(q=f"'{resource}'")
         except ApiException as e:
-            print(f"Exception when calling ItemsApi->readItems: {e}\n")
+            self.report(Message(f"Exception when calling ItemsApi->readItems: {e}\n"))
             return None
         if item_id := next((item.id for item in response if item.title == resource), None):
             return item_id
         else:
-            print(f"Could not identify ElabFTW resource corresponding to the name {resource}")
+            self.report(
+                Message(
+                    f"Could not identify ElabFTW resource corresponding to the name {resource}"
+                )
+            )
         return None
 
     def _parse_tags_from_line(self, line: str) -> list | None:
@@ -642,14 +668,14 @@ class ElabSystem(System):
             self._link_resources(experiment_id)
 
         except ApiException as e:
-            print(f"Exception with post or patch experiment: {e}\n")
+            self.report(Message(f"Exception with post or patch experiment: {e}\n"))
 
     def _handle_existing_title(self, experiments_api, title):
         """Handle title when experiment with the same title already exists."""
         try:
             api_response = experiments_api.read_experiments(q=f"'{title}'")
         except ApiException as e:
-            print(f"Exception when calling ExperimentsApi->readExperiments: {e}\n")
+            self.report(Message(f"Exception when calling ExperimentsApi->readExperiments: {e}\n"))
             return title
 
         if not isinstance(api_response, list) or len(api_response) == 0:
@@ -699,27 +725,33 @@ class ElabSystem(System):
             Status of the experiment to print.
         """
         logger.exception("Detailed error message:")
-        print("some error occured during creation of lab book entry.")
-        print("see log file for details.")
-        print("Here some information to create the labbook entry manually:")
+        backup_info = (
+            "some error occured during creation of lab book entry.\n"
+            "see log file for details.\n"
+            "Here some information to create the labbook entry manually:"
+        )
+        self.report(Message(backup_info))
         title = self._render_template(self.config["title_template"])
         body = self._render_template(self.config["body_template"])
         category_name = self.config.get("category", None)
-        print(f"Entry title: {title}")
+        entry_info = f"Entry title: {title}\n"
         if category_name:
-            print(f"Category: {category_name}")
-        print(f"Content (in html): {body}")
-        print("---- End Content ----")
+            entry_info += f"Category: {category_name}\n"
+        entry_info += f"Content (in html): {body}\n---- End Content ----"
+        self.report(Message(entry_info))
+
         if self._attachments:
-            print("Attach files: ")
-            for file, comment in self._attachments.items():
-                print(f"{file}: {comment}")
+            attach_msg = "Attach files: \n"
+            attach_msg += "\n".join(
+                f"{file}: {comment}" for file, comment in self._attachments.items()
+            )
+            self.report(Message(attach_msg))
         if self._tags:
-            print(f"Set tags: {self._tags}")
+            self.report(Message(f"Set tags: {self._tags}"))
         if self._resources:
-            print(f"Link Resources: {self._resources.keys()}")
+            self.report(Message(f"Link Resources: {self._resources.keys()}"))
         if status:
-            print(f"Set experiment status: {status}")
+            self.report(Message(f"Set experiment status: {status}"))
 
     def reset(self, *args, **kwargs):
         """
@@ -738,7 +770,7 @@ class ElabSystem(System):
                 except Exception:
                     self._backup_info(kwargs.get("status", ""))
             else:
-                print("no measurement file exists, not creating entry")
+                self.report(Message("no measurement file exists, not creating entry"))
         super().reset(*args, **kwargs)
         # reset internal variables to enable reuse of a class instance
         self._attachments = {}
