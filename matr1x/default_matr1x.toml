@@ -41,5 +41,5 @@ visadebug = false
 
 [matr1x.install]
 root_path = "core_library/"
-create_directories = false
+create_directories = true
 desktopintegration = true

@@ -3308,6 +3308,10 @@ class MApplication(QApplication):
             if "QT_QPA_PLATFORM" not in os.environ and "xcb" in self._list_platform_plugins():
                 os.environ["QT_QPA_PLATFORM"] = "xcb"
         super().__init__(args)
+        if not self.applicationName():
+            self.setApplicationName("matr1x")
+        if not self.organizationName():
+            self.setOrganizationName("matr1x")
         if os.name == "nt":
             self.setStyle("fusion")  # Enable modern mode on Windows which allows for dark mode
         self._theme_detector = ThemeDetector()

@@ -769,7 +769,7 @@ class ScriptThread(QThread):
                 env = Envelope.model_validate_json(line)
             except ValidationError:
                 if line.strip():
-                    print(line, end="")  # noqa: T201
+                    logger.error("Unknown data received: %s", line)
                 continue
             self.data_received.emit(env)
 
@@ -777,7 +777,7 @@ class ScriptThread(QThread):
         """Relay stdout and stderr of the subprocess to the logger."""
         for line in iter(stream.readline, b""):
             if is_error:
-                scriptlogger.error(line.decode().strip())
+                scriptlogger.warning(line.decode().strip())
             else:
                 scriptlogger.info(line.decode().strip())
 

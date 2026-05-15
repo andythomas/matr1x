@@ -36,7 +36,6 @@ system directories.
 import logging
 import os
 import sys
-import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -270,32 +269,27 @@ if msg != "":
 
 datetimefmt = config["matr1x"]["datetime_format"]
 
-# set up logging, mostly for debugging purposes.
-# Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
-# is however not recommended in production environments.
-logfolder = Path(config["matr1x"]["logging_directory"]).expanduser()
-handlers = []
-if not logfolder.exists():
-    logfolder = Path(tempfile.gettempdir())  # set logfolder to temp directory
-    if sys.stdout is not None:
-        # if logging to temp directory also log to stdout
-        handlers.append(logging.StreamHandler(stream=sys.stdout))
-
-today = date.today().isocalendar()
-handlers.append(
-    logging.FileHandler(logfolder / f"matr1x_{today.year}{today.week:02d}.log", mode="a")
-)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format=config["matr1x"]["logging_format"],
-    datefmt=datetimefmt,
-    handlers=handlers,
-)
-
 usersfolder: Path = Path(config["matr1x"]["users_directory"]).expanduser()
 if not usersfolder.exists():
     usersfolder = Path.home()
+
+# set up logging to configure, e.g., the log-windows
+logfolder = Path(config["matr1x"]["logging_directory"]).expanduser()
+if logfolder.exists():
+    today = date.today().isocalendar()
+    handlers = [
+        logging.FileHandler(logfolder / f"matr1x_{today.year}{today.week:02d}.log", mode="a")
+    ]
+    logging.basicConfig(
+        level=logging.INFO,
+        format=config["matr1x"]["logging_format"],
+        datefmt=datetimefmt,
+        handlers=handlers,
+    )
+else:
+    logging.basicConfig(format=config["matr1x"]["logging_format"], datefmt=datetimefmt)
+    # fallback to usersfolder if logfolder does not exist
+    logfolder = usersfolder
 
 _systems_directory_str = config["matr1x"]["systems_directory"]
 

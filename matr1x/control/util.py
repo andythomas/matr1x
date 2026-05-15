@@ -57,6 +57,7 @@ from PySide6.QtCore import (
     QObject,
     QPoint,
     QSize,
+    QStandardPaths,
     Qt,
     QThread,
     QTimer,
@@ -92,7 +93,7 @@ if TYPE_CHECKING:
 
 from matr1x.system import System
 
-from .. import config, logfolder
+from .. import config
 from ..error_handling import InternalInvariantError
 from ..gui_util import MApplication, SaferQSettings, validator
 from ..util import Command, normalize_cmds
@@ -1940,7 +1941,13 @@ def control_main(
     app.setDesktopFileName(f"python.{package}.{Path(sys.argv[0]).name}")
 
     if lockfile:
-        lockfilename = Path(logfolder) / f"{package}_gui_{name}.lock"
+        # lock files are stored in a user specific cache directory
+        # to ensure they are available even if no log folder exists
+        lockdir = Path(
+            QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation)
+        )
+        lockdir.mkdir(parents=True, exist_ok=True)
+        lockfilename = lockdir / f"{package}_gui_{name}.lock"
         if lockfilename.exists():
             # check if process still running
             with lockfilename.open(encoding="utf-8") as lockf:
