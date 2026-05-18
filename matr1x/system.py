@@ -1386,8 +1386,8 @@ class System:
 
         Parameters
         ----------
-        obj : object
-            The object to extract methods and variables from
+        obj : System
+            The system to extract methods and variables from
         info_dict : dict
             Dictionary to add the methods/variables information to
         prefix : str, optional
@@ -1406,50 +1406,38 @@ class System:
                 parameter_methods.add(param.setter)
             if isinstance(param.getter, str):
                 parameter_methods.add(param.getter)
-
+        base_attrs = set(dir(System()))
         for key in dir(obj):
-            if (
-                key not in dir(System())
-                and not key.startswith("_")
-                and key not in parameter_methods
-            ):
+            if key not in base_attrs and not key.startswith("_") and key not in parameter_methods:
+                if key in info_dict["methods"]:
+                    info_dict["warnings"].append(
+                        f"Method '{key}' from '{obj.__class__.__name__}' shadows a pre-existing "
+                        f"entry (prefix: {prefix})."
+                    )
                 method = getattr(obj, key)
                 if callable(method):
-                    # Get method signature if possible
-                    signature = ""
-                    doc_summary = ""
+                    signature = None
+                    docstring = None
                     try:
                         signature = str(inspect.signature(method))
-                        if method.__doc__:
-                            doc_lines = method.__doc__.strip().split("\n")
-                            if doc_lines:
-                                doc_summary = doc_lines[0].strip()
-                    except Exception:
+                    except (TypeError, ValueError):
                         pass
-
-                    description = f"{prefix} method"
-                    if signature:
-                        description += f" - {key}{signature}"
-                    if doc_summary:
-                        description += f" - {doc_summary}"
+                    if method.__doc__:
+                        docstring = method.__doc__.strip()
 
                     info_dict["methods"][key] = {
                         "name": key,
-                        "description": description,
+                        "prefix": prefix,
+                        "kind": "method",
+                        "signature": signature,
+                        "docstring": docstring,
                     }
                 else:
-                    # Get variable value summary if possible
-                    value_str = ""
-                    try:
-                        value = getattr(obj, key)
-                        value_type = type(value).__name__
-                        value_str = f" ({value_type})"
-                    except Exception:
-                        pass
-
                     info_dict["methods"][key] = {
                         "name": key,
-                        "description": f"{prefix} variable{value_str}",
+                        "prefix": prefix,
+                        "kind": "variable",
+                        "signature": f" ({type(method).__name__})",
                     }
 
     def grab_information(self) -> dict[str, Any]:
@@ -1464,7 +1452,7 @@ class System:
             custom-defined system methods and variables (if any).
         """
         # generate dictionary from devices, parameters, methods and config
-        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}}
+        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}, "warnings": []}
 
         # Add devices
         for dev, device_entry in self.devs.items():
@@ -1974,7 +1962,7 @@ class MergedSystem(System):
             System information, methods and parameters from all
             subsystems.
         """
-        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}}
+        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}, "warnings": []}
         base_info = super().grab_information()
         # Merge the categorized dictionaries
         if "devices" in base_info:

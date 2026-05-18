@@ -189,6 +189,9 @@ class SystemListWidget(QListWidget):
         system_info = get_system_info(self.systems)
         if isinstance(system_info, Error):
             raise InternalInvariantError("System list should work if systems work individually.")
+        if system_info.value.warnings:
+            for warning in system_info.value.warnings:
+                self.message.emit(NotifierMessage(warning, level=logging.WARNING))
         self._cached_system_info = system_info.value
         self.changed.emit()
 

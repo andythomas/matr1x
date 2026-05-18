@@ -192,7 +192,20 @@ class SystemMethod(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    description: str
+    prefix: str
+    kind: str
+    signature: str | None = None
+    docstring: str | None = None
+
+    @property
+    def description(self) -> str:
+        """Returns the description of the method."""
+        description = f"{self.prefix} {self.kind}"
+        if self.signature:
+            description += f" - {self.name}{self.signature}"
+        if self.docstring:
+            description += f" - {self.docstring.splitlines()[0]}"
+        return description
 
 
 class SystemInfo(BaseModel):
@@ -204,6 +217,7 @@ class SystemInfo(BaseModel):
     parameters: dict[str, SystemParameter]
     methods: dict[str, SystemMethod]
     config: dict[str, Any]
+    warnings: list[str] = Field(default_factory=dict)
 
     @property
     def flat_parameters(self) -> list[SystemParameter]:
