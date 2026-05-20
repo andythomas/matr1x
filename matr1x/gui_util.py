@@ -1195,14 +1195,14 @@ class ConfigEditWidget(MetaViewerWidget):
     Allows editing and saving the config file.
     """
 
-    def __init__(self):
+    def __init__(self, popup: bool = False):
         super().__init__({}, heading="Device config", editable=True)
+        if popup:
+            self.setTitleBarWidget(QWidget())
         self.system_file = None
         self.system_info: SystemInfo | None = None
         self.full_system_list = []
-
         widget = QWidget()
-        # Create a QVBoxLayout instance
         layout = QVBoxLayout()
         button_layout = QHBoxLayout()
 
@@ -1210,13 +1210,9 @@ class ConfigEditWidget(MetaViewerWidget):
         self.w_update_config: QPushButton = QPushButton("Reload config")
         self.w_update_config.setEnabled(False)
         self.w_update_config.clicked.connect(self.reload_and_update_data)
-
-        # Add the form layout to the main layout
         button_layout.addWidget(self.w_update_config)
         layout.addLayout(button_layout)
         layout.addWidget(self.tree_view)
-
-        # Set the main layout for the dialog
         widget.setLayout(layout)
         self.setWidget(widget)
 
@@ -1357,6 +1353,35 @@ class ConfigEditWidget(MetaViewerWidget):
 
         super().update_data(self.value_dict, self.types_dict)
         self.w_update_config.setEnabled(True)
+
+    def flatten_dict(self, nested: dict, parent_key: str = "", sep: str = ".") -> dict:
+        """Flatten a nested dictionary into dotted-key notation."""
+        items = {}
+        for key, value in nested.items():
+            new_key = f"{parent_key}{sep}{key}" if parent_key else key
+            if isinstance(value, dict):
+                # If all nested values are non-dicts, stop flattening here
+                if all(not isinstance(v, dict) for v in value.values()):
+                    items[new_key] = value
+                else:
+                    items.update(self.flatten_dict(value, new_key, sep))
+            else:
+                items[new_key] = value
+        return items
+
+    def apply_config_dict(self, config: dict) -> None:
+        """Apply values from a nested config dict to the tree items."""
+
+        def _merge(base: dict, update: dict) -> None:
+            """Deep-merge update into base."""
+            for key, val in update.items():
+                if key in base and isinstance(base[key], dict) and isinstance(val, dict):
+                    _merge(base[key], val)
+                else:
+                    base[key] = val
+
+        _merge(self.value_dict, self.flatten_dict(config))
+        super().update_data(self.value_dict, self.types_dict)
 
     def parse_item(self, item) -> Any:
         """

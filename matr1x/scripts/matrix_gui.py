@@ -21,14 +21,26 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
-from functools import cached_property
 from pathlib import Path
 
 import shiboken6
+import tomli_w
 from pydantic import ValidationError
-from PySide6.QtCore import QByteArray, QDateTime, QPoint, QSize, Qt, QThread, QTimeZone, Signal
+from PySide6.QtCore import (
+    QByteArray,
+    QDateTime,
+    QPoint,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    QTimeZone,
+    Signal,
+)
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -37,19 +49,19 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QMenuBar,
     QMessageBox,
     QProgressBar,
     QSizePolicy,
     QTableWidgetItem,
     QToolBar,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 import matr1x
-from matr1x.error_handling import Error, install_error_handler
+from matr1x.error_handling import Error, InternalInvariantError, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     ConfigEditWidget,
@@ -73,6 +85,7 @@ from matr1x.models import (
     MeasuredValues,
     Message,
     SetValues,
+    SystemInfo,
     Telemetry,
 )
 from matr1x.post_install import (
@@ -115,7 +128,7 @@ class LabelWithSignal(QLabel):
         self.textChanged.emit(a0)
 
 
-@dataclass(frozen=True)
+@dataclass
 class QueueListItem:
     """The parameters of an item of the measurement queue."""
 
@@ -123,12 +136,31 @@ class QueueListItem:
     output_file: str
     metadata: dict
     config: dict
+    systems: list[str]
+    system_info: SystemInfo | None
 
-    @cached_property
+    @property
     def list_entry(self) -> str:
         """Return a human-readable representation of the list entry."""
         output = Path(self.output_file).name if self.output_file else "<use input>"
         return f"Input: {Path(self.input_file).name} - Output: {output}"
+
+    @staticmethod
+    def remove_nones(d: dict) -> dict:
+        """Remove None values from a dictionary."""
+        if isinstance(d, dict):
+            return {k: QueueListItem.remove_nones(v) for k, v in d.items() if v is not None}
+        return d
+
+    @property
+    def tooltip(self) -> str:
+        """Return a tooltip with all data."""
+        input_file = f"Input:\n{self.input_file}\n\n"
+        output_file = f"Output:\n{self.output_file or '<use input>'}\n\n"
+        metadata = f"Metadata:\n{tomli_w.dumps(self.remove_nones(self.metadata))}"
+        normalized_config = self.remove_nones(self.config)
+        config = f"\nConfig:\n{tomli_w.dumps(normalized_config)}" if normalized_config else ""
+        return input_file + output_file + metadata + config
 
 
 class QueueListWidget(QListWidget):
@@ -140,11 +172,92 @@ class QueueListWidget(QListWidget):
         super().__init__()
         self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         self.setAlternatingRowColors(True)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
+        self.active: bool = False
+
+    def show_context_menu(self, pos: QPoint):
+        """Allow to change output and delete items."""
+        item = self.itemAt(pos)
+        if not item:
+            return
+        row = self.row(item)
+        self.active = True
+        try:
+            menu = QMenu(self)
+            change_output = menu.addAction("Change Output")
+            change_metadata = menu.addAction("Change Metadata")
+            change_config = menu.addAction("Change Config")
+            menu.addSeparator()
+            remove = menu.addAction("Remove")
+            action = menu.exec(self.mapToGlobal(pos))  # ty: ignore[invalid-argument-type]
+            if action == remove:
+                self.takeItem(row)
+            elif action == change_output:
+                self.change_output(row)
+            elif action == change_metadata:
+                self.change_metadata(row)
+            elif action == change_config:
+                self.change_config(row)
+        finally:
+            self.active = False
+
+    def change_config(self, row: int) -> None:
+        """Change the config of the item."""
+        parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Edit Device Config")
+        editor = ConfigEditWidget(popup=True)
+        editor.set_systemfile(self.parameters(row).systems)
+        editor.set_system_info(self.parameters(row).system_info)
+        editor.update_data()
+        editor.apply_config_dict(parameters.config)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(editor)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec():
+            parameters.config = editor.get_config_dict()
+            self.item(row).setData(Qt.ItemDataRole.UserRole, parameters)
+            self.item(row).setToolTip(parameters.tooltip)
+
+    def change_metadata(self, row: int) -> None:
+        """Change the metadata of the item."""
+        parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        dialog = MetaDataDialog(popup=True)
+        dialog.set_metadata(parameters.metadata)
+        if dialog.exec():
+            parameters.metadata.update(dialog.metadata)
+            self.item(row).setData(Qt.ItemDataRole.UserRole, parameters)
+            self.item(row).setToolTip(parameters.tooltip)
+
+    def change_output(self, row: int) -> None:
+        """Change the output file location."""
+        parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        folder = Path(parameters.input_file).with_suffix(".ma8")
+        filename = QFileDialog.getSaveFileName(
+            self,
+            "Select ma file",
+            str(folder),
+            "Output files (*.ma8)",
+            options=QFileDialog.Option.DontConfirmOverwrite,  # this is often ignored
+            # and native dialog is not an option
+        )
+        if filename[0] != "":
+            parameters.output_file = filename[0]
+            self.item(row).setData(Qt.ItemDataRole.UserRole, parameters)
+            self.item(row).setText(parameters.list_entry)
+            self.item(row).setToolTip(parameters.tooltip)
 
     def add_parameters(self, parameters: QueueListItem) -> None:
         """Add a set of parameters."""
         item = QListWidgetItem(parameters.list_entry)
         item.setData(Qt.ItemDataRole.UserRole, parameters)
+        item.setToolTip(parameters.tooltip)
         self.addItem(item)
 
     def addItem(self, item: QListWidgetItem | str) -> None:
@@ -287,14 +400,11 @@ class GuiThread(QThread):
 class ActionGroup:
     """Actions to be utilized in the GUI."""
 
-    remove: QAction
     preview: QAction
     matrix_settings: QAction
     about: QAction
     config: QAction
     sweep: QAction
-    auto_filename: QAction
-    save_as: QAction
     queue: QAction
     start: QAction
     pause: QAction
@@ -315,7 +425,6 @@ class WidgetGroup:
 
     meas_list: QueueListWidget
     config_editor: ConfigEditWidget
-    output_edit: QLineEdit
     dockable_metadata: QDockWidget
     meta_view: MetaDataDialog
     input_file: LabelWithSignal
@@ -345,7 +454,6 @@ class UIBuilder:
             QDockWidget.DockWidgetFeature.DockWidgetClosable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
-        output_edit = QLineEdit()
         input_file = LabelWithSignal()
         current_file = QLabel()
         dockable_metadata = QDockWidget("Metadata")
@@ -370,7 +478,6 @@ class UIBuilder:
         return WidgetGroup(
             meas_list=meas_list,
             config_editor=config_editor,
-            output_edit=output_edit,
             dockable_metadata=dockable_metadata,
             meta_view=meta_view,
             input_file=input_file,
@@ -394,7 +501,6 @@ class UIBuilder:
         queue_n_measurement = QHBoxLayout()
         queue_n_measurement.setContentsMargins(0, 0, 0, 0)
         queue_n_measurement.addLayout(queue_n_current_measurement, 1)
-        queue_n_measurement.addWidget(self.remove_button)
         queue_n_measurement.addLayout(measurement, 0)
         measurements_container = QWidget()
         measurements_container.setLayout(queue_n_measurement)
@@ -404,10 +510,6 @@ class UIBuilder:
         input_line.addWidget(self.widgets.input_file)
         input_line.addStretch()
         central_layout.addLayout(input_line)
-        output_line = QHBoxLayout()
-        output_line.addWidget(QLabel("Output: "))
-        output_line.addWidget(self.widgets.output_edit)
-        central_layout.addLayout(output_line)
         central_layout.addWidget(QLabel("Queue"))
         central_layout.addWidget(measurements_container)
         current_line = QHBoxLayout()
@@ -419,18 +521,6 @@ class UIBuilder:
 
     def _create_actions(self) -> ActionGroup:
         """Create all QActions of this application."""
-        self.remove_button = QToolButton()
-        self.remove_button.setStyleSheet(
-            """
-                    QToolButton {
-                        border: none;
-                        background: none;
-                    }
-                """
-        )
-        self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        remove = QAction(get_matrix_icon("CHAR_-"), "Remove\nQueue\nItem")
-        self.remove_button.setDefaultAction(remove)
         load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setShortcut(QKeySequence.StandardKey.Open)
         quit_app = QAction("Quit")
@@ -453,10 +543,6 @@ class UIBuilder:
         sweep = QAction(
             get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")), "Generator"
         )
-        auto_filename = QAction(get_matrix_icon("SP_DriveHDIcon"), "Auto-filename")
-        auto_filename.setCheckable(True)
-        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...")
-        save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
         queue = QAction(get_matrix_icon("CHAR_+"), "Queue")
         queue.setEnabled(False)
         start = QAction(get_matrix_icon("CUSTOM_Play"), "Start")
@@ -480,14 +566,11 @@ class UIBuilder:
         post_install = QAction("Install Desktop Integration")
         remove_desktop_integration = QAction("Remove Desktop Integration")
         return ActionGroup(
-            remove=remove,
             preview=preview,
             matrix_settings=matrix_settings,
             about=about,
             config=config,
             sweep=sweep,
-            auto_filename=auto_filename,
-            save_as=save_as,
             queue=queue,
             start=start,
             pause=pause,
@@ -517,8 +600,6 @@ class UIBuilder:
         toolbar.addAction(self.actions.load)
         toolbar.addAction(self.actions.sweep)
         toolbar.addSeparator()
-        toolbar.addAction(self.actions.auto_filename)
-        toolbar.addAction(self.actions.save_as)
         toolbar.addWidget(empty)
         toolbar.addAction(self.actions.queue)
         toolbar.addAction(self.actions.start)
@@ -540,11 +621,6 @@ class UIBuilder:
         file_menu = menubar.addMenu("&File")
         file_menu.addAction(self.actions.load)
         file_menu.addAction(self.actions.sweep)
-        file_menu.addSeparator()
-        file_menu.addAction(self.actions.auto_filename)
-        file_menu.addAction(self.actions.save_as)
-        file_menu.addSeparator()
-        file_menu.addAction(self.actions.remove)
         file_menu.addSeparator()
         file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
         control_menu = menubar.addMenu("&Control")
@@ -603,14 +679,11 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def _create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
-        self.ui.actions.remove.triggered.connect(self.ui.widgets.meas_list.remove_measurement)
         self.ui.actions.preview.triggered.connect(self.open_preview)
         self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.config.toggled.connect(self.toggle_preferences)
         self.ui.widgets.config_editor.visibilityChanged.connect(self.ui.actions.config.setChecked)
         self.ui.actions.sweep.triggered.connect(self.start_sweep_generator)
-        self.ui.actions.auto_filename.toggled.connect(self.update_auto_gen_filename)
-        self.ui.actions.save_as.triggered.connect(self.show_output_dialog)
         self.ui.actions.queue.triggered.connect(self.queue_measurement)
         self.ui.actions.start.triggered.connect(self.run_matrix)
         self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
@@ -840,45 +913,15 @@ class MainWindow(FileDropMixin, QMainWindow):
         else:
             self.ui.toolbar.hide()
 
-    def update_auto_gen_filename(self, state: bool) -> None:
-        """Fill in output filename if required."""
-        if state:
-            input_path = Path(self.ui.widgets.input_file.text())
-            self.ui.widgets.output_edit.setText(str(input_path.with_suffix("")))
-
     def show_input_dialog(self) -> None:
         """Open a QFileDialog with filter for input files."""
-        folder = self.ui.widgets.input_file.text()
-        if folder == "":
-            folder = self.ui.widgets.output_edit.text()
-            if folder == "":
-                folder = matr1x.usersfolder
+        folder = self.ui.widgets.input_file.text() or matr1x.usersfolder
         # remove old pattern with next major update
         filename = QFileDialog.getOpenFileName(
             self, "Select input file", str(folder), "Sweep 8 files (*.sw8);;t files (*.*t)"
         )
         if filename[0] != "":
             self.ui.widgets.input_file.setText(filename[0])
-            if self.ui.actions.auto_filename.isChecked():
-                input_path = Path(self.ui.widgets.input_file.text())
-                self.ui.widgets.output_edit.setText(str(input_path.with_suffix("")))
-
-    def show_output_dialog(self) -> None:
-        """Open a QFileDialog with filter for output files."""
-        folder = self.ui.widgets.output_edit.text()
-        if folder == "":
-            folder = self.ui.widgets.input_file.text()
-            if folder == "":
-                folder = matr1x.usersfolder
-        filename = QFileDialog.getSaveFileName(
-            self,
-            "Select ma file",
-            str(folder),
-            "Output files (*.ma8);; Old output files (*.ma7 *.ma6)",
-            options=QFileDialog.Option.DontConfirmOverwrite,
-        )
-        if filename[0] != "":
-            self.ui.widgets.output_edit.setText(filename[0])
 
     def start_sweep_generator(self) -> None:
         """Run sweep Generator already initialized with system."""
@@ -954,11 +997,15 @@ class MainWindow(FileDropMixin, QMainWindow):
             return
         self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
         # create parameter set for measurement, make sure to copy the meta data
+        if not self.ui.widgets.config_editor.system_info:
+            raise InternalInvariantError("System info should not be None at this point.")
         parameters = QueueListItem(
             input_file=inputFile,
-            output_file=self.ui.widgets.output_edit.text(),
+            output_file="",
             metadata=self.sys_meta_data.copy(),
             config=self.ui.widgets.config_editor.get_config_dict(),
+            systems=self.ui.widgets.config_editor.full_system_list.copy(),
+            system_info=self.ui.widgets.config_editor.system_info.model_copy(deep=True),
         )
         self.ui.widgets.meas_list.add_parameters(parameters)
         if not self.running:
@@ -974,9 +1021,16 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def run_next_measurement(self) -> None:
         """Run the next queued measurement."""
+        if self.ui.widgets.meas_list.active:
+            self.ui.widgets.progress.setText("Waiting for queue edit to finish.")
+            QTimer.singleShot(200, self.run_next_measurement)
+            return
         self.measurement_thread.set_parameters(self.ui.widgets.meas_list.parameters(0))
         self.ui.widgets.current_measurement.setText(
             self.ui.widgets.meas_list.parameters(0).list_entry
+        )
+        self.ui.widgets.current_measurement.setToolTip(
+            self.ui.widgets.meas_list.parameters(0).tooltip
         )
         self.ui.widgets.meas_list.takeItem(0)
         self.measurement_thread.start()

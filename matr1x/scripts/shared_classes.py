@@ -26,6 +26,7 @@ from PySide6.QtCore import QPropertyAnimation, QTimer, Signal
 from PySide6.QtGui import QDropEvent
 from PySide6.QtWidgets import (
     QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -259,7 +260,7 @@ class MetaData(TypedDict):
 class MetaDataDialog(QDialog):
     """Create a dialog able to handle meta data input for file headers."""
 
-    def __init__(self) -> None:
+    def __init__(self, popup: bool = False) -> None:
         """Initialize the meta data dialog."""
         super().__init__()
         self.setWindowTitle("Dublin Core Metadata Input")
@@ -275,6 +276,13 @@ class MetaDataDialog(QDialog):
         layout.addLayout(form_layout)
         layout.addWidget(QLabel("Description:"))
         layout.addWidget(self.description)
+        if popup:
+            buttons = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+            )
+            buttons.accepted.connect(self.accept)
+            buttons.rejected.connect(self.reject)
+            layout.addWidget(buttons)
         self.setLayout(layout)
 
     @property
@@ -286,6 +294,13 @@ class MetaDataDialog(QDialog):
             "relation": self.relation.text(),
             "description": self.description.toPlainText(),
         }
+
+    def set_metadata(self, metadata: dict) -> None:
+        """Set the metadata fields from a dictionary."""
+        self.creator.setText(metadata.get("creator", ""))
+        self.identifier.setText(metadata.get("identifier", ""))
+        self.relation.setText(metadata.get("relation", ""))
+        self.description.setPlainText(metadata.get("description", ""))
 
     def clear(self) -> None:
         """Clear all input fields."""

@@ -49,7 +49,7 @@ def clean_data_files():
         f.unlink()
 
 
-def test_sweep_generator_run(qtbot, qapp):
+def test_matrix_gui_run(qtbot, qapp):
     """
     Test basic matrix-gui functionality.
 
