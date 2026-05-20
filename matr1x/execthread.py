@@ -29,7 +29,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from matr1x import get_config_dict
+import matr1x
 from matr1x.error_handling import Error, InternalInvariantError
 from matr1x.models import (
     Header,
@@ -46,8 +46,6 @@ from matr1x.system import MergedSystem
 __all__ = ["ExecThread"]
 
 logger = logging.getLogger(__name__)
-
-config = get_config_dict("matr1x.scripts.matrix-script")
 
 
 def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime:
@@ -517,17 +515,16 @@ class ExecThread(threading.Thread):
         """
         if self.socket is None:
             return
+        conf = matr1x.config.matr1x.scripts.matrix_script
         if isinstance(data, Message):
-            if data.to_comment is True or (
-                config["print_to_comment"] and data.to_comment is not False
-            ):
+            if data.to_comment is True or (conf.print_to_comment and data.to_comment is not False):
                 self.system.add_comment(data.message)
             if data.to_logfile is True or (
-                config["duplicate_output_to_logfile"] and data.to_logfile is not False
+                conf.duplicate_output_to_logfile and data.to_logfile is not False
             ):
                 self.log_multiline(logger, data.message.lstrip("\n"))
         elif isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)):
-            if data.to_stdout and config["duplicate_output_to_logfile"]:
+            if data.to_stdout and conf.duplicate_output_to_logfile:
                 self.log_multiline(logger, str(data))
         elif isinstance(data, InputParameters):
             logger.info(data)

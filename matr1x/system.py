@@ -35,13 +35,15 @@ from typing import Any, TypeGuard, TypeVar
 
 import h5py
 import numpy as np
+from pydantic import ValidationError
 from pymeasure.instruments import Instrument
 
+import matr1x
 from matr1x.devices.visadevice import VisaDevice
 from matr1x.error_handling import Error, Result, Success
-from matr1x.models import MeasurementData
+from matr1x.models import MeasurementData, UntypedConfigModel
 
-from . import VALID_META_KEYS, datetimefmt, get_config_dict, output_extension
+from . import VALID_META_KEYS, output_extension
 from .util import (
     DcDict,
     construct_query_string,
@@ -50,6 +52,7 @@ from .util import (
     init_ascii_header,
     init_hdf5_skel,
     module_from_path,
+    resolve_config_path,
     save_dict_to_hdf5,
 )
 
@@ -455,7 +458,8 @@ class System:
             Name of the measurement system.
         """
         self.__name__ = str(name)
-        self._config = get_config_dict("matr1x.scripts.matrix-script")
+
+        self._config = matr1x.config.matr1x.scripts.matrix_script
         # define merged system reference
         self.merged_system: MergedSystem | None = None
         # initialize lists for later use
@@ -478,17 +482,18 @@ class System:
         self._datafile_initialized = False
 
         # initialize empty config dictionary for system-specific configuration
-        self.config = {}
+        self.config: Any = {}
 
         # initialize empty sensitive_config dictionary for sensitive information
         # This dictionary will NOT be included in query results or file headers
-        self.sensitive_config = {}
+        self.sensitive_config: UntypedConfigModel = UntypedConfigModel()
+        self._sensitive_keys = []
 
         # Dublin Core metadata default entries
         self.dcdata: DcDict = DcDict(
             self,
             creator=None,  # measurement user
-            date=time.strftime(f"{datetimefmt}", time.localtime()),
+            date=time.strftime(f"{matr1x.datetimefmt}", time.localtime()),
             identifier=None,  # sample name
             relation=None,  # parent sample
             description=None,  # comment
@@ -498,6 +503,62 @@ class System:
             format="text/plain; charset=UTF-8",
             language="en",
         )
+
+    def load_config(
+        self,
+        model_class: type[Any],
+        section: str,
+        sensitive_keys: list[str] | None = None,
+    ) -> None:
+        """
+        Load and validate a configuration section from the matr1x TOML file.
+
+        The configuration is loaded from the specified section of the global
+        matr1x configuration and validated against the provided Pydantic
+        model class.
+
+        Parameters
+        ----------
+        model_class : type[BaseModel]
+            The Pydantic model class to use for validation.
+        section : str
+            The TOML section name to load (e.g., 'matr1x.systems.my_system').
+        sensitive_keys : list[str], optional
+            A list of keys that should be moved to sensitive_config.
+        """
+        config_data = resolve_config_path(matr1x.config, section)
+
+        # If it is a model (e.g. from MainConfig.model_extra), convert to dict
+        if hasattr(config_data, "model_dump"):
+            config_data = config_data.model_dump(by_alias=True)
+
+        try:
+            # Validate the config data
+            validated_config = model_class(**config_data)
+        except (ValidationError, TypeError, ValueError) as e:
+            from . import format_validation_error, validation_errors
+
+            msg = format_validation_error(e, base=f"{section}.")
+            validation_errors.append(msg)
+            # Use defaults from the model if validation fails
+            validated_config = model_class()
+
+        if sensitive_keys:
+            # Move sensitive keys to sensitive_config
+            sensitive_data = {}
+            for key in sensitive_keys:
+                # Check if the key exists as a field or in extra attributes
+                # Standard BaseModel doesn't support 'in', so we use getattr
+                sentinel = object()
+                val = getattr(validated_config, key, sentinel)
+                if val is not sentinel:
+                    sensitive_data[key] = val
+            self.sensitive_config = UntypedConfigModel(
+                **{**self.sensitive_config.model_dump(), **sensitive_data}
+            )
+            self._sensitive_keys = sensitive_keys
+
+        self.config = validated_config
 
     @property
     def filename(self) -> Path | None:
@@ -817,7 +878,7 @@ class System:
             datafile = Path(inputfile).expanduser().with_suffix("")
             # generate fallback option for the datafile name
         else:  # no output nor input file, generate from system names
-            timestamp = time.strftime(datetimefmt, time.localtime())
+            timestamp = time.strftime(matr1x.datetimefmt, time.localtime())
             filename = Path(self.__name__).stem
             datafile_name = f"{timestamp}_{filename}"
             if os.name == "nt":
@@ -1330,7 +1391,13 @@ class System:
         # Add all system-wide configuration options from self.config organized by system name
         if self.config:
             retquery["system_config"] = {}
-            for key, value in self.config.items():
+            if hasattr(self.config, "model_dump"):
+                config_dict = self.config.model_dump(
+                    by_alias=True, exclude=set(self._sensitive_keys)
+                )
+            else:
+                config_dict = self.config
+            for key, value in config_dict.items():
                 if key.startswith("_"):
                     continue
                 retquery["system_config"][key] = value
@@ -1525,10 +1592,20 @@ class System:
         if self.__class__ != MergedSystem:
             self._add_method_info_to_dict(self, info)
 
+        system_name = getattr(self, "__name__", str(self.__class__.__name__))
+
         # Add config options organized by system name (excluding sensitive_config)
+        # Add configuration of this system
         if self.config:
-            system_name = self.__name__
-            info["config"][system_name] = self.config
+            if hasattr(self.config, "model_dump"):
+                info["config"][system_name] = {
+                    "value": self.config.model_dump(
+                        by_alias=True, exclude=set(self._sensitive_keys)
+                    ),
+                    "schema": self.config.__class__.model_json_schema(),
+                }
+            else:
+                info["config"][system_name] = self.config
 
         # Note: sensitive_config is intentionally NOT included in the query results
         # to prevent sensitive information from being stored in file headers
@@ -1701,7 +1778,7 @@ class System:
             # do not add empty comment
             return
 
-        timestamp = time.strftime(f"{datetimefmt}", time.localtime())
+        timestamp = time.strftime(f"{matr1x.datetimefmt}", time.localtime())
         if self.hdf5 is True:
             with h5py.File(dfilename, "a", libver="latest") as datafile:
                 datafile.swmr_mode = True
@@ -1798,11 +1875,16 @@ class MergedSystem(System):
                 **self.system_config_params,
                 **subsys.system_config_params,
             }
-            self.config: dict[str, Any] = {**self.config, **subsys.config}
-            self.sensitive_config: dict[str, Any] = {
-                **self.sensitive_config,
-                **subsys.sensitive_config,
-            }
+            if hasattr(subsys.config, "model_dump"):
+                subsys_config_dict = subsys.config.model_dump(
+                    by_alias=True, exclude=set(subsys._sensitive_keys)
+                )
+            else:
+                subsys_config_dict = subsys.config
+            self.config: dict[str, Any] = {**self.config, **subsys_config_dict}
+            self.sensitive_config = UntypedConfigModel(
+                **{**self.sensitive_config.model_dump(), **subsys.sensitive_config.model_dump()}
+            )
             self.parameters += subsys.parameters
             subsys.merged_system = self
         self._merge_dcdata()
@@ -1945,7 +2027,7 @@ class MergedSystem(System):
         for key, vlist in tmpdcdata.items():
             self.dcdata[key] = ";".join(vlist)
         # set correct timestamp, overwrites value
-        self.dcdata["date"] = time.strftime(f"{datetimefmt}", time.localtime())
+        self.dcdata["date"] = time.strftime(f"{matr1x.datetimefmt}", time.localtime())
 
     def _check_hdf5(self) -> None:
         """Check whether one of the systems requires HDF5."""
@@ -1979,7 +2061,15 @@ class MergedSystem(System):
             subsys_config = subsys.config
             if subsys_config:
                 subsys_name = getattr(subsys, "__name__", str(subsys.__class__.__name__))
-                info["config"][subsys_name] = subsys_config
+                if hasattr(subsys_config, "model_dump"):
+                    info["config"][subsys_name] = {
+                        "value": subsys_config.model_dump(
+                            by_alias=True, exclude=set(subsys._sensitive_keys)
+                        ),
+                        "schema": subsys_config.__class__.model_json_schema(),
+                    }
+                else:
+                    info["config"][subsys_name] = subsys_config
 
         return info
 

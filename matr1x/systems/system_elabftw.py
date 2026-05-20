@@ -24,38 +24,67 @@ import difflib
 import logging
 import re
 from pathlib import Path
-from typing import TypedDict
 
 import elabapi_python
 from elabapi_python.rest import ApiException
 from jinja2 import Template
+from pydantic import BaseModel, Field
 
-from matr1x import get_config_dict
 from matr1x.models import Message
 from matr1x.system import MergedSystem, System
 
 logger = logging.getLogger(__name__)
 
 
-class SensitiveConfig(TypedDict):
-    """Sensitive configuration parameters for elabFTW system."""
+class ElabConfig(BaseModel):
+    """Configuration parameters for elabFTW system."""
 
-    host: str | None
-    api_key: str | None
-    teamid: int
+    # Sensitive configuration (will be moved to sensitive_config)
+    host: str | None = Field(None, description="URL of the elabFTW server (REQUIRED)")
+    api_key: str | None = Field(None, description="API key for elabFTW (REQUIRED)")
+    teamid: int = Field(0, description="Team ID for elabFTW")
 
-
-class Config(TypedDict):
-    """Non-sensitive configuration parameters for elabFTW system."""
-
-    debug: bool
-    enable_elab: bool
-    require_server: bool
-    upload_datafile: bool | int
-    create_resource: bool
-    resource_category: str | None
-    title_template: str
-    body_template: str
+    # Non-sensitive configuration
+    debug: bool = False
+    enable_elab: bool = True
+    require_server: bool = False
+    upload_datafile: bool | int = False
+    create_resource: bool = False
+    category: str = Field("", description="Category for experiments")
+    resource_category: str = Field("", description="Category for resources")
+    title_template: str = """
+        {%- set title_parts = [] %}
+        {%- if dcdata['identifier'] %}
+            {%- set _ = title_parts.append(dcdata['identifier']) %}
+        {%- endif %}
+        {%- set _ = title_parts.append(base_filename) %}
+        {{- title_parts | join(' - ') -}}
+    """
+    body_template: str = """
+        <h1>Measurement Report</h1>
+        <p><strong>{{ dcdata['source'] }}</strong></p>
+        <hr>
+        <p><strong>Filename:</strong> {{ filename }}</p>
+        <p><strong>Sample:</strong> {{ dcdata['identifier'] }}</p>
+        <p><strong>Creator:</strong> {{ dcdata['creator'] }}</p>
+        <h2>Description:</h2>
+        <p>{{ dcdata['description'] | replace('\n', '<br>') }}</p>
+        <h2>Additional Data:</h2>
+        <table>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+            </tr>
+            {%- for key, value in dcdata.items() %}
+            {%- if key not in ['identifier', 'creator', 'description', 'source'] %}
+            <tr>
+                <td>{{ key }}</td>
+                <td>{{ value }}</td>
+            </tr>
+            {%- endif %}
+            {%- endfor %}
+        </table>
+    """
 
 
 def _is_template_content(template: str) -> bool:
@@ -98,87 +127,15 @@ class ElabSystem(System):
         # clean meta data for this system
         for key in self.dcdata:
             self.dcdata[key] = ""
-        # load API key and host from config file
-        # In ~/.matrix.toml or in a local file matrix.toml there must be
-        # [matr1x.systems.system_elabftw]
-        # host = "HOST"  # without api/v2 end, only URL (with port)
-        # api_key = "API_KEY"
-        # teamid = 0  # optional team ID
-        #
-        # Sensitive information (host, api_key, teamid) will be stored in
-        # sensitive_config and will NOT appear in file headers.
-        #
-        # additional config entries are optional.
-        # These include "debug", "upload_datafile", "category", "body_template", "title_template",
-        # "create_resource", "resource_category"
-        # see the code for their use and meaning.
 
-        # Non-sensitive configuration
-        self.config: Config = {
-            "debug": False,
-            # boolean flag to decide about entry creation
-            "enable_elab": True,
-            # boolean to decide if server is required
-            "require_server": False,
-            # boolean or maximal file size in MB
-            "upload_datafile": False,
-            # if sample Identifier can not be found a resource entry can be created
-            "create_resource": False,
-            # category for newly generated resources.
-            "resource_category": None,
-            "title_template": """
-                {%- set title_parts = [] %}
-                {%- if dcdata['identifier'] %}
-                    {%- set _ = title_parts.append(dcdata['identifier']) %}
-                {%- endif %}
-                {%- set _ = title_parts.append(base_filename) %}
-                {{- title_parts | join(' - ') -}}
-            """,
-            "body_template": """
-                <h1>Measurement Report</h1>
-                <p><strong>{{ dcdata['source'] }}</strong></p>
-                <hr>
-                <p><strong>Filename:</strong> {{ filename }}</p>
-                <p><strong>Sample:</strong> {{ dcdata['identifier'] }}</p>
-                <p><strong>Creator:</strong> {{ dcdata['creator'] }}</p>
-                <h2>Description:</h2>
-                <p>{{ dcdata['description'] | replace('\n', '<br>') }}</p>
-                <h2>Additional Data:</h2>
-                <table>
-                    <tr>
-                        <th>Parameter</th>
-                        <th>Value</th>
-                    </tr>
-                    {%- for key, value in dcdata.items() %}
-                    {%- if key not in ['identifier', 'creator', 'description', 'source'] %}
-                    <tr>
-                        <td>{{ key }}</td>
-                        <td>{{ value }}</td>
-                    </tr>
-                    {%- endif %}
-                    {%- endfor %}
-                </table>
-            """,  # the template strings can also refer to filenames.
-        }
+        # Load configuration from files and separate sensitive from non-sensitive config
+        self.load_config(
+            ElabConfig,
+            "matr1x.systems.system_elabftw",
+            sensitive_keys=["host", "api_key", "teamid"],
+        )
 
-        # Sensitive configuration (will not be stored in file headers)
-        self.sensitive_config: SensitiveConfig = {
-            "host": None,
-            "api_key": None,
-            "teamid": 0,
-        }
-
-        # Load configuration from files
-        config_data = get_config_dict("matr1x.systems.system_elabftw")
-
-        # Separate sensitive from non-sensitive config
-        for key, value in config_data.items():
-            if key in self.sensitive_config.keys():
-                self.sensitive_config[key] = value
-            else:
-                self.config[key] = value
-
-        self._team_id = self.sensitive_config.get("teamid", 0)
+        self._team_id = getattr(self.sensitive_config, "teamid", 0)
 
         # predefine api client
         self.api_client = None
@@ -195,11 +152,13 @@ class ElabSystem(System):
         during reset.
         """
         super().set(*args, **kwargs)
-        if not self.config["enable_elab"]:
+        if not self.config.enable_elab:
             return
         configuration = elabapi_python.Configuration()
 
-        if self.sensitive_config["host"] is None or self.sensitive_config["api_key"] is None:
+        if not getattr(self.sensitive_config, "host", None) or not getattr(
+            self.sensitive_config, "api_key", None
+        ):
             self.report(
                 Message(
                     "ElabFTW connection host or API key not found in the TOML config, make "
@@ -211,24 +170,24 @@ class ElabSystem(System):
                 "host address and API key of the server are specified."
             )
 
-        configuration.api_key["api_key"] = self.sensitive_config["api_key"]
+        configuration.api_key["api_key"] = self.sensitive_config.api_key
         configuration.api_key_prefix["api_key"] = "Authorization"
-        configuration.host = self.sensitive_config["host"] + "/api/v2"
-        configuration.debug = self.config["debug"]
+        configuration.host = self.sensitive_config.host + "/api/v2"
+        configuration.debug = self.config.debug
         configuration.verify_ssl = True
 
         # create an instance of the API class
         self.api_client = elabapi_python.ApiClient(configuration)
         # fix issue with Authorization header not being proberly set by the generated lib
         self.api_client.set_default_header(
-            header_name="Authorization", header_value=self.sensitive_config["api_key"]
+            header_name="Authorization", header_value=self.sensitive_config.api_key
         )
         # test server connection by a harmless read-only query
         try:
             info_client = elabapi_python.InfoApi(self.api_client)
             info_client.get_info()
         except Exception:
-            if self.config["require_server"]:
+            if self.config.require_server:
                 self.report(
                     Message(
                         "ElabFTW connection could not be established "
@@ -254,7 +213,7 @@ class ElabSystem(System):
                 self.add_resource(samplename)
             except Exception:
                 pass
-            if self.config.get("create_resource") and samplename not in self._resources:
+            if self.config.create_resource and samplename not in self._resources:
                 # need to create the resource
                 resource_id = self._create_resource(samplename)
                 self._resources[samplename] = resource_id
@@ -306,11 +265,11 @@ class ElabSystem(System):
 
     def conditional_add_file(self):
         """Attach the filename but only if allowed by configuration."""
-        if self.config["upload_datafile"] and self.filename:
+        if self.config.upload_datafile and self.filename:
             file_size_mb = self.filename.stat().st_size / (1024 * 1024)
             if (
-                isinstance(self.config["upload_datafile"], bool)
-                or file_size_mb <= self.config["upload_datafile"]
+                isinstance(self.config.upload_datafile, bool)
+                or file_size_mb <= self.config.upload_datafile
             ):
                 self.add_attachment(self.filename, "Data file")
             else:
@@ -423,11 +382,13 @@ class ElabSystem(System):
         if not self.api_client:
             return None
         catApi = elabapi_python.ExperimentsCategoriesApi(self.api_client)
-        category_name = self.config.get("category", None)
+        category_name = getattr(self.config, "category", None)
         if not category_name:
             return None
         try:
             response = catApi.read_team_experiments_categories(self._team_id)
+            # find id for search category
+            return next((item.id for item in response if item.title == category_name), None)
         except ApiException as e:
             self.report(
                 Message(
@@ -435,9 +396,7 @@ class ElabSystem(System):
                     f"readTeamExperimentsCategories: {e}\n"
                 )
             )
-        # find id for search category
-        result_id = next((item.id for item in response if item.title == category_name), None)
-        return result_id
+            return None
 
     def _determine_status(self, status: str) -> int | None:
         """
@@ -478,7 +437,7 @@ class ElabSystem(System):
         """
         if not self.api_client:
             return None
-        category_name = self.config.get("resource_category", None)
+        category_name = getattr(self.config, "resource_category", None)
         if not category_name:
             return None
 
@@ -616,11 +575,11 @@ class ElabSystem(System):
         reset_tags
             Controls whether tags are reset after experiment is posted
         """
-        if not self.config["enable_elab"]:
+        if not self.config.enable_elab or not self.api_client:
             return
 
-        title = self._render_template(self.config["title_template"])
-        body = self._render_template(self.config["body_template"])
+        title = self._render_template(self.config.title_template)
+        body = self._render_template(self.config.body_template)
 
         if self.merged_system.dcdata["description"]:
             additional_tags = self._parse_tags_from_line(
@@ -731,8 +690,8 @@ class ElabSystem(System):
             "Here some information to create the labbook entry manually:"
         )
         self.report(Message(backup_info))
-        title = self._render_template(self.config["title_template"])
-        body = self._render_template(self.config["body_template"])
+        title = self._render_template(self.config.title_template)
+        body = self._render_template(self.config.body_template)
         category_name = self.config.get("category", None)
         entry_info = f"Entry title: {title}\n"
         if category_name:

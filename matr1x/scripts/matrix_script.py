@@ -129,7 +129,7 @@ from matr1x.util import (
 
 logger = logging.getLogger(__name__)
 scriptlogger = logging.getLogger(__name__ + "_subprocess")
-config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
+script_config = matr1x.config.matr1x.scripts.matrix_script
 
 
 MAX_LINES_STATUS = 10000
@@ -1095,9 +1095,9 @@ class UIBuilder:
         cut = self._standard_action("Cut")
         copy = self._standard_action("Copy")
         paste = self._standard_action("Paste")
-        caption = "Toggle Line Comment\t" + config["shortcuts"]["line_comment_display"]
+        caption = "Toggle Line Comment\t" + script_config.shortcuts.line_comment_display
         line_comment = QAction(caption)
-        line_comment.setShortcut(QKeySequence(config["shortcuts"]["line_comment_shortcut"]))
+        line_comment.setShortcut(QKeySequence(script_config.shortcuts.line_comment_shortcut))
         zoom_in = self._standard_action("ZoomIn", "Zoom in")
         zoom_out = self._standard_action("ZoomOut", "Zoom Out")
         print_action = QAction("Print")

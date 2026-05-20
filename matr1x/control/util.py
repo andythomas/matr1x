@@ -1860,28 +1860,19 @@ def sendNotificationEmail(
         msg.attach(att)
 
     # read email config
-    if "email" in config["matr1x"]:
-        conf = config["matr1x"]["email"]
-        (smtp_srv, smtp_user, frommail, passwd) = [
-            conf.get(field, None)
-            for field in ("smtp_server", "smtp_user", "fromemail", "password")
-        ]
-        port = conf.get("smtp_port", 465)
-    else:
-        (smtp_srv, smtp_user, frommail, passwd) = (None,) * 4
-        port = 465
+    conf = config.matr1x.email
     context = ssl.create_default_context()
 
     try:
         if (
-            smtp_srv is not None
-            and smtp_user is not None
-            and frommail is not None
-            and passwd is not None
+            conf.smtp_server is not None
+            and conf.smtp_user is not None
+            and conf.fromemail is not None
+            and conf.password is not None
         ):
-            with smtplib.SMTP_SSL(smtp_srv, port, context=context) as server:
-                server.login(smtp_user, passwd)
-                server.send_message(msg, from_addr=frommail, to_addrs=address)
+            with smtplib.SMTP_SSL(conf.smtp_server, conf.smtp_port, context=context) as server:
+                server.login(conf.smtp_user, conf.password)
+                server.send_message(msg, from_addr=conf.fromemail, to_addrs=address)
         elif os.name == "posix":
             p = Popen(["sendmail", "-t"], stdin=PIPE)
             p.communicate(msg.as_bytes())

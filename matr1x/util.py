@@ -94,6 +94,33 @@ def open_and_error(filename: str, mode: str = "r"):
 default_separator = "\t"
 
 
+def resolve_config_path(config: Any, path: str) -> Any:
+    """
+    Resolve a configuration path string (dot notation) to a value from the config object.
+
+    If any part of the path is missing, an empty dictionary is returned.
+
+    Parameters
+    ----------
+    config : Any
+        The configuration object (typically a Pydantic model).
+    path : str
+        The configuration path (e.g., 'matr1x.devices.visadevice').
+
+    Returns
+    -------
+    Any
+        The value at the specified path, or an empty dictionary if not found.
+    """
+    current = config
+    for sec in path.split("."):
+        try:
+            current = getattr(current, sec)
+        except (AttributeError, TypeError):
+            return {}
+    return current
+
+
 def get_package_path(package_name: str) -> Path | None:
     """
     Determine the path of a Python package.

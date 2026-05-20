@@ -58,8 +58,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from matr1x import config as matrixconfig
-from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
+import matr1x
+from matr1x import logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import (
     AutoSlot,
@@ -413,7 +413,7 @@ class ControlWindow(QMainWindow):
         # initialize parameters
         self.running = False
         self.logging = False
-        filename = f"{package}.{name}_{time.strftime(datetimefmt)}{output_extension}"
+        filename = f"{package}.{name}_{time.strftime(matr1x.datetimefmt)}{output_extension}"
         if os.name == "nt":
             filename = filename.replace(":", "")  # Windows does not like : in filenames
         self.logfile: Path = Path(logfolder) / filename
@@ -451,7 +451,7 @@ class ControlWindow(QMainWindow):
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         self.create_connections()
         self.statusloggingUI()
-        check_config(matrixconfig)
+        check_config(matr1x.config)
         protected_restore(self._restore_gui_settings)
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
         sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
@@ -1007,7 +1007,7 @@ class ControlWindow(QMainWindow):
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
             # update date to reflect logging start time instead of GUI start time
-            self.S_log.dcdata["date"] = time.strftime(datetimefmt, time.localtime())
+            self.S_log.dcdata["date"] = time.strftime(matr1x.datetimefmt, time.localtime())
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             msg, outputfile = self.S_log.init_datafile("matrix script generated")

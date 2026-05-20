@@ -24,6 +24,8 @@ These are used by sweep-generator, matrix-gui, matrix-preview, matrix-
 script and control-guis.
 """
 
+from __future__ import annotations
+
 import datetime
 import inspect
 import logging
@@ -61,7 +63,7 @@ import numpy as np
 import pygit2
 import pyqtgraph
 import PySide6
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
     QAbstractItemModel,
@@ -127,6 +129,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QStyle,
     QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -136,11 +139,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
-from matr1x.models import MainConfig, SystemInfo, UserlibConfig
+from matr1x.models import MainConfig, SystemInfo
 
-from . import get_config_dict, merge_dicts, reload_config, write_config
+from . import merge_dicts, reload_config, write_config
 from .eval import delta
+from .util import resolve_config_path
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -334,7 +339,7 @@ class FileLineEdit(QLineEdit):
         dialog = QFileDialog(parent)
         if self.spec == "file":
             dialog.setFileMode(QFileDialog.FileMode.AnyFile)
-            dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+            dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
             dialog.setOption(QFileDialog.Option.DontConfirmOverwrite)
         else:
             dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
@@ -355,14 +360,6 @@ class MetaViewerWidget(QDockWidget):
     higher.
     """
 
-    class scifloat(float):
-        """Allow to edit scientific notation via this helper class."""
-
-        def __new__(cls, value):
-            """Behave like float with a different name."""
-            instance = super().__new__(cls, value)
-            return instance
-
     class EditableDelegate(QStyledItemDelegate):
         """
         Custom delegate for editable items in a view.
@@ -379,11 +376,16 @@ class MetaViewerWidget(QDockWidget):
             The parent widget. Default is None.
         """
 
-        def __init__(self, editable=False, parent=None):
+        def __init__(self, editable: bool = False, parent: QObject | None = None):
             super().__init__(parent=parent)
-            self.editable = editable
+            self.editable: bool = editable
 
-        def createEditor(self, parent, option, index):
+        def createEditor(
+            self,
+            parent: QWidget,
+            option: QStyleOptionViewItem,
+            index: QModelIndex | QPersistentModelIndex,
+        ) -> QWidget:
             """
             Create and return a custom editor widget for editing item data.
 
@@ -399,64 +401,63 @@ class MetaViewerWidget(QDockWidget):
             Returns
             -------
             Widget according to variable type
-                A widget configured for editing, widget type depends on
-                variable type (str - QTextEdit, str/path - FileLineEdit,
-                int - QSpinBox, float - QDoubleSpinBox, any/strict - QComboBox).
             """
-            cast_type, cast_spec = index.model().type(index)
+            if isinstance(index, QPersistentModelIndex):
+                raise TypeError("Index is a QPersistentModelIndex, but must be a QModelIndex.")
+            model = cast(MetaViewerWidget.TreeModel, index.model())
+            schema = model.type(index)
             item = index.internalPointer()
             item.setData(index, "", Qt.ItemDataRole.DisplayRole)
-            # Create a QTextEdit for more advanced text selection
-            if isinstance(cast_spec, map):
+
+            json_type = cast(str, schema.get("type"))
+            ui_type = cast(str | None, schema.get("ui_type"))
+            decimals = cast(int | None, schema.get("decimals"))
+
+            if "enum" in schema:
                 # strict, use combobox
                 editor = QComboBox(parent)
-                editor.insertItems(0, [i for i in map(str, cast_spec)])
+                editor.insertItems(0, [str(i) for i in schema["enum"]])
                 editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
-            elif cast_type[0] is bool:
+            elif json_type == "boolean":
                 editor = QCheckBox(parent)
                 editor.setStyleSheet("QCheckBox { border: none; padding: 0px; }")
-            elif cast_type[0] is int:
+            elif json_type == "integer":
                 editor = QSpinBox(parent)
-                min_val = cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else MIN_INT64
-                max_val = cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else MAX_INT64
-                editor.setRange(min_val, max_val)
+                editor.setRange(schema.get("minimum", MIN_INT64), schema.get("maximum", MAX_INT64))
+                if "multipleOf" in schema:
+                    editor.setSingleStep(schema["multipleOf"])
                 editor.setStyleSheet("QSpinBox { border: none; padding: 0px; }")
                 editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-            elif cast_type[0] is float:
-                editor = QDoubleSpinBox(parent)
-                if cast_type[1]:
-                    editor.setDecimals(cast_type[1])
-                min_val = (
-                    cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else -sys.float_info.max
-                )
-                max_val = (
-                    cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else sys.float_info.max
-                )
-                editor.setRange(min_val, max_val)
-                editor.setStyleSheet("QDoubleSpinBox { border: none; padding: 0px; }")
-                editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-            elif cast_type[0] is MetaViewerWidget.scifloat:
-                editor = QLineEdit(parent)
-                scifloat_validator = cast(QDoubleValidator, validator[float])
-                if cast_type[1]:
-                    scifloat_validator.setDecimals(cast_type[1])
-                min_val = (
-                    cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else -sys.float_info.max
-                )
-                max_val = (
-                    cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else sys.float_info.max
-                )
-                scifloat_validator.setRange(min_val, max_val)
-                editor.setValidator(scifloat_validator)
-            elif cast_type[0] is str and cast_spec in ["file", "folder"]:
+            elif json_type == "number":
+                if ui_type == "scifloat":
+                    editor = QLineEdit(parent)
+                    scifloat_validator = cast(QDoubleValidator, validator[float])
+                    if decimals:
+                        scifloat_validator.setDecimals(decimals)
+                    scifloat_validator.setRange(
+                        schema.get("minimum", -sys.float_info.max),
+                        schema.get("maximum", sys.float_info.max),
+                    )
+                    editor.setValidator(scifloat_validator)
+                else:
+                    editor = QDoubleSpinBox(parent)
+                    if decimals:
+                        editor.setDecimals(decimals)
+                    editor.setRange(
+                        schema.get("minimum", -sys.float_info.max),
+                        schema.get("maximum", sys.float_info.max),
+                    )
+                    if "multipleOf" in schema:
+                        editor.setSingleStep(schema["multipleOf"])
+                    editor.setStyleSheet("QDoubleSpinBox { border: none; padding: 0px; }")
+                    editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+            elif json_type == "string" and ui_type in ("file", "folder"):
 
                 def cb(value):
-                    # I do not like this callback function.
-                    # Can this be done with signals?
                     index.model().setData(index, value, Qt.ItemDataRole.EditRole)
                     index.model().dataChanged.emit(index, index)
 
-                editor = FileLineEdit(cb, parent, cast_spec)
+                editor = FileLineEdit(cb, parent, ui_type)
                 editor.setStyleSheet("QLineEdit { border: none; padding: 0px; }")
             else:
                 editor = QTextEdit(parent)
@@ -464,13 +465,16 @@ class MetaViewerWidget(QDockWidget):
                 # disable frame remove margins and scroll bar
                 editor.setFrameStyle(0)
                 editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
             # Make it read-only, but still allow text selection
             if not isinstance(editor, (QComboBox, QCheckBox)):
                 editor.setReadOnly(not self.editable)
             editor.setContentsMargins(0, 0, 0, 0)
             return editor
 
-        def setEditorData(self, editor, index):
+        def setEditorData(
+            self, editor: QWidget, index: QModelIndex | QPersistentModelIndex
+        ) -> None:
             """
             Set the editor data based on the current index.
 
@@ -483,34 +487,33 @@ class MetaViewerWidget(QDockWidget):
             """
             value = index.model().data(index, Qt.ItemDataRole.EditRole)
             if isinstance(editor, QTextEdit):
-                editor.setText(value)
+                editor.setText(str(value))
+                editor.resize(editor.sizeHint())
             elif isinstance(editor, QCheckBox):
-                try:
-                    editor.setChecked(value.lower() == "true")
-                except ValueError:
-                    # should only happen when previous value is present
-                    # in editor (edited in the file)
-                    editor.setValue(False)
+                editor.setChecked(bool(value))
             elif isinstance(editor, FileLineEdit):
-                editor.setText(value)
+                editor.setText(str(value))
             elif isinstance(editor, QComboBox):
-                editor.setCurrentText(value)
+                editor.setCurrentText(str(value))
             elif isinstance(editor, QSpinBox):
                 try:
                     editor.setValue(int(value))
-                except ValueError:
-                    # should only happen when previous value is present
-                    # in editor (edited in the file)
+                except (ValueError, TypeError):
                     editor.setValue(0)
             elif isinstance(editor, QDoubleSpinBox):
                 try:
                     editor.setValue(float(value))
-                except ValueError:
-                    # should only happen when previous value is present
-                    # in editor (edited in the file)
-                    editor.setValue(0)
+                except (ValueError, TypeError):
+                    editor.setValue(0.0)
+            elif isinstance(editor, QLineEdit):
+                editor.setText(str(value))
 
-        def setModelData(self, editor, model, index):
+        def setModelData(
+            self,
+            editor: QWidget,
+            model: QAbstractItemModel,
+            index: QModelIndex | QPersistentModelIndex,
+        ) -> None:
             """
             Set the model data based on the editor's content.
 
@@ -526,7 +529,7 @@ class MetaViewerWidget(QDockWidget):
             if isinstance(editor, QTextEdit):
                 value = editor.toPlainText()
             elif isinstance(editor, QCheckBox):
-                value = bool(editor.isChecked())
+                value = editor.isChecked()
             elif isinstance(editor, FileLineEdit):
                 value = editor.text()
             elif isinstance(editor, QComboBox):
@@ -534,18 +537,58 @@ class MetaViewerWidget(QDockWidget):
             elif isinstance(editor, (QSpinBox, QDoubleSpinBox)):
                 value = editor.value()
             elif isinstance(editor, QLineEdit):
-                value = float(editor.text())
+                try:
+                    value = float(editor.text())
+                except ValueError:
+                    value = editor.text()
             index.model().setData(index, value, Qt.ItemDataRole.EditRole)
 
-        def sizeHint(self, option, index):
-            """Return size hint of editor widget."""
-            sizeHint = super().sizeHint(option, index)
-            # sizeHint.setHeight(50)
-            return sizeHint
+    @staticmethod
+    def resolve_schema(schema: dict, root_schema: dict | None = None) -> dict:
+        """
+        Resolve a Pydantic JSON schema to a flat dictionary of properties.
+
+        Handles $ref, anyOf, allOf by merging or picking the first non-null type.
+        """
+        if not isinstance(schema, dict):
+            return {}
+
+        # Handle custom _schema wrapper used in ConfigEditWidget
+        if "_schema" in schema:
+            return MetaViewerWidget.resolve_schema(schema["_schema"], root_schema)
+
+        # Handle $ref
+        if "$ref" in schema and root_schema:
+            ref_path = schema["$ref"].split("/")
+            # Assuming refs are always like #/$defs/MyModel
+            ref_schema = root_schema
+            for part in ref_path[1:]:
+                ref_schema = ref_schema.get(part, {})
+            return MetaViewerWidget.resolve_schema(ref_schema, root_schema)
+
+        # Handle anyOf (often used for Optional[T] -> [T, null])
+        if "anyOf" in schema:
+            for sub_schema in schema["anyOf"]:
+                resolved = MetaViewerWidget.resolve_schema(sub_schema, root_schema)
+                if resolved.get("type") != "null":
+                    # Merge the anyOf schema with the outer schema (for description, etc.)
+                    merged = {**schema, **resolved}
+                    merged.pop("anyOf", None)
+                    return merged
+
+        # Handle allOf (merging multiple schemas)
+        if "allOf" in schema:
+            merged = {**schema}
+            for sub_schema in schema["allOf"]:
+                merged.update(MetaViewerWidget.resolve_schema(sub_schema, root_schema))
+            merged.pop("allOf", None)
+            return merged
+
+        return schema
 
     class TreeItem:
         """
-        A class representing a tree item in a hierarchical structure.
+        An item in the TreeModel.
 
         Parameters
         ----------
@@ -553,126 +596,85 @@ class MetaViewerWidget(QDockWidget):
             The key or identifier for this item.
         value : Any
             The value associated with this item.
+        types : Any, optional
+            The type/schema information for this item.
         parent : TreeItem, optional
             The parent item of this item, if any.
-
-        Attributes
-        ----------
-        parent_item : TreeItem
-            The parent item of this item.
-        child_items : list
-            List of child TreeItem objects.
-        key : str
-            The key or identifier for this item.
-        value : Any
-            The value associated with this item.
-        types : Any
-            The type associated with this item.
+        root_schema : dict, optional
+            The root JSON schema for resolving $refs.
         """
 
-        def parse_config_type(self, cast_type_spec):
-            """
-            Parse type info from type string provided in matr1x config.
-
-            Arguments
-            ---------
-            cast_type_spec : string
-                string according to the matr1x config type format
-
-            Returns
-            -------
-            cast_type : tuple of type + additional parameter (used only for float)
-                first entry contains type of config variable (str, int, float)
-                second entry contains number of decimals for float display
-            cast_spec : tuple, map, str or None
-                provides the specifications for the type. Can be either
-                range limits ([low, high, step], value map for strict variable,
-                or "folder"/"file" for path variables
-            """
-            if not cast_type_spec:
-                return ((str, None), None)
-            # alternative way of parsing using regex:
-            # regex =  r"(\w+)(?:;;(\d+))?(?:;;(folder|file|strict|range))?(?:;;(\S+))?"
-            cast_split = cast_type_spec.split(";;")
-            try:
-                # make sure type is interpreted correctly
-                if cast_split[0] == "scifloat":
-                    cast_type = (MetaViewerWidget.scifloat, None)
-                else:
-                    cast_type = (globals()["__builtins__"][cast_split[0]], None)
-            except AttributeError:
-                raise AttributeError("Wrong type specified in config")
-            if len(cast_split) == 1:
-                # only type is specified
-                return (cast_type, None)
-            if cast_type[0] in (float, MetaViewerWidget.scifloat):
-                # on float, second parameter can be number of digits
-                try:
-                    cast_type = (cast_type[0], int(cast_split[1]))
-                    cast_split.pop(1)  # remove entry
-                    if len(cast_split) == 1:
-                        # only type and decimals are specified
-                        return (cast_type, None)
-                except ValueError:
-                    pass  # variable not a digit, keep parsing
-            if cast_split[1] == "strict":
-                # strict type, following values are list, make sure they
-                # are interepreted as the correct type
-                try:
-                    return (cast_type, map(cast_type[0], cast_split[2:]))
-                except TypeError:
-                    raise TypeError("Wrong value specified for strict config setting")
-            if cast_split[1] == "range":
-                # range type, create range spec
-                if len(cast_split) < 3:
-                    raise IndexError("Range value missing in config")
-                try:
-                    return (cast_type, [i for i in map(cast_type[0], cast_split[2:])])
-                except TypeError:
-                    raise TypeError("Wrong value specified for range config setting")
-            if cast_type[0] is str and (cast_split[1] == "folder" or cast_split[1] == "file"):
-                # file/folder path
-                return (cast_type, cast_split[1])
-            # something went wrong with parsing the settings, use default
-            return ((str, None), None)
-
-        def __init__(self, key, value, types=None, parent=None):
+        def __init__(
+            self,
+            key: str,
+            value: Any,
+            types: Any | None = None,
+            parent: MetaViewerWidget.TreeItem | None = None,
+            root_schema: dict | None = None,
+        ):
+            """Initialize a TreeItem."""
             self.parent_item = parent
-            self.child_items = []
+            self.child_items: list[MetaViewerWidget.TreeItem] = []
 
-            self.key = key
-            self.value = value
-            self._type = types
-            self.hidden = False
+            self.key: str = key
+            self.value: Any = value
+            self.root_schema: dict | None = root_schema or (parent.root_schema if parent else None)
 
-            # If value is a dict, convert its items to TreeItem children
-            if isinstance(self.value, dict):
-                for child_key, child_value in value.items():
-                    cast_type = "str"
-                    if isinstance(self._type, dict):
-                        if child_key in self._type.keys():
-                            if self._type[child_key]:
-                                cast_type = self._type[child_key]
-                    else:
-                        if self._type:
-                            cast_type = self._type
+            # Resolve schema if it's a dict
+            if isinstance(types, dict):
+                self._type = MetaViewerWidget.resolve_schema(types, self.root_schema)
+            else:
+                self._type = types
+
+            self.description: str | None = None
+            if isinstance(self._type, dict):
+                self.description = self._type.get("description")
+            self.hidden: bool = False
+
+            # If value is a dict or Pydantic model, convert its items to TreeItem children
+            if isinstance(self.value, (dict, BaseModel)):
+                schema = self._type if isinstance(self._type, dict) else {}
+                # Update root_schema if this is a new Pydantic model
+                if isinstance(self.value, BaseModel):
+                    self.root_schema = self.value.__class__.model_json_schema()
+                    schema = self.root_schema
+
+                if isinstance(self.value, BaseModel):
+                    # Get all field names and extra fields
+                    all_keys = list(self.value.__class__.model_fields.keys())
+                    if self.value.model_extra:
+                        all_keys.extend(self.value.model_extra.keys())
+                    items = [(k, getattr(self.value, k)) for k in all_keys]
+                else:
+                    items = self.value.items()
+
+                for child_key, child_value in items:
+                    if child_key == "_schema":
+                        continue
+
+                    # Determine type from Pydantic schema or nested types dict
+                    cast_type = {}
+                    if isinstance(schema, dict):
+                        cast_type = schema.get("properties", {}).get(child_key)
+                        if cast_type is None:
+                            cast_type = schema.get(child_key, {})
+
                     self.child_items.append(
-                        MetaViewerWidget.TreeItem(child_key, child_value, cast_type, self)
+                        MetaViewerWidget.TreeItem(
+                            child_key, child_value, cast_type, self, self.root_schema
+                        )
                     )
             elif isinstance(self.value, (tuple, list, np.ndarray)):
                 # for lists with finite length also use nest view
                 # key is list index
-                cast_type = "str"
-                if isinstance(self._type, dict):
-                    if self._type[child_key]:  # ty: ignore[unresolved-reference]
-                        cast_type = self._type[child_key]  # ty: ignore[unresolved-reference], fixed via IFW_software #1430
-                else:
-                    if self._type:
-                        cast_type = self._type
+                cast_type = self._type.get("items", {}) if isinstance(self._type, dict) else {}
+
                 if len(self.value) > 1:
                     for i, child_value in enumerate(self.value):
                         self.child_items.append(
-                            MetaViewerWidget.TreeItem(f"{i}", child_value, cast_type, parent=self)
+                            MetaViewerWidget.TreeItem(
+                                f"{i}", child_value, cast_type, self, self.root_schema
+                            )
                         )
                 elif len(self.value) == 1:
                     # only list with length one, use that element only
@@ -681,7 +683,7 @@ class MetaViewerWidget(QDockWidget):
                     # length 0 list, replace with string representation
                     self.value = str(self.value)
 
-        def child(self, row):
+        def child(self, row: int) -> MetaViewerWidget.TreeItem:
             """
             Get the child item at the specified row.
 
@@ -697,7 +699,7 @@ class MetaViewerWidget(QDockWidget):
             """
             return self.child_items[row]
 
-        def child_count(self):
+        def child_count(self) -> int:
             """
             Get the number of child items.
 
@@ -708,7 +710,7 @@ class MetaViewerWidget(QDockWidget):
             """
             return len(self.child_items)
 
-        def column_count(self):
+        def column_count(self) -> Literal[2]:
             """
             Get the number of columns in the item.
 
@@ -719,9 +721,9 @@ class MetaViewerWidget(QDockWidget):
             """
             return 2  # Key and Value columns
 
-        def type(self, column):
+        def type(self, column: int) -> dict[str, str] | None:
             """
-            Get the data for the specified column.
+            Get the type information for the specified column.
 
             Parameters
             ----------
@@ -730,19 +732,18 @@ class MetaViewerWidget(QDockWidget):
 
             Returns
             -------
-            str
-                The data for the specified column.
+            dict
+                A Pydantic-compatible JSON schema dictionary representing the type.
             """
             if column == 0:
-                return "str", None
+                return {"type": "string"}
             elif column == 1:
                 if isinstance(self.value, (tuple, list, dict, np.ndarray)):
-                    # empty widgets are of type str
-                    return "str", None
-                return self.parse_config_type(self._type)
+                    return {"type": "string"}
+                return self._type if isinstance(self._type, dict) else {"type": "string"}
             return None
 
-        def data(self, column, role):
+        def data(self, column: int, role) -> str | None:
             """
             Get the data for the specified column.
 
@@ -770,7 +771,7 @@ class MetaViewerWidget(QDockWidget):
                 return str(self.value)  # Convert non-dict values to string
             return None
 
-        def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        def setData(self, index: QModelIndex, value: Any, role=Qt.ItemDataRole.EditRole) -> None:
             """
             Set the data for the item.
 
@@ -795,7 +796,7 @@ class MetaViewerWidget(QDockWidget):
                 else:
                     self.hidden = True
 
-        def parent(self):
+        def parent(self) -> MetaViewerWidget.TreeItem | None:
             """
             Get the parent item.
 
@@ -806,7 +807,7 @@ class MetaViewerWidget(QDockWidget):
             """
             return self.parent_item
 
-        def row(self):
+        def row(self) -> int:
             """
             Get the row number of this item in its parent's list of children.
 
@@ -821,21 +822,25 @@ class MetaViewerWidget(QDockWidget):
 
     class TreeModel(QAbstractItemModel):
         """
-        Custom tree model for displaying hierarchical data.
+        Custom tree model for displaying hierarchical data from dicts or Pydantic models.
 
         Parameters
         ----------
-        data : dict
+        data : dict or BaseModel
             The hierarchical data to be displayed in the tree.
         parent : QObject, optional
             The parent object for this model.
         """
 
-        def __init__(self, data, parent=None):
+        def __init__(self, data: dict | BaseModel, parent=None):
             super().__init__(parent)
             self.root_item = MetaViewerWidget.TreeItem("Root", data)
 
-        def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        def data(
+            self,
+            index: QModelIndex | QPersistentModelIndex,
+            role: int = Qt.ItemDataRole.DisplayRole,
+        ) -> Any:
             """
             Return data for the given index and role.
 
@@ -859,12 +864,15 @@ class MetaViewerWidget(QDockWidget):
             if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
                 return item.data(index.column(), role)
 
+            if role == Qt.ItemDataRole.ToolTipRole:
+                return item.description
+
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
 
             return None
 
-        def type(self, index, role=Qt.ItemDataRole.DisplayRole):
+        def type(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
             """
             Return data for the given index and role.
 
@@ -922,7 +930,7 @@ class MetaViewerWidget(QDockWidget):
                 return True
             return False
 
-        def flags(self, index):
+        def flags(self, index: QModelIndex | QPersistentModelIndex) -> Qt.ItemFlag:
             """
             Return the item flags for the given index.
 
@@ -936,16 +944,22 @@ class MetaViewerWidget(QDockWidget):
             Qt.ItemFlags
                 The item flags for the given index.
             """
-            if index.isValid():
-                if index.column() == 1:
-                    return (
-                        Qt.ItemFlag.ItemIsSelectable
-                        | Qt.ItemFlag.ItemIsEnabled
-                        | Qt.ItemFlag.ItemIsEditable
-                    )
-                return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+            if not index.isValid():
+                return Qt.ItemFlag.NoItemFlags
+            if index.column() == 1:
+                return (
+                    Qt.ItemFlag.ItemIsSelectable
+                    | Qt.ItemFlag.ItemIsEnabled
+                    | Qt.ItemFlag.ItemIsEditable
+                )
+            return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
 
-        def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        def headerData(
+            self,
+            section: int,
+            orientation: Qt.Orientation,
+            role: int = Qt.ItemDataRole.DisplayRole,
+        ) -> Any:
             """
             Return the header data for the given section, orientation, and role.
 
@@ -970,7 +984,7 @@ class MetaViewerWidget(QDockWidget):
                     return "Value"
             return None
 
-        def index(self, row, column, parent=QModelIndex()):
+        def index(self, row: int, column: int, parent=QModelIndex()) -> QModelIndex:
             """
             Create and return a model index for the given row, column, and parent.
 
@@ -1001,7 +1015,7 @@ class MetaViewerWidget(QDockWidget):
                 return self.createIndex(row, column, child_item)
             return QModelIndex()
 
-        def parent(self, index):  # type: ignore our issue #1600
+        def parent(self, index) -> QModelIndex:  # type: ignore our issue #1600
             """
             Return the parent index for the given index.
 
@@ -1026,23 +1040,23 @@ class MetaViewerWidget(QDockWidget):
 
             return self.createIndex(parent_item.row(), 0, parent_item)
 
-        def resetData(self, data, types=None):
+        def resetData(self, data: dict | BaseModel, types: dict | None = None) -> None:
             """
             Reset the model with new data.
 
             Parameters
             ----------
-            data : dict
+            data : dict or BaseModel
                 The new hierarchical data to be displayed in the tree.
-            types : dict
-                Types of the displayed data
+            types : dict or dict-like
+                Type/schema information for the displayed data.
             """
             self.beginResetModel()
             del self.root_item
             self.root_item = MetaViewerWidget.TreeItem("Root", data, types)
             self.endResetModel()
 
-        def rowCount(self, parent=QModelIndex()):
+        def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
             """
             Return the number of rows under the given parent.
 
@@ -1061,7 +1075,9 @@ class MetaViewerWidget(QDockWidget):
             parent_item = parent.internalPointer()
             return parent_item.child_count()
 
-        def columnCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+        def columnCount(
+            self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()
+        ) -> Literal[2]:
             """
             Return the number of columns for the children of the given parent.
 
@@ -1077,7 +1093,27 @@ class MetaViewerWidget(QDockWidget):
             """
             return 2
 
-    def __init__(self, metadata, heading="Metadata Viewer", editable=False, parent=None):
+    def __init__(
+        self,
+        metadata,
+        heading: str = "Metadata Viewer",
+        editable: bool = False,
+        parent: QWidget | None = None,
+    ):
+        """
+        Initialize the MetaViewerWidget.
+
+        Parameters
+        ----------
+        metadata : dict or BaseModel
+            Metadata/Configuration to be displayed in the viewer.
+        heading : str, optional
+            The heading text for the dock widget.
+        editable : bool, optional
+            Whether the items should be editable.
+        parent : QWidget, optional
+            The parent widget.
+        """
         super().__init__(heading, parent)
 
         self.editable = editable
@@ -1112,7 +1148,7 @@ class MetaViewerWidget(QDockWidget):
         #     }
         # """)
 
-    def update_data(self, meta, types={}):
+    def update_data(self, meta, types: dict = {}) -> None:
         """
         Update data stored in the model and resize table to fit contents.
 
@@ -1120,7 +1156,7 @@ class MetaViewerWidget(QDockWidget):
         ----------
         meta : dict
             New metadata to be displayed.
-        types : dict
+        types : dict, optional
             Type definition for editable meta data
         """
         # get position of scroll bar before resetting the data
@@ -1134,26 +1170,22 @@ class MetaViewerWidget(QDockWidget):
         # restore scroll bar position
         self.tree_view.verticalScrollBar().setValue(current_pos)
 
-    def parse_header(self, hdr):
+    def parse_header(self, hdr: dict) -> dict:
         """
-        Parse a matrix header and prepare for display in the table view.
+        Shallow copy a matrix header to prepare for display.
 
         Parameters
         ----------
         hdr : dict
-            Header dictionary to be parsed.
+            Header dictionary to be copied.
 
         Returns
         -------
         dict
-            Parsed header data.
-
-        TODO: Implement sorting?
+            Copied header data.
         """
-        data = {}
-        for key, val in hdr.items():
-            data[key] = val
-        return data
+        # TODO: Implement sorting?
+        return hdr.copy()
 
 
 class ConfigEditWidget(MetaViewerWidget):
@@ -1175,7 +1207,7 @@ class ConfigEditWidget(MetaViewerWidget):
         button_layout = QHBoxLayout()
 
         # Dublin Core Elements
-        self.w_update_config = QPushButton("Reload config")
+        self.w_update_config: QPushButton = QPushButton("Reload config")
         self.w_update_config.setEnabled(False)
         self.w_update_config.clicked.connect(self.reload_and_update_data)
 
@@ -1188,7 +1220,7 @@ class ConfigEditWidget(MetaViewerWidget):
         widget.setLayout(layout)
         self.setWidget(widget)
 
-    def parse_header(self, hdr):
+    def parse_header(self, hdr: dict) -> dict:
         """
         Parse a matrix header and prepare for display in the table view.
 
@@ -1201,19 +1233,11 @@ class ConfigEditWidget(MetaViewerWidget):
         -------
         dict
             Parsed header data.
-
-        TODO: Implement sorting?
         """
-        data = {}
-        for key, val in hdr.items():
-            if key in ["columns", "units"]:
-                # omit columns and units since these belong directly to the
-                # data
-                continue
-            data[key] = val
-        return data
+        # TODO: Implement sorting?
+        return {key: val for key, val in hdr.items() if key not in {"columns", "units"}}
 
-    def set_systemfile(self, systemfile):
+    def set_systemfile(self, systemfile: list) -> None:
         """
         Set systemfile for config editor, must be called before update_data.
 
@@ -1224,7 +1248,7 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         self.systemfile = systemfile
 
-    def set_system_info(self, system_info: SystemInfo | None):
+    def set_system_info(self, system_info: SystemInfo | None) -> None:
         """
         Set system information from subprocess for config editor.
 
@@ -1235,7 +1259,7 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         self.system_info = system_info
 
-    def set_full_system_list(self, full_system_list):
+    def set_full_system_list(self, full_system_list: list) -> None:
         """
         Set the full system list for reloading system information.
 
@@ -1246,7 +1270,7 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         self.full_system_list = full_system_list
 
-    def reload_and_update_data(self):
+    def reload_and_update_data(self) -> None:
         """Reload system information and update data - wrapper for button action."""
         # Reload system information if full system list is available
         if hasattr(self, "full_system_list") and self.full_system_list:
@@ -1272,13 +1296,24 @@ class ConfigEditWidget(MetaViewerWidget):
         # Skip individual system configs if we have a merged system to avoid duplicates
         if self.systemfile is not None and not is_merged_system:
             for syst in self.systemfile:
-                syst_dict[syst.strip()] = get_config_dict(syst.strip())
+                syst_dict[syst.strip()] = resolve_config_path(matr1x.config, syst.strip())
 
         # parse config from system info (from subprocess)
         if self.system_info is not None:
             for system_name, config_info in self.system_info.config.items():
                 if system_name not in syst_dict:
                     syst_dict[system_name] = {}
+
+                # Check for Pydantic-based config (contains 'value' and 'schema' keys)
+                if (
+                    isinstance(config_info, dict)
+                    and "value" in config_info
+                    and "schema" in config_info
+                ):
+                    syst_dict[system_name] = config_info["value"]
+                    syst_dict[system_name]["_schema"] = config_info["schema"]
+                    continue
+
                 # Add runtime config from system info
                 for key, value_info in config_info.items():
                     if isinstance(value_info, dict):
@@ -1296,21 +1331,17 @@ class ConfigEditWidget(MetaViewerWidget):
             for system_name, config_info in self.system_info.config.items():
                 if system_name in syst_dict:
                     try:
-                        system_config_with_types = get_config_dict(system_name)
-                        if "_types" in system_config_with_types:
-                            if "_types" not in syst_dict[system_name]:
-                                syst_dict[system_name]["_types"] = {}
-                            syst_dict[system_name]["_types"].update(
-                                system_config_with_types["_types"]
-                            )
+                        system_config = resolve_config_path(matr1x.config, system_name)
+                        if hasattr(system_config, "model_json_schema"):
+                            syst_dict[system_name]["_schema"] = system_config.model_json_schema()
                     except Exception:
                         # If we can't get type info, continue without it
                         pass
 
         def parse_dict_and_types(d, dv, dt):
             for key, item in d.items():
-                if key == "_types":
-                    dt.update(d[key])
+                if key == "_schema":
+                    dt["_schema"] = d[key]
                     continue
                 elif isinstance(item, dict):
                     dv[key] = {}
@@ -1327,7 +1358,7 @@ class ConfigEditWidget(MetaViewerWidget):
         super().update_data(self.value_dict, self.types_dict)
         self.w_update_config.setEnabled(True)
 
-    def parse_item(self, item):
+    def parse_item(self, item) -> Any:
         """
         Parse a TreeItem and its children into a configuration dictionary.
 
@@ -1338,26 +1369,49 @@ class ConfigEditWidget(MetaViewerWidget):
 
         Returns
         -------
-        dict or str
-            A dictionary representing the parsed configuration, or a string
+        dict or str or Any
+            A dictionary representing the parsed configuration, or a value
             if the item has no children.
         """
-        config = {}
         if item.child_count() > 0:
+            config = {}
             for child_item in item.child_items:
                 config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(child_item)
-        else:
-            if item.type(1)[0][0] is bool:
-                return item.data(1, Qt.ItemDataRole.EditRole).lower() == "true"
-            try:
-                return item.type(1)[0][0](item.data(1, Qt.ItemDataRole.EditRole))
-            except ValueError:
-                return item.data(
-                    1, Qt.ItemDataRole.EditRole
-                )  # Return original data if conversion fails
-        return config
 
-    def get_config_dict(self):
+            # If the item itself represents a Pydantic model, validate the config
+            if isinstance(item.value, BaseModel):
+                try:
+                    # Validate and convert back to a plain dict for the writing process
+                    # Use model_validate to check types and apply default values
+                    validated = item.value.__class__.model_validate(config)
+                    return validated.model_dump(mode="json", by_alias=True, exclude_none=True)
+                except ValidationError as e:
+                    logger.warning(
+                        "Validation error during config extraction for %s: %s", item.key, e
+                    )
+                    return config  # Fallback to raw config on error
+            return config
+
+        # Handle leaf nodes
+        schema = item.type(1)
+        if schema:
+            json_type = schema.get("type")
+            raw_value = item.data(1, Qt.ItemDataRole.EditRole)
+            if json_type == "boolean":
+                return str(raw_value).lower() == "true"
+            elif json_type == "integer":
+                try:
+                    return int(raw_value)
+                except (ValueError, TypeError):
+                    return raw_value
+            elif json_type == "number":
+                try:
+                    return float(raw_value)
+                except (ValueError, TypeError):
+                    return raw_value
+        return item.data(1, Qt.ItemDataRole.EditRole)
+
+    def get_config_dict(self) -> dict:
         """
         Extract and normalize configuration data from the tree view.
 
@@ -1373,65 +1427,6 @@ class ConfigEditWidget(MetaViewerWidget):
                 return {keys[0]: self.parse_item(item)}
             return {keys[0]: create_nested_dict(keys[1:], item)}
 
-        def normalize_value(value):
-            """
-            Attempt to convert the input value to the appropriate type.
-
-            Parameters
-            ----------
-            value : str
-                The value to normalize.
-
-            Returns
-            -------
-            int, float, bool, or str
-                The normalized value.
-            """
-            if isinstance(value, str):
-                # Try to convert to an integer
-                if value.isdigit():
-                    return int(value)
-                # Try to convert to a float
-                try:
-                    return float(value)
-                except ValueError:
-                    pass
-                # Convert 'true'/'false' to booleans
-                if value.lower() == "true":
-                    return True
-                if value.lower() == "false":
-                    return False
-
-                if "~" in value:
-                    value = str(Path(value).expanduser().resolve())
-
-                # Return the value as-is if no conversion was possible
-                return value
-            # otherwise just return the value
-            return value
-
-        def normalize_dict(input_dict):
-            """
-            Apply value normalization to input_dict.
-
-            Parameters
-            ----------
-            input_dict : dict
-                The dictionary to normalize.
-
-            Returns
-            -------
-            dict
-                The normalized dictionary.
-            """
-            for key, value in input_dict.items():
-                # If the value is a dictionary, recursively normalize dict
-                if isinstance(value, dict):
-                    input_dict[key] = normalize_dict(value)
-                else:
-                    input_dict[key] = normalize_value(value)
-            return input_dict
-
         config_dict = {}
         for item in self.model.root_item.child_items:
             if item.child_count() == 0:
@@ -1441,7 +1436,7 @@ class ConfigEditWidget(MetaViewerWidget):
             key_parts = sys_key.split(".")
             merge_dicts(config_dict, create_nested_dict(key_parts, item))
 
-        return normalize_dict(config_dict)
+        return config_dict
 
     def write_config(self) -> Path:
         """Write the configuration to a temporary file."""
@@ -3446,7 +3441,7 @@ class MApplication(QApplication):
         super().setDesktopFileName(name)
 
     @classmethod
-    def instance(cls) -> "MApplication":
+    def instance(cls) -> MApplication:
         """
         Return the MApplication instance.
 
@@ -3489,8 +3484,18 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
 
     if result.returncode == 0:
         output_str = result.stdout.decode()
+        # Find the last line that looks like JSON to avoid warnings/garbage
+        json_str = ""
+        for line in reversed(output_str.splitlines()):
+            if line.strip().startswith("{") and line.strip().endswith("}"):
+                json_str = line.strip()
+                break
+
+        if not json_str:
+            return Error(f"Warning: No JSON found in subprocess output:\n{output_str}")
+
         try:
-            validated_data = SystemInfo.model_validate_json(output_str)
+            validated_data = SystemInfo.model_validate_json(json_str)
             return Success(validated_data)
         except ValidationError as e:
             return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
@@ -3535,23 +3540,18 @@ def _format_validation_error(e: ValidationError | TypeError | ValueError, base: 
     return html
 
 
-def check_config(config: dict) -> None:
+def check_config(config: BaseModel) -> None:
     """
     Validate the configuration tomls.
 
     Parameters
     ----------
-    config: dict
-        The configuration dictionary to validate.
+    config: BaseModel
+        The configuration model to validate.
     """
-    html = ""
-    data = dict(config)
-    for key in list(data.keys()):  # validate everything but matr1x
-        if key != "matr1x":
-            try:
-                UserlibConfig(**data.pop(key))
-            except (ValidationError, TypeError, ValueError) as e:
-                html += _format_validation_error(e, key + ".")
+    from . import validation_errors
+
+    html = "".join(validation_errors).replace("\n", "<br>")
     try:
         MainConfig.model_validate(config)
     except (ValidationError, TypeError, ValueError) as e:

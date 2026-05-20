@@ -68,7 +68,7 @@ if _typing.TYPE_CHECKING:
     _system = _thread_api._exec_thread.system
 
 # load config section from toml file
-_config = _matr1x.get_config_dict("matr1x.scripts.matrix-script")
+_validated_config = _matr1x.config.matr1x.scripts.matrix_script
 
 # pass meta information
 for _key, _value in _meta_data.items():
@@ -86,18 +86,18 @@ _reset_kwargs = {}
 def _configure_execution_path(scriptname: str | _Path) -> None:
     """Change execution path if requested in config."""
     script_path = _Path(scriptname)
-    if _config["script_path"] == "<script-location>":
+    if _validated_config.script_path is None:
         if script_path.parent != _Path.cwd():
             _os.chdir(script_path.parent)
     else:
-        config_path = _Path(_config["script_path"])
+        config_path = _Path(_validated_config.script_path)
         if config_path.exists():
             _os.chdir(config_path)
 
 
 def _configure_script_storing(system: _MergedSystem, script: str) -> None:
     """Store user script if requested in config."""
-    if _config["store_script_in_datafile"]:
+    if _validated_config.store_script_in_datafile:
         prefix, suffix = _matrix_util.generate_script_prefix_suffix()
         npref, nsuff = _matrix_util.get_script_prefix_offset(), len(suffix.splitlines())
         # strip prefix and suffix lines from script for storing
