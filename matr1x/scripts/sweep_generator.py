@@ -80,12 +80,10 @@ from matr1x.gui_util import (
     FileDropMixin,
     LoggingWindow,
     MApplication,
-    SaferQSettings,
     check_config,
     clear_layout,
     get_matrix_icon,
     open_matrix_toml,
-    protected_restore,
     save_messagebox,
     validator,
 )
@@ -95,7 +93,12 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts.shared_classes import Notifier, NotifierMessage, SystemListWidget
+from matr1x.scripts.shared_classes import (
+    Notifier,
+    NotifierMessage,
+    SaferQSettings,
+    SystemListWidget,
+)
 from matr1x.util import generate_col_index
 
 __all__ = ["MainWindow"]
@@ -1705,6 +1708,6 @@ def main():
     main_window = MainWindow() if len(sys.argv) < 2 else MainWindow(filename=Path(sys.argv[1]))
     main_window.show()
     app.connect_file_handler(main_window.open_file)  # MacOS specific FileOpenEvent
-    protected_restore(main_window.restore_window_state)
+    main_window.restore_window_state()
     ret = app.exec()
     sys.exit(ret)

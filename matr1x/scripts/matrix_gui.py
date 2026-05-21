@@ -69,13 +69,14 @@ from matr1x.gui_util import (
     LoggingWindow,
     MApplication,
     ReadOnlyTable,
-    SaferQSettings,
+    blocked_signals,
     check_config,
     detect_shortcut,
     get_matrix_icon,
     get_system_info,
+    install_metadata_config_docks,
     open_matrix_toml,
-    protected_restore,
+    sync_visibility_actions,
 )
 from matr1x.models import (
     Datafile,
@@ -94,11 +95,12 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.scripts import sweep_generator
-from matr1x.scripts.shared_classes import MetaDataDialog
+from matr1x.scripts.shared_classes import MetaDataDialog, MetadataDockWidget, SaferQSettings
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error
 
 logger = logging.getLogger(Path(__file__).name)
+LAYOUT_SETTINGS_GROUP = "MainWindowLayoutV2"
 
 if sys.platform == "win32":
     try:
@@ -425,7 +427,7 @@ class WidgetGroup:
 
     meas_list: QueueListWidget
     config_editor: ConfigEditWidget
-    dockable_metadata: QDockWidget
+    dockable_metadata: MetadataDockWidget
     meta_view: MetaDataDialog
     input_file: LabelWithSignal
     current_file: QLabel
@@ -456,13 +458,7 @@ class UIBuilder:
         )
         input_file = LabelWithSignal()
         current_file = QLabel()
-        dockable_metadata = QDockWidget("Metadata")
-        meta_view = MetaDataDialog()
-        dockable_metadata.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
-        )
-        dockable_metadata.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-        dockable_metadata.setWidget(meta_view)
+        dockable_metadata = MetadataDockWidget()
         table = ReadOnlyTable()
         table.setColumnCount(4)
         table.setRowCount(1)
@@ -479,7 +475,7 @@ class UIBuilder:
             meas_list=meas_list,
             config_editor=config_editor,
             dockable_metadata=dockable_metadata,
-            meta_view=meta_view,
+            meta_view=dockable_metadata.meta_view,
             input_file=input_file,
             current_file=current_file,
             progressbar=progressbar,
@@ -588,6 +584,7 @@ class UIBuilder:
     def _create_toolbar(self) -> QToolBar:
         """Create the Toolbar."""
         toolbar = QToolBar("Toolbar")
+        toolbar.setObjectName("main_toolbar")
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         toolbar.setFloatable(False)
@@ -650,6 +647,7 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
+        self.settings = SaferQSettings("matr1x", "gui")
         self.log_window = LoggingWindow(parent=self)
         self.log_window.hide()
         logger.info("matrix-gui starting")
@@ -658,13 +656,12 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui = UIBuilder()
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.ui.widgets.config_editor)
-        self.ui.widgets.config_editor.setFloating(True)
-        self.ui.widgets.config_editor.close()
-        self.setCentralWidget(self.ui.widgets.central_widget)
-        self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.dockable_metadata
+        install_metadata_config_docks(
+            self,
+            self.ui.widgets.dockable_metadata,
+            self.ui.widgets.config_editor,
         )
+        self.setCentralWidget(self.ui.widgets.central_widget)
         check_config(matr1x.config)
         self.sg: QMainWindow | None = None
         self.running = False
@@ -674,7 +671,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
         self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
-        self.settings = SaferQSettings("matr1x", "gui")
         check_desktop_integration()
 
     def _create_connections(self) -> None:
@@ -682,7 +678,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.preview.triggered.connect(self.open_preview)
         self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.config.toggled.connect(self.toggle_preferences)
-        self.ui.widgets.config_editor.visibilityChanged.connect(self.ui.actions.config.setChecked)
+        self.ui.widgets.config_editor.visibilityChanged.connect(self._sync_layout_actions)
         self.ui.actions.sweep.triggered.connect(self.start_sweep_generator)
         self.ui.actions.queue.triggered.connect(self.queue_measurement)
         self.ui.actions.start.triggered.connect(self.run_matrix)
@@ -824,43 +820,40 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
+        self.settings.beginGroup(LAYOUT_SETTINGS_GROUP)
         self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("toolbar_position", self.toolBarArea(self.ui.toolbar).value)
-        self.settings.setValue("metadata_size", self.ui.widgets.dockable_metadata.size())
-        self.settings.setValue("config_position", self.ui.widgets.config_editor.pos())
-        self.settings.setValue("config_size", self.ui.widgets.config_editor.size())
+        self.settings.setValue("window_state", self.saveState())
+        self.settings.endGroup()
+
         if shiboken6.isValid(self.log_window):
             self.settings.setValue("log_window/position", self.log_window.pos())
             self.settings.setValue("log_window/size", self.log_window.size())
 
+    def _sync_layout_actions(self) -> None:
+        """Match view action state to the restored widget visibility."""
+        sync_visibility_actions(
+            [
+                (self.ui.actions.config, self.ui.widgets.config_editor),
+                (self.ui.actions.toggle_toolbar, self.ui.toolbar),
+            ]
+        )
+
     def restore_window_state(self) -> None:
         """Restore application configuration from the previous use."""
-        toolbar_pos = self.settings.safer_value(
-            "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
-        )
-        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
         # Just in case it is the first start
         self.resize(self.sizeHint())
+        self.settings.beginGroup(LAYOUT_SETTINGS_GROUP)
         self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
-        self.resizeDocks(
-            [self.ui.widgets.dockable_metadata],
-            [
-                self.settings.safer_value(
-                    "metadata_size", self.ui.widgets.dockable_metadata.size(), type=QSize
-                ).width()
-            ],
-            Qt.Orientation.Horizontal,
-        )
-        self.ui.widgets.config_editor.move(
-            self.settings.safer_value(
-                "config_position", self.ui.widgets.config_editor.pos(), type=QPoint
+        with blocked_signals(
+            self.ui.actions.config,
+            self.ui.actions.toggle_toolbar,
+        ):
+            self.restoreState(
+                self.settings.safer_value("window_state", QByteArray(), type=QByteArray)
             )
-        )
-        self.ui.widgets.config_editor.resize(
-            self.settings.safer_value(
-                "config_size", self.ui.widgets.config_editor.size(), type=QSize
-            )
-        )
+        self.settings.endGroup()
+        self._sync_layout_actions()
+
         self.log_window.move(
             self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
         )
@@ -1084,8 +1077,8 @@ def main() -> None:
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-gui")
     ex = MainWindow()
+    ex.restore_window_state()
     ex.show()
-    protected_restore(ex.restore_window_state)
     ret = app.exec()
     logger.info("matrix-gui exiting")
     sys.exit(ret)

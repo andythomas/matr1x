@@ -86,6 +86,7 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x.gui_util import AutoSlot
+from matr1x.scripts.shared_classes import SaferQSettings
 
 if TYPE_CHECKING:
     from matr1x.control.controlwindow import ControlWindow
@@ -95,7 +96,7 @@ from matr1x.system import System
 
 from .. import config
 from ..error_handling import InternalInvariantError
-from ..gui_util import MApplication, SaferQSettings, validator
+from ..gui_util import MApplication, validator
 from ..util import Command, normalize_cmds
 
 __all__ = [

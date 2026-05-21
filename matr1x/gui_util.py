@@ -26,6 +26,7 @@ script and control-guis.
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import inspect
 import logging
@@ -51,7 +52,6 @@ from typing import (
     get_args,
     get_origin,
     get_type_hints,
-    overload,
 )
 
 if sys.version_info >= (3, 12):
@@ -67,7 +67,6 @@ from pydantic import BaseModel, ValidationError
 from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
     QAbstractItemModel,
-    QByteArray,
     QEvent,
     QLibraryInfo,
     QLocale,
@@ -75,8 +74,6 @@ from PySide6.QtCore import (
     QObject,
     QPersistentModelIndex,
     QPoint,
-    QSettings,
-    QSize,
     Qt,
     QTimer,
     Signal,
@@ -84,6 +81,7 @@ from PySide6.QtCore import (
     qVersion,
 )
 from PySide6.QtGui import (
+    QAction,
     QBrush,
     QCloseEvent,
     QColor,
@@ -149,6 +147,66 @@ from .util import resolve_config_path
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
+
+@contextlib.contextmanager
+def blocked_signals(*objects: QObject):
+    """
+    Temporarily block signals for Qt objects.
+
+    Parameters
+    ----------
+    objects : QObject
+        The objects whose signals should be blocked.
+    """
+    blocked_objects = [(obj, obj.blockSignals(True)) for obj in objects]
+    try:
+        yield
+    finally:
+        for obj, previous_state in blocked_objects:
+            obj.blockSignals(previous_state)
+
+
+def sync_visibility_actions(mappings: list[tuple[QAction, QWidget]]) -> None:
+    """
+    Synchronize checked actions with explicit widget visibility.
+
+    Parameters
+    ----------
+    mappings : list of tuple of QAction and QWidget
+        Action and widget pairs to synchronize.
+    """
+    for action, widget in mappings:
+        with blocked_signals(action):
+            action.setChecked(not widget.isHidden())
+
+
+def install_metadata_config_docks(
+    window: QMainWindow,
+    metadata_dock: QDockWidget,
+    config_dock: QDockWidget,
+) -> None:
+    """
+    Install metadata and device config docks in a main window.
+
+    Parameters
+    ----------
+    window : QMainWindow
+        The window that owns the docks.
+    metadata_dock : QDockWidget
+        The metadata dock widget.
+    config_dock : QDockWidget
+        The device config dock widget.
+    """
+    window.setDockOptions(
+        window.dockOptions()
+        | QMainWindow.DockOption.AllowNestedDocks
+        | QMainWindow.DockOption.AllowTabbedDocks
+    )
+    window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, metadata_dock)
+    window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, config_dock)
+    window.splitDockWidget(metadata_dock, config_dock, Qt.Orientation.Vertical)
+    config_dock.hide()
 
 
 logger = logging.getLogger(__name__)
@@ -1199,6 +1257,15 @@ class ConfigEditWidget(MetaViewerWidget):
         super().__init__({}, heading="Device config", editable=True)
         if popup:
             self.setTitleBarWidget(QWidget())
+        self.setObjectName("config_editor")
+        self.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
         self.system_file = None
         self.system_info: SystemInfo | None = None
         self.full_system_list = []
@@ -3679,54 +3746,6 @@ def find_parent_of_type(widget: QWidget, cls: type[QWidget]) -> QWidget | None:
             return w
         w = w.parentWidget()
     return None
-
-
-def protected_restore(restore_settings: Callable[[], None]):
-    """
-    Allow settings-reload to savely fail.
-
-    Parameters
-    ----------
-    restore_settings: Callable() -> None
-        The method used for the restore.
-    """
-    try:
-        restore_settings()
-    except Exception as e:
-        print(  # noqa: T201
-            f"\n{e}\nRestoring the settings resulted in an unexpected issue. "
-            f"This caused all settings to be reset."
-        )
-
-
-class SaferQSettings(QSettings):
-    """Require default value and type hint for settings restore."""
-
-    def __init__(self, organization: str, application: str) -> None:
-        super().__init__(organization, application)
-
-    @overload
-    def safer_value(self, key: str, defaultValue: QPoint, type: type[QPoint]) -> QPoint: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: QSize, type: type[QSize]) -> QSize: ...
-    @overload
-    def safer_value(
-        self, key: str, defaultValue: QByteArray, type: type[QByteArray]
-    ) -> QByteArray: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: bool, type: type[bool]) -> bool: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: int, type: type[int]) -> int: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: list, type: type[list]) -> list: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: float, type: type[float]) -> float: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: str, *, type: type[str]) -> str: ...
-
-    def safer_value(self, key, defaultValue, type):  # noqa: A002
-        """Call the original QSaver value method."""
-        return super().value(key, defaultValue, type)
 
 
 class _LogSignalHelper(QObject):

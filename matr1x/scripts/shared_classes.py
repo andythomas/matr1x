@@ -20,13 +20,23 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict, final
+from typing import Any, TypedDict, final, overload
 
-from PySide6.QtCore import QPropertyAnimation, QTimer, Signal
+from PySide6.QtCore import (
+    QByteArray,
+    QPoint,
+    QPropertyAnimation,
+    QSettings,
+    QSize,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QDropEvent
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QDockWidget,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -43,7 +53,15 @@ from matr1x.error_handling import Error, InternalInvariantError, Success
 from matr1x.gui_util import MApplication, get_matrix_icon, get_system_info
 from matr1x.models import SystemInfo
 
-__all__ = ["MetaDataDialog", "Notifier", "NotifierMessage", "SystemListWidget", "MetaData"]
+__all__ = [
+    "MetaData",
+    "MetaDataDialog",
+    "MetadataDockWidget",
+    "Notifier",
+    "NotifierMessage",
+    "SaferQSettings",
+    "SystemListWidget",
+]
 
 
 @dataclass(frozen=True)
@@ -257,6 +275,22 @@ class MetaData(TypedDict):
 
 
 @final
+class MetadataDockWidget(QDockWidget):
+    """Dock widget for metadata editing."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize the metadata dock widget."""
+        super().__init__("Metadata", parent=parent)
+        self.setObjectName("dockable_metadata")
+        self.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        self.meta_view = MetaDataDialog()
+        self.setWidget(self.meta_view)
+
+
+@final
 class MetaDataDialog(QDialog):
     """Create a dialog able to handle meta data input for file headers."""
 
@@ -308,3 +342,31 @@ class MetaDataDialog(QDialog):
         self.identifier.clear()
         self.relation.clear()
         self.description.clear()
+
+
+@final
+class SaferQSettings(QSettings):
+    """Require default value and type hint for settings restore."""
+
+    @overload
+    def safer_value(self, key: str, defaultValue: QPoint, type: type[QPoint]) -> QPoint: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: QSize, type: type[QSize]) -> QSize: ...
+    @overload
+    def safer_value(
+        self, key: str, defaultValue: QByteArray, type: type[QByteArray]
+    ) -> QByteArray: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: bool, type: type[bool]) -> bool: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: int, type: type[int]) -> int: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: list, type: type[list]) -> list: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: float, type: type[float]) -> float: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: str, *, type: type[str]) -> str: ...
+
+    def safer_value(self, key: str, defaultValue: Any, type: object):  # noqa: A002
+        """Call the original QSettings value method."""
+        return super().value(key, defaultValue, type)

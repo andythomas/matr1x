@@ -56,7 +56,6 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QDialog,
-    QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
     QGridLayout,
@@ -88,14 +87,15 @@ from matr1x.gui_util import (
     LoggerMixin,
     LoggingWindow,
     MApplication,
-    SaferQSettings,
+    blocked_signals,
     check_config,
     detect_shortcut,
     find_parent_of_type,
     get_matrix_icon,
+    install_metadata_config_docks,
     open_matrix_toml,
-    protected_restore,
     save_messagebox,
+    sync_visibility_actions,
 )
 from matr1x.models import (
     Datafile,
@@ -117,7 +117,9 @@ from matr1x.post_install import (
 from matr1x.scripts.shared_classes import (
     MetaData,
     MetaDataDialog,
+    MetadataDockWidget,
     NotifierMessage,
+    SaferQSettings,
     SystemListWidget,
 )
 from matr1x.util import (
@@ -133,6 +135,7 @@ script_config = matr1x.config.matr1x.scripts.matrix_script
 
 
 MAX_LINES_STATUS = 10000
+LAYOUT_SETTINGS_GROUP = "MainWindowLayoutV2"
 # to test what a good limiting value is, use the following:
 # ```
 # for i in range(1000):
@@ -893,7 +896,7 @@ class ActionGroup:
 class WidgetGroup:
     """Widgets to be used in the GUI."""
 
-    dockable_metadata: QDockWidget
+    dockable_metadata: MetadataDockWidget
     meta_view: MetaDataDialog
     system_list: SystemListWidget
     status_preview: TerminalOutput
@@ -981,17 +984,8 @@ class UIBuilder:
         WidgetGroup
             The dataclass with all the widgets.
         """
-        dockable_metadata = QDockWidget("Metadata")
-        metadata = MetaDataDialog()
-        dockable_metadata.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
-        )
-        dockable_metadata.setWidget(metadata)
+        dockable_metadata = MetadataDockWidget()
         config_editor = ConfigEditWidget()
-        config_editor.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
         system_list = SystemListWidget()
         system_list.setMinimumHeight(50)
         system_list.setMaximumHeight(50)
@@ -1032,7 +1026,7 @@ class UIBuilder:
 
         return WidgetGroup(
             dockable_metadata=dockable_metadata,
-            meta_view=metadata,
+            meta_view=dockable_metadata.meta_view,
             system_list=system_list,
             status_preview=status_preview,
             script_edit=script_edit,
@@ -1206,6 +1200,7 @@ class UIBuilder:
             The (main) toolbar.
         """
         toolbar = QToolBar("Toolbar")
+        toolbar.setObjectName("main_toolbar")
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setFloatable(False)
         toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -1301,6 +1296,7 @@ class UIBuilder:
         layout.setContentsMargins(11, 4, 11, 11)
         self.widgets.splitter.addWidget(self.widgets.script_edit)
         self.widgets.splitter.addWidget(self.widgets.status_preview)
+        self.widgets.splitter.setChildrenCollapsible(False)
         layout.addWidget(self.widgets.splitter, 1)
         infobar = QHBoxLayout()
         infobar.addStretch()
@@ -1345,11 +1341,10 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.setValidExtensions([self.extension])
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.ui.widgets.config_editor)
-        self.ui.widgets.config_editor.setFloating(True)
-        self.ui.widgets.config_editor.close()
-        self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.dockable_metadata
+        install_metadata_config_docks(
+            self,
+            self.ui.widgets.dockable_metadata,
+            self.ui.widgets.config_editor,
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.create_connections()
@@ -1398,11 +1393,9 @@ class MainWindow(QMainWindow):
         self.ui.actions.show_log.triggered.connect(self.show_log_window)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
-        self.ui.widgets.config_editor.visibilityChanged.connect(self.ui.actions.config.setChecked)
-        self.ui.widgets.dockable_metadata.visibilityChanged.connect(
-            self.ui.actions.toggle_metadata.setChecked
-        )
-        self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
+        self.ui.widgets.config_editor.visibilityChanged.connect(self._sync_layout_actions)
+        self.ui.widgets.dockable_metadata.visibilityChanged.connect(self._sync_layout_actions)
+        self.ui.toolbar.visibilityChanged.connect(self._sync_layout_actions)
         self.ui.widgets.script_edit.contentModified.connect(self.update_window_title)
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
         self.ui.widgets.system_list.changed.connect(self.update_systems)
@@ -1446,36 +1439,16 @@ class MainWindow(QMainWindow):
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
         self.settings.setValue("created", 1)
-        self.settings.beginGroup("MainWindow")
+        self.settings.beginGroup(LAYOUT_SETTINGS_GROUP)
         self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("window_state", self.saveState())
         self.settings.setValue("splitter", self.ui.widgets.splitter.sizes())
         self.settings.endGroup()
+
         self.settings.beginGroup("script_edit")
-        self.settings.setValue("size", self.ui.widgets.script_edit.size())
         self.settings.setValue("monaco_zoom", self.ui.widgets.script_edit.zoomFactor())
         self.settings.setValue("theme", self.ui.actions.theme_group.checkedAction().text())
         self.settings.setValue("autocomplete", self.ui.actions.autocomplete.isChecked())
-        self.settings.endGroup()
-        self.settings.beginGroup("status_preview")
-        self.settings.setValue("size", self.ui.widgets.status_preview.size())
-        self.settings.endGroup()
-        self.settings.beginGroup("Toolbars")
-        self.settings.setValue("buttons_visible", self.ui.toolbar.isVisible())
-        self.settings.setValue("position", self.toolBarArea(self.ui.toolbar).value)
-        self.settings.setValue("buttons_geometry", self.ui.toolbar.geometry())
-        self.settings.endGroup()
-        self.settings.beginGroup("dockable_metadata")
-        self.settings.setValue("visible", self.ui.widgets.dockable_metadata.isVisible())
-        self.settings.setValue(
-            "dock_position", self.dockWidgetArea(self.ui.widgets.dockable_metadata).value
-        )
-        self.settings.setValue("floating", self.ui.widgets.dockable_metadata.isFloating())
-        self.settings.setValue("position", self.ui.widgets.dockable_metadata.pos())
-        self.settings.setValue("size", self.ui.widgets.dockable_metadata.size())
-        self.settings.endGroup()
-        self.settings.beginGroup("config_editor")
-        self.settings.setValue("position", self.ui.widgets.config_editor.pos())
-        self.settings.setValue("size", self.ui.widgets.config_editor.size())
         self.settings.endGroup()
 
         if shiboken6.isValid(self.log_window):
@@ -1489,27 +1462,54 @@ class MainWindow(QMainWindow):
             self.settings.setValue("position", self.ui.widgets.system_command_help.pos())
             self.settings.endGroup()
 
+    def _sync_layout_actions(self) -> None:
+        """Match view action state to the restored widget visibility."""
+        sync_visibility_actions(
+            [
+                (self.ui.actions.config, self.ui.widgets.config_editor),
+                (self.ui.actions.toggle_metadata, self.ui.widgets.dockable_metadata),
+                (self.ui.actions.toggle_toolbar, self.ui.toolbar),
+            ]
+        )
+
+    def _restored_splitter_sizes(self) -> list[int] | None:
+        """Return saved splitter sizes unless a pane would be collapsed."""
+        if not self.settings.contains("splitter"):
+            return None
+        sizes = self.settings.safer_value("splitter", [], type=list)
+        if len(sizes) != self.ui.widgets.splitter.count():
+            return None
+        try:
+            restored_sizes = [int(size) for size in sizes]
+        except (TypeError, ValueError):
+            return None
+        if any(size <= 0 for size in restored_sizes):
+            return None
+        return restored_sizes
+
     def restore_window_state(self) -> None:
         """Restore app configuration from the previous use."""
         self.resize(self.sizeHint())  # Just in case it is the first start
-        self.settings.beginGroup("MainWindow")
+        self.settings.beginGroup(LAYOUT_SETTINGS_GROUP)
         self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
-        self.ui.widgets.splitter.setSizes(
-            [
-                int(size)
-                for size in self.settings.safer_value(
-                    "splitter", self.ui.widgets.splitter.sizes(), type=list
-                )
-            ]
-        )
+        with blocked_signals(
+            self.ui.actions.config,
+            self.ui.actions.toggle_metadata,
+            self.ui.actions.toggle_toolbar,
+        ):
+            self.restoreState(
+                self.settings.safer_value("window_state", QByteArray(), type=QByteArray)
+            )
+        splitter_sizes = self._restored_splitter_sizes()
+        if splitter_sizes is not None:
+            self.ui.widgets.splitter.setSizes(splitter_sizes)
         self.settings.endGroup()
+        self._sync_layout_actions()
+
         # Check if there is a settings file. This improves the robustness
         # against strange side effect, caused by the default values.
         if self.settings.contains("created"):
             self.settings.beginGroup("script_edit")
-            self.ui.widgets.script_edit.resize(
-                self.settings.safer_value("size", self.ui.widgets.script_edit.size(), type=QSize)
-            )
             self.ui.widgets.script_edit.setZoomFactor(
                 self.settings.safer_value("monaco_zoom", 1, type=float)
             )
@@ -1520,68 +1520,6 @@ class MainWindow(QMainWindow):
                     self.ui.widgets.script_edit.setTheme(last_theme)
             self.ui.actions.autocomplete.setChecked(
                 self.settings.safer_value("autocomplete", True, type=bool)
-            )
-            self.settings.endGroup()
-            self.settings.beginGroup("status_preview")
-            self.ui.widgets.status_preview.resize(
-                self.settings.safer_value(
-                    "size", self.ui.widgets.status_preview.size(), type=QSize
-                )
-            )
-            self.settings.endGroup()
-            self.settings.beginGroup("Toolbars")
-            self.ui.toolbar.setVisible(
-                self.settings.safer_value("buttons_visible", True, type=bool)
-            )
-            self.ui.actions.toggle_toolbar.setChecked(
-                self.settings.safer_value("buttons_visible", True, type=bool)
-            )
-            toolbar_pos = self.settings.safer_value(
-                "position", Qt.ToolBarArea.TopToolBarArea.value, type=int
-            )
-            self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
-            self.settings.endGroup()
-            self.settings.beginGroup("dockable_metadata")
-            visible = self.settings.safer_value("visible", True, type=bool)
-            self.ui.widgets.dockable_metadata.setVisible(visible)
-            self.ui.actions.toggle_metadata.setChecked(visible)
-            dock_pos = self.settings.safer_value(
-                "dock_position", Qt.DockWidgetArea.RightDockWidgetArea.value, type=int
-            )
-            self.addDockWidget(Qt.DockWidgetArea(dock_pos), self.ui.widgets.dockable_metadata)
-            self.ui.widgets.dockable_metadata.setFloating(
-                self.settings.safer_value("floating", False, type=bool)
-            )
-            if self.ui.widgets.dockable_metadata.isFloating():
-                self.ui.widgets.dockable_metadata.move(
-                    self.settings.safer_value(
-                        "position", self.ui.widgets.dockable_metadata.pos(), type=QPoint
-                    )
-                )
-                self.ui.widgets.dockable_metadata.resize(
-                    self.settings.safer_value(
-                        "size", self.ui.widgets.dockable_metadata.size(), type=QSize
-                    )
-                )
-            else:
-                self.resizeDocks(
-                    [self.ui.widgets.dockable_metadata],
-                    [
-                        self.settings.safer_value(
-                            "size", self.ui.widgets.dockable_metadata.size(), type=QSize
-                        ).width()
-                    ],
-                    Qt.Orientation.Horizontal,
-                )
-            self.settings.endGroup()
-            self.settings.beginGroup("config_editor")
-            self.ui.widgets.config_editor.move(
-                self.settings.safer_value(
-                    "position", self.ui.widgets.config_editor.pos(), type=QPoint
-                )
-            )
-            self.ui.widgets.config_editor.resize(
-                self.settings.safer_value("size", self.ui.widgets.config_editor.size(), type=QSize)
             )
             self.settings.endGroup()
             self.log_window.move(
@@ -2332,8 +2270,8 @@ def main() -> None:
     appname = "matrix-script"
     app.setDesktopFileName(appname)
     ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
+    ex.restore_window_state()
     ex.show()
-    protected_restore(ex.restore_window_state)
     # handle MacOS specific FileOpenEvent from MApplication
     app.connect_file_handler(ex._load_file_from_signal)
     ret = app.exec()

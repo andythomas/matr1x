@@ -64,19 +64,18 @@ from matr1x.gui_util import (
     LoggingWindow,
     MApplication,
     MetaViewerWidget,
-    SaferQSettings,
     SimplePlotWidget,
     check_config,
     clear_layout,
     get_matrix_icon,
     open_matrix_toml,
-    protected_restore,
 )
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
+from matr1x.scripts.shared_classes import SaferQSettings
 
 logger = logging.getLogger(__name__)
 
@@ -579,7 +578,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         )
         self.meta_viewer.setVisible(False)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.meta_viewer)
-        protected_restore(self.restore_meta_viewer)
+        self.restore_meta_viewer()
         self.meta_viewer.visibilityChanged.connect(self.ui.actions.meta.setChecked)
 
     def restore_meta_viewer(self) -> None:
@@ -1311,6 +1310,6 @@ def main(file: str | None = None):
     else:
         ex = SweepPreview(None, Path(sys.argv[1]))
     ex.show()
-    protected_restore(ex.restore_window_state)
+    ex.restore_window_state()
     ret = app.exec()
     sys.exit(ret)

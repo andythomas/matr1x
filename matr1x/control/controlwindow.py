@@ -65,12 +65,11 @@ from matr1x.gui_util import (
     AutoSlot,
     LoggingWindow,
     MApplication,
-    SaferQSettings,
     check_config,
     get_matrix_icon,
     open_matrix_toml,
-    protected_restore,
 )
+from matr1x.scripts.shared_classes import SaferQSettings
 from matr1x.util import Command, Get, StreamToLogger
 
 logger = logging.getLogger(__name__)
@@ -452,7 +451,7 @@ class ControlWindow(QMainWindow):
         self.create_connections()
         self.statusloggingUI()
         check_config(matr1x.config)
-        protected_restore(self._restore_gui_settings)
+        self._restore_gui_settings()
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
         sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
         # merge the guidicts Systems
@@ -468,7 +467,7 @@ class ControlWindow(QMainWindow):
         if extra_cmds:
             self.cmd_list.update(extra_cmds)
         self.create_menu()
-        protected_restore(self._restore_view_settings)
+        self._restore_view_settings()
         self.show()
         # connect signals so that at least one dock remains visible! (needs to be done after show!)
         for g in self.guidicts:
