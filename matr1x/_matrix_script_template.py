@@ -98,7 +98,7 @@ def _configure_execution_path(scriptname: str | _Path) -> None:
 def _configure_script_storing(system: _MergedSystem, script: str) -> None:
     """Store user script if requested in config."""
     if _validated_config.store_script_in_datafile:
-        prefix, suffix = _matrix_util.generate_script_prefix_suffix()
+        _, suffix = _matrix_util.generate_script_prefix_suffix()
         npref, nsuff = _matrix_util.get_script_prefix_offset(), len(suffix.splitlines())
         # strip prefix and suffix lines from script for storing
         user_script = _textwrap.dedent("\\n".join(script.splitlines()[npref:-nsuff]))
@@ -138,6 +138,7 @@ def _find_caller_frame() -> _types.FrameType | None:
 @_wrapt.decorator
 def _lineno_decorator(wrapped, instance, args, kwargs):
     """Report the executing line number back to the GUI."""
+    _ = instance  # suppress ty warning
     _show_lineno()
     return wrapped(*args, **kwargs)
 
@@ -208,16 +209,9 @@ def _reset_setvalues() -> None:
     """Reset the setvalues variable."""
     global _setvalues
     _setvalues = []
-    for i, col in enumerate(_system.columns):
-        if isinstance(col, (list, tuple)):
-            _setvalues.append(
-                [
-                    None,
-                ]
-                * len(col)
-            )
-        else:
-            _setvalues.append(None)
+    for col in _system.columns:
+        value = [None] * len(col) if isinstance(col, (list, tuple)) else None
+        _setvalues.append(value)
 
 
 # inject line number decorator to time.sleep

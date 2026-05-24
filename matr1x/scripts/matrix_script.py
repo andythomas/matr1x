@@ -77,8 +77,8 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.editor import CodeEditor, LSPServer
-from matr1x.error_handling import Error, InternalInvariantError, install_error_handler
+from matr1x.editor import CodeEditor
+from matr1x.error_handling import InternalInvariantError, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     AutoSlot,
@@ -122,12 +122,7 @@ from matr1x.scripts.shared_classes import (
     SaferQSettings,
     SystemListWidget,
 )
-from matr1x.util import (
-    StreamToLogger,
-    find_binary,
-    generate_script,
-    get_script_prefix_offset,
-)
+from matr1x.util import StreamToLogger, generate_script, get_script_prefix_offset
 
 logger = logging.getLogger(__name__)
 scriptlogger = logging.getLogger(__name__ + "_subprocess")
@@ -991,13 +986,7 @@ class UIBuilder:
         system_list.setMaximumHeight(50)
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
-        lsp_name = "ty"
-        lsp_binary = find_binary(lsp_name)
-        if isinstance(lsp_binary, Error):
-            raise lsp_binary.error
-        lsp_parameters = ["server"]
-        lsp_server = LSPServer(binary=str(lsp_binary.value), parameters=lsp_parameters)
-        script_edit = CodeEditor(lsp_server)
+        script_edit = CodeEditor()
         system_command_help = QDialog()
         box_layout = QVBoxLayout()
         system_command_text_edit = QTextEdit()
@@ -1019,8 +1008,8 @@ class UIBuilder:
         central_widget = CentralWidget()
         python_info = QLabel(f"Python {platform.python_version()}")
         python_info.setToolTip(f"Python: {sys.version}")
-        lsp_info = QLabel(f"LSP: {lsp_name}")
-        lsp_info.setToolTip(f"{lsp_binary.value}")
+        lsp_info = QLabel(f"LSP: {script_edit.lsp_tc.server.name}")
+        lsp_info.setToolTip(f"{script_edit.lsp_tc.server.binary}")
         save_pulldown = QMenu()
         stop_pulldown = QMenu()
 
@@ -1575,9 +1564,10 @@ class MainWindow(QMainWindow):
             and not self.in_pytest
         ):
             if not save_messagebox(self, self.save_file):
+                event.ignore()
                 return
         self.save_window_state()
-        self.ui.widgets.script_edit.lsp.stop()
+        self.ui.widgets.script_edit.lsp_tc.stop()
         self.ui.widgets.script_edit.server.stop()
         # QWebEngineView: Disconnect the webpage to prevent memory leaks
         if hasattr(self.ui.widgets.script_edit, "page") and self.ui.widgets.script_edit.page():
@@ -1676,8 +1666,6 @@ class MainWindow(QMainWindow):
         elif self.ui.widgets.script_edit.isModified():
             text += "<unsaved>"
         self.setWindowTitle(text)
-        lsp_name = self.scriptname.name if self.scriptname else None
-        self.ui.widgets.script_edit.setFilename(lsp_name)
 
     @AutoSlot
     def get_script_input(self, params: InputParameters) -> None:
