@@ -21,12 +21,12 @@ JavaScript should be used outside of this module!
 """
 
 import ast
+import hashlib
 import json
 import re
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -35,7 +35,7 @@ from queue import Empty, Queue
 from typing import Any, Literal, cast
 
 import monaco_assets
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from PySide6.QtCore import (
     QEventLoop,
     QObject,
@@ -60,6 +60,7 @@ from matr1x.util import (
 SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
 HIGHLIGHT_INTERVAL_MS = 15
+LINTING_DELAY_MS = 1000
 DUMMY_LSP_FILENAME = "untitled:///user_script.py"
 
 __all__ = ["CodeEditor"]
@@ -93,28 +94,6 @@ class TyDiagnostic(BaseModel):
             "source": self.source,
             "tags": self.tags,
         }
-
-
-class PositionModel(BaseModel):
-    row: int
-    column: int
-
-
-class FixModel(BaseModel):
-    content: str
-    location: PositionModel
-    end_location: PositionModel
-
-
-class RuffMessageModel(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    code: str
-    message: str
-    filename: str
-    location: PositionModel
-    end_location: PositionModel
-    fix: FixModel | None = None
 
 
 class JsonRpcResponse(BaseModel):
@@ -650,228 +629,17 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self._validate_column()
 
 
-class Linter(QObject):
-    """
-    Ruff linting to be used with the Monaco Editor.
-
-    This is the Python backend class for the JavaScript editor.
-    """
-
-    lintingComplete = Signal(str)
-
-    def __init__(self):
-        super().__init__()
-        system_info = get_system_info([])
-        if isinstance(system_info, Error):
-            raise InternalInvariantError("System list should work for an empty list.")
-        self.system_info: SystemInfo = system_info.value
-        self.current_diagnostics_count = 0
-        self.issues: int = 0
-        self.tc_diagnostics: list[dict] = []
-
-    def update_settables(self, system_info: SystemInfo):
-        """
-        Update the SystemInfo object used for value checking.
-
-        Parameters
-        ----------
-        system_info
-            The system information.
-        """
-        self.system_info = system_info
-
-    def update_tc_diagnostics(self, diagnostics: list[dict]) -> None:
-        """Update the type checker diagnostics."""
-        self.tc_diagnostics = diagnostics
-
-    RUFF_RULES = [
-        "F821",
-        "F822",
-        "F823",
-        "ARG003",
-        "F706",
-        "F704",
-        "F702",
-        "F701",
-        "F634",
-        "F631",
-        "F632",
-        "F522",
-        "F523",
-        "F524",
-        "F501",
-        "F502",
-        "F503",
-        "F504",
-    ]
-
-    @AutoSlot
-    def lint_code(self, code: str) -> None:
-        """
-        Lint Python code utilizing Ruff.
-
-        Parameters
-        ----------
-        code: str
-            The Python code to lint.
-        """
-        if code.strip() == "" or len(code.strip().splitlines()) <= 0:
-            return
-        script = generate_script(code)
-        try:
-            diagnostics = self._run_ruff_check(script)
-            value_diagnostics = self._get_value_diagnostics(script)
-            diagnostics.extend(value_diagnostics)
-            diagnostics.extend(self.tc_diagnostics)
-            self.lintingComplete.emit(json.dumps(diagnostics))
-            self.issues = len(diagnostics)
-        except Exception as e:
-            error_diagnostic = self._ruff_error_diagnostic(f"Linting error: {str(e)}", "Linter")
-            self.lintingComplete.emit(json.dumps(error_diagnostic))
-            self.issues = 1
-
-    def returnIssues(self) -> int:
-        """
-        Return the number of ruff and value-check issues.
-
-        Returns
-        -------
-        int
-           The number of issues.
-        """
-        return self.issues
-
-    def _get_value_diagnostics(self, script: str) -> list:
-        """
-        Get Matr1x value checker diagnostics.
-
-        Parameters
-        ----------
-        script: str
-            The generated script to check for value errors.
-        """
-        try:
-            tree = ast.parse(script, filename="script")
-            checker = Matr1xFunctionChecker(self.system_info)
-            checker.set_script(script)
-            checker.visit(tree)
-            return checker.returnDiagnostics()
-        except Exception:
-            return []
-
-    def _ruff_error_diagnostic(self, error: str, source: str) -> list[dict[str, str | int]]:
-        """
-        Format a general error in the required way.
-
-        Parameters
-        ----------
-        error : str
-            The error string to be included.
-        source: str
-            The source of the error.
-
-        Returns
-        -------
-        list[dict[str, str | int]]
-            A dictionary as the only element in a list.
-        """
-        error_diagnostic = [
-            {
-                "severity": 1,
-                "startLineNumber": 1,
-                "startColumn": 1,
-                "endLineNumber": 1,
-                "endColumn": 1,
-                "message": error,
-                "source": source,
-            }
-        ]
-        return error_diagnostic
-
-    def _run_ruff_check(self, code: str) -> list[dict[str, str | int]]:
-        """
-        Utilize Ruff to lint code and convert to Monaco diagnostics.
-
-        Parameters
-        ----------
-        code: str
-            Script to check for errors.
-
-        Returns
-        -------
-            List of diagnostics in Monaco Editor format.
-        """
-        code = code.replace("\r\n", "\n").replace("\r", "\n")
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", newline="") as temp_file:
-            temp_file.write(code)
-            temp_file.flush()
-            cmd_args = [
-                "-m",
-                "ruff",
-                "check",
-                "-e",
-                "--output-format=json",
-                "--select",
-                ",".join(Linter.RUFF_RULES),
-                "--no-cache",
-                temp_file.name,
-            ]
-            result = run_python_cmdline(cmd_args)
-        if isinstance(result, Error):
-            return self._ruff_error_diagnostic(
-                f"Ruff execution error: {result.error}", "os, python"
-            )
-        ruff_issues = json.loads(result.value.stdout)
-        adapter = TypeAdapter(list[RuffMessageModel])
-        try:
-            validated = adapter.validate_python(ruff_issues)
-        except ValidationError:
-            return self._ruff_error_diagnostic(
-                "Ruff validation error: Output format changed!", "pydantic"
-            )
-        return self._convert_ruff_to_monaco_diagnostics(validated)
-
-    def _convert_ruff_to_monaco_diagnostics(
-        self,
-        ruff_issues: list[RuffMessageModel],
-    ) -> list[dict[str, int | str]]:
-        """
-        Convert ruff output to Monaco Editor diagnostics format.
-
-        Parameters
-        ----------
-        ruff_issues: list[RuffMessageModel]
-            List of issues from pydantic validated Ruff output.
-
-        Returns
-        -------
-            List of diagnostics in Monaco Editor dict format.
-        """
-        diagnostics = []
-        for issue in ruff_issues:
-            diagnostic = {
-                "severity": 2,
-                "startLineNumber": issue.location.row - SCRIPT_OFFSET,
-                "startColumn": issue.location.column - COLUMN_OFFSET,
-                "endLineNumber": issue.end_location.row - SCRIPT_OFFSET,
-                "endColumn": issue.end_location.column - COLUMN_OFFSET,
-                "message": issue.message,
-                "source": "ruff",
-                "code": issue.code,
-            }
-            diagnostics.append(diagnostic)
-        return diagnostics
-
-
 class EditorBackend(QObject):
     """
-    Modification tracking to be used with the Monaco editor.
+    Backend bridge to be used with the Monaco editor.
 
     When Qt objects are registered with WebChannel, Qt expects certain
     properties to have notify signals for proper data binding. The
     "CodeEditor" inherits from "QWebEngineView" which has many
     properties without notify signals, causing console noise. Therefore,
     a class inheriting only from "QObject" is a clean solution.
+
+    Things are handled here to keep the JavaScript side minimal.
     """
 
     contentModified = Signal(bool)
@@ -879,10 +647,28 @@ class EditorBackend(QObject):
     completionRequested = Signal(LSPCompletionRequest)
     contentChanged = Signal(str)
     cursorPositionChanged = Signal(int, int)
+    lintingComplete = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._is_modified = False
+        system_info = get_system_info([])
+        if isinstance(system_info, Error):
+            raise InternalInvariantError("System list should work for an empty list.")
+        self._system_info: SystemInfo = system_info.value
+        self._tc_diagnostics: list[dict] = []
+        self._lint_timer = QTimer(self)
+        self._lint_timer.setSingleShot(True)
+        self._lint_timer.setInterval(LINTING_DELAY_MS)
+        self._lint_timer.timeout.connect(self._run_lint)
+        self._current_code: str = ""
+        self._last_linted_hash: bytes = b""
+        self._issues: int = 0
+
+    @property
+    def issues(self) -> int:
+        """Return the number of issues found in the last lint pass."""
+        return self._issues
 
     @AutoSlot
     def content_changed(self, is_modified: bool) -> None:
@@ -897,6 +683,63 @@ class EditorBackend(QObject):
     def setModified(self, modified: bool) -> None:
         """Set the modification state."""
         self._is_modified = modified
+
+    @AutoSlot
+    def code_changed(self, code: str) -> None:
+        """
+        Receive updated code from the JS editor.
+
+        Notifies the LSP server immediately via ``contentChanged`` and
+        resets the 1s lint timer.
+
+        Parameters
+        ----------
+        code : str
+            The current editor content.
+        """
+        self._current_code = code
+        self.contentChanged.emit(code)
+        self._lint_timer.start()
+
+    def _run_lint(self) -> None:
+        """Run a lint pass unless the code is unchanged since the last pass."""
+        code_hash = hashlib.sha1(self._current_code.encode()).digest()
+        if code_hash == self._last_linted_hash:
+            return
+        self._last_linted_hash = code_hash
+        if not self._current_code.strip():
+            self._issues = 0
+            self.lintingComplete.emit(json.dumps([]))
+            return
+        diagnostics = self._lint(self._current_code)
+        self.lintingComplete.emit(json.dumps(diagnostics))
+        self._issues = len(diagnostics)
+
+    def update_system_info(self, system_info: SystemInfo) -> None:
+        """
+        Update the system info used for value checking and re-lint.
+
+        Parameters
+        ----------
+        system_info : SystemInfo
+            The updated system information.
+        """
+        self._system_info = system_info
+        self._last_linted_hash = b""
+        self._run_lint()
+
+    def update_tc_diagnostics(self, diagnostics: list[dict]) -> None:
+        """
+        Update type-checker diagnostics and immediately re-lint.
+
+        Parameters
+        ----------
+        diagnostics : list[dict]
+            Monaco-format diagnostic objects from the type checker.
+        """
+        self._tc_diagnostics = diagnostics
+        self._last_linted_hash = b""
+        self._run_lint()
 
     @AutoSlot
     def handle_hover(self, payload: str) -> None:
@@ -924,14 +767,51 @@ class EditorBackend(QObject):
         self.completionRequested.emit(completion_request)
 
     @AutoSlot
-    def linting_triggered(self, text: str) -> None:
-        """Handle linting trigger notifications from the editor."""
-        self.contentChanged.emit(text)
-
-    @AutoSlot
     def cursor_position_changed(self, line: int, column: int) -> None:
         """Handle cursor position change notifications from the editor."""
         self.cursorPositionChanged.emit(line, column)
+
+    def _lint(self, code: str) -> list[dict[str, str | int]]:
+        """
+        Run linting on Python code and return Monaco-format diagnostics.
+
+        Parameters
+        ----------
+        code : str
+            The user's Python code to lint.
+
+        Returns
+        -------
+        list[dict[str, str | int]]
+            Monaco-format diagnostic objects.
+        """
+        script = generate_script(code)
+        diagnostics: list[dict[str, str | int]] = self._get_value_diagnostics(script)
+        diagnostics.extend(self._tc_diagnostics)
+        return diagnostics
+
+    def _get_value_diagnostics(self, script: str) -> list[dict[str, str | int]]:
+        """
+        Get Matr1x value checker diagnostics.
+
+        Parameters
+        ----------
+        script : str
+            The generated script to check for value errors.
+
+        Returns
+        -------
+        list[dict[str, str | int]]
+            Monaco-format diagnostic objects.
+        """
+        try:
+            tree = ast.parse(script, filename="script")
+            checker = Matr1xFunctionChecker(self._system_info)
+            checker.set_script(script)
+            checker.visit(tree)
+            return checker.returnDiagnostics()
+        except Exception:
+            return []
 
 
 class CodeEditorPage(QWebEnginePage, LoggerMixin):
@@ -1033,9 +913,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         )
         settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
         self.channel = QWebChannel()
-        self.linter = Linter()
         self.backend = EditorBackend(self)
-        self.channel.registerObject("linter", self.linter)
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
         html_path = resources.files("matr1x") / "resources" / "editor.html"
@@ -1267,7 +1145,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
             params = cast(dict, notification.params)
             diagnostics = [TyDiagnostic.model_validate(d) for d in params.get("diagnostics", [])]
             tc_diagnostics = [d.to_monaco() for d in diagnostics]
-            self.linter.update_tc_diagnostics(tc_diagnostics)
+            self.backend.update_tc_diagnostics(tc_diagnostics)
 
     def on_hover_requested(self, hover: LSPHover) -> None:
         """
@@ -1450,8 +1328,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         system_info
             The system information required by the linter.
         """
-        self.linter.update_settables(system_info)
-        self._run_javascript("window.triggerLinting()")
+        self.backend.update_system_info(system_info)
 
     def insertText(self, text: str) -> None:
         """
@@ -1474,4 +1351,4 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         int
             The number of issues.
         """
-        return self.linter.returnIssues()
+        return self.backend.issues

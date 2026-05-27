@@ -3,7 +3,6 @@
 
 // Module state
 let editor;
-let linter;
 let editorBackend;
 let currentDiagnostics = [];
 let isModified = false;
@@ -27,25 +26,21 @@ const resolveMonacoPort = () => {
 const initializeIfReady = () => {
   if (webChannelReady && monacoReady) {
     console.log("QWebChannel and Monaco Editor are ready.");
-
-    // Initial linting
-    triggerLinting();
   }
 };
 
 // Initialize QWebChannel
 const initializeWebChannel = () => {
   new QWebChannel(qt.webChannelTransport, (channel) => {
-    linter = channel.objects.linter;
     editorBackend = channel.objects.editor_backend;
 
-    // Listen for linting results
-    linter.lintingComplete.connect((diagnosticsJson) => {
+    // Listen for linting results from the Python backend
+    editorBackend.lintingComplete.connect((diagnosticsJson) => {
       const diagnostics = JSON.parse(diagnosticsJson);
       updateEditorDiagnostics(diagnostics);
     });
 
-    console.log("QWebChannel initialized, linter and editor backend connected");
+    console.log("QWebChannel initialized, editor backend connected");
     webChannelReady = true;
     initializeIfReady();
   });
@@ -102,7 +97,6 @@ const initializeMonacoEditor = () => {
 
     // Make editor globally available
     window.editor = editor;
-    window.triggerLinting = triggerLinting;
 
     console.log("Monaco Editor initialized");
     monacoReady = true;
@@ -243,24 +237,13 @@ const registerHoverProvider = () => {
   });
 };
 
-// Set up content change handling and automatic linting
-const LINTING_DELAY_MS = 1000;
-
+// Set up content change handling; debouncing is handled in the Python backend.
 const setupContentChangeHandling = () => {
-  let changeTimeout;
   editor.onDidChangeModelContent(() => {
-    // Mark as modified whenever content changes
     setModified(true);
-
-    // Clear previous timeout
-    if (changeTimeout) {
-      clearTimeout(changeTimeout);
+    if (webChannelReady && editorBackend) {
+      editorBackend.code_changed(editor.getValue());
     }
-
-    // Avoid too frequent calls
-    changeTimeout = setTimeout(() => {
-      triggerLinting();
-    }, LINTING_DELAY_MS);
   });
 
   // Track cursor position changes
@@ -269,47 +252,6 @@ const setupContentChangeHandling = () => {
       editorBackend.cursor_position_changed(e.position.lineNumber, e.position.column);
     }
   });
-
-  // Content change handling for linting (completion now handled by Monaco)
-  editor.onDidType((_text) => {
-    if (!webChannelReady || !editorBackend) {
-      return;
-    }
-
-    const code = editor.getValue();
-    editorBackend.content_changed(code);
-  });
-};
-
-// Trigger linting operation
-const triggerLinting = () => {
-  if (!webChannelReady || !monacoReady || !linter || !editor) {
-    console.warn(
-      "System not ready - WebChannel:",
-      webChannelReady,
-      "Monaco:",
-      monacoReady,
-      "Linter:",
-      !!linter,
-      "Editor:",
-      !!editor,
-    );
-    return;
-  }
-
-  const code = editor.getValue();
-  console.debug("Triggering linting for code length:", code.length);
-
-  try {
-    // Notify backend
-    if (editorBackend?.linting_triggered) {
-      editorBackend.linting_triggered(code);
-    }
-
-    linter.lint_code(code);
-  } catch (error) {
-    console.error("Error during linting:", error);
-  }
 };
 
 // Update editor diagnostics with linting results
@@ -345,7 +287,6 @@ window.getLintingResults = () => currentDiagnostics;
 window.setEditorContent = (content) => {
   if (monacoReady && editor) {
     editor.setValue(content);
-    triggerLinting();
   } else {
     console.warn("Editor not ready for content setting.");
   }
