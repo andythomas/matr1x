@@ -15,15 +15,18 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Contains classes shared across matr1x scripts."""
 
+import contextlib
 import importlib.util
 import logging
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict, final, overload
 
 from PySide6.QtCore import (
     QByteArray,
+    QObject,
     QPoint,
     QPropertyAnimation,
     QSettings,
@@ -32,7 +35,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QDropEvent
+from PySide6.QtGui import QAction, QDropEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -43,6 +46,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QMainWindow,
+    QMenu,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -50,12 +55,18 @@ from PySide6.QtWidgets import (
 
 from matr1x import resolved_directory
 from matr1x.error_handling import Error, InternalInvariantError, Success
-from matr1x.gui_util import MApplication, get_matrix_icon, get_system_info
+from matr1x.gui_util import (
+    ConfigEditWidget,
+    MApplication,
+    get_matrix_icon,
+    get_system_info,
+)
 from matr1x.models import SystemInfo
 
 __all__ = [
     "MetaData",
     "MetaDataDialog",
+    "MetadataConfigDockMainWindow",
     "MetadataDockWidget",
     "Notifier",
     "NotifierMessage",
@@ -143,11 +154,42 @@ class SystemListWidget(QListWidget):
         """Initialize the class with sorting enabled."""
         super().__init__()
         self._base_directory: Path = resolved_directory
+        self.add_action = QAction(get_matrix_icon("CHAR_+"), "Add System", self)
+        self.add_action.setToolTip("Add a matrix system file.")
+        self.add_action.triggered.connect(self.query_systems)
+        self.remove_action = QAction(get_matrix_icon("CHAR_-"), "Remove System", self)
+        self.remove_action.setToolTip("Remove the selected or last matrix system file.")
+        self.remove_action.triggered.connect(self.delete_systems)
         system_info = get_system_info([])
         if isinstance(system_info, Error):
             raise InternalInvariantError("System list should work for an empty list.")
         self._cached_system_info: SystemInfo = system_info.value
         self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self.setMinimumHeight(50)
+        self.setMaximumHeight(50)
+        self._sync_action_state()
+
+    def setEnabled(self, enabled: bool) -> None:
+        """Set enabled state and synchronize the list actions."""
+        super().setEnabled(enabled)
+        self._sync_action_state()
+
+    def _sync_action_state(self) -> None:
+        """Synchronize action state with widget state and list content."""
+        enabled = self.isEnabled()
+        self.add_action.setEnabled(enabled)
+        self.remove_action.setEnabled(enabled and self.count() > 0)
+
+    def add_to_toolbar(self, toolbar: Any) -> None:
+        """Add system controls to a toolbar."""
+        toolbar.addAction(self.add_action)
+        toolbar.addWidget(self)
+        toolbar.addAction(self.remove_action)
+
+    def add_actions_to_menu(self, menu: QMenu) -> None:
+        """Add system actions to a menu."""
+        menu.addAction(self.add_action)
+        menu.addAction(self.remove_action)
 
     @property
     def systems(self) -> list[str]:
@@ -170,6 +212,8 @@ class SystemListWidget(QListWidget):
         elif self.count() > 0:
             self.takeItem(self.count() - 1)
             self.systems_changed()
+        else:
+            self._sync_action_state()
 
     def add_systems(self, filenames: list[str]) -> None:
         """Add files but avoid duplicates."""
@@ -202,6 +246,13 @@ class SystemListWidget(QListWidget):
             self._base_directory = Path(filename)
         if added:
             self.systems_changed()
+        else:
+            self._sync_action_state()
+
+    def clear(self) -> None:
+        """Clear the list and synchronize action state."""
+        super().clear()
+        self._sync_action_state()
 
     def systems_changed(self) -> None:
         """Load system info and emit changed signal."""
@@ -212,6 +263,7 @@ class SystemListWidget(QListWidget):
             for warning in system_info.value.warnings:
                 self.message.emit(NotifierMessage(warning, level=logging.WARNING))
         self._cached_system_info = system_info.value
+        self._sync_action_state()
         self.changed.emit()
 
     @property
@@ -285,7 +337,11 @@ class MetadataDockWidget(QDockWidget):
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
-        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
         self.meta_view = MetaDataDialog()
         self.setWidget(self.meta_view)
 
@@ -370,3 +426,188 @@ class SaferQSettings(QSettings):
     def safer_value(self, key: str, defaultValue: Any, type: object):  # noqa: A002
         """Call the original QSettings value method."""
         return super().value(key, defaultValue, type)
+
+
+@contextlib.contextmanager
+def _blocked_signals(*objects: QObject) -> Iterator[None]:
+    """Temporarily block signals for Qt objects."""
+    blocked_objects = [(obj, obj.blockSignals(True)) for obj in objects]
+    try:
+        yield
+    finally:
+        for obj, previous_state in blocked_objects:
+            obj.blockSignals(previous_state)
+
+
+class MetadataConfigDockMainWindow(QMainWindow):
+    """Main window with shared metadata and config dock layout handling."""
+
+    ui: Any
+    layout_settings_group = "MainWindowLayoutV2"
+
+    @staticmethod
+    def create_config_editor() -> ConfigEditWidget:
+        """Create the common device config editor dock."""
+        return ConfigEditWidget()
+
+    @staticmethod
+    def create_device_config_action() -> QAction:
+        """Create the common device config action."""
+        action = QAction(get_matrix_icon("CHAR_≡"), "Device config")
+        action.setToolTip("Show the devices preferences/ configuration.")
+        action.setShortcut(QKeySequence("Ctrl+3"))
+        action.setCheckable(True)
+        return action
+
+    @staticmethod
+    def create_metadata_action() -> QAction:
+        """Create the common metadata visibility action."""
+        action = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata")
+        action.setShortcut(QKeySequence("Ctrl+2"))
+        action.setCheckable(True)
+        action.setChecked(True)
+        return action
+
+    def install_metadata_config_docks(self) -> None:
+        """Install metadata and device config docks."""
+        metadata_dock = self.ui.widgets.dockable_metadata
+        config_dock = self.ui.widgets.config_editor
+        self.setDockOptions(
+            self.dockOptions()
+            | QMainWindow.DockOption.AllowNestedDocks
+            | QMainWindow.DockOption.AllowTabbedDocks
+        )
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, metadata_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, config_dock)
+        self.splitDockWidget(metadata_dock, config_dock, Qt.Orientation.Vertical)
+        config_dock.hide()
+
+    def connect_layout_actions(self) -> None:
+        """Connect the shared layout actions and visibility changes."""
+        self.ui.actions.config.toggled.connect(self.toggle_preferences)
+        self.ui.actions.toggle_metadata.triggered.connect(self.toggle_metadata_view)
+        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
+        self.ui.widgets.config_editor.visibilityChanged.connect(self._sync_layout_actions)
+        self.ui.widgets.dockable_metadata.visibilityChanged.connect(self._sync_layout_actions)
+        self.ui.toolbar.visibilityChanged.connect(self._sync_layout_actions)
+
+    def layout_action_mappings(self) -> list[tuple[QAction, QWidget]]:
+        """
+        Return action and widget pairs synchronized with layout visibility.
+
+        Returns
+        -------
+        list of tuple of QAction and QWidget
+            Actions paired with the widgets whose visibility they control.
+        """
+        return [
+            (self.ui.actions.config, self.ui.widgets.config_editor),
+            (self.ui.actions.toggle_metadata, self.ui.widgets.dockable_metadata),
+            (self.ui.actions.toggle_toolbar, self.ui.toolbar),
+        ]
+
+    def save_layout_state(self, settings: SaferQSettings) -> None:
+        """
+        Save the Qt main-window layout state.
+
+        Parameters
+        ----------
+        settings : SaferQSettings
+            The application settings object.
+        """
+        settings.beginGroup(self.layout_settings_group)
+        settings.setValue("geometry", self.saveGeometry())
+        settings.setValue("window_state", self.saveState())
+        self._save_additional_layout_state(settings)
+        settings.endGroup()
+
+    def restore_layout_state(self, settings: SaferQSettings) -> None:
+        """
+        Restore the Qt main-window layout state.
+
+        Parameters
+        ----------
+        settings : SaferQSettings
+            The application settings object.
+        """
+        self.resize(self.sizeHint())  # Just in case it is the first start.
+        settings.beginGroup(self.layout_settings_group)
+        self.restoreGeometry(settings.safer_value("geometry", QByteArray(), type=QByteArray))
+        actions = [action for action, _widget in self.layout_action_mappings()]
+        with _blocked_signals(*actions):
+            self.restoreState(settings.safer_value("window_state", QByteArray(), type=QByteArray))
+        self._restore_additional_layout_state(settings)
+        settings.endGroup()
+        self._sync_layout_actions()
+
+    def toggle_toolbar_view(self, checked: bool) -> None:
+        """
+        Toggle the visibility of the toolbar.
+
+        Parameters
+        ----------
+        checked: bool
+            Show (True) or hide (False) the toolbar.
+        """
+        if checked:
+            self.ui.toolbar.show()
+        else:
+            self.ui.toolbar.hide()
+
+    def toggle_metadata_view(self, checked: bool) -> None:
+        """
+        Toggle the visibility of the metadata.
+
+        Parameters
+        ----------
+        checked: bool
+            Show (True) or hide (False) the metadata.
+        """
+        metadata = self.ui.widgets.dockable_metadata
+        if checked:
+            metadata.show()
+        else:
+            metadata.hide()
+
+    def toggle_preferences(self, checked: bool) -> None:
+        """
+        Toggle the preferences pane.
+
+        Parameters
+        ----------
+        checked: bool
+            Show (True) or hide (False) the preferences.
+        """
+        config_editor = self.ui.widgets.config_editor
+        if checked:
+            config_editor.show()
+            config_editor.raise_()
+            config_editor.activateWindow()
+        else:
+            config_editor.hide()
+
+    def _sync_layout_actions(self) -> None:
+        """Match view action state to the restored widget visibility."""
+        for action, widget in self.layout_action_mappings():
+            with _blocked_signals(action):
+                action.setChecked(not widget.isHidden())
+
+    def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
+        """
+        Save application-specific layout state.
+
+        Parameters
+        ----------
+        settings : SaferQSettings
+            The application settings object opened in the layout group.
+        """
+
+    def _restore_additional_layout_state(self, settings: SaferQSettings) -> None:
+        """
+        Restore application-specific layout state.
+
+        Parameters
+        ----------
+        settings : SaferQSettings
+            The application settings object opened in the layout group.
+        """

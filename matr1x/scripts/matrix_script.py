@@ -29,10 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
-import shiboken6
 from pydantic import ValidationError
 from PySide6.QtCore import (
-    QByteArray,
     QEvent,
     QPoint,
     QSize,
@@ -62,7 +60,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMainWindow,
     QMenu,
     QMenuBar,
     QMessageBox,
@@ -86,16 +83,15 @@ from matr1x.gui_util import (
     FileDropMixin,
     LoggerMixin,
     LoggingWindow,
+    LogWindowMixin,
     MApplication,
-    blocked_signals,
     check_config,
+    create_matrix_settings_action,
     detect_shortcut,
     find_parent_of_type,
     get_matrix_icon,
-    install_metadata_config_docks,
     open_matrix_toml,
     save_messagebox,
-    sync_visibility_actions,
 )
 from matr1x.models import (
     Datafile,
@@ -116,6 +112,7 @@ from matr1x.post_install import (
 )
 from matr1x.scripts.shared_classes import (
     MetaData,
+    MetadataConfigDockMainWindow,
     MetaDataDialog,
     MetadataDockWidget,
     NotifierMessage,
@@ -130,7 +127,6 @@ script_config = matr1x.config.matr1x.scripts.matrix_script
 
 
 MAX_LINES_STATUS = 10000
-LAYOUT_SETTINGS_GROUP = "MainWindowLayoutV2"
 # to test what a good limiting value is, use the following:
 # ```
 # for i in range(1000):
@@ -980,10 +976,8 @@ class UIBuilder:
             The dataclass with all the widgets.
         """
         dockable_metadata = MetadataDockWidget()
-        config_editor = ConfigEditWidget()
+        config_editor = MetadataConfigDockMainWindow.create_config_editor()
         system_list = SystemListWidget()
-        system_list.setMinimumHeight(50)
-        system_list.setMaximumHeight(50)
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
         script_edit = CodeEditor()
@@ -1041,14 +1035,6 @@ class UIBuilder:
         ActionGroup
             The dataclass with all the actions.
         """
-        matrix_settings = QAction("Show matrix toml")
-        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
-        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
-        about = QAction("About")
-        about.setMenuRole(QAction.MenuRole.AboutRole)
-        config_action = QAction(get_matrix_icon("CHAR_≡"), "Device config")
-        config_action.setToolTip("Show the devices preferences/ configuration.")
-        config_action.setCheckable(True)
         new_file = QAction(get_matrix_icon("SP_FileIcon"), "New")
         new_file.setShortcut(QKeySequence.StandardKey.New)
         load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
@@ -1063,26 +1049,14 @@ class UIBuilder:
         self.widgets.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         self.widgets.save_pulldown.addAction(save_as)
         self.widgets.save_button.setMenu(self.widgets.save_pulldown)
-        add_system = QAction(get_matrix_icon("CHAR_+"), "Add System")
-        add_system.setToolTip("Add a matrix system file.")
-        remove_system = QAction(get_matrix_icon("CHAR_-"), "Remove System")
-        remove_system.setEnabled(False)
-        remove_system.setToolTip("Remove the selected or last matrix system file.")
         quit_app = QAction("Quit")
         if os.name == "nt":
             quit_app.setShortcut(QKeySequence.StandardKey.Close)
         else:
             quit_app.setShortcut(QKeySequence.StandardKey.Quit)
-        undo = self._standard_action("Undo")
-        redo = self._standard_action("Redo")
-        cut = self._standard_action("Cut")
-        copy = self._standard_action("Copy")
-        paste = self._standard_action("Paste")
         caption = "Toggle Line Comment\t" + script_config.shortcuts.line_comment_display
         line_comment = QAction(caption)
         line_comment.setShortcut(QKeySequence(script_config.shortcuts.line_comment_shortcut))
-        zoom_in = self._standard_action("ZoomIn", "Zoom in")
-        zoom_out = self._standard_action("ZoomOut", "Zoom Out")
         print_action = QAction("Print")
         print_action.setShortcut(QKeySequence.StandardKey.Print)
         find = QAction("Find")
@@ -1127,38 +1101,30 @@ class UIBuilder:
         autocomplete = QAction("Tab completion")
         autocomplete.setCheckable(True)
         autocomplete.setChecked(True)
-        show_log = QAction("Show Log Window")
-        toggle_metadata = QAction("Show Metadata")
-        toggle_metadata.setShortcut(QKeySequence("Ctrl+2"))
-        toggle_metadata.setCheckable(True)
-        toggle_metadata.setChecked(True)
         toggle_toolbar = QAction("Show Toolbar")
         toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         toggle_toolbar.setCheckable(True)
         toggle_toolbar.setChecked(True)
-        system_help = QAction("Show System Help")
-        post_install = QAction("Install Desktop Integration")
-        remove_desktop_integration = QAction("Remove Desktop Integration")
 
         return ActionGroup(
-            matrix_settings=matrix_settings,
-            about=about,
-            config=config_action,
+            matrix_settings=create_matrix_settings_action(),
+            about=LogWindowMixin.create_about_action(),
+            config=MetadataConfigDockMainWindow.create_device_config_action(),
             new_file=new_file,
             load=load,
             save=save,
             save_as=save_as,
-            add_system=add_system,
-            remove_system=remove_system,
+            add_system=self.widgets.system_list.add_action,
+            remove_system=self.widgets.system_list.remove_action,
             quit_app=quit_app,
-            undo=undo,
-            redo=redo,
-            cut=cut,
-            copy=copy,
-            paste=paste,
+            undo=self._standard_action("Undo"),
+            redo=self._standard_action("Redo"),
+            cut=self._standard_action("Cut"),
+            copy=self._standard_action("Copy"),
+            paste=self._standard_action("Paste"),
             line_comment=line_comment,
-            zoom_in=zoom_in,
-            zoom_out=zoom_out,
+            zoom_in=self._standard_action("ZoomIn", "Zoom in"),
+            zoom_out=self._standard_action("ZoomOut", "Zoom Out"),
             print=print_action,
             find=find,
             start_pause=start_pause,
@@ -1169,14 +1135,14 @@ class UIBuilder:
             preview=preview,
             pep8=pep8,
             autocomplete=autocomplete,
-            show_log=show_log,
-            toggle_metadata=toggle_metadata,
+            show_log=LogWindowMixin.create_show_log_action(),
+            toggle_metadata=MetadataConfigDockMainWindow.create_metadata_action(),
             toggle_toolbar=toggle_toolbar,
-            system_help=system_help,
+            system_help=QAction("Show System Help"),
             theme_actions=theme_actions,
             theme_group=theme_group,
-            post_install=post_install,
-            remove_desktop_integration=remove_desktop_integration,
+            post_install=LogWindowMixin.create_post_install_action(),
+            remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
     def _create_toolbar(self) -> QToolBar:
@@ -1212,10 +1178,9 @@ class UIBuilder:
         toolbar.addAction(self.actions.preview)
         toolbar.addWidget(empty3)
         toolbar.addSeparator()
-        toolbar.addAction(self.actions.add_system)
-        toolbar.addWidget(self.widgets.system_list)
-        toolbar.addAction(self.actions.remove_system)
+        self.widgets.system_list.add_to_toolbar(toolbar)
         toolbar.addSeparator()
+        toolbar.addAction(self.actions.toggle_metadata)
         toolbar.addAction(self.actions.config)
         return toolbar
 
@@ -1229,8 +1194,7 @@ class UIBuilder:
         file.addAction(self.actions.save)
         file.addAction(self.actions.save_as)
         file.addSeparator()
-        file.addAction(self.actions.add_system)
-        file.addAction(self.actions.remove_system)
+        self.widgets.system_list.add_actions_to_menu(file)
         file.addSeparator()
         file.addAction(self.actions.print)
         file.addSeparator()
@@ -1267,15 +1231,12 @@ class UIBuilder:
         view = menu.addMenu("&View")
         view.addAction(self.actions.toggle_toolbar)
         view.addAction(self.actions.toggle_metadata)
-        view.addAction(self.actions.matrix_settings)
         view.addAction(self.actions.config)
+        view.addSeparator()
+        view.addAction(self.actions.matrix_settings)
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.system_help)
-        help_menu.addAction(self.actions.show_log)
-        help_menu.addSeparator()
-        help_menu.addAction(self.actions.post_install)
-        help_menu.addAction(self.actions.remove_desktop_integration)
-        help_menu.addAction(self.actions.about)  # This is auto-moved on a Mac
+        LogWindowMixin.add_common_help_actions(help_menu, self.actions)
         return menu
 
     def _create_gui(self) -> None:
@@ -1295,7 +1256,7 @@ class UIBuilder:
         layout.addLayout(infobar, 0)
 
 
-class MainWindow(QMainWindow):
+class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
     """
     Run the logical code.
 
@@ -1330,11 +1291,7 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.setValidExtensions([self.extension])
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
-        install_metadata_config_docks(
-            self,
-            self.ui.widgets.dockable_metadata,
-            self.ui.widgets.config_editor,
-        )
+        self.install_metadata_config_docks()
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
@@ -1357,8 +1314,7 @@ class MainWindow(QMainWindow):
         self.ui.actions.load.triggered.connect(self.load_from_file)
         self.ui.actions.save.triggered.connect(self.save_file)
         self.ui.actions.save_as.triggered.connect(self.save_file_as)
-        self.ui.actions.add_system.triggered.connect(self.ui.widgets.system_list.query_systems)
-        self.ui.actions.remove_system.triggered.connect(self.ui.widgets.system_list.delete_systems)
+        self.ui.widgets.system_list.changed.connect(self.update_systems)
         self.ui.actions.print.triggered.connect(self.print_document)
         self.ui.actions.quit_app.triggered.connect(self.close)
         self.ui.actions.find.triggered.connect(self.ui.widgets.script_edit.show_find)
@@ -1375,19 +1331,17 @@ class MainWindow(QMainWindow):
         self.ui.actions.finish.triggered.connect(lambda: self.abort_thread("f"))
         self.ui.actions.kill.triggered.connect(self.kill_thread)
         self.ui.actions.preview.triggered.connect(self.preview_data)
-        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
-        self.ui.actions.toggle_metadata.triggered.connect(self.toggle_metadata_view)
-        self.ui.actions.config.toggled.connect(self.toggle_preferences)
+        self.connect_layout_actions()
         self.ui.actions.system_help.triggered.connect(self.show_system_commands)
-        self.ui.actions.show_log.triggered.connect(self.show_log_window)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
-        self.ui.widgets.config_editor.visibilityChanged.connect(self._sync_layout_actions)
-        self.ui.widgets.dockable_metadata.visibilityChanged.connect(self._sync_layout_actions)
-        self.ui.toolbar.visibilityChanged.connect(self._sync_layout_actions)
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
+        )
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
         self.ui.widgets.script_edit.contentModified.connect(self.update_window_title)
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
-        self.ui.widgets.system_list.changed.connect(self.update_systems)
         self.ui.widgets.system_list.message.connect(self.show_message)
         self.ui.widgets.system_list.changed.connect(
             lambda: self.ui.widgets.script_edit.setModified(True)
@@ -1428,11 +1382,7 @@ class MainWindow(QMainWindow):
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
         self.settings.setValue("created", 1)
-        self.settings.beginGroup(LAYOUT_SETTINGS_GROUP)
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("window_state", self.saveState())
-        self.settings.setValue("splitter", self.ui.widgets.splitter.sizes())
-        self.settings.endGroup()
+        self.save_layout_state(self.settings)
 
         self.settings.beginGroup("script_edit")
         self.settings.setValue("monaco_zoom", self.ui.widgets.script_edit.zoomFactor())
@@ -1440,9 +1390,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("autocomplete", self.ui.actions.autocomplete.isChecked())
         self.settings.endGroup()
 
-        if shiboken6.isValid(self.log_window):
-            self.settings.setValue("log_window/position", self.log_window.pos())
-            self.settings.setValue("log_window/size", self.log_window.size())
+        self.save_log_window_state(self.settings)
 
         # Only save help dialog size and position if it has been shown at least once
         if hasattr(self, "_help_dialog_shown") and self._help_dialog_shown:
@@ -1451,21 +1399,15 @@ class MainWindow(QMainWindow):
             self.settings.setValue("position", self.ui.widgets.system_command_help.pos())
             self.settings.endGroup()
 
-    def _sync_layout_actions(self) -> None:
-        """Match view action state to the restored widget visibility."""
-        sync_visibility_actions(
-            [
-                (self.ui.actions.config, self.ui.widgets.config_editor),
-                (self.ui.actions.toggle_metadata, self.ui.widgets.dockable_metadata),
-                (self.ui.actions.toggle_toolbar, self.ui.toolbar),
-            ]
-        )
+    def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
+        """Save matrix-script specific layout state."""
+        settings.setValue("splitter", self.ui.widgets.splitter.sizes())
 
-    def _restored_splitter_sizes(self) -> list[int] | None:
+    def _restored_splitter_sizes(self, settings: SaferQSettings) -> list[int] | None:
         """Return saved splitter sizes unless a pane would be collapsed."""
-        if not self.settings.contains("splitter"):
+        if not settings.contains("splitter"):
             return None
-        sizes = self.settings.safer_value("splitter", [], type=list)
+        sizes = settings.safer_value("splitter", [], type=list)
         if len(sizes) != self.ui.widgets.splitter.count():
             return None
         try:
@@ -1476,24 +1418,15 @@ class MainWindow(QMainWindow):
             return None
         return restored_sizes
 
-    def restore_window_state(self) -> None:
-        """Restore app configuration from the previous use."""
-        self.resize(self.sizeHint())  # Just in case it is the first start
-        self.settings.beginGroup(LAYOUT_SETTINGS_GROUP)
-        self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
-        with blocked_signals(
-            self.ui.actions.config,
-            self.ui.actions.toggle_metadata,
-            self.ui.actions.toggle_toolbar,
-        ):
-            self.restoreState(
-                self.settings.safer_value("window_state", QByteArray(), type=QByteArray)
-            )
-        splitter_sizes = self._restored_splitter_sizes()
+    def _restore_additional_layout_state(self, settings: SaferQSettings) -> None:
+        """Restore matrix-script specific layout state."""
+        splitter_sizes = self._restored_splitter_sizes(settings)
         if splitter_sizes is not None:
             self.ui.widgets.splitter.setSizes(splitter_sizes)
-        self.settings.endGroup()
-        self._sync_layout_actions()
+
+    def restore_window_state(self) -> None:
+        """Restore app configuration from the previous use."""
+        self.restore_layout_state(self.settings)
 
         # Check if there is a settings file. This improves the robustness
         # against strange side effect, caused by the default values.
@@ -1511,14 +1444,7 @@ class MainWindow(QMainWindow):
                 self.settings.safer_value("autocomplete", True, type=bool)
             )
             self.settings.endGroup()
-            self.log_window.move(
-                self.settings.safer_value(
-                    "log_window/position", self.log_window.pos(), type=QPoint
-                )
-            )
-            self.log_window.resize(
-                self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
-            )
+            self.restore_log_window_state(self.settings)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """
@@ -1574,9 +1500,7 @@ class MainWindow(QMainWindow):
             self.ui.widgets.script_edit.page().loadFinished.disconnect()
             self.ui.widgets.script_edit.page().deleteLater()
         self.ui.widgets.script_edit.deleteLater()
-        root_logger = logging.getLogger()
-        root_logger.removeHandler(self.log_window.log_handler)
-        self.log_window.deleteLater()
+        self.cleanup_log_window()
         self.ui.widgets.system_command_help.close()
         event.accept()
 
@@ -1590,34 +1514,6 @@ class MainWindow(QMainWindow):
         )
         box.exec()
 
-    def toggle_toolbar_view(self, checked: bool) -> None:
-        """
-        Toggle the visibility of the toolbar.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the toolbar.
-        """
-        if checked:
-            self.ui.toolbar.show()
-        else:
-            self.ui.toolbar.hide()
-
-    def toggle_metadata_view(self, checked: bool) -> None:
-        """
-        Toggle the visibility of the metadata.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the metadata.
-        """
-        if checked:
-            self.ui.widgets.dockable_metadata.show()
-        else:
-            self.ui.widgets.dockable_metadata.hide()
-
     def preview_data(self) -> None:
         """Launch matrix-preview with current measurement file."""
         preview = [
@@ -1627,28 +1523,6 @@ class MainWindow(QMainWindow):
             f"matrix_preview.main(file=r'{self.measurement_file}')",
         ]
         subprocess.Popen(preview)
-
-    def toggle_preferences(self, checked: bool) -> None:
-        """
-        Open the preferences pane.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the preferences.
-        """
-        if checked:
-            self.ui.widgets.config_editor.show()
-            self.ui.widgets.config_editor.raise_()
-            self.ui.widgets.config_editor.activateWindow()
-        else:
-            self.ui.widgets.config_editor.hide()
-
-    def show_log_window(self) -> None:
-        """Show the logging window."""
-        self.log_window.show()
-        self.log_window.raise_()
-        self.log_window.activateWindow()
 
     def _load_file_from_signal(self, filename: str) -> None:
         """Convert string to Path for opening file."""
@@ -1940,8 +1814,7 @@ class MainWindow(QMainWindow):
         self.ui.actions.new_file.setEnabled(not flag)
         self.ui.actions.load.setEnabled(not flag)
         self.ui.actions.system_help.setEnabled(not flag)
-        self.ui.actions.add_system.setEnabled(not flag)
-        self.ui.actions.remove_system.setEnabled(not flag)
+        self.ui.widgets.system_list.setEnabled(not flag)
         self.ui.widgets.meta_view.setEnabled(not flag)
 
     def process_finished(self) -> None:
@@ -2013,8 +1886,6 @@ class MainWindow(QMainWindow):
         update_config: bool
             Whether to update the config editor.
         """
-        if len(self.ui.widgets.system_list.systems) > 0:
-            self.ui.actions.remove_system.setEnabled(True)
         # only systems that are part of matrix or ifwlib can be configured via files
         configurable = [
             system for system in self.ui.widgets.system_list.systems if not Path(system).exists()
@@ -2221,8 +2092,6 @@ class MainWindow(QMainWindow):
         self.ui.widgets.script_edit.setModified(False)
         self.last_filename = filename
         self.update_window_title()
-        if self.ui.widgets.system_list.count() > 0:
-            self.ui.actions.remove_system.setEnabled(True)
 
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""

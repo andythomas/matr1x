@@ -23,11 +23,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import shiboken6
 import tomli_w
 from pydantic import ValidationError
 from PySide6.QtCore import (
-    QByteArray,
     QDateTime,
     QPoint,
     QSize,
@@ -41,7 +39,6 @@ from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
-    QDockWidget,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -67,16 +64,15 @@ from matr1x.gui_util import (
     ConfigEditWidget,
     FileDropMixin,
     LoggingWindow,
+    LogWindowMixin,
     MApplication,
     ReadOnlyTable,
-    blocked_signals,
     check_config,
+    create_matrix_settings_action,
     detect_shortcut,
     get_matrix_icon,
     get_system_info,
-    install_metadata_config_docks,
     open_matrix_toml,
-    sync_visibility_actions,
 )
 from matr1x.models import (
     Datafile,
@@ -95,12 +91,16 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.scripts import sweep_generator
-from matr1x.scripts.shared_classes import MetaDataDialog, MetadataDockWidget, SaferQSettings
+from matr1x.scripts.shared_classes import (
+    MetadataConfigDockMainWindow,
+    MetaDataDialog,
+    MetadataDockWidget,
+    SaferQSettings,
+)
 from matr1x.system import MergedSystem
 from matr1x.util import get_matrix_binary, open_and_error
 
 logger = logging.getLogger(Path(__file__).name)
-LAYOUT_SETTINGS_GROUP = "MainWindowLayoutV2"
 
 if sys.platform == "win32":
     try:
@@ -413,6 +413,7 @@ class ActionGroup:
     abort: QAction
     finish: QAction
     kill: QAction
+    toggle_metadata: QAction
     toggle_toolbar: QAction
     show_log: QAction
     load: QAction
@@ -451,11 +452,7 @@ class UIBuilder:
     def _create_widgets(self) -> WidgetGroup:
         """Create all UI widgets of this application."""
         meas_list = QueueListWidget()
-        config_editor = ConfigEditWidget()
-        config_editor.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
+        config_editor = MetadataConfigDockMainWindow.create_config_editor()
         input_file = LabelWithSignal()
         current_file = QLabel()
         dockable_metadata = MetadataDockWidget()
@@ -528,14 +525,6 @@ class UIBuilder:
             get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview"
         )
         preview.setEnabled(False)
-        matrix_settings = QAction("Show matrix toml")
-        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
-        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
-        matrix_settings.triggered.connect(open_matrix_toml)
-        about = QAction("About")
-        about.setMenuRole(QAction.MenuRole.AboutRole)
-        config = QAction(get_matrix_icon("CHAR_≡"), "Device config")
-        config.setCheckable(True)
         sweep = QAction(
             get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")), "Generator"
         )
@@ -557,15 +546,11 @@ class UIBuilder:
         toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         toggle_toolbar.setCheckable(True)
         toggle_toolbar.setChecked(True)
-        show_log = QAction("Show Log Window")
-        show_log.setCheckable(True)
-        post_install = QAction("Install Desktop Integration")
-        remove_desktop_integration = QAction("Remove Desktop Integration")
         return ActionGroup(
             preview=preview,
-            matrix_settings=matrix_settings,
-            about=about,
-            config=config,
+            matrix_settings=create_matrix_settings_action(),
+            about=LogWindowMixin.create_about_action(),
+            config=MetadataConfigDockMainWindow.create_device_config_action(),
             sweep=sweep,
             queue=queue,
             start=start,
@@ -573,12 +558,13 @@ class UIBuilder:
             abort=abort,
             finish=finish,
             kill=kill,
+            toggle_metadata=MetadataConfigDockMainWindow.create_metadata_action(),
             toggle_toolbar=toggle_toolbar,
-            show_log=show_log,
+            show_log=LogWindowMixin.create_show_log_action(),
             load=load,
             quit=quit_app,
-            post_install=post_install,
-            remove_desktop_integration=remove_desktop_integration,
+            post_install=LogWindowMixin.create_post_install_action(),
+            remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
     def _create_toolbar(self) -> QToolBar:
@@ -603,12 +589,12 @@ class UIBuilder:
         toolbar.addAction(self.actions.pause)
         toolbar.addAction(self.actions.abort)
         toolbar.addAction(self.actions.finish)
-        toolbar.visibilityChanged.connect(self.actions.toggle_toolbar.setChecked)
         toolbar.addWidget(empty2)
         toolbar.addAction(self.actions.preview)
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         toolbar.addWidget(spacer)
+        toolbar.addAction(self.actions.toggle_metadata)
         toolbar.addAction(self.actions.config)
         return toolbar
 
@@ -631,18 +617,16 @@ class UIBuilder:
         control_menu.addAction(self.actions.preview)
         view_menu = menubar.addMenu("&View")
         view_menu.addAction(self.actions.toggle_toolbar)
-        view_menu.addAction(self.actions.matrix_settings)
+        view_menu.addAction(self.actions.toggle_metadata)
         view_menu.addAction(self.actions.config)
+        view_menu.addSeparator()
+        view_menu.addAction(self.actions.matrix_settings)
         help_menu = menubar.addMenu("&Help")
-        help_menu.addAction(self.actions.about)
-        help_menu.addAction(self.actions.show_log)
-        help_menu.addSeparator()
-        help_menu.addAction(self.actions.post_install)
-        help_menu.addAction(self.actions.remove_desktop_integration)
+        LogWindowMixin.add_common_help_actions(help_menu, self.actions)
         return menubar
 
 
-class MainWindow(FileDropMixin, QMainWindow):
+class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
     """Runs the logical code."""
 
     def __init__(self) -> None:
@@ -656,11 +640,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui = UIBuilder()
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
-        install_metadata_config_docks(
-            self,
-            self.ui.widgets.dockable_metadata,
-            self.ui.widgets.config_editor,
-        )
+        self.install_metadata_config_docks()
         self.setCentralWidget(self.ui.widgets.central_widget)
         check_config(matr1x.config)
         self.sg: QMainWindow | None = None
@@ -677,19 +657,20 @@ class MainWindow(FileDropMixin, QMainWindow):
         """Connect actions and widgets with application logic."""
         self.ui.actions.preview.triggered.connect(self.open_preview)
         self.ui.actions.about.triggered.connect(self.info_box)
-        self.ui.actions.config.toggled.connect(self.toggle_preferences)
-        self.ui.widgets.config_editor.visibilityChanged.connect(self._sync_layout_actions)
+        self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
+        self.connect_layout_actions()
         self.ui.actions.sweep.triggered.connect(self.start_sweep_generator)
         self.ui.actions.queue.triggered.connect(self.queue_measurement)
         self.ui.actions.start.triggered.connect(self.run_matrix)
-        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
-        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
-        self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
-        self._on_log_window_visibility_changed(self.log_window.isVisible())
-        self.ui.actions.load.triggered.connect(self.show_input_dialog)
-        self.ui.actions.quit.triggered.connect(self.close)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
+        )
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
+        self.ui.actions.load.triggered.connect(self.show_input_dialog)
+        self.ui.actions.quit.triggered.connect(self.close)
         self.ui.widgets.input_file.textChanged.connect(self.parse_system_from_inputfile)
         self.measurement_thread.filename_received.connect(self.process_filename)
         self.measurement_thread.telemetry_received.connect(self.process_telemetry)
@@ -806,9 +787,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         while self.ui.widgets.meas_list.count() > 0:
             self.ui.widgets.meas_list.remove_measurement()
         self.save_window_state()
-        root_logger = logging.getLogger()
-        root_logger.removeHandler(self.log_window.log_handler)
-        self.log_window.deleteLater()
+        self.cleanup_log_window()
         a0.accept()
 
     def info_box(self) -> None:
@@ -820,91 +799,15 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
-        self.settings.beginGroup(LAYOUT_SETTINGS_GROUP)
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("window_state", self.saveState())
-        self.settings.endGroup()
+        self.save_layout_state(self.settings)
 
-        if shiboken6.isValid(self.log_window):
-            self.settings.setValue("log_window/position", self.log_window.pos())
-            self.settings.setValue("log_window/size", self.log_window.size())
-
-    def _sync_layout_actions(self) -> None:
-        """Match view action state to the restored widget visibility."""
-        sync_visibility_actions(
-            [
-                (self.ui.actions.config, self.ui.widgets.config_editor),
-                (self.ui.actions.toggle_toolbar, self.ui.toolbar),
-            ]
-        )
+        self.save_log_window_state(self.settings)
 
     def restore_window_state(self) -> None:
         """Restore application configuration from the previous use."""
-        # Just in case it is the first start
-        self.resize(self.sizeHint())
-        self.settings.beginGroup(LAYOUT_SETTINGS_GROUP)
-        self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
-        with blocked_signals(
-            self.ui.actions.config,
-            self.ui.actions.toggle_toolbar,
-        ):
-            self.restoreState(
-                self.settings.safer_value("window_state", QByteArray(), type=QByteArray)
-            )
-        self.settings.endGroup()
-        self._sync_layout_actions()
+        self.restore_layout_state(self.settings)
 
-        self.log_window.move(
-            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
-        )
-        self.log_window.resize(
-            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
-        )
-
-    def toggle_log_window(self) -> None:
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-
-    def _on_log_window_visibility_changed(self, visible: bool) -> None:
-        """Keep 'Show Log Window' action label/checked state in sync."""
-        action = self.ui.actions.show_log
-        action.setChecked(visible)
-        action.setText("Hide Log Window" if visible else "Show Log Window")
-
-    def toggle_preferences(self, checked: bool) -> None:
-        """
-        Toggle the preferences pane.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the preferences.
-        """
-        if checked:
-            self.ui.widgets.config_editor.show()
-            self.ui.widgets.config_editor.raise_()
-            self.ui.widgets.config_editor.activateWindow()
-        else:
-            self.ui.widgets.config_editor.hide()
-
-    def toggle_toolbar_view(self, checked: bool) -> None:
-        """
-        Toogles the visibility of the toolbar.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the toolbar.
-        """
-        if checked:
-            self.ui.toolbar.show()
-        else:
-            self.ui.toolbar.hide()
+        self.restore_log_window_state(self.settings)
 
     def show_input_dialog(self) -> None:
         """Open a QFileDialog with filter for input files."""

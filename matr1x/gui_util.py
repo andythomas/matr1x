@@ -26,7 +26,6 @@ script and control-guis.
 
 from __future__ import annotations
 
-import contextlib
 import datetime
 import inspect
 import logging
@@ -43,9 +42,11 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from types import ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Literal,
     ParamSpec,
+    Protocol,
     TypeVar,
     Union,
     cast,
@@ -63,10 +64,12 @@ import numpy as np
 import pygit2
 import pyqtgraph
 import PySide6
+import shiboken6
 from pydantic import BaseModel, ValidationError
 from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
     QAbstractItemModel,
+    QByteArray,
     QEvent,
     QLibraryInfo,
     QLocale,
@@ -120,6 +123,7 @@ from PySide6.QtWidgets import (
     QLayout,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -145,68 +149,12 @@ from . import merge_dicts, reload_config, write_config
 from .eval import delta
 from .util import resolve_config_path
 
+if TYPE_CHECKING:
+    from matr1x.scripts.shared_classes import SaferQSettings
+
+
 P = ParamSpec("P")
 R = TypeVar("R")
-
-
-@contextlib.contextmanager
-def blocked_signals(*objects: QObject):
-    """
-    Temporarily block signals for Qt objects.
-
-    Parameters
-    ----------
-    objects : QObject
-        The objects whose signals should be blocked.
-    """
-    blocked_objects = [(obj, obj.blockSignals(True)) for obj in objects]
-    try:
-        yield
-    finally:
-        for obj, previous_state in blocked_objects:
-            obj.blockSignals(previous_state)
-
-
-def sync_visibility_actions(mappings: list[tuple[QAction, QWidget]]) -> None:
-    """
-    Synchronize checked actions with explicit widget visibility.
-
-    Parameters
-    ----------
-    mappings : list of tuple of QAction and QWidget
-        Action and widget pairs to synchronize.
-    """
-    for action, widget in mappings:
-        with blocked_signals(action):
-            action.setChecked(not widget.isHidden())
-
-
-def install_metadata_config_docks(
-    window: QMainWindow,
-    metadata_dock: QDockWidget,
-    config_dock: QDockWidget,
-) -> None:
-    """
-    Install metadata and device config docks in a main window.
-
-    Parameters
-    ----------
-    window : QMainWindow
-        The window that owns the docks.
-    metadata_dock : QDockWidget
-        The metadata dock widget.
-    config_dock : QDockWidget
-        The device config dock widget.
-    """
-    window.setDockOptions(
-        window.dockOptions()
-        | QMainWindow.DockOption.AllowNestedDocks
-        | QMainWindow.DockOption.AllowTabbedDocks
-    )
-    window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, metadata_dock)
-    window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, config_dock)
-    window.splitDockWidget(metadata_dock, config_dock, Qt.Orientation.Vertical)
-    config_dock.hide()
 
 
 logger = logging.getLogger(__name__)
@@ -3657,6 +3605,14 @@ def check_config(config: BaseModel) -> None:
         QMessageBox.critical(None, "Validation error!", html)
 
 
+def create_matrix_settings_action() -> QAction:
+    """Create the common matr1x.toml action."""
+    action = QAction("Open matr1x.toml")
+    action.setMenuRole(QAction.MenuRole.PreferencesRole)
+    action.setShortcut(QKeySequence.StandardKey.Preferences)
+    return action
+
+
 def open_matrix_toml() -> None:
     """Open a file browser with the matrix toml selected."""
     toml_home = Path.home() / ".matr1x.toml"
@@ -3951,6 +3907,131 @@ class LoggingWindow(QMainWindow):
         """Clear the table."""
         self.log_table.clearContents()
         self.log_table.setRowCount(0)
+
+
+class hasLogActions(Protocol):
+    """The actions needed by the LogWindowMixin."""
+
+    show_log: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
+    about: QAction
+
+
+class LogWindowMixin:
+    """Shared log-window action handling for GUI scripts."""
+
+    log_window: LoggingWindow
+
+    @staticmethod
+    def create_show_log_action() -> QAction:
+        """Create the common log-window action."""
+        show_log = QAction("Show Log Window")
+        show_log.setCheckable(True)
+        return show_log
+
+    @staticmethod
+    def create_about_action() -> QAction:
+        """Create the common about action."""
+        about = QAction("About")
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+        return about
+
+    @staticmethod
+    def create_post_install_action() -> QAction:
+        """Create the common desktop integration installation action."""
+        return QAction("Install Desktop Integration")
+
+    @staticmethod
+    def create_remove_desktop_integration_action() -> QAction:
+        """Create the common desktop integration removal action."""
+        return QAction("Remove Desktop Integration")
+
+    @classmethod
+    def add_common_help_actions(cls, menu: QMenu, actions: hasLogActions) -> None:
+        """
+        Add common help menu actions.
+
+        Parameters
+        ----------
+        menu : QMenu
+            The help menu to populate.
+        actions : hasLogActions
+            Object exposing about, show_log, post_install and
+            remove_desktop_integration actions.
+        """
+        menu.addAction(actions.show_log)
+        menu.addSeparator()
+        menu.addAction(actions.post_install)
+        menu.addAction(actions.remove_desktop_integration)
+        menu.addSeparator()
+        menu.addAction(actions.about)
+
+    def save_log_window_state(self, settings: SaferQSettings, *, enabled: bool = True) -> None:
+        """
+        Save the log window geometry.
+
+        Parameters
+        ----------
+        settings : SaferQSettings
+            The application settings object.
+        enabled : bool
+            Whether this window owns the log window state.
+        """
+        if not enabled:
+            return
+        if not shiboken6.isValid(self.log_window):
+            return
+        settings.setValue("log_window/geometry", self.log_window.saveGeometry())
+
+    def restore_log_window_state(self, settings: SaferQSettings, *, enabled: bool = True) -> None:
+        """
+        Restore the log window geometry.
+
+        Parameters
+        ----------
+        settings : SaferQSettings
+            The application settings object.
+        enabled : bool
+            Whether this window owns the log window state.
+        """
+        if not enabled:
+            return
+        if not shiboken6.isValid(self.log_window):
+            return
+        self.log_window.restoreGeometry(
+            settings.safer_value("log_window/geometry", QByteArray(), type=QByteArray)
+        )
+
+    def cleanup_log_window(self, *, enabled: bool = True) -> None:
+        """
+        Remove the log handler and delete the log window.
+
+        Parameters
+        ----------
+        enabled : bool
+            Whether this window owns the log window.
+        """
+        if not enabled:
+            return
+        root_logger = logging.getLogger()
+        root_logger.removeHandler(self.log_window.log_handler)
+        self.log_window.deleteLater()
+
+    def toggle_log_window(self) -> None:
+        """Toggle the visibility of the logging window."""
+        if self.log_window.isVisible():
+            self.log_window.hide()
+        else:
+            self.log_window.show()
+            self.log_window.raise_()
+            self.log_window.activateWindow()
+
+    def _on_log_window_visibility_changed(self, visible: bool, actions: hasLogActions) -> None:
+        """Keep the 'Show Log Window' action state in sync."""
+        action = actions.show_log
+        action.setChecked(visible)
+        action.setText("Hide Log Window" if visible else "Show Log Window")
 
 
 def AutoSlot(function: Callable[P, R]) -> Callable[P, R]:

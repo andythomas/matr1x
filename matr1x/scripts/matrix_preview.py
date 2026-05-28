@@ -62,11 +62,13 @@ from matr1x.gui_util import (
     AboutBox,
     FileDropMixin,
     LoggingWindow,
+    LogWindowMixin,
     MApplication,
     MetaViewerWidget,
     SimplePlotWidget,
     check_config,
     clear_layout,
+    create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
 )
@@ -192,11 +194,6 @@ class UIBuilder:
             quit_app.setShortcut(QKeySequence.StandardKey.Close)
         else:
             quit_app.setShortcut(QKeySequence.StandardKey.Quit)
-        matrix_settings = QAction("Show matrix toml")
-        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
-        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
-        about = QAction("About")
-        about.setMenuRole(QAction.MenuRole.AboutRole)
         toggle_toolbar = QAction("Show Toolbar")
         toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         toggle_toolbar.setCheckable(True)
@@ -205,10 +202,6 @@ class UIBuilder:
         meta.setShortcut(QKeySequence("Ctrl+2"))
         meta.setEnabled(False)
         meta.setCheckable(True)
-        show_log = QAction("Show Log Window")
-        show_log.setCheckable(True)
-        post_install = QAction("Run post installation")
-        remove_desktop_integration = QAction("Remove desktop integration")
         return ActionGroup(
             new=new,
             load=load,
@@ -219,13 +212,13 @@ class UIBuilder:
             auto_update=auto_update,
             update=update,
             quit=quit_app,
-            matrix_settings=matrix_settings,
-            about=about,
+            matrix_settings=create_matrix_settings_action(),
+            about=LogWindowMixin.create_about_action(),
             toggle_toolbar=toggle_toolbar,
             meta=meta,
-            show_log=show_log,
-            post_install=post_install,
-            remove_desktop_integration=remove_desktop_integration,
+            show_log=LogWindowMixin.create_show_log_action(),
+            post_install=LogWindowMixin.create_post_install_action(),
+            remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
     def _create_toolbar(self) -> QToolBar:
@@ -283,17 +276,14 @@ class UIBuilder:
         view_menu = menu.addMenu("&View")
         view_menu.addAction(self.actions.toggle_toolbar)
         view_menu.addAction(self.actions.meta)
+        view_menu.addSeparator()
         view_menu.addAction(self.actions.matrix_settings)
         help_menu = menu.addMenu("&Help")
-        help_menu.addAction(self.actions.about)
-        help_menu.addAction(self.actions.show_log)
-        help_menu.addSeparator()
-        help_menu.addAction(self.actions.post_install)
-        help_menu.addAction(self.actions.remove_desktop_integration)
+        LogWindowMixin.add_common_help_actions(help_menu, self.actions)
         return menu
 
 
-class SweepPreview(FileDropMixin, QMainWindow):
+class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
     """
     Data viewer for matrix files.
 
@@ -443,9 +433,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
             if self.update_thread is not None:
                 self.update_thread.terminate()
             self.save_window_state()
-            root_logger = logging.getLogger()
-            root_logger.removeHandler(self.log_window.log_handler)
-            self.log_window.deleteLater()
+            self.cleanup_log_window()
             a0.accept()
         else:
             a0.ignore()
@@ -463,8 +451,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.settings.setValue("meta_floating", self.meta_viewer.isFloating())
         self.settings.setValue("meta_position", self.meta_viewer.pos())
         self.settings.setValue("meta_size", self.meta_viewer.size())
-        self.settings.setValue("log_window/position", self.log_window.pos())
-        self.settings.setValue("log_window/size", self.log_window.size())
+        self.save_log_window_state(self.settings)
 
     def restore_window_state(self) -> None:
         """
@@ -479,12 +466,7 @@ class SweepPreview(FileDropMixin, QMainWindow):
         # Just in case it is the first start
         self.resize(self.sizeHint())
         self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
-        self.log_window.move(
-            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
-        )
-        self.log_window.resize(
-            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
-        )
+        self.restore_log_window_state(self.settings)
 
     def info_box(self):
         """Display an 'about this app' widget."""
@@ -512,19 +494,6 @@ class SweepPreview(FileDropMixin, QMainWindow):
             self.ui.toolbar.show()
         else:
             self.ui.toolbar.hide()
-
-    def toggle_log_window(self):
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-            self.ui.actions.show_log.setChecked(False)
-            self.ui.actions.show_log.setText("Show Log Window")
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-            self.ui.actions.show_log.setChecked(True)
-            self.ui.actions.show_log.setText("Hide Log Window")
 
     def init_basic_ui(self):
         """Initialize basic GUI that works without chosen filename."""
@@ -562,9 +531,13 @@ class SweepPreview(FileDropMixin, QMainWindow):
         self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.meta.triggered.connect(self.toggle_meta)
-        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
+        )
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
 
     def setup_meta_viewer(self) -> None:
         """Configure the metadata view dock widget."""

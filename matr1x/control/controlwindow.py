@@ -64,6 +64,7 @@ from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import (
     AutoSlot,
     LoggingWindow,
+    LogWindowMixin,
     MApplication,
     check_config,
     get_matrix_icon,
@@ -94,6 +95,9 @@ class ActionGroup:
     select_recorder: QAction
     config_recorder: QAction
     toggle_recorder: QAction
+    about: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
 
 
 @dataclass(frozen=True)
@@ -178,8 +182,7 @@ class UIBuilder:
         show_toml = QAction("Show matrix toml")
         show_toml.setMenuRole(QAction.MenuRole.PreferencesRole)
         show_toml.setShortcut(QKeySequence.StandardKey.Preferences)
-        show_log = QAction("Show Log Window")
-        show_log.setCheckable(True)
+        show_log = LogWindowMixin.create_show_log_action()
         quit_app = QAction("Quit")
         if os.name == "nt":
             quit_app.setShortcut(QKeySequence.StandardKey.Close)
@@ -191,6 +194,9 @@ class UIBuilder:
         config_recorder.setCheckable(True)
         toggle_recorder = QAction("Start data recorder")
         toggle_recorder.setCheckable(True)
+        about = LogWindowMixin.create_about_action()
+        post_install = LogWindowMixin.create_post_install_action()
+        remove_desktop_integration = LogWindowMixin.create_remove_desktop_integration_action()
         return ActionGroup(
             enable_all=enable_all,
             disable_all=disable_all,
@@ -204,6 +210,9 @@ class UIBuilder:
             select_recorder=select_recorder,
             config_recorder=config_recorder,
             toggle_recorder=toggle_recorder,
+            about=about,
+            post_install=post_install,
+            remove_desktop_integration=remove_desktop_integration,
         )
 
     def _create_menus(self) -> MenuGroup:
@@ -350,7 +359,7 @@ class FullInfoAction(QAction):
         self._update_icon(a0)
 
 
-class ControlWindow(QMainWindow):
+class ControlWindow(LogWindowMixin, QMainWindow):
     """
     Base class for control GUIs.
 
@@ -575,13 +584,7 @@ class ControlWindow(QMainWindow):
         self.restoreState(
             self.settings.safer_value("windowState", self.saveState(), type=QByteArray)
         )
-        # restore log window geometry
-        self.log_window.move(
-            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
-        )
-        self.log_window.resize(
-            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
-        )
+        self.restore_log_window_state(self.settings)
 
     def _restore_view_settings(self):
         """Restore view-related settings after menu has been created."""
@@ -599,6 +602,10 @@ class ControlWindow(QMainWindow):
         self.ui.actions.show_toolbar.triggered.connect(self.set_toolbar_visible)
         self.ui.actions.show_toml.triggered.connect(open_matrix_toml)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
+        )
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.widgets.panic.clicked.connect(lambda checked: self.panic(checked, "Panic button"))
         self.ui.actions.toggle_recorder.triggered.connect(self.toggle_data_recorder)
@@ -720,19 +727,6 @@ class ControlWindow(QMainWindow):
                 guidict.toolbar.show()
             else:
                 guidict.toolbar.hide()
-
-    def toggle_log_window(self):
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-            self.ui.actions.show_log.setChecked(False)
-            self.ui.actions.show_log.setText("Show Log Window")
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-            self.ui.actions.show_log.setChecked(True)
-            self.ui.actions.show_log.setText("Hide Log Window")
 
     def create_menu(self) -> None:
         """
@@ -1400,8 +1394,7 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
         self.settings.setValue("toolbar_visible", self.ui.actions.show_toolbar.isChecked())
-        self.settings.setValue("log_window/position", self.log_window.pos())
-        self.settings.setValue("log_window/size", self.log_window.size())
+        self.save_log_window_state(self.settings)
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         """
@@ -1417,10 +1410,7 @@ class ControlWindow(QMainWindow):
         for g in self.guidicts:
             g.dock.saveCurrentState()
 
-        # Clean up logging window
-        root_logger = logging.getLogger()
-        root_logger.removeHandler(self.log_window.log_handler)
-        self.log_window.deleteLater()
+        self.cleanup_log_window()
 
         # Accept the close event
         super().closeEvent(a0)

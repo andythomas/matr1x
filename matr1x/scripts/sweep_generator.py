@@ -35,9 +35,8 @@ from typing import Any
 
 import numpy
 import pyqtgraph as pg
-import shiboken6
 from pydantic import BaseModel, Field
-from PySide6.QtCore import QByteArray, QObject, QPoint, QPointF, QSize, Qt, Signal
+from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFocusEvent, QKeySequence, QMouseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -79,9 +78,11 @@ from matr1x.gui_util import (
     CustomViewBox,
     FileDropMixin,
     LoggingWindow,
+    LogWindowMixin,
     MApplication,
     check_config,
     clear_layout,
+    create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
     save_messagebox,
@@ -679,8 +680,6 @@ class UIBuilder:
         sweep_preview.setColumnWidth(0, table_width)
 
         system_list = SystemListWidget()
-        system_list.setMinimumHeight(50)
-        system_list.setMaximumHeight(50)
 
         notifier = Notifier(logger)
 
@@ -694,19 +693,10 @@ class UIBuilder:
 
     def _create_actions(self) -> ActionGroup:
         """Create all actions."""
-        matrix_settings = QAction("Show matrix toml")
-        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
-        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
-        about = QAction("About")
-        about.setMenuRole(QAction.MenuRole.AboutRole)
-        show_log = QAction("Show Log Window")
-        show_log.setCheckable(True)
         new_file = QAction(get_matrix_icon("SP_FileIcon"), "New")
         new_file.setShortcut(QKeySequence.StandardKey.New)
         load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setShortcut(QKeySequence.StandardKey.Open)
-        add_system = QAction(get_matrix_icon("CHAR_+", QColor("RoyalBlue")), "Add System")
-        remove_system = QAction(get_matrix_icon("CHAR_-", QColor("RoyalBlue")), "Remove System")
         save = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save")
         save.setShortcut(QKeySequence.StandardKey.Save)
         save.setEnabled(False)
@@ -733,13 +723,13 @@ class UIBuilder:
         )
         preview.setEnabled(False)
         return ActionGroup(
-            matrix_settings=matrix_settings,
-            about=about,
-            show_log=show_log,
+            matrix_settings=create_matrix_settings_action(),
+            about=LogWindowMixin.create_about_action(),
+            show_log=LogWindowMixin.create_show_log_action(),
             new_file=new_file,
             load=load,
-            add_system=add_system,
-            remove_system=remove_system,
+            add_system=self.widgets.system_list.add_action,
+            remove_system=self.widgets.system_list.remove_action,
             save=save,
             save_as=save_as,
             append=append,
@@ -748,8 +738,8 @@ class UIBuilder:
             sweep=sweep,
             toggle_toolbar=toggle_toolbar,
             preview=preview,
-            post_install=QAction("Install Desktop Integration"),
-            remove_desktop_integration=QAction("Remove Desktop Integration"),
+            post_install=LogWindowMixin.create_post_install_action(),
+            remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
     def _create_toolbar(self) -> QToolBar:
@@ -785,9 +775,7 @@ class UIBuilder:
         toolbar.addAction(self.actions.preview)
         toolbar.addWidget(empty2)
         toolbar.addSeparator()
-        toolbar.addAction(self.actions.add_system)
-        toolbar.addWidget(self.widgets.system_list)
-        toolbar.addAction(self.actions.remove_system)
+        self.widgets.system_list.add_to_toolbar(toolbar)
         return toolbar
 
     def _create_menu(self) -> QMenuBar:
@@ -801,21 +789,17 @@ class UIBuilder:
         file_menu.addAction(self.actions.save_as)
         file_menu.addAction(self.actions.append)
         file_menu.addSeparator()
-        file_menu.addAction(self.actions.add_system)
-        file_menu.addAction(self.actions.remove_system)
+        self.widgets.system_list.add_actions_to_menu(file_menu)
         file_menu.addSeparator()
         file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
         control_menu = menu_bar.addMenu("&Control")
         control_menu.addAction(self.actions.sweep)
         view_menu = menu_bar.addMenu("&View")
         view_menu.addAction(self.actions.toggle_toolbar)
+        view_menu.addSeparator()
         view_menu.addAction(self.actions.matrix_settings)
         help_menu = menu_bar.addMenu("&Help")
-        help_menu.addAction(self.actions.about)
-        help_menu.addAction(self.actions.show_log)
-        help_menu.addSeparator()
-        help_menu.addAction(self.actions.post_install)
-        help_menu.addAction(self.actions.remove_desktop_integration)
+        LogWindowMixin.add_common_help_actions(help_menu, self.actions)
         return menu_bar
 
     def _create_gui(self) -> QGridLayout:
@@ -961,7 +945,7 @@ class SweepPreviewPopup(QDialog):
         )
 
 
-class MainWindow(FileDropMixin, QMainWindow):
+class MainWindow(FileDropMixin, LogWindowMixin, QMainWindow):
     """
     Run the logic of the sweep generator.
 
@@ -1034,10 +1018,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 a0.ignore()
                 return
         self.save_window_state()
-        if self._owns_log_window:
-            root_logger = logging.getLogger()
-            root_logger.removeHandler(self.log_window.log_handler)
-            self.log_window.deleteLater()
+        self.cleanup_log_window(enabled=self._owns_log_window)
         a0.accept()
 
     def save_window_state(self) -> None:
@@ -1049,10 +1030,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("toolbar_position", self.toolBarArea(self.ui.toolbar).value)
-        if not self._owns_log_window or not shiboken6.isValid(self.log_window):
-            return
-        self.settings.setValue("log_window/position", self.log_window.pos())
-        self.settings.setValue("log_window/size", self.log_window.size())
+        self.save_log_window_state(self.settings, enabled=self._owns_log_window)
 
     def restore_window_state(self) -> None:
         """
@@ -1068,14 +1046,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
         )
         self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
-        if not self._owns_log_window or not shiboken6.isValid(self.log_window):
-            return
-        self.log_window.move(
-            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
-        )
-        self.log_window.resize(
-            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
-        )
+        self.restore_log_window_state(self.settings, enabled=self._owns_log_window)
 
     def toggle_toolbar_view(self, checked: bool) -> None:
         """
@@ -1088,31 +1059,20 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         self.ui.toolbar.show() if checked else self.ui.toolbar.hide()
 
-    def toggle_log_window(self) -> None:
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-
-    def _on_log_window_visibility_changed(self, visible: bool) -> None:
-        """Keep the 'Show Log Window' action state in sync."""
-        self.ui.actions.show_log.setChecked(visible)
-        self.ui.actions.show_log.setText("Hide Log Window" if visible else "Show Log Window")
-
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
         self.ui.actions.about.triggered.connect(self.info_box)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
-        self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
-        self._on_log_window_visibility_changed(self.log_window.isVisible())
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
+        )
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
         self.ui.actions.new_file.triggered.connect(self.new_file)
         self.ui.actions.load.triggered.connect(self.load_file)
-        self.ui.actions.add_system.triggered.connect(self.ui.widgets.system_list.query_systems)
-        self.ui.actions.remove_system.triggered.connect(self.ui.widgets.system_list.delete_systems)
+        self.ui.widgets.system_list.changed.connect(self.update_systems)
         self.ui.actions.save.triggered.connect(self.save_file)
         self.ui.actions.save_as.triggered.connect(lambda: self.save_file(dialog=True))
         self.ui.actions.append.triggered.connect(lambda: self.save_file(append=True))
@@ -1123,9 +1083,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         self.ui.actions.sweep.triggered.connect(self.generate_datafile)
         self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.preview.triggered.connect(self.preview_sweep)
-        self.ui.actions.post_install.triggered.connect(post_installation)
-        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
-        self.ui.widgets.system_list.changed.connect(self.update_systems)
         self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
         self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
@@ -1201,11 +1158,6 @@ class MainWindow(FileDropMixin, QMainWindow):
                     "All previous sweep parameters have been cleared.", logging.WARNING
                 )
             )
-        filenames = self.ui.widgets.system_list.systems
-        if len(filenames) == 0:
-            self.ui.actions.remove_system.setEnabled(False)
-        else:
-            self.ui.actions.remove_system.setEnabled(True)
         self.reset_layout()
         self._apply_system_info_to_columns(self.ui.widgets.system_list.system_info)
         self.populate_layout()
@@ -1313,7 +1265,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         max_column_width = self.grid_widgets[0].loopover.minimumSizeHint().width()
         # calculate how many columns fit the screen horizontally
         max_width = max_column_width + self.ui.grid.horizontalSpacing()
-        left, top, right, bottom = self.ui.grid.getContentsMargins()  # ty: ignore[not-iterable]
+        left, _, right, _ = self.ui.grid.getContentsMargins()  # ty: ignore[not-iterable]
         screen_width = self.screen().availableGeometry().width() - left - right
         column_fit = screen_width // max_width - 1
 
@@ -1674,7 +1626,6 @@ class MainWindow(FileDropMixin, QMainWindow):
         if reset_systems:
             self.reset_layout()
             self.ui.widgets.system_list.clear()
-            self.ui.actions.remove_system.setEnabled(False)
             self.columns.clear()
             self.last_filename = None
             self.ui.widgets.sweep_preview.setRowCount(0)
