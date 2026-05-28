@@ -41,7 +41,7 @@ from pymeasure.instruments import Instrument
 import matr1x
 from matr1x.devices.visadevice import VisaDevice
 from matr1x.error_handling import Error, Result, Success
-from matr1x.models import MeasurementData, UntypedConfigModel
+from matr1x.models import MeasurementData, Message, UntypedConfigModel
 
 from . import VALID_META_KEYS, output_extension
 from .util import (
@@ -1765,17 +1765,16 @@ class System:
         ----------
         message : str
             Comment string to be added to the datafile.
-
-        Returns
-        -------
-        None
         """
         dfilename = self.filename
         if not isinstance(dfilename, Path):
-            # if not valid datafile was initialized do nothing.
-            return
-        if not message:
-            # do not add empty comment
+            self.report(
+                Message(
+                    f"No datafile initialized. Comment '{message}' not added to the datafile.",
+                    to_comment=False,
+                    to_logfile=True,
+                )
+            )
             return
 
         timestamp = time.strftime(f"{matr1x.datetimefmt}", time.localtime())
