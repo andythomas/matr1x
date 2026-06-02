@@ -18,12 +18,18 @@
 import contextlib
 import importlib.util
 import logging
+import socket
+import subprocess
 import sys
+import tempfile
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypedDict, final, overload
+from typing import IO, Any, BinaryIO, Literal, TypedDict, final, overload
 
+import tomli_w
+from pydantic import ValidationError
 from PySide6.QtCore import (
     QByteArray,
     QObject,
@@ -32,6 +38,7 @@ from PySide6.QtCore import (
     QSettings,
     QSize,
     Qt,
+    QThread,
     QTimer,
     Signal,
 )
@@ -53,17 +60,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from matr1x import resolved_directory
+from matr1x import VALID_META_KEYS, resolved_directory
 from matr1x.error_handling import Error, InternalInvariantError, Success
 from matr1x.gui_util import (
     ConfigEditWidget,
+    LoggerMixin,
     MApplication,
     get_matrix_icon,
     get_system_info,
 )
-from matr1x.models import SystemInfo
+from matr1x.models import Envelope, SystemInfo
+from matr1x.util import get_matrix_binary
 
 __all__ = [
+    "MeasurementItem",
+    "MeasurementThread",
     "MetaData",
     "MetaDataDialog",
     "MetadataConfigDockMainWindow",
@@ -428,6 +439,43 @@ class SaferQSettings(QSettings):
         return super().value(key, defaultValue, type)
 
 
+@final
+@dataclass
+class MeasurementItem:
+    """The parameters of an item of the measurement queue."""
+
+    input_file: str
+    output_file: str
+    metadata: dict
+    config: dict
+    systems: list[str]
+    kind: Literal["script", "sweep"]
+    system_info: SystemInfo | None = None
+
+    @property
+    def list_entry(self) -> str:
+        """Return a human-readable representation of the list entry."""
+        output = Path(self.output_file).name if self.output_file else "<use input>"
+        return f"Input: {Path(self.input_file).name} - Output: {output}"
+
+    @staticmethod
+    def remove_nones(d: dict) -> dict:
+        """Remove None values from a dictionary."""
+        if isinstance(d, dict):
+            return {k: MeasurementItem.remove_nones(v) for k, v in d.items() if v is not None}
+        return d
+
+    @property
+    def tooltip(self) -> str:
+        """Return a tooltip with all data."""
+        input_file = f"Input:\n{self.input_file}\n\n"
+        output_file = f"Output:\n{self.output_file or '<use input>'}\n\n"
+        metadata = f"Metadata:\n{tomli_w.dumps(self.remove_nones(self.metadata))}"
+        normalized_config = self.remove_nones(self.config)
+        config = f"\nConfig:\n{tomli_w.dumps(normalized_config)}" if normalized_config else ""
+        return input_file + output_file + metadata + config
+
+
 @contextlib.contextmanager
 def _blocked_signals(*objects: QObject) -> Iterator[None]:
     """Temporarily block signals for Qt objects."""
@@ -611,3 +659,205 @@ class MetadataConfigDockMainWindow(QMainWindow):
         settings : SaferQSettings
             The application settings object opened in the layout group.
         """
+
+
+class MeasurementThread(QThread, LoggerMixin):
+    """
+    Execute and control a measurement subprocess via a TCP socket.
+
+    It can run a script as well as a sweep.
+    """
+
+    data_received = Signal(Envelope)
+
+    def __init__(self) -> None:
+        """Initialize the measurement thread."""
+        super().__init__()
+        self.proc: subprocess.Popen[bytes] | None = None
+        self.conn: socket.socket | None = None
+
+    def set_parameters(self, parameters: MeasurementItem) -> None:
+        """Set measurement parameters."""
+        self.parameters = parameters
+
+    def pass_input(self, inp: str) -> None:
+        """
+        Communicate user input to the subprocess.
+
+        Parameters
+        ----------
+        inp : str
+            The input to be communicated.
+        """
+        if self.proc is None or self.conn is None:
+            return
+        if len(inp) < 1 or inp[-1] != "\n":
+            inp += "\n"
+        self.conn.send(("i" + inp).encode("utf-8"))
+
+    def pause(self) -> None:
+        """Communicate pause to the subprocess."""
+        if self.proc is None or self.conn is None:
+            return
+        self.conn.send(b"p")
+
+    def abort(self, char: str = "a") -> None:
+        """
+        Communicate stop to the subprocess.
+
+        Parameters
+        ----------
+        char : str
+            ``a`` sets state to aborted,
+            ``f`` sets state to finished.
+            ``q`` query the user
+        """
+        if self.proc is None or self.conn is None:
+            return
+        self.conn.send(char.encode())
+
+    def finish(self) -> None:
+        """Signal the subprocess to finish early."""
+        self.abort(char="f")
+
+    def kill(self) -> None:
+        """Kill the process."""
+        if self.proc is None:
+            return
+        self.proc.kill()
+        self.logger.warning("Measurement thread was manually killed.")
+
+    def process_received_data(self, inp: str) -> None:
+        """Process a null-terminated JSON message from the subprocess."""
+        try:
+            env = Envelope.model_validate_json(inp)
+        except ValidationError:
+            if inp.strip():
+                self.logger.error("Unknown data received: %s", inp)
+            return
+        self.data_received.emit(env)
+
+    def relay_subprocess_output(self, stream: BinaryIO, is_error: bool) -> None:
+        """
+        Relay stdout or stderr of the subprocess to the logger.
+
+        Parameters
+        ----------
+        stream : BinaryIO
+            The stream to read from.
+        is_error : bool
+            True for stderr, False for stdout.
+        """
+        for line in iter(stream.readline, b""):
+            if is_error:
+                self.logger.warning(line.decode().strip())
+            else:
+                self.logger.info(line.decode().strip())
+
+    def _generate_processfile(
+        self, port: int, script_tempfile: "IO[bytes] | None", temp_config_file: Path
+    ) -> list[str]:
+        """
+        Generate the subprocess command.
+
+        Parameters
+        ----------
+        port : int
+            The local TCP port the GUI is listening on.
+        script_tempfile : IO[bytes] or None
+            Open temporary file containing the user script.  Must be provided
+            when ``parameters.kind == "script"``; ``None`` for sweep mode.
+        temp_config_file : Path
+            Path to the temporary TOML config file.
+
+        Returns
+        -------
+        list[str]
+            The command to pass to ``subprocess.Popen``.
+        """
+        if self.parameters.kind == "script":
+            if script_tempfile is None:
+                raise InternalInvariantError("script_tempfile must be provided for script mode")
+            cmd = (
+                f"import matr1x\n"
+                f"import matr1x.util as mu\n"
+                f"matr1x.reload_config({repr(str(temp_config_file))})\n"
+                f"mu.matrix_script_process({repr(script_tempfile.name)}, "
+                f"{repr(self.parameters.metadata)}, "
+                f"{repr(self.parameters.output_file)}, {repr(port)}, "
+                f"{repr(self.parameters.systems)})"
+            )
+            return [sys.executable, "-c", cmd]
+        result = [
+            get_matrix_binary(),
+            "-i",
+            self.parameters.input_file,
+            "-p",
+            "-j",
+            "--port",
+            str(port),
+        ]
+        if self.parameters.output_file:
+            result += ["-o", self.parameters.output_file]
+        for key, val in self.parameters.metadata.items():
+            if key in VALID_META_KEYS and val and VALID_META_KEYS[key]:
+                result += [f"--dc_{key.lower()}", val]
+        result += ["--optional-config", str(temp_config_file)]
+        return result
+
+    def run(self) -> None:
+        """
+        Run the subprocess.
+
+        Opens a server socket, spawns the subprocess, accepts the
+        incoming connection, then relays null-terminated JSON messages
+        to ``process_received_data`` until the process exits.
+        """
+        tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
+        tmp_scriptfile: IO[bytes] | None = None
+        if self.parameters.kind == "script":
+            tmp_scriptfile = tempfile.NamedTemporaryFile(mode="w+b")
+            tmp_scriptfile.write(self.parameters.input_file.encode())
+            tmp_scriptfile.flush()
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+            s.listen(1)
+            cmd = self._generate_processfile(port, tmp_scriptfile, tmp_config_file)
+            self.proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=0,
+            )
+            self.conn, _ = s.accept()
+            s.close()
+            threading.Thread(
+                target=self.relay_subprocess_output, args=(self.proc.stdout, False), daemon=True
+            ).start()
+            threading.Thread(
+                target=self.relay_subprocess_output, args=(self.proc.stderr, True), daemon=True
+            ).start()
+            buffer = ""
+            while self.proc.poll() is None:
+                try:
+                    chunk = self.conn.recv(8192)
+                    if not chunk:
+                        break
+                    buffer += chunk.decode()
+                    while "\0" in buffer:
+                        msg, buffer = buffer.split("\0", 1)
+                        if msg:
+                            self.process_received_data(msg)
+                except OSError:
+                    self.process_received_data("OS error in thread communication.\n")
+                    break
+            self.conn.close()
+        finally:
+            if tmp_scriptfile is not None:
+                tmp_scriptfile.close()
+            if tmp_config_file.exists():
+                tmp_config_file.unlink()

@@ -23,14 +23,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import tomli_w
-from pydantic import ValidationError
 from PySide6.QtCore import (
     QDateTime,
     QPoint,
     QSize,
     Qt,
-    QThread,
     QTimer,
     QTimeZone,
     Signal,
@@ -61,6 +58,7 @@ import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
+    AutoSlot,
     ConfigEditWidget,
     FileDropMixin,
     LoggingWindow,
@@ -82,7 +80,6 @@ from matr1x.models import (
     MeasuredValues,
     Message,
     SetValues,
-    SystemInfo,
     Telemetry,
 )
 from matr1x.post_install import (
@@ -92,13 +89,15 @@ from matr1x.post_install import (
 )
 from matr1x.scripts import sweep_generator
 from matr1x.scripts.shared_classes import (
+    MeasurementItem,
+    MeasurementThread,
     MetadataConfigDockMainWindow,
     MetaDataDialog,
     MetadataDockWidget,
     SaferQSettings,
 )
 from matr1x.system import MergedSystem
-from matr1x.util import get_matrix_binary, open_and_error
+from matr1x.util import open_and_error
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -128,41 +127,6 @@ class LabelWithSignal(QLabel):
         """
         super().setText(a0)
         self.textChanged.emit(a0)
-
-
-@dataclass
-class QueueListItem:
-    """The parameters of an item of the measurement queue."""
-
-    input_file: str
-    output_file: str
-    metadata: dict
-    config: dict
-    systems: list[str]
-    system_info: SystemInfo | None
-
-    @property
-    def list_entry(self) -> str:
-        """Return a human-readable representation of the list entry."""
-        output = Path(self.output_file).name if self.output_file else "<use input>"
-        return f"Input: {Path(self.input_file).name} - Output: {output}"
-
-    @staticmethod
-    def remove_nones(d: dict) -> dict:
-        """Remove None values from a dictionary."""
-        if isinstance(d, dict):
-            return {k: QueueListItem.remove_nones(v) for k, v in d.items() if v is not None}
-        return d
-
-    @property
-    def tooltip(self) -> str:
-        """Return a tooltip with all data."""
-        input_file = f"Input:\n{self.input_file}\n\n"
-        output_file = f"Output:\n{self.output_file or '<use input>'}\n\n"
-        metadata = f"Metadata:\n{tomli_w.dumps(self.remove_nones(self.metadata))}"
-        normalized_config = self.remove_nones(self.config)
-        config = f"\nConfig:\n{tomli_w.dumps(normalized_config)}" if normalized_config else ""
-        return input_file + output_file + metadata + config
 
 
 class QueueListWidget(QListWidget):
@@ -255,7 +219,7 @@ class QueueListWidget(QListWidget):
             self.item(row).setText(parameters.list_entry)
             self.item(row).setToolTip(parameters.tooltip)
 
-    def add_parameters(self, parameters: QueueListItem) -> None:
+    def add_parameters(self, parameters: MeasurementItem) -> None:
         """Add a set of parameters."""
         item = QListWidgetItem(parameters.list_entry)
         item.setData(Qt.ItemDataRole.UserRole, parameters)
@@ -273,7 +237,7 @@ class QueueListWidget(QListWidget):
         self.changed.emit()
         return item
 
-    def parameters(self, row: int) -> QueueListItem:
+    def parameters(self, row: int) -> MeasurementItem:
         """Get the parameters for a matrix run of the given row."""
         item = self.item(row)
         return item.data(Qt.ItemDataRole.UserRole)
@@ -293,109 +257,6 @@ class QueueListWidget(QListWidget):
             self.takeItem(self.row(selected[0]))
         elif self.count():
             self.takeItem(self.count() - 1)
-
-
-class GuiThread(QThread):
-    """Execute the measurement thread."""
-
-    filename_received = Signal(str)
-    telemetry_received = Signal(Telemetry)
-    tabledata_received = Signal(Envelope)
-
-    def __init__(self) -> None:
-        """Initialize the thread."""
-        QThread.__init__(self)
-        self.proc: subprocess.Popen | None = None
-
-    def set_parameters(self, parameters: QueueListItem) -> None:
-        """Set measurement files, metadata and config."""
-        self.parameters: QueueListItem = parameters
-
-    def run(self) -> None:
-        """Start the command line thread."""
-        tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
-        cmd = [get_matrix_binary(), "-i", self.parameters.input_file, "-pj"]
-        if self.parameters.output_file != "":
-            cmd += ["-o", self.parameters.output_file]
-        for key, val in self.parameters.metadata.items():
-            if key in matr1x.VALID_META_KEYS.keys() and val:
-                if matr1x.VALID_META_KEYS[key]:
-                    # only pass on allowed (editable) meta keys and only if
-                    # data is not None
-                    cmd += [f"--dc_{key.lower()}", val]
-        cmd += ["--optional-config", str(tmp_config_file)]
-        try:
-            self.proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                text=True,
-            )
-            if self.proc.stdout is not None:
-                for line in self.proc.stdout:
-                    self.process_received_data(line)
-            self.proc.wait()
-            logger.info("matrix ended with returncode: %s", self.proc.returncode)
-        finally:
-            if tmp_config_file.exists():
-                tmp_config_file.unlink()
-
-    def process_received_data(self, line: str) -> None:
-        """
-        Process the data from the measurement thread.
-
-        Parameters
-        ----------
-        line: str
-            The line that was received.
-        """
-        try:
-            env = Envelope.model_validate_json(line)
-        except ValidationError:
-            logger.warning("Corrupted or unknown data received: %s", line)
-            return
-        data = env.payload
-        if isinstance(data, Message):
-            logger.info(data.message)
-        elif isinstance(data, Datafile):
-            self.filename_received.emit(data.datafile)
-        elif isinstance(data, Telemetry):
-            self.telemetry_received.emit(data)
-        elif isinstance(data, (SetValues, MeasuredValues, Header)):
-            self.tabledata_received.emit(env)
-        elif isinstance(data, ErrorMessage):
-            logger.error(data.error)
-
-    def _send_stdin(self, cmd: str) -> None:
-        """
-        Write a non-blocking command to the subprocess stdin.
-
-        Parameters
-        ----------
-        cmd : str
-            The command string to send.
-        """
-        if self.proc is not None and self.proc.stdin is not None:
-            self.proc.stdin.write(cmd)
-            self.proc.stdin.flush()
-
-    def pause(self) -> None:
-        """Pause the thread."""
-        self._send_stdin("p\n")
-
-    def abort(self) -> None:
-        """Send abort to the thread."""
-        self._send_stdin("a\n")
-
-    def finish(self) -> None:
-        """Send finish to the thread."""
-        self._send_stdin("f\n")
-
-    def kill(self) -> None:
-        """Kill the thread."""
-        if self.proc is not None:
-            self.proc.kill()
-            logger.warning("Measurement thread was manually killed.")
 
 
 @dataclass(frozen=True)
@@ -646,7 +507,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
         self.sg: QMainWindow | None = None
         self.running = False
         self.sys_meta_data = {}
-        self.measurement_thread = GuiThread()
+        self.measurement_thread = MeasurementThread()
         self._create_connections()
         self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
@@ -672,15 +533,32 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
         self.ui.actions.load.triggered.connect(self.show_input_dialog)
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.widgets.input_file.textChanged.connect(self.parse_system_from_inputfile)
-        self.measurement_thread.filename_received.connect(self.process_filename)
-        self.measurement_thread.telemetry_received.connect(self.process_telemetry)
-        self.measurement_thread.tabledata_received.connect(self.process_tabledata)
+        self.measurement_thread.data_received.connect(self.process_data)
         self.measurement_thread.finished.connect(self.process_finished)
         self.ui.actions.pause.triggered.connect(self.measurement_thread.pause)
-        self.ui.actions.abort.triggered.connect(self.measurement_thread.abort)
+        self.ui.actions.abort.triggered.connect(lambda checked: self.measurement_thread.abort())
         self.ui.actions.finish.triggered.connect(self.measurement_thread.finish)
         self.ui.actions.kill.triggered.connect(self.measurement_thread.kill)
         self.ui.widgets.meas_list.changed.connect(self.measurement_list_changed)
+
+    @AutoSlot
+    def process_data(self, env: Envelope) -> None:
+        """Process the data from the measurement thread."""
+        data = env.payload
+        if isinstance(data, Message):
+            logger.info(data.message)
+        elif isinstance(data, Datafile):
+            self.ui.widgets.current_file.setText(data.datafile)
+            self.ui.actions.preview.setEnabled(True)
+        elif isinstance(data, Telemetry):
+            self.ui.widgets.progressbar.setMaximum(data.points)
+            self.ui.widgets.progressbar.setValue(data.point)
+            if data.remaining is not None:
+                self.ui.widgets.progress.setText(str(data))
+        elif isinstance(data, (SetValues, MeasuredValues, Header)):
+            self._process_tabledata(env)
+        elif isinstance(data, ErrorMessage):
+            logger.error(data.error)
 
     def measurement_list_changed(self) -> None:
         """Update the data order when the measurement list is changed."""
@@ -690,33 +568,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
             else:
                 self.ui.actions.start.setEnabled(False)
 
-    def process_filename(self, filename: str) -> None:
-        """
-        Handle the filename from the measurement thread.
-
-        Parameters
-        ----------
-        filename : str
-            The filename given to the measurement file.
-        """
-        self.ui.widgets.current_file.setText(filename)
-        self.ui.actions.preview.setEnabled(True)
-
-    def process_telemetry(self, telemetry: Telemetry) -> None:
-        """
-        Show the progress data.
-
-        Parameters
-        ----------
-        telemetry : TelemetryContent
-            The telemetry data received from the measurement thread.
-        """
-        self.ui.widgets.progressbar.setMaximum(telemetry.points)
-        self.ui.widgets.progressbar.setValue(telemetry.point)
-        if telemetry.remaining is not None:
-            self.ui.widgets.progress.setText(str(telemetry))
-
-    def process_tabledata(self, env: Envelope) -> None:
+    def _process_tabledata(self, env: Envelope) -> None:
         """
         Show the data in the table view.
 
@@ -895,7 +747,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
         # create parameter set for measurement, make sure to copy the meta data
         if not self.ui.widgets.config_editor.system_info:
             raise InternalInvariantError("System info should not be None at this point.")
-        parameters = QueueListItem(
+        parameters = MeasurementItem(
+            kind="sweep",
             input_file=inputFile,
             output_file="",
             metadata=self.sys_meta_data.copy(),

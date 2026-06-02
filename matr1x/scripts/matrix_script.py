@@ -19,25 +19,20 @@ import logging
 import os
 import platform
 import re
-import socket
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
-from pydantic import ValidationError
 from PySide6.QtCore import (
     QEvent,
     QPoint,
     QSize,
     Qt,
-    QThread,
     QTimer,
-    Signal,
 )
 from PySide6.QtGui import (
     QAction,
@@ -111,7 +106,8 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.scripts.shared_classes import (
-    MetaData,
+    MeasurementItem,
+    MeasurementThread,
     MetadataConfigDockMainWindow,
     MetaDataDialog,
     MetadataDockWidget,
@@ -122,7 +118,6 @@ from matr1x.scripts.shared_classes import (
 from matr1x.util import StreamToLogger, generate_script, get_script_prefix_offset
 
 logger = logging.getLogger(__name__)
-scriptlogger = logging.getLogger(__name__ + "_subprocess")
 script_config = matr1x.config.matr1x.scripts.matrix_script
 
 
@@ -657,188 +652,6 @@ if sys.platform == "win32":
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
-
-
-class ScriptThread(QThread):
-    """Control and the thread running the measurements."""
-
-    data_received = Signal(Envelope)
-
-    def __init__(
-        self,
-        metadata: MetaData,
-        script: str,
-        fallbackname: Path | None,
-        temp_config: Path,
-        systems: list[str],
-    ) -> None:
-        """
-        Initialize thread that handles script execution.
-
-        Parameters
-        ----------
-        meta_data : dict
-            Dictionary containing meta data such as user and comment.
-        script : str
-            User script that is supposed to be run by the ScriptThread.
-        fallbackname : Path | str
-            Filename used to initialize the data file if not specified
-            in the script. Its directory path will be used as execution
-            directory.
-        temp_config : Path
-            Temporary configuration file path.
-        systems : list
-            List of system files to load.
-        """
-        super().__init__()
-        self.proc: subprocess.Popen | None = None
-        self.conn: socket.socket | None = None
-        self.meta_data: MetaData = metadata
-        self.script: str = script
-        self.datafilefallback: str = str(fallbackname) if fallbackname else ""
-        self.temp_config: Path = temp_config
-        self.systems: list[str] = systems
-
-    def pass_input(self, inp: str) -> None:
-        """
-        Communicate user input to the subprocess.
-
-        Parameters
-        ----------
-        inp: str
-            The input to be communicated.
-        """
-        if self.proc is None or self.conn is None:
-            return
-        if len(inp) < 1 or inp[-1] != "\n":
-            inp += "\n"  # input needs to have terminating character
-        self.conn.send(("i" + inp).encode("utf-8"))
-
-    def pause(self) -> None:
-        """Communicate pause to the subprocess."""
-        if self.proc is None or self.conn is None:
-            return
-        self.conn.send(b"p")
-
-    def abort(self, char: str = "q") -> None:
-        """
-        Communicate stop to the subprocess' stdin.
-
-        Parameters
-        ----------
-        char : str
-            Single length string that is passed to the process.
-            - "q" stops and queries user for state
-            - "a" stops and sets state to `aborted`
-            - "f" stops and sets state to `finished`
-        """
-        if self.proc is None or self.conn is None:
-            return
-        self.conn.send(char.encode())
-
-    def kill(self) -> None:
-        """Kill the process and make sure it is indeed stopped."""
-        if self.proc is None or self.conn is None:
-            return
-        pid = self.proc.pid
-        self.proc.terminate()
-        try:  # if thread is still alive, kill it
-            os.kill(pid, 0)
-            self.proc.kill()
-            text = (
-                "Force killed thread! Please verify all devices are\n"
-                "operational before starting another script.\n"
-            )
-        except OSError:
-            text = "Thread terminated gracefully."
-        self.process_received_data(Message(text).model_dump_json())
-
-    def process_received_data(self, inp: str) -> None:
-        """Receive a line from the input and handle it accordingly."""
-        lines = inp.split(os.linesep)
-        for i, line in enumerate(lines[:-1]):
-            lines[i] += "\n"
-        for line in lines:
-            try:
-                env = Envelope.model_validate_json(line)
-            except ValidationError:
-                if line.strip():
-                    logger.error("Unknown data received: %s", line)
-                continue
-            self.data_received.emit(env)
-
-    def relay_subprocess_output(self, stream, is_error: bool):
-        """Relay stdout and stderr of the subprocess to the logger."""
-        for line in iter(stream.readline, b""):
-            if is_error:
-                scriptlogger.warning(line.decode().strip())
-            else:
-                scriptlogger.info(line.decode().strip())
-
-    def run(self) -> None:
-        """
-        Run the subprocess.
-
-        First writes the user script into a temporary file to make sure
-        all formating is conserved, then passes that file to the
-        interpreter to run the script. The purpose of using a subprocess
-        is to keep the namespace clear of all system files. That allows
-        changes to the system while matrix-script is running.
-        """
-        with tempfile.NamedTemporaryFile(mode="w+b") as tf:
-            for line in self.script:
-                tf.write(line.encode())
-            # all information has been written to temporary file, make sure it
-            # is updated
-            tf.flush()
-            # start socket that is used to communicate with the child process
-            # that runs the script
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            # only accept local connections and start listening
-            s.bind(("127.0.0.1", 0))  # use dynamic port
-            port = s.getsockname()[1]
-            s.listen(1)
-            # start subprocess, stderr is piped to stdout, and both of them are
-            # piped so that we can read them
-            # pass the script that we want to execute and generate correct
-            # parameters to pass to matr1x/utils.py:matrix_script_process
-            cmd = f"""import matr1x
-import matr1x.util as mu
-matr1x.reload_config({repr(str(self.temp_config))})
-mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
-                         {repr(self.datafilefallback)}, {repr(port)}, {repr(self.systems)})"""
-
-            self.proc = subprocess.Popen(
-                [sys.executable, "-c", cmd],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=0,
-            )
-            self.conn, address = s.accept()
-            threading.Thread(
-                target=self.relay_subprocess_output, args=(self.proc.stdout, False), daemon=True
-            ).start()
-            threading.Thread(
-                target=self.relay_subprocess_output, args=(self.proc.stderr, True), daemon=True
-            ).start()
-            buffer = ""
-            while self.proc.poll() is None:
-                try:
-                    chunk = self.conn.recv(8192)
-                    if not chunk:
-                        break  # connection closed
-                    buffer += chunk.decode()
-                    while "\0" in buffer:
-                        msg, buffer = buffer.split("\0", 1)
-                        if msg:
-                            self.process_received_data(msg)
-                except OSError:
-                    self.process_received_data("OS error in thread communication.\n")
-                    break
-            self.conn.close()
-            self.temp_config.unlink()
 
 
 @dataclass(frozen=True)
@@ -1866,10 +1679,17 @@ class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
         metadata = self.ui.widgets.meta_view.metadata
-        temp_config = self.ui.widgets.config_editor.write_config()
-        self.measurement_thread = ScriptThread(
-            metadata, script, self.scriptname, temp_config, self.ui.widgets.system_list.systems
+        outputfile = str(self.scriptname) if self.scriptname else ""
+        script_item = MeasurementItem(
+            kind="script",
+            input_file=script,
+            output_file=outputfile,
+            metadata=metadata,
+            config=self.ui.widgets.config_editor.get_config_dict(),
+            systems=self.ui.widgets.system_list.systems,
         )
+        self.measurement_thread = MeasurementThread()
+        self.measurement_thread.set_parameters(script_item)
         self.measurement_thread.finished.connect(self.process_finished)
         self.measurement_thread.data_received.connect(self.process_data)
 

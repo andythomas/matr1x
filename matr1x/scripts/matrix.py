@@ -28,9 +28,12 @@ import argparse
 import io
 import math
 import os
+import queue
 import re
 import shlex
+import socket
 import sys
+import threading
 import time
 import traceback
 from collections.abc import Callable, Generator
@@ -140,10 +143,19 @@ def parse_cmd_line() -> argparse.Namespace:
             help=f"Dublin Core meta data entry {key}",
         )
 
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="TCP port for socket-based GUI communication; requires -pj",
+    )
+
     options = parser.parse_args()
 
     if options.json and not options.plain:
         parser.error("--json can only be used together with --plain")
+    if options.port is not None and not (options.plain and options.json):
+        parser.error("--port requires --plain and --json (-pj)")
     if os.name == "nt" and not options.plain:
         options.plain = True  # enforce plain interface on Windows because urwid would fail
 
@@ -205,9 +217,13 @@ class PlainMeasurement:
             if select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
                 return sys.stdin.read(1)
 
+    def _next_control_key(self) -> str | None:
+        """Return the next pending control key, or None."""
+        return self._nonblocking_getch()
+
     def inputcb(self, points: int) -> int:
         """
-        Provide the key detection for plain measurments.
+        Provide the key detection for plain measurements.
 
         Parameters
         ----------
@@ -219,27 +235,22 @@ class PlainMeasurement:
         int
             The result of the key press (0 = no special key pressed).
         """
-        key = self._nonblocking_getch()
-        if key and key.lower() in ("q", "a", "f"):
-            self.dispatch(Message("Note: aborted with {key} after {points} points\n\n\n"))
-            self._system.add_comment(
-                f"measurement aborted by keyboard input after {points} points"
-            )
-            return abortmap[key.lower()]
-        if key in ("p", "P"):
+        key = self._next_control_key()
+        if key in ("q", "a", "f"):
+            self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
+            self._system.add_comment(f"measurement aborted after {points} points")
+            return abortmap[key]
+        if key == "p":
             self.dispatch(Message("paused - continue with 'p'\n"))
-            self._system.add_comment("measurement paused by keyboard input")
-            # wait for unpause with p
+            self._system.add_comment("measurement paused")
             while True:
                 time.sleep(0.1)
-                key = self._nonblocking_getch()
-                if key and key.lower() in ("q", "a", "f"):
+                key = self._next_control_key()
+                if key in ("q", "a", "f"):
                     self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
-                    self._system.add_comment(
-                        f"measurement aborted by keyboard input after {points} points"
-                    )
-                    return abortmap[key.lower()]
-                if key in ("p", "P"):
+                    self._system.add_comment(f"measurement aborted after {points} points")
+                    return abortmap[key]
+                if key == "p":
                     break
         return 0
 
@@ -304,6 +315,53 @@ class JSONMeasurement(PlainMeasurement):
     def dispatch(self, payload: MeasurementData) -> None:
         """Dump and print the payload as JSON."""
         print(payload.model_dump_json())  # noqa: T201
+        if isinstance(payload, ErrorMessage):
+            sys.exit(1)
+
+
+class SocketMeasurement(JSONMeasurement):
+    """JSONMeasurement that sends data to the GUI via a TCP socket."""
+
+    def __init__(self, port: int) -> None:
+        """
+        Connect to the GUI socket and start the control listener.
+
+        Parameters
+        ----------
+        port : int
+            Port number of the GUI's listening socket.
+        """
+        super().__init__()
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.connect(("127.0.0.1", port))
+        self._ctrl_queue: queue.Queue[str] = queue.Queue()
+        threading.Thread(target=self._control_listener, daemon=True).start()
+
+    def _control_listener(self) -> None:
+        """Read control characters from the socket and queue them."""
+        while True:
+            try:
+                data = self._socket.recv(32)
+                if not data:
+                    break
+                for char in data.decode("utf-8", errors="ignore"):
+                    self._ctrl_queue.put(char)
+            except OSError:
+                break
+
+    def _next_control_key(self) -> str | None:
+        """Return the next control character from the socket, or None."""
+        try:
+            return self._ctrl_queue.get_nowait()
+        except queue.Empty:
+            return None
+
+    def dispatch(self, payload: MeasurementData) -> None:
+        """Send the payload as null-terminated JSON over the socket."""
+        try:
+            self._socket.sendall(payload.model_dump_json().encode("utf-8") + b"\0")
+        except OSError:
+            pass
         if isinstance(payload, ErrorMessage):
             sys.exit(1)
 
@@ -757,7 +815,9 @@ def main() -> None:
         reload_config(options.optional_config)
     flush_input()
 
-    if options.plain:
+    if options.port is not None:
+        measurement: PlainMeasurement = SocketMeasurement(options.port)
+    elif options.plain:
         if options.json:
             measurement = JSONMeasurement()
         else:
