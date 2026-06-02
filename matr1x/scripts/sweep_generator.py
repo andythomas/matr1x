@@ -622,6 +622,7 @@ class WidgetGroup:
     central_widget: QWidget
     system_list: SystemListWidget
     notifier: Notifier
+    about_box: AboutBox
 
 
 @dataclass
@@ -629,7 +630,6 @@ class ActionGroup:
     """Actions to be utilized in the GUI."""
 
     matrix_settings: QAction
-    about: QAction
     show_log: QAction
     new_file: QAction
     load: QAction
@@ -689,6 +689,12 @@ class UIBuilder:
             central_widget=QWidget(),
             system_list=system_list,
             notifier=notifier,
+            about_box=AboutBox(
+                "Sweep Generator",
+                get_matrix_icon("matr1x-sweep-generator.png"),
+                matr1x,
+                matr1x.datetimefmt,
+            ),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -724,7 +730,6 @@ class UIBuilder:
         preview.setEnabled(False)
         return ActionGroup(
             matrix_settings=create_matrix_settings_action(),
-            about=LogWindowMixin.create_about_action(),
             show_log=LogWindowMixin.create_show_log_action(),
             new_file=new_file,
             load=load,
@@ -800,6 +805,8 @@ class UIBuilder:
         view_menu.addAction(self.actions.matrix_settings)
         help_menu = menu_bar.addMenu("&Help")
         LogWindowMixin.add_common_help_actions(help_menu, self.actions)
+        help_menu.addAction(self.widgets.about_box.action)
+
         return menu_bar
 
     def _create_gui(self) -> QGridLayout:
@@ -1062,7 +1069,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, QMainWindow):
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
-        self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)

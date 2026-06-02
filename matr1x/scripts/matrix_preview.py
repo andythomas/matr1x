@@ -128,6 +128,13 @@ class UpdateThread(QThread):
         self.wait()
 
 
+@dataclass(frozen=True)
+class WidgetGroup:
+    """Widgets to be used in the GUI."""
+
+    about_box: AboutBox
+
+
 @dataclass
 class ActionGroup:
     """Actions to be utilized in the GUI."""
@@ -142,7 +149,6 @@ class ActionGroup:
     update: QAction
     quit: QAction
     matrix_settings: QAction
-    about: QAction
     toggle_toolbar: QAction
     meta: QAction
     show_log: QAction
@@ -155,11 +161,22 @@ class UIBuilder:
 
     def __init__(self):
         self.actions: ActionGroup = self._create_actions()
-        # widgets
+        self.widgets: WidgetGroup = self._create_widgets()
         self.toolbar: QToolBar = self._create_toolbar()
         # gui
         self.file_selector: QComboBox
         self.menubar: QMenuBar = self._create_menu()
+
+    def _create_widgets(self) -> WidgetGroup:
+        """Create all required widgets."""
+        return WidgetGroup(
+            about_box=AboutBox(
+                "Matrix Preview",
+                get_matrix_icon("matr1x-matrix-preview.png"),
+                matr1x,
+                matr1x.datetimefmt,
+            )
+        )
 
     def _create_actions(self) -> ActionGroup:
         """Create all required actions."""
@@ -213,7 +230,6 @@ class UIBuilder:
             update=update,
             quit=quit_app,
             matrix_settings=create_matrix_settings_action(),
-            about=LogWindowMixin.create_about_action(),
             toggle_toolbar=toggle_toolbar,
             meta=meta,
             show_log=LogWindowMixin.create_show_log_action(),
@@ -280,6 +296,7 @@ class UIBuilder:
         view_menu.addAction(self.actions.matrix_settings)
         help_menu = menu.addMenu("&Help")
         LogWindowMixin.add_common_help_actions(help_menu, self.actions)
+        help_menu.addAction(self.widgets.about_box.action)
         return menu
 
 
@@ -468,17 +485,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
         self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
         self.restore_log_window_state(self.settings)
 
-    def info_box(self):
-        """Display an 'about this app' widget."""
-        box = AboutBox(
-            "Matrix Preview",
-            get_matrix_icon("matr1x-matrix-preview.png"),
-            matr1x,
-            matr1x.datetimefmt,
-        )
-        box.exec()
-        return
-
     def create_new_preview(self) -> None:
         """Create a new preview window."""
         preview = [
@@ -528,7 +534,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
         self.ui.actions.update.triggered.connect(lambda: self.conditional_fetch_data(True))
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
-        self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.meta.triggered.connect(self.toggle_meta)
         self.ui.actions.post_install.triggered.connect(post_installation)

@@ -265,7 +265,6 @@ class ActionGroup:
 
     preview: QAction
     matrix_settings: QAction
-    about: QAction
     config: QAction
     sweep: QAction
     queue: QAction
@@ -298,6 +297,7 @@ class WidgetGroup:
     table: ReadOnlyTable
     central_widget: QWidget
     current_measurement: QLineEdit
+    about_box: AboutBox
 
 
 class UIBuilder:
@@ -341,6 +341,9 @@ class UIBuilder:
             table=table,
             central_widget=central_widget,
             current_measurement=current_measurement,
+            about_box=AboutBox(
+                "Matrix GUI", get_matrix_icon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
+            ),
         )
 
     def _create_gui(self) -> None:
@@ -410,7 +413,6 @@ class UIBuilder:
         return ActionGroup(
             preview=preview,
             matrix_settings=create_matrix_settings_action(),
-            about=LogWindowMixin.create_about_action(),
             config=MetadataConfigDockMainWindow.create_device_config_action(),
             sweep=sweep,
             queue=queue,
@@ -484,6 +486,7 @@ class UIBuilder:
         view_menu.addAction(self.actions.matrix_settings)
         help_menu = menubar.addMenu("&Help")
         LogWindowMixin.add_common_help_actions(help_menu, self.actions)
+        help_menu.addAction(self.widgets.about_box.action)
         return menubar
 
 
@@ -517,7 +520,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
     def _create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
         self.ui.actions.preview.triggered.connect(self.open_preview)
-        self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
         self.connect_layout_actions()
         self.ui.actions.sweep.triggered.connect(self.start_sweep_generator)
@@ -641,13 +643,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
         self.save_window_state()
         self.cleanup_log_window()
         a0.accept()
-
-    def info_box(self) -> None:
-        """Display an 'about this app' widget."""
-        box = AboutBox(
-            "Matrix GUI", get_matrix_icon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
-        )
-        box.exec()
 
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""

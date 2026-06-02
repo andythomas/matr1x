@@ -659,7 +659,6 @@ class ActionGroup:
     """Actions to be utilized in the GUI."""
 
     matrix_settings: QAction
-    about: QAction
     config: QAction
     new_file: QAction
     load: QAction
@@ -716,6 +715,7 @@ class WidgetGroup:
     lsp_info: QLabel
     save_pulldown: QMenu
     stop_pulldown: QMenu
+    about_box: AboutBox
 
 
 class UIBuilder:
@@ -837,6 +837,12 @@ class UIBuilder:
             lsp_info=lsp_info,
             save_pulldown=save_pulldown,
             stop_pulldown=stop_pulldown,
+            about_box=AboutBox(
+                "Matrix Script",
+                get_matrix_icon("matr1x-matrix-script.png"),
+                matr1x,
+                matr1x.datetimefmt,
+            ),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -921,7 +927,6 @@ class UIBuilder:
 
         return ActionGroup(
             matrix_settings=create_matrix_settings_action(),
-            about=LogWindowMixin.create_about_action(),
             config=MetadataConfigDockMainWindow.create_device_config_action(),
             new_file=new_file,
             load=load,
@@ -1050,6 +1055,7 @@ class UIBuilder:
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.system_help)
         LogWindowMixin.add_common_help_actions(help_menu, self.actions)
+        help_menu.addAction(self.widgets.about_box.action)
         return menu
 
     def _create_gui(self) -> None:
@@ -1121,7 +1127,6 @@ class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
-        self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
         self.ui.actions.new_file.triggered.connect(self.new_file)
         self.ui.actions.load.triggered.connect(self.load_from_file)
@@ -1316,16 +1321,6 @@ class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
         self.cleanup_log_window()
         self.ui.widgets.system_command_help.close()
         event.accept()
-
-    def info_box(self) -> None:
-        """Display an 'about this app' widget."""
-        box = AboutBox(
-            "Matrix Script",
-            get_matrix_icon("matr1x-matrix-script.png"),
-            matr1x,
-            matr1x.datetimefmt,
-        )
-        box.exec()
 
     def preview_data(self) -> None:
         """Launch matrix-preview with current measurement file."""

@@ -2945,7 +2945,6 @@ class AboutBox(QMessageBox):
         super().__init__(parent)
         # The rich text (html) messes with the sizes
         style = QApplication.style()
-        assert style is not None
         icon_size = style.pixelMetric(QStyle.PixelMetric.PM_MessageBoxIconSize)
         pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
@@ -2996,6 +2995,9 @@ class AboutBox(QMessageBox):
         self.setText(f"<b>{title} {version}</b>")
         self.setInformativeText(text)
         self.setStandardButtons(QMessageBox.StandardButton.Ok)
+        self.action = QAction("About")
+        self.action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.action.triggered.connect(self.exec)
 
     def _shorten_path(self, path: str) -> str:
         """
@@ -3915,7 +3917,6 @@ class hasLogActions(Protocol):
     show_log: QAction
     post_install: QAction
     remove_desktop_integration: QAction
-    about: QAction
 
 
 class LogWindowMixin:
@@ -3965,7 +3966,6 @@ class LogWindowMixin:
         menu.addAction(actions.post_install)
         menu.addAction(actions.remove_desktop_integration)
         menu.addSeparator()
-        menu.addAction(actions.about)
 
     def save_log_window_state(self, settings: SaferQSettings, *, enabled: bool = True) -> None:
         """
