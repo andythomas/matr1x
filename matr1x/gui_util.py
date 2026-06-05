@@ -26,6 +26,7 @@ script and control-guis.
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import inspect
 import logging
@@ -37,7 +38,7 @@ import subprocess
 import sys
 import tempfile
 import types
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
 from types import ModuleType
@@ -1194,6 +1195,17 @@ class MetaViewerWidget(QDockWidget):
         return hdr.copy()
 
 
+@contextlib.contextmanager
+def blocked_signals(*objects: QObject) -> Iterator[None]:
+    """Temporarily block signals for Qt objects."""
+    blocked_objects = [(obj, obj.blockSignals(True)) for obj in objects]
+    try:
+        yield
+    finally:
+        for obj, previous_state in blocked_objects:
+            obj.blockSignals(previous_state)
+
+
 class ConfigEditWidget(MetaViewerWidget):
     """
     Editor for config files based on the MetaViewerWidget.
@@ -1230,6 +1242,26 @@ class ConfigEditWidget(MetaViewerWidget):
         layout.addWidget(self.tree_view)
         widget.setLayout(layout)
         self.setWidget(widget)
+        self.action: QAction = QAction(get_matrix_icon("CHAR_≡"), "Device config", self)
+        self.action.setToolTip("Show the devices preferences/ configuration.")
+        self.action.setShortcut(QKeySequence("Ctrl+3"))
+        self.action.setCheckable(True)
+        self.action.toggled.connect(self.toggle_visibility)
+        self.visibilityChanged.connect(self._sync_metadata_view)
+
+    def toggle_visibility(self, checked: bool) -> None:
+        """Toggle the visibility of this dock widget."""
+        if checked:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+        else:
+            self.hide()
+
+    def _sync_metadata_view(self) -> None:
+        """Match view action state to the restored widget visibility."""
+        with blocked_signals(self.action):
+            self.action.setChecked(not self.isHidden())
 
     def parse_header(self, hdr: dict) -> dict:
         """
@@ -3612,6 +3644,16 @@ def create_matrix_settings_action() -> QAction:
     action = QAction("Open matr1x.toml")
     action.setMenuRole(QAction.MenuRole.PreferencesRole)
     action.setShortcut(QKeySequence.StandardKey.Preferences)
+    return action
+
+
+def create_matr1x_quit_action() -> QAction:
+    """Create the common matr1x quit action."""
+    action = QAction("Quit")
+    if os.name == "nt":
+        action.setShortcut(QKeySequence.StandardKey.Close)
+    else:
+        action.setShortcut(QKeySequence.StandardKey.Quit)
     return action
 
 

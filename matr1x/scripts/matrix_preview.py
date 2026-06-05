@@ -16,7 +16,6 @@
 """Display data and allow simple data manipulation."""
 
 import logging
-import os
 import signal
 import subprocess
 import sys
@@ -29,11 +28,8 @@ import numpy as np
 import pyqtgraph
 import pyqtgraph.exporters
 from PySide6.QtCore import (
-    QByteArray,
     QEvent,
     QKeyCombination,
-    QPoint,
-    QSize,
     Qt,
     QThread,
     Signal,
@@ -47,11 +43,8 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QLabel,
     QLayout,
-    QMainWindow,
     QMenuBar,
     QMessageBox,
-    QSizePolicy,
-    QToolBar,
     QWidget,
 )
 
@@ -68,6 +61,7 @@ from matr1x.gui_util import (
     SimplePlotWidget,
     check_config,
     clear_layout,
+    create_matr1x_quit_action,
     create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
@@ -77,7 +71,7 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts.shared_classes import SaferQSettings
+from matr1x.scripts.shared_classes import MMainWindow, MToolBar, SaferQSettings
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +143,6 @@ class ActionGroup:
     update: QAction
     quit: QAction
     matrix_settings: QAction
-    toggle_toolbar: QAction
     meta: QAction
     show_log: QAction
     post_install: QAction
@@ -162,7 +155,7 @@ class UIBuilder:
     def __init__(self):
         self.actions: ActionGroup = self._create_actions()
         self.widgets: WidgetGroup = self._create_widgets()
-        self.toolbar: QToolBar = self._create_toolbar()
+        self.toolbar: MToolBar = self._create_toolbar()
         # gui
         self.file_selector: QComboBox
         self.menubar: QMenuBar = self._create_menu()
@@ -206,15 +199,6 @@ class UIBuilder:
         auto_update.setCheckable(True)
         update = QAction(get_matrix_icon("CHAR_U", QColor("RoyalBlue")), "Update")
         update.setEnabled(False)
-        quit_app = QAction("Quit")
-        if os.name == "nt":
-            quit_app.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
-        toggle_toolbar = QAction("Show Toolbar")
-        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
-        toggle_toolbar.setCheckable(True)
-        toggle_toolbar.setChecked(True)
         meta = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata")
         meta.setShortcut(QKeySequence("Ctrl+2"))
         meta.setEnabled(False)
@@ -228,37 +212,25 @@ class UIBuilder:
             export_data=export_data,
             auto_update=auto_update,
             update=update,
-            quit=quit_app,
+            quit=create_matr1x_quit_action(),
             matrix_settings=create_matrix_settings_action(),
-            toggle_toolbar=toggle_toolbar,
             meta=meta,
             show_log=LogWindowMixin.create_show_log_action(),
             post_install=LogWindowMixin.create_post_install_action(),
             remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
-    def _create_toolbar(self) -> QToolBar:
+    def _create_toolbar(self) -> MToolBar:
         """Create the main toolbar."""
-        toolbar = QToolBar("Toolbar")
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setFloatable(False)
-        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = MApplication.instance().toolbar_icon_size()
-        toolbar.setIconSize(QSize(icon_size, icon_size))
-        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
+        toolbar = MToolBar("Toolbar")
         toolbar.addAction(self.actions.load)
-        toolbar.visibilityChanged.connect(self.actions.toggle_toolbar.setChecked)
         toolbar.addAction(self.actions.export_png)
         toolbar.addAction(self.actions.export_data)
         toolbar.addSeparator()
         toolbar.addAction(self.actions.update)
         toolbar.addAction(self.actions.auto_update)
-        empty = QWidget()
-        empty.setFixedWidth(icon_size)
-        toolbar.addWidget(empty)
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        toolbar.addWidget(spacer)
+        toolbar.addWidget(toolbar.empty)
+        toolbar.addWidget(toolbar.spacer)
         toolbar.addSeparator()
         toolbar.addAction(self.actions.previous)
         self.file_selector = QComboBox()
@@ -290,7 +262,7 @@ class UIBuilder:
         control_menu.addAction(self.actions.previous)
         control_menu.addAction(self.actions.next)
         view_menu = menu.addMenu("&View")
-        view_menu.addAction(self.actions.toggle_toolbar)
+        view_menu.addAction(self.toolbar.action)
         view_menu.addAction(self.actions.meta)
         view_menu.addSeparator()
         view_menu.addAction(self.actions.matrix_settings)
@@ -300,7 +272,7 @@ class UIBuilder:
         return menu
 
 
-class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
+class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
     """
     Data viewer for matrix files.
 
@@ -456,33 +428,13 @@ class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
             a0.ignore()
 
     def save_window_state(self) -> None:
-        """
-        Save application configuration until next startup.
-
-        For convenience, main window geometry, the toolbar placement,
-        and the size and position of the metadata pane are saved.
-        """
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("toolbar_position", self.toolBarArea(self.ui.toolbar).value)
-        self.settings.setValue("meta_position_area", self.dockWidgetArea(self.meta_viewer).value)
-        self.settings.setValue("meta_floating", self.meta_viewer.isFloating())
-        self.settings.setValue("meta_position", self.meta_viewer.pos())
-        self.settings.setValue("meta_size", self.meta_viewer.size())
+        """Save application configuration until next startup."""
+        self.save_layout_state(self.settings)
         self.save_log_window_state(self.settings)
 
     def restore_window_state(self) -> None:
-        """
-        Restore application configuration to look similar to the previous use.
-
-        Main window geometry and the toolbar placement are restored.
-        """
-        toolbar_pos = self.settings.safer_value(
-            "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
-        )
-        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
-        # Just in case it is the first start
-        self.resize(self.sizeHint())
-        self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
+        """Restore application configuration from the previous use."""
+        self.restore_layout_state(self.settings)
         self.restore_log_window_state(self.settings)
 
     def create_new_preview(self) -> None:
@@ -493,13 +445,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
             "from matr1x.scripts import matrix_preview; matrix_preview.main()",
         ]
         subprocess.Popen(preview)
-
-    def toggle_toolbar_view(self, checked):
-        """Toogles the visibility of the toolbar on and off."""
-        if checked:
-            self.ui.toolbar.show()
-        else:
-            self.ui.toolbar.hide()
 
     def init_basic_ui(self):
         """Initialize basic GUI that works without chosen filename."""
@@ -534,7 +479,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
         self.ui.actions.update.triggered.connect(lambda: self.conditional_fetch_data(True))
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
-        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.meta.triggered.connect(self.toggle_meta)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
@@ -546,6 +490,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
 
     def setup_meta_viewer(self) -> None:
         """Configure the metadata view dock widget."""
+        self.meta_viewer.setObjectName("meta_viewer")
         self.meta_viewer.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetClosable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
@@ -556,34 +501,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, QMainWindow):
         )
         self.meta_viewer.setVisible(False)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.meta_viewer)
-        self.restore_meta_viewer()
         self.meta_viewer.visibilityChanged.connect(self.ui.actions.meta.setChecked)
-
-    def restore_meta_viewer(self) -> None:
-        """Restore viewer position ans size from settings."""
-        meta_pos = self.settings.safer_value(
-            "meta_position_area", Qt.DockWidgetArea.RightDockWidgetArea.value, type=int
-        )
-
-        self.addDockWidget(Qt.DockWidgetArea(meta_pos), self.meta_viewer)
-        self.meta_viewer.setFloating(self.settings.safer_value("meta_floating", False, type=bool))
-        if self.meta_viewer.isFloating():
-            self.meta_viewer.move(
-                self.settings.safer_value("meta_position", self.meta_viewer.pos(), type=QPoint)
-            )
-            self.meta_viewer.resize(
-                self.settings.safer_value("meta_size", self.meta_viewer.size(), type=QSize)
-            )
-        else:
-            self.resizeDocks(
-                [self.meta_viewer],
-                [
-                    self.settings.safer_value(
-                        "meta_size", self.meta_viewer.size(), type=QSize
-                    ).width()
-                ],
-                Qt.Orientation.Horizontal,
-            )
 
     def init_ui(self):
         """Initialize GUI for popup."""

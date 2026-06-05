@@ -21,7 +21,6 @@ segments.
 """
 
 import logging
-import os
 import re
 import sys
 import time
@@ -36,7 +35,7 @@ from typing import Any
 import numpy
 import pyqtgraph as pg
 from pydantic import BaseModel, Field
-from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, Signal
+from PySide6.QtCore import QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFocusEvent, QKeySequence, QMouseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -48,7 +47,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QMainWindow,
     QMenu,
     QMenuBar,
     QMessageBox,
@@ -57,7 +55,6 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -82,6 +79,7 @@ from matr1x.gui_util import (
     MApplication,
     check_config,
     clear_layout,
+    create_matr1x_quit_action,
     create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
@@ -95,6 +93,8 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.scripts.shared_classes import (
+    MMainWindow,
+    MToolBar,
     Notifier,
     NotifierMessage,
     SaferQSettings,
@@ -641,7 +641,6 @@ class ActionGroup:
     append_to: QAction
     quit: QAction
     sweep: QAction
-    toggle_toolbar: QAction
     preview: QAction
     post_install: QAction
     remove_desktop_integration: QAction
@@ -653,7 +652,7 @@ class UIBuilder:
     def __init__(self):
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
-        self.toolbar: QToolBar = self._create_toolbar()
+        self.toolbar: MToolBar = self._create_toolbar()
         self.menubar: QMenuBar = self._create_menu()
         self.grid: QGridLayout = self._create_gui()
 
@@ -713,17 +712,8 @@ class UIBuilder:
         append_to = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append To...")
         append.setEnabled(False)
         append_to.setEnabled(False)
-        quit_action = QAction("Quit")
-        if os.name == "nt":
-            quit_action.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         sweep = QAction(get_matrix_icon("SP_BrowserReload"), "Draft Sweep")
         sweep.setEnabled(False)
-        toggle_toolbar = QAction("Show Toolbar")
-        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
-        toggle_toolbar.setCheckable(True)
-        toggle_toolbar.setChecked(True)
         preview = QAction(
             get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview"
         )
@@ -739,15 +729,14 @@ class UIBuilder:
             save_as=save_as,
             append=append,
             append_to=append_to,
-            quit=quit_action,
+            quit=create_matr1x_quit_action(),
             sweep=sweep,
-            toggle_toolbar=toggle_toolbar,
             preview=preview,
             post_install=LogWindowMixin.create_post_install_action(),
             remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
-    def _create_toolbar(self) -> QToolBar:
+    def _create_toolbar(self) -> MToolBar:
         """Create the toolbar."""
         save_button = QToolButton()
         save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -760,25 +749,14 @@ class UIBuilder:
         save_pulldown.addAction(self.actions.append)
         save_pulldown.addAction(self.actions.append_to)
         save_button.setMenu(save_pulldown)
-
-        toolbar = QToolBar("Toolbar")
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setFloatable(False)
-        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = MApplication.instance().toolbar_icon_size()
-        toolbar.setIconSize(QSize(icon_size, icon_size))
-        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
+        toolbar = MToolBar("Toolbar")
         toolbar.addAction(self.actions.new_file)
         toolbar.addAction(self.actions.load)
         toolbar.addWidget(save_button)
         toolbar.addAction(self.actions.sweep)
-        empty = QWidget()
-        empty.setFixedWidth(icon_size)
-        empty2 = QWidget()
-        empty2.setFixedWidth(icon_size)
-        toolbar.addWidget(empty)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.preview)
-        toolbar.addWidget(empty2)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addSeparator()
         self.widgets.system_list.add_to_toolbar(toolbar)
         return toolbar
@@ -800,7 +778,7 @@ class UIBuilder:
         control_menu = menu_bar.addMenu("&Control")
         control_menu.addAction(self.actions.sweep)
         view_menu = menu_bar.addMenu("&View")
-        view_menu.addAction(self.actions.toggle_toolbar)
+        view_menu.addAction(self.toolbar.action)
         view_menu.addSeparator()
         view_menu.addAction(self.actions.matrix_settings)
         help_menu = menu_bar.addMenu("&Help")
@@ -952,7 +930,7 @@ class SweepPreviewPopup(QDialog):
         )
 
 
-class MainWindow(FileDropMixin, LogWindowMixin, QMainWindow):
+class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
     """
     Run the logic of the sweep generator.
 
@@ -1029,42 +1007,14 @@ class MainWindow(FileDropMixin, LogWindowMixin, QMainWindow):
         a0.accept()
 
     def save_window_state(self) -> None:
-        """
-        Save application configuration until next startup.
-
-        For convenience, main window geometry, toolbar placement and
-        logger position and size are saved.
-        """
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("toolbar_position", self.toolBarArea(self.ui.toolbar).value)
+        """Save application configuration until next startup."""
+        self.save_layout_state(self.settings)
         self.save_log_window_state(self.settings, enabled=self._owns_log_window)
 
     def restore_window_state(self) -> None:
-        """
-        Restore application configuration from previous use.
-
-        Main window geometry and toolbar placement are restored.
-        """
-        self.resize(self.sizeHint())  # Just in case it is the first start
-        self.restoreGeometry(
-            self.settings.safer_value("geometry", defaultValue=QByteArray(), type=QByteArray)
-        )
-        toolbar_pos = self.settings.safer_value(
-            "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
-        )
-        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
+        """Restore application configuration from the previous use."""
+        self.restore_layout_state(self.settings)
         self.restore_log_window_state(self.settings, enabled=self._owns_log_window)
-
-    def toggle_toolbar_view(self, checked: bool) -> None:
-        """
-        Toogles the visibility of the toolbar on and off.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the toolbar.
-        """
-        self.ui.toolbar.show() if checked else self.ui.toolbar.hide()
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
@@ -1087,9 +1037,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, QMainWindow):
         )
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.actions.sweep.triggered.connect(self.generate_datafile)
-        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.preview.triggered.connect(self.preview_sweep)
-        self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
         self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
         self.ui.widgets.system_list.message.connect(self.ui.widgets.notifier.show_message)

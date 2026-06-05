@@ -16,7 +16,6 @@
 """Provide a graphical user interface for matrix measurements."""
 
 import logging
-import os
 import re
 import subprocess
 import sys
@@ -26,7 +25,6 @@ from pathlib import Path
 from PySide6.QtCore import (
     QDateTime,
     QPoint,
-    QSize,
     Qt,
     QTimer,
     QTimeZone,
@@ -47,9 +45,7 @@ from PySide6.QtWidgets import (
     QMenuBar,
     QMessageBox,
     QProgressBar,
-    QSizePolicy,
     QTableWidgetItem,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -66,6 +62,7 @@ from matr1x.gui_util import (
     MApplication,
     ReadOnlyTable,
     check_config,
+    create_matr1x_quit_action,
     create_matrix_settings_action,
     detect_shortcut,
     get_matrix_icon,
@@ -91,9 +88,10 @@ from matr1x.scripts import sweep_generator
 from matr1x.scripts.shared_classes import (
     MeasurementItem,
     MeasurementThread,
-    MetadataConfigDockMainWindow,
     MetaDataDialog,
     MetadataDockWidget,
+    MMainWindow,
+    MToolBar,
     SaferQSettings,
 )
 from matr1x.system import MergedSystem
@@ -273,8 +271,6 @@ class ActionGroup:
     abort: QAction
     finish: QAction
     kill: QAction
-    toggle_metadata: QAction
-    toggle_toolbar: QAction
     show_log: QAction
     load: QAction
     quit: QAction
@@ -304,16 +300,15 @@ class UIBuilder:
     """Create the GUI elements."""
 
     def __init__(self) -> None:
-        self.actions: ActionGroup = self._create_actions()
         self.widgets: WidgetGroup = self._create_widgets()
-        self.toolbar: QToolBar = self._create_toolbar()
+        self.actions: ActionGroup = self._create_actions()
+        self.toolbar: MToolBar = self._create_toolbar()
         self._create_gui()
         self.menubar = self._create_menubar()
 
     def _create_widgets(self) -> WidgetGroup:
         """Create all UI widgets of this application."""
         meas_list = QueueListWidget()
-        config_editor = MetadataConfigDockMainWindow.create_config_editor()
         input_file = LabelWithSignal()
         current_file = QLabel()
         dockable_metadata = MetadataDockWidget()
@@ -331,7 +326,7 @@ class UIBuilder:
         current_measurement.setReadOnly(True)
         return WidgetGroup(
             meas_list=meas_list,
-            config_editor=config_editor,
+            config_editor=ConfigEditWidget(),
             dockable_metadata=dockable_metadata,
             meta_view=dockable_metadata.meta_view,
             input_file=input_file,
@@ -380,11 +375,6 @@ class UIBuilder:
         """Create all QActions of this application."""
         load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setShortcut(QKeySequence.StandardKey.Open)
-        quit_app = QAction("Quit")
-        if os.name == "nt":
-            quit_app.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
         preview = QAction(
             get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview"
         )
@@ -406,14 +396,10 @@ class UIBuilder:
         finish.setEnabled(False)
         kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
         kill.setEnabled(False)
-        toggle_toolbar = QAction("Show Toolbar")
-        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
-        toggle_toolbar.setCheckable(True)
-        toggle_toolbar.setChecked(True)
         return ActionGroup(
             preview=preview,
             matrix_settings=create_matrix_settings_action(),
-            config=MetadataConfigDockMainWindow.create_device_config_action(),
+            config=self.widgets.config_editor.action,
             sweep=sweep,
             queue=queue,
             start=start,
@@ -421,43 +407,29 @@ class UIBuilder:
             abort=abort,
             finish=finish,
             kill=kill,
-            toggle_metadata=MetadataConfigDockMainWindow.create_metadata_action(),
-            toggle_toolbar=toggle_toolbar,
             show_log=LogWindowMixin.create_show_log_action(),
             load=load,
-            quit=quit_app,
+            quit=create_matr1x_quit_action(),
             post_install=LogWindowMixin.create_post_install_action(),
             remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
-    def _create_toolbar(self) -> QToolBar:
+    def _create_toolbar(self) -> MToolBar:
         """Create the Toolbar."""
-        toolbar = QToolBar("Toolbar")
-        toolbar.setObjectName("main_toolbar")
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        toolbar.setFloatable(False)
-        icon_size = MApplication.instance().toolbar_icon_size()
-        empty = QWidget()
-        empty.setFixedWidth(icon_size)
-        empty2 = QWidget()
-        empty2.setFixedWidth(icon_size)
-        toolbar.setIconSize(QSize(icon_size, icon_size))
+        toolbar = MToolBar("Toolbar")
         toolbar.addAction(self.actions.load)
         toolbar.addAction(self.actions.sweep)
         toolbar.addSeparator()
-        toolbar.addWidget(empty)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.queue)
         toolbar.addAction(self.actions.start)
         toolbar.addAction(self.actions.pause)
         toolbar.addAction(self.actions.abort)
         toolbar.addAction(self.actions.finish)
-        toolbar.addWidget(empty2)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.preview)
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        toolbar.addWidget(spacer)
-        toolbar.addAction(self.actions.toggle_metadata)
+        toolbar.addWidget(toolbar.spacer)
+        toolbar.addAction(self.widgets.dockable_metadata.action)
         toolbar.addAction(self.actions.config)
         return toolbar
 
@@ -479,8 +451,8 @@ class UIBuilder:
         control_menu.addSeparator()
         control_menu.addAction(self.actions.preview)
         view_menu = menubar.addMenu("&View")
-        view_menu.addAction(self.actions.toggle_toolbar)
-        view_menu.addAction(self.actions.toggle_metadata)
+        view_menu.addAction(self.toolbar.action)
+        view_menu.addAction(self.widgets.dockable_metadata.action)
         view_menu.addAction(self.actions.config)
         view_menu.addSeparator()
         view_menu.addAction(self.actions.matrix_settings)
@@ -490,7 +462,7 @@ class UIBuilder:
         return menubar
 
 
-class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
+class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
     """Runs the logical code."""
 
     def __init__(self) -> None:
@@ -504,7 +476,10 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
         self.ui = UIBuilder()
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
-        self.install_metadata_config_docks()
+        self.install_metadata_config_docks(
+            self.ui.widgets.dockable_metadata,
+            self.ui.widgets.config_editor,
+        )
         self.setCentralWidget(self.ui.widgets.central_widget)
         check_config(matr1x.config)
         self.sg: QMainWindow | None = None
@@ -521,7 +496,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
         """Connect actions and widgets with application logic."""
         self.ui.actions.preview.triggered.connect(self.open_preview)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
-        self.connect_layout_actions()
         self.ui.actions.sweep.triggered.connect(self.start_sweep_generator)
         self.ui.actions.queue.triggered.connect(self.queue_measurement)
         self.ui.actions.start.triggered.connect(self.run_matrix)
@@ -647,13 +621,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MetadataConfigDockMainWindow):
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
         self.save_layout_state(self.settings)
-
         self.save_log_window_state(self.settings)
 
     def restore_window_state(self) -> None:
         """Restore application configuration from the previous use."""
         self.restore_layout_state(self.settings)
-
         self.restore_log_window_state(self.settings)
 
     def show_input_dialog(self) -> None:
@@ -828,8 +800,8 @@ def main() -> None:
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-gui")
     ex = MainWindow()
-    ex.restore_window_state()
     ex.show()
+    ex.restore_window_state()
     ret = app.exec()
     logger.info("matrix-gui exiting")
     sys.exit(ret)

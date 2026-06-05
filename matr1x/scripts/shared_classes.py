@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Contains classes shared across matr1x scripts."""
 
-import contextlib
 import importlib.util
 import logging
 import socket
@@ -23,7 +22,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Literal, TypedDict, final, overload
@@ -32,7 +30,6 @@ import tomli_w
 from pydantic import ValidationError
 from PySide6.QtCore import (
     QByteArray,
-    QObject,
     QPoint,
     QPropertyAnimation,
     QSettings,
@@ -55,7 +52,9 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMenu,
+    QSizePolicy,
     QTextEdit,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -66,6 +65,7 @@ from matr1x.gui_util import (
     ConfigEditWidget,
     LoggerMixin,
     MApplication,
+    blocked_signals,
     get_matrix_icon,
     get_system_info,
 )
@@ -77,8 +77,9 @@ __all__ = [
     "MeasurementThread",
     "MetaData",
     "MetaDataDialog",
-    "MetadataConfigDockMainWindow",
     "MetadataDockWidget",
+    "MMainWindow",
+    "MToolBar",
     "Notifier",
     "NotifierMessage",
     "SaferQSettings",
@@ -355,6 +356,21 @@ class MetadataDockWidget(QDockWidget):
         )
         self.meta_view = MetaDataDialog()
         self.setWidget(self.meta_view)
+        self.action = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata", self)
+        self.action.setShortcut(QKeySequence("Ctrl+2"))
+        self.action.setCheckable(True)
+        self.action.setChecked(True)
+        self.action.triggered.connect(self.toggle_metadata_view)
+        self.visibilityChanged.connect(self._sync_metadata_view)
+
+    def toggle_metadata_view(self, checked: bool) -> None:
+        """Toggle the visibility of the metadata."""
+        self.setVisible(checked)
+
+    def _sync_metadata_view(self) -> None:
+        """Match view action state to the restored widget visibility."""
+        with blocked_signals(self.action):
+            self.action.setChecked(not self.isHidden())
 
 
 @final
@@ -476,83 +492,61 @@ class MeasurementItem:
         return input_file + output_file + metadata + config
 
 
-@contextlib.contextmanager
-def _blocked_signals(*objects: QObject) -> Iterator[None]:
-    """Temporarily block signals for Qt objects."""
-    blocked_objects = [(obj, obj.blockSignals(True)) for obj in objects]
-    try:
-        yield
-    finally:
-        for obj, previous_state in blocked_objects:
-            obj.blockSignals(previous_state)
+@final
+class MToolBar(QToolBar):
+    """Standard toolbar with custom properties."""
+
+    def __init__(self, title: str | None = None) -> None:
+        super().__init__(title)
+        self.setObjectName("main_toolbar")
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.setFloatable(False)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
+        self.icon_size = MApplication.instance().toolbar_icon_size()
+        self.setIconSize(QSize(self.icon_size, self.icon_size))
+        self.action = QAction("Show Toolbar", self)
+        self.action.setShortcut(QKeySequence("Ctrl+1"))
+        self.action.setCheckable(True)
+        self.action.setChecked(True)
+        self.action.triggered.connect(self.toggle_toolbar_view)
+        self.visibilityChanged.connect(self.action.setChecked)
+
+    @property
+    def empty(self) -> QWidget:
+        """Return an empty widget with fixed icon size."""
+        empty = QWidget()
+        empty.setFixedWidth(self.icon_size)
+        return empty
+
+    @property
+    def spacer(self) -> QWidget:
+        """Return a spacer widget that expands horizontally."""
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        return spacer
+
+    def toggle_toolbar_view(self, checked: bool) -> None:
+        """Toggle the visibility of the toolbar."""
+        self.setVisible(checked)
 
 
-class MetadataConfigDockMainWindow(QMainWindow):
+class MMainWindow(QMainWindow):
     """Main window with shared metadata and config dock layout handling."""
 
-    ui: Any
     layout_settings_group = "MainWindowLayoutV2"
 
-    @staticmethod
-    def create_config_editor() -> ConfigEditWidget:
-        """Create the common device config editor dock."""
-        return ConfigEditWidget()
-
-    @staticmethod
-    def create_device_config_action() -> QAction:
-        """Create the common device config action."""
-        action = QAction(get_matrix_icon("CHAR_≡"), "Device config")
-        action.setToolTip("Show the devices preferences/ configuration.")
-        action.setShortcut(QKeySequence("Ctrl+3"))
-        action.setCheckable(True)
-        return action
-
-    @staticmethod
-    def create_metadata_action() -> QAction:
-        """Create the common metadata visibility action."""
-        action = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata")
-        action.setShortcut(QKeySequence("Ctrl+2"))
-        action.setCheckable(True)
-        action.setChecked(True)
-        return action
-
-    def install_metadata_config_docks(self) -> None:
+    def install_metadata_config_docks(self, metadata: QDockWidget, config: QDockWidget) -> None:
         """Install metadata and device config docks."""
-        metadata_dock = self.ui.widgets.dockable_metadata
-        config_dock = self.ui.widgets.config_editor
         self.setDockOptions(
             self.dockOptions()
             | QMainWindow.DockOption.AllowNestedDocks
             | QMainWindow.DockOption.AllowTabbedDocks
         )
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, metadata_dock)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, config_dock)
-        self.splitDockWidget(metadata_dock, config_dock, Qt.Orientation.Vertical)
-        config_dock.hide()
-
-    def connect_layout_actions(self) -> None:
-        """Connect the shared layout actions and visibility changes."""
-        self.ui.actions.config.toggled.connect(self.toggle_preferences)
-        self.ui.actions.toggle_metadata.triggered.connect(self.toggle_metadata_view)
-        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
-        self.ui.widgets.config_editor.visibilityChanged.connect(self._sync_layout_actions)
-        self.ui.widgets.dockable_metadata.visibilityChanged.connect(self._sync_layout_actions)
-        self.ui.toolbar.visibilityChanged.connect(self._sync_layout_actions)
-
-    def layout_action_mappings(self) -> list[tuple[QAction, QWidget]]:
-        """
-        Return action and widget pairs synchronized with layout visibility.
-
-        Returns
-        -------
-        list of tuple of QAction and QWidget
-            Actions paired with the widgets whose visibility they control.
-        """
-        return [
-            (self.ui.actions.config, self.ui.widgets.config_editor),
-            (self.ui.actions.toggle_metadata, self.ui.widgets.dockable_metadata),
-            (self.ui.actions.toggle_toolbar, self.ui.toolbar),
-        ]
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, metadata)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, config)
+        self.splitDockWidget(metadata, config, Qt.Orientation.Vertical)
+        config.hide()
 
     def save_layout_state(self, settings: SaferQSettings) -> None:
         """
@@ -581,64 +575,9 @@ class MetadataConfigDockMainWindow(QMainWindow):
         self.resize(self.sizeHint())  # Just in case it is the first start.
         settings.beginGroup(self.layout_settings_group)
         self.restoreGeometry(settings.safer_value("geometry", QByteArray(), type=QByteArray))
-        actions = [action for action, _widget in self.layout_action_mappings()]
-        with _blocked_signals(*actions):
-            self.restoreState(settings.safer_value("window_state", QByteArray(), type=QByteArray))
+        self.restoreState(settings.safer_value("window_state", QByteArray(), type=QByteArray))
         self._restore_additional_layout_state(settings)
         settings.endGroup()
-        self._sync_layout_actions()
-
-    def toggle_toolbar_view(self, checked: bool) -> None:
-        """
-        Toggle the visibility of the toolbar.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the toolbar.
-        """
-        if checked:
-            self.ui.toolbar.show()
-        else:
-            self.ui.toolbar.hide()
-
-    def toggle_metadata_view(self, checked: bool) -> None:
-        """
-        Toggle the visibility of the metadata.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the metadata.
-        """
-        metadata = self.ui.widgets.dockable_metadata
-        if checked:
-            metadata.show()
-        else:
-            metadata.hide()
-
-    def toggle_preferences(self, checked: bool) -> None:
-        """
-        Toggle the preferences pane.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the preferences.
-        """
-        config_editor = self.ui.widgets.config_editor
-        if checked:
-            config_editor.show()
-            config_editor.raise_()
-            config_editor.activateWindow()
-        else:
-            config_editor.hide()
-
-    def _sync_layout_actions(self) -> None:
-        """Match view action state to the restored widget visibility."""
-        for action, widget in self.layout_action_mappings():
-            with _blocked_signals(action):
-                action.setChecked(not widget.isHidden())
 
     def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
         """

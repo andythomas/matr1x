@@ -16,7 +16,6 @@
 """Allow to write measurement scripts in Python."""
 
 import logging
-import os
 import platform
 import re
 import subprocess
@@ -62,7 +61,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSplitter,
     QTextEdit,
-    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -81,6 +79,7 @@ from matr1x.gui_util import (
     LogWindowMixin,
     MApplication,
     check_config,
+    create_matr1x_quit_action,
     create_matrix_settings_action,
     detect_shortcut,
     find_parent_of_type,
@@ -108,9 +107,10 @@ from matr1x.post_install import (
 from matr1x.scripts.shared_classes import (
     MeasurementItem,
     MeasurementThread,
-    MetadataConfigDockMainWindow,
     MetaDataDialog,
     MetadataDockWidget,
+    MMainWindow,
+    MToolBar,
     NotifierMessage,
     SaferQSettings,
     SystemListWidget,
@@ -686,8 +686,6 @@ class ActionGroup:
     pep8: QAction
     autocomplete: QAction
     show_log: QAction
-    toggle_metadata: QAction
-    toggle_toolbar: QAction
     system_help: QAction
     theme_actions: list[QAction]
     theme_group: QActionGroup
@@ -724,7 +722,7 @@ class UIBuilder:
     def __init__(self):
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
-        self.toolbar: QToolBar = self._create_toolbar()
+        self.toolbar: MToolBar = self._create_toolbar()
         self.menubar: QMenuBar = self._create_menu()
         self._create_gui()
 
@@ -789,7 +787,6 @@ class UIBuilder:
             The dataclass with all the widgets.
         """
         dockable_metadata = MetadataDockWidget()
-        config_editor = MetadataConfigDockMainWindow.create_config_editor()
         system_list = SystemListWidget()
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
@@ -828,7 +825,7 @@ class UIBuilder:
             script_edit=script_edit,
             system_command_help=system_command_help,
             system_command_text_edit=system_command_text_edit,
-            config_editor=config_editor,
+            config_editor=ConfigEditWidget(),
             save_button=save_button,
             stop_button=stop_button,
             splitter=splitter,
@@ -868,11 +865,6 @@ class UIBuilder:
         self.widgets.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         self.widgets.save_pulldown.addAction(save_as)
         self.widgets.save_button.setMenu(self.widgets.save_pulldown)
-        quit_app = QAction("Quit")
-        if os.name == "nt":
-            quit_app.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
         caption = "Toggle Line Comment\t" + script_config.shortcuts.line_comment_display
         line_comment = QAction(caption)
         line_comment.setShortcut(QKeySequence(script_config.shortcuts.line_comment_shortcut))
@@ -920,21 +912,17 @@ class UIBuilder:
         autocomplete = QAction("Tab completion")
         autocomplete.setCheckable(True)
         autocomplete.setChecked(True)
-        toggle_toolbar = QAction("Show Toolbar")
-        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
-        toggle_toolbar.setCheckable(True)
-        toggle_toolbar.setChecked(True)
 
         return ActionGroup(
             matrix_settings=create_matrix_settings_action(),
-            config=MetadataConfigDockMainWindow.create_device_config_action(),
+            config=self.widgets.config_editor.action,
             new_file=new_file,
             load=load,
             save=save,
             save_as=save_as,
             add_system=self.widgets.system_list.add_action,
             remove_system=self.widgets.system_list.remove_action,
-            quit_app=quit_app,
+            quit_app=create_matr1x_quit_action(),
             undo=self._standard_action("Undo"),
             redo=self._standard_action("Redo"),
             cut=self._standard_action("Cut"),
@@ -954,8 +942,6 @@ class UIBuilder:
             pep8=pep8,
             autocomplete=autocomplete,
             show_log=LogWindowMixin.create_show_log_action(),
-            toggle_metadata=MetadataConfigDockMainWindow.create_metadata_action(),
-            toggle_toolbar=toggle_toolbar,
             system_help=QAction("Show System Help"),
             theme_actions=theme_actions,
             theme_group=theme_group,
@@ -963,42 +949,22 @@ class UIBuilder:
             remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
-    def _create_toolbar(self) -> QToolBar:
-        """
-        Create the toolbar.
-
-        Returns
-        -------
-        QToolBar
-            The (main) toolbar.
-        """
-        toolbar = QToolBar("Toolbar")
-        toolbar.setObjectName("main_toolbar")
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setFloatable(False)
-        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
-        icon_size = MApplication.instance().toolbar_icon_size()
-        empty = QWidget()
-        empty.setFixedWidth(icon_size)
-        empty2 = QWidget()
-        empty2.setFixedWidth(icon_size)
-        empty3 = QWidget()
-        empty3.setFixedWidth(icon_size)
-        toolbar.setIconSize(QSize(icon_size, icon_size))
+    def _create_toolbar(self) -> MToolBar:
+        """Create the toolbar."""
+        toolbar = MToolBar("Toolbar")
         toolbar.addAction(self.actions.new_file)
         toolbar.addAction(self.actions.load)
         toolbar.addWidget(self.widgets.save_button)
-        toolbar.addWidget(empty)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.start_pause)
         toolbar.addWidget(self.widgets.stop_button)
-        toolbar.addWidget(empty2)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.preview)
-        toolbar.addWidget(empty3)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addSeparator()
         self.widgets.system_list.add_to_toolbar(toolbar)
         toolbar.addSeparator()
-        toolbar.addAction(self.actions.toggle_metadata)
+        toolbar.addAction(self.widgets.dockable_metadata.action)
         toolbar.addAction(self.actions.config)
         return toolbar
 
@@ -1047,8 +1013,8 @@ class UIBuilder:
         control.addSeparator()
         control.addAction(self.actions.preview)
         view = menu.addMenu("&View")
-        view.addAction(self.actions.toggle_toolbar)
-        view.addAction(self.actions.toggle_metadata)
+        view.addAction(self.toolbar.action)
+        view.addAction(self.widgets.dockable_metadata.action)
         view.addAction(self.actions.config)
         view.addSeparator()
         view.addAction(self.actions.matrix_settings)
@@ -1075,7 +1041,7 @@ class UIBuilder:
         layout.addLayout(infobar, 0)
 
 
-class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
+class MainWindow(LogWindowMixin, MMainWindow):
     """
     Run the logical code.
 
@@ -1110,7 +1076,10 @@ class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
         self.ui.widgets.script_edit.setValidExtensions([self.extension])
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
-        self.install_metadata_config_docks()
+        self.install_metadata_config_docks(
+            self.ui.widgets.dockable_metadata,
+            self.ui.widgets.config_editor,
+        )
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
@@ -1149,7 +1118,6 @@ class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
         self.ui.actions.finish.triggered.connect(lambda: self.abort_thread("f"))
         self.ui.actions.kill.triggered.connect(self.kill_thread)
         self.ui.actions.preview.triggered.connect(self.preview_data)
-        self.connect_layout_actions()
         self.ui.actions.system_help.triggered.connect(self.show_system_commands)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
@@ -1679,7 +1647,7 @@ class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
             kind="script",
             input_file=script,
             output_file=outputfile,
-            metadata=metadata,
+            metadata=metadata,  # ty:ignore[invalid-argument-type]
             config=self.ui.widgets.config_editor.get_config_dict(),
             systems=self.ui.widgets.system_list.systems,
         )
@@ -1942,8 +1910,8 @@ def main() -> None:
     appname = "matrix-script"
     app.setDesktopFileName(appname)
     ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
-    ex.restore_window_state()
     ex.show()
+    ex.restore_window_state()
     # handle MacOS specific FileOpenEvent from MApplication
     app.connect_file_handler(ex._load_file_from_signal)
     ret = app.exec()
