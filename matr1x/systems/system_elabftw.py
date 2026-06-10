@@ -162,7 +162,8 @@ class ElabSystem(System):
             self.report(
                 Message(
                     "ElabFTW connection host or API key not found in the TOML config, make "
-                    "sure host address and API key of the server are specified."
+                    "sure host address and API key of the server are specified.",
+                    to_comment=False,
                 )
             )
             raise Exception(
@@ -191,7 +192,8 @@ class ElabSystem(System):
                 self.report(
                     Message(
                         "ElabFTW connection could not be established "
-                        "but is configured to be required."
+                        "but is configured to be required.",
+                        to_comment=False,
                     )
                 )
                 raise Exception("ElabFTW connection could not be established")
@@ -199,7 +201,8 @@ class ElabSystem(System):
                 self.report(
                     Message(
                         "ElabFTW connection could not be established\n"
-                        "no labbook entry will be created, but we continue."
+                        "no labbook entry will be created, but we continue.",
+                        to_comment=False,
                     )
                 )
                 # disable api_client for rest of run to be more smooth
@@ -449,7 +452,8 @@ class ElabSystem(System):
             self.report(
                 Message(
                     "Exception when calling ItemsTypesResourcesTemplatesApi->"
-                    f"read_item_types: {e}\n"
+                    f"read_item_types: {e}\n",
+                    to_comment=False,
                 )
             )
             return None
@@ -498,9 +502,9 @@ class ElabSystem(System):
             locationHeaderInResponse = response[2].get("Location")
             item_id = int(locationHeaderInResponse.split("/").pop())
             itemsApi.patch_item(body={"title": name}, id=item_id)
-            self.report(Message(f"created ElabFTW resource with name {name}"))
+            self.report(Message(f"created ElabFTW resource with name {name}", to_comment=False))
         except ApiException as e:
-            self.report(Message(f"Exception when calling ItemsApi: {e}\n"))
+            self.report(Message(f"Exception when calling ItemsApi: {e}\n", to_comment=False))
         if item_id is None:
             raise ValueError("Failed to create resource - itemId is None")
         return item_id
@@ -525,14 +529,20 @@ class ElabSystem(System):
         try:
             response = itemsApi.read_items(q=f"'{resource}'")
         except ApiException as e:
-            self.report(Message(f"Exception when calling ItemsApi->readItems: {e}\n"))
+            self.report(
+                Message(
+                    f"Exception when calling ItemsApi->readItems: {e}\n",
+                    to_comment=False,
+                )
+            )
             return None
         if item_id := next((item.id for item in response if item.title == resource), None):
             return item_id
         else:
             self.report(
                 Message(
-                    f"Could not identify ElabFTW resource corresponding to the name {resource}"
+                    f"Could not identify ElabFTW resource corresponding to the name {resource}",
+                    to_comment=False,
                 )
             )
         return None

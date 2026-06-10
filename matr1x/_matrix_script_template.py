@@ -105,7 +105,12 @@ def _configure_script_storing(system: _MergedSystem, script: str) -> None:
         if "user script" not in system.system_config_params:
             system.system_config_params["user script"] = user_script
         else:
-            _report(_Message("'user script' key already present in system, not overwriting!"))
+            _report(
+                _Message(
+                    "'user script' key already present in system, not overwriting!",
+                    to_comment=False,
+                )
+            )
 
 
 def _find_caller_frame() -> _types.FrameType | None:
@@ -490,7 +495,8 @@ _configure_execution_path(_scriptname)
 # optionally set user script to be stored in data file
 _configure_script_storing(_system, _script)
 # initialize system and put devs into namespace
-_report(_Message("setting system"))
+# disable to_comment since datafile can't be initialized yet
+_report(_Message("setting system", to_comment=False))
 # system.set is called before the filename is set. So, we have no
 # arguments here -> this is a difference to matrix
 _system.set()
@@ -652,7 +658,7 @@ except KeyboardInterrupt:
         # finished is None, so ask what is supposed to happen
         _reset_kwargs["status"] = _input(message="", input_type="__end_script__")
 except Exception as e:
-    _report(_Message("script exited with error:"))
+    _report(_Message("script exited with error:", to_comment=False))
     # get traceback information and format accordingly
     exc_type, exc_value, exc_traceback = _sys.exc_info()
 
@@ -688,16 +694,16 @@ except Exception as e:
         except Exception:
             tbstr = tbstr.replace('File "<string>"', '"<script>"')
 
-        _report(_Message(tbstr))
+        _report(_Message(tbstr, to_comment=False))
 
         # Check adjusted line instead of original line
         if adjusted_line < 1:
-            _report(_Message(" error during device initialization"))
+            _report(_Message(" error during device initialization", to_comment=False))
     else:
         # No line number found in traceback
         tbstr = tbstr.replace('File "<string>"', '"<script>"')
-        _report(_Message(tbstr))
-        _report(_Message(" error during device initialization"))
+        _report(_Message(tbstr, to_comment=False))
+        _report(_Message(" error during device initialization", to_comment=False))
 
     _reset_kwargs["status"] = "errored"
     if exc_type is None:
