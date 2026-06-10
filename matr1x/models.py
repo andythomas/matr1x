@@ -180,8 +180,6 @@ class Matr1xScriptsMatrix_ScriptConfig(BaseModel):
 
     script_path: Path | None = None
     store_script_in_datafile: bool = False
-    duplicate_output_to_logfile: bool = False
-    print_to_comment: bool = False
     shortcuts: Matr1xScriptsMatrix_ScriptShortcutsConfig = Field(
         default_factory=Matr1xScriptsMatrix_ScriptShortcutsConfig
     )
@@ -232,6 +230,8 @@ class Matr1xConfig(BaseModel):
     scripts: Matr1xScriptsConfig = Matr1xScriptsConfig()
     email: Matr1xEmailConfig = Matr1xEmailConfig()
     systems: UntypedConfigModel = UntypedConfigModel()
+    duplicate_output_to_logfile: bool = False
+    print_to_comment: bool = False
 
 
 class MainConfig(ConfigBaseModel):

@@ -36,6 +36,7 @@ system directories.
 import logging
 import os
 import sys
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,66 @@ output_extension = ".ma8"
 
 # Global list to store validation errors from configuration loading
 validation_errors: list[str] = []
+
+
+@dataclass(frozen=True)
+class Migration:
+    """Conversion info for old config entries."""
+
+    old_path: tuple[str, ...]
+    new_path: tuple[str, ...]
+    warning: str
+
+
+MIGRATIONS = [
+    Migration(
+        old_path=("matr1x", "scripts", "matrix-script", "duplicate_output_to_logfile"),
+        new_path=("matr1x", "duplicate_output_to_logfile"),
+        warning="Please move all 'duplicate_output_to_logfile' entries "
+        "to [matr1x.duplicate_output_to_logfile]\n",
+    ),
+    Migration(
+        old_path=("matr1x", "scripts", "matrix-script", "print_to_comment"),
+        new_path=("matr1x", "print_to_comment"),
+        warning="Please move all 'print_to_comment' entries to [matr1x.print_to_comment]\n",
+    ),
+]
+
+
+def get_path(data, *path) -> Any:
+    """Get a nested value from a dictionary using a sequence of keys."""
+    for key in path:
+        if not isinstance(data, dict):
+            return None
+        data = data.get(key)
+    return data
+
+
+def set_path(data, *path, value) -> None:
+    """Set a nested value in a dictionary using a sequence of keys."""
+    for key in path[:-1]:
+        data = data.setdefault(key, {})
+    data[path[-1]] = value
+
+
+def delete_path(data: dict[str, Any], *path: str) -> None:
+    """Delete a nested key from a dictionary."""
+    current = data
+    for key in path[:-1]:
+        current = current[key]
+    del current[path[-1]]
+
+
+def migrate_config(config_data):
+    """Migrate old config keys to new ones."""
+    for migration in MIGRATIONS:
+        old_value = get_path(config_data, *migration.old_path)
+        new_value = get_path(config_data, *migration.new_path)
+        if old_value is not None and new_value is None:
+            set_path(config_data, *migration.new_path, value=old_value)
+            delete_path(config_data, *migration.old_path)
+            validation_errors.append(migration.warning)
+    return config_data
 
 
 def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
@@ -105,7 +166,7 @@ def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
                 config_data = merge_dicts(config_data, optional_config)
         else:
             print(f"Warning: Optional config file not found: {optional_config_path}")  # noqa: T201
-
+    config_data = migrate_config(config_data)
     return config_data
 
 
@@ -119,9 +180,7 @@ def merge_dicts(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
     return dict1
 
 
-def _validate_loaded_config(
-    loaded_config: dict[str, Any],
-) -> tuple[MainConfig, str]:
+def _validate_loaded_config(loaded_config: dict[str, Any]) -> tuple[MainConfig, str]:
     """Validate loaded config and return validated model."""
     msg = ""
     try:
@@ -141,8 +200,8 @@ def _warn_config_errors(msg: str) -> None:
     if msg == "":
         return
     msg = (
-        f"Please check your configuration file ({Path.home() / '.matr1x.toml'})! "
-        "Some settings will not work as intended. "
+        f"Please check your configuration files (e.g. {Path.home() / '.matr1x.toml'})! "
+        "Some settings might not work as intended. "
         "The following error(s) occured:\n\n"
     ) + msg
     print(msg)  # noqa: T201
@@ -256,8 +315,8 @@ def reload_config(optional_config_path: str | Path | None = None):
     global config, datetimefmt, validation_errors
     if isinstance(optional_config_path, str):
         optional_config_path = Path(optional_config_path)
-    loaded_config = load_config(optional_config_path)
     validation_errors = []
+    loaded_config = load_config(optional_config_path)
     config, msg = _validate_loaded_config(loaded_config)
     _warn_config_errors(msg)
     datetimefmt = config.matr1x.datetime_format

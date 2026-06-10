@@ -515,7 +515,7 @@ class ExecThread(threading.Thread):
         """
         if self.socket is None:
             return
-        conf = matr1x.config.matr1x.scripts.matrix_script
+        conf = matr1x.config.matr1x
         if isinstance(data, Message):
             if data.to_comment is True or (conf.print_to_comment and data.to_comment is not False):
                 self.system.add_comment(data.message)
