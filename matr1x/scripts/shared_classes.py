@@ -28,6 +28,7 @@ from typing import IO, Any, BinaryIO, Literal, TypedDict, final, overload
 
 import tomli_w
 from pydantic import ValidationError
+from pyqtgraph.Qt.QtGui import QColor
 from PySide6.QtCore import (
     QByteArray,
     QPoint,
@@ -75,6 +76,7 @@ from matr1x.util import get_matrix_binary
 __all__ = [
     "MeasurementItem",
     "MeasurementThread",
+    "MeasurementUI",
     "MetaData",
     "MetaDataDialog",
     "MetadataDockWidget",
@@ -600,6 +602,7 @@ class MMainWindow(QMainWindow):
         """
 
 
+@final
 class MeasurementThread(QThread, LoggerMixin):
     """
     Execute and control a measurement subprocess via a TCP socket.
@@ -800,3 +803,55 @@ class MeasurementThread(QThread, LoggerMixin):
                 tmp_scriptfile.close()
             if tmp_config_file.exists():
                 tmp_config_file.unlink()
+
+
+@final
+class MeasurementUI(QWidget):
+    """
+    Provide the required UI elements for the measurement thread.
+
+    The required thread safety does not allow to have the UI elements
+    in another thread.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.start = QAction(get_matrix_icon("CUSTOM_Play"), "Start")
+        self.start.setToolTip("Start the measurement.")
+        self.start.setEnabled(False)
+        self.pause = QAction(get_matrix_icon("CUSTOM_Pause"), "Pause")
+        self.pause.setToolTip("Pause the measurement.")
+        self.pause.setCheckable(True)
+        self.pause.setChecked(False)
+        self.pause.setEnabled(False)
+        self.abort = QAction(get_matrix_icon("CUSTOM_Stop", color=QColor("#B71C1C")), "Abort")
+        self.abort.setToolTip("Stop the measurement and mark as aborted.")
+        self.abort.setEnabled(False)
+        self.finish = QAction(get_matrix_icon("CUSTOM_Stop", color=QColor("#388E3C")), "Finish")
+        self.finish.setToolTip("Stop the measurement and mark as finished.")
+        self.finish.setEnabled(False)
+        self.kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
+        self.kill.setToolTip("Kill the measurement thread.")
+        self.kill.setEnabled(False)
+
+    def connect_to_thread(self, thread: MeasurementThread) -> None:
+        """Connect the UI actions to the measurement thread."""
+        self.pause.triggered.connect(thread.pause)
+        self.abort.triggered.connect(lambda checked: thread.abort())
+        self.finish.triggered.connect(thread.finish)
+        self.kill.triggered.connect(thread.kill)
+
+    def add_to_toolbar(self, toolbar: QToolBar) -> None:
+        """Add the UI actions to the toolbar."""
+        toolbar.addAction(self.start)
+        toolbar.addAction(self.pause)
+        toolbar.addAction(self.abort)
+        toolbar.addAction(self.finish)
+
+    def add_to_menu(self, menu: QMenu) -> None:
+        """Add the UI actions to the menu."""
+        menu.addAction(self.start)
+        menu.addAction(self.pause)
+        menu.addAction(self.abort)
+        menu.addAction(self.finish)
+        menu.addAction(self.kill)

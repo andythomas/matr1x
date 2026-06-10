@@ -45,7 +45,7 @@ def reset_matrix_script_window(matrix_script_window: matrix_script.MainWindow, q
     """Reset state to avoid cross-test interference."""
     window = matrix_script_window
     if window.is_running:
-        window.abort_thread("a")
+        window.ui.widgets.measurement_thread.abort("a")
         qapp.processEvents()
     window.new_file()
     window.ui.widgets.status_preview.setPlainText("")
@@ -100,9 +100,9 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainW
     assert main_window.ui.widgets.config_editor.isVisible()
     main_window.ui.widgets.config_editor.w_update_config.click()
 
-    main_window.ui.actions.start_pause.trigger()
-    qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
-    thread = main_window.measurement_thread
+    main_window.ui.actions.start.trigger()
+    qtbot.waitUntil(lambda: main_window.ui.widgets.measurement_thread is not None, timeout=2000)
+    thread = main_window.ui.widgets.measurement_thread
     qtbot.waitSignal(thread.finished, timeout=2000)
     # Next line: Increased timeout needed for Windows
     qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
@@ -280,9 +280,9 @@ def test_status_preview_handles_carriage_return(
     qtbot.waitUntil(lambda: main_window.windowTitle().endswith(temp_script.name), timeout=2000)
     qapp.processEvents()
 
-    main_window.ui.actions.start_pause.trigger()
-    qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
-    thread = main_window.measurement_thread
+    main_window.ui.actions.start.trigger()
+    qtbot.waitUntil(lambda: main_window.ui.widgets.measurement_thread is not None, timeout=2000)
+    thread = main_window.ui.widgets.measurement_thread
     qtbot.waitSignal(thread.finished, timeout=2000)
     # Next line: Increased timeout needed for Windows
     qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)

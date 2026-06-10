@@ -107,6 +107,7 @@ from matr1x.post_install import (
 from matr1x.scripts.shared_classes import (
     MeasurementItem,
     MeasurementThread,
+    MeasurementUI,
     MetaDataDialog,
     MetadataDockWidget,
     MMainWindow,
@@ -677,8 +678,8 @@ class ActionGroup:
     zoom_out: QAction
     print: QAction
     find: QAction
-    start_pause: QAction
-    stop: QAction
+    start: QAction
+    pause: QAction
     abort: QAction
     finish: QAction
     kill: QAction
@@ -693,7 +694,7 @@ class ActionGroup:
     remove_desktop_integration: QAction
 
 
-@dataclass(frozen=True)
+@dataclass
 class WidgetGroup:
     """Widgets to be used in the GUI."""
 
@@ -714,6 +715,8 @@ class WidgetGroup:
     save_pulldown: QMenu
     stop_pulldown: QMenu
     about_box: AboutBox
+    measurement_thread: MeasurementThread
+    measurement_ui: MeasurementUI
 
 
 class UIBuilder:
@@ -840,6 +843,8 @@ class UIBuilder:
                 matr1x,
                 matr1x.datetimefmt,
             ),
+            measurement_thread=MeasurementThread(),
+            measurement_ui=MeasurementUI(),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -872,23 +877,6 @@ class UIBuilder:
         print_action.setShortcut(QKeySequence.StandardKey.Print)
         find = QAction("Find")
         find.setShortcut(QKeySequence.StandardKey.Find)
-        start_pause = QAction(get_matrix_icon("CUSTOM_Play"), "Start")
-        start_pause.setToolTip("Execute the script.")
-        start_pause.setCheckable(True)
-        stop = QAction(get_matrix_icon("CUSTOM_Stop"), "Stop")
-        stop.setToolTip("Stop the script and query status.")
-        stop.setEnabled(False)
-        abort = QAction(get_matrix_icon("CUSTOM_Stop"), "Abort")
-        abort.setEnabled(False)
-        finish = QAction(get_matrix_icon("CUSTOM_Stop"), "Finish")
-        finish.setEnabled(False)
-        self.widgets.stop_button.setDefaultAction(stop)
-        self.widgets.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        self.widgets.stop_pulldown.addAction(abort)
-        self.widgets.stop_pulldown.addAction(finish)
-        self.widgets.stop_button.setMenu(self.widgets.stop_pulldown)
-        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
-        kill.setEnabled(False)
         preview = QAction(
             get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")),
             "Preview",
@@ -933,11 +921,11 @@ class UIBuilder:
             zoom_out=self._standard_action("ZoomOut", "Zoom Out"),
             print=print_action,
             find=find,
-            start_pause=start_pause,
-            stop=stop,
-            abort=abort,
-            finish=finish,
-            kill=kill,
+            start=self.widgets.measurement_ui.start,
+            pause=self.widgets.measurement_ui.pause,
+            abort=self.widgets.measurement_ui.abort,
+            finish=self.widgets.measurement_ui.finish,
+            kill=self.widgets.measurement_ui.kill,
             preview=preview,
             pep8=pep8,
             autocomplete=autocomplete,
@@ -956,8 +944,7 @@ class UIBuilder:
         toolbar.addAction(self.actions.load)
         toolbar.addWidget(self.widgets.save_button)
         toolbar.addWidget(toolbar.empty)
-        toolbar.addAction(self.actions.start_pause)
-        toolbar.addWidget(self.widgets.stop_button)
+        self.widgets.measurement_ui.add_to_toolbar(toolbar)
         toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.preview)
         toolbar.addWidget(toolbar.empty)
@@ -1006,10 +993,7 @@ class UIBuilder:
         editor.addSeparator()
         editor.addAction(self.actions.autocomplete)
         control = menu.addMenu("&Control")
-        control.addAction(self.actions.start_pause)
-        control.addAction(self.actions.abort)
-        control.addAction(self.actions.finish)
-        control.addAction(self.actions.kill)
+        self.widgets.measurement_ui.add_to_menu(control)
         control.addSeparator()
         control.addAction(self.actions.preview)
         view = menu.addMenu("&View")
@@ -1073,6 +1057,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self._output_timer.setInterval(50)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
         self.ui: UIBuilder = UIBuilder()
+        self.ui.actions.start.setEnabled(True)
         self.ui.widgets.script_edit.setValidExtensions([self.extension])
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
@@ -1112,10 +1097,14 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.actions.autocomplete.toggled.connect(
             self.ui.widgets.script_edit.enableTabCompletion
         )
-        self.ui.actions.start_pause.triggered.connect(self.start_process)
-        self.ui.actions.stop.triggered.connect(lambda: self.abort_thread("q"))
-        self.ui.actions.abort.triggered.connect(lambda: self.abort_thread("a"))
-        self.ui.actions.finish.triggered.connect(lambda: self.abort_thread("f"))
+        self.ui.actions.start.triggered.connect(self.start_process)
+        self.ui.actions.pause.triggered.connect(lambda: self.ui.widgets.measurement_thread.pause())
+        self.ui.actions.abort.triggered.connect(
+            lambda: self.ui.widgets.measurement_thread.abort("a")
+        )
+        self.ui.actions.finish.triggered.connect(
+            lambda: lambda: self.ui.widgets.measurement_thread.abort("f")
+        )
         self.ui.actions.kill.triggered.connect(self.kill_thread)
         self.ui.actions.preview.triggered.connect(self.preview_data)
         self.ui.actions.system_help.triggered.connect(self.show_system_commands)
@@ -1341,7 +1330,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 ret = dialog.get_input_text()
             else:
-                self.abort_thread()  # abort executing script
+                self.ui.widgets.measurement_thread.abort("q")
                 return
         elif params.input_type == "bool":
             dialog = YesNoAbortDialog(
@@ -1352,7 +1341,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             )
             ret = dialog.exec_and_get_response()
             if ret == "abort":
-                self.abort_thread()
+                self.ui.widgets.measurement_thread.abort("q")
                 return
         elif params.input_type == "numerical":
             try:
@@ -1380,37 +1369,17 @@ class MainWindow(LogWindowMixin, MMainWindow):
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 ret = str(dialog.get_input_value())
             else:
-                self.abort_thread()  # abort executing script
+                self.ui.widgets.measurement_thread.abort("q")
                 return
         elif params.input_type == "__end_script__":
             ret = TerminationDialog().get_selection()
         else:
             ret = ""
-        self.measurement_thread.pass_input(ret)
-
-    def pause_thread(self) -> None:
-        """Pause thread execution."""
-        self.measurement_thread.pause()
-
-    def abort_thread(self, char="q") -> None:
-        """
-        Abort thread execution, define measurement state as per `char`.
-
-        Parameters
-        ----------
-        char : str
-            Single length string that is passed to the process.
-            - "q" stops and queries user for state
-            - "a" stops and sets state to `aborted`
-            - "f" stops and sets state to `finished`
-        """
-        if self.ui.actions.start_pause.isChecked():
-            self.ui.actions.start_pause.setChecked(False)
-        self.measurement_thread.abort(char)
+        self.ui.widgets.measurement_thread.pass_input(ret)
 
     def kill_thread(self) -> None:
         """Kill the thread."""
-        self.measurement_thread.kill()
+        self.ui.widgets.measurement_thread.kill()
         self.ui.widgets.status_preview.print_colored(
             "Script terminated by user - file integrity might be compromised"
         )
@@ -1568,21 +1537,10 @@ class MainWindow(LogWindowMixin, MMainWindow):
             True means script is running
         """
         self.is_running = flag
-        if flag:
-            self.ui.actions.start_pause.setIcon(get_matrix_icon("CUSTOM_Pause"))
-            self.ui.actions.start_pause.setText("Pause")
-            self.ui.actions.start_pause.setToolTip("Pause the currently running script.")
-            self.ui.actions.start_pause.triggered.disconnect(self.start_process)
-            self.ui.actions.start_pause.triggered.connect(self.pause_thread)
-        else:
-            self.ui.widgets.script_edit.removeHighlight()
-            self.ui.actions.start_pause.setIcon(get_matrix_icon("CUSTOM_Play"))
-            self.ui.actions.start_pause.setText("Start")
-            self.ui.actions.start_pause.setToolTip("Execute the script.")
-            self.ui.actions.start_pause.triggered.disconnect(self.pause_thread)
-            self.ui.actions.start_pause.triggered.connect(self.start_process)
-        self.ui.actions.start_pause.setChecked(False)
-        self.ui.actions.stop.setEnabled(flag)
+        self.ui.actions.start.setEnabled(not flag)
+        self.ui.actions.pause.setEnabled(flag)
+        if self.ui.actions.pause.isChecked():
+            self.ui.actions.pause.setChecked(False)
         self.ui.actions.abort.setEnabled(flag)
         self.ui.actions.finish.setEnabled(flag)
         self.ui.actions.kill.setEnabled(flag)
@@ -1601,7 +1559,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         """
         self.enable_buttons(False)
         self.ui.widgets.status_preview.print_colored("\nExecution finished")
-        del self.measurement_thread
+        del self.ui.widgets.measurement_thread
 
     def run_linter(self) -> int:
         """
@@ -1636,7 +1594,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
             a.setDefaultButton(QMessageBox.StandardButton.Ok)
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
-                self.ui.actions.start_pause.setChecked(False)
                 return
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
@@ -1651,13 +1608,13 @@ class MainWindow(LogWindowMixin, MMainWindow):
             config=self.ui.widgets.config_editor.get_config_dict(),
             systems=self.ui.widgets.system_list.systems,
         )
-        self.measurement_thread = MeasurementThread()
-        self.measurement_thread.set_parameters(script_item)
-        self.measurement_thread.finished.connect(self.process_finished)
-        self.measurement_thread.data_received.connect(self.process_data)
+        self.ui.widgets.measurement_thread = MeasurementThread()
+        self.ui.widgets.measurement_thread.set_parameters(script_item)
+        self.ui.widgets.measurement_thread.finished.connect(self.process_finished)
+        self.ui.widgets.measurement_thread.data_received.connect(self.process_data)
 
         logger.info("The following user script is started:\n%s", user_script)
-        self.measurement_thread.start()
+        self.ui.widgets.measurement_thread.start()
         self.enable_buttons(True)
 
     def update_systems(self, update_config: bool = True) -> None:

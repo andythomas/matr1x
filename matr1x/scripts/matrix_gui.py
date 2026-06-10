@@ -88,6 +88,7 @@ from matr1x.scripts import sweep_generator
 from matr1x.scripts.shared_classes import (
     MeasurementItem,
     MeasurementThread,
+    MeasurementUI,
     MetaDataDialog,
     MetadataDockWidget,
     MMainWindow,
@@ -294,6 +295,8 @@ class WidgetGroup:
     central_widget: QWidget
     current_measurement: QLineEdit
     about_box: AboutBox
+    measurement_thread: MeasurementThread
+    measurement_ui: MeasurementUI
 
 
 class UIBuilder:
@@ -339,6 +342,8 @@ class UIBuilder:
             about_box=AboutBox(
                 "Matrix GUI", get_matrix_icon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
             ),
+            measurement_thread=MeasurementThread(),
+            measurement_ui=MeasurementUI(),
         )
 
     def _create_gui(self) -> None:
@@ -384,29 +389,17 @@ class UIBuilder:
         )
         queue = QAction(get_matrix_icon("CHAR_+"), "Queue")
         queue.setEnabled(False)
-        start = QAction(get_matrix_icon("CUSTOM_Play"), "Start")
-        start.setEnabled(False)
-        pause = QAction(get_matrix_icon("CUSTOM_Pause"), "Pause")
-        pause.setCheckable(True)
-        pause.setChecked(False)
-        pause.setEnabled(False)
-        abort = QAction(get_matrix_icon("CUSTOM_Stop", color=QColor("#B71C1C")), "Abort")
-        abort.setEnabled(False)
-        finish = QAction(get_matrix_icon("CUSTOM_Stop", color=QColor("#388E3C")), "Finish")
-        finish.setEnabled(False)
-        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
-        kill.setEnabled(False)
         return ActionGroup(
             preview=preview,
             matrix_settings=create_matrix_settings_action(),
             config=self.widgets.config_editor.action,
             sweep=sweep,
             queue=queue,
-            start=start,
-            pause=pause,
-            abort=abort,
-            finish=finish,
-            kill=kill,
+            start=self.widgets.measurement_ui.start,
+            pause=self.widgets.measurement_ui.pause,
+            abort=self.widgets.measurement_ui.abort,
+            finish=self.widgets.measurement_ui.finish,
+            kill=self.widgets.measurement_ui.kill,
             show_log=LogWindowMixin.create_show_log_action(),
             load=load,
             quit=create_matr1x_quit_action(),
@@ -422,10 +415,7 @@ class UIBuilder:
         toolbar.addSeparator()
         toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.queue)
-        toolbar.addAction(self.actions.start)
-        toolbar.addAction(self.actions.pause)
-        toolbar.addAction(self.actions.abort)
-        toolbar.addAction(self.actions.finish)
+        self.widgets.measurement_ui.add_to_toolbar(toolbar)
         toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.preview)
         toolbar.addWidget(toolbar.spacer)
@@ -443,11 +433,7 @@ class UIBuilder:
         file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
         control_menu = menubar.addMenu("&Control")
         control_menu.addAction(self.actions.queue)
-        control_menu.addAction(self.actions.start)
-        control_menu.addAction(self.actions.pause)
-        control_menu.addAction(self.actions.abort)
-        control_menu.addAction(self.actions.finish)
-        control_menu.addAction(self.actions.kill)
+        self.widgets.measurement_ui.add_to_menu(control_menu)
         control_menu.addSeparator()
         control_menu.addAction(self.actions.preview)
         view_menu = menubar.addMenu("&View")
@@ -485,7 +471,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.sg: QMainWindow | None = None
         self.running = False
         self.sys_meta_data = {}
-        self.measurement_thread = MeasurementThread()
         self._create_connections()
         self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
@@ -509,12 +494,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.load.triggered.connect(self.show_input_dialog)
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.widgets.input_file.textChanged.connect(self.parse_system_from_inputfile)
-        self.measurement_thread.data_received.connect(self.process_data)
-        self.measurement_thread.finished.connect(self.process_finished)
-        self.ui.actions.pause.triggered.connect(self.measurement_thread.pause)
-        self.ui.actions.abort.triggered.connect(lambda checked: self.measurement_thread.abort())
-        self.ui.actions.finish.triggered.connect(self.measurement_thread.finish)
-        self.ui.actions.kill.triggered.connect(self.measurement_thread.kill)
+        self.ui.widgets.measurement_ui.connect_to_thread(self.ui.widgets.measurement_thread)
+        self.ui.widgets.measurement_thread.data_received.connect(self.process_data)
+        self.ui.widgets.measurement_thread.finished.connect(self.process_finished)
         self.ui.widgets.meas_list.changed.connect(self.measurement_list_changed)
 
     @AutoSlot
@@ -741,7 +723,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.progress.setText("Waiting for queue edit to finish.")
             QTimer.singleShot(200, self.run_next_measurement)
             return
-        self.measurement_thread.set_parameters(self.ui.widgets.meas_list.parameters(0))
+        self.ui.widgets.measurement_thread.set_parameters(self.ui.widgets.meas_list.parameters(0))
         self.ui.widgets.current_measurement.setText(
             self.ui.widgets.meas_list.parameters(0).list_entry
         )
@@ -749,7 +731,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.meas_list.parameters(0).tooltip
         )
         self.ui.widgets.meas_list.takeItem(0)
-        self.measurement_thread.start()
+        self.ui.widgets.measurement_thread.start()
         self.ui.actions.pause.setEnabled(True)
         self.ui.actions.abort.setEnabled(True)
         self.ui.actions.finish.setEnabled(True)
