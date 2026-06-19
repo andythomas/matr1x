@@ -42,6 +42,7 @@ from matr1x.models import (
     Telemetry,
 )
 from matr1x.system import MergedSystem
+from matr1x.util import log_multiline
 
 __all__ = ["ExecThread"]
 
@@ -499,11 +500,6 @@ class ExecThread(threading.Thread):
             self.recv_flag = False
         self.recv += inp
 
-    def log_multiline(self, logger: logging.Logger, message: str, level=logging.INFO):
-        """Log a multi-line message to the given logger."""
-        for line in message.splitlines():
-            logger.log(level, line)
-
     def report(self, data: MeasurementData) -> None:
         """
         Report data currently written by the matrix-script script.
@@ -517,15 +513,13 @@ class ExecThread(threading.Thread):
             return
         conf = matr1x.config.matr1x
         if isinstance(data, Message):
-            if data.to_comment is True or (conf.print_to_comment and data.to_comment is not False):
+            if data.should_comment:
                 self.system.add_comment(data.message)
-            if data.to_logfile is True or (
-                conf.duplicate_output_to_logfile and data.to_logfile is not False
-            ):
-                self.log_multiline(logger, data.message.lstrip("\n"))
+            if data.should_log:
+                log_multiline(logger, data.message.lstrip("\n"))
         elif isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)):
             if data.to_stdout and conf.duplicate_output_to_logfile:
-                self.log_multiline(logger, str(data))
+                log_multiline(logger, str(data))
         elif isinstance(data, InputParameters):
             logger.info(data)
         self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")

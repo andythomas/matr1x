@@ -1141,3 +1141,9 @@ class StreamToLogger:
         if self._buffer:
             self.logger.log(self.level, self._buffer.rstrip())
             self._buffer = ""
+
+
+def log_multiline(logger: logging.Logger, message: str, level=logging.INFO):
+    """Log a multi-line message to the given logger."""
+    for line in message.splitlines():
+        logger.log(level, line)

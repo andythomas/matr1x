@@ -26,6 +26,7 @@ a file of ascii or hdf5 format, depending on the system specifications.
 
 import argparse
 import io
+import logging
 import math
 import os
 import queue
@@ -61,10 +62,14 @@ from matr1x.system import MergedSystem
 from matr1x.util import (
     flatten,
     generate_col_index,
+    log_multiline,
     open_and_error,
 )
 
 from .. import VALID_META_KEYS
+
+logger = logging.getLogger(__name__)
+
 
 # conditional import for non-blocking io
 if os.name == "nt":
@@ -127,12 +132,6 @@ def parse_cmd_line() -> argparse.Namespace:
         action="store_true",
         help="use plain output instead of the urwid library",
     )
-    parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="produce machine readable output (json), requires plain",
-    )
 
     # add keys to allow transmitting meta data
     for key in VALID_META_KEYS.keys():
@@ -147,15 +146,13 @@ def parse_cmd_line() -> argparse.Namespace:
         "--port",
         type=int,
         default=None,
-        help="TCP port for socket-based GUI communication; requires -pj",
+        help="TCP port for socket-based GUI communication; requires --plain",
     )
 
     options = parser.parse_args()
 
-    if options.json and not options.plain:
-        parser.error("--json can only be used together with --plain")
-    if options.port is not None and not (options.plain and options.json):
-        parser.error("--port requires --plain and --json (-pj)")
+    if options.port is not None and not options.plain:
+        parser.error("--port requires --plain (-p)")
     if os.name == "nt" and not options.plain:
         options.plain = True  # enforce plain interface on Windows because urwid would fail
 
@@ -264,20 +261,20 @@ class PlainMeasurement:
         payload = env.payload
         self.dispatch(payload)
 
-    def dispatch(self, payload: MeasurementData) -> None:
+    def dispatch(self, data: MeasurementData) -> None:
         """Dispatch the payload to the appropriate function."""
-        if isinstance(payload, Header):
-            self.header(payload)
-        elif isinstance(payload, SetValues):
-            self.set_values(payload)
-        elif isinstance(payload, MeasuredValues):
-            self.measured_values(payload)
-        elif isinstance(payload, Telemetry):
-            self.telemetry(payload)
-        elif isinstance(payload, Message):
-            self.message(payload)
-        elif isinstance(payload, ErrorMessage):
-            self.error_message(payload)
+        if isinstance(data, Header):
+            self.header(data)
+        elif isinstance(data, SetValues):
+            self.set_values(data)
+        elif isinstance(data, MeasuredValues):
+            self.measured_values(data)
+        elif isinstance(data, Telemetry):
+            self.telemetry(data)
+        elif isinstance(data, Message):
+            self.message(data)
+        elif isinstance(data, ErrorMessage):
+            self.error_message(data)
 
     def unknown_data(self, data: str) -> None:
         """Print unknown or corrupted data."""
@@ -301,6 +298,10 @@ class PlainMeasurement:
 
     def message(self, data: Message) -> None:
         """Print a message."""
+        if data.should_comment:
+            self._system.add_comment(data.message)
+        if data.should_log:
+            log_multiline(logger, data.message.lstrip("\n"))
         print(data.message)  # noqa: T201
 
     def error_message(self, data: ErrorMessage) -> NoReturn:
@@ -309,18 +310,8 @@ class PlainMeasurement:
         sys.exit(1)
 
 
-class JSONMeasurement(PlainMeasurement):
-    """Dispatches measurement data with JSON output."""
-
-    def dispatch(self, payload: MeasurementData) -> None:
-        """Dump and print the payload as JSON."""
-        print(payload.model_dump_json())  # noqa: T201
-        if isinstance(payload, ErrorMessage):
-            sys.exit(1)
-
-
-class SocketMeasurement(JSONMeasurement):
-    """JSONMeasurement that sends data to the GUI via a TCP socket."""
+class SocketMeasurement(PlainMeasurement):
+    """PlainMeasurement that sends data to the GUI via a TCP socket."""
 
     def __init__(self, port: int) -> None:
         """
@@ -356,13 +347,18 @@ class SocketMeasurement(JSONMeasurement):
         except queue.Empty:
             return None
 
-    def dispatch(self, payload: MeasurementData) -> None:
+    def dispatch(self, data: MeasurementData) -> None:
         """Send the payload as null-terminated JSON over the socket."""
+        if isinstance(data, Message):
+            if data.should_comment:
+                self._system.add_comment(data.message)
+            if data.should_log:
+                log_multiline(logger, data.message.lstrip("\n"))
         try:
-            self._socket.sendall(payload.model_dump_json().encode("utf-8") + b"\0")
+            self._socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
         except OSError:
             pass
-        if isinstance(payload, ErrorMessage):
+        if isinstance(data, ErrorMessage):
             sys.exit(1)
 
 
@@ -793,7 +789,7 @@ def verify_columns(
     if settable_names != settable_names_file or settable_units != settable_units_file:
         dispatcher.dispatch(Message(str(settable_names) + str(settable_names_file)))
         dispatcher.dispatch(Message(str(settable_units) + str(settable_units_file)))
-        if options.json:
+        if options.port:
             dispatcher.dispatch(ErrorMessage("System columns do not match input file columns."))
         else:
             dispatcher.dispatch(
@@ -818,10 +814,7 @@ def main() -> None:
     if options.port is not None:
         measurement: PlainMeasurement = SocketMeasurement(options.port)
     elif options.plain:
-        if options.json:
-            measurement = JSONMeasurement()
-        else:
-            measurement = PlainMeasurement()
+        measurement = PlainMeasurement()
     else:
         measurement = UrwidMeasurement()
 

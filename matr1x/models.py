@@ -29,6 +29,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError, model_validator
 
+import matr1x
 from matr1x.util import flatten, get_formatted_line
 
 
@@ -423,6 +424,20 @@ class Message(BaseModel):
         if message is not None:
             data["message"] = message
         super().__init__(**data)
+
+    @property
+    def should_comment(self):
+        """Determine if the message should also be put in the datafile."""
+        conf = matr1x.config.matr1x
+        return self.to_comment is True or (conf.print_to_comment and self.to_comment is not False)
+
+    @property
+    def should_log(self):
+        """Determine if the message should also be logged."""
+        conf = matr1x.config.matr1x
+        return self.to_logfile is True or (
+            conf.duplicate_output_to_logfile and self.to_logfile is not False
+        )
 
 
 class ErrorMessage(BaseModel):

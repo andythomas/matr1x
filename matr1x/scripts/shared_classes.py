@@ -735,7 +735,6 @@ class MeasurementThread(QThread, LoggerMixin):
             "-i",
             self.parameters.input_file,
             "-p",
-            "-j",
             "--port",
             str(port),
         ]
