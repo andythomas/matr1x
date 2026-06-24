@@ -61,7 +61,10 @@ class Keithley2182A(VisaDevice):
         super().__init__(interface, **kwargs)
         self.triggered = False
         self.interface = interface
-        self.connection.clear()
+        try:  # will fail if pyvisa connection does not support clear()
+            self.connection.clear()
+        except Exception:
+            pass
 
     def query(self, *args, **kwargs):
         """

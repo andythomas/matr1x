@@ -681,7 +681,12 @@ def init_hdf5_skel(
             )
         else:
             data_grp.create_dataset(
-                col, (0,), maxshape=(None,), chunks=(chu,), dtype=dtype, compression=True
+                col,
+                (0,),
+                maxshape=(None,),
+                chunks=(chu,),
+                dtype=dtype,
+                compression=True,
             )
         data_grp[col].attrs["unit"] = uni
 
