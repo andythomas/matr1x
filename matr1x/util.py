@@ -33,7 +33,7 @@ import textwrap
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
@@ -139,6 +139,17 @@ def get_package_path(package_name: str) -> Path | None:
     if spec and spec.origin:
         return Path(spec.origin).parent
     return None
+
+
+def resolve_pkgroot_path(path: str | Path, package_path: Path | None) -> Path:
+    """Resolve a path that starts with the ``<pkgroot>`` placeholder."""
+    placeholder = "<pkgroot>"
+    parts = PureWindowsPath(path).parts
+
+    if parts and parts[0] == placeholder and package_path is not None:
+        return package_path.joinpath(*parts[1:])
+
+    return Path(path).expanduser()
 
 
 def create_temp_dir_with_symlinks(

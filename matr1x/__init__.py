@@ -49,7 +49,12 @@ from pydantic import BaseModel, ValidationError
 from . import pymeasure_threading_fix
 from .metadata import VALID_META_KEYS
 from .models import MainConfig, UserlibConfig, format_validation_error
-from .util import create_temp_dir_with_symlinks, get_package_path, resolve_config_path
+from .util import (
+    create_temp_dir_with_symlinks,
+    get_package_path,
+    resolve_config_path,
+    resolve_pkgroot_path,
+)
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -352,17 +357,9 @@ else:
     # fallback to usersfolder if logfolder does not exist
     logfolder = usersfolder
 
-_systems_directory_str = str(config.matr1x.systems_directory)
-
-# replace pkgroot placeholder if present
-if "<pkgroot>/" in _systems_directory_str:
-    _systems_directory = Path(__file__).resolve().parent / _systems_directory_str.replace(
-        "<pkgroot>/", ""
-    )
-else:
-    _systems_directory = Path(_systems_directory_str)
-# expand eventual home
-_systems_directory = _systems_directory.expanduser()
+_systems_directory = resolve_pkgroot_path(
+    config.matr1x.systems_directory, Path(__file__).resolve().parent
+)
 if not _systems_directory.is_dir():
     print("matrix.conf: option matr1x/systems_directory is invalid, using fallback")  # noqa: T201
     # use fallback option
@@ -384,17 +381,9 @@ for section in all_sections:
     if section != "matr1x":
         section_config = getattr(config, section)
         if hasattr(section_config, "systems_directory") and section_config.systems_directory:
-            sysdir_str = str(section_config.systems_directory)
-            # replace pkgroot placeholder
-            if "<pkgroot>/" in sysdir_str:
-                package_path = get_package_path(section)
-                if package_path is not None:
-                    sysdir = Path(package_path) / sysdir_str.replace("<pkgroot>/", "")
-                else:
-                    sysdir = Path(sysdir_str)
-            else:
-                sysdir = Path(sysdir_str)
-            sysdir = sysdir.expanduser()
+            sysdir = resolve_pkgroot_path(
+                section_config.systems_directory, get_package_path(section)
+            )
             if sysdir.is_dir():
                 system_names.append(section)
                 system_directories.append(sysdir)
