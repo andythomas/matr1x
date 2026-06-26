@@ -1103,7 +1103,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             lambda: self.ui.widgets.measurement_thread.abort("a")
         )
         self.ui.actions.finish.triggered.connect(
-            lambda: lambda: self.ui.widgets.measurement_thread.abort("f")
+            lambda: self.ui.widgets.measurement_thread.abort("f")
         )
         self.ui.actions.kill.triggered.connect(self.kill_thread)
         self.ui.actions.preview.triggered.connect(self.preview_data)
