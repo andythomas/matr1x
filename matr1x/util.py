@@ -368,6 +368,8 @@ def generate_script(user_script: str) -> str:
     """
     # define basic part of script, imports relevant commands
     prefix, suffix = generate_script_prefix_suffix()
+    if user_script and not user_script.endswith("\n"):
+        user_script += "\n"
     return prefix + textwrap.indent(user_script, "    ") + suffix
 
 
