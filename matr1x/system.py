@@ -58,6 +58,7 @@ from .util import (
 
 logger = logging.getLogger(__name__)
 
+
 ConfigScheme = tuple[str, tuple, dict[str, Any]]
 ConfigValue = str | Callable[[], Any] | ConfigScheme
 ConfigParameter = dict[str, ConfigValue]
@@ -595,6 +596,8 @@ class System:
                 mod = module_from_path(normfilename)
             except PermissionError:
                 return Error("System file is not readable.")
+            except ImportError as error:
+                return Error(f"{type(error).__name__}: {error}")
         else:
             if normfilename.suffix == ".py":
                 normfilename = normfilename.stem
@@ -610,8 +613,10 @@ class System:
 
                 except ModuleNotFoundError as e:
                     if e.name != name:
-                        return Error("Import error please check the system.")
+                        return Error(f"{type(e).__name__}: {e}")
                     continue
+                except ImportError as e:
+                    return Error(f"{type(e).__name__}: {e}")
             else:
                 return Error(
                     f"Could neither import '{normfilestr}' nor 'matr1x.systems.{normfilestr}'"

@@ -178,7 +178,10 @@ class ExecThread(threading.Thread):
         self.scriptname = scriptname
         system = MergedSystem.from_files(systems)
         if isinstance(system, Error):
-            raise InternalInvariantError("Systems should not contain errors at this point.")
+            raise InternalInvariantError(
+                "Systems should not contain errors at this point. "
+                f"Nevertheless this happened: {system.error}"
+            )
         self.system: MergedSystem = system.value
         self.stop_status = Status()
         self.pause_flag = False

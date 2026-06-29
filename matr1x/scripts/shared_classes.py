@@ -61,7 +61,7 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x import VALID_META_KEYS, resolved_directory
-from matr1x.error_handling import Error, InternalInvariantError, Success
+from matr1x.error_handling import Error, InternalInvariantError
 from matr1x.gui_util import (
     ConfigEditWidget,
     LoggerMixin,
@@ -248,9 +248,11 @@ class SystemListWidget(QListWidget):
                 msg = NotifierMessage(f"{candidate} is already present and was omitted.")
                 self.message.emit(msg)
                 continue
-            if not self.test_import(candidate):
+            ret = get_system_info([candidate])
+            if isinstance(ret, Error):
                 msg = NotifierMessage(
-                    f"{candidate} could not import and was omitted.", level=logging.ERROR
+                    f"Could not import system {candidate}: {ret.error}",
+                    level=logging.ERROR,
                 )
                 self.message.emit(msg)
                 continue
@@ -284,12 +286,6 @@ class SystemListWidget(QListWidget):
     def system_info(self) -> SystemInfo:
         """Return the (cached) system info."""
         return self._cached_system_info
-
-    @staticmethod
-    def test_import(filename: str) -> bool:
-        """Test if a filename can be imported."""
-        ret = get_system_info([filename])
-        return True if isinstance(ret, Success) else False
 
     def query_systems(self) -> None:
         """Select and add system files(s)."""

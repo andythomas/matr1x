@@ -3541,20 +3541,29 @@ class MApplication(QApplication):
 # Common system information functions for matrix scripts
 def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
     """Get system information using subprocess."""
+    script = (
+        "import json\n"
+        "import sys\n"
+        "from matr1x.error_handling import Error\n"
+        "from matr1x.system import MergedSystem\n"
+        f"result = MergedSystem.from_files({systems!r})\n"
+        "if isinstance(result, Error):\n"
+        "    print(result.error, file=sys.stderr)\n"
+        "    raise SystemExit(1)\n"
+        "print(json.dumps(result.value.grab_information()))\n"
+    )
     try:
         result = subprocess.run(
             [
                 sys.executable,
                 "-c",
-                "import json; from matr1x.system import MergedSystem;"
-                f"print(json.dumps(MergedSystem.from_files({systems}).value."
-                "grab_information()))",
+                script,
             ],
             capture_output=True,
             timeout=30,
         )
     except Exception as e:
-        return Error(f"Error getting system info: {e}")
+        return Error(f"Could not run system info subprocess: {e}")
 
     if result.returncode == 0:
         output_str = result.stdout.decode()
@@ -3575,10 +3584,7 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
             return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
 
     stderr_output = result.stderr.decode()
-    error_str = f"Error getting system info: {stderr_output}"
-    if "ModuleNotFoundError" in stderr_output:  # If subprocess failed due to missing dependencies
-        error_str += "\nNote: System config will not be available due to missing dependencies!"
-    return Error(error_str)
+    return Error(stderr_output)
 
 
 def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
