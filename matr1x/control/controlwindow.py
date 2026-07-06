@@ -928,14 +928,19 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     @catchEmitError
     def connectDev(self) -> None:
         """
-        Initialize device connections.
+        Initialize legacy window-level device connections.
 
-        If this is overloaded its important that the self.devInit
-        property is set to True upon successful initialization of the
-        devices.
+        Modern GuiDict-based control windows initialize their systems in
+        GuiDict.start(), so normal startup does not call this method for
+        those windows. Legacy windows with a custom refreshDict initialize
+        the window-level system here.
+
+        If this is overloaded in legacy code it is important that
+        self.devInit is set to True upon successful initialization.
         """
         if self.devInit is False:
             if self.S:
+                logger.info("Initializing devices of window-level system")
                 self.S.set()
             self.devInit = True
 
@@ -1217,37 +1222,41 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     # general local server and start stop overhead
     def __enter__(self):
         """Initialize devices, start GuiDict workers, and launch the SCPI server."""
-        # initialize devices
-        logger.info("Initializing devices")
-        self.connectDev()
+        if self._has_custom_refresh():
+            # Legacy windows own a window-level system and refresh loop.
+            # Modern GuiDict systems are opened by GuiDict.start().
+            self.connectDev()
+            if not self.devInit:
+                return
 
-        # start guidicts if devices initialized successfully
-        if self.devInit is True:
-            # merge all cmds from the GuiDicts and the extra cmds
+        # merge all cmds from the GuiDicts and the extra cmds
 
-            class extraGuiDict(GuiDict):
-                cmds = self.cmd_list
+        class extraGuiDict(GuiDict):
+            cmds = self.cmd_list
 
-                def refresh(self, *args, **kwargs):
-                    pass
+            def refresh(self, *args, **kwargs):
+                pass
 
-            extra_gui_dict = extraGuiDict()
-            extra_gui_dict.set_cmd_funcs(window_obj=self, system=self.S)
-            self.cmd_list = extra_gui_dict.cmds
-            for guidict in self.guidicts:
-                for name in guidict.cmds.keys():
-                    if name in self.cmd_list:
-                        raise ValueError(
-                            f"command {name} from {guidict} is already present."
-                            "A command name must be unique!"
-                        )
-                self.cmd_list.update(guidict.cmds)
+        extra_gui_dict = extraGuiDict()
+        extra_gui_dict.set_cmd_funcs(window_obj=self, system=self.S)
+        self.cmd_list = extra_gui_dict.cmds
+        for guidict in self.guidicts:
+            for name in guidict.cmds.keys():
+                if name in self.cmd_list:
+                    raise ValueError(
+                        f"command {name} from {guidict} is already present."
+                        "A command name must be unique!"
+                    )
+            self.cmd_list.update(guidict.cmds)
 
-            ControlWindow.refreshDict(self)
-            if self._has_custom_refresh():
-                self._start_legacy_refresh_thread()
-            self.running = True
-            self.startServer()
+        ControlWindow.refreshDict(self)
+        if isinstance(self.S, system.MergedSystem):
+            self.S.refresh_devs()
+            self.S.opened = any(subsys.opened for subsys in self.S.subsys)
+        if self._has_custom_refresh():
+            self._start_legacy_refresh_thread()
+        self.running = True
+        self.startServer()
 
     def __exit__(
         self,

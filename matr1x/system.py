@@ -2091,14 +2091,21 @@ class MergedSystem(System):
         # use individual system for opening devices
         for subsys in self.subsys:
             subsys.set(*args, **kwargs)
-        # merge list of devices
-        # needs to be redone after the devices are opened, since
-        # the content of the dictionary is replaced here
+        self.refresh_devs()
+        # remerge potentially changed dcdata
+        self.opened = True
+
+    def refresh_devs(self) -> None:
+        """
+        Refresh the merged device dictionary from all subsystems.
+
+        This is needed after subsystems have been opened individually,
+        because System.set replaces device definitions with initialized
+        device instances.
+        """
         self.devs = {}
         for subsys in self.subsys:
             self.devs = {**self.devs, **subsys.devs}
-        # remerge potentially changed dcdata
-        self.opened = True
 
     def reset(self, *args, **kwargs):
         """
