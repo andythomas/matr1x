@@ -24,6 +24,7 @@ as valid System objects.
 from pathlib import Path
 
 import pytest
+from matr1x.error_handling import Success
 from matr1x.system import System
 
 # Collect all files in the system-folder
@@ -56,11 +57,6 @@ def test_system_import(system_file):
     ----------
     system_file : Path
         Path to the system configuration file to import.
-
-    Raises
-    ------
-    AssertionError
-        If the loaded object is not an instance of System.
     """
     system = System.from_file(system_file)
-    assert isinstance(system, System)
+    assert isinstance(system, Success)

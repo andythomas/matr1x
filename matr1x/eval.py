@@ -42,7 +42,7 @@ RequiredHeader = TypedDict(
         "units": list[str],
         "comments": list[str],
         "status": str | None,
-        "system query": dict[str, Any] | None,
+        "system query": dict[str, Any],
         "input filename": str,
         "system filename": str,
     },
@@ -80,7 +80,7 @@ def _create_empty_header() -> HeaderDict:
             "units": [],
             "comments": [],
             "status": None,
-            "system query": None,
+            "system query": {},
             "input filename": "",
             "system filename": "",
         },
@@ -592,7 +592,7 @@ def _process_header_lines(
 
         # Concatenate with existing value
         val = strippedline if val is None else f"{val}\n{strippedline}"
-        header[key.lower()] = val
+        header[key.lower()] = val  # ty: ignore[invalid-key]
     else:
         strippedline = line.removeprefix("# ").removesuffix("\n")
         if strippedline == "Matrix outputfile":
@@ -607,7 +607,7 @@ def _process_header_lines(
         else:
             val = val[1:]  # remove initial space
 
-        header[key.lower()] = val
+        header[key.lower()] = val  # ty: ignore[invalid-key]
     return key, val
 
 
@@ -742,7 +742,7 @@ def _load_text_file(
             val = val.strip('"')  # strip " from header strings
             # remove escaping of other " in datafile
             val = val.replace(r"\"", '"')
-            header[key] = val
+            header[key] = val  # ty: ignore[invalid-key]
 
     # Process data from text file
     kwargs: dict[str, Any] = {
@@ -760,7 +760,7 @@ def _load_text_file(
         data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)
     except IndexError:
         # IndexError is raised in case an incomplete header is present
-        print("loadmatrix: incomplete data file header")
+        print("loadmatrix: incomplete data file header")  # noqa: T201
         return header, np.empty(0)
 
     if replace_None:
@@ -835,7 +835,7 @@ def loadmatrix(
 
     if print_header is True:
         # generate list of tuples with index and column name
-        print(list(enumerate(header["columns"])))
+        print(list(enumerate(header["columns"])))  # noqa: T201
 
     return header, data
 

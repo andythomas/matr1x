@@ -21,6 +21,7 @@ interfaces or devices based on the scpi_tcp_server.
 """
 
 import copy
+import inspect
 import itertools
 import logging
 import mimetypes
@@ -44,18 +45,19 @@ from enum import IntEnum
 from operator import attrgetter
 from pathlib import Path
 from subprocess import PIPE, Popen
-from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, TypeVar, cast, overload
 
 import numpy
 import psutil
 from decorator import FunctionMaker
 from numpy.typing import ArrayLike
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 from PySide6.QtCore import (
     QObject,
     QPoint,
     QSize,
+    QStandardPaths,
     Qt,
     QThread,
     QTimer,
@@ -84,20 +86,68 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x.gui_util import AutoSlot
+from matr1x.scripts.shared_classes import SaferQSettings
 
 if TYPE_CHECKING:
     from matr1x.control.controlwindow import ControlWindow
+
+
 from matr1x.system import System
 
-from .. import config, logfolder, system
+from .. import config
 from ..error_handling import InternalInvariantError
-from ..gui_util import MApplication, SaferQSettings, validator
+from ..gui_util import MApplication, validator
 from ..util import Command, normalize_cmds
+
+__all__ = [
+    "GuiDict",
+    "MethodBundle",
+    "MyQDockWidget",
+    "catchEmitError",
+    "control_main",
+    "guiObject",
+    "linear_trend",
+    "sendNotificationEmail",
+    "var",
+]
 
 logger = logging.getLogger(__name__)
 
 
 _F = TypeVar("_F", bound=Callable[..., Any])
+
+
+class variable(Protocol):
+    def __call__(self, *, variable: "var") -> None: ...
+
+
+class widget(Protocol):
+    def __call__(self, *, widget: Any) -> None: ...
+
+
+class value(Protocol):
+    def __call__(self, *, value: Any) -> None: ...
+
+
+class variableWidget(Protocol):
+    def __call__(self, *, variable: "var", widget: Any) -> None: ...
+
+
+class variableValue(Protocol):
+    def __call__(self, *, variable: "var", value: Any) -> None: ...
+
+
+class widgetValue(Protocol):
+    def __call__(self, *, widget: Any, value: Any) -> None: ...
+
+
+class variableWidgetValue(Protocol):
+    def __call__(self, *, variable: "var", widget: Any, value: Any) -> None: ...
+
+
+ChangeHandler: TypeAlias = (
+    variable | widget | value | variableWidget | variableValue | widgetValue | variableWidgetValue
+)
 
 
 def catchEmitError(method: _F) -> _F:
@@ -127,13 +177,13 @@ def catchEmitError(method: _F) -> _F:
             logger.exception("Handling error in %s", pointer)
             # if the GuiDict which raised the error allows disabling lets just
             # disable it and swallow the error
-            if isinstance(self, (GuiDict, _Worker)):
-                if isinstance(self, _Worker):
-                    guidict = self.guidict
-                else:
-                    guidict = self
-                logger.error("Error occured inside '%s'", guidict.__class__.__name__)
-                if guidict.allow_disabling:
+            guidict = getattr(self, "guidict", None)
+            if guidict is None and hasattr(self, "_dispatcher"):
+                guidict = self
+
+            if guidict is not None and hasattr(guidict, "_dispatcher"):
+                logger.error("Error occurred inside '%s'", guidict.__class__.__name__)
+                if getattr(guidict, "allow_disabling", False):
                     guidict._dispatcher.disable_requested.emit()
                     logger.info("Ignoring last Exception since device can be deactivated.")
                     return
@@ -151,37 +201,6 @@ def catchEmitError(method: _F) -> _F:
             __wrapped__=method,
         ),
     )
-
-
-class matr1xProgressBar(QProgressBar):
-    """
-    Overload QProgressBar to allow values between -5 and 105.
-
-    Values outside that range are indicated by a red color.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.setRange(-5, 105)
-        self.setFormat("%v")
-
-    def setValue(self, value: int) -> None:
-        """
-        Set the current value of the progress bar.
-
-        Parameters
-        ----------
-        value : int
-            The value to set for the progress bar.
-        """
-        if value > self.maximum() or value < self.minimum():
-            # change color
-            self.reset()
-            self.setStyleSheet("QProgressBar{background-color : red;}")
-        else:
-            self.setStyleSheet("QProgressBar{}")
-
-        super().setValue(value)
 
 
 class ToggleButton(QPushButton):
@@ -228,6 +247,93 @@ class ToggleButton(QPushButton):
                 self.setText(self._labels[0])
 
 
+class MethodBundle:
+    """Allow a thread-safe modification of a guiObject."""
+
+    def __init__(self):
+        self.calls: list[Callable[[Any], None]] = []
+        self.change_calls: list[ChangeHandler] = []
+
+    def add_setup_method(self, function: Callable[[Any], None]):
+        """
+        Add a widget setup callable to the bundle.
+
+        Parameters
+        ----------
+        function : callable
+            A callable (method or function) to be invoked. There is only
+            one allowed parameter (the widget).
+        """
+        sig = inspect.signature(function)
+        params = list(sig.parameters.values())
+        if len(params) != 1:
+            name = getattr(function, "__name__", "function")
+            raise TypeError(f"{name} must accept exactly one parameter (the widget)")
+        self.calls.append(function)
+        return self
+
+    def add_change_handler(self, function: ChangeHandler):
+        """
+        Add a handler to be called on every value change.
+
+        Parameters
+        ----------
+        function : callable
+            A callable (method or function) to be invoked.
+
+        Notes
+        -----
+        Handlers must declare any used context explicitly by name. The
+        allowed parameter names are ``variable``, ``widget``, and
+        ``value``.
+        """
+        self.change_calls.append(function)
+        return self
+
+    def apply(self, obj: QWidget):
+        """Apply all methods in the bundle on the given object."""
+        for function in self.calls:
+            function(obj)
+
+    def connect_value_changed(self, obj: "var", widget: QWidget):
+        """Register the change handlers with the variable dispatcher."""
+        for callback in self.change_calls:
+            obj._register_change_handler(callback, widget)
+
+    @staticmethod
+    def _invoke_change_callback(
+        callback: Callable[..., Any], obj: "var", widget: QWidget, value: Any
+    ) -> None:
+        """Invoke a callback using only the declared named context."""
+        signature = inspect.signature(callback)
+        context = {"variable": obj, "widget": widget, "value": value}
+
+        kwargs: dict[str, Any] = {}
+        for parameter in signature.parameters.values():
+            if parameter.kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                raise TypeError(
+                    f"Unsupported MethodBundle change handler signature for {callback!r}. "
+                    "Handlers must use only named parameters from (variable, widget, value)."
+                )
+            if parameter.kind in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            ):
+                if parameter.name in context:
+                    kwargs[parameter.name] = context[parameter.name]
+                    continue
+                raise TypeError(
+                    f"Unsupported MethodBundle change handler parameter '{parameter.name}' "
+                    f"for {callback!r}. Allowed names are (variable, widget, value)."
+                )
+
+        callback(**kwargs)
+
+
 class guiObject(IntEnum):
     """
     Enum object for GUI elements identification.
@@ -249,7 +355,12 @@ class guiObject(IntEnum):
 
     @classmethod
     def getWidget(
-        cls, label: str, wType: "guiObject | str | None", init: object | None = None
+        cls,
+        label: str,
+        wType: "guiObject | str | None",
+        init: object | None = None,
+        *,
+        modify: MethodBundle | None = None,
     ) -> QWidget | None:
         """
         Return the widget of the correct type.
@@ -265,7 +376,7 @@ class guiObject(IntEnum):
             * 0 : QPushButton
             * 1 : QLineEdit
             * 2 : QCheckBox
-            * 3 : matr1xProgressBar/QProgressBar
+            * 3 : QProgressBar
             * 4 : QComboBox
             * 5 : QPushButton(checkable=True)
             * 6 : QSpinBox
@@ -318,8 +429,13 @@ class guiObject(IntEnum):
         creation_method = widget_creation_methods.get(widget_type)
         if creation_method:
             if widget_type is str and init is None:
-                return creation_method(wType)
-            return creation_method(init)
+                return_widget = creation_method(wType)
+            else:
+                return_widget = creation_method(init)
+            if modify:
+                modify.apply(return_widget)
+            return return_widget
+
         return None
 
     @classmethod
@@ -335,8 +451,8 @@ class guiObject(IntEnum):
         return label
 
     @classmethod
-    def _create_progressbar_widget(cls, init) -> matr1xProgressBar:
-        pbar = matr1xProgressBar()
+    def _create_progressbar_widget(cls, init) -> QProgressBar:
+        pbar = QProgressBar()
         if init:
             pbar.setValue(init)
         return pbar
@@ -382,12 +498,15 @@ class varData(BaseModel):
     use in the var class.
     """
 
+    model_config = {"arbitrary_types_allowed": True}
+
     dtype: type | None
     columns: list[str | guiObject | None] = [None, None]
     unit: str = ""
     log_default: bool = Field(alias="log", default=False)
     init: list = [None, None]
     hide: bool = False
+    modify: list[MethodBundle | None] = [None, None]
 
     def __init__(self, *args, **kwargs):
         """Map positional arguments to field names."""
@@ -410,19 +529,21 @@ class varData(BaseModel):
             return [columns, None]
         if len(columns) == 1:
             return [columns[0], None]
+        if len(columns) != 2:
+            raise ValueError("columns requires one or two entries.")
         return columns
 
-    @field_validator("init", mode="before")
+    @field_validator("init", "modify", mode="before")
     @classmethod
-    def normalize_init(cls, init):
-        """Normalize init to a tuple."""
-        if not isinstance(init, list):
-            return [init, init]
-        if len(init) == 1:
-            return [init[0], None]
-        if len(init) != 2:
-            raise ValueError("The init list requires one or two entries.")
-        return init
+    def normalize_pair(cls, value, info: ValidationInfo):
+        """Normalize init and modify into a list."""
+        if not isinstance(value, list):
+            return [value, value]
+        if len(value) == 1:
+            return [value[0], None]
+        if len(value) != 2:
+            raise ValueError(f"{info.field_name} requires one or two entries.")
+        return value
 
     @model_validator(mode="after")
     def check_log_requires_dtype(self):
@@ -458,6 +579,8 @@ class var(QObject):
         is assumed to apply to both columns.
     hide : bool, optional, default = False
         Flag to mark extendable entries that are initially hidden.
+    modify : MethodBundle
+        Modify the standard widget with stored methods.
     """
 
     valueChanged: Signal = Signal(object)
@@ -475,6 +598,7 @@ class var(QObject):
         log: bool | None = False,
         init: object | None = None,
         hide: bool = False,
+        modify: MethodBundle | list[MethodBundle | None] | None = None,
     ) -> None: ...
 
     @overload
@@ -487,10 +611,20 @@ class var(QObject):
         self.hide = self._data.hide
         self._value = None
         self.widgets: list[Any] = []
-        self._tooltip: str
+        self._tooltip: str = ""
+        self._change_handlers: list[tuple[Callable[..., Any], QWidget]] = []
         self._gui_cache: dict[int, Any] = {}
         self._gui_cache_lock = threading.Lock()
+        self.valueChanged.connect(self._update_readout_slot)
+        self.valueChanged.connect(self._update_toggle_slot)
+        self.valueChanged.connect(self._dispatch_change_handlers)
+        self.unitChanged.connect(self._update_label_slot)
+        self.tooltipChanged.connect(self._update_tooltip_slot)
         self.copyValueRequested.connect(self._copy_value_slot)
+
+    def _register_change_handler(self, callback: Callable[..., Any], widget: QWidget) -> None:
+        """Register a change handler for GUI-thread dispatch."""
+        self._change_handlers.append((callback, widget))
 
     def setValue(self, newValue: Any) -> None:
         """
@@ -516,7 +650,7 @@ class var(QObject):
         return self._value
 
     @value.setter
-    def value(self, newValue: Any) -> None:
+    def value(self, new_value: Any) -> None:
         """
         Set the value of the variable and emit a signal if it has changed.
 
@@ -527,11 +661,13 @@ class var(QObject):
         """
         if self._data.dtype is None:
             return
-        if newValue is None:
+        if new_value is None:
             self._value = None
             return
-        self._value = self._data.dtype(newValue)
-        self.valueChanged.emit(self._value)
+        new_value = self._data.dtype(new_value)
+        if new_value != self._value:
+            self._value = new_value
+            self.valueChanged.emit(self._value)
 
     @property
     def unit(self) -> str:
@@ -618,11 +754,20 @@ class var(QObject):
         In addition to the visible items a by default hidden checkbox will be
         added which shows and changes the logging preferences.
         """
+        self._change_handlers = []
+        self._gui_cache = {}
         fulllabel = f"{label} ({self.unit})" if self.unit != "" else label
         self.widgets = [QLabel(fulllabel)]
+
         for i, widget in enumerate(self._data.columns):
             widgetinit = self._data.init[i]
-            self.widgets.append(guiObject.getWidget(label, widget, widgetinit))
+            if self._data.modify[i]:
+                self.widgets.append(
+                    guiObject.getWidget(label, widget, widgetinit, modify=self._data.modify[i])
+                )
+            else:
+                self.widgets.append(guiObject.getWidget(label, widget, widgetinit))
+
         # set sensible default values and disable readout column
         if isinstance(self.widgets[1], QLineEdit):
             self.widgets[1].setReadOnly(True)
@@ -665,14 +810,70 @@ class var(QObject):
             newlabel = f"{label} ({newunit})"
         widget.setText(newlabel)
 
+    def _write_value_to_widget(
+        self,
+        widget: QWidget,
+        value: object,
+        *,
+        cache_column: int | None = None,
+    ) -> None:
+        """Write a value into a widget and optionally update the GUI cache."""
+        if isinstance(widget, (QLineEdit, QLabel)):
+            widget.setText(str(value))
+            if cache_column is not None and isinstance(widget, QLabel):
+                self._set_cached_gui_value(cache_column, value)
+        elif isinstance(widget, (QSpinBox, QProgressBar)):
+            widget.setValue(int(cast(Any, value)))
+        elif isinstance(widget, QDoubleSpinBox):
+            widget.setValue(float(cast(Any, value)))
+        elif isinstance(widget, QComboBox):
+            if isinstance(value, int):
+                widget.setCurrentIndex(value)
+            elif isinstance(value, str):
+                widget.setCurrentText(value)
+        elif isinstance(widget, (QCheckBox, QPushButton)):
+            if widget.isCheckable():
+                widget.setChecked(bool(value))
+        else:
+            raise TypeError(f"Unsupported widget type {type(widget)}")
+
+    @AutoSlot
+    def _update_readout_slot(self, value: object) -> None:
+        """Update the readout widget on the variable thread."""
+        if self._data.dtype is None or len(self.widgets) <= 1:
+            return
+        try:
+            self._write_value_to_widget(self.widgets[1], value, cache_column=1)
+        except (TypeError, ValueError):
+            pass
+
+    @AutoSlot
+    def _update_toggle_slot(self, value: object) -> None:
+        """Keep toggle buttons synchronized with checkbox readouts."""
+        if len(self.widgets) <= 2:
+            return
+        if isinstance(self.widgets[1], QCheckBox) and isinstance(self.widgets[2], ToggleButton):
+            if self.widgets[2].isCheckable():
+                self.widgets[2].setChecked(bool(value))
+
+    @AutoSlot
+    def _update_label_slot(self, newunit: str) -> None:
+        """Update the label on the variable thread."""
+        if self.widgets and isinstance(self.widgets[0], QLabel):
+            self._update_label(newunit)
+
+    @AutoSlot
+    def _update_tooltip_slot(self, newtooltip: str) -> None:
+        """Update the readout tooltip on the variable thread."""
+        if len(self.widgets) > 1 and isinstance(self.widgets[1], QWidget):
+            self.widgets[1].setToolTip(newtooltip)
+
     def getGUIvalue(self, column: int = 2) -> Any:
         """
         Return the value of the GUI element in the respective column.
 
         On the widget-owning thread the widget is read directly. Otherwise
         a cached GUI value is returned when available.
-
-        The return value is cast to the variableType.
 
         Parameters
         ----------
@@ -686,8 +887,6 @@ class var(QObject):
 
         Raises
         ------
-        TypeError
-            If the GUI element type is unknown.
         RuntimeError
             If the method is called off the widget-owning thread and no
             thread-safe value source is available.
@@ -742,65 +941,26 @@ class var(QObject):
             return self._gui_cache.get(column)
 
     def _connect_signal(self) -> None:
-        """Connect the valueChanged signal to the corresponding widget."""
-        if self._data.dtype is not None:
-            widgets1 = self.widgets[1]
-            if isinstance(widgets1, (QLineEdit, QLabel)):
-
-                def string_wrapper(value):
-                    widgets1.setText(str(value))
-
-                self.valueChanged.connect(string_wrapper)
-            elif isinstance(widgets1, (QSpinBox, QProgressBar)):
-
-                def int_wrapper(value):
-                    try:
-                        widgets1.setValue(int(value))
-                    except (ValueError, TypeError):
-                        pass
-
-                self.valueChanged.connect(int_wrapper)
-            elif isinstance(widgets1, QDoubleSpinBox):
-
-                def float_wrapper(value):
-                    try:
-                        widgets1.setValue(float(value))
-                    except (ValueError, TypeError):
-                        pass
-
-                self.valueChanged.connect(float_wrapper)
-            elif isinstance(widgets1, QComboBox):
-                # Always connect both int and str signals like the original code
-                # This allows combo boxes to be updated by either index or text
-                # regardless of outType
-                def combo_handler(value):
-                    if isinstance(value, int):
-                        widgets1.setCurrentIndex(value)
-                    elif isinstance(value, str):
-                        widgets1.setCurrentText(value)
-
-                self.valueChanged.connect(combo_handler)
-            elif isinstance(widgets1, QCheckBox):
-
-                def bool_wrapper(value):
-                    try:
-                        widgets1.setChecked(bool(value))
-                    except (ValueError, TypeError):
-                        pass
-
-                self.valueChanged.connect(bool_wrapper)
-            if isinstance(self.widgets[0], QLabel):
-                self.unitChanged.connect(self._update_label)
-            self.tooltipChanged.connect(widgets1.setToolTip)
-
-        # automatically copy state of checkbox to togglebutton
-        if isinstance(self.widgets[2], ToggleButton) and isinstance(self.widgets[1], QCheckBox):
-            if self.widgets[2].isCheckable():
-                self.valueChanged.connect(self.widgets[2].setChecked)
+        """Register widget-specific handlers and GUI caches."""
+        if self._data.dtype is not None and len(self.widgets) > 1:
+            for column, modify in enumerate(self._data.modify, start=1):
+                if modify is None:
+                    continue
+                if not isinstance(self.widgets[column], QWidget):
+                    raise RuntimeError(
+                        f"MethodBundle change handlers require a widget in column {column}."
+                    )
+                modify.connect_value_changed(self, self.widgets[column])
 
         cache_stop = 3 if self.log is not None else 2
         for _col_idx in range(1, cache_stop):
             self._init_widget_cache(_col_idx, self.widgets[_col_idx])
+
+    @AutoSlot
+    def _dispatch_change_handlers(self, value: object) -> None:
+        """Dispatch MethodBundle change handlers on the variable thread."""
+        for callback, widget in self._change_handlers:
+            MethodBundle._invoke_change_callback(callback, self, widget, value)
 
     def _init_widget_cache(self, col_idx: int, widget: Any) -> None:
         """
@@ -832,10 +992,6 @@ class var(QObject):
             initial = widget.text()
             widget.textChanged.connect(_cache)
         elif isinstance(widget, QLabel):
-            # QLabel has no user-change signal; it is only ever updated
-            # programmatically via the valueChanged signal, so we
-            # piggyback on that for cache maintenance.
-            self.valueChanged.connect(_cache)
             if self._value is not None:
                 self._set_cached_gui_value(col_idx, variable_type(self._value))
             return
@@ -872,21 +1028,10 @@ class var(QObject):
     def _copy_value_slot(self) -> None:
         """Perform the widget update on the GUI thread."""
         # check that a set-field exists, otherwise pass
-        if len(self._data.columns) >= 2 and self._data.dtype is not None:
+        if len(self.widgets) > 2 and self.widgets[2] is not None and self._data.dtype is not None:
             try:
-                if isinstance(self.widgets[2], (QLineEdit, QLabel)):
-                    self.widgets[2].setText(str(self.value))
-                elif isinstance(self.widgets[2], QComboBox) and self._data.dtype is int:
-                    self.widgets[2].setCurrentIndex(self.value)
-                elif isinstance(self.widgets[2], QComboBox) and self._data.dtype is str:
-                    self.widgets[2].setCurrentText(self.value)
-                elif isinstance(self.widgets[2], QCheckBox):
-                    self.widgets[2].setChecked(bool(self.value))
-                elif isinstance(self.widgets[2], QSpinBox):
-                    self.widgets[2].setValue(int(self.value))
-                elif isinstance(self.widgets[2], QDoubleSpinBox):
-                    self.widgets[2].setValue(float(self.value))
-            except TypeError:
+                self._write_value_to_widget(self.widgets[2], self.value, cache_column=2)
+            except (TypeError, ValueError):
                 # allow a type mismatch in case a variable is not set
                 if self.value is not None:
                     raise
@@ -1060,8 +1205,8 @@ class _Worker(QObject):
         self.guidict: GuiDict = parent
         self._timer: QTimer = QTimer()  # fake definition
 
-    @AutoSlot
     @catchEmitError
+    @AutoSlot
     def run(self) -> None:
         """Start the worker's refresh loop and copy readout to set fields."""
         self._timer = QTimer()
@@ -1141,7 +1286,7 @@ class GuiDict(UserDict[str, var]):
     def __init__(self) -> None:
         super().__init__(self.data)
         if not hasattr(self, "S"):
-            self.S: System = system.System()
+            self.S = System()
         self._refresh_thread: QThread = QThread()
         self._panic: bool = False
         self._extended_visible = threading.Event()
@@ -1359,11 +1504,26 @@ class GuiDict(UserDict[str, var]):
                         self.__class__.__name__,
                         2 * self.refresh_period_ms / 1000,
                     )
-            self.restoreFeatures()
-            self.S.reset()
-            self.S.close()
-            # reset variables and commands
-            self._reset()
+
+        # Ensure UI reflects stopped state if it was still checked.
+        # This covers cases where stop() is called due to a crash or panic.
+        if self.allow_disabling and self.enable_switch.isChecked():
+            # Signal unchecking back to the GUI thread. Using the dispatcher
+            # ensures this works even when called from a worker thread.
+            self._dispatcher.disable_requested.emit()
+
+        # Ensure cleanup even if start() failed halfway or stop was called
+        # multiple times.
+        if hasattr(self, "S"):
+            try:
+                self.S.reset()
+                self.S.close()
+            except Exception:
+                logger.exception("Error during System cleanup in GuiDict.stop()")
+
+        self.restoreFeatures()
+        # reset variables and commands
+        self._reset()
 
     def _reset(self) -> None:
         """
@@ -1386,8 +1546,8 @@ class GuiDict(UserDict[str, var]):
             # convert command function names to executables
             self.set_cmd_funcs(window_obj=self.parent, system=self.S)
             self.restoreFeatures()
-            self._refresh_thread.start()
             self.running = True
+            self._refresh_thread.start()
 
     def set_cmd_funcs(
         self, window_obj: "ControlWindow | None" = None, system: System | None = None
@@ -1701,28 +1861,19 @@ def sendNotificationEmail(
         msg.attach(att)
 
     # read email config
-    if "email" in config["matr1x"]:
-        conf = config["matr1x"]["email"]
-        (smtp_srv, smtp_user, frommail, passwd) = [
-            conf.get(field, None)
-            for field in ("smtp_server", "smtp_user", "fromemail", "password")
-        ]
-        port = conf.get("smtp_port", 465)
-    else:
-        (smtp_srv, smtp_user, frommail, passwd) = (None,) * 4
-        port = 465
+    conf = config.matr1x.email
     context = ssl.create_default_context()
 
     try:
         if (
-            smtp_srv is not None
-            and smtp_user is not None
-            and frommail is not None
-            and passwd is not None
+            conf.smtp_server is not None
+            and conf.smtp_user is not None
+            and conf.fromemail is not None
+            and conf.password is not None
         ):
-            with smtplib.SMTP_SSL(smtp_srv, port, context=context) as server:
-                server.login(smtp_user, passwd)
-                server.send_message(msg, from_addr=frommail, to_addrs=address)
+            with smtplib.SMTP_SSL(conf.smtp_server, conf.smtp_port, context=context) as server:
+                server.login(conf.smtp_user, conf.password)
+                server.send_message(msg, from_addr=conf.fromemail, to_addrs=address)
         elif os.name == "posix":
             p = Popen(["sendmail", "-t"], stdin=PIPE)
             p.communicate(msg.as_bytes())
@@ -1782,7 +1933,13 @@ def control_main(
     app.setDesktopFileName(f"python.{package}.{Path(sys.argv[0]).name}")
 
     if lockfile:
-        lockfilename = Path(logfolder) / f"{package}_gui_{name}.lock"
+        # lock files are stored in a user specific cache directory
+        # to ensure they are available even if no log folder exists
+        lockdir = Path(
+            QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation)
+        )
+        lockdir.mkdir(parents=True, exist_ok=True)
+        lockfilename = lockdir / f"{package}_gui_{name}.lock"
         if lockfilename.exists():
             # check if process still running
             with lockfilename.open(encoding="utf-8") as lockf:

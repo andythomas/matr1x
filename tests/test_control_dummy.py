@@ -28,6 +28,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from importlib.metadata import entry_points
 from pathlib import Path
@@ -38,9 +39,11 @@ import matr1x.util
 import numpy as np
 import pytest
 from matr1x import output_extension
-from matr1x.control import ControlWindow
+from matr1x.control import ControlWindow, GuiDict, MethodBundle, var
+from matr1x.control import guiObject as go
 from matr1x.control.control_dummy import exampleDict
 from matr1x.scpi_tcpserver import SCPI_TCP_Server
+from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QMessageBox
 
 path = Path(__file__).resolve().parent
@@ -226,6 +229,43 @@ def test_control_window_panic_stops_and_restores_server(qapp, qtbot, monkeypatch
     assert window.start_server_calls >= 1
     assert window._server_disabled_by_panic is False
     assert window._local_server is not None
+
+
+def test_methodbundle_guidict_method_runs_on_gui_thread(qapp, qtbot):
+    """MethodBundle change handlers should execute through the GUI thread."""
+
+    class MethodBundleDict(GuiDict):
+        change_bundle = MethodBundle()
+        data = {
+            "MethodBundle": var(None, columns="Readout"),
+            "Value": var(int, columns=go.labeltext, modify=[change_bundle, None]),
+        }
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.change_bundle.add_change_handler(self.record_callback)
+            self.callback_thread: QThread | None = None
+            self.callback_value: int | None = None
+
+        def record_callback(self, *, value: int) -> None:
+            self.callback_thread = QThread.currentThread()
+            self.callback_value = value
+
+    guidict = MethodBundleDict()
+    dock = guidict.create_GUI()
+    qtbot.addWidget(dock)
+
+    def update_value() -> None:
+        guidict["Value"].value = 42
+
+    worker = threading.Thread(target=update_value)
+    worker.start()
+    worker.join()
+
+    qtbot.waitUntil(lambda: guidict.callback_thread is not None, timeout=1000)
+
+    assert guidict.callback_thread == qapp.thread()
+    assert guidict.callback_value == 42
 
 
 def test_matrix_script_control_dummy(start_control_dummy):

@@ -24,6 +24,9 @@ These are used by sweep-generator, matrix-gui, matrix-preview, matrix-
 script and control-guis.
 """
 
+from __future__ import annotations
+
+import contextlib
 import datetime
 import inspect
 import logging
@@ -35,28 +38,35 @@ import subprocess
 import sys
 import tempfile
 import types
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from importlib.metadata import version as package_version
 from pathlib import Path
 from types import ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Literal,
     ParamSpec,
+    Protocol,
     TypeVar,
     Union,
     cast,
     get_args,
     get_origin,
     get_type_hints,
-    overload,
 )
+
+if sys.version_info >= (3, 12):
+    from typing import TypeAliasType
+else:
+    TypeAliasType = None
 
 import numpy as np
 import pygit2
 import pyqtgraph
 import PySide6
-from pydantic import ValidationError
+import shiboken6
+from pydantic import BaseModel, ValidationError
 from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
     QAbstractItemModel,
@@ -68,8 +78,6 @@ from PySide6.QtCore import (
     QObject,
     QPersistentModelIndex,
     QPoint,
-    QSettings,
-    QSize,
     Qt,
     QTimer,
     Signal,
@@ -77,6 +85,7 @@ from PySide6.QtCore import (
     qVersion,
 )
 from PySide6.QtGui import (
+    QAction,
     QBrush,
     QCloseEvent,
     QColor,
@@ -103,11 +112,9 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
-    QDialog,
     QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
-    QFormLayout,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -116,8 +123,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QLayout,
     QLineEdit,
-    QListWidget,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -125,7 +132,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QStyle,
     QStyledItemDelegate,
-    QSystemTrayIcon,
+    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -135,16 +142,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
-from matr1x.models import MainConfig, SystemInfo, UserlibConfig
+from matr1x.models import MainConfig, SystemInfo
 
-from . import (
-    get_config_dict,
-    merge_dicts,
-    reload_config,
-    write_config,
-)
+from . import merge_dicts, reload_config, write_config
 from .eval import delta
+from .util import resolve_config_path
+
+if TYPE_CHECKING:
+    from matr1x.scripts.shared_classes import SaferQSettings
+
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -338,7 +346,7 @@ class FileLineEdit(QLineEdit):
         dialog = QFileDialog(parent)
         if self.spec == "file":
             dialog.setFileMode(QFileDialog.FileMode.AnyFile)
-            dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+            dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
             dialog.setOption(QFileDialog.Option.DontConfirmOverwrite)
         else:
             dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
@@ -351,63 +359,6 @@ class FileLineEdit(QLineEdit):
                 self.callback(dialog.selectedFiles()[0])
 
 
-class SystemListWidget(QListWidget):
-    """
-    A custom QListWidget that allows drag-and-drop reordering of items.
-
-    This widget emits a signal when the order of items changes due to drag-and-drop operations.
-
-    Attributes
-    ----------
-        orderChanged (Signal): Signal emitted when the order of items changes.
-    """
-
-    orderChanged = Signal()  # Custom signal for order changes
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """
-        Initialize the SystemListWidget.
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-        """
-        super().__init__(*args, **kwargs)
-        self.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        # Enable drag-and-drop sorting
-        self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
-
-    def dropEvent(self, event: QDropEvent) -> None:
-        """
-        Handle the drop event for drag-and-drop operations.
-
-        This method is called when an item is dropped after being dragged. It updates
-        the order of items and emits the orderChanged signal.
-
-        Args:
-            event (QDropEvent): The drop event object.
-        """
-        # Call the base class drop event to handle the reordering
-        super().dropEvent(event)
-        self.orderChanged.emit()  # Emit the custom signal when the order changes
-
-    def addItem(self, item) -> None:
-        """
-        Add item but avoid duplicates.
-
-        Parameters
-        ----------
-        item
-            The item, i.e. system file to be added.
-        """
-        for index in range(self.count()):
-            existing = self.item(index).text()
-            if item == existing:
-                print(f"{item} is already added and was omitted.")
-                return
-        super().addItem(item)
-
-
 class MetaViewerWidget(QDockWidget):
     """
     Viewer and editor for meta data stored in matrix data files.
@@ -415,14 +366,6 @@ class MetaViewerWidget(QDockWidget):
     Extensive meta data are only include in datafiles of version 7 or
     higher.
     """
-
-    class scifloat(float):
-        """Allow to edit scientific notation via this helper class."""
-
-        def __new__(cls, value):
-            """Behave like float with a different name."""
-            instance = super().__new__(cls, value)
-            return instance
 
     class EditableDelegate(QStyledItemDelegate):
         """
@@ -440,11 +383,16 @@ class MetaViewerWidget(QDockWidget):
             The parent widget. Default is None.
         """
 
-        def __init__(self, editable=False, parent=None):
+        def __init__(self, editable: bool = False, parent: QObject | None = None):
             super().__init__(parent=parent)
-            self.editable = editable
+            self.editable: bool = editable
 
-        def createEditor(self, parent, option, index):
+        def createEditor(
+            self,
+            parent: QWidget,
+            option: QStyleOptionViewItem,
+            index: QModelIndex | QPersistentModelIndex,
+        ) -> QWidget:
             """
             Create and return a custom editor widget for editing item data.
 
@@ -460,64 +408,63 @@ class MetaViewerWidget(QDockWidget):
             Returns
             -------
             Widget according to variable type
-                A widget configured for editing, widget type depends on
-                variable type (str - QTextEdit, str/path - FileLineEdit,
-                int - QSpinBox, float - QDoubleSpinBox, any/strict - QComboBox).
             """
-            cast_type, cast_spec = index.model().type(index)
+            if isinstance(index, QPersistentModelIndex):
+                raise TypeError("Index is a QPersistentModelIndex, but must be a QModelIndex.")
+            model = cast(MetaViewerWidget.TreeModel, index.model())
+            schema = model.type(index)
             item = index.internalPointer()
             item.setData(index, "", Qt.ItemDataRole.DisplayRole)
-            # Create a QTextEdit for more advanced text selection
-            if isinstance(cast_spec, map):
+
+            json_type = cast(str, schema.get("type"))
+            ui_type = cast(str | None, schema.get("ui_type"))
+            decimals = cast(int | None, schema.get("decimals"))
+
+            if "enum" in schema:
                 # strict, use combobox
                 editor = QComboBox(parent)
-                editor.insertItems(0, [i for i in map(str, cast_spec)])
+                editor.insertItems(0, [str(i) for i in schema["enum"]])
                 editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
-            elif cast_type[0] is bool:
+            elif json_type == "boolean":
                 editor = QCheckBox(parent)
                 editor.setStyleSheet("QCheckBox { border: none; padding: 0px; }")
-            elif cast_type[0] is int:
+            elif json_type == "integer":
                 editor = QSpinBox(parent)
-                min_val = cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else MIN_INT64
-                max_val = cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else MAX_INT64
-                editor.setRange(min_val, max_val)
+                editor.setRange(schema.get("minimum", MIN_INT64), schema.get("maximum", MAX_INT64))
+                if "multipleOf" in schema:
+                    editor.setSingleStep(schema["multipleOf"])
                 editor.setStyleSheet("QSpinBox { border: none; padding: 0px; }")
                 editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-            elif cast_type[0] is float:
-                editor = QDoubleSpinBox(parent)
-                if cast_type[1]:
-                    editor.setDecimals(cast_type[1])
-                min_val = (
-                    cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else -sys.float_info.max
-                )
-                max_val = (
-                    cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else sys.float_info.max
-                )
-                editor.setRange(min_val, max_val)
-                editor.setStyleSheet("QDoubleSpinBox { border: none; padding: 0px; }")
-                editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-            elif cast_type[0] is MetaViewerWidget.scifloat:
-                editor = QLineEdit(parent)
-                scifloat_validator = cast(QDoubleValidator, validator[float])
-                if cast_type[1]:
-                    scifloat_validator.setDecimals(cast_type[1])
-                min_val = (
-                    cast_spec[0] if (cast_spec and len(cast_spec) >= 1) else -sys.float_info.max
-                )
-                max_val = (
-                    cast_spec[1] if (cast_spec and len(cast_spec) >= 2) else sys.float_info.max
-                )
-                scifloat_validator.setRange(min_val, max_val)
-                editor.setValidator(scifloat_validator)
-            elif cast_type[0] is str and cast_spec in ["file", "folder"]:
+            elif json_type == "number":
+                if ui_type == "scifloat":
+                    editor = QLineEdit(parent)
+                    scifloat_validator = cast(QDoubleValidator, validator[float])
+                    if decimals:
+                        scifloat_validator.setDecimals(decimals)
+                    scifloat_validator.setRange(
+                        schema.get("minimum", -sys.float_info.max),
+                        schema.get("maximum", sys.float_info.max),
+                    )
+                    editor.setValidator(scifloat_validator)
+                else:
+                    editor = QDoubleSpinBox(parent)
+                    if decimals:
+                        editor.setDecimals(decimals)
+                    editor.setRange(
+                        schema.get("minimum", -sys.float_info.max),
+                        schema.get("maximum", sys.float_info.max),
+                    )
+                    if "multipleOf" in schema:
+                        editor.setSingleStep(schema["multipleOf"])
+                    editor.setStyleSheet("QDoubleSpinBox { border: none; padding: 0px; }")
+                    editor.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+            elif json_type == "string" and ui_type in ("file", "folder"):
 
                 def cb(value):
-                    # I do not like this callback function.
-                    # Can this be done with signals?
                     index.model().setData(index, value, Qt.ItemDataRole.EditRole)
                     index.model().dataChanged.emit(index, index)
 
-                editor = FileLineEdit(cb, parent, cast_spec)
+                editor = FileLineEdit(cb, parent, ui_type)
                 editor.setStyleSheet("QLineEdit { border: none; padding: 0px; }")
             else:
                 editor = QTextEdit(parent)
@@ -525,13 +472,16 @@ class MetaViewerWidget(QDockWidget):
                 # disable frame remove margins and scroll bar
                 editor.setFrameStyle(0)
                 editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
             # Make it read-only, but still allow text selection
             if not isinstance(editor, (QComboBox, QCheckBox)):
                 editor.setReadOnly(not self.editable)
             editor.setContentsMargins(0, 0, 0, 0)
             return editor
 
-        def setEditorData(self, editor, index):
+        def setEditorData(
+            self, editor: QWidget, index: QModelIndex | QPersistentModelIndex
+        ) -> None:
             """
             Set the editor data based on the current index.
 
@@ -544,34 +494,33 @@ class MetaViewerWidget(QDockWidget):
             """
             value = index.model().data(index, Qt.ItemDataRole.EditRole)
             if isinstance(editor, QTextEdit):
-                editor.setText(value)
+                editor.setText(str(value))
+                editor.resize(editor.sizeHint())
             elif isinstance(editor, QCheckBox):
-                try:
-                    editor.setChecked(value.lower() == "true")
-                except ValueError:
-                    # should only happen when previous value is present
-                    # in editor (edited in the file)
-                    editor.setValue(False)
+                editor.setChecked(bool(value))
             elif isinstance(editor, FileLineEdit):
-                editor.setText(value)
+                editor.setText(str(value))
             elif isinstance(editor, QComboBox):
-                editor.setCurrentText(value)
+                editor.setCurrentText(str(value))
             elif isinstance(editor, QSpinBox):
                 try:
                     editor.setValue(int(value))
-                except ValueError:
-                    # should only happen when previous value is present
-                    # in editor (edited in the file)
+                except (ValueError, TypeError):
                     editor.setValue(0)
             elif isinstance(editor, QDoubleSpinBox):
                 try:
                     editor.setValue(float(value))
-                except ValueError:
-                    # should only happen when previous value is present
-                    # in editor (edited in the file)
-                    editor.setValue(0)
+                except (ValueError, TypeError):
+                    editor.setValue(0.0)
+            elif isinstance(editor, QLineEdit):
+                editor.setText(str(value))
 
-        def setModelData(self, editor, model, index):
+        def setModelData(
+            self,
+            editor: QWidget,
+            model: QAbstractItemModel,
+            index: QModelIndex | QPersistentModelIndex,
+        ) -> None:
             """
             Set the model data based on the editor's content.
 
@@ -587,7 +536,7 @@ class MetaViewerWidget(QDockWidget):
             if isinstance(editor, QTextEdit):
                 value = editor.toPlainText()
             elif isinstance(editor, QCheckBox):
-                value = bool(editor.isChecked())
+                value = editor.isChecked()
             elif isinstance(editor, FileLineEdit):
                 value = editor.text()
             elif isinstance(editor, QComboBox):
@@ -595,18 +544,58 @@ class MetaViewerWidget(QDockWidget):
             elif isinstance(editor, (QSpinBox, QDoubleSpinBox)):
                 value = editor.value()
             elif isinstance(editor, QLineEdit):
-                value = float(editor.text())
+                try:
+                    value = float(editor.text())
+                except ValueError:
+                    value = editor.text()
             index.model().setData(index, value, Qt.ItemDataRole.EditRole)
 
-        def sizeHint(self, option, index):
-            """Return size hint of editor widget."""
-            sizeHint = super().sizeHint(option, index)
-            # sizeHint.setHeight(50)
-            return sizeHint
+    @staticmethod
+    def resolve_schema(schema: dict, root_schema: dict | None = None) -> dict:
+        """
+        Resolve a Pydantic JSON schema to a flat dictionary of properties.
+
+        Handles $ref, anyOf, allOf by merging or picking the first non-null type.
+        """
+        if not isinstance(schema, dict):
+            return {}
+
+        # Handle custom _schema wrapper used in ConfigEditWidget
+        if "_schema" in schema:
+            return MetaViewerWidget.resolve_schema(schema["_schema"], root_schema)
+
+        # Handle $ref
+        if "$ref" in schema and root_schema:
+            ref_path = schema["$ref"].split("/")
+            # Assuming refs are always like #/$defs/MyModel
+            ref_schema = root_schema
+            for part in ref_path[1:]:
+                ref_schema = ref_schema.get(part, {})
+            return MetaViewerWidget.resolve_schema(ref_schema, root_schema)
+
+        # Handle anyOf (often used for Optional[T] -> [T, null])
+        if "anyOf" in schema:
+            for sub_schema in schema["anyOf"]:
+                resolved = MetaViewerWidget.resolve_schema(sub_schema, root_schema)
+                if resolved.get("type") != "null":
+                    # Merge the anyOf schema with the outer schema (for description, etc.)
+                    merged = {**schema, **resolved}
+                    merged.pop("anyOf", None)
+                    return merged
+
+        # Handle allOf (merging multiple schemas)
+        if "allOf" in schema:
+            merged = {**schema}
+            for sub_schema in schema["allOf"]:
+                merged.update(MetaViewerWidget.resolve_schema(sub_schema, root_schema))
+            merged.pop("allOf", None)
+            return merged
+
+        return schema
 
     class TreeItem:
         """
-        A class representing a tree item in a hierarchical structure.
+        An item in the TreeModel.
 
         Parameters
         ----------
@@ -614,126 +603,85 @@ class MetaViewerWidget(QDockWidget):
             The key or identifier for this item.
         value : Any
             The value associated with this item.
+        types : Any, optional
+            The type/schema information for this item.
         parent : TreeItem, optional
             The parent item of this item, if any.
-
-        Attributes
-        ----------
-        parent_item : TreeItem
-            The parent item of this item.
-        child_items : list
-            List of child TreeItem objects.
-        key : str
-            The key or identifier for this item.
-        value : Any
-            The value associated with this item.
-        types : Any
-            The type associated with this item.
+        root_schema : dict, optional
+            The root JSON schema for resolving $refs.
         """
 
-        def parse_config_type(self, cast_type_spec):
-            """
-            Parse type info from type string provided in matr1x config.
-
-            Arguments
-            ---------
-            cast_type_spec : string
-                string according to the matr1x config type format
-
-            Returns
-            -------
-            cast_type : tuple of type + additional parameter (used only for float)
-                first entry contains type of config variable (str, int, float)
-                second entry contains number of decimals for float display
-            cast_spec : tuple, map, str or None
-                provides the specifications for the type. Can be either
-                range limits ([low, high, step], value map for strict variable,
-                or "folder"/"file" for path variables
-            """
-            if not cast_type_spec:
-                return ((str, None), None)
-            # alternative way of parsing using regex:
-            # regex =  r"(\w+)(?:;;(\d+))?(?:;;(folder|file|strict|range))?(?:;;(\S+))?"
-            cast_split = cast_type_spec.split(";;")
-            try:
-                # make sure type is interpreted correctly
-                if cast_split[0] == "scifloat":
-                    cast_type = (MetaViewerWidget.scifloat, None)
-                else:
-                    cast_type = (globals()["__builtins__"][cast_split[0]], None)
-            except AttributeError:
-                raise AttributeError("Wrong type specified in config")
-            if len(cast_split) == 1:
-                # only type is specified
-                return (cast_type, None)
-            if cast_type[0] in (float, MetaViewerWidget.scifloat):
-                # on float, second parameter can be number of digits
-                try:
-                    cast_type = (cast_type[0], int(cast_split[1]))
-                    cast_split.pop(1)  # remove entry
-                    if len(cast_split) == 1:
-                        # only type and decimals are specified
-                        return (cast_type, None)
-                except ValueError:
-                    pass  # variable not a digit, keep parsing
-            if cast_split[1] == "strict":
-                # strict type, following values are list, make sure they
-                # are interepreted as the correct type
-                try:
-                    return (cast_type, map(cast_type[0], cast_split[2:]))
-                except TypeError:
-                    raise TypeError("Wrong value specified for strict config setting")
-            if cast_split[1] == "range":
-                # range type, create range spec
-                if len(cast_split) < 3:
-                    raise IndexError("Range value missing in config")
-                try:
-                    return (cast_type, [i for i in map(cast_type[0], cast_split[2:])])
-                except TypeError:
-                    raise TypeError("Wrong value specified for range config setting")
-            if cast_type[0] is str and (cast_split[1] == "folder" or cast_split[1] == "file"):
-                # file/folder path
-                return (cast_type, cast_split[1])
-            # something went wrong with parsing the settings, use default
-            return ((str, None), None)
-
-        def __init__(self, key, value, types=None, parent=None):
+        def __init__(
+            self,
+            key: str,
+            value: Any,
+            types: Any | None = None,
+            parent: MetaViewerWidget.TreeItem | None = None,
+            root_schema: dict | None = None,
+        ):
+            """Initialize a TreeItem."""
             self.parent_item = parent
-            self.child_items = []
+            self.child_items: list[MetaViewerWidget.TreeItem] = []
 
-            self.key = key
-            self.value = value
-            self._type = types
-            self.hidden = False
+            self.key: str = key
+            self.value: Any = value
+            self.root_schema: dict | None = root_schema or (parent.root_schema if parent else None)
 
-            # If value is a dict, convert its items to TreeItem children
-            if isinstance(self.value, dict):
-                for child_key, child_value in value.items():
-                    cast_type = "str"
-                    if isinstance(self._type, dict):
-                        if child_key in self._type.keys():
-                            if self._type[child_key]:
-                                cast_type = self._type[child_key]
-                    else:
-                        if self._type:
-                            cast_type = self._type
+            # Resolve schema if it's a dict
+            if isinstance(types, dict):
+                self._type = MetaViewerWidget.resolve_schema(types, self.root_schema)
+            else:
+                self._type = types
+
+            self.description: str | None = None
+            if isinstance(self._type, dict):
+                self.description = self._type.get("description")
+            self.hidden: bool = False
+
+            # If value is a dict or Pydantic model, convert its items to TreeItem children
+            if isinstance(self.value, (dict, BaseModel)):
+                schema = self._type if isinstance(self._type, dict) else {}
+                # Update root_schema if this is a new Pydantic model
+                if isinstance(self.value, BaseModel):
+                    self.root_schema = self.value.__class__.model_json_schema()
+                    schema = self.root_schema
+
+                if isinstance(self.value, BaseModel):
+                    # Get all field names and extra fields
+                    all_keys = list(self.value.__class__.model_fields.keys())
+                    if self.value.model_extra:
+                        all_keys.extend(self.value.model_extra.keys())
+                    items = [(k, getattr(self.value, k)) for k in all_keys]
+                else:
+                    items = self.value.items()
+
+                for child_key, child_value in items:
+                    if child_key == "_schema":
+                        continue
+
+                    # Determine type from Pydantic schema or nested types dict
+                    cast_type = {}
+                    if isinstance(schema, dict):
+                        cast_type = schema.get("properties", {}).get(child_key)
+                        if cast_type is None:
+                            cast_type = schema.get(child_key, {})
+
                     self.child_items.append(
-                        MetaViewerWidget.TreeItem(child_key, child_value, cast_type, self)
+                        MetaViewerWidget.TreeItem(
+                            child_key, child_value, cast_type, self, self.root_schema
+                        )
                     )
             elif isinstance(self.value, (tuple, list, np.ndarray)):
                 # for lists with finite length also use nest view
                 # key is list index
-                cast_type = "str"
-                if isinstance(self._type, dict):
-                    if self._type[child_key]:  # ty: ignore[unresolved-reference]
-                        cast_type = self._type[child_key]  # ty: ignore[unresolved-reference], fixed via IFW_software #1430
-                else:
-                    if self._type:
-                        cast_type = self._type
+                cast_type = self._type.get("items", {}) if isinstance(self._type, dict) else {}
+
                 if len(self.value) > 1:
                     for i, child_value in enumerate(self.value):
                         self.child_items.append(
-                            MetaViewerWidget.TreeItem(f"{i}", child_value, cast_type, parent=self)
+                            MetaViewerWidget.TreeItem(
+                                f"{i}", child_value, cast_type, self, self.root_schema
+                            )
                         )
                 elif len(self.value) == 1:
                     # only list with length one, use that element only
@@ -742,7 +690,7 @@ class MetaViewerWidget(QDockWidget):
                     # length 0 list, replace with string representation
                     self.value = str(self.value)
 
-        def child(self, row):
+        def child(self, row: int) -> MetaViewerWidget.TreeItem:
             """
             Get the child item at the specified row.
 
@@ -758,7 +706,7 @@ class MetaViewerWidget(QDockWidget):
             """
             return self.child_items[row]
 
-        def child_count(self):
+        def child_count(self) -> int:
             """
             Get the number of child items.
 
@@ -769,7 +717,7 @@ class MetaViewerWidget(QDockWidget):
             """
             return len(self.child_items)
 
-        def column_count(self):
+        def column_count(self) -> Literal[2]:
             """
             Get the number of columns in the item.
 
@@ -780,9 +728,9 @@ class MetaViewerWidget(QDockWidget):
             """
             return 2  # Key and Value columns
 
-        def type(self, column):
+        def type(self, column: int) -> dict[str, str] | None:
             """
-            Get the data for the specified column.
+            Get the type information for the specified column.
 
             Parameters
             ----------
@@ -791,19 +739,18 @@ class MetaViewerWidget(QDockWidget):
 
             Returns
             -------
-            str
-                The data for the specified column.
+            dict
+                A Pydantic-compatible JSON schema dictionary representing the type.
             """
             if column == 0:
-                return "str", None
+                return {"type": "string"}
             elif column == 1:
                 if isinstance(self.value, (tuple, list, dict, np.ndarray)):
-                    # empty widgets are of type str
-                    return "str", None
-                return self.parse_config_type(self._type)
+                    return {"type": "string"}
+                return self._type if isinstance(self._type, dict) else {"type": "string"}
             return None
 
-        def data(self, column, role):
+        def data(self, column: int, role) -> str | None:
             """
             Get the data for the specified column.
 
@@ -831,7 +778,7 @@ class MetaViewerWidget(QDockWidget):
                 return str(self.value)  # Convert non-dict values to string
             return None
 
-        def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        def setData(self, index: QModelIndex, value: Any, role=Qt.ItemDataRole.EditRole) -> None:
             """
             Set the data for the item.
 
@@ -856,7 +803,7 @@ class MetaViewerWidget(QDockWidget):
                 else:
                     self.hidden = True
 
-        def parent(self):
+        def parent(self) -> MetaViewerWidget.TreeItem | None:
             """
             Get the parent item.
 
@@ -867,7 +814,7 @@ class MetaViewerWidget(QDockWidget):
             """
             return self.parent_item
 
-        def row(self):
+        def row(self) -> int:
             """
             Get the row number of this item in its parent's list of children.
 
@@ -882,21 +829,25 @@ class MetaViewerWidget(QDockWidget):
 
     class TreeModel(QAbstractItemModel):
         """
-        Custom tree model for displaying hierarchical data.
+        Custom tree model for displaying hierarchical data from dicts or Pydantic models.
 
         Parameters
         ----------
-        data : dict
+        data : dict or BaseModel
             The hierarchical data to be displayed in the tree.
         parent : QObject, optional
             The parent object for this model.
         """
 
-        def __init__(self, data, parent=None):
+        def __init__(self, data: dict | BaseModel, parent=None):
             super().__init__(parent)
             self.root_item = MetaViewerWidget.TreeItem("Root", data)
 
-        def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        def data(
+            self,
+            index: QModelIndex | QPersistentModelIndex,
+            role: int = Qt.ItemDataRole.DisplayRole,
+        ) -> Any:
             """
             Return data for the given index and role.
 
@@ -920,12 +871,15 @@ class MetaViewerWidget(QDockWidget):
             if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
                 return item.data(index.column(), role)
 
+            if role == Qt.ItemDataRole.ToolTipRole:
+                return item.description
+
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
 
             return None
 
-        def type(self, index, role=Qt.ItemDataRole.DisplayRole):
+        def type(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
             """
             Return data for the given index and role.
 
@@ -983,7 +937,7 @@ class MetaViewerWidget(QDockWidget):
                 return True
             return False
 
-        def flags(self, index):
+        def flags(self, index: QModelIndex | QPersistentModelIndex) -> Qt.ItemFlag:
             """
             Return the item flags for the given index.
 
@@ -997,16 +951,22 @@ class MetaViewerWidget(QDockWidget):
             Qt.ItemFlags
                 The item flags for the given index.
             """
-            if index.isValid():
-                if index.column() == 1:
-                    return (
-                        Qt.ItemFlag.ItemIsSelectable
-                        | Qt.ItemFlag.ItemIsEnabled
-                        | Qt.ItemFlag.ItemIsEditable
-                    )
-                return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+            if not index.isValid():
+                return Qt.ItemFlag.NoItemFlags
+            if index.column() == 1:
+                return (
+                    Qt.ItemFlag.ItemIsSelectable
+                    | Qt.ItemFlag.ItemIsEnabled
+                    | Qt.ItemFlag.ItemIsEditable
+                )
+            return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
 
-        def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        def headerData(
+            self,
+            section: int,
+            orientation: Qt.Orientation,
+            role: int = Qt.ItemDataRole.DisplayRole,
+        ) -> Any:
             """
             Return the header data for the given section, orientation, and role.
 
@@ -1031,7 +991,7 @@ class MetaViewerWidget(QDockWidget):
                     return "Value"
             return None
 
-        def index(self, row, column, parent=QModelIndex()):
+        def index(self, row: int, column: int, parent=QModelIndex()) -> QModelIndex:
             """
             Create and return a model index for the given row, column, and parent.
 
@@ -1062,7 +1022,7 @@ class MetaViewerWidget(QDockWidget):
                 return self.createIndex(row, column, child_item)
             return QModelIndex()
 
-        def parent(self, index):  # type: ignore our issue #1600
+        def parent(self, index) -> QModelIndex:  # type: ignore our issue #1600
             """
             Return the parent index for the given index.
 
@@ -1087,23 +1047,23 @@ class MetaViewerWidget(QDockWidget):
 
             return self.createIndex(parent_item.row(), 0, parent_item)
 
-        def resetData(self, data, types=None):
+        def resetData(self, data: dict | BaseModel, types: dict | None = None) -> None:
             """
             Reset the model with new data.
 
             Parameters
             ----------
-            data : dict
+            data : dict or BaseModel
                 The new hierarchical data to be displayed in the tree.
-            types : dict
-                Types of the displayed data
+            types : dict or dict-like
+                Type/schema information for the displayed data.
             """
             self.beginResetModel()
             del self.root_item
             self.root_item = MetaViewerWidget.TreeItem("Root", data, types)
             self.endResetModel()
 
-        def rowCount(self, parent=QModelIndex()):
+        def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
             """
             Return the number of rows under the given parent.
 
@@ -1122,7 +1082,9 @@ class MetaViewerWidget(QDockWidget):
             parent_item = parent.internalPointer()
             return parent_item.child_count()
 
-        def columnCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+        def columnCount(
+            self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()
+        ) -> Literal[2]:
             """
             Return the number of columns for the children of the given parent.
 
@@ -1138,7 +1100,27 @@ class MetaViewerWidget(QDockWidget):
             """
             return 2
 
-    def __init__(self, metadata, heading="Metadata Viewer", editable=False, parent=None):
+    def __init__(
+        self,
+        metadata,
+        heading: str = "Metadata Viewer",
+        editable: bool = False,
+        parent: QWidget | None = None,
+    ):
+        """
+        Initialize the MetaViewerWidget.
+
+        Parameters
+        ----------
+        metadata : dict or BaseModel
+            Metadata/Configuration to be displayed in the viewer.
+        heading : str, optional
+            The heading text for the dock widget.
+        editable : bool, optional
+            Whether the items should be editable.
+        parent : QWidget, optional
+            The parent widget.
+        """
         super().__init__(heading, parent)
 
         self.editable = editable
@@ -1173,7 +1155,7 @@ class MetaViewerWidget(QDockWidget):
         #     }
         # """)
 
-    def update_data(self, meta, types={}):
+    def update_data(self, meta, types: dict = {}) -> None:
         """
         Update data stored in the model and resize table to fit contents.
 
@@ -1181,7 +1163,7 @@ class MetaViewerWidget(QDockWidget):
         ----------
         meta : dict
             New metadata to be displayed.
-        types : dict
+        types : dict, optional
             Type definition for editable meta data
         """
         # get position of scroll bar before resetting the data
@@ -1195,26 +1177,33 @@ class MetaViewerWidget(QDockWidget):
         # restore scroll bar position
         self.tree_view.verticalScrollBar().setValue(current_pos)
 
-    def parse_header(self, hdr):
+    def parse_header(self, hdr: dict) -> dict:
         """
-        Parse a matrix header and prepare for display in the table view.
+        Shallow copy a matrix header to prepare for display.
 
         Parameters
         ----------
         hdr : dict
-            Header dictionary to be parsed.
+            Header dictionary to be copied.
 
         Returns
         -------
         dict
-            Parsed header data.
-
-        TODO: Implement sorting?
+            Copied header data.
         """
-        data = {}
-        for key, val in hdr.items():
-            data[key] = val
-        return data
+        # TODO: Implement sorting?
+        return hdr.copy()
+
+
+@contextlib.contextmanager
+def blocked_signals(*objects: QObject) -> Iterator[None]:
+    """Temporarily block signals for Qt objects."""
+    blocked_objects = [(obj, obj.blockSignals(True)) for obj in objects]
+    try:
+        yield
+    finally:
+        for obj, previous_state in blocked_objects:
+            obj.blockSignals(previous_state)
 
 
 class ConfigEditWidget(MetaViewerWidget):
@@ -1224,32 +1213,57 @@ class ConfigEditWidget(MetaViewerWidget):
     Allows editing and saving the config file.
     """
 
-    def __init__(self):
+    def __init__(self, popup: bool = False):
         super().__init__({}, heading="Device config", editable=True)
+        if popup:
+            self.setTitleBarWidget(QWidget())
+        self.setObjectName("config_editor")
+        self.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
         self.system_file = None
         self.system_info: SystemInfo | None = None
         self.full_system_list = []
-
         widget = QWidget()
-        # Create a QVBoxLayout instance
         layout = QVBoxLayout()
         button_layout = QHBoxLayout()
 
         # Dublin Core Elements
-        self.w_update_config = QPushButton("Reload config")
+        self.w_update_config: QPushButton = QPushButton("Reload config")
         self.w_update_config.setEnabled(False)
         self.w_update_config.clicked.connect(self.reload_and_update_data)
-
-        # Add the form layout to the main layout
         button_layout.addWidget(self.w_update_config)
         layout.addLayout(button_layout)
         layout.addWidget(self.tree_view)
-
-        # Set the main layout for the dialog
         widget.setLayout(layout)
         self.setWidget(widget)
+        self.action: QAction = QAction(get_matrix_icon("CHAR_≡"), "Device config", self)
+        self.action.setToolTip("Show the devices preferences/ configuration.")
+        self.action.setShortcut(QKeySequence("Ctrl+3"))
+        self.action.setCheckable(True)
+        self.action.toggled.connect(self.toggle_visibility)
+        self.visibilityChanged.connect(self._sync_metadata_view)
 
-    def parse_header(self, hdr):
+    def toggle_visibility(self, checked: bool) -> None:
+        """Toggle the visibility of this dock widget."""
+        if checked:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+        else:
+            self.hide()
+
+    def _sync_metadata_view(self) -> None:
+        """Match view action state to the restored widget visibility."""
+        with blocked_signals(self.action):
+            self.action.setChecked(not self.isHidden())
+
+    def parse_header(self, hdr: dict) -> dict:
         """
         Parse a matrix header and prepare for display in the table view.
 
@@ -1262,19 +1276,11 @@ class ConfigEditWidget(MetaViewerWidget):
         -------
         dict
             Parsed header data.
-
-        TODO: Implement sorting?
         """
-        data = {}
-        for key, val in hdr.items():
-            if key in ["columns", "units"]:
-                # omit columns and units since these belong directly to the
-                # data
-                continue
-            data[key] = val
-        return data
+        # TODO: Implement sorting?
+        return {key: val for key, val in hdr.items() if key not in {"columns", "units"}}
 
-    def set_systemfile(self, systemfile):
+    def set_systemfile(self, systemfile: list) -> None:
         """
         Set systemfile for config editor, must be called before update_data.
 
@@ -1285,7 +1291,7 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         self.systemfile = systemfile
 
-    def set_system_info(self, system_info: SystemInfo | None):
+    def set_system_info(self, system_info: SystemInfo | None) -> None:
         """
         Set system information from subprocess for config editor.
 
@@ -1296,7 +1302,7 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         self.system_info = system_info
 
-    def set_full_system_list(self, full_system_list):
+    def set_full_system_list(self, full_system_list: list) -> None:
         """
         Set the full system list for reloading system information.
 
@@ -1307,13 +1313,13 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         self.full_system_list = full_system_list
 
-    def reload_and_update_data(self):
+    def reload_and_update_data(self) -> None:
         """Reload system information and update data - wrapper for button action."""
         # Reload system information if full system list is available
         if hasattr(self, "full_system_list") and self.full_system_list:
             system_info = get_system_info(self.full_system_list)
             if isinstance(system_info, Error):
-                print(system_info.error)
+                print(system_info.error)  # noqa: T201
                 self.system_info = None
             else:
                 self.system_info = system_info.value
@@ -1333,13 +1339,24 @@ class ConfigEditWidget(MetaViewerWidget):
         # Skip individual system configs if we have a merged system to avoid duplicates
         if self.systemfile is not None and not is_merged_system:
             for syst in self.systemfile:
-                syst_dict[syst.strip()] = get_config_dict(syst.strip())
+                syst_dict[syst.strip()] = resolve_config_path(matr1x.config, syst.strip())
 
         # parse config from system info (from subprocess)
         if self.system_info is not None:
             for system_name, config_info in self.system_info.config.items():
                 if system_name not in syst_dict:
                     syst_dict[system_name] = {}
+
+                # Check for Pydantic-based config (contains 'value' and 'schema' keys)
+                if (
+                    isinstance(config_info, dict)
+                    and "value" in config_info
+                    and "schema" in config_info
+                ):
+                    syst_dict[system_name] = config_info["value"]
+                    syst_dict[system_name]["_schema"] = config_info["schema"]
+                    continue
+
                 # Add runtime config from system info
                 for key, value_info in config_info.items():
                     if isinstance(value_info, dict):
@@ -1357,21 +1374,17 @@ class ConfigEditWidget(MetaViewerWidget):
             for system_name, config_info in self.system_info.config.items():
                 if system_name in syst_dict:
                     try:
-                        system_config_with_types = get_config_dict(system_name)
-                        if "_types" in system_config_with_types:
-                            if "_types" not in syst_dict[system_name]:
-                                syst_dict[system_name]["_types"] = {}
-                            syst_dict[system_name]["_types"].update(
-                                system_config_with_types["_types"]
-                            )
+                        system_config = resolve_config_path(matr1x.config, system_name)
+                        if hasattr(system_config, "model_json_schema"):
+                            syst_dict[system_name]["_schema"] = system_config.model_json_schema()
                     except Exception:
                         # If we can't get type info, continue without it
                         pass
 
         def parse_dict_and_types(d, dv, dt):
             for key, item in d.items():
-                if key == "_types":
-                    dt.update(d[key])
+                if key == "_schema":
+                    dt["_schema"] = d[key]
                     continue
                 elif isinstance(item, dict):
                     dv[key] = {}
@@ -1388,7 +1401,36 @@ class ConfigEditWidget(MetaViewerWidget):
         super().update_data(self.value_dict, self.types_dict)
         self.w_update_config.setEnabled(True)
 
-    def parse_item(self, item):
+    def flatten_dict(self, nested: dict, parent_key: str = "", sep: str = ".") -> dict:
+        """Flatten a nested dictionary into dotted-key notation."""
+        items = {}
+        for key, value in nested.items():
+            new_key = f"{parent_key}{sep}{key}" if parent_key else key
+            if isinstance(value, dict):
+                # If all nested values are non-dicts, stop flattening here
+                if all(not isinstance(v, dict) for v in value.values()):
+                    items[new_key] = value
+                else:
+                    items.update(self.flatten_dict(value, new_key, sep))
+            else:
+                items[new_key] = value
+        return items
+
+    def apply_config_dict(self, config: dict) -> None:
+        """Apply values from a nested config dict to the tree items."""
+
+        def _merge(base: dict, update: dict) -> None:
+            """Deep-merge update into base."""
+            for key, val in update.items():
+                if key in base and isinstance(base[key], dict) and isinstance(val, dict):
+                    _merge(base[key], val)
+                else:
+                    base[key] = val
+
+        _merge(self.value_dict, self.flatten_dict(config))
+        super().update_data(self.value_dict, self.types_dict)
+
+    def parse_item(self, item) -> Any:
         """
         Parse a TreeItem and its children into a configuration dictionary.
 
@@ -1399,26 +1441,49 @@ class ConfigEditWidget(MetaViewerWidget):
 
         Returns
         -------
-        dict or str
-            A dictionary representing the parsed configuration, or a string
+        dict or str or Any
+            A dictionary representing the parsed configuration, or a value
             if the item has no children.
         """
-        config = {}
         if item.child_count() > 0:
+            config = {}
             for child_item in item.child_items:
                 config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(child_item)
-        else:
-            if item.type(1)[0][0] is bool:
-                return item.data(1, Qt.ItemDataRole.EditRole).lower() == "true"
-            try:
-                return item.type(1)[0][0](item.data(1, Qt.ItemDataRole.EditRole))
-            except ValueError:
-                return item.data(
-                    1, Qt.ItemDataRole.EditRole
-                )  # Return original data if conversion fails
-        return config
 
-    def get_config_dict(self):
+            # If the item itself represents a Pydantic model, validate the config
+            if isinstance(item.value, BaseModel):
+                try:
+                    # Validate and convert back to a plain dict for the writing process
+                    # Use model_validate to check types and apply default values
+                    validated = item.value.__class__.model_validate(config)
+                    return validated.model_dump(mode="json", by_alias=True, exclude_none=True)
+                except ValidationError as e:
+                    logger.warning(
+                        "Validation error during config extraction for %s: %s", item.key, e
+                    )
+                    return config  # Fallback to raw config on error
+            return config
+
+        # Handle leaf nodes
+        schema = item.type(1)
+        if schema:
+            json_type = schema.get("type")
+            raw_value = item.data(1, Qt.ItemDataRole.EditRole)
+            if json_type == "boolean":
+                return str(raw_value).lower() == "true"
+            elif json_type == "integer":
+                try:
+                    return int(raw_value)
+                except (ValueError, TypeError):
+                    return raw_value
+            elif json_type == "number":
+                try:
+                    return float(raw_value)
+                except (ValueError, TypeError):
+                    return raw_value
+        return item.data(1, Qt.ItemDataRole.EditRole)
+
+    def get_config_dict(self) -> dict:
         """
         Extract and normalize configuration data from the tree view.
 
@@ -1434,65 +1499,6 @@ class ConfigEditWidget(MetaViewerWidget):
                 return {keys[0]: self.parse_item(item)}
             return {keys[0]: create_nested_dict(keys[1:], item)}
 
-        def normalize_value(value):
-            """
-            Attempt to convert the input value to the appropriate type.
-
-            Parameters
-            ----------
-            value : str
-                The value to normalize.
-
-            Returns
-            -------
-            int, float, bool, or str
-                The normalized value.
-            """
-            if isinstance(value, str):
-                # Try to convert to an integer
-                if value.isdigit():
-                    return int(value)
-                # Try to convert to a float
-                try:
-                    return float(value)
-                except ValueError:
-                    pass
-                # Convert 'true'/'false' to booleans
-                if value.lower() == "true":
-                    return True
-                if value.lower() == "false":
-                    return False
-
-                if "~" in value:
-                    value = str(Path(value).expanduser().resolve())
-
-                # Return the value as-is if no conversion was possible
-                return value
-            # otherwise just return the value
-            return value
-
-        def normalize_dict(input_dict):
-            """
-            Apply value normalization to input_dict.
-
-            Parameters
-            ----------
-            input_dict : dict
-                The dictionary to normalize.
-
-            Returns
-            -------
-            dict
-                The normalized dictionary.
-            """
-            for key, value in input_dict.items():
-                # If the value is a dictionary, recursively normalize dict
-                if isinstance(value, dict):
-                    input_dict[key] = normalize_dict(value)
-                else:
-                    input_dict[key] = normalize_value(value)
-            return input_dict
-
         config_dict = {}
         for item in self.model.root_item.child_items:
             if item.child_count() == 0:
@@ -1502,31 +1508,21 @@ class ConfigEditWidget(MetaViewerWidget):
             key_parts = sys_key.split(".")
             merge_dicts(config_dict, create_nested_dict(key_parts, item))
 
-        return normalize_dict(config_dict)
+        return config_dict
 
-    def write_config(self, config_dict: dict[str, Any] | None = None) -> Path:
+    def write_config(self) -> Path:
+        """Write the configuration to a temporary file."""
+        return self.write_config_dict(self.get_config_dict())
+
+    @staticmethod
+    def write_config_dict(config_dict: dict[str, Any]) -> Path:
         """
-        Write config data to a temporary file using matr1x.write_config.
+        Write a configuration dictionary to a temporary file.
 
         The configuration data is normalized and written to a named temporary
         file. This file persists after the function returns and can be used
         as an optional configuration file.
-
-        Parameters
-        ----------
-        config_dict : dict, optional
-            Configuration dictionary to write. If None, extracts configuration
-            from the tree view using get_config_dict().
-
-        Returns
-        -------
-        Path
-            Path to the temporary file containing the written configuration.
         """
-        if config_dict is None:
-            config_dict = self.get_config_dict()
-
-        # Create a temporary file
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".toml") as tmpfile:
             temp_file = Path(tmpfile.name)
             write_config(config_dict, temp_file)  # Use matr1x's write_config
@@ -2901,370 +2897,6 @@ class CustomViewBox(pyqtgraph.ViewBox):
             pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
 
 
-class EmittingStream(QObject):
-    """
-    Stream to communicate between threads.
-
-    Attributes
-    ----------
-    name : str
-        Name of the stream.
-    text_written : Signal
-        Signal emitted when text is written to the stream.
-    """
-
-    name = "GUIStream"
-    text_written = Signal(str)
-
-    def write(self, text: str) -> None:
-        """
-        Write text to the stream and emit a signal.
-
-        Parameters
-        ----------
-        text : str
-            The text to be written to the stream.
-        """
-        self.text_written.emit(str(text))
-
-    def flush(self) -> None:
-        """
-        Flush the stream.
-
-        This method is required for file-like objects but does nothing
-        in this implementation.
-        """
-
-
-class MetaDataDialog(QDialog):
-    """Create a dialog able to handle meta data input for file headers."""
-
-    def __init__(self, initial_values: dict[str, Any] | None = None) -> None:
-        """
-        Initialize the meta data dialog with optional initial values.
-
-        Parameters
-        ----------
-        initial_values : Optional[Dict[str, Any]]
-            Optional dictionary with initial values for the fields.
-        """
-        super().__init__()
-
-        self.setWindowTitle("Dublin Core Metadata Input")
-
-        # Create a QVBoxLayout instance
-        layout = QVBoxLayout()
-        # Create a QFormLayout for organized input fields
-        form_layout = QFormLayout()
-
-        # Dublin Core Elements
-        self.creator = QLineEdit()
-        self.identifier = QLineEdit()
-        self.relation = QLineEdit()
-        self.description = QTextEdit()
-
-        # Load initial values if provided
-        if initial_values:
-            self.load_initial_values(initial_values)
-
-        # Add form elements to layout
-        form_layout.addRow("Creator/User:", self.creator)
-        form_layout.addRow("Identifier/Sample:", self.identifier)
-        form_layout.addRow("Relation:", self.relation)
-
-        # Add the form layout to the main layout
-        layout.addLayout(form_layout)
-        layout.addWidget(QLabel("Description:"))
-        layout.addWidget(self.description)
-
-        # Set the main layout for the dialog
-        self.setLayout(layout)
-
-    def load_initial_values(self, values: dict[str, Any]) -> None:
-        """
-        Load initial values into the dialog fields.
-
-        Parameters
-        ----------
-        values : Dict[str, Any]
-            Dictionary with initial values for the fields.
-        """
-        self.creator.setText(values.get("creator", ""))
-        self.identifier.setText(values.get("identifier", ""))
-        self.relation.setText(values.get("relation", ""))
-        self.description.setPlainText(values.get("description", ""))
-
-    def get_metadata(self) -> dict[str, str]:
-        """
-        Get the metadata entered in the dialog.
-
-        Returns
-        -------
-        Dict[str, str]
-            Dictionary with metadata values.
-        """
-        return {
-            "creator": self.creator.text(),
-            "identifier": self.identifier.text(),
-            "relation": self.relation.text(),
-            "description": self.description.toPlainText(),
-        }
-
-    def setEnabled(self, state: bool) -> None:
-        """
-        Accept or prohibit user inputs.
-
-        Parameters
-        ----------
-        state : bool
-            Accept (True) or block (False) input.
-        """
-        self.creator.setEnabled(state)
-        self.identifier.setEnabled(state)
-        self.relation.setEnabled(state)
-        self.description.setEnabled(state)
-        QDialog.setEnabled(self, state)
-
-
-class TimeoutDialogBase(QDialog):
-    """Base class for dialogs with timeout functionality."""
-
-    def __init__(
-        self,
-        query: str,
-        parent: QWidget | None = None,
-        timeout: float = float("inf"),
-        default_value: Any = "",
-    ):
-        """
-        Initialize the base dialog with timeout functionality.
-
-        Parameters
-        ----------
-        query : str
-            The text to display on the label above the input field.
-        parent : QWidget, optional
-            The parent widget of the dialog.
-        timeout : float, optional
-            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
-            0 is interpreted as infinity.
-        default_value : Any, optional
-            Default value to show in input field.
-        """
-        super().__init__(parent)
-        self.setWindowTitle("Matrix-script input")
-
-        self.default_value = default_value
-        self.user_responded = False  # Track if user clicked a button
-        self.timeout = timeout if timeout else float("inf")
-
-        self.label = QLabel(query, self)
-
-        # This will be created by subclasses
-        self.input_widget = None
-
-        self.timer_label = QLabel("", self)
-        self.timer_label.setVisible(self.timeout != float("inf"))
-
-        self.ok_button = QPushButton("Send input", self)
-        self.abort_button = QPushButton("Abort script", self)
-
-        self.ok_button.clicked.connect(self._button_clicked)
-        self.ok_button.clicked.connect(self.accept)
-        self.abort_button.clicked.connect(self._button_clicked)
-        self.abort_button.clicked.connect(self.reject)
-
-        # Ensure the dialog stays on top of the main window
-        self.setWindowModality(Qt.WindowModality.ApplicationModal)
-
-        # Set up timer if timeout is finite
-        if self.timeout != float("inf"):
-            self.remaining_time = self.timeout * 1000  # Convert to milliseconds
-            self.timer = QTimer(self)
-            self.timer.timeout.connect(self.update_timer)
-            self.timer.start(100)  # Update every 100ms for better precision
-
-    def _button_clicked(self):
-        """Mark that user has responded to prevent timeout override."""
-        self.user_responded = True
-
-    def update_timer(self):
-        """Update the timer display and handle timeout."""
-        if self.user_responded:
-            return
-
-        self.remaining_time -= 100  # Decrement by 100ms
-
-        if self.remaining_time <= 0:
-            if not self.user_responded:
-                self.timer.stop()
-                self.accept()
-            return
-
-        # Convert milliseconds back to seconds for display
-        remaining_seconds = self.remaining_time / 1000
-
-        # Format the time display
-        if remaining_seconds < 100:
-            # Show seconds for short timeouts
-            self.timer_label.setText(f"Time remaining: {int(remaining_seconds)} seconds")
-        else:
-            # Show hours:minutes format for longer timeouts
-            hours = int(remaining_seconds / 3600)
-            minutes = int((remaining_seconds % 3600) / 60)
-            seconds = int(remaining_seconds % 60)
-            if hours > 0:
-                self.timer_label.setText(f"Time remaining: {hours}h {minutes}m {seconds}s")
-            else:
-                self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
-
-    def setup_layout(self):
-        """Set up the dialog layout."""
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.ok_button)
-        button_layout.addWidget(self.abort_button)
-
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(self.label)
-        if self.input_widget:
-            main_layout.addWidget(self.input_widget)
-        main_layout.addWidget(self.timer_label)
-        main_layout.addLayout(button_layout)
-
-        self.setLayout(main_layout)
-
-    def accept(self):
-        """Handle dialog acceptance."""
-        if hasattr(self, "timer") and self.timer.isActive():
-            self.timer.stop()
-        super().accept()
-
-    def reject(self):
-        """Handle dialog rejection."""
-        if hasattr(self, "timer") and self.timer.isActive():
-            self.timer.stop()
-        super().reject()
-
-
-class TextInputDialog(TimeoutDialogBase):
-    """Modal dialog for text input for matrix-script."""
-
-    def __init__(
-        self,
-        query: str,
-        parent: QWidget | None = None,
-        timeout: float = float("inf"),
-        default_value: str = "",
-    ):
-        """
-        Initialize the text input dialog with a its GUI elements.
-
-        Parameters
-        ----------
-        query : str
-            The text to display on the label above the input field.
-        parent : QWidget, optional
-            The parent widget of the dialog.
-        timeout : float, optional
-            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
-            0 is interpreted as infinity.
-        default_value : str, optional
-            Default value to show in input field.
-        """
-        super().__init__(query, parent, timeout, default_value)
-
-        # Create the input widget
-        self.input = QLineEdit(self)
-        self.input.setPlaceholderText("input to send to script")
-        self.input.setText(default_value)
-        self.input_widget = self.input
-
-        # Set up the layout
-        self.setup_layout()
-
-    def get_input_text(self):
-        """
-        Get the text entered by the user.
-
-        Returns
-        -------
-        str
-            The user input.
-        """
-        return self.input.text()
-
-
-class NumericalInputDialog(TimeoutDialogBase):
-    """Modal dialog for numerical input for matrix-script."""
-
-    def __init__(
-        self,
-        query: str,
-        parent: QWidget | None = None,
-        timeout: float = float("inf"),
-        default_value: float = 0.0,
-        min_value: float | None = -100e9,
-        max_value: float | None = 100e9,
-        step: float | None = 1.0,
-        decimals: int | None = 2,
-    ):
-        """
-        Initialize the numerical input dialog with its GUI elements.
-
-        Parameters
-        ----------
-        query : str
-            The text to display on the label above the input field.
-        parent : QWidget, optional
-            The parent widget of the dialog.
-        timeout : float, optional
-            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
-            0 is interpreted as infinity.
-        default_value : float, optional
-            Default value to show in input field.
-        min_value : float, optional
-            Minimum value for the QDoubleSpinbox. Default is -100e9.
-        max_value : float, optional
-            Maximum value for the QDoubleSpinbox. Default is 100e9.
-        step : float, optional
-            Step size for the QDoubleSpinbox. Default is 1.0.
-        decimals : int, optional
-            Number of decimal places. Default is 2.
-        """
-        super().__init__(query, parent, timeout, default_value)
-
-        # Create the spinbox
-        self.input_spinbox = QDoubleSpinBox(self)
-        if min_value is not None:
-            self.input_spinbox.setMinimum(min_value)
-        if max_value is not None:
-            self.input_spinbox.setMaximum(max_value)
-        if step is not None:
-            self.input_spinbox.setSingleStep(step)
-        if decimals is not None:
-            self.input_spinbox.setDecimals(decimals)
-        if default_value is not None:
-            self.input_spinbox.setValue(default_value)
-        self.input_spinbox.setToolTip(
-            f"Enter a numerical value (Range: {min_value} to {max_value})"
-        )
-        self.input_widget = self.input_spinbox
-
-        # Set up the layout
-        self.setup_layout()
-
-    def get_input_value(self):
-        """
-        Get the value from the spinbox.
-
-        Returns
-        -------
-        float
-        The user input value.
-        """
-        return self.input_spinbox.value()
-
-
 class LoggerMixin:
     """Add a logger for fine grained information of the origin."""
 
@@ -3272,208 +2904,6 @@ class LoggerMixin:
         """Generate the logger."""
         super().__init_subclass__(**kwargs)
         cls.logger = logging.getLogger(f"{cls.__module__}.{cls.__qualname__}")
-
-
-class YesNoAbortDialog(QMessageBox, LoggerMixin):
-    """Modal dialog for boolean input for matrix-script."""
-
-    def __init__(
-        self,
-        question: str,
-        parent: QWidget | None = None,
-        timeout: float = float("inf"),
-        default_value: str = "yes",
-    ):
-        """
-        Initialize the yes/no dialog with a question and buttons.
-
-        Parameters
-        ----------
-        question : str
-            The question to display on the label.
-        parent : QWidget, optional
-            The parent widget of the dialog.
-        timeout : float, optional
-            Timeout in seconds before dialog automatically returns default_value.
-            Default is infinity (no timeout). 0 is interpreted as infinity.
-        default_value : str, optional
-            Default value to return if timeout occurs. Should be "Yes", "No", or empty.
-            Default is True.
-        """
-        super().__init__(parent)
-        self.setWindowTitle("Question")
-        self.setText(question)
-        self.setIcon(QMessageBox.Icon.Question)
-
-        # Normalize default value and ensure it's either "yes" or "no"
-        self.default_value = (
-            default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
-        )
-        self.timeout_occurred = False  # Required for YesNoAbortDialog functionality
-        self.user_responded = False  # Track if user clicked a button
-        self.timeout = timeout if timeout else float("inf")
-
-        # Add custom buttons with default button indication when timeout is set
-        button_text_yes = "Yes"
-        button_text_no = "No"
-
-        # If timeout is set, add visual indications to the default button
-        if self.timeout != float("inf"):
-            if self.default_value == "yes":
-                button_text_yes = "Yes (Default)"
-            else:
-                button_text_no = "No (Default)"
-
-        # Create buttons
-        self.yes_button = self.addButton(button_text_yes, QMessageBox.ButtonRole.AcceptRole)
-        self.no_button = self.addButton(button_text_no, QMessageBox.ButtonRole.RejectRole)
-        self.abort_button = self.addButton("Abort script", QMessageBox.ButtonRole.DestructiveRole)
-
-        # Connect button signals to track user response
-        self.yes_button.clicked.connect(self._button_clicked)
-        self.no_button.clicked.connect(self._button_clicked)
-        self.abort_button.clicked.connect(self._button_clicked)
-
-        # Simple styling for default button if timeout is set
-        if self.timeout != float("inf"):
-            # Set bold font for the default button
-            default_button = self.yes_button if self.default_value == "yes" else self.no_button
-            font = default_button.font()
-            font.setBold(True)
-            default_button.setFont(font)
-
-            # Make this the default button (responds to Enter key)
-            self.setDefaultButton(default_button)
-
-            # Set up timer and label - use milliseconds for better precision
-            self.timer_label = QLabel(f"Time remaining: {int(self.timeout)} seconds", self)
-            layout = self.layout()
-            if isinstance(layout, QGridLayout):
-                layout.addWidget(self.timer_label, 1, 1, 1, 3)
-            else:
-                raise InternalInvariantError("No grid-layout was returned!")
-            self.remaining_time = self.timeout * 1000  # Convert to milliseconds
-            self.timer = QTimer(self)
-            self.timer.timeout.connect(self.update_timer)
-            self.timer.start(100)  # Update every 100ms for better precision
-
-    def _button_clicked(self):
-        """Mark that user has responded to prevent timeout override."""
-        self.user_responded = True
-        if hasattr(self, "timer"):
-            self.timer.stop()
-
-    def update_timer(self):
-        """Update the timer display and handle timeout."""
-        # Don't process timeout if user already responded
-        if self.user_responded:
-            return
-
-        self.remaining_time -= 100  # Decrement by 100ms
-
-        if self.remaining_time <= 0:
-            # Give a small grace period for button clicks
-            if not self.user_responded:
-                self.timeout_occurred = True
-                self.timer.stop()
-                self.close()
-                return
-
-        # Convert milliseconds back to seconds for display
-        remaining_seconds = self.remaining_time / 1000
-
-        # Format the time display
-        if remaining_seconds < 100:
-            # Show seconds for short timeouts
-            self.timer_label.setText(f"Time remaining: {int(remaining_seconds)} seconds")
-        else:
-            # Show hours:minutes format for longer timeouts
-            hours = int(remaining_seconds / 3600)
-            minutes = int((remaining_seconds % 3600) / 60)
-            seconds = int(remaining_seconds % 60)
-            if hours > 0:
-                self.timer_label.setText(f"Time remaining: {hours}h {minutes}m {seconds}s")
-            else:
-                self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
-
-    def exec_and_get_response(self):
-        """
-        Show the dialog and return the button clicked by the user.
-
-        Returns
-        -------
-        str
-            The response based on the button clicked ("yes", "no", or "abort").
-            If timeout occurred, returns the default_value.
-        """
-        self.exec()
-
-        # Check timeout first, but only if user didn't respond
-        if self.timeout_occurred and not self.user_responded:
-            if self.default_value in ["yes", "no"]:
-                self.logger.info(
-                    "Dialog timeout occurred - automatically selected: %s", self.default_value
-                )
-                return self.default_value
-            fallback_default = "yes"
-            self.logger.info(
-                "Dialog timeout occurred with invalid default value, automatically selected: %s",
-                fallback_default,
-            )
-            return fallback_default
-
-        # User responded - return their choice
-        if self.clickedButton() == self.yes_button:
-            return "yes"
-        elif self.clickedButton() == self.no_button:
-            return "no"
-        elif self.clickedButton() == self.abort_button:
-            return "abort"
-        return "Unknown"
-
-
-class TerminationDialog(QMessageBox):
-    """
-    Dialog to determine how a terminated datafile should be marked.
-
-    This dialog presents two options to the user:
-    1. Mark the datafile as "Aborted"
-    2. Mark the datafile as "Finished"
-
-    The user's selection determines how the termination status of the datafile
-    will be recorded.
-
-    Returns
-    -------
-    str
-        The selected termination status: either "aborted" or "finished".
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Termination Status")
-        self.setText("How should the terminated datafile be marked?")
-        self.setIcon(QMessageBox.Icon.Question)
-
-        # Add buttons
-        self.abort_button = self.addButton("Aborted", QMessageBox.ButtonRole.RejectRole)
-        self.finish_button = self.addButton("Finished", QMessageBox.ButtonRole.AcceptRole)
-
-    def get_selection(self):
-        """
-        Display the dialog and return the user's selection.
-
-        Returns
-        -------
-        str
-            The selected termination status: either "finished" or "aborted".
-        """
-        self.exec()
-
-        if self.clickedButton() == self.finish_button:
-            return "finished"
-        else:
-            return "aborted"
 
 
 def get_install_info(
@@ -3547,7 +2977,6 @@ class AboutBox(QMessageBox):
         super().__init__(parent)
         # The rich text (html) messes with the sizes
         style = QApplication.style()
-        assert style is not None
         icon_size = style.pixelMetric(QStyle.PixelMetric.PM_MessageBoxIconSize)
         pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
@@ -3598,6 +3027,9 @@ class AboutBox(QMessageBox):
         self.setText(f"<b>{title} {version}</b>")
         self.setInformativeText(text)
         self.setStandardButtons(QMessageBox.StandardButton.Ok)
+        self.action = QAction("About")
+        self.action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.action.triggered.connect(self.exec)
 
     def _shorten_path(self, path: str) -> str:
         """
@@ -3714,7 +3146,6 @@ def get_matrix_icon(
     # Get the included Qt icon
     if name.startswith("SP_"):
         style = QApplication.style()
-        assert style is not None
         icon = style.standardIcon(getattr(QStyle.StandardPixmap, name))
         return icon
     # Use the original matrix icons
@@ -3846,7 +3277,7 @@ def detect_shortcut(event, shortcut):
         return False
 
 
-def save_messagebox(instance) -> int:
+def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
     """
     Show a messagebox to query file save.
 
@@ -3855,8 +3286,8 @@ def save_messagebox(instance) -> int:
 
     Returns
     -------
-    return : int
-        The choice as a QMessageBox.StandardButton enum.
+    return : bool
+        The file was saved (True) or not (False).
     """
     msg = QMessageBox(parent=instance)
     msg.setIcon(QMessageBox.Icon.Question)
@@ -3868,33 +3299,15 @@ def save_messagebox(instance) -> int:
         | QMessageBox.StandardButton.Cancel
     )
     discard = msg.button(QMessageBox.StandardButton.Discard)
-    assert discard is not None
     discard.setText("Don't Save")
-    # Is this the best default button?
     msg.setDefaultButton(QMessageBox.StandardButton.Save)
-    return msg.exec()
-
-
-def create_tray_notification(title: str, message: str, instance) -> None:
-    """
-    Show a platform independent desktop notification.
-
-    Parameters
-    ----------
-    title : str
-        The title of the notification.
-    message : str
-        The message of the notification.
-    """
-    instance._tray_icon = QSystemTrayIcon()
-    main_window = instance.window()
-    if isinstance(main_window, QMainWindow):
-        icon = main_window.windowIcon()
-    else:
-        icon = QIcon()
-    instance._tray_icon.setIcon(icon)
-    instance._tray_icon.show()
-    instance._tray_icon.showMessage(title, message, QSystemTrayIcon.MessageIcon.Warning)
+    ret = msg.exec()
+    if ret == QMessageBox.StandardButton.Cancel:
+        return False
+    if ret == QMessageBox.StandardButton.Save:
+        if not save_cb():
+            return False
+    return True
 
 
 class ThemeDetector(QWidget):
@@ -3964,6 +3377,10 @@ class MApplication(QApplication):
             if "QT_QPA_PLATFORM" not in os.environ and "xcb" in self._list_platform_plugins():
                 os.environ["QT_QPA_PLATFORM"] = "xcb"
         super().__init__(args)
+        if not self.applicationName():
+            self.setApplicationName("matr1x")
+        if not self.organizationName():
+            self.setOrganizationName("matr1x")
         if os.name == "nt":
             self.setStyle("fusion")  # Enable modern mode on Windows which allows for dark mode
         self._theme_detector = ThemeDetector()
@@ -4098,7 +3515,7 @@ class MApplication(QApplication):
         super().setDesktopFileName(name)
 
     @classmethod
-    def instance(cls) -> "MApplication":
+    def instance(cls) -> MApplication:
         """
         Return the MApplication instance.
 
@@ -4124,34 +3541,50 @@ class MApplication(QApplication):
 # Common system information functions for matrix scripts
 def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
     """Get system information using subprocess."""
+    script = (
+        "import json\n"
+        "import sys\n"
+        "from matr1x.error_handling import Error\n"
+        "from matr1x.system import MergedSystem\n"
+        f"result = MergedSystem.from_files({systems!r})\n"
+        "if isinstance(result, Error):\n"
+        "    print(result.error, file=sys.stderr)\n"
+        "    raise SystemExit(1)\n"
+        "print(json.dumps(result.value.grab_information()))\n"
+    )
     try:
         result = subprocess.run(
             [
                 sys.executable,
                 "-c",
-                "import json; from matr1x.system import MergedSystem;"
-                f"print(json.dumps(MergedSystem.from_files({systems})."
-                "grab_information()))",
+                script,
             ],
             capture_output=True,
             timeout=30,
         )
     except Exception as e:
-        return Error(f"Error getting system info: {e}")
+        return Error(f"Could not run system info subprocess: {e}")
 
     if result.returncode == 0:
         output_str = result.stdout.decode()
+        # Find the last line that looks like JSON to avoid warnings/garbage
+        json_str = ""
+        for line in reversed(output_str.splitlines()):
+            if line.strip().startswith("{") and line.strip().endswith("}"):
+                json_str = line.strip()
+                break
+
+        if not json_str:
+            return Error(f"Warning: No JSON found in subprocess output:\n{output_str}")
+
         try:
-            validated_data = SystemInfo.model_validate_json(output_str)
+            validated_data = SystemInfo.model_validate_json(json_str)
             return Success(validated_data)
         except ValidationError as e:
             return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
 
     stderr_output = result.stderr.decode()
-    error_str = f"Error getting system info: {stderr_output}"
-    if "ModuleNotFoundError" in stderr_output:  # If subprocess failed due to missing dependencies
-        error_str += "\nNote: System config will not be available due to missing dependencies!"
-    return Error(error_str)
+    return Error(stderr_output)
 
 
 def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
@@ -4187,23 +3620,18 @@ def _format_validation_error(e: ValidationError | TypeError | ValueError, base: 
     return html
 
 
-def check_config(config: dict) -> None:
+def check_config(config: BaseModel) -> None:
     """
     Validate the configuration tomls.
 
     Parameters
     ----------
-    config: dict
-        The configuration dictionary to validate.
+    config: BaseModel
+        The configuration model to validate.
     """
-    html = ""
-    data = dict(config)
-    for key in list(data.keys()):  # validate everything but matr1x
-        if key != "matr1x":
-            try:
-                UserlibConfig(**data.pop(key))
-            except (ValidationError, TypeError, ValueError) as e:
-                html += _format_validation_error(e, key + ".")
+    from . import validation_errors
+
+    html = "".join(validation_errors).replace("\n", "<br>")
     try:
         MainConfig.model_validate(config)
     except (ValidationError, TypeError, ValueError) as e:
@@ -4215,6 +3643,24 @@ def check_config(config: dict) -> None:
             "The following error(s) occured:<br><br>"
         ) + html
         QMessageBox.critical(None, "Validation error!", html)
+
+
+def create_matrix_settings_action() -> QAction:
+    """Create the common matr1x.toml action."""
+    action = QAction("Open matr1x.toml")
+    action.setMenuRole(QAction.MenuRole.PreferencesRole)
+    action.setShortcut(QKeySequence.StandardKey.Preferences)
+    return action
+
+
+def create_matr1x_quit_action() -> QAction:
+    """Create the common matr1x quit action."""
+    action = QAction("Quit")
+    if os.name == "nt":
+        action.setShortcut(QKeySequence.StandardKey.Close)
+    else:
+        action.setShortcut(QKeySequence.StandardKey.Quit)
+    return action
 
 
 def open_matrix_toml() -> None:
@@ -4308,59 +3754,11 @@ def find_parent_of_type(widget: QWidget, cls: type[QWidget]) -> QWidget | None:
     return None
 
 
-def protected_restore(restore_settings: Callable[[], None]):
-    """
-    Allow settings-reload to savely fail.
-
-    Parameters
-    ----------
-    restore_settings: Callable() -> None
-        The method used for the restore.
-    """
-    try:
-        restore_settings()
-    except Exception as e:
-        print(
-            f"\n{e}\nRestoring the settings resulted in an unexpected issue. "
-            f"This caused all settings to be reset."
-        )
-
-
-class SaferQSettings(QSettings):
-    """Require default value and type hint for settings restore."""
-
-    def __init__(self, organization: str, application: str) -> None:
-        super().__init__(organization, application)
-
-    @overload
-    def safer_value(self, key: str, defaultValue: QPoint, type: type[QPoint]) -> QPoint: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: QSize, type: type[QSize]) -> QSize: ...
-    @overload
-    def safer_value(
-        self, key: str, defaultValue: QByteArray, type: type[QByteArray]
-    ) -> QByteArray: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: bool, type: type[bool]) -> bool: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: int, type: type[int]) -> int: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: list, type: type[list]) -> list: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: float, type: type[float]) -> float: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: str, *, type: type[str]) -> str: ...
-
-    def safer_value(self, key, defaultValue, type):  # noqa: A002
-        """Call the original QSaver value method."""
-        return super().value(key, defaultValue, type)
-
-
 class _LogSignalHelper(QObject):
     """Provide signals for QTableLogger without conflicts."""
 
     log_record_received = Signal(list)
-    warning_or_above_received = Signal()
+    error_received = Signal()
 
 
 class _QTableLogger(logging.Handler):
@@ -4411,8 +3809,8 @@ class _QTableLogger(logging.Handler):
         log_line = self.format(record)
         parts = log_line.split(self.separator)
         self._signal_helper.log_record_received.emit(parts)
-        if record.levelno >= logging.WARNING:
-            self._signal_helper.warning_or_above_received.emit()
+        if record.levelno > logging.WARNING:
+            self._signal_helper.error_received.emit()
 
     def _add_log_to_table(self, parts: list[str]) -> None:
         """
@@ -4526,7 +3924,7 @@ class LoggingWindow(QMainWindow):
         self.log_handler.setFormatter(formatter)
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
-        self.log_handler._signal_helper.warning_or_above_received.connect(
+        self.log_handler._signal_helper.error_received.connect(
             self.show, Qt.ConnectionType.QueuedConnection
         )
 
@@ -4559,6 +3957,129 @@ class LoggingWindow(QMainWindow):
         """Clear the table."""
         self.log_table.clearContents()
         self.log_table.setRowCount(0)
+
+
+class hasLogActions(Protocol):
+    """The actions needed by the LogWindowMixin."""
+
+    show_log: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
+
+
+class LogWindowMixin:
+    """Shared log-window action handling for GUI scripts."""
+
+    log_window: LoggingWindow
+
+    @staticmethod
+    def create_show_log_action() -> QAction:
+        """Create the common log-window action."""
+        show_log = QAction("Show Log Window")
+        show_log.setCheckable(True)
+        return show_log
+
+    @staticmethod
+    def create_about_action() -> QAction:
+        """Create the common about action."""
+        about = QAction("About")
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+        return about
+
+    @staticmethod
+    def create_post_install_action() -> QAction:
+        """Create the common desktop integration installation action."""
+        return QAction("Install Desktop Integration")
+
+    @staticmethod
+    def create_remove_desktop_integration_action() -> QAction:
+        """Create the common desktop integration removal action."""
+        return QAction("Remove Desktop Integration")
+
+    @classmethod
+    def add_common_help_actions(cls, menu: QMenu, actions: hasLogActions) -> None:
+        """
+        Add common help menu actions.
+
+        Parameters
+        ----------
+        menu : QMenu
+            The help menu to populate.
+        actions : hasLogActions
+            Object exposing about, show_log, post_install and
+            remove_desktop_integration actions.
+        """
+        menu.addAction(actions.show_log)
+        menu.addSeparator()
+        menu.addAction(actions.post_install)
+        menu.addAction(actions.remove_desktop_integration)
+        menu.addSeparator()
+
+    def save_log_window_state(self, settings: SaferQSettings, *, enabled: bool = True) -> None:
+        """
+        Save the log window geometry.
+
+        Parameters
+        ----------
+        settings : SaferQSettings
+            The application settings object.
+        enabled : bool
+            Whether this window owns the log window state.
+        """
+        if not enabled:
+            return
+        if not shiboken6.isValid(self.log_window):
+            return
+        settings.setValue("log_window/geometry", self.log_window.saveGeometry())
+
+    def restore_log_window_state(self, settings: SaferQSettings, *, enabled: bool = True) -> None:
+        """
+        Restore the log window geometry.
+
+        Parameters
+        ----------
+        settings : SaferQSettings
+            The application settings object.
+        enabled : bool
+            Whether this window owns the log window state.
+        """
+        if not enabled:
+            return
+        if not shiboken6.isValid(self.log_window):
+            return
+        self.log_window.restoreGeometry(
+            settings.safer_value("log_window/geometry", QByteArray(), type=QByteArray)
+        )
+
+    def cleanup_log_window(self, *, enabled: bool = True) -> None:
+        """
+        Remove the log handler and delete the log window.
+
+        Parameters
+        ----------
+        enabled : bool
+            Whether this window owns the log window.
+        """
+        if not enabled:
+            return
+        root_logger = logging.getLogger()
+        root_logger.removeHandler(self.log_window.log_handler)
+        self.log_window.deleteLater()
+
+    def toggle_log_window(self) -> None:
+        """Toggle the visibility of the logging window."""
+        if self.log_window.isVisible():
+            self.log_window.hide()
+        else:
+            self.log_window.show()
+            self.log_window.raise_()
+            self.log_window.activateWindow()
+
+    def _on_log_window_visibility_changed(self, visible: bool, actions: hasLogActions) -> None:
+        """Keep the 'Show Log Window' action state in sync."""
+        action = actions.show_log
+        action.setChecked(visible)
+        action.setText("Hide Log Window" if visible else "Show Log Window")
 
 
 def AutoSlot(function: Callable[P, R]) -> Callable[P, R]:
@@ -4604,6 +4125,9 @@ def _collect_parameters(
 
 def _expand_type(t: Any) -> list[type]:
     """Expand a Python type hint into Qt-compatible types."""
+    # Special handling for Python 3.12+ TypeAliasType (e.g., numpy.typing.ArrayLike)
+    if TypeAliasType is not None and isinstance(t, TypeAliasType):
+        return _expand_type(t.__value__)
     origin = get_origin(t)
     if origin is type:
         return [type]
@@ -4639,9 +4163,23 @@ def _normalize_result_type(t: Any) -> Any:
         return None
     if t is None:
         return None
+    # Special handling for Python 3.12+ TypeAliasType
+    if TypeAliasType is not None and isinstance(t, TypeAliasType):
+        return _normalize_result_type(t.__value__)
     origin = get_origin(t)
     if origin is type:
         return type
     if origin is not None:
         return origin
     return t
+
+
+def clear_layout(layout: QLayout) -> None:
+    """Clear all child widgets from layout."""
+    while layout.count():
+        item = layout.takeAt(0)
+        if item is not None:
+            if widget := item.widget():
+                widget.deleteLater()
+            elif child_layout := item.layout():
+                clear_layout(child_layout)

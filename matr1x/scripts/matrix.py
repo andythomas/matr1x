@@ -26,33 +26,50 @@ a file of ascii or hdf5 format, depending on the system specifications.
 
 import argparse
 import io
+import logging
 import math
 import os
+import queue
 import re
 import shlex
+import socket
 import sys
+import threading
 import time
 import traceback
 from collections.abc import Callable, Generator
-from enum import Enum
 from pathlib import Path
 from typing import NoReturn, cast
 
 import urwid
-from pydantic import BaseModel, RootModel
+from pydantic import ValidationError
 
 from matr1x import reload_config
 from matr1x.error_handling import Error
+from matr1x.models import (
+    Datafile,
+    Envelope,
+    ErrorMessage,
+    Header,
+    MeasuredValues,
+    MeasurementData,
+    Message,
+    SetValues,
+    SystemInfo,
+    Telemetry,
+)
 from matr1x.system import MergedSystem
 from matr1x.util import (
     flatten,
     generate_col_index,
+    log_multiline,
     open_and_error,
-    print_formatted_line,
-    telemetry_string,
 )
 
 from .. import VALID_META_KEYS
+
+logger = logging.getLogger(__name__)
+
 
 # conditional import for non-blocking io
 if os.name == "nt":
@@ -66,80 +83,6 @@ stdout.reconfigure(line_buffering=True)
 
 abortmap = {"q": 1, "a": 2, "f": 3}
 # define abort conditions for different keys
-
-
-class OutputType(Enum):
-    """Define different output types."""
-
-    PLAIN = 1
-    QUIET = 2
-    JSON = 3
-    URWID = 4
-
-
-output_type: OutputType
-
-
-class SetValues(BaseModel):
-    """Model for the set values."""
-
-    set: list
-
-
-class MeasuredValues(BaseModel):
-    """Model for the measured values."""
-
-    measured: list
-
-
-class Header(BaseModel):
-    """Model for the header of a measurement output."""
-
-    columns: list
-    units: list
-
-
-class Telemetry(BaseModel):
-    """Model for the telemetry data."""
-
-    point: int
-    points: int
-    elapsed: float
-    remaining: float | None
-    settime: float | None
-    readtime: float | None
-
-
-class LogMessage(BaseModel):
-    """Model for the log message."""
-
-    message: str
-
-
-class ErrorMessage(BaseModel):
-    """Model for the error message."""
-
-    error: str
-
-
-class Datafile(BaseModel):
-    """Model for the datafile."""
-
-    datafile: str
-
-
-PayloadType = (
-    SetValues | MeasuredValues | Header | Telemetry | LogMessage | ErrorMessage | Datafile
-)
-
-
-class Envelope(RootModel[PayloadType]):
-    """Simplify received data handling."""
-
-    @property
-    def payload(self) -> PayloadType:
-        """Return the parsed payload."""
-        return self.root
 
 
 def flush_input():
@@ -189,19 +132,6 @@ def parse_cmd_line() -> argparse.Namespace:
         action="store_true",
         help="use plain output instead of the urwid library",
     )
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "-q",
-        "--quiet",
-        action="store_true",
-        help="produce reduced output (no measurement data), requires plain",
-    )
-    group.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="produce machine readable output (json), requires plain",
-    )
 
     # add keys to allow transmitting meta data
     for key in VALID_META_KEYS.keys():
@@ -212,80 +142,35 @@ def parse_cmd_line() -> argparse.Namespace:
             help=f"Dublin Core meta data entry {key}",
         )
 
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="TCP port for socket-based GUI communication; requires --plain",
+    )
+
     options = parser.parse_args()
 
-    if options.json and not options.plain:
-        parser.error("--json can only be used together with --plain")
-    if options.quiet and not options.plain:
-        parser.error("--quiet can only be used together with --plain")
-
-    global output_type
-    if options.plain:
-        if options.quiet:
-            output_type = OutputType.QUIET
-        elif options.json:
-            output_type = OutputType.JSON
-        else:
-            output_type = OutputType.PLAIN
-    else:
-        output_type = OutputType.URWID
+    if options.port is not None and not options.plain:
+        parser.error("--port requires --plain (-p)")
+    if os.name == "nt" and not options.plain:
+        options.plain = True  # enforce plain interface on Windows because urwid would fail
 
     return options
 
 
-def process_output(message: str) -> None:
-    """
-    Print general info in the proper format.
-
-    Parameters
-    ----------
-    message: str
-        The message to be printed.
-    """
-    if output_type == OutputType.JSON:
-        print(LogMessage(message=message).model_dump_json())
-    else:
-        print(message)
-
-
-def process_error(error: str) -> NoReturn:
-    """
-    Print an error in the proper format and exit.
-
-    Parameters
-    ----------
-    error: str
-        The error message to be printed.
-    """
-    if output_type == OutputType.JSON:
-        print(ErrorMessage(error=error).model_dump_json())
-    else:
-        print(f"matrix: error: {error}")
-    sys.exit(1)
-
-
-def process_header(header: Header) -> None:
-    """
-    Print the header in the proper format.
-
-    Parameters
-    ----------
-    header: Header
-        The header data, i.e. columns and units.
-    """
-    if output_type == OutputType.JSON:
-        print(header.model_dump_json())
-    elif output_type == OutputType.PLAIN:
-        print_formatted_line(header.columns)
-        print_formatted_line(header.units)
-
-
 class PlainMeasurement:
-    """Run a plain measurement."""
+    """Base class for all dispatchers."""
 
-    def __init__(self, inputfile: str, system: MergedSystem) -> None:
-        """Set all required variables."""
+    def __init__(self):
+        self.msg = ""
+
+    def set_inputfile(self, inputfile: str) -> None:
+        """Set the input file."""
         self._inputfile = inputfile
+
+    def set_system(self, system: MergedSystem) -> None:
+        """Set the system."""
         self._system = system
 
     def run(self) -> int:
@@ -297,7 +182,7 @@ class PlainMeasurement:
         int
             The measurement-loop returncode.
         """
-        process_header(
+        self.dispatch(
             Header(
                 columns=list(flatten(self._system.columns)),
                 units=list(flatten(self._system.units)),
@@ -306,64 +191,9 @@ class PlainMeasurement:
         return measurementloop(
             self._inputfile,
             self._system,
-            setvalcb=self.setvalcb,
-            readvalcb=self.readvalcb,
-            telemetrycb=self.telemetrycb,
+            datacb=self.dispatch,
             inputcb=self.inputcb,
         )
-
-    def telemetrycb(self, telemetry: Telemetry) -> None:
-        """
-        Print the telemetry data in the proper format.
-
-        Parameters
-        ----------
-        telemetry: Telemetry
-            The telemetry data.
-        """
-        if output_type == OutputType.JSON:
-            print(telemetry.model_dump_json())
-        elif output_type == OutputType.PLAIN:
-            print(
-                telemetry_string.format(
-                    telemetry.point,
-                    telemetry.points,
-                    telemetry.elapsed,
-                    telemetry.remaining,
-                    telemetry.settime,
-                    telemetry.readtime,
-                )
-            )
-
-    def setvalcb(self, values: SetValues) -> None:
-        """
-        Print the set values in the proper format.
-
-        Parameters
-        ----------
-        values: SetValues
-            The set values.
-        """
-        if output_type == OutputType.JSON:
-            print(values.model_dump_json())
-        elif output_type == OutputType.PLAIN:
-            print_formatted_line(values.set, "Set: ")
-
-    def readvalcb(self, values: MeasuredValues) -> None:
-        """
-        Print the read values in the proper format.
-
-        Parameters
-        ----------
-        value: MeasuredValues
-            The read values.
-        """
-        if output_type == OutputType.JSON:
-            print(values.model_dump_json())
-        elif output_type == OutputType.PLAIN:
-            print_formatted_line(values.measured, "Meas: ")
-        elif output_type == OutputType.QUIET:
-            print(".", end="", flush=True)
 
     def _nonblocking_getch(self) -> str | None:
         """
@@ -384,9 +214,13 @@ class PlainMeasurement:
             if select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
                 return sys.stdin.read(1)
 
+    def _next_control_key(self) -> str | None:
+        """Return the next pending control key, or None."""
+        return self._nonblocking_getch()
+
     def inputcb(self, points: int) -> int:
         """
-        Provide the key detection for plain measurments.
+        Provide the key detection for plain measurements.
 
         Parameters
         ----------
@@ -398,29 +232,282 @@ class PlainMeasurement:
         int
             The result of the key press (0 = no special key pressed).
         """
-        key = self._nonblocking_getch()
-        if key and key.lower() in ("q", "a", "f"):
-            process_output(f"Note: aborted with {key} after {points} points\n\n\n")
-            self._system.add_comment(
-                f"measurement aborted by keyboard input after {points} points"
-            )
-            return abortmap[key.lower()]
-        if key in ("p", "P"):
-            process_output("paused - continue with 'p'\n")
-            self._system.add_comment("measurement paused by keyboard input")
-            # wait for unpause with p
+        key = self._next_control_key()
+        if key in ("q", "a", "f"):
+            self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
+            self._system.add_comment(f"measurement aborted after {points} points")
+            return abortmap[key]
+        if key == "p":
+            self.dispatch(Message("paused - continue with 'p'\n"))
+            self._system.add_comment("measurement paused")
             while True:
                 time.sleep(0.1)
-                key = self._nonblocking_getch()
-                if key and key.lower() in ("q", "a", "f"):
-                    process_output(f"Note: aborted with {key} after {points} points\n\n\n")
-                    self._system.add_comment(
-                        f"measurement aborted by keyboard input after {points} points"
-                    )
-                    return abortmap[key.lower()]
-                if key in ("p", "P"):
+                key = self._next_control_key()
+                if key in ("q", "a", "f"):
+                    self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
+                    self._system.add_comment(f"measurement aborted after {points} points")
+                    return abortmap[key]
+                if key == "p":
                     break
         return 0
+
+    def receive(self, data: str) -> None:
+        """Validate the received data and send to dispatcher."""
+        try:
+            env = Envelope.model_validate_json(data)
+        except ValidationError:
+            self.unknown_data(data)
+            return
+        payload = env.payload
+        self.dispatch(payload)
+
+    def dispatch(self, data: MeasurementData) -> None:
+        """Dispatch the payload to the appropriate function."""
+        if isinstance(data, Header):
+            self.header(data)
+        elif isinstance(data, SetValues):
+            self.set_values(data)
+        elif isinstance(data, MeasuredValues):
+            self.measured_values(data)
+        elif isinstance(data, Telemetry):
+            self.telemetry(data)
+        elif isinstance(data, Message):
+            self.message(data)
+        elif isinstance(data, ErrorMessage):
+            self.error_message(data)
+
+    def unknown_data(self, data: str) -> None:
+        """Print unknown or corrupted data."""
+        print(data)  # noqa: T201
+
+    def header(self, data: Header) -> None:
+        """Print a formatted header."""
+        print(data)  # noqa: T201
+
+    def set_values(self, data: SetValues) -> None:
+        """Print formatted set values."""
+        print(data)  # noqa: T201
+
+    def measured_values(self, data: MeasuredValues) -> None:
+        """Print formatted measured values."""
+        print(data)  # noqa: T201
+
+    def telemetry(self, data: Telemetry) -> None:
+        """Print formatted telemetry."""
+        print(data)  # noqa: T201
+
+    def message(self, data: Message) -> None:
+        """Print a message."""
+        if data.should_comment:
+            self._system.add_comment(data.message)
+        if data.should_log:
+            log_multiline(logger, data.message.lstrip("\n"))
+        print(data.message)  # noqa: T201
+
+    def error_message(self, data: ErrorMessage) -> NoReturn:
+        """Print an error message and exit."""
+        print(f"matrix: error: {data.error}")  # noqa: T201
+        sys.exit(1)
+
+
+class SocketMeasurement(PlainMeasurement):
+    """PlainMeasurement that sends data to the GUI via a TCP socket."""
+
+    def __init__(self, port: int) -> None:
+        """
+        Connect to the GUI socket and start the control listener.
+
+        Parameters
+        ----------
+        port : int
+            Port number of the GUI's listening socket.
+        """
+        super().__init__()
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.connect(("127.0.0.1", port))
+        self._ctrl_queue: queue.Queue[str] = queue.Queue()
+        threading.Thread(target=self._control_listener, daemon=True).start()
+
+    def _control_listener(self) -> None:
+        """Read control characters from the socket and queue them."""
+        while True:
+            try:
+                data = self._socket.recv(32)
+                if not data:
+                    break
+                for char in data.decode("utf-8", errors="ignore"):
+                    self._ctrl_queue.put(char)
+            except OSError:
+                break
+
+    def _next_control_key(self) -> str | None:
+        """Return the next control character from the socket, or None."""
+        try:
+            return self._ctrl_queue.get_nowait()
+        except queue.Empty:
+            return None
+
+    def dispatch(self, data: MeasurementData) -> None:
+        """Send the payload as null-terminated JSON over the socket."""
+        if isinstance(data, Message):
+            if data.should_comment:
+                self._system.add_comment(data.message)
+            if data.should_log:
+                log_multiline(logger, data.message.lstrip("\n"))
+        try:
+            self._socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
+        except OSError:
+            pass
+        if isinstance(data, ErrorMessage):
+            sys.exit(1)
+
+
+class UrwidMeasurement(PlainMeasurement):
+    """Dispatch messages for an urwid-based measurement."""
+
+    def prepare(self) -> None:
+        """Prepare the urwid interface."""
+        columns_flat = list(flatten(self._system.columns))
+        units_flat = list(flatten(self._system.units))
+        columns_flat = cast(list[str], columns_flat)
+        units_flat = cast(list[str], units_flat)
+        info = urwid.Text("Pause/Quit graciously with p/q after current cycle", align="center")
+        outf = urwid.Text(f" output filename : {self._system.filename}\n", wrap="clip")
+        self.inpf = urwid.Text(f" Input filename  : {self._inputfile}\n", wrap="clip")
+        self.systemf = urwid.Text(f" systemfile      : {','.join(self._systemfile)}", wrap="clip")
+        self.telemetry_text = urwid.Text("")
+        self.status = urwid.Text("")
+        parname = urwid.Text("par-name")
+        setc = urwid.Text("set-val")
+        readc = urwid.Text("readout")
+        unitn = urwid.Text("unit")
+        params = [urwid.Text(col) for col in columns_flat]
+        self.setval = [urwid.Text("") for col in columns_flat]
+        self.readval = [urwid.Text("") for col in columns_flat]
+        units = [urwid.Text(u) for u in units_flat]
+        columns = urwid.Columns(
+            [
+                urwid.Pile([parname] + params),
+                urwid.Pile([setc] + self.setval),
+                urwid.Pile([readc] + self.readval),
+                urwid.Pile([unitn] + units),
+            ]
+        )
+        cont = urwid.Pile(
+            [info, outf, self.inpf, self.systemf, self.telemetry_text, self.status, columns]
+        )
+        self.filler = urwid.Filler(cont)
+        screen = None
+        if os.environ.get("CI") == "true":
+            screen = urwid.raw_display.Screen(input=None)
+        self.loop = urwid.MainLoop(self.filler, screen=screen)
+        self.loop.screen.set_input_timeouts(max_wait=0)  # type: ignore
+
+    def set_inputfile(self, inputfile: str) -> None:
+        """Set the input file."""
+        self._inputfile = inputfile
+
+    def set_systemfile(self, systemfile: list[str]) -> None:
+        """Set the system file."""
+        self._systemfile = systemfile
+
+    def set_system(self, system: MergedSystem) -> None:
+        """Set the system."""
+        self._system = system
+
+    def run(self) -> int:
+        """
+        Start the Urwid loop, run the measurement, and stop the loop.
+
+        Returns
+        -------
+        int
+            The return state from the measurement loop.
+        """
+        self.loop.start()
+        try:
+            self.loop.draw_screen()
+            ret = measurementloop(
+                self._inputfile,
+                self._system,
+                self.dispatch,
+                self.inputcb,
+            )
+        finally:
+            self.loop.stop()
+        return ret
+
+    def inputcb(self, points: int) -> int:
+        """
+        Provide the key detection for urwid measurments.
+
+        Parameters
+        ----------
+        n: int
+            The number of points measured so far.
+
+        Returns
+        -------
+        int
+            The result of the key press (0 = no special key pressed).
+        """
+        for key in self.loop.screen.get_input():  #  type: ignore
+            if isinstance(key, tuple):
+                # mouse presses result in tuple of shape
+                #  ("mouse release", 1, 35, 20)
+                # -> ignore those.
+                continue
+            if key.lower() in ("q", "f", "a"):
+                self.msg += f"Note: aborted with {key} after {points} points"
+                self._system.add_comment(
+                    f"measurement aborted by keyboard input after {points} points"
+                )
+                return abortmap[key.lower()]
+            if key in ("p", "P"):
+                self.msg += f"paused at {time.time()} after {points} points\n"
+                self.status.set_text("paused - continue with 'p'")
+                self._system.add_comment("measurement paused by keyboard input")
+                self.loop.draw_screen()
+                # wait for unpause with p
+                flag = True
+                while flag:
+                    time.sleep(0.1)
+                    for key in self.loop.screen.get_input():  #  type: ignore
+                        if key.lower() in ("q", "f", "a"):
+                            self.msg += f"Note: aborted with {key} after {points} points"
+                            self._system.add_comment(
+                                f"measurement aborted by keyboard input after {points} points"
+                            )
+                            return abortmap[key.lower()]
+                        if key in ("p", "P"):
+                            flag = False
+                self.status.set_text("")
+                self.loop.draw_screen()
+            elif key == "window resize":
+                self.loop.screen_size = None
+        self.loop.draw_screen()
+        return 0
+
+    def header(self, data: Header) -> None:
+        """Set no plain header in the urwid measurement."""
+
+    def set_values(self, data: SetValues) -> None:
+        """Set the values in the urwid measurement."""
+        for i, val in enumerate(flatten(data.set_values)):
+            if val is not None:
+                self.setval[i].set_text(str(val))
+        self.loop.draw_screen()
+
+    def measured_values(self, data: MeasuredValues) -> None:
+        """Set the measured values in the urwid measurement."""
+        for i, val in enumerate(data.measured_values):
+            self.readval[i].set_text(str(val))
+        self.loop.draw_screen()
+
+    def telemetry(self, data: Telemetry) -> None:
+        """Set the telemetry in the urwid measurement."""
+        self.telemetry_text.set_text(str(data))
+        self.loop.draw_screen()
 
 
 def sort(arg):
@@ -516,9 +603,7 @@ def parse_inputfile(inputfile: str, system: MergedSystem) -> Generator:
 def measurementloop(
     inputfile: str,
     system: MergedSystem,
-    setvalcb: Callable[[SetValues], None] = lambda s: None,
-    readvalcb: Callable[[MeasuredValues], None] = lambda r: None,
-    telemetrycb: Callable[[Telemetry], None] = lambda s: None,
+    datacb: Callable[[MeasurementData], None] = lambda s: None,
     inputcb: Callable[[int], int] = lambda n: 0,
 ) -> int:
     """
@@ -530,13 +615,9 @@ def measurementloop(
         Path to the input file containing measurement data.
     system : MergedSystem
         The merged system object containing all devices and parameters.
-    setvalcb : Callable[[SetValues], None], optional
-        Callback function for setting values.
-    readvalcb : Callable[[MeasuredValues], None], optional
-        Callback function for reading values.
-    telemetrycb : Callable[[TelemetryContent], None], optional
-        Callback function for telemetry content.
-    inputcb : Callable[[int, MergedSystem], int], optional
+    datacb : Callable[[MeasurementData], None], optional
+        Callback function data processing
+    inputcb : Callable[[int], int], optional
         Callback function for input handling.
 
     Returns
@@ -550,7 +631,7 @@ def measurementloop(
             if line.startswith("#"):
                 continue
             points += 1
-    telemetrycb(
+    datacb(
         Telemetry(
             point=0,
             points=points,
@@ -576,15 +657,15 @@ def measurementloop(
             else:
                 setvalues.append(setv)
 
-        setvalcb(SetValues(set=flatten(setvalues)))
+        datacb(SetValues(flatten(setvalues)))
         preread = time.time()
         if datapoint[-1] == 1:  # logpoint argument
             system.trigger()
             return_list = system.take_measurement_point()
-            readvalcb(MeasuredValues(measured=return_list))
+            datacb(MeasuredValues(return_list))
 
         elapsed = time.time() - starttime
-        telemetrycb(
+        datacb(
             Telemetry(
                 point=point_idx + 1,
                 points=points,
@@ -600,170 +681,8 @@ def measurementloop(
     return 0
 
 
-class UrwidMeasurement:
-    """Run an urwid measurement."""
-
-    def __init__(self, inputfile: str, systemfile, system: MergedSystem):
-        self.msg = ""
-        self._inputfile = inputfile
-        self._system = system
-        columns_flat = list(flatten(system.columns))
-        units_flat = list(flatten(system.units))
-        columns_flat = cast(list[str], columns_flat)
-        units_flat = cast(list[str], units_flat)
-        info = urwid.Text("Pause/Quit graciously with p/q after current cycle", align="center")
-        outf = urwid.Text(f" output filename : {system.filename}\n", wrap="clip")
-        inpf = urwid.Text(f" Input filename  : {inputfile}\n", wrap="clip")
-        systemf = urwid.Text(f" systemfile      : {','.join(systemfile)}", wrap="clip")
-        self.telemetry = urwid.Text("")
-        self.status = urwid.Text("")
-        parname = urwid.Text("par-name")
-        setc = urwid.Text("set-val")
-        readc = urwid.Text("readout")
-        unitn = urwid.Text("unit")
-        params = [urwid.Text(col) for col in columns_flat]
-        self.setval = [urwid.Text("") for col in columns_flat]
-        self.readval = [urwid.Text("") for col in columns_flat]
-        units = [urwid.Text(u) for u in units_flat]
-        columns = urwid.Columns(
-            [
-                urwid.Pile([parname] + params),
-                urwid.Pile([setc] + self.setval),
-                urwid.Pile([readc] + self.readval),
-                urwid.Pile([unitn] + units),
-            ]
-        )
-        cont = urwid.Pile([info, outf, inpf, systemf, self.telemetry, self.status, columns])
-        self.filler = urwid.Filler(cont)
-        screen = None
-        if os.environ.get("CI") == "true":
-            screen = urwid.raw_display.Screen(input=None)
-        self.loop = urwid.MainLoop(self.filler, screen=screen)
-        self.loop.screen.set_input_timeouts(max_wait=0)  # type: ignore
-
-    def run(self) -> int:
-        """
-        Start the Urwid loop, run the measurement, and stop the loop.
-
-        Returns
-        -------
-        int
-            The return state from the measurement loop.
-        """
-        self.loop.start()
-        try:
-            self.loop.draw_screen()
-            ret = measurementloop(
-                self._inputfile,
-                self._system,
-                self.setvalcb,
-                self.readvalcb,
-                self.telemetrycb,
-                self.inputcb,
-            )
-        finally:
-            self.loop.stop()
-        return ret
-
-    def setvalcb(self, values: SetValues) -> None:
-        """
-        Print the set values in the urwid environment.
-
-        Parameters
-        ----------
-        values: SetValues
-            The set values.
-        """
-        setvalues = values.set
-        for i, setv in enumerate(flatten(setvalues)):
-            if setv is not None:
-                self.setval[i].set_text(str(setv))
-        self.loop.draw_screen()
-
-    def readvalcb(self, values: MeasuredValues) -> None:
-        """
-        Print the read values in the urwid environment.
-
-        Parameters
-        ----------
-        value: MeasuredValues
-            The read values.
-        """
-        return_list = values.measured
-        for i, ret in enumerate(return_list):
-            self.readval[i].set_text(str(ret))
-        self.loop.draw_screen()
-
-    def telemetrycb(self, telemetry: Telemetry) -> None:
-        """
-        Print the telemetry data in the urwid environment.
-
-        Parameters
-        ----------
-        telemetry: TelemetryContent
-            The telemetry data.
-        """
-        tstr = telemetry_string.format(
-            telemetry.point,
-            telemetry.points,
-            telemetry.elapsed,
-            telemetry.remaining,
-            telemetry.settime,
-            telemetry.readtime,
-        )
-        self.telemetry.set_text(tstr)
-
-    def inputcb(self, n: int) -> int:
-        """
-        Provide the key detection for urwid measurments.
-
-        Parameters
-        ----------
-        n: int
-            The number of points measured so far.
-
-        Returns
-        -------
-        int
-            The result of the key press (0 = no special key pressed).
-        """
-        for key in self.loop.screen.get_input():  #  type: ignore
-            if isinstance(key, tuple):
-                # mouse presses result in tuple of shape
-                #  ("mouse release", 1, 35, 20)
-                # -> ignore those.
-                continue
-            if key.lower() in ("q", "f", "a"):
-                self.msg += f"Note: aborted with {key} after {n} points"
-                self._system.add_comment(f"measurement aborted by keyboard input after {n} points")
-                return abortmap[key.lower()]
-            if key in ("p", "P"):
-                self.msg += f"paused at {time.time()} after {n} points\n"
-                self.status.set_text("paused - continue with 'p'")
-                self._system.add_comment("measurement paused by keyboard input")
-                self.loop.draw_screen()
-                # wait for unpause with p
-                flag = True
-                while flag:
-                    time.sleep(0.1)
-                    for key in self.loop.screen.get_input():  #  type: ignore
-                        if key.lower() in ("q", "f", "a"):
-                            self.msg += f"Note: aborted with {key} after {n} points"
-                            self._system.add_comment(
-                                f"measurement aborted by keyboard input after {n} points"
-                            )
-                            return abortmap[key.lower()]
-                        if key in ("p", "P"):
-                            flag = False
-                self.status.set_text("")
-                self.loop.draw_screen()
-            elif key == "window resize":
-                self.loop.screen_size = None
-        self.loop.draw_screen()
-        return 0
-
-
 def reset_system_and_exit(
+    dispatcher: PlainMeasurement,
     system: MergedSystem,
     reset_kwargs: dict,
     exit_code: int,
@@ -792,18 +711,18 @@ def reset_system_and_exit(
         True for immediate error exits.
     """
     if error_message:
-        process_output(error_message)
+        dispatcher.dispatch(Message(error_message))
     if immediate_error:
         reset_kwargs["status"] = "errored"
         if exception:
             system.add_comment(f"Matrix errored: {type(exception).__name__}: {exception}")
-    process_output("resetting devices")
+    dispatcher.dispatch(Message("resetting devices"))
     system.reset(**reset_kwargs)
     sys.exit(exit_code)
 
 
 def read_inputfile_header(
-    inputfile: str,
+    inputfile: str, dispatcher: PlainMeasurement
 ) -> tuple[list[str] | None, list[str] | None, list[str] | None]:
     """
     Read system file and column metadata from the input file header.
@@ -825,7 +744,7 @@ def read_inputfile_header(
 
     with open_and_error(inputfile, "r") as f:
         if isinstance(f, Error):
-            process_error(str(f.error))
+            dispatcher.dispatch(ErrorMessage(str(f.error)))
         for line in f.value:
             system_pattern = r"^# [Ss]ystem filename : (.+)"
             settable_names_pattern = r"^# [Ss]ettable columns : (.+)"
@@ -842,33 +761,12 @@ def read_inputfile_header(
     return systemfile, settable_names_file, settable_units_file
 
 
-def load_system(systemfile: list[str]) -> MergedSystem:
-    """
-    Load and merge all system files into a single system.
-
-    Parameters
-    ----------
-    systemfile: list[str]
-        Paths to the system files to load.
-
-    Returns
-    -------
-    MergedSystem
-        The merged system. Exits with an error message on failure.
-    """
-    try:
-        return MergedSystem.from_files(systemfile)
-    except ModuleNotFoundError:
-        process_error("system file does not exist")
-    except PermissionError:
-        process_error("system file not readable")
-
-
 def verify_columns(
     system: MergedSystem,
     settable_names_file: list[str] | None,
     settable_units_file: list[str] | None,
     options: argparse.Namespace,
+    dispatcher: PlainMeasurement,
 ) -> None:
     """
     Verify that the system columns match those of the input file.
@@ -885,68 +783,25 @@ def verify_columns(
     settable_units_file : list[str] or None
         Settable units read from the input file header.
     """
-    _, settable_names, settable_units = system.settable_columns()
+    flat_parameters = SystemInfo.model_validate(system.grab_information()).flat_parameters
+    settable_names = [p.name for p in flat_parameters if p.settable]
+    settable_units = [p.unit for p in flat_parameters if p.settable]
     if settable_names != settable_names_file or settable_units != settable_units_file:
-        process_output(str(settable_names) + str(settable_names_file))
-        process_output(str(settable_units) + str(settable_units_file))
-        if options.json:
-            process_error("System columns do not match input file columns.")
+        dispatcher.dispatch(Message(str(settable_names) + str(settable_names_file)))
+        dispatcher.dispatch(Message(str(settable_units) + str(settable_units_file)))
+        if options.port:
+            dispatcher.dispatch(ErrorMessage("System columns do not match input file columns."))
         else:
-            process_output(
-                "System seems to have changed since the input file was generated."
-                " The input file might lead to unexpected values being set! "
-                "Are you sure you want to continue?\n"
+            dispatcher.dispatch(
+                Message(
+                    "System seems to have changed since the input file was generated."
+                    " The input file might lead to unexpected values being set! "
+                    "Are you sure you want to continue?\n"
+                )
             )
             resp = input("Please enter (y/n): ").strip()
             if resp != "y":
                 sys.exit(0)
-
-
-def run_measurement(
-    options: argparse.Namespace, systemfile: list[str], system: MergedSystem
-) -> int:
-    """
-    Run the appropriate measurement interface and return the exit code.
-
-    Selects between plain and urwid on the given options and platform.
-
-    Parameters
-    ----------
-    options : argparse.Namespace
-        Parsed command-line options.
-    systemfile : list[str]
-        Paths to the system files in use.
-    system : MergedSystem
-        The active merged system.
-
-    Returns
-    -------
-    int
-        The measurement exit code.
-    """
-    try:
-        # enforce plain interface on Windows because urwid would fail
-        if options.plain or options.quiet or os.name == "nt":
-            control_string = "To pause or quit after next point, press p/q"
-            if os.name != "nt":
-                control_string += " and enter"
-            if sys.stdout.isatty():
-                process_output(control_string)
-            return PlainMeasurement(options.inputfile, system).run()
-        else:
-            measurement = UrwidMeasurement(options.inputfile, systemfile, system)
-            ret = measurement.run()
-            if measurement.msg != "":
-                process_output(measurement.msg)
-            return ret
-    except KeyboardInterrupt as e:
-        process_output(
-            "Received keyboard interrupt, file may be corrupt!\n"
-            + "Some devices may be in unknown state. Check traceback!\n"
-            + "Traceback of error:\n"
-        )
-        traceback.print_tb(e.__traceback__)
-        return 1
 
 
 def main() -> None:
@@ -955,38 +810,50 @@ def main() -> None:
     if options.optional_config:
         reload_config(options.optional_config)
     flush_input()
+
+    if options.port is not None:
+        measurement: PlainMeasurement = SocketMeasurement(options.port)
+    elif options.plain:
+        measurement = PlainMeasurement()
+    else:
+        measurement = UrwidMeasurement()
+
     systemfile_header, settable_names_file, settable_units_file = read_inputfile_header(
-        options.inputfile
+        options.inputfile, measurement
     )
     if options.systemfile is not None:
         resolved_systemfile: list[str] = options.systemfile
     elif systemfile_header is not None:
         resolved_systemfile = systemfile_header
     else:
-        process_error("no system file specified")
-    system = load_system(resolved_systemfile)
-    verify_columns(system, settable_names_file, settable_units_file, options)
+        measurement.dispatch(ErrorMessage("no system file specified"))
+    system = MergedSystem.from_files(resolved_systemfile)
+    if isinstance(system, Error):
+        measurement.dispatch(ErrorMessage(system.error))
+        sys.exit(1)
+    system = system.value
+    verify_columns(system, settable_names_file, settable_units_file, options, measurement)
     output_filename = system.generate_datafilename(
         options.outputfile, options.inputfile, options.append
     )
-    if options.json:
-        print(Datafile(datafile=str(output_filename)).model_dump_json())
+    measurement.dispatch(Datafile(str(output_filename)))
     for key, editable in VALID_META_KEYS.items():
         if editable:
             opt_val = getattr(options, f"dc_{key.lower()}")
             if opt_val is not None:
                 system.dcdata[key] = opt_val
-    process_output("setting devices")
+    measurement.dispatch(Message("setting devices"))
     system.set(input_file=options.inputfile, output_file=output_filename)
     reset_kwargs = {"input_file": options.inputfile, "output_file": output_filename}
     ret = 0
     try:
-        process_output("devices set, acquiring configuration and writing header")
+        measurement.dispatch(Message("devices set, acquiring configuration and writing header"))
         try:
             msg, outputfile = system.init_datafile(options.inputfile)
-            process_output(f"{msg}: {outputfile}")
+            measurement.dispatch(Message(f"{msg}: {outputfile}"))
         except OSError as e:
             reset_system_and_exit(
+                measurement,
                 system,
                 reset_kwargs,
                 1,
@@ -996,6 +863,7 @@ def main() -> None:
             )
         except Exception as e:
             reset_system_and_exit(
+                measurement,
                 system,
                 reset_kwargs,
                 1,
@@ -1003,15 +871,38 @@ def main() -> None:
                 e,
                 immediate_error=True,
             )
-        process_output("entering loop now")
-        ret = run_measurement(options, resolved_systemfile, system)
+        measurement.dispatch(Message("entering loop now"))
+        measurement.set_system(system)
+        measurement.set_inputfile(options.inputfile)
+        if isinstance(measurement, UrwidMeasurement):
+            measurement.set_systemfile(resolved_systemfile)
+            measurement.prepare()
+        else:
+            control_string = "To pause or quit after next point, press p/q"
+            if os.name != "nt":
+                control_string += " and enter"
+            if sys.stdout.isatty():
+                measurement.dispatch(Message(control_string))
+        try:
+            ret = measurement.run()
+        except KeyboardInterrupt as e:
+            measurement.dispatch(
+                Message(
+                    "Received keyboard interrupt, file may be corrupt!\n"
+                    + "Some devices may be in unknown state. Check traceback!\n"
+                    + "Traceback of error:\n"
+                )
+            )
+            traceback.print_tb(e.__traceback__)
+            ret = 1
+        measurement.dispatch(Message(measurement.msg))
         if ret == 1:
             x = input(
                 "Shall the termination of the sequence lead to "
                 "marking the datafile as aborted? (Y/n)"
             )
             if x.lower().startswith("y") or x == "":
-                process_output("marking file as aborted")
+                measurement.dispatch(Message("marking file as aborted"))
                 reset_kwargs["status"] = "aborted"
         if ret == 2:
             reset_kwargs["status"] = "aborted"
@@ -1020,6 +911,7 @@ def main() -> None:
     except Exception as e:
         traceback.print_exc()
         reset_system_and_exit(
+            measurement,
             system,
             reset_kwargs,
             1,
@@ -1027,4 +919,4 @@ def main() -> None:
             exception=e,
             immediate_error=True,
         )
-    reset_system_and_exit(system, reset_kwargs, ret)
+    reset_system_and_exit(measurement, system, reset_kwargs, ret)

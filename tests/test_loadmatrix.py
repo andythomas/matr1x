@@ -165,13 +165,13 @@ def test_loadmatrix_hdf5_ma7():
     h, d = matr1x.eval.loadmatrix(datafile)
     assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
-    assert h["dc.publisher"] == "matr1x;University of Konstanz"
+    assert h["dc.publisher"] == "matr1x;University of Konstanz"  # ty:ignore[invalid-key]
     assert len(h["columns"]) == 11  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][4] == "HallProbe Temp"  # check specific column name
     assert h["units"][4] == "C"  # check specific unit entry
-    assert len(h["device query"]) == 570
+    assert len(h["device query"]) == 570  # ty:ignore[invalid-key]
     assert d["FSW8 f"].shape == (1, 2001)  # check shape of dataset
     assert d["timeUTC"].shape == (1,)  # check shape of dataset
     assert pytest.approx(d["FSW8 f"][0, 501], 1e-6) == 2.9555e9  # check specific data value
@@ -190,13 +190,13 @@ def test_loadmatrix_ma7():
     h, d = matr1x.eval.loadmatrix(datafile)
     assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
-    assert h["dc.type"] == "Transport data"
+    assert h["dc.type"] == "Transport data"  # ty:ignore[invalid-key]
     assert len(h["columns"]) == 7  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "Ismu02"  # check specific column name
     assert h["units"][3] == "A"  # check specific unit entry
-    assert len(h["device query"]) == 167
+    assert len(h["device query"]) == 167  # ty:ignore[invalid-key]
     assert d["y field"].shape == (1460,)  # check shape of dataset
     assert d["timeUTC"].shape == (1460,)  # check shape of dataset
     assert (

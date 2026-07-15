@@ -31,7 +31,7 @@ import pyvisa
 from pyvisa import errors, resources
 from wrapt import synchronized
 
-from .. import get_config_dict
+import matr1x
 
 logger = logging.getLogger(__name__)
 
@@ -127,10 +127,10 @@ class VisaDevice:
         self.interface: resources.MessageBasedResource | str = interface
         self.connection: resources.MessageBasedResource
         self.name = f"{type(self).__name__}@{self.interface}"
-        self._config = get_config_dict("matr1x.devices.visadevice")
+        self._config = matr1x.config.matr1x.devices.visadevice
         # have never tested these myself
-        self.pts = kwargs.pop("pts", self._config["pts"])
-        if kwargs.pop("visadebug", self._config["visadebug"]):
+        self.pts = kwargs.pop("pts", self._config.pts)
+        if kwargs.pop("visadebug", self._config.visadebug):
             pyvisa.log_to_screen()
         # mutex lock to synchronize devices sharing the same connection
         # currently this is needed only by IsobusDevices
@@ -142,7 +142,7 @@ class VisaDevice:
                 cmdpers = int(cmdpers)
             except TypeError:
                 # Use a default number of commands per second from the config
-                cmdpers = self._config["cmdpers"]
+                cmdpers = self._config.cmdpers
             if cmdpers == 0:
                 # prevent division by 0
                 cmdpers = 1

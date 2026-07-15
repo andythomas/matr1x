@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMenu,
+    QMenuBar,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -57,19 +58,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from matr1x import config as matrixconfig
-from matr1x import datetimefmt, logfolder, output_extension, scpi_tcpserver, system
+import matr1x
+from matr1x import logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError, var
 from matr1x.gui_util import (
     AutoSlot,
     LoggingWindow,
+    LogWindowMixin,
     MApplication,
-    SaferQSettings,
     check_config,
     get_matrix_icon,
     open_matrix_toml,
-    protected_restore,
 )
+from matr1x.scripts.shared_classes import SaferQSettings
 from matr1x.util import Command, Get, StreamToLogger
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,9 @@ class ActionGroup:
     select_recorder: QAction
     config_recorder: QAction
     toggle_recorder: QAction
+    about: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
 
 
 @dataclass(frozen=True)
@@ -107,6 +111,7 @@ class MenuGroup:
     data_recorder: QMenu
     custom: QMenu
     help: QMenu
+    menu: QMenuBar
 
 
 @dataclass(frozen=True)
@@ -116,21 +121,13 @@ class WidgetGroup:
     panic: QPushButton
     recorder_file_label: QLabel
     recorder_led: QLabel
+    central_widget: QWidget
 
 
 class UIBuilder:
-    """
-    Build the main UI and provide actions, widgets and menus.
+    """Create the GUI elements."""
 
-    Parameters
-    ----------
-    window: ControlWindow
-        The Controlwindow (inherits from QMainWindow) to generate the
-        GUI for.
-    """
-
-    def __init__(self, window: "ControlWindow") -> None:
-        self.window: ControlWindow = window
+    def __init__(self) -> None:
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
         self.menus: MenuGroup = self._create_menus()
@@ -157,10 +154,13 @@ class UIBuilder:
         palette = led.palette()
         palette.setColor(led.backgroundRole(), QColor("lightgray"))
         led.setPalette(palette)
+        central_widget = QWidget()
+        central_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         return WidgetGroup(
             panic=panicButton,
             recorder_file_label=label,
             recorder_led=led,
+            central_widget=central_widget,
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -172,29 +172,31 @@ class UIBuilder:
         ActionGroup
             The actions to be used in the GUI.
         """
-        enable_all = QAction("Enable all", self.window)
-        disable_all = QAction("Disable all", self.window)
-        full_info_all = QAction("Full info all", self.window)
-        less_info_all = QAction("Less info all", self.window)
+        enable_all = QAction("Enable all")
+        disable_all = QAction("Disable all")
+        full_info_all = QAction("Full info all")
+        less_info_all = QAction("Less info all")
         show_toolbar = QAction("Show Toolbar")
         show_toolbar.setShortcut(QKeySequence("Ctrl+1"))
         show_toolbar.setCheckable(True)
-        show_toml = QAction("Show matrix toml", self.window)
+        show_toml = QAction("Show matrix toml")
         show_toml.setMenuRole(QAction.MenuRole.PreferencesRole)
         show_toml.setShortcut(QKeySequence.StandardKey.Preferences)
-        show_log = QAction("Show Log Window", self.window)
-        show_log.setCheckable(True)
-        quit_app = QAction("Quit", self.window)
+        show_log = LogWindowMixin.create_show_log_action()
+        quit_app = QAction("Quit")
         if os.name == "nt":
             quit_app.setShortcut(QKeySequence.StandardKey.Close)
         else:
             quit_app.setShortcut(QKeySequence.StandardKey.Quit)
-        data_recorder_interval = QAction("Set interval", self.window)
-        select_recorder = QAction("Select output file", self.window)
+        data_recorder_interval = QAction("Set interval")
+        select_recorder = QAction("Select output file")
         config_recorder = QAction("Modify config")
         config_recorder.setCheckable(True)
-        toggle_recorder = QAction("Start data recorder", self.window)
+        toggle_recorder = QAction("Start data recorder")
         toggle_recorder.setCheckable(True)
+        about = LogWindowMixin.create_about_action()
+        post_install = LogWindowMixin.create_post_install_action()
+        remove_desktop_integration = LogWindowMixin.create_remove_desktop_integration_action()
         return ActionGroup(
             enable_all=enable_all,
             disable_all=disable_all,
@@ -208,6 +210,9 @@ class UIBuilder:
             select_recorder=select_recorder,
             config_recorder=config_recorder,
             toggle_recorder=toggle_recorder,
+            about=about,
+            post_install=post_install,
+            remove_desktop_integration=remove_desktop_integration,
         )
 
     def _create_menus(self) -> MenuGroup:
@@ -219,7 +224,7 @@ class UIBuilder:
         MenuGroup
             The menus to be used in the GUI.
         """
-        menu = self.window.menuBar()
+        menu = QMenuBar()
         file = menu.addMenu("&File")
         enable = menu.addMenu("&Enable")
         fullinfo = menu.addMenu("&Full info")
@@ -228,6 +233,7 @@ class UIBuilder:
         custom = menu.addMenu("&Custom")
         help_me = menu.addMenu("&Help")
         return MenuGroup(
+            menu=menu,
             file=file,
             enable=enable,
             fullinfo=fullinfo,
@@ -239,21 +245,15 @@ class UIBuilder:
 
     def _create_gui(self) -> None:
         """Create and set up the main GUI."""
-        widget = QWidget()
-        widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout()
-        widget.setLayout(layout)
         layout.addStretch()
-        self.window.setCentralWidget(widget)
-        for guidict in self.window.guidicts:
-            content = guidict.create_GUI()
-            self.window.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         layout.addWidget(self.widgets.panic)
         line = QHBoxLayout()
         line.addWidget(self.widgets.recorder_led)
         line.addWidget(self.widgets.recorder_file_label)
         line.addStretch()
         layout.addLayout(line)
+        self.widgets.central_widget.setLayout(layout)
 
 
 class EnableAction(QAction):
@@ -359,7 +359,7 @@ class FullInfoAction(QAction):
         self._update_icon(a0)
 
 
-class ControlWindow(QMainWindow):
+class ControlWindow(LogWindowMixin, QMainWindow):
     """
     Base class for control GUIs.
 
@@ -421,7 +421,7 @@ class ControlWindow(QMainWindow):
         # initialize parameters
         self.running = False
         self.logging = False
-        filename = f"{package}.{name}_{time.strftime(datetimefmt)}{output_extension}"
+        filename = f"{package}.{name}_{time.strftime(matr1x.datetimefmt)}{output_extension}"
         if os.name == "nt":
             filename = filename.replace(":", "")  # Windows does not like : in filenames
         self.logfile: Path = Path(logfolder) / filename
@@ -451,11 +451,16 @@ class ControlWindow(QMainWindow):
         # initialize data logging dictionaries
         self.guidicts: list[GuiDict]
         self._harmonize_guidicts(guidicts)
-        self.ui = UIBuilder(self)
+        self.ui = UIBuilder()
+        self.setMenuBar(self.ui.menus.menu)
+        self.setCentralWidget(self.ui.widgets.central_widget)
+        for guidict in self.guidicts:
+            content = guidict.create_GUI()
+            self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         self.create_connections()
         self.statusloggingUI()
-        check_config(matrixconfig)
-        protected_restore(self._restore_gui_settings)
+        check_config(matr1x.config)
+        self._restore_gui_settings()
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
         sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
         # merge the guidicts Systems
@@ -471,7 +476,7 @@ class ControlWindow(QMainWindow):
         if extra_cmds:
             self.cmd_list.update(extra_cmds)
         self.create_menu()
-        protected_restore(self._restore_view_settings)
+        self._restore_view_settings()
         self.show()
         # connect signals so that at least one dock remains visible! (needs to be done after show!)
         for g in self.guidicts:
@@ -579,13 +584,7 @@ class ControlWindow(QMainWindow):
         self.restoreState(
             self.settings.safer_value("windowState", self.saveState(), type=QByteArray)
         )
-        # restore log window geometry
-        self.log_window.move(
-            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
-        )
-        self.log_window.resize(
-            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
-        )
+        self.restore_log_window_state(self.settings)
 
     def _restore_view_settings(self):
         """Restore view-related settings after menu has been created."""
@@ -603,6 +602,10 @@ class ControlWindow(QMainWindow):
         self.ui.actions.show_toolbar.triggered.connect(self.set_toolbar_visible)
         self.ui.actions.show_toml.triggered.connect(open_matrix_toml)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
+        )
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.widgets.panic.clicked.connect(lambda checked: self.panic(checked, "Panic button"))
         self.ui.actions.toggle_recorder.triggered.connect(self.toggle_data_recorder)
@@ -724,19 +727,6 @@ class ControlWindow(QMainWindow):
                 guidict.toolbar.show()
             else:
                 guidict.toolbar.hide()
-
-    def toggle_log_window(self):
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-            self.ui.actions.show_log.setChecked(False)
-            self.ui.actions.show_log.setText("Show Log Window")
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-            self.ui.actions.show_log.setChecked(True)
-            self.ui.actions.show_log.setText("Hide Log Window")
 
     def create_menu(self) -> None:
         """
@@ -938,14 +928,19 @@ class ControlWindow(QMainWindow):
     @catchEmitError
     def connectDev(self) -> None:
         """
-        Initialize device connections.
+        Initialize legacy window-level device connections.
 
-        If this is overloaded its important that the self.devInit
-        property is set to True upon successful initialization of the
-        devices.
+        Modern GuiDict-based control windows initialize their systems in
+        GuiDict.start(), so normal startup does not call this method for
+        those windows. Legacy windows with a custom refreshDict initialize
+        the window-level system here.
+
+        If this is overloaded in legacy code it is important that
+        self.devInit is set to True upon successful initialization.
         """
         if self.devInit is False:
             if self.S:
+                logger.info("Initializing devices of window-level system")
                 self.S.set()
             self.devInit = True
 
@@ -1010,11 +1005,11 @@ class ControlWindow(QMainWindow):
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
             # update date to reflect logging start time instead of GUI start time
-            self.S_log.dcdata["date"] = time.strftime(datetimefmt, time.localtime())
+            self.S_log.dcdata["date"] = time.strftime(matr1x.datetimefmt, time.localtime())
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             msg, outputfile = self.S_log.init_datafile("matrix script generated")
-            print(f"{msg}: {outputfile}")
+            print(f"{msg}: {outputfile}")  # noqa: T201
             # turn off config and set data
             self.config_data_recorder(False)
             self.ui.actions.config_recorder.setEnabled(False)
@@ -1227,37 +1222,41 @@ class ControlWindow(QMainWindow):
     # general local server and start stop overhead
     def __enter__(self):
         """Initialize devices, start GuiDict workers, and launch the SCPI server."""
-        # initialize devices
-        logger.info("Initializing devices")
-        self.connectDev()
+        if self._has_custom_refresh():
+            # Legacy windows own a window-level system and refresh loop.
+            # Modern GuiDict systems are opened by GuiDict.start().
+            self.connectDev()
+            if not self.devInit:
+                return
 
-        # start guidicts if devices initialized successfully
-        if self.devInit is True:
-            # merge all cmds from the GuiDicts and the extra cmds
+        # merge all cmds from the GuiDicts and the extra cmds
 
-            class extraGuiDict(GuiDict):
-                cmds = self.cmd_list
+        class extraGuiDict(GuiDict):
+            cmds = self.cmd_list
 
-                def refresh(self, *args, **kwargs):
-                    pass
+            def refresh(self, *args, **kwargs):
+                pass
 
-            extra_gui_dict = extraGuiDict()
-            extra_gui_dict.set_cmd_funcs(window_obj=self, system=self.S)
-            self.cmd_list = extra_gui_dict.cmds
-            for guidict in self.guidicts:
-                for name in guidict.cmds.keys():
-                    if name in self.cmd_list:
-                        raise ValueError(
-                            f"command {name} from {guidict} is already present."
-                            "A command name must be unique!"
-                        )
-                self.cmd_list.update(guidict.cmds)
+        extra_gui_dict = extraGuiDict()
+        extra_gui_dict.set_cmd_funcs(window_obj=self, system=self.S)
+        self.cmd_list = extra_gui_dict.cmds
+        for guidict in self.guidicts:
+            for name in guidict.cmds.keys():
+                if name in self.cmd_list:
+                    raise ValueError(
+                        f"command {name} from {guidict} is already present."
+                        "A command name must be unique!"
+                    )
+            self.cmd_list.update(guidict.cmds)
 
-            ControlWindow.refreshDict(self)
-            if self._has_custom_refresh():
-                self._start_legacy_refresh_thread()
-            self.running = True
-            self.startServer()
+        ControlWindow.refreshDict(self)
+        if isinstance(self.S, system.MergedSystem):
+            self.S.refresh_devs()
+            self.S.opened = any(subsys.opened for subsys in self.S.subsys)
+        if self._has_custom_refresh():
+            self._start_legacy_refresh_thread()
+        self.running = True
+        self.startServer()
 
     def __exit__(
         self,
@@ -1404,8 +1403,7 @@ class ControlWindow(QMainWindow):
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("windowState", self.saveState())
         self.settings.setValue("toolbar_visible", self.ui.actions.show_toolbar.isChecked())
-        self.settings.setValue("log_window/position", self.log_window.pos())
-        self.settings.setValue("log_window/size", self.log_window.size())
+        self.save_log_window_state(self.settings)
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         """
@@ -1421,10 +1419,7 @@ class ControlWindow(QMainWindow):
         for g in self.guidicts:
             g.dock.saveCurrentState()
 
-        # Clean up logging window
-        root_logger = logging.getLogger()
-        root_logger.removeHandler(self.log_window.log_handler)
-        self.log_window.deleteLater()
+        self.cleanup_log_window()
 
         # Accept the close event
         super().closeEvent(a0)

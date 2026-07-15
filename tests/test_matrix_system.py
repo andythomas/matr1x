@@ -16,8 +16,8 @@
 """
 Matrix system test module.
 
-This module contains tests for checking the intended behavior of the matrix and
-its interaction with the System instance.
+This module contains tests for checking the intended behavior of the
+matrix and its interaction with the System instance.
 """
 
 import json
@@ -33,6 +33,8 @@ from pprint import pformat
 import matr1x.util
 import pytest
 from matr1x import output_extension
+from matr1x.error_handling import Success
+from matr1x.gui_util import get_system_info
 
 path = Path(__file__).resolve().parent
 
@@ -452,3 +454,16 @@ def test_tapin_matrix_exception(tap_server):
     reset_events = [e for e in actual_events if e["event"] == "reset"]
     assert "status" in reset_events[0]["kwargs"]
     assert reset_events[0]["kwargs"]["status"] == "errored"
+
+
+def test_system_grab_information():
+    """
+    Test the information retrieval of system information.
+
+    Asserts
+    -------
+    Success of the air-gapped call.
+    """
+    dummy_system = str((path / "../matr1x/systems/system_dummy.py").resolve())
+    info = get_system_info([dummy_system])
+    assert isinstance(info, Success)

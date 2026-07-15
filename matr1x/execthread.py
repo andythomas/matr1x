@@ -14,21 +14,35 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-execution thread control for matrix-script.
+Execution thread control for matrix-script.
 
-This module includes class definitions used for execution of the matrix-script process.
+This module includes function and variable definitions used for
+execution of the matrix-script process.
 """
 
-import io
 import logging
 import re
 import socket
-import sys
 import threading
 import time
-import traceback
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from pathlib import Path
+
+import matr1x
+from matr1x.error_handling import Error, InternalInvariantError
+from matr1x.models import (
+    Header,
+    InputParameters,
+    MeasuredValues,
+    MeasurementData,
+    Message,
+    Modifier,
+    SetValues,
+    Telemetry,
+)
+from matr1x.system import MergedSystem
+from matr1x.util import log_multiline
 
 __all__ = ["ExecThread"]
 
@@ -55,8 +69,6 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
     ------
     ValueError
         If the until format is not recognized.
-    TypeError
-        If until is not a string or datetime object.
     """
     if isinstance(until, datetime):
         return until
@@ -109,125 +121,17 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
     raise ValueError("Timestamp format not recognized.")
 
 
-class Unbuffered:
-    r"""
-    Implements a wrapper on stdout to make sure data is passed on immediately.
-
-    This wrapper terminates messages with \0 to allow using \n
-    and \r in print conventionally without breaking the
-    formatting.
-    """
-
-    def __init__(self, stream):
-        """
-        Initialize the Unbuffered wrapper.
-
-        Parameters
-        ----------
-        stream : file-like object
-            The stream to wrap.
-        """
-        self.stream = stream
-
-    def write(self, data):
-        """
-        Write data to the stream.
-
-        Parameters
-        ----------
-        data : str
-            Data to write.
-
-        Returns
-        -------
-        None
-        """
-        self.stream.write(data + "\0")
-        self.stream.flush()
-
-    def writelines(self, datas):
-        """
-        Write multiple lines to the stream.
-
-        Parameters
-        ----------
-        datas : iterable of str
-            Lines to write.
-
-        Returns
-        -------
-        None
-        """
-        self.stream.writelines(datas)
-        self.stream.flush()
-
-    def __getattr__(self, attr):
-        """
-        Get attribute from the underlying stream.
-
-        Parameters
-        ----------
-        attr : str
-            Attribute name.
-
-        Returns
-        -------
-        Any
-            The attribute value.
-        """
-        return getattr(self.stream, attr)
-
-
+@dataclass
 class Status:
-    """Status class that stores the finished status for aborting."""
-
-    def __init__(self, value: bool | None = None):
-        """
-        Initialize the Status object.
-
-        Parameters
-        ----------
-        value : bool or None, optional
-            Initial finished value.
-        """
-        self.finished = value
-
-    @property
-    def finished(self):
-        """
-        Get the finished status.
-
-        Returns
-        -------
-        bool or None
-            The finished status.
-        """
-        return self._finished
-
-    @finished.setter
-    def finished(self, value: bool | None):
-        """
-        Set finished value to either None, True or False.
-
-        Parameters
-        ----------
-        value : bool or None
-            The value to set.
-
-        Returns
-        -------
-        None
-        """
-        if value in (None, True, False):
-            self._finished = value
+    finished: bool | None = None
 
 
 class ExecThread(threading.Thread):
     """
     Thread that handles the execution of the measurement script.
 
-    The thread is designed to be killable, allowing for graceful termination
-    of the script execution.
+    The thread is designed to be killable, allowing for graceful
+    termination of the script execution.
 
     Attributes
     ----------
@@ -249,10 +153,11 @@ class ExecThread(threading.Thread):
         meta_data: dict,
         scriptname: str,
         socket: socket.socket | None,
-        n_pref: int = 0,
-        systems: list | None = None,
+        systems: list[str],
+        /,
     ):
-        """Initialize the execution thread.
+        """
+        Initialize the execution thread.
 
         Parameters
         ----------
@@ -264,29 +169,28 @@ class ExecThread(threading.Thread):
             Name of the script.
         socket : socket.socket or None
             Socket for communication.
-        n_pref : int, optional
-            Number of prefix lines.
-        systems : list, optional
+        systems : list[str]
             List of system files to load.
         """
         super().__init__()
         self.script = script
         self.meta_data = meta_data
         self.scriptname = scriptname
-        self.systems = systems or []
+        system = MergedSystem.from_files(systems)
+        if isinstance(system, Error):
+            raise InternalInvariantError(
+                "Systems should not contain errors at this point. "
+                f"Nevertheless this happened: {system.error}"
+            )
+        self.system: MergedSystem = system.value
         self.stop_status = Status()
         self.pause_flag = False
         self.interrupt_flag = False
         self.recv_flag = False
-        self.recv = ""
-        self.n_pref = n_pref
+        self.recv: str = ""
         self.socket = socket
-        if self.socket is not None:
-            # pass on all stdout to socket
-            file = self.socket.makefile("w", buffering=None)
-            sys.stdout = Unbuffered(file)
 
-    def pause(self, state):
+    def pause(self, state: bool) -> None:
         """
         Pause the execution at the breakpoint.
 
@@ -294,16 +198,12 @@ class ExecThread(threading.Thread):
         ----------
         state : bool
             True to pause, False to resume.
-
-        Returns
-        -------
-        None
         """
         self.pause_flag = bool(state)
         if state is True:
-            print("\npaused")
+            self.report(Message("\npaused", to_comment=False))
 
-    def stop(self, state=None):
+    def stop(self, state: bool | None = None) -> None:
         """
         Set the interrupt flag, to stop execution at next breakpoint.
 
@@ -311,16 +211,19 @@ class ExecThread(threading.Thread):
         ----------
         state : bool or None, optional
             The state to set for stop_status.finished.
-
-        Returns
-        -------
-        None
         """
         self.pause_flag = False
         self.stop_status.finished = state
         self.interrupt_flag = True
 
-    def interrupt(self, duration=None, until=None, message="", silent=10, system=None):
+    def interrupt(
+        self,
+        *,
+        duration: float | None = None,
+        until: str | datetime | None = None,
+        message: str = "",
+        silent: float = 10,
+    ):
         """
         Pauses execution for a specified duration.
 
@@ -328,38 +231,28 @@ class ExecThread(threading.Thread):
 
         Parameters
         ----------
-        duration : float or int, optional
+        duration : float, optional
             The number of seconds to sleep. If specified, the
             function will sleep for this duration.
-
         until : str or datetime, optional
             A target time or relative time string. It can be:
             - An absolute timestamp in a format like "YYYY-MM-DD HH:MM:SS" or "HH:MM".
             - A relative time string starting with '+' followed by a number and a unit
             (e.g., "+24h" for 24 hours, "+30m" for 30 minutes, "+1d" for 1 day).
             - A `datetime` object representing a specific time.
-
         message : str, optional
             Message to display during the wait.
-
         silent : float, optional
             Time threshold above which to display messages about the wait.
-
-        system : object, optional
-            System object to log comments if a pause or interrupt occurs.
 
         Raises
         ------
         ValueError
             If neither `duration` nor `until` is provided,
             or if the `until` format is not recognized.
-
-        TypeError
-            If `until` is not a string or `datetime` object.
         """
         now = datetime.now()
         msg = "" if not message else f" ({message})"
-        print_func = system._print if system else print
 
         if duration is not None:
             sleep_time = duration
@@ -368,17 +261,18 @@ class ExecThread(threading.Thread):
                 text = (
                     f"Waiting {sleep_time:.0f} seconds{msg} until {end_time.strftime('%H:%M:%S')}"
                 )
-                print_func(text)
+                self.report(Message(text))
 
         elif until is not None:
             end_time = _parse_until_time(until, now)
 
             if end_time < now:
-                print_func(
+                text = (
                     f"Specified wait until time {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                     "is in the past. Continuing immediately."
                 )
-                self.check_for_interrupt_and_pause(system)
+                self.report(Message(text))
+                self.check_for_interrupt_and_pause()
                 return
 
             sleep_time = (end_time - now).total_seconds()
@@ -388,20 +282,23 @@ class ExecThread(threading.Thread):
                     sleeptstr = f"{sleep_time:.2f}"
                 else:
                     sleeptstr = f"{sleep_time:.0f}"
-                print_func(
+                text = (
                     f"Waiting until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                     f"(in {sleeptstr} seconds){msg}"
                 )
+                self.report(Message(text))
 
         else:
             raise ValueError("Either `duration` or `until` must be provided.")
 
         # Perform the wait with pause handling
-        self._execute_sleep(sleep_time, end_time, duration is not None, silent, msg, system)
+        self._execute_sleep(sleep_time, end_time, duration is not None, silent, msg)
         # Ensure interrupt and pause checks are called at least once, even if `sleep_time` is 0
-        self.check_for_interrupt_and_pause(system)
+        self.check_for_interrupt_and_pause()
 
-    def _execute_sleep(self, sleep_time, end_time, is_duration, silent, message, system):
+    def _execute_sleep(
+        self, sleep_time: float, end_time: datetime, is_duration: bool, silent: float, message: str
+    ):
         """
         Handle sleeping with interrupt and pause checks.
 
@@ -417,13 +314,10 @@ class ExecThread(threading.Thread):
             Threshold for showing status messages.
         message : str
             Message to display during waiting.
-        system :
-            System object to log comments if a pause or interrupt occurs.
         """
         start_time = time.time()
         pause_duration = 0  # Tracks cumulative pause duration for duration-based waits
         initial_sleep_time = sleep_time  # Save the initial sleep time for reference
-        print_func = system._print if system else print
 
         while sleep_time > 0:
             # Calculate remaining time based on the end time for "until" waits
@@ -432,9 +326,10 @@ class ExecThread(threading.Thread):
 
             # Check for interruption or pause
             pause_start = time.time()  # Record when the pause starts
-            if self.check_for_interrupt_and_pause(system):
+            if self.check_for_interrupt_and_pause():
                 if not is_duration and end_time and datetime.now() >= end_time:
-                    print_func("\nThe target time passed during pause. Continuing immediately.")
+                    text = "\nThe target time passed during pause. Continuing immediately."
+                    self.report(Message(text))
                     return
                 elif is_duration:
                     # Calculate pause duration and extend end_time accordingly
@@ -446,20 +341,29 @@ class ExecThread(threading.Thread):
 
                     # Recalculate sleep_time after adjusting for pause
                     sleep_time = (end_time - datetime.now()).total_seconds()
-                    print_func(f"\nResuming wait for {sleep_time:.0f} seconds{message}.")
+                    text = f"\nResuming wait for {sleep_time:.0f} seconds{message}."
+                    self.report(Message(text))
                 else:
                     # For "until" wait, recalculate based on the current end_time
                     sleep_time = max(0, (end_time - datetime.now()).total_seconds())
-                    print_func(
+                    text = (
                         f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                         f"({sleep_time:.0f} seconds remaining)."
                     )
+                    self.report(Message(text))
 
             # Sleep in precise intervals, adjusting each time
             if sleep_time > 1:
                 if initial_sleep_time > silent:
-                    # use normal print here to avoid having updates in datafile
-                    print(f"\r{int(sleep_time)} seconds remaining", end="")
+                    self.report(
+                        Message(
+                            f"{int(sleep_time)} seconds remaining",
+                            end="",
+                            to_comment=False,
+                            to_logfile=False,
+                            modifier=Modifier.DELETE_CURRENT_LINE,
+                        )
+                    )
                 time.sleep(min(1, sleep_time))  # Sleep in chunks
                 sleep_time -= 1
             else:
@@ -467,16 +371,11 @@ class ExecThread(threading.Thread):
                 break
 
         if initial_sleep_time > silent:
-            print_func("\rWaiting done")
+            self.report(Message("Waiting done", modifier=Modifier.DELETE_CURRENT_LINE))
 
-    def check_for_interrupt_and_pause(self, system):
+    def check_for_interrupt_and_pause(self) -> bool:
         """
         Check for interrupt and pause flags and take appropriate action.
-
-        Parameters
-        ----------
-        system :
-            System class providing add_comment to write a message to the datafile.
 
         Returns
         -------
@@ -493,13 +392,11 @@ class ExecThread(threading.Thread):
         # not decorated themselves. (e.g. system.add_comment)
         if self.interrupt_flag:
             # script will be aborted
-            if system:
-                system.add_comment("measurement aborted on user request")
+            self.system.add_comment("measurement aborted on user request")
             self.interrupt_flag = False
             raise KeyboardInterrupt("Execution interrupted by user.")
         if self.pause_flag:
-            if system:
-                system.add_comment("measurement paused on user request")
+            self.system.add_comment("measurement paused on user request")
             while self.pause_flag and not self.interrupt_flag:
                 # execution paused, wait for 100ms and recheck
                 time.sleep(0.1)
@@ -508,8 +405,8 @@ class ExecThread(threading.Thread):
 
     def input(
         self,
+        *,
         message: str = "",
-        system: object = None,
         input_type: str = "string",
         timeout: float = float("inf"),
         default_value: str | float = "",
@@ -530,9 +427,6 @@ class ExecThread(threading.Thread):
         message : str, optional
             Message to display to user requesting input. Default is
             empty string.
-        system : object, optional
-            System object that can be interrupted/paused. Default is
-            None.
         input_type : str, optional
             Type of input expected. Default is "string".
         timeout : float, optional
@@ -556,52 +450,24 @@ class ExecThread(threading.Thread):
         else:
             # replace newline characters with placeholders (URL-encoding)
             base_message = message.replace("\n", "%0A")
-
-        # Handle cases for timeout and default value:
-        # Construct the pattern based on input_type and provided parameters
-        if input_type == "string":
-            # Handle cases for timeout and default value for string input:
-            # 1. Both timeout and default_value: __input_type:message:timeout:default__
-            # 2. Only timeout: __input_type:message:timeout__
-            # 3. Only default_value: __input_type:message::default__
-            # 4. Neither: __input_type:message__
-            if timeout != float("inf") and default_value:
-                pattern = f"__input_{input_type}:{base_message}:{timeout}:{default_value}__"
-            elif timeout != float("inf"):
-                pattern = f"__input_{input_type}:{base_message}:{timeout}__"
-            elif default_value:
-                pattern = f"__input_{input_type}:{base_message}::{default_value}__"
-            else:
-                pattern = f"__input_{input_type}:{base_message}__"
-        elif input_type == "numerical":
-            # For numerical input,
-            # always include placeholders for min, max, step
-            # Pattern:
-            # __input_numerical:message:timeout:default_value:
-            # min_value:max_value:step:decimals__
-            pattern = (
-                f"__input_numerical:{base_message}:{timeout}:{default_value}:"
-                f"{min_value}:{max_value}:{step}:{decimals}__"
+        self.report(
+            InputParameters(
+                query=base_message,
+                input_type=input_type,
+                timeout=timeout,
+                default_value=str(default_value),
+                min_value=min_value,
+                max_value=max_value,
+                step=step,
+                decimals=decimals,
             )
-        else:
-            # Default pattern for other types (e.g., bool, __end_script__)
-            if timeout != float("inf") and default_value:
-                pattern = f"__input_{input_type}:{base_message}:{timeout}:{default_value}__"
-            elif timeout != float("inf"):
-                pattern = f"__input_{input_type}:{base_message}:{timeout}__"
-            elif default_value:
-                pattern = f"__input_{input_type}:{base_message}::{default_value}__"
-            else:
-                pattern = f"__input_{input_type}:{base_message}__"
-
-        print(pattern, end="")
-
+        )
         while self.recv == "" or self.recv_flag is True:
             time.sleep(0.1)
             if (time.time() - t0) > 60:
-                print("still waiting for user input")
+                self.report(Message("still waiting for user input", to_comment=False))
                 t0 = time.time()
-            self.check_for_interrupt_and_pause(system)
+            self.check_for_interrupt_and_pause()
         # remove trailling line feed
         ret = self.recv.strip()
         # print output
@@ -610,7 +476,7 @@ class ExecThread(threading.Thread):
         return ret
 
     # callback function that handles the input
-    def handle_input(self, inp):
+    def handle_input(self, inp: str) -> None:
         """
         Handle input that is passed to the thread.
 
@@ -637,85 +503,44 @@ class ExecThread(threading.Thread):
             self.recv_flag = False
         self.recv += inp
 
-    def report_line(self, lineno):
+    def report(self, data: MeasurementData) -> None:
         """
-        Report currently executing line number to the matrix-script.
-
-        Reports the line number in the format __lineno{+-number of line}__.
+        Report data currently written by the matrix-script script.
 
         Parameters
         ----------
-        lineno : int
-            The line number to report.
+        data : ScriptData
+            The data to report.
         """
         if self.socket is None:
-            # only print line number if connected to a socket
             return
-        lineno -= self.n_pref
-        if lineno > -1:
-            print(f"__lineno{lineno:d}__", end="")
-
-    def report_path(self, path: str | Path):
-        """
-        Report datafile that is currently written by matrix-script.
-
-        The format is __//{path to measurement file}//__
-
-        Parameters
-        ----------
-        path : str | Path
-            Path to the measurement file.
-        """
-        if self.socket is None:
-            # only report filename if connected to a socket
-            return
-        if path != "":
-            print(f"__//{path}//__", end="")
+        conf = matr1x.config.matr1x
+        if isinstance(data, Message):
+            if data.should_comment:
+                self.system.add_comment(data.message)
+            if data.should_log:
+                log_multiline(logger, data.message.lstrip("\n"))
+        elif isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)):
+            if data.to_stdout and conf.duplicate_output_to_logfile:
+                log_multiline(logger, str(data))
+        elif isinstance(data, InputParameters):
+            logger.info(data)
+        self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
 
     def run(self):
-        """
-        Run the script and provide meaningful error information.
-
-        This method executes the script and handles any errors that
-        occur during execution, providing detailed error
-        information.
-        """
+        """Run the script and allow to cancel at the start."""
         try:
-            try:
-                _vars = {
-                    "_interrupt": self.interrupt,
-                    "_status": self.stop_status,
-                    "_report_line": self.report_line,
-                    "_report_path": self.report_path,
-                    "_input": self.input,
-                    "_meta_data": self.meta_data,
-                    "_scriptname": self.scriptname,
-                    "_script": self.script,
-                    "_systems": self.systems,
-                }
-                exec(self.script, _vars)
-            except Exception:
-                # This catches errors during template initialization or cleanup,
-                # not user script errors (those are handled in the template itself)
-                print("script initialization/cleanup error:")
-
-                # Get the traceback and improve the file context
-                tb_str = io.StringIO()
-                traceback.print_exc(file=tb_str)
-                tb_output = tb_str.getvalue()
-
-                # Replace <string> with more descriptive context
-                lines = tb_output.split("\n")
-                for i, line in enumerate(lines):
-                    if 'File "<string>"' in line and ", line " in line:
-                        # Extract line number from the traceback
-                        match = re.search(r"line (\d+)", line)
-                        if match:
-                            line_num = int(match.group(1))
-                            # Add template context
-                            replacement = f'File "<template script, line {line_num}>"'
-                            lines[i] = line.replace('File "<string>"', replacement)
-
-                print("\n".join(lines))
+            _vars = {
+                "_interrupt": self.interrupt,
+                "_status": self.stop_status,
+                "_report": self.report,
+                "_input": self.input,
+                "_meta_data": self.meta_data,
+                "_scriptname": self.scriptname,
+                "_script": self.script,
+                "_system": self.system,
+            }
+            self.system.report: Callable[[MeasurementData], None] = self.report
+            exec(self.script, _vars)
         except KeyboardInterrupt:
-            print("script interrupted during initialization")
+            self.report(Message("Script interrupted during initialization", to_comment=False))

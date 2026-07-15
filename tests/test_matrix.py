@@ -29,8 +29,6 @@ import matr1x.util
 import numpy as np
 import pytest
 from matr1x import output_extension
-from matr1x.editor import Linter
-from matr1x.error_handling import Error, Success
 
 path = Path(__file__).resolve().parent
 
@@ -166,46 +164,6 @@ def test_matrix_dummy_hdf5():
     assert d["rand2d_1"].shape == (10, 4, 4)  # check shape of dataset
     assert d["rand2d_2"].shape == (10, 4, 4)  # check shape of dataset
     assert d["timeUTC"].shape == (10,)  # check shape of dataset
-
-
-def test_matrix_script_ruff():
-    """
-    Test matrix script functionality with ruff.
-
-    Tests running a matrix script through ruff for syntax checking.
-    Prepares test environment with dummy functions and runs script
-    validation.
-
-    Asserts
-    -------
-    ruff returns 0 (no errors)
-    """
-    # prepares and runs a test script in the same fashion as done by
-    # matrix_script, code is partially duplicated but should not require
-    # changes except for bugfixes
-    inputfile = path / "test.matrix"
-    with inputfile.open() as f:
-        user_script = f.read()
-    script = matr1x.util.generate_script(user_script)
-    print(script)
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py") as temp_file:
-        temp_file.write(script)
-        temp_file_path = temp_file.name
-
-        cmd_args = [
-            "-m",
-            "ruff",
-            "check",
-            "--select",
-            ",".join(Linter.RUFF_RULES),
-            "--no-cache",
-            temp_file_path,
-        ]
-        result = matr1x.util.run_python_cmdline(cmd_args)
-    assert isinstance(result, Success)
-    if isinstance(result, Error):
-        print(result.error)
 
 
 def test_matrix_script_dummy_merged():

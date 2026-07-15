@@ -15,148 +15,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in matrix script."""
 
-import logging
-import sys
-from collections.abc import Callable, Generator, Iterable
-from dataclasses import dataclass
+from collections.abc import Generator
 from pathlib import Path
 
 import matr1x.eval
 import pytest
+from matr1x.models import Envelope, Message, Modifier
 from matr1x.scripts import matrix_script
-from matr1x.util import StreamToLogger
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
-
-
-@dataclass(frozen=True)
-class _OutputScenario:
-    """Define shared fragment scenarios for GUI and logfile tests."""
-
-    id: str
-    stream_mode: str
-    fragments: tuple[str, ...]
-    expected_gui_present: tuple[str, ...]
-    expected_gui_absent: tuple[str, ...]
-    expected_log_lines: tuple[str, ...]
-
-
-_OUTPUT_SCENARIOS = (
-    _OutputScenario(
-        id="direct-gui-stream",
-        stream_mode="direct",
-        fragments=(
-            "test\n",
-            "not sure what to say",
-            "\r",
-            "again",
-            "\r3 seconds remaining",
-            "\r2 seconds remaining",
-            "\rWaiting done",
-            "\n",
-        ),
-        expected_gui_present=("test", "Waiting done"),
-        expected_gui_absent=(
-            "again",
-            "not sure what to say",
-            "3 seconds remaining",
-            "2 seconds remaining",
-        ),
-        expected_log_lines=(),
-    ),
-    _OutputScenario(
-        id="duplicated-wait-output",
-        stream_mode="duplicated",
-        fragments=(
-            "Waiting 11 seconds until 16:57:24\n",
-            "\r11 seconds remaining",
-            "\r10 seconds remaining",
-            "\r9 seconds remaining",
-            "\rWaiting done",
-            "\n",
-        ),
-        expected_gui_present=("Waiting 11 seconds until 16:57:24", "Waiting done"),
-        expected_gui_absent=(
-            "11 seconds remaining",
-            "10 seconds remaining",
-            "9 seconds remaining",
-        ),
-        expected_log_lines=(
-            "INFO:Waiting 11 seconds until 16:57:24",
-            "INFO:Waiting done",
-        ),
-    ),
-    _OutputScenario(
-        id="duplicated-split-print",
-        stream_mode="duplicated",
-        fragments=(
-            "test",
-            "final line\n",
-        ),
-        expected_gui_present=("testfinal line",),
-        expected_gui_absent=(),
-        expected_log_lines=("INFO:testfinal line",),
-    ),
-)
-
-_DUPLICATED_OUTPUT_SCENARIOS = tuple(
-    scenario for scenario in _OUTPUT_SCENARIOS if scenario.stream_mode == "duplicated"
-)
-
-
-def _prepare_status_preview(qtbot, qapp, main_window: matrix_script.MainWindow):
-    """Reset the status preview and output buffer for output tests."""
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-
-    status_preview = main_window.ui.widgets.status_preview
-    status_preview.setPlainText("")
-    main_window._output_buffer.clear()
-    main_window._output_timer.stop()
-    return status_preview
-
-
-def _flush_status_preview(main_window: matrix_script.MainWindow, qapp) -> None:
-    """Flush buffered GUI output and process queued Qt events."""
-    main_window._flush_output_buffer()
-    qapp.processEvents()
-
-
-def _write_fragments_to_status_preview(
-    main_window: matrix_script.MainWindow,
-    qapp,
-    write_fragment: Callable[[str], None],
-    fragments: Iterable[str],
-    *,
-    finish: Callable[[], None] | None = None,
-) -> str:
-    """Write a sequence of output fragments and return the final text."""
-    for fragment in fragments:
-        write_fragment(fragment)
-        _flush_status_preview(main_window, qapp)
-
-    if finish is not None:
-        finish()
-        _flush_status_preview(main_window, qapp)
-
-    return main_window.ui.widgets.status_preview.toPlainText()
-
-
-def _create_duplicate_output_stream(
-    logger_name: str,
-    handler: logging.Handler,
-    main_window: matrix_script.MainWindow,
-) -> StreamToLogger:
-    """Create a StreamToLogger that mirrors output to the GUI stream."""
-    logger = logging.getLogger(logger_name)
-    logger.handlers = [handler]
-    logger.propagate = False
-    logger.setLevel(logging.INFO)
-    return StreamToLogger(
-        logger,
-        logging.INFO,
-        duplicate_stream=main_window.output_stream,
-    )
 
 
 @pytest.fixture(scope="module")
@@ -174,21 +41,22 @@ def matrix_script_window(qapp) -> Generator[matrix_script.MainWindow, None, None
 
 
 @pytest.fixture(autouse=True)
-def reset_matrix_script_window(matrix_script_window, qapp) -> None:
+def reset_matrix_script_window(matrix_script_window: matrix_script.MainWindow, qapp) -> None:
     """Reset state to avoid cross-test interference."""
     window = matrix_script_window
     if window.is_running:
-        window.abort_thread("a")
+        window.ui.widgets.measurement_thread.abort("a")
         qapp.processEvents()
-    window.ui.widgets.script_edit.setModified(False)
-    window._reset_state(reset_metadata=True)
+    window.new_file()
+    window.ui.widgets.status_preview.setPlainText("")
+    window.ui.widgets.meta_view.clear()
     if window.ui.widgets.config_editor.isVisible():
         window.ui.actions.config.setChecked(False)
     qapp.processEvents()
 
 
 @pytest.mark.timeout(timeout=60)
-def test_basic_script_run(qtbot, qapp, matrix_script_window):
+def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
     """
     Start a basic matrix script measurement.
 
@@ -198,6 +66,7 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window):
     Asserts
     -------
     main window is visible
+    no error occured during the run
     preview action is enabled
     name fits the init_datafile
     a file was created
@@ -216,7 +85,7 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window):
     main_window.load_from_filename(inputfile)
     assert main_window.windowTitle() == "Matrix Script: " + script_filename
 
-    metadata = main_window.ui.widgets.metadata
+    metadata = main_window.ui.widgets.meta_view
     creator = "Power User"
     metadata.creator.setText(creator)
     identifier = "np20250929b"
@@ -231,13 +100,14 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window):
     assert main_window.ui.widgets.config_editor.isVisible()
     main_window.ui.widgets.config_editor.w_update_config.click()
 
-    main_window.ui.actions.start_pause.trigger()
-    qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
-    thread = main_window.measurement_thread
+    main_window.ui.actions.start.trigger()
+    qtbot.waitUntil(lambda: main_window.ui.widgets.measurement_thread is not None, timeout=2000)
+    thread = main_window.ui.widgets.measurement_thread
     qtbot.waitSignal(thread.finished, timeout=2000)
     # Next line: Increased timeout needed for Windows
     qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
     qapp.processEvents()
+    assert not main_window.log_window.isVisible()
     assert main_window.ui.actions.preview.isEnabled()
 
     assert main_window.measurement_file.name[:14] == "boring_testrun"
@@ -257,7 +127,7 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window):
     assert main_window.windowTitle() == "Matrix Script"
 
 
-def test_CodeEditor_API(qtbot, qapp, matrix_script_window):
+def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
     """
     Confirm the existance of all required methods.
 
@@ -300,7 +170,7 @@ def test_CodeEditor_API(qtbot, qapp, matrix_script_window):
     assert hasattr(editor, "returnIssues")
 
 
-def test_CodeEditor(qtbot, qapp, matrix_script_window):
+def test_CodeEditor(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
     """
     Test to visually inspect the matrix GUI window.
 
@@ -386,7 +256,7 @@ def test_CodeEditor(qtbot, qapp, matrix_script_window):
 
 
 def test_status_preview_handles_carriage_return(
-    qtbot, qapp, tmp_path, capsys, matrix_script_window
+    qtbot, qapp, tmp_path, capsys, matrix_script_window: matrix_script.MainWindow
 ):
     """
     Ensure carriage returns from a running script overwrite the current line.
@@ -410,23 +280,17 @@ def test_status_preview_handles_carriage_return(
     qtbot.waitUntil(lambda: main_window.windowTitle().endswith(temp_script.name), timeout=2000)
     qapp.processEvents()
 
-    with capsys.disabled():
-        original_stdout = sys.stdout
-        sys.stdout = main_window.output_stream
-        try:
-            main_window.ui.actions.start_pause.trigger()
-            qtbot.waitUntil(lambda: main_window.measurement_thread is not None, timeout=2000)
-            thread = main_window.measurement_thread
-            qtbot.waitSignal(thread.finished, timeout=2000)
-            # Next line: Increased timeout needed for Windows
-            qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
-            qtbot.waitUntil(
-                lambda: "again" in main_window.ui.widgets.status_preview.toPlainText(),
-                timeout=100,
-            )
-            qapp.processEvents()
-        finally:
-            sys.stdout = original_stdout
+    main_window.ui.actions.start.trigger()
+    qtbot.waitUntil(lambda: main_window.ui.widgets.measurement_thread is not None, timeout=2000)
+    thread = main_window.ui.widgets.measurement_thread
+    qtbot.waitSignal(thread.finished, timeout=2000)
+    # Next line: Increased timeout needed for Windows
+    qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
+    qtbot.waitUntil(
+        lambda: "again" in main_window.ui.widgets.status_preview.toPlainText(),
+        timeout=100,
+    )
+    qapp.processEvents()
 
     output_text = main_window.ui.widgets.status_preview.toPlainText()
     assert "test" in output_text
@@ -434,79 +298,28 @@ def test_status_preview_handles_carriage_return(
     assert "what to say" not in output_text
 
 
-@pytest.mark.parametrize("scenario", _OUTPUT_SCENARIOS, ids=lambda scenario: scenario.id)
-def test_status_preview_handles_fragmented_output(qtbot, qapp, matrix_script_window, scenario):
-    r"""
-    Ensure fragmented carriage return output overwrites the active line.
-
-    This covers both the direct GUI stream path and the duplicated
-    output-to-logfile path used via StreamToLogger.
-    """
-    main_window = matrix_script_window
-    status_preview = _prepare_status_preview(qtbot, qapp, main_window)
-
-    if scenario.stream_mode == "direct":
-        write_fragment = main_window.output_written
-        finish = None
-    else:
-        output_stream = _create_duplicate_output_stream(
-            "test_matrix_script_gui.duplicate_output",
-            logging.NullHandler(),
-            main_window,
-        )
-        write_fragment = output_stream.write
-        finish = output_stream.flush
-
-    output_text = _write_fragments_to_status_preview(
-        main_window,
-        qapp,
-        write_fragment,
-        scenario.fragments,
-        finish=finish,
-    )
-
-    assert status_preview.toPlainText() == output_text
-    for text in scenario.expected_gui_present:
-        assert text in output_text
-    for text in scenario.expected_gui_absent:
-        assert text not in output_text
-
-
-@pytest.mark.parametrize(
-    "scenario",
-    _DUPLICATED_OUTPUT_SCENARIOS,
-    ids=lambda scenario: scenario.id,
-)
-def test_stream_to_logger_file_output_matches_shared_scenarios(
-    qtbot, qapp, matrix_script_window, tmp_path: Path, scenario
+@pytest.mark.timeout(timeout=30, method="thread")
+def test_delete_current_line(
+    qtbot, qapp, tmp_path, capsys, matrix_script_window: matrix_script.MainWindow
 ):
     """
-    Ensure the real logfile path keeps only the stable output lines.
+    Test the delete_current_line modifier of message.
 
-    This exercises a FileHandler instead of an in-memory collector so
-    the regression matches the serialized logfile behavior.
+    Asserts
+    -------
+    The messages validate via the pydantic model.
+    The text is properly deleted/printed.
     """
     main_window = matrix_script_window
-    _prepare_status_preview(qtbot, qapp, main_window)
-    log_path = tmp_path / "wait.log"
-    file_handler = logging.FileHandler(log_path, mode="w")
-    file_handler.setFormatter(logging.Formatter("%(levelname)s:%(message)s"))
-    output_stream = _create_duplicate_output_stream(
-        "test_matrix_script_gui.wait_file_output",
-        file_handler,
-        main_window,
-    )
-
-    try:
-        _write_fragments_to_status_preview(
-            main_window,
-            qapp,
-            output_stream.write,
-            scenario.fragments,
-            finish=output_stream.flush,
-        )
-    finally:
-        file_handler.close()
-
-    log_lines = log_path.read_text().splitlines()
-    assert log_lines == list(scenario.expected_log_lines)
+    qtbot.waitExposed(main_window)
+    qapp.processEvents()
+    messages = []
+    messages.append(Message("To print", end=""))
+    messages.append(Message("or not to print", modifier=Modifier.DELETE_CURRENT_LINE))
+    messages.append(Message("that is the question"))
+    for message in messages:
+        env = Envelope.model_validate_json(message.model_dump_json())
+        main_window.process_data(env)
+    qtbot.wait(200)
+    output_text = main_window.ui.widgets.status_preview.toPlainText()
+    assert output_text == "or not to print\nthat is the question\n"

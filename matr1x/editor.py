@@ -21,22 +21,21 @@ JavaScript should be used outside of this module!
 """
 
 import ast
+import hashlib
 import json
 import re
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from dataclasses import dataclass
 from importlib import resources
-from pathlib import Path
 from queue import Empty, Queue
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import monaco_assets
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from PySide6.QtCore import (
     QEventLoop,
     QObject,
@@ -48,10 +47,11 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
-from matr1x.error_handling import Error, Result, Success
-from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
+from matr1x.error_handling import Error, InternalInvariantError, Result, Success
+from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication, get_system_info
 from matr1x.models import SystemInfo
 from matr1x.util import (
+    find_binary,
     generate_script,
     get_script_prefix_offset,
     run_python_cmdline,
@@ -60,31 +60,40 @@ from matr1x.util import (
 SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
 HIGHLIGHT_INTERVAL_MS = 15
-DUMMY_LSP_FILENAME = "user_script.py"
+LINTING_DELAY_MS = 1000
+DUMMY_LSP_FILENAME = "untitled:///user_script.py"
 
 __all__ = ["CodeEditor"]
 
 
-class PositionModel(BaseModel):
-    row: int
-    column: int
+class TyPosition(BaseModel):
+    line: int
+    character: int
 
 
-class FixModel(BaseModel):
-    content: str
-    location: PositionModel
-    end_location: PositionModel
+class TyRange(BaseModel):
+    start: TyPosition
+    end: TyPosition
 
 
-class RuffMessageModel(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    code: str
+class TyDiagnostic(BaseModel):
     message: str
-    filename: str
-    location: PositionModel
-    end_location: PositionModel
-    fix: FixModel | None = None
+    range: TyRange
+    severity: int
+    source: str
+    tags: list[int] = []
+
+    def to_monaco(self) -> dict:
+        return {
+            "severity": {1: 8, 2: 4, 3: 2, 4: 1}.get(self.severity, 2),
+            "startLineNumber": self.range.start.line - SCRIPT_OFFSET + 1,
+            "startColumn": self.range.start.character - COLUMN_OFFSET + 1,
+            "endLineNumber": self.range.end.line - SCRIPT_OFFSET + 1,
+            "endColumn": self.range.end.character - COLUMN_OFFSET + 1,
+            "message": self.message,
+            "source": self.source,
+            "tags": self.tags,
+        }
 
 
 class JsonRpcResponse(BaseModel):
@@ -127,7 +136,7 @@ class LSPHover(BaseModel):
     position: LSPPositionModel
 
 
-class CompletionRequest(BaseModel):
+class LSPCompletionRequest(BaseModel):
     """A completion request."""
 
     requestId: float
@@ -153,29 +162,33 @@ class LSPResponse(BaseModel):
 class LSPServer:
     """A server for the LSP."""
 
+    name: str
     binary: str
     parameters: list[str]
 
 
-class LSPClient(LoggerMixin):
+class LSPClient(QObject, LoggerMixin):
     """
     Allow communication to an LSP server.
 
     Parameters
     ----------
-    server : list[str]
-        The server with parameters to start in the subprocess.
+    server : LSPServer
+        The lsp server with parameters to start in the subprocess.
     """
 
+    notification: Signal = Signal(JsonRpcNotification)
+
     def __init__(self, server: LSPServer) -> None:
-        self.server = [server.binary] + server.parameters
+        super().__init__()
+        self.server = server
+        self.cmd_line = [server.binary] + server.parameters
         self.process: subprocess.Popen | None = None
         self.id: int = 0
         self.pending_requests: dict[int, Queue[JsonRpcResponse | None]] = {}
         self.reader_thread: threading.Thread | None = None
         self.stderr_thread: threading.Thread | None = None
         self.stop_event = threading.Event()
-        self.opened_documents: set[str] = set()
 
     def start(self) -> None:
         """Start the LSP server process."""
@@ -184,7 +197,7 @@ class LSPClient(LoggerMixin):
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NO_WINDOW
         self.process = subprocess.Popen(
-            self.server,
+            self.cmd_line,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -211,53 +224,45 @@ class LSPClient(LoggerMixin):
         self.logger.info("LSP server stopped.")
 
     def send_request(
-        self,
-        method: str,
-        params: dict | None = None,
-        timeout: float = 0.05,  # should be >0.01 on my Mac
+        self, method: str, params: dict | None = None
     ) -> Result[JsonRpcResponse, None]:
         """
-        Send a request to the LSP.
-
-        This triggers a response.
+        Send a request to the LSP to trigger a response.
 
         Parameters
         ----------
         method : str
             A string with the name of the method to be invoked.
         params: dict (optional)
-            An object or array of values to be passed as parameters to
-            the defined method.
-        timeout: float
-            Timeout in seconds to wait for response.
+            An object to be passed as parameters to the defined method.
         """
-        if self.stop_event.is_set():
-            return Error(None)
-        if not self.process or not self.process.stdin:
-            return Error(None)
-        if self.process.poll() is not None:
+        timeout = 0.05  # timeout should be >0.01 on my Mac
+        if (
+            self.stop_event.is_set()
+            or not self.process
+            or not self.process.stdin
+            or self.process.poll() is not None
+        ):
             return Error(None)
         request_id = self.id
         message = self._build_request(method, params)
         response_queue: Queue[JsonRpcResponse | None] = Queue()
         self.pending_requests[request_id] = response_queue
         try:
-            try:
-                self.process.stdin.write(message.encode())
-                self.process.stdin.flush()
-            except (BrokenPipeError, OSError, ValueError):
-                self.logger.debug("LSP009: Failed to write request to LSP.")
-                return Error(None)
-            try:
-                response = response_queue.get(timeout=timeout)
-                if response is None:
-                    return Error(None)
-                return Success(response)
-            except Empty:
-                self.logger.debug("LSP007: Timeout waiting for response to %s", method)
-                return Error(None)
+            self.process.stdin.write(message.encode())
+            self.process.stdin.flush()
+            response = response_queue.get(timeout=timeout)
+        except (BrokenPipeError, OSError, ValueError):
+            self.logger.debug("LSP009: Failed to write request to LSP.")
+            return Error(None)
+        except Empty:
+            self.logger.debug("LSP007: Timeout waiting for response to %s", method)
+            return Error(None)
         finally:
             self.pending_requests.pop(request_id, None)
+        if response is None:
+            return Error(None)
+        return Success(response)
 
     def send_notification(self, method: str, params: dict | None = None) -> None:
         """
@@ -268,14 +273,14 @@ class LSPClient(LoggerMixin):
         method : str
             A string with the name of the method to be invoked.
         params: dict (optional)
-            An object or array of values to be passed as parameters to
-            the defined method.
+            An object to be passed as parameters tothe defined method.
         """
-        if self.stop_event.is_set():
-            return
-        if not self.process or not self.process.stdin:
-            return
-        if self.process.poll() is not None:
+        if (
+            self.stop_event.is_set()
+            or not self.process
+            or not self.process.stdin
+            or self.process.poll() is not None
+        ):
             return
         message = self._build_notification(method, params)
         try:
@@ -283,54 +288,6 @@ class LSPClient(LoggerMixin):
             self.process.stdin.flush()
         except (BrokenPipeError, OSError, ValueError):
             self.logger.debug("LSP010: Failed to write notification to LSP.")
-
-    def initialize(self) -> None:
-        """Initialize the server/client communication."""
-        capabilities = {
-            "textDocument": {
-                "hover": {"contentFormat": ["markdown", "plaintext"]},
-                "signatureHelp": {
-                    "signatureInformation": {"documentationFormat": ["markdown", "plaintext"]}
-                },
-                "completion": {
-                    "completionItem": {"documentationFormat": ["markdown", "plaintext"]}
-                },
-            }
-        }
-        init = self.send_request("initialize", {"capabilities": capabilities})
-        if isinstance(init, Error):
-            return
-        self.send_notification("initialized", {})
-
-    def set_document(self, uri: str, version: int, content: str) -> None:
-        """Inform the server about a new document (content)."""
-        code = generate_script(content)
-        document_uri = Path(uri).resolve().as_uri()
-
-        if document_uri not in self.opened_documents:
-            self.send_notification(
-                "textDocument/didOpen",
-                {
-                    "textDocument": {
-                        "uri": document_uri,
-                        "languageId": "python",
-                        "version": version,
-                        "text": code,
-                    }
-                },
-            )
-            self.opened_documents.add(document_uri)
-        else:
-            self.send_notification(
-                "textDocument/didChange",
-                {
-                    "textDocument": {
-                        "uri": document_uri,
-                        "version": version,
-                    },
-                    "contentChanges": [{"text": code}],
-                },
-            )
 
     def _handle_response(self, message: str) -> None:
         """
@@ -343,17 +300,19 @@ class LSPClient(LoggerMixin):
         """
         try:
             response = JsonRpcResponse.model_validate_json(message)
-            if response.id is not None:
-                response_queue = self.pending_requests.get(response.id)
-                if response_queue:
-                    try:
-                        response_queue.put_nowait(response)
-                    except Exception:
-                        self.logger.warning("LSP003: Exception putting response in queue.")
-            else:
-                self.logger.warning("LSP005: id is None in response message.")
         except ValidationError:
             self.logger.warning("LSP004: Invalid response message.")
+            return
+        if response.id is None:
+            self.logger.warning("LSP005: id is None in response message.")
+            return
+        response_queue = self.pending_requests.get(response.id)
+        if response_queue is None:
+            return
+        try:
+            response_queue.put_nowait(response)
+        except Exception:
+            self.logger.warning("LSP003: Exception putting response in queue.")
 
     def _handle_notification(self, message: str) -> None:
         """
@@ -365,8 +324,8 @@ class LSPClient(LoggerMixin):
             The message string to process as a notification.
         """
         try:
-            notification = JsonRpcNotification.model_validate_json(message)  # noqa: F841
-            # do something with the notifications later
+            notification = JsonRpcNotification.model_validate_json(message)
+            self.notification.emit(notification)
         except ValidationError:
             self.logger.warning("LSP006: Invalid notification message.")
 
@@ -380,10 +339,8 @@ class LSPClient(LoggerMixin):
             return
         try:
             while not self.stop_event.is_set():
-                if self.process.stderr.readable():
-                    data = self.process.stderr.read(1024)
-                    if not data:
-                        break
+                if not self.process.stderr.read(1024):
+                    break
         except Exception:
             self.logger.warning("LSP008: Exception draining stderr.")
 
@@ -400,13 +357,13 @@ class LSPClient(LoggerMixin):
                     self._handle_response(message)
                 else:
                     self._handle_notification(message)
-        except Exception:
+        except Exception as e:
             for response_queue in self.pending_requests.values():
                 try:
                     response_queue.put_nowait(None)  # Signal error
                 except Exception:
                     pass
-            raise RuntimeError("Message reader crashed!")
+            raise RuntimeError("Message reader crashed!") from e
 
     def _read_one_message(self) -> str | None:
         """
@@ -433,17 +390,17 @@ class LSPClient(LoggerMixin):
             except Exception:
                 self.logger.warning("LSP001: Exception reading message.")
                 return None
-        if content_length > 0:
-            try:
-                content_bytes = self.process.stdout.read(content_length)
-                if len(content_bytes) != content_length:
-                    return None
-                result = content_bytes.decode()
-                return result
-            except Exception:
-                self.logger.warning("LSP002: Exception reading message content.")
+        if content_length <= 0:
+            return None
+        try:
+            content_bytes = self.process.stdout.read(content_length)
+            if len(content_bytes) != content_length:
                 return None
-        return None
+            result = content_bytes.decode()
+            return result
+        except Exception:
+            self.logger.warning("LSP002: Exception reading message content.")
+            return None
 
     def _add_length(self, json_call: JsonRpcRequest | JsonRpcNotification) -> str:
         """
@@ -466,29 +423,21 @@ class LSPClient(LoggerMixin):
 
     def _build_request(self, method: str, params: dict | None = None) -> str:
         """
-        Build a compliant JSON RPC2 request.
-
-        This triggers a response.
+        Build a compliant JSON RPC2 request to trigger a response.
 
         Parameters
         ----------
         method : str
             A string with the name of the method to be invoked.
         params: dict (optional)
-            An object or array of values to be passed as parameters to
-            the defined method.
+            An object to be passed as parameters to the defined method.
 
         Returns
         -------
         str
             The serialized JSON request.
         """
-        packet = JsonRpcRequest(
-            jsonrpc="2.0",
-            id=self.id,
-            method=method,
-            params=params,
-        )
+        packet = JsonRpcRequest(jsonrpc="2.0", id=self.id, method=method, params=params)
         self.id += 1
         return self._add_length(packet)
 
@@ -501,34 +450,28 @@ class LSPClient(LoggerMixin):
         method : str
             A string with the name of the method to be invoked.
         params: dict (optional)
-            An object or array of values to be passed as parameters to
-            the defined method.
+            An object to be passed as parameters to the defined method.
 
         Returns
         -------
         str
             The serialized JSON notification.
         """
-        packet = JsonRpcNotification(
-            jsonrpc="2.0",
-            method=method,
-            params=params,
-        )
+        packet = JsonRpcNotification(jsonrpc="2.0", method=method, params=params)
         return self._add_length(packet)
 
 
 class Matr1xFunctionChecker(ast.NodeVisitor):
     """Implements ast-based function checker for matr1x functions."""
 
-    def __init__(self, system_info: SystemInfo | None):
+    def __init__(self, system_info: SystemInfo):
         self.indexes = []
         self.settables = []
         self.columns = []
-        if system_info is not None:
-            for key, data in system_info.parameters.items():
-                self.indexes.append(str(data.index))
-                self.settables.append(data.settable)
-                self.columns.append(data.name)
+        for key, data in system_info.parameters.items():
+            self.indexes.append(str(data.index))
+            self.settables.append(data.settable)
+            self.columns.append(data.name)
         self.errors: int = 0
         self.lineno: int
         self.col: int
@@ -686,233 +629,46 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self._validate_column()
 
 
-class Linter(QObject):
-    """
-    Ruff linting to be used with the Monaco Editor.
-
-    This is the Python backend class for the JavaScript editor.
-    """
-
-    lintingComplete = Signal(str)
-
-    def __init__(self):
-        super().__init__()
-        self.system_info: SystemInfo | None = None
-        self.current_diagnostics_count = 0
-        self.issues: int = 0
-
-    def update_settables(self, system_info: SystemInfo | None):
-        """
-        Update the SystemInfo object used for value checking.
-
-        Parameters
-        ----------
-        system_info
-            The system information.
-        """
-        self.system_info = system_info
-
-    RUFF_RULES = [
-        "F821",
-        "F822",
-        "F823",
-        "ARG003",
-        "F706",
-        "F704",
-        "F702",
-        "F701",
-        "F634",
-        "F631",
-        "F632",
-        "F522",
-        "F523",
-        "F524",
-        "F501",
-        "F502",
-        "F503",
-        "F504",
-    ]
-
-    @AutoSlot
-    def lint_code(self, code: str) -> None:
-        """
-        Lint Python code utilizing Ruff.
-
-        Parameters
-        ----------
-        code: str
-            The Python code to lint.
-        """
-        if code.strip() == "" or len(code.strip().splitlines()) <= 0:
-            return
-        script = generate_script(code)
-        try:
-            diagnostics = self._run_ruff_check(script)
-            value_diagnostics = self._get_value_diagnostics(script)
-            diagnostics.extend(value_diagnostics)
-            self.lintingComplete.emit(json.dumps(diagnostics))
-            self.issues = len(diagnostics)
-        except Exception as e:
-            error_diagnostic = self._ruff_error_diagnostic(f"Linting error: {str(e)}", "Linter")
-            self.lintingComplete.emit(json.dumps(error_diagnostic))
-            self.issues = 1
-
-    def returnIssues(self) -> int:
-        """
-        Return the number of ruff and value-check issues.
-
-        Returns
-        -------
-        int
-           The number of issues.
-        """
-        return self.issues
-
-    def _get_value_diagnostics(self, script: str) -> list:
-        """
-        Get Matr1x value checker diagnostics.
-
-        Parameters
-        ----------
-        script: str
-            The generated script to check for value errors.
-        """
-        try:
-            if self.system_info is not None:
-                tree = ast.parse(script, filename="script")
-                checker = Matr1xFunctionChecker(self.system_info)
-                checker.set_script(script)
-                checker.visit(tree)
-                return checker.returnDiagnostics()
-            else:
-                return []
-        except Exception:
-            return []
-
-    def _ruff_error_diagnostic(self, error: str, source: str) -> list[dict[str, str | int]]:
-        """
-        Format a general error in the required way.
-
-        Parameters
-        ----------
-        error : str
-            The error string to be included.
-        source: str
-            The source of the error.
-
-        Returns
-        -------
-        list[dict[str, str | int]]
-            A dictionary as the only element in a list.
-        """
-        error_diagnostic = [
-            {
-                "severity": 1,
-                "startLineNumber": 1,
-                "startColumn": 1,
-                "endLineNumber": 1,
-                "endColumn": 1,
-                "message": error,
-                "source": source,
-            }
-        ]
-        return error_diagnostic
-
-    def _run_ruff_check(self, code: str) -> list[dict[str, str | int]]:
-        """
-        Utilize Ruff to lint code and convert to Monaco diagnostics.
-
-        Parameters
-        ----------
-        code: str
-            Script to check for errors.
-
-        Returns
-        -------
-            List of diagnostics in Monaco Editor format.
-        """
-        code = code.replace("\r\n", "\n").replace("\r", "\n")
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", newline="") as temp_file:
-            temp_file.write(code)
-            temp_file.flush()
-            cmd_args = [
-                "-m",
-                "ruff",
-                "check",
-                "-e",
-                "--output-format=json",
-                "--select",
-                ",".join(Linter.RUFF_RULES),
-                "--no-cache",
-                temp_file.name,
-            ]
-            result = run_python_cmdline(cmd_args)
-        if isinstance(result, Error):
-            return self._ruff_error_diagnostic(
-                f"Ruff execution error: {result.error}", "os, python"
-            )
-        ruff_issues = json.loads(result.value.stdout)
-        adapter = TypeAdapter(list[RuffMessageModel])
-        try:
-            validated = adapter.validate_python(ruff_issues)
-        except ValidationError:
-            return self._ruff_error_diagnostic(
-                "Ruff validation error: Output format changed!", "pydantic"
-            )
-        return self._convert_ruff_to_monaco_diagnostics(validated)
-
-    def _convert_ruff_to_monaco_diagnostics(
-        self,
-        ruff_issues: list[RuffMessageModel],
-    ) -> list[dict[str, int | str]]:
-        """
-        Convert ruff output to Monaco Editor diagnostics format.
-
-        Parameters
-        ----------
-        ruff_issues: list[RuffMessageModel]
-            List of issues from pydantic validated Ruff output.
-
-        Returns
-        -------
-            List of diagnostics in Monaco Editor dict format.
-        """
-        diagnostics = []
-        for issue in ruff_issues:
-            diagnostic = {
-                "severity": 2,
-                "startLineNumber": issue.location.row - SCRIPT_OFFSET,
-                "startColumn": issue.location.column - COLUMN_OFFSET,
-                "endLineNumber": issue.end_location.row - SCRIPT_OFFSET,
-                "endColumn": issue.end_location.column - COLUMN_OFFSET,
-                "message": issue.message,
-                "source": "ruff",
-                "code": issue.code,
-            }
-            diagnostics.append(diagnostic)
-        return diagnostics
-
-
 class EditorBackend(QObject):
     """
-    Modification tracking to be used with the Monaco editor.
+    Backend bridge to be used with the Monaco editor.
 
     When Qt objects are registered with WebChannel, Qt expects certain
     properties to have notify signals for proper data binding. The
     "CodeEditor" inherits from "QWebEngineView" which has many
     properties without notify signals, causing console noise. Therefore,
     a class inheriting only from "QObject" is a clean solution.
+
+    Things are handled here to keep the JavaScript side minimal.
     """
 
     contentModified = Signal(bool)
     hoverRequested = Signal(LSPPositionModel)
-    completionRequested = Signal(CompletionRequest)
+    completionRequested = Signal(LSPCompletionRequest)
     contentChanged = Signal(str)
     cursorPositionChanged = Signal(int, int)
+    lintingComplete = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._is_modified = False
+        system_info = get_system_info([])
+        if isinstance(system_info, Error):
+            raise InternalInvariantError("System list should work for an empty list.")
+        self._system_info: SystemInfo = system_info.value
+        self._tc_diagnostics: list[dict] = []
+        self._lint_timer = QTimer(self)
+        self._lint_timer.setSingleShot(True)
+        self._lint_timer.setInterval(LINTING_DELAY_MS)
+        self._lint_timer.timeout.connect(self._run_lint)
+        self._current_code: str = ""
+        self._last_linted_hash: bytes = b""
+        self._issues: int = 0
+
+    @property
+    def issues(self) -> int:
+        """Return the number of issues found in the last lint pass."""
+        return self._issues
 
     @AutoSlot
     def content_changed(self, is_modified: bool) -> None:
@@ -929,6 +685,63 @@ class EditorBackend(QObject):
         self._is_modified = modified
 
     @AutoSlot
+    def code_changed(self, code: str) -> None:
+        """
+        Receive updated code from the JS editor.
+
+        Notifies the LSP server immediately via ``contentChanged`` and
+        resets the 1s lint timer.
+
+        Parameters
+        ----------
+        code : str
+            The current editor content.
+        """
+        self._current_code = code
+        self.contentChanged.emit(code)
+        self._lint_timer.start()
+
+    def _run_lint(self) -> None:
+        """Run a lint pass unless the code is unchanged since the last pass."""
+        code_hash = hashlib.sha1(self._current_code.encode()).digest()
+        if code_hash == self._last_linted_hash:
+            return
+        self._last_linted_hash = code_hash
+        if not self._current_code.strip():
+            self._issues = 0
+            self.lintingComplete.emit(json.dumps([]))
+            return
+        diagnostics = self._lint(self._current_code)
+        self.lintingComplete.emit(json.dumps(diagnostics))
+        self._issues = len(diagnostics)
+
+    def update_system_info(self, system_info: SystemInfo) -> None:
+        """
+        Update the system info used for value checking and re-lint.
+
+        Parameters
+        ----------
+        system_info : SystemInfo
+            The updated system information.
+        """
+        self._system_info = system_info
+        self._last_linted_hash = b""
+        self._run_lint()
+
+    def update_tc_diagnostics(self, diagnostics: list[dict]) -> None:
+        """
+        Update type-checker diagnostics and immediately re-lint.
+
+        Parameters
+        ----------
+        diagnostics : list[dict]
+            Monaco-format diagnostic objects from the type checker.
+        """
+        self._tc_diagnostics = diagnostics
+        self._last_linted_hash = b""
+        self._run_lint()
+
+    @AutoSlot
     def handle_hover(self, payload: str) -> None:
         """Handle hover notifications from the Monaco editor."""
         try:
@@ -943,7 +756,7 @@ class EditorBackend(QObject):
     def handle_completion_request(self, payload: str) -> None:
         """Handle completion requests from the Monaco editor."""
         try:
-            completion_request = CompletionRequest.model_validate_json(payload)
+            completion_request = LSPCompletionRequest.model_validate_json(payload)
         except ValidationError:
             return
         self.contentChanged.emit(completion_request.code)
@@ -954,14 +767,51 @@ class EditorBackend(QObject):
         self.completionRequested.emit(completion_request)
 
     @AutoSlot
-    def linting_triggered(self, text: str) -> None:
-        """Handle linting trigger notifications from the editor."""
-        self.contentChanged.emit(text)
-
-    @AutoSlot
     def cursor_position_changed(self, line: int, column: int) -> None:
         """Handle cursor position change notifications from the editor."""
         self.cursorPositionChanged.emit(line, column)
+
+    def _lint(self, code: str) -> list[dict[str, str | int]]:
+        """
+        Run linting on Python code and return Monaco-format diagnostics.
+
+        Parameters
+        ----------
+        code : str
+            The user's Python code to lint.
+
+        Returns
+        -------
+        list[dict[str, str | int]]
+            Monaco-format diagnostic objects.
+        """
+        script = generate_script(code)
+        diagnostics: list[dict[str, str | int]] = self._get_value_diagnostics(script)
+        diagnostics.extend(self._tc_diagnostics)
+        return diagnostics
+
+    def _get_value_diagnostics(self, script: str) -> list[dict[str, str | int]]:
+        """
+        Get Matr1x value checker diagnostics.
+
+        Parameters
+        ----------
+        script : str
+            The generated script to check for value errors.
+
+        Returns
+        -------
+        list[dict[str, str | int]]
+            Monaco-format diagnostic objects.
+        """
+        try:
+            tree = ast.parse(script, filename="script")
+            checker = Matr1xFunctionChecker(self._system_info)
+            checker.set_script(script)
+            checker.visit(tree)
+            return checker.returnDiagnostics()
+        except Exception:
+            return []
 
 
 class CodeEditorPage(QWebEnginePage, LoggerMixin):
@@ -1033,16 +883,19 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                 port += 1
         raise RuntimeError("No free ports available")
 
-    def __init__(self, extensions: list, lsp_server: LSPServer):
+    def __init__(self):
         super().__init__()
-        self.version = 1
-        self.code: str = ""
-        self.filename: str = DUMMY_LSP_FILENAME
+        self.version = 2
         self.column = 1
         self.row = 1
-        self.lsp = LSPClient(lsp_server)
-        self.lsp.start()
-        self.lsp.initialize()
+        tc_name = "ty"
+        tc_binary = find_binary(tc_name)
+        if isinstance(tc_binary, Error):
+            raise tc_binary.error
+        tc_server = LSPServer(name=tc_name, binary=str(tc_binary.value), parameters=["server"])
+        self.lsp_tc = LSPClient(tc_server)
+        self.lsp_tc.start()
+        self.lsp_initialize()
         # Find free port and start Monaco server
         self.port = self.find_free_port()
         self.server = monaco_assets.MonacoServer(port=self.port)
@@ -1052,7 +905,6 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
             time.sleep(0.1)
         if not self.server.is_running():
             self.logger.error("Warning: Monaco server did not start within %d seconds", timeout)
-
         self.editor_page = CodeEditorPage()
         self.setPage(self.editor_page)
         settings = self.page().settings()
@@ -1061,14 +913,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         )
         settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
         self.channel = QWebChannel()
-        self.linter = Linter()
         self.backend = EditorBackend(self)
-        self.backend.contentModified.connect(self.contentModified.emit)
-        self.backend.hoverRequested.connect(self.on_hover_requested)
-        self.backend.completionRequested.connect(self.on_completion_requested)
-        self.backend.contentChanged.connect(self.on_content_changed)
-        self.backend.cursorPositionChanged.connect(self.on_cursor_position_changed)
-        self.channel.registerObject("linter", self.linter)
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
         html_path = resources.files("matr1x") / "resources" / "editor.html"
@@ -1081,11 +926,20 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.setAcceptDrops(True)
         self._highlight_timer = QTimer(self)
         self._highlight_timer.setSingleShot(True)
-        self._highlight_timer.timeout.connect(self._apply_pending_highlight)
         self._pending_highlight_line: int | None = None
         self._current_theme: str
+        self.create_connections()
+
+    def create_connections(self) -> None:
+        """Create connections between signals and slots."""
+        self.backend.contentModified.connect(self.contentModified.emit)
+        self.backend.hoverRequested.connect(self.on_hover_requested)
+        self.backend.completionRequested.connect(self.on_completion_requested)
+        self.backend.contentChanged.connect(self.on_content_changed)
+        self.backend.cursorPositionChanged.connect(self.on_cursor_position_changed)
+        self._highlight_timer.timeout.connect(self._apply_pending_highlight)
         MApplication.instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
-        self.setValidExtensions(extensions)
+        self.lsp_tc.notification.connect(self.on_notification)
 
     def _run_javascript(self, command: str):
         """Execute JavaScript command and return result synchronously."""
@@ -1130,16 +984,6 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                 self.logger.debug("async JS result: %s", js_result)
 
         self.page().runJavaScript(wrapped_command, handle_result)
-
-    def setFilename(self, name: str | None) -> None:
-        """
-        Set the filename for the LSP interactions.
-
-        name: str
-            The filename to be used by the LSP.
-        """
-        self.filename = name if name else DUMMY_LSP_FILENAME
-        self.lsp.set_document(self.filename, self.version, self.code)
 
     def setPlainText(self, code: str) -> None:
         """
@@ -1265,6 +1109,44 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self._pending_highlight_line = None
         self._run_javascript(f"window.highlightLine({line_number})")
 
+    def lsp_initialize(self) -> None:
+        """Initialize the server/client communication."""
+        capabilities = {
+            "textDocument": {
+                "hover": {"contentFormat": ["markdown", "plaintext"]},
+                "signatureHelp": {
+                    "signatureInformation": {"documentationFormat": ["markdown", "plaintext"]}
+                },
+                "completion": {
+                    "completionItem": {"documentationFormat": ["markdown", "plaintext"]}
+                },
+            }
+        }
+        init = self.lsp_tc.send_request("initialize", {"capabilities": capabilities})
+        if isinstance(init, Error):
+            return
+        self.lsp_tc.send_notification("initialized", {})
+        self.lsp_tc.send_notification(
+            "textDocument/didOpen",
+            {
+                "textDocument": {
+                    "uri": DUMMY_LSP_FILENAME,
+                    "languageId": "python",
+                    "version": 1,
+                    "text": "",
+                }
+            },
+        )
+
+    @AutoSlot
+    def on_notification(self, notification: JsonRpcNotification) -> None:
+        """Handle notifications from the LSP server."""
+        if notification.method == "textDocument/publishDiagnostics":
+            params = cast(dict, notification.params)
+            diagnostics = [TyDiagnostic.model_validate(d) for d in params.get("diagnostics", [])]
+            tc_diagnostics = [d.to_monaco() for d in diagnostics]
+            self.backend.update_tc_diagnostics(tc_diagnostics)
+
     def on_hover_requested(self, hover: LSPHover) -> None:
         """
         Handle hover requests from Monaco editor.
@@ -1274,10 +1156,10 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         hover : LSPHover
             Pydantic model with the position and an id.
         """
-        hover_result = self.lsp.send_request(
+        hover_result = self.lsp_tc.send_request(
             "textDocument/hover",
             {
-                "textDocument": {"uri": Path(self.filename).resolve().as_uri()},
+                "textDocument": {"uri": DUMMY_LSP_FILENAME},
                 "position": hover.position.model_dump(),
             },
         )
@@ -1300,12 +1182,12 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         js_command = f"window.showHover({hover.requestId}, {json.dumps(popup)})"
         self._run_javascript_async(js_command)
 
-    def on_completion_requested(self, completion_request: CompletionRequest) -> None:
+    def on_completion_requested(self, completion_request: LSPCompletionRequest) -> None:
         """Handle completion requests from Monaco editor."""
-        completion_result = self.lsp.send_request(
+        completion_result = self.lsp_tc.send_request(
             "textDocument/completion",
             {
-                "textDocument": {"uri": Path(self.filename).resolve().as_uri()},
+                "textDocument": {"uri": DUMMY_LSP_FILENAME},
                 "position": completion_request.position.model_dump(),
                 "context": {
                     "triggerKind": 2,
@@ -1376,8 +1258,16 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
     def on_content_changed(self, text: str) -> None:
         """Increment version counter and process text."""
         self.version += 1
-        self.code = text
-        self.lsp.set_document(self.filename, self.version, self.code)
+        self.lsp_tc.send_notification(
+            "textDocument/didChange",
+            {
+                "textDocument": {
+                    "uri": DUMMY_LSP_FILENAME,
+                    "version": self.version,
+                },
+                "contentChanges": [{"text": generate_script(text)}],
+            },
+        )
 
     def on_cursor_position_changed(self, line: int, column: int) -> None:
         """Handle cursor position change notifications from the editor."""
@@ -1429,7 +1319,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         """
         self._run_javascript(f"window.enableTabCompletion({str(enable).lower()})")
 
-    def setSettables(self, system_info: SystemInfo | None) -> None:
+    def setSettables(self, system_info: SystemInfo) -> None:
         """
         Receive the system info and update Monaco.
 
@@ -1438,8 +1328,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         system_info
             The system information required by the linter.
         """
-        self.linter.update_settables(system_info)
-        self._run_javascript("window.triggerLinting()")
+        self.backend.update_system_info(system_info)
 
     def insertText(self, text: str) -> None:
         """
@@ -1462,4 +1351,4 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         int
             The number of issues.
         """
-        return self.linter.returnIssues()
+        return self.backend.issues

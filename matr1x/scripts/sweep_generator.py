@@ -21,25 +21,21 @@ segments.
 """
 
 import logging
-import os
 import re
 import sys
 import time
-import traceback
 from ast import literal_eval
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass, fields
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import cached_property
 from math import floor
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any
 
 import numpy
 import pyqtgraph as pg
-import shiboken6
 from pydantic import BaseModel, Field
-from PySide6.QtCore import QByteArray, QObject, QPoint, QPointF, QSize, Qt, Signal
+from PySide6.QtCore import QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFocusEvent, QKeySequence, QMouseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -50,9 +46,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLayout,
     QLineEdit,
-    QMainWindow,
     QMenu,
     QMenuBar,
     QMessageBox,
@@ -61,14 +55,13 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 import matr1x
-from matr1x import datetimefmt, system_directories, system_names, usersfolder
+from matr1x import datetimefmt, usersfolder
 from matr1x.error_handling import (
     Error,
     InternalInvariantError,
@@ -82,28 +75,32 @@ from matr1x.gui_util import (
     CustomViewBox,
     FileDropMixin,
     LoggingWindow,
+    LogWindowMixin,
     MApplication,
-    SaferQSettings,
-    SystemListWidget,
     check_config,
-    create_tray_notification,
+    clear_layout,
+    create_matr1x_quit_action,
+    create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
-    protected_restore,
     save_messagebox,
     validator,
 )
+from matr1x.models import SystemInfo
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.system import MergedSystem
-from matr1x.util import (
-    create_temp_dir_with_symlinks,
-    generate_col_index,
-    get_importable_module_name,
+from matr1x.scripts.shared_classes import (
+    MMainWindow,
+    MToolBar,
+    Notifier,
+    NotifierMessage,
+    SaferQSettings,
+    SystemListWidget,
 )
+from matr1x.util import generate_col_index
 
 __all__ = ["MainWindow"]
 
@@ -624,6 +621,8 @@ class WidgetGroup:
     sweep_table: QTableWidget
     central_widget: QWidget
     system_list: SystemListWidget
+    notifier: Notifier
+    about_box: AboutBox
 
 
 @dataclass
@@ -631,7 +630,6 @@ class ActionGroup:
     """Actions to be utilized in the GUI."""
 
     matrix_settings: QAction
-    about: QAction
     show_log: QAction
     new_file: QAction
     load: QAction
@@ -643,24 +641,19 @@ class ActionGroup:
     append_to: QAction
     quit: QAction
     sweep: QAction
-    toggle_toolbar: QAction
     preview: QAction
     post_install: QAction
     remove_desktop_integration: QAction
 
-    def __iter__(self) -> Iterator[QAction]:
-        for f in fields(self):
-            yield getattr(self, f.name)
-
 
 class UIBuilder:
-    """Create actions, toolbar and menu."""
+    """Create the GUI elements."""
 
-    def __init__(self, menu_bar: QMenuBar):
+    def __init__(self):
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
-        self.toolbar: QToolBar = self._create_toolbar()
-        self._create_menu(menu_bar)
+        self.toolbar: MToolBar = self._create_toolbar()
+        self.menubar: QMenuBar = self._create_menu()
         self.grid: QGridLayout = self._create_gui()
 
     def _create_widgets(self) -> WidgetGroup:
@@ -686,76 +679,64 @@ class UIBuilder:
         sweep_preview.setColumnWidth(0, table_width)
 
         system_list = SystemListWidget()
-        system_list.setMinimumHeight(50)
-        system_list.setMaximumHeight(50)
+
+        notifier = Notifier(logger)
 
         return WidgetGroup(
             sweep_preview=sweep_preview,
             sweep_table=sweep_table,
             central_widget=QWidget(),
             system_list=system_list,
+            notifier=notifier,
+            about_box=AboutBox(
+                "Sweep Generator",
+                get_matrix_icon("matr1x-sweep-generator.png"),
+                matr1x,
+                matr1x.datetimefmt,
+            ),
         )
 
     def _create_actions(self) -> ActionGroup:
         """Create all actions."""
-        matrix_settings = QAction("Show matrix toml")
-        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
-        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
-        about = QAction("About")
-        about.setMenuRole(QAction.MenuRole.AboutRole)
-        show_log = QAction("Show Log Window")
-        show_log.setCheckable(True)
         new_file = QAction(get_matrix_icon("SP_FileIcon"), "New")
         new_file.setShortcut(QKeySequence.StandardKey.New)
-        new_file.setEnabled(False)
         load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setShortcut(QKeySequence.StandardKey.Open)
-        add_system = QAction(get_matrix_icon("CHAR_+", QColor("RoyalBlue")), "Add System")
-        remove_system = QAction(get_matrix_icon("CHAR_-", QColor("RoyalBlue")), "Remove System")
-        remove_system.setEnabled(False)
         save = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save")
         save.setShortcut(QKeySequence.StandardKey.Save)
         save.setEnabled(False)
         save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...")
         save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
+        save_as.setEnabled(False)
         append = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append")
         append_to = QAction(get_matrix_icon("SP_DialogSaveButton"), "Append To...")
-        quit_action = QAction("Quit")
-        if os.name == "nt":
-            quit_action.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        append.setEnabled(False)
+        append_to.setEnabled(False)
         sweep = QAction(get_matrix_icon("SP_BrowserReload"), "Draft Sweep")
         sweep.setEnabled(False)
-        toggle_toolbar = QAction("Show Toolbar")
-        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
-        toggle_toolbar.setCheckable(True)
-        toggle_toolbar.setChecked(True)
         preview = QAction(
             get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview"
         )
         preview.setEnabled(False)
         return ActionGroup(
-            matrix_settings=matrix_settings,
-            about=about,
-            show_log=show_log,
+            matrix_settings=create_matrix_settings_action(),
+            show_log=LogWindowMixin.create_show_log_action(),
             new_file=new_file,
             load=load,
-            add_system=add_system,
-            remove_system=remove_system,
+            add_system=self.widgets.system_list.add_action,
+            remove_system=self.widgets.system_list.remove_action,
             save=save,
             save_as=save_as,
             append=append,
             append_to=append_to,
-            quit=quit_action,
+            quit=create_matr1x_quit_action(),
             sweep=sweep,
-            toggle_toolbar=toggle_toolbar,
             preview=preview,
-            post_install=QAction("Install Desktop Integration"),
-            remove_desktop_integration=QAction("Remove Desktop Integration"),
+            post_install=LogWindowMixin.create_post_install_action(),
+            remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
-    def _create_toolbar(self) -> QToolBar:
+    def _create_toolbar(self) -> MToolBar:
         """Create the toolbar."""
         save_button = QToolButton()
         save_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -768,33 +749,21 @@ class UIBuilder:
         save_pulldown.addAction(self.actions.append)
         save_pulldown.addAction(self.actions.append_to)
         save_button.setMenu(save_pulldown)
-
-        toolbar = QToolBar("Toolbar")
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setFloatable(False)
-        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        icon_size = MApplication.instance().toolbar_icon_size()
-        toolbar.setIconSize(QSize(icon_size, icon_size))
-        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
+        toolbar = MToolBar("Toolbar")
         toolbar.addAction(self.actions.new_file)
         toolbar.addAction(self.actions.load)
         toolbar.addWidget(save_button)
         toolbar.addAction(self.actions.sweep)
-        empty = QWidget()
-        empty.setFixedWidth(icon_size)
-        empty2 = QWidget()
-        empty2.setFixedWidth(icon_size)
-        toolbar.addWidget(empty)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.preview)
-        toolbar.addWidget(empty2)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addSeparator()
-        toolbar.addAction(self.actions.add_system)
-        toolbar.addWidget(self.widgets.system_list)
-        toolbar.addAction(self.actions.remove_system)
+        self.widgets.system_list.add_to_toolbar(toolbar)
         return toolbar
 
-    def _create_menu(self, menu_bar: QMenuBar) -> None:
+    def _create_menu(self) -> QMenuBar:
         """Create the main menu."""
+        menu_bar = QMenuBar()
         file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(self.actions.new_file)
         file_menu.addAction(self.actions.load)
@@ -803,21 +772,20 @@ class UIBuilder:
         file_menu.addAction(self.actions.save_as)
         file_menu.addAction(self.actions.append)
         file_menu.addSeparator()
-        file_menu.addAction(self.actions.add_system)
-        file_menu.addAction(self.actions.remove_system)
+        self.widgets.system_list.add_actions_to_menu(file_menu)
         file_menu.addSeparator()
         file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
         control_menu = menu_bar.addMenu("&Control")
         control_menu.addAction(self.actions.sweep)
         view_menu = menu_bar.addMenu("&View")
-        view_menu.addAction(self.actions.toggle_toolbar)
+        view_menu.addAction(self.toolbar.action)
+        view_menu.addSeparator()
         view_menu.addAction(self.actions.matrix_settings)
         help_menu = menu_bar.addMenu("&Help")
-        help_menu.addAction(self.actions.about)
-        help_menu.addAction(self.actions.show_log)
-        help_menu.addSeparator()
-        help_menu.addAction(self.actions.post_install)
-        help_menu.addAction(self.actions.remove_desktop_integration)
+        LogWindowMixin.add_common_help_actions(help_menu, self.actions)
+        help_menu.addAction(self.widgets.about_box.action)
+
+        return menu_bar
 
     def _create_gui(self) -> QGridLayout:
         """Create and set up the main GUI."""
@@ -828,6 +796,7 @@ class UIBuilder:
         lower_view.addWidget(self.widgets.sweep_preview)
         lower_view.addWidget(self.widgets.sweep_table)
         central_layout = QVBoxLayout()
+        central_layout.addWidget(self.widgets.notifier)
         central_layout.addLayout(grid)
         central_layout.addLayout(lower_view)
         self.widgets.central_widget.setLayout(central_layout)
@@ -961,7 +930,7 @@ class SweepPreviewPopup(QDialog):
         )
 
 
-class MainWindow(FileDropMixin, QMainWindow):
+class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
     """
     Run the logic of the sweep generator.
 
@@ -969,10 +938,10 @@ class MainWindow(FileDropMixin, QMainWindow):
     ----------
     filename : str
         Sweep file to load for editing.
-    system : str
-        Path to system(s) for which an input file should be generated.
     inputcb : function handle
         Callback function used to return the filename of the generated file.
+    log_window : LoggingWindow, optional
+        Logging window to use for displaying log messages.
     """
 
     extension = ".sw8"
@@ -981,7 +950,7 @@ class MainWindow(FileDropMixin, QMainWindow):
     def __init__(
         self,
         filename: Path | None = None,
-        system=None,
+        *,
         inputcb: Callable[[str], None] | None = None,
         log_window: LoggingWindow | None = None,
     ):
@@ -995,25 +964,20 @@ class MainWindow(FileDropMixin, QMainWindow):
             self.log_window = log_window
         logger.info("sweep-generator starting")
 
-        self.system: MergedSystem | None = system
         self.inputcb: Callable[[str], None] | None = inputcb
-        self.last_loaded_system: str | None = None
         self.last_filename: Path | None = None
         self.dirty: bool = False
         self.columns: ColumnData = ColumnData()
-        self.shortcut_dir: TemporaryDirectory | None = None
         self.settings: SaferQSettings = SaferQSettings("matr1x", "sweep-generator")
         self.preview_column: int = 0
-        self.populated: bool = False
         self.grid_widgets: list[ColumnWidgets]
 
         self.setWindowTitle("Sweep Generator")
         self.setWindowIcon(get_matrix_icon("matr1x-sweep-generator.png"))
-        self.ui: UIBuilder = UIBuilder(self.menuBar())
+        self.ui: UIBuilder = UIBuilder()
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.addToolBar(self.ui.toolbar)
-        for action in self.ui.actions:
-            action.setParent(self)
+        self.setMenuBar(self.ui.menubar)
         self.setAcceptDrops(True)
         self.setValidExtensions([self.extension])
         self.create_connections()
@@ -1024,6 +988,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             if self.is_valid_extension(filename):
                 self.open_file(filename)
                 self.last_filename = filename
+        else:
+            self.update_systems()
 
     def closeEvent(self, a0) -> None:
         """
@@ -1033,94 +999,36 @@ class MainWindow(FileDropMixin, QMainWindow):
         proceed.
         """
         if self.dirty and not self.in_pytest:
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+            if not save_messagebox(self, self.save_file):
                 a0.ignore()
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                if not self.save_file():
-                    a0.ignore()  # if save fails, do not close.
-                    return
         self.save_window_state()
-        if self._owns_log_window:
-            root_logger = logging.getLogger()
-            root_logger.removeHandler(self.log_window.log_handler)
-            self.log_window.deleteLater()
+        self.cleanup_log_window(enabled=self._owns_log_window)
         a0.accept()
 
     def save_window_state(self) -> None:
-        """
-        Save application configuration until next startup.
-
-        For convenience, main window geometry, toolbar placement and
-        logger position and size are saved.
-        """
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("toolbar_position", self.toolBarArea(self.ui.toolbar).value)
-        if not self._owns_log_window or not shiboken6.isValid(self.log_window):
-            return
-        self.settings.setValue("log_window/position", self.log_window.pos())
-        self.settings.setValue("log_window/size", self.log_window.size())
+        """Save application configuration until next startup."""
+        self.save_layout_state(self.settings)
+        self.save_log_window_state(self.settings, enabled=self._owns_log_window)
 
     def restore_window_state(self) -> None:
-        """
-        Restore application configuration from previous use.
-
-        Main window geometry and toolbar placement are restored.
-        """
-        self.resize(self.sizeHint())  # Just in case it is the first start
-        self.restoreGeometry(
-            self.settings.safer_value("geometry", defaultValue=QByteArray(), type=QByteArray)
-        )
-        toolbar_pos = self.settings.safer_value(
-            "toolbar_position", Qt.ToolBarArea.TopToolBarArea.value, type=int
-        )
-        self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
-        if not self._owns_log_window or not shiboken6.isValid(self.log_window):
-            return
-        self.log_window.move(
-            self.settings.safer_value("log_window/position", self.log_window.pos(), type=QPoint)
-        )
-        self.log_window.resize(
-            self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
-        )
-
-    def toggle_toolbar_view(self, checked: bool) -> None:
-        """
-        Toogles the visibility of the toolbar on and off.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the toolbar.
-        """
-        self.ui.toolbar.show() if checked else self.ui.toolbar.hide()
-
-    def toggle_log_window(self) -> None:
-        """Toggle the visibility of the logging window."""
-        if self.log_window.isVisible():
-            self.log_window.hide()
-        else:
-            self.log_window.show()
-            self.log_window.raise_()
-            self.log_window.activateWindow()
-
-    def _on_log_window_visibility_changed(self, visible: bool) -> None:
-        """Keep the 'Show Log Window' action state in sync."""
-        self.ui.actions.show_log.setChecked(visible)
-        self.ui.actions.show_log.setText("Hide Log Window" if visible else "Show Log Window")
+        """Restore application configuration from the previous use."""
+        self.restore_layout_state(self.settings)
+        self.restore_log_window_state(self.settings, enabled=self._owns_log_window)
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
-        self.ui.actions.about.triggered.connect(self.info_box)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
-        self.log_window.visibility_changed.connect(self._on_log_window_visibility_changed)
-        self._on_log_window_visibility_changed(self.log_window.isVisible())
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
+        )
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
         self.ui.actions.new_file.triggered.connect(self.new_file)
         self.ui.actions.load.triggered.connect(self.load_file)
-        self.ui.actions.add_system.triggered.connect(self.add_system)
-        self.ui.actions.remove_system.triggered.connect(self.delete_selected_system)
+        self.ui.widgets.system_list.changed.connect(self.update_systems)
         self.ui.actions.save.triggered.connect(self.save_file)
         self.ui.actions.save_as.triggered.connect(lambda: self.save_file(dialog=True))
         self.ui.actions.append.triggered.connect(lambda: self.save_file(append=True))
@@ -1129,14 +1037,11 @@ class MainWindow(FileDropMixin, QMainWindow):
         )
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.actions.sweep.triggered.connect(self.generate_datafile)
-        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
         self.ui.actions.preview.triggered.connect(self.preview_sweep)
-        self.ui.actions.post_install.triggered.connect(post_installation)
-        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
-        self.ui.widgets.system_list.orderChanged.connect(self.on_filename_changed)
-        self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
         self.window_title_dirty.connect(lambda: self.update_window_title(dirty=True))
+        self.ui.widgets.system_list.message.connect(self.ui.widgets.notifier.show_message)
+        self.ui.widgets.system_list.changed.connect(lambda: self.update_window_title(dirty=True))
 
     def info_box(self) -> None:
         """Display an 'about this app' widget."""
@@ -1162,11 +1067,10 @@ class MainWindow(FileDropMixin, QMainWindow):
 
     def reset_layout(self) -> None:
         """Reset layout to clean state."""
-        if self.populated:
-            self.columns.clear()
-            self.clear_layout(self.ui.grid)
-            self.ui.widgets.sweep_table.setRowCount(0)
-            self.ui.widgets.sweep_preview.setRowCount(0)
+        self.columns.clear()
+        clear_layout(self.ui.grid)
+        self.ui.widgets.sweep_table.setRowCount(0)
+        self.ui.widgets.sweep_preview.setRowCount(0)
 
     @AutoSlot
     def on_up_down_changed(self) -> None:
@@ -1193,7 +1097,7 @@ class MainWindow(FileDropMixin, QMainWindow):
             loop_over.append(self.grid_widgets[col].loopover.currentIndex() - 1)
         self.columns.loop_over = loop_over
 
-    def on_filename_changed(self) -> bool:
+    def update_systems(self) -> bool:
         """
         Import new system because a filename changed.
 
@@ -1203,84 +1107,29 @@ class MainWindow(FileDropMixin, QMainWindow):
             True on success and False on error during import.
         """
         if any(self.columns.parameter):
-            create_tray_notification(
-                "Sweep reset", "All previous sweep parameters have been cleared.", self
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(
+                    "All previous sweep parameters have been cleared.", logging.WARNING
+                )
             )
-        filenames = [
-            self.ui.widgets.system_list.item(j).text()
-            for j in range(self.ui.widgets.system_list.count())
-        ]
-        if len(filenames) == 0:
-            self.reset_layout()
-            self.ui.actions.new_file.setEnabled(False)
-            self.ui.actions.save.setEnabled(False)
-            self.ui.actions.save_as.setEnabled(False)
-            self.ui.actions.append.setEnabled(False)
-            self.ui.actions.sweep.setEnabled(False)
-            self.ui.actions.preview.setEnabled(False)
-            self.ui.actions.remove_system.setEnabled(False)
-            return False
-        self.ui.actions.new_file.setEnabled(True)
-        self.ui.actions.save.setEnabled(True)
-        self.ui.actions.save_as.setEnabled(True)
-        self.ui.actions.append.setEnabled(True)
-        self.ui.actions.sweep.setEnabled(True)
-        self.ui.actions.preview.setEnabled(True)
-        self.ui.actions.remove_system.setEnabled(True)
-        try:
-            self.system = MergedSystem.from_files(filenames)
-        except Exception as e:
-            if isinstance(e, ModuleNotFoundError):
-                error_text = '<p style="color:red">Please check the path to the system files and '
-                error_text += "whether all required dependencies are present.</p>"
-            else:
-                error_text = "The following error was raised during system "
-                error_text += "import, please check the system for errors.\n\n"
-            tbinfo = traceback.format_exception(type(e), e, e.__traceback__)
-            tbstr = "".join(tbinfo)
-            error_text += "" + tbstr
-            QMessageBox.warning(self, "Import error.", error_text.replace("\n", "<br>"))
-            return False
-        self.process_system_import()
+        self.reset_layout()
+        self._apply_system_info_to_columns(self.ui.widgets.system_list.system_info)
+        self.populate_layout()
         return True
 
-    def process_system_import(self) -> None:
-        """Process specified system imports and populate layout."""
-        if self.system is None:
-            raise InternalInvariantError("System should not be None at this point.")
-        if len(self.system.columns) != len(self.system.units):
-            QMessageBox.warning(
-                self,
-                "Import error!",
-                "Lists with columns, units and settables of unequal length, check system file.",
-            )
-            return
-        self.reset_layout()
-        self._apply_system_to_columns()
-        self.populate_layout()
-        self.populated = True
-
-    def _apply_system_to_columns(self) -> None:
+    def _apply_system_info_to_columns(self, system_info: SystemInfo) -> None:
         """
         Update column data to match the current system.
 
-        Derives column names, units and signs from the system's settable
-        columns. Sweep parameters for columns that exist in both the old
-        and the new system are preserved; all other columns start empty.
+        Derives column names, units, and signs from the flattened
+        parameters. Sweep parameters for columns that exist in both the
+        old and new system are preserved; all other columns start empty.
         """
-        if self.system is None:
-            raise InternalInvariantError("System should not be None at this point.")
         old_cols = self.columns.name
-        self.columns.sign = []
-        settables, self.columns.name, self.columns.unit = self.system.settable_columns()
-        for i, (settable, col) in enumerate(zip(settables, self.system.columns)):
-            if settable is True:
-                if isinstance(col, (tuple, list)):
-                    # if parameter has multiple values, add multiple columns
-                    for c in col:
-                        self.columns.sign.append(generate_col_index(i))
-                else:
-                    self.columns.sign.append(generate_col_index(i))
+        settable_parameters = [p for p in system_info.flat_parameters if p.settable]
+        self.columns.name = [p.name for p in settable_parameters]
+        self.columns.unit = [p.unit for p in settable_parameters]
+        self.columns.sign = [generate_col_index(p.index) for p in settable_parameters]
         save_sweep_params = {}
         for index, old_col in enumerate(old_cols):
             if old_col in self.columns.name:
@@ -1292,10 +1141,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 self.columns.parameter.append(save_sweep_params[pos])
             else:
                 self.columns.parameter.append([])
-        self.columns.filenames = [
-            self.ui.widgets.system_list.item(j).text()
-            for j in range(self.ui.widgets.system_list.count())
-        ]
+        self.columns.filenames = self.ui.widgets.system_list.systems
 
     def add2grid(
         self, widgets: LabelWidgets | ColumnWidgets, row: int = 0, column: int = 0
@@ -1373,7 +1219,7 @@ class MainWindow(FileDropMixin, QMainWindow):
         max_column_width = self.grid_widgets[0].loopover.minimumSizeHint().width()
         # calculate how many columns fit the screen horizontally
         max_width = max_column_width + self.ui.grid.horizontalSpacing()
-        left, top, right, bottom = self.ui.grid.getContentsMargins()  # ty: ignore[not-iterable]
+        left, _, right, _ = self.ui.grid.getContentsMargins()  # ty: ignore[not-iterable]
         screen_width = self.screen().availableGeometry().width() - left - right
         column_fit = screen_width // max_width - 1
 
@@ -1468,7 +1314,9 @@ class MainWindow(FileDropMixin, QMainWindow):
         """
         result = self.generate_datafile()
         if isinstance(result, Error):
-            QMessageBox.warning(self, "No sweep!", "No data generated, no file saved.")
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage("No data generated, no file saved.")
+            )
             return False
         if filename.suffix != self.extension:
             filename = filename.with_suffix(self.extension)
@@ -1481,7 +1329,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                     # replace excess spaces from file and print, could be removed
                     outputFile.write(line.replace("   ", " ") + "\n")
         except OSError as e:
-            QMessageBox.warning(self, "Error!", f"File can not be opened: {e}")
+            QMessageBox.warning(self, "Error!", f"File can not be written: {e}")
             return False
         self.last_filename = filename
         self.update_window_title(dirty=False)
@@ -1541,7 +1389,16 @@ class MainWindow(FileDropMixin, QMainWindow):
         cw.start.setText("")
         cw.end.setText("")
         cw.points.setText("")
+        self.sweep_available(True)
         self.populate_sweep_grid(column)
+
+    def sweep_available(self, available: bool) -> None:
+        """Change actions based on sweep availability."""
+        self.ui.actions.sweep.setEnabled(available)
+        self.ui.actions.save.setEnabled(available)
+        self.ui.actions.save_as.setEnabled(available)
+        self.ui.actions.append.setEnabled(available)
+        self.ui.actions.append_to.setEnabled(available)
 
     def populate_sweep_grid(self, actual_column: int) -> None:
         """
@@ -1575,11 +1432,8 @@ class MainWindow(FileDropMixin, QMainWindow):
                 else:
                     line_edit.setValidator(validator[float])
                 line_edit.editingFinished.connect(
-                    lambda line_edit=line_edit,
-                    actual_column=actual_column,
-                    row=row,
-                    i=i: self.columns.parameter[actual_column][row].__setitem__(
-                        i, line_edit.text()
+                    lambda line_edit=line_edit, actual_column=actual_column, row=row, i=i: (
+                        self.columns.parameter[actual_column][row].__setitem__(i, line_edit.text())
                     )
                 )
                 line_edit.textChanged.connect(lambda: self.window_title_dirty.emit())
@@ -1599,6 +1453,11 @@ class MainWindow(FileDropMixin, QMainWindow):
             layout.setAlignment(delete_button, Qt.AlignmentFlag.AlignCenter)
             self.ui.widgets.sweep_table.setCellWidget(row, 3, wrapper)
 
+        if self.columns.parameter[actual_column]:
+            self.ui.actions.preview.setEnabled(True)
+        else:
+            self.ui.actions.preview.setEnabled(False)
+
     def remove_sweep_parameter(self, col: int, row: int) -> None:
         """
         Remove a set of linspace parameters from columns.parameter at the correct position.
@@ -1611,68 +1470,15 @@ class MainWindow(FileDropMixin, QMainWindow):
             The row of the table to be deleted.
         """
         del self.columns.parameter[col][row]
+        if not any(self.columns.parameter):
+            self.sweep_available(False)
         self.populate_sweep_grid(col)
-
-    def clear_layout(self, layout: QLayout) -> None:
-        """Clear all child widgets from layout."""
-        while layout.count():
-            item = layout.takeAt(0)
-            if widget := item.widget():
-                widget.deleteLater()
-            elif child_layout := item.layout():
-                self.clear_layout(child_layout)
-
-    def add_system(self, filenames: list | None = None) -> None:
-        """
-        Add a system file to the system list and initiate import.
-
-        Opens a QFileDialog with filter system*.py.
-        """
-        directory = system_directories[-1]
-        if not self.shortcut_dir and len(system_names) > 1:
-            self.shortcut_dir = create_temp_dir_with_symlinks(system_names, system_directories)
-        if self.shortcut_dir:
-            directory = Path(self.shortcut_dir.name) / system_names[-1]
-        if self.last_loaded_system:
-            directory = Path(self.last_loaded_system).parent
-        # get filenames from dialog
-        if not filenames:
-            filenames = QFileDialog.getOpenFileNames(
-                self, "Select system file", str(directory), "system files (system*.py)"
-            )[0]
-        if filenames == []:
-            return
-        for filename in filenames:
-            self.last_loaded_system = filename
-            filename = str(Path(filename).resolve())
-            module_name = get_importable_module_name(filename)
-            if module_name:
-                self.ui.widgets.system_list.addItem(module_name)
-            else:
-                self.ui.widgets.system_list.addItem(filename)
-        self.window_title_dirty.emit()
-        if not self.on_filename_changed():
-            for filename in filenames:
-                self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
-        if self.ui.widgets.system_list.count() != 0:
-            self.ui.actions.remove_system.setEnabled(True)
-
-    def delete_selected_system(self) -> None:
-        """Remove selected or last system from the system list."""
-        selected = self.ui.widgets.system_list.selectedItems()
-        if len(selected) > 0:
-            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.row(selected[0]))
-        elif self.ui.widgets.system_list.count() > 0:
-            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
-        else:
-            return
-        if self.ui.widgets.system_list.count() == 0:
-            self.ui.actions.remove_system.setEnabled(False)
-        self.on_filename_changed()
-        self.window_title_dirty.emit()
 
     def load_file(self) -> None:
         """Open a QFileDialog to open an existing sweep file."""
+        if self.dirty and not self.in_pytest:
+            if not save_messagebox(self, self.save_file):
+                return
         prefilled_file = self.last_filename if self.last_filename is not None else usersfolder
         filename = QFileDialog.getOpenFileName(
             self,
@@ -1702,19 +1508,23 @@ class MainWindow(FileDropMixin, QMainWindow):
             "# up_down : ": [],
             "# repeat : ": [],
         }
-        self.ui.widgets.system_list.clear()
-        with Path(filename).open() as infile:
-            for line in infile:
-                regex = r"^# [Ss]ystem filename : (.+)"
-                if match := re.match(regex, line.strip()):
-                    self.ui.widgets.system_list.addItems(match.group(1).split(","))
-                    if not self.on_filename_changed():
-                        return
-                for key in params.keys():
-                    if key in line:
-                        # read the parameters from the corresponding line
-                        line = line.strip().replace(key, "")
-                        params[key] = literal_eval(line)
+        try:
+            with Path(filename).open() as infile:
+                self.ui.widgets.system_list.clear()
+                for line in infile:
+                    regex = r"^# [Ss]ystem filename : (.+)"
+                    if match := re.match(regex, line.strip()):
+                        self.ui.widgets.system_list.add_systems(match.group(1).split(","))
+                        if not self.update_systems():
+                            return
+                    for key in params.keys():
+                        if key in line:
+                            # read the parameters from the corresponding line
+                            line = line.strip().replace(key, "")
+                            params[key] = literal_eval(line)
+        except PermissionError:
+            QMessageBox.warning(self, "Permission error.", "No permission to open the sweep file.")
+            return
         # 'Functions' is depracated. Old files read and issue a warning if the functionality
         # is used. Otherwise they just load. Delete the this backward compatibility for Matrix v9.
         # Andy 20250306
@@ -1728,7 +1538,7 @@ class MainWindow(FileDropMixin, QMainWindow):
                 "This file uses the removed 'function' functionality."
                 "Please use matrix-script. File did not load!"
             )
-            QMessageBox.warning(self, "Open file error.", warning_text)
+            QMessageBox.warning(self, "Deprecation error.", warning_text)
             return
         self.columns.parameter = parameter
         # initialize layout with values specified in file
@@ -1754,13 +1564,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             If True, also clear loaded systems and related state.
         """
         if self.dirty and not self.in_pytest:
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+            if not save_messagebox(self, self.save_file):
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                saved = self.save_file()
-                if not saved:
-                    return
         self._reset_state(reset_systems)
 
     def _reset_state(self, reset_systems: bool) -> None:
@@ -1773,13 +1578,8 @@ class MainWindow(FileDropMixin, QMainWindow):
             If True, also clear loaded systems and related state.
         """
         if reset_systems:
-            if self.populated:
-                self.reset_layout()
-                self.populated = False
+            self.reset_layout()
             self.ui.widgets.system_list.clear()
-            self.ui.actions.remove_system.setEnabled(False)
-            self.system = None
-            self.last_loaded_system = None
             self.columns.clear()
             self.last_filename = None
             self.ui.widgets.sweep_preview.setRowCount(0)
@@ -1813,6 +1613,6 @@ def main():
     main_window = MainWindow() if len(sys.argv) < 2 else MainWindow(filename=Path(sys.argv[1]))
     main_window.show()
     app.connect_file_handler(main_window.open_file)  # MacOS specific FileOpenEvent
-    protected_restore(main_window.restore_window_state)
+    main_window.restore_window_state()
     ret = app.exec()
     sys.exit(ret)

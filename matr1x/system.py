@@ -35,11 +35,15 @@ from typing import Any, TypeGuard, TypeVar
 
 import h5py
 import numpy as np
+from pydantic import ValidationError
 from pymeasure.instruments import Instrument
 
+import matr1x
 from matr1x.devices.visadevice import VisaDevice
+from matr1x.error_handling import Error, Result, Success
+from matr1x.models import MeasurementData, Message, UntypedConfigModel
 
-from . import VALID_META_KEYS, datetimefmt, get_config_dict, output_extension
+from . import VALID_META_KEYS, output_extension
 from .util import (
     DcDict,
     construct_query_string,
@@ -48,10 +52,12 @@ from .util import (
     init_ascii_header,
     init_hdf5_skel,
     module_from_path,
+    resolve_config_path,
     save_dict_to_hdf5,
 )
 
 logger = logging.getLogger(__name__)
+
 
 ConfigScheme = tuple[str, tuple, dict[str, Any]]
 ConfigValue = str | Callable[[], Any] | ConfigScheme
@@ -453,7 +459,8 @@ class System:
             Name of the measurement system.
         """
         self.__name__ = str(name)
-        self._config = get_config_dict("matr1x.scripts.matrix-script")
+
+        self._config = matr1x.config.matr1x.scripts.matrix_script
         # define merged system reference
         self.merged_system: MergedSystem | None = None
         # initialize lists for later use
@@ -476,17 +483,18 @@ class System:
         self._datafile_initialized = False
 
         # initialize empty config dictionary for system-specific configuration
-        self.config = {}
+        self.config: Any = {}
 
         # initialize empty sensitive_config dictionary for sensitive information
         # This dictionary will NOT be included in query results or file headers
-        self.sensitive_config = {}
+        self.sensitive_config: UntypedConfigModel = UntypedConfigModel()
+        self._sensitive_keys = []
 
         # Dublin Core metadata default entries
         self.dcdata: DcDict = DcDict(
             self,
             creator=None,  # measurement user
-            date=time.strftime(f"{datetimefmt}", time.localtime()),
+            date=time.strftime(f"{matr1x.datetimefmt}", time.localtime()),
             identifier=None,  # sample name
             relation=None,  # parent sample
             description=None,  # comment
@@ -496,6 +504,62 @@ class System:
             format="text/plain; charset=UTF-8",
             language="en",
         )
+
+    def load_config(
+        self,
+        model_class: type[Any],
+        section: str,
+        sensitive_keys: list[str] | None = None,
+    ) -> None:
+        """
+        Load and validate a configuration section from the matr1x TOML file.
+
+        The configuration is loaded from the specified section of the global
+        matr1x configuration and validated against the provided Pydantic
+        model class.
+
+        Parameters
+        ----------
+        model_class : type[BaseModel]
+            The Pydantic model class to use for validation.
+        section : str
+            The TOML section name to load (e.g., 'matr1x.systems.my_system').
+        sensitive_keys : list[str], optional
+            A list of keys that should be moved to sensitive_config.
+        """
+        config_data = resolve_config_path(matr1x.config, section)
+
+        # If it is a model (e.g. from MainConfig.model_extra), convert to dict
+        if hasattr(config_data, "model_dump"):
+            config_data = config_data.model_dump(by_alias=True)
+
+        try:
+            # Validate the config data
+            validated_config = model_class(**config_data)
+        except (ValidationError, TypeError, ValueError) as e:
+            from . import format_validation_error, validation_errors
+
+            msg = format_validation_error(e, base=f"{section}.")
+            validation_errors.append(msg)
+            # Use defaults from the model if validation fails
+            validated_config = model_class()
+
+        if sensitive_keys:
+            # Move sensitive keys to sensitive_config
+            sensitive_data = {}
+            for key in sensitive_keys:
+                # Check if the key exists as a field or in extra attributes
+                # Standard BaseModel doesn't support 'in', so we use getattr
+                sentinel = object()
+                val = getattr(validated_config, key, sentinel)
+                if val is not sentinel:
+                    sensitive_data[key] = val
+            self.sensitive_config = UntypedConfigModel(
+                **{**self.sensitive_config.model_dump(), **sensitive_data}
+            )
+            self._sensitive_keys = sensitive_keys
+
+        self.config = validated_config
 
     @property
     def filename(self) -> Path | None:
@@ -508,11 +572,12 @@ class System:
         self._filename = value
 
     @classmethod
-    def from_file(cls, filename: Path) -> "System":
+    def from_file(cls, filename: Path) -> Result["System", str]:
         """
         Load a system from a file.
 
-        If a file with the given name cannot be found the system installed files are searched.
+        If a file with the given name cannot be found the system
+        installed files are searched.
 
         Parameters
         ----------
@@ -521,47 +586,54 @@ class System:
 
         Returns
         -------
-        System
-            System as defined in the file.
+        System or ErrorMessage
+            System as defined in the file or an error string.
         """
         normfilename = filename.expanduser()
+
         if normfilename.is_file():
-            # create module from path, automatically reloads module
-            mod = module_from_path(normfilename)
-        else:  # no file found, try installed system files
+            try:
+                mod = module_from_path(normfilename)
+            except PermissionError:
+                return Error("System file is not readable.")
+            except ImportError as error:
+                return Error(f"{type(error).__name__}: {error}")
+        else:
             if normfilename.suffix == ".py":
                 normfilename = normfilename.stem
             normfilestr = str(normfilename)
+            candidates = [normfilestr, f"matr1x.systems.{normfilestr}"]
+            for name in candidates:
+                try:
+                    if name in sys.modules:
+                        mod = importlib.reload(sys.modules[name])
+                    else:
+                        mod = importlib.import_module(name)
+                    break
 
-            try:
-                # load module, or reload if exists
-                if normfilestr in sys.modules:
-                    # force reimport of system
-                    mod = sys.modules[normfilestr]
-                    importlib.reload(mod)
-                else:
-                    mod = importlib.import_module(normfilestr)
-            except ModuleNotFoundError:
-                # try matr1x system as fallback
-                modname = "matr1x.systems." + normfilestr
-                if modname in sys.modules:
-                    mod = sys.modules[modname]
-                    importlib.reload(mod)
-                else:
-                    mod = importlib.import_module("." + normfilestr, "matr1x.systems")
-        # get new (v8 System instance)
-        try:
-            system = getattr(mod, "system")
-        except AttributeError:
-            # try old variable name (v7 and older)
-            system = getattr(mod, "sys")
+                except ModuleNotFoundError as e:
+                    if e.name != name:
+                        return Error(f"{type(e).__name__}: {e}")
+                    continue
+                except ImportError as e:
+                    return Error(f"{type(e).__name__}: {e}")
+            else:
+                return Error(
+                    f"Could neither import '{normfilestr}' nor 'matr1x.systems.{normfilestr}'"
+                )
+        # get new (v8 System instance
+        system = getattr(mod, "system", None)
+        if not system:
+            system = getattr(mod, "sys", None)
             warnings.warn(
                 "Using deprecated variable name 'sys' - please update to use 'system' instead",
                 DeprecationWarning,
             )
+        if not isinstance(system, System):
+            return Error("The 'system' variable is not a valid System instance.")
         # set the name of the system to reflect the filename
         system.__name__ = str(normfilename)
-        return system
+        return Success(system)
 
     @property
     def hdf5(self) -> bool:
@@ -754,24 +826,20 @@ class System:
         """
         return [parm.dtypes for parm in self.parameters]
 
-    def _print(self, *args, **kwargs):
+    def report(self, data: MeasurementData) -> None:
         """
-        Extend builtin print by optional adding the printout to the datafile.
+        Report data through the communication layer.
 
-        The behavior of this function depends on the config option
-        matr1x.scripts.matrix-script.print_to_comment
+        For this to function the method needs to be injected into the MergedSystem.
 
         Parameters
         ----------
-        *args : tuple
-            Arguments to pass to print function.
-        **kwargs : dict
-            Keyword arguments to pass to print function.
+        data : MeasurementData
+            The data to report.
         """
-        if self._config["print_to_comment"] and self._datafile_initialized:
-            message = " ".join(str(arg) for arg in args)
-            self.add_comment(message.lstrip("\r"))
-        print(*args, **kwargs)
+        # Defer to merged_system if it is present
+        if self.merged_system:
+            self.merged_system.report(data)
 
     def generate_datafilename(
         self, outputfile: str | Path = "", inputfile: str | Path = "", append=False
@@ -815,7 +883,7 @@ class System:
             datafile = Path(inputfile).expanduser().with_suffix("")
             # generate fallback option for the datafile name
         else:  # no output nor input file, generate from system names
-            timestamp = time.strftime(datetimefmt, time.localtime())
+            timestamp = time.strftime(matr1x.datetimefmt, time.localtime())
             filename = Path(self.__name__).stem
             datafile_name = f"{timestamp}_{filename}"
             if os.name == "nt":
@@ -892,7 +960,7 @@ class System:
                 info += f" related to device {func[0]}, parameter {func[1]}."
             else:
                 info += f" with list-like property: {str(func)}."
-        print(info)
+        print(info)  # noqa: T201
 
     def set_value(
         self, i: int | str, values: float | list[float] | None
@@ -1264,7 +1332,7 @@ class System:
                     self.devs[key] = cls(*devargs, **devkwargs)
                 except Exception:
                     # print device identifier upon any exception
-                    print(f"Exception occured when initializing device {key}")
+                    print(f"Exception occured when initializing device {key}")  # noqa: T201
                     raise
             else:
                 # device was already initialized prior the set call.
@@ -1315,7 +1383,7 @@ class System:
                     # no query details available
                     retquery[key] = {}
             except Exception as error:
-                print(f"system: error: could not access '{key}': {dev} {error}")
+                print(f"system: error: could not access '{key}': {dev} {error}")  # noqa: T201
                 raise
         # iterate over remaining keys in system_config_params
         for key in self.system_config_params.keys() - self.devs.keys():
@@ -1328,7 +1396,13 @@ class System:
         # Add all system-wide configuration options from self.config organized by system name
         if self.config:
             retquery["system_config"] = {}
-            for key, value in self.config.items():
+            if hasattr(self.config, "model_dump"):
+                config_dict = self.config.model_dump(
+                    by_alias=True, exclude=set(self._sensitive_keys)
+                )
+            else:
+                config_dict = self.config
+            for key, value in config_dict.items():
                 if key.startswith("_"):
                     continue
                 retquery["system_config"][key] = value
@@ -1376,38 +1450,6 @@ class System:
         # reset devs dictionary to allow reopening
         self.devs.update(self._devs_init)
 
-    def settable_columns(self) -> tuple[list[bool], list[str], list[str]]:
-        """
-        Obtain the settable columns of the system.
-
-        Used by matrix and matrix_script to verify that the input file/input script
-        was generated with the same system as the one that is currently used.
-
-        Returns
-        -------
-        settables : list
-            List of booleans describing whether a parameter is settable or not.
-        flattened_settable_names : list
-            List of strings containing the names of the settable columns.
-        flattened_settable_units : list
-            List of strings containing the units of the settable columns.
-        """
-        settables: list[bool] = [
-            (False if par.setter is None else True) for par in self.parameters
-        ]
-        flattened_settable_names: list[str] = []
-        flattened_settable_units: list[str] = []
-        for names, units, settable in zip(self.columns, self.units, settables):
-            if settable is True:
-                if isinstance(names, (list, tuple)):
-                    for name, unit in zip(names, units):
-                        flattened_settable_names.append(name)
-                        flattened_settable_units.append(unit)
-                else:
-                    flattened_settable_names.append(names)
-                    flattened_settable_units.append(units)
-        return (settables, flattened_settable_names, flattened_settable_units)
-
     def _add_method_info_to_dict(
         self, obj: "System", info_dict: dict[str, Any], prefix: str = "System"
     ) -> None:
@@ -1416,8 +1458,8 @@ class System:
 
         Parameters
         ----------
-        obj : object
-            The object to extract methods and variables from
+        obj : System
+            The system to extract methods and variables from
         info_dict : dict
             Dictionary to add the methods/variables information to
         prefix : str, optional
@@ -1436,87 +1478,53 @@ class System:
                 parameter_methods.add(param.setter)
             if isinstance(param.getter, str):
                 parameter_methods.add(param.getter)
-
+        base_attrs = set(dir(System()))
         for key in dir(obj):
-            if (
-                key not in dir(System())
-                and not key.startswith("_")
-                and key not in parameter_methods
-            ):
+            if key not in base_attrs and not key.startswith("_") and key not in parameter_methods:
+                if key in info_dict["methods"]:
+                    info_dict["warnings"].append(
+                        f"Method '{key}' from '{obj.__class__.__name__}' shadows a pre-existing "
+                        f"entry (prefix: {prefix})."
+                    )
                 method = getattr(obj, key)
                 if callable(method):
-                    # Get method signature if possible
-                    signature = ""
-                    doc_summary = ""
+                    signature = None
+                    docstring = None
                     try:
                         signature = str(inspect.signature(method))
-                        if method.__doc__:
-                            doc_lines = method.__doc__.strip().split("\n")
-                            if doc_lines:
-                                doc_summary = doc_lines[0].strip()
-                    except Exception:
+                    except (TypeError, ValueError):
                         pass
-
-                    description = f"{prefix} method"
-                    if signature:
-                        description += f" - {key}{signature}"
-                    if doc_summary:
-                        description += f" - {doc_summary}"
+                    if method.__doc__:
+                        docstring = method.__doc__.strip()
 
                     info_dict["methods"][key] = {
                         "name": key,
-                        "description": description,
+                        "prefix": prefix,
+                        "kind": "method",
+                        "signature": signature,
+                        "docstring": docstring,
                     }
                 else:
-                    # Get variable value summary if possible
-                    value_str = ""
-                    try:
-                        value = getattr(obj, key)
-                        value_type = type(value).__name__
-                        value_str = f" ({value_type})"
-                    except Exception:
-                        pass
-
                     info_dict["methods"][key] = {
                         "name": key,
-                        "description": f"{prefix} variable{value_str}",
+                        "prefix": prefix,
+                        "kind": "variable",
+                        "signature": f" ({type(method).__name__})",
                     }
 
-    def grab_information(
-        self, settables: bool = False
-    ) -> dict[str, Any] | tuple[list[bool], list[str], list[str]]:
+    def grab_information(self) -> dict[str, Any]:
         """
         Obtain meta information from the system.
 
-        Depending on settables, returns either a human-readable description of
-        the system (devices and parameters) or the number of settable columns.
-
-        This function is used by matrix_script to verify the system still
-        corresponds to the definition with which the script was created.
-        Additionally, it is used to generate the help string.
-
-        Parameters
-        ----------
-        settables : bool, optional
-            Controls whether to return the settable columns of the system (if
-            True) or a human-readable string with the system definition (if
-            False). Default is False.
-
         Returns
         -------
-        system_descriptor : dict or tuple
-            If settables is False, returns a dictionary with the list of devices
-            and parameters available in the system (name + index) as well as
+        system_descriptor : dict
+            Returns a dictionary with the list of devices and parameters
+            available in the system (name + index) as well as
             custom-defined system methods and variables (if any).
-            If settables is True, returns a tuple containing information about
-            the settable columns of the system.
         """
-        if settables is True:
-            # return only settables
-            return self.settable_columns()
-
         # generate dictionary from devices, parameters, methods and config
-        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}}
+        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}, "warnings": []}
 
         # Add devices
         for dev, device_entry in self.devs.items():
@@ -1589,10 +1597,20 @@ class System:
         if self.__class__ != MergedSystem:
             self._add_method_info_to_dict(self, info)
 
+        system_name = getattr(self, "__name__", str(self.__class__.__name__))
+
         # Add config options organized by system name (excluding sensitive_config)
+        # Add configuration of this system
         if self.config:
-            system_name = self.__name__
-            info["config"][system_name] = self.config
+            if hasattr(self.config, "model_dump"):
+                info["config"][system_name] = {
+                    "value": self.config.model_dump(
+                        by_alias=True, exclude=set(self._sensitive_keys)
+                    ),
+                    "schema": self.config.__class__.model_json_schema(),
+                }
+            else:
+                info["config"][system_name] = self.config
 
         # Note: sensitive_config is intentionally NOT included in the query results
         # to prevent sensitive information from being stored in file headers
@@ -1752,20 +1770,19 @@ class System:
         ----------
         message : str
             Comment string to be added to the datafile.
-
-        Returns
-        -------
-        None
         """
         dfilename = self.filename
         if not isinstance(dfilename, Path):
-            # if not valid datafile was initialized do nothing.
-            return
-        if not message:
-            # do not add empty comment
+            self.report(
+                Message(
+                    f"No datafile initialized. Comment '{message}' not added to the datafile.",
+                    to_comment=False,
+                    to_logfile=True,
+                )
+            )
             return
 
-        timestamp = time.strftime(f"{datetimefmt}", time.localtime())
+        timestamp = time.strftime(f"{matr1x.datetimefmt}", time.localtime())
         if self.hdf5 is True:
             with h5py.File(dfilename, "a", libver="latest") as datafile:
                 datafile.swmr_mode = True
@@ -1862,11 +1879,16 @@ class MergedSystem(System):
                 **self.system_config_params,
                 **subsys.system_config_params,
             }
-            self.config: dict[str, Any] = {**self.config, **subsys.config}
-            self.sensitive_config: dict[str, Any] = {
-                **self.sensitive_config,
-                **subsys.sensitive_config,
-            }
+            if hasattr(subsys.config, "model_dump"):
+                subsys_config_dict = subsys.config.model_dump(
+                    by_alias=True, exclude=set(subsys._sensitive_keys)
+                )
+            else:
+                subsys_config_dict = subsys.config
+            self.config: dict[str, Any] = {**self.config, **subsys_config_dict}
+            self.sensitive_config = UntypedConfigModel(
+                **{**self.sensitive_config.model_dump(), **subsys.sensitive_config.model_dump()}
+            )
             self.parameters += subsys.parameters
             subsys.merged_system = self
         self._merge_dcdata()
@@ -1877,7 +1899,7 @@ class MergedSystem(System):
         self.parameters.reverse()
         for param in self.parameters:
             if self.parameters.count(param) > 1:
-                print(f"removing duplicated column {param.name} from merged system")
+                print(f"removing duplicated column {param.name} from merged system")  # noqa: T201
                 self.parameters.remove(param)
         self.parameters.reverse()
 
@@ -1886,7 +1908,7 @@ class MergedSystem(System):
             self.add_param("timeUTC", "s", default=None, setter=time.sleep, getter=time.time)
 
     @classmethod
-    def from_files(cls, system_filenames: Iterable[str | Path]) -> "MergedSystem":
+    def from_files(cls, system_filenames: Iterable[str | Path]) -> Result["MergedSystem", str]:
         """
         Merge multiple systems and return a MergedSystem instance.
 
@@ -1901,16 +1923,17 @@ class MergedSystem(System):
 
         Returns
         -------
-        MergedSystem
+        MergedSystem or str.
             MergedSystem instance that contains the description of all
-            subsystems.
+            subsystems or an error message.
         """
         systems: list[System] = []
         for filename in system_filenames:
-            # import the individual systems
-            systems.append(System.from_file(Path(filename)))
-        # return merged system
-        return cls(systems)
+            system = System.from_file(Path(filename))
+            if isinstance(system, Error):
+                return Error(system.error)
+            systems.append(system.value)
+        return Success(cls(systems))
 
     def __getattr__(self, attr: str) -> Any:
         """
@@ -2008,63 +2031,49 @@ class MergedSystem(System):
         for key, vlist in tmpdcdata.items():
             self.dcdata[key] = ";".join(vlist)
         # set correct timestamp, overwrites value
-        self.dcdata["date"] = time.strftime(f"{datetimefmt}", time.localtime())
+        self.dcdata["date"] = time.strftime(f"{matr1x.datetimefmt}", time.localtime())
 
     def _check_hdf5(self) -> None:
         """Check whether one of the systems requires HDF5."""
         for subsys in self.subsys:
             self.hdf5 = self.hdf5 or subsys.hdf5
 
-    def grab_information(
-        self, settables: bool = False
-    ) -> tuple[list[bool], list[str], list[str]] | dict:
+    def grab_information(self) -> dict:
         """
         Obtain meta information from the merged system.
 
-        Returns system information, methods and parameters from all subsystems.
-
-        Parameters
-        ----------
-        settables : bool, optional
-            Controls whether to return the settable columns of the system (if
-            True) or the dictionary with information (if False). Default is False.
-
         Returns
         -------
-        system_descriptor : dict or tuple
-            If settables is False, returns a dictionary with methods and parameters.
-            If settables is True, returns a tuple containing information about
-            the settable columns of the system.
+        system_descriptor : dict
+            System information, methods and parameters from all
+            subsystems.
         """
-        if settables is True:
-            # return only settables
-            return self.settable_columns()
-
-        # Dictionary to store all information
-        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}}
-
-        # Add information from the base System class
-        base_info = super().grab_information(settables)
-        if isinstance(base_info, dict):
-            # Merge the categorized dictionaries
-            if "devices" in base_info:
-                info["devices"].update(base_info["devices"])
-            if "parameters" in base_info:
-                info["parameters"].update(base_info["parameters"])
-            if "methods" in base_info:
-                info["methods"].update(base_info["methods"])
-            # Skip config from base class to avoid duplication -
-            # we'll add individual subsystem configs below
-
-        # Add information from all subsystems
+        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}, "warnings": []}
+        base_info = super().grab_information()
+        # Merge the categorized dictionaries
+        if "devices" in base_info:
+            info["devices"].update(base_info["devices"])
+        if "parameters" in base_info:
+            info["parameters"].update(base_info["parameters"])
+        if "methods" in base_info:
+            info["methods"].update(base_info["methods"])
+        # Skip config from base class to avoid duplication -
+        # we'll add individual subsystem configs below
         for subsys in self.subsys:
             self._add_method_info_to_dict(subsys, info, prefix="Subsystem")
 
-            # Add config information from each subsystem
             subsys_config = subsys.config
             if subsys_config:
                 subsys_name = getattr(subsys, "__name__", str(subsys.__class__.__name__))
-                info["config"][subsys_name] = subsys_config
+                if hasattr(subsys_config, "model_dump"):
+                    info["config"][subsys_name] = {
+                        "value": subsys_config.model_dump(
+                            by_alias=True, exclude=set(subsys._sensitive_keys)
+                        ),
+                        "schema": subsys_config.__class__.model_json_schema(),
+                    }
+                else:
+                    info["config"][subsys_name] = subsys_config
 
         return info
 
@@ -2082,14 +2091,21 @@ class MergedSystem(System):
         # use individual system for opening devices
         for subsys in self.subsys:
             subsys.set(*args, **kwargs)
-        # merge list of devices
-        # needs to be redone after the devices are opened, since
-        # the content of the dictionary is replaced here
+        self.refresh_devs()
+        # remerge potentially changed dcdata
+        self.opened = True
+
+    def refresh_devs(self) -> None:
+        """
+        Refresh the merged device dictionary from all subsystems.
+
+        This is needed after subsystems have been opened individually,
+        because System.set replaces device definitions with initialized
+        device instances.
+        """
         self.devs = {}
         for subsys in self.subsys:
             self.devs = {**self.devs, **subsys.devs}
-        # remerge potentially changed dcdata
-        self.opened = True
 
     def reset(self, *args, **kwargs):
         """

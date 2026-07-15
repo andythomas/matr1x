@@ -16,30 +16,22 @@
 """Allow to write measurement scripts in Python."""
 
 import logging
-import os
 import platform
 import re
-import socket
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
-from os.path import normpath
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
-import shiboken6
 from PySide6.QtCore import (
-    QByteArray,
     QEvent,
     QPoint,
     QSize,
     Qt,
-    QThread,
     QTimer,
-    Signal,
 )
 from PySide6.QtGui import (
     QAction,
@@ -56,67 +48,78 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QDialog,
-    QDockWidget,
+    QDoubleSpinBox,
     QFileDialog,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
-    QMainWindow,
+    QLineEdit,
     QMenu,
+    QMenuBar,
     QMessageBox,
     QPlainTextEdit,
+    QPushButton,
     QSplitter,
     QTextEdit,
-    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 import matr1x
-from matr1x.editor import CodeEditor, LSPServer
-from matr1x.error_handling import Error, install_error_handler
+from matr1x.editor import CodeEditor
+from matr1x.error_handling import InternalInvariantError, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     AutoSlot,
     ConfigEditWidget,
-    EmittingStream,
     FileDropMixin,
+    LoggerMixin,
     LoggingWindow,
+    LogWindowMixin,
     MApplication,
-    MetaDataDialog,
-    NumericalInputDialog,
-    SaferQSettings,
-    SystemListWidget,
-    TerminationDialog,
-    TextInputDialog,
-    YesNoAbortDialog,
     check_config,
+    create_matr1x_quit_action,
+    create_matrix_settings_action,
     detect_shortcut,
     find_parent_of_type,
     get_matrix_icon,
-    get_system_info,
     open_matrix_toml,
-    protected_restore,
     save_messagebox,
 )
-from matr1x.models import SystemInfo
+from matr1x.models import (
+    Datafile,
+    Envelope,
+    Header,
+    InputParameters,
+    LineNumber,
+    MeasuredValues,
+    Message,
+    Modifier,
+    SetValues,
+    Telemetry,
+)
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.util import (
-    StreamToLogger,
-    create_temp_dir_with_symlinks,
-    find_binary,
-    generate_script,
-    get_importable_module_name,
+from matr1x.scripts.shared_classes import (
+    MeasurementItem,
+    MeasurementThread,
+    MeasurementUI,
+    MetaDataDialog,
+    MetadataDockWidget,
+    MMainWindow,
+    MToolBar,
+    NotifierMessage,
+    SaferQSettings,
+    SystemListWidget,
 )
+from matr1x.util import StreamToLogger, generate_script, get_script_prefix_offset
 
 logger = logging.getLogger(__name__)
-printlogger = logging.getLogger(__name__ + "_stdio")
-errorlogger = logging.getLogger(__name__ + "_stderr")
-config = matr1x.get_config_dict("matr1x.scripts.matrix-script")
+script_config = matr1x.config.matr1x.scripts.matrix_script
 
 
 MAX_LINES_STATUS = 10000
@@ -179,6 +182,420 @@ class CentralWidget(FileDropMixin, QWidget):
         self.setValidExtensions([MainWindow.extension])
 
 
+class TimeoutDialogBase(QDialog):
+    """Base class for dialogs with timeout functionality."""
+
+    def __init__(
+        self,
+        query: str,
+        parent: QWidget | None = None,
+        timeout: float = float("inf"),
+        default_value: Any = "",
+    ):
+        """
+        Initialize the base dialog with timeout functionality.
+
+        Parameters
+        ----------
+        query : str
+            The text to display on the label above the input field.
+        parent : QWidget, optional
+            The parent widget of the dialog.
+        timeout : float, optional
+            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+            0 is interpreted as infinity.
+        default_value : Any, optional
+            Default value to show in input field.
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Matrix-script input")
+
+        self.default_value = default_value
+        self.user_responded = False  # Track if user clicked a button
+        self.timeout = timeout if timeout else float("inf")
+
+        self.label = QLabel(query, self)
+
+        # This will be created by subclasses
+        self.input_widget = None
+
+        self.timer_label = QLabel("", self)
+        self.timer_label.setVisible(self.timeout != float("inf"))
+
+        self.ok_button = QPushButton("Send input", self)
+        self.abort_button = QPushButton("Abort script", self)
+
+        self.ok_button.clicked.connect(self._button_clicked)
+        self.ok_button.clicked.connect(self.accept)
+        self.abort_button.clicked.connect(self._button_clicked)
+        self.abort_button.clicked.connect(self.reject)
+
+        # Ensure the dialog stays on top of the main window
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+
+        # Set up timer if timeout is finite
+        if self.timeout != float("inf"):
+            self.remaining_time = self.timeout * 1000  # Convert to milliseconds
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.update_timer)
+            self.timer.start(100)  # Update every 100ms for better precision
+
+    def _button_clicked(self):
+        """Mark that user has responded to prevent timeout override."""
+        self.user_responded = True
+
+    def update_timer(self):
+        """Update the timer display and handle timeout."""
+        if self.user_responded:
+            return
+
+        self.remaining_time -= 100  # Decrement by 100ms
+
+        if self.remaining_time <= 0:
+            if not self.user_responded:
+                self.timer.stop()
+                self.accept()
+            return
+
+        # Convert milliseconds back to seconds for display
+        remaining_seconds = self.remaining_time / 1000
+
+        # Format the time display
+        if remaining_seconds < 100:
+            # Show seconds for short timeouts
+            self.timer_label.setText(f"Time remaining: {int(remaining_seconds)} seconds")
+        else:
+            # Show hours:minutes format for longer timeouts
+            hours = int(remaining_seconds / 3600)
+            minutes = int((remaining_seconds % 3600) / 60)
+            seconds = int(remaining_seconds % 60)
+            if hours > 0:
+                self.timer_label.setText(f"Time remaining: {hours}h {minutes}m {seconds}s")
+            else:
+                self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
+
+    def setup_layout(self):
+        """Set up the dialog layout."""
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.ok_button)
+        button_layout.addWidget(self.abort_button)
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.label)
+        if self.input_widget:
+            main_layout.addWidget(self.input_widget)
+        main_layout.addWidget(self.timer_label)
+        main_layout.addLayout(button_layout)
+
+        self.setLayout(main_layout)
+
+    def accept(self):
+        """Handle dialog acceptance."""
+        if hasattr(self, "timer") and self.timer.isActive():
+            self.timer.stop()
+        super().accept()
+
+    def reject(self):
+        """Handle dialog rejection."""
+        if hasattr(self, "timer") and self.timer.isActive():
+            self.timer.stop()
+        super().reject()
+
+
+class TextInputDialog(TimeoutDialogBase):
+    """Modal dialog for text input for matrix-script."""
+
+    def __init__(
+        self,
+        query: str,
+        parent: QWidget | None = None,
+        timeout: float = float("inf"),
+        default_value: str = "",
+    ):
+        """
+        Initialize the text input dialog with a its GUI elements.
+
+        Parameters
+        ----------
+        query : str
+            The text to display on the label above the input field.
+        parent : QWidget, optional
+            The parent widget of the dialog.
+        timeout : float, optional
+            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+            0 is interpreted as infinity.
+        default_value : str, optional
+            Default value to show in input field.
+        """
+        super().__init__(query, parent, timeout, default_value)
+
+        # Create the input widget
+        self.input = QLineEdit(self)
+        self.input.setPlaceholderText("input to send to script")
+        self.input.setText(default_value)
+        self.input_widget = self.input
+
+        # Set up the layout
+        self.setup_layout()
+
+    def get_input_text(self):
+        """
+        Get the text entered by the user.
+
+        Returns
+        -------
+        str
+            The user input.
+        """
+        return self.input.text()
+
+
+class NumericalInputDialog(TimeoutDialogBase):
+    """Modal dialog for numerical input for matrix-script."""
+
+    def __init__(
+        self,
+        query: str,
+        parent: QWidget | None = None,
+        timeout: float = float("inf"),
+        default_value: float = 0.0,
+        min_value: float | None = -100e9,
+        max_value: float | None = 100e9,
+        step: float | None = 1.0,
+        decimals: int | None = 2,
+    ):
+        """
+        Initialize the numerical input dialog with its GUI elements.
+
+        Parameters
+        ----------
+        query : str
+            The text to display on the label above the input field.
+        parent : QWidget, optional
+            The parent widget of the dialog.
+        timeout : float, optional
+            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
+            0 is interpreted as infinity.
+        default_value : float, optional
+            Default value to show in input field.
+        min_value : float, optional
+            Minimum value for the QDoubleSpinbox. Default is -100e9.
+        max_value : float, optional
+            Maximum value for the QDoubleSpinbox. Default is 100e9.
+        step : float, optional
+            Step size for the QDoubleSpinbox. Default is 1.0.
+        decimals : int, optional
+            Number of decimal places. Default is 2.
+        """
+        super().__init__(query, parent, timeout, default_value)
+
+        # Create the spinbox
+        self.input_spinbox = QDoubleSpinBox(self)
+        if min_value is not None:
+            self.input_spinbox.setMinimum(min_value)
+        if max_value is not None:
+            self.input_spinbox.setMaximum(max_value)
+        if step is not None:
+            self.input_spinbox.setSingleStep(step)
+        if decimals is not None:
+            self.input_spinbox.setDecimals(decimals)
+        if default_value is not None:
+            self.input_spinbox.setValue(default_value)
+        self.input_spinbox.setToolTip(
+            f"Enter a numerical value (Range: {min_value} to {max_value})"
+        )
+        self.input_widget = self.input_spinbox
+
+        # Set up the layout
+        self.setup_layout()
+
+    def get_input_value(self):
+        """
+        Get the value from the spinbox.
+
+        Returns
+        -------
+        float
+        The user input value.
+        """
+        return self.input_spinbox.value()
+
+
+class YesNoAbortDialog(QMessageBox, LoggerMixin):
+    """Modal dialog for boolean input for matrix-script."""
+
+    def __init__(
+        self,
+        question: str,
+        parent: QWidget | None = None,
+        timeout: float = float("inf"),
+        default_value: str = "yes",
+    ):
+        """
+        Initialize the yes/no dialog with a question and buttons.
+
+        Parameters
+        ----------
+        question : str
+            The question to display on the label.
+        parent : QWidget, optional
+            The parent widget of the dialog.
+        timeout : float, optional
+            Timeout in seconds before dialog automatically returns default_value.
+            Default is infinity (no timeout). 0 is interpreted as infinity.
+        default_value : str, optional
+            Default value to return if timeout occurs. Should be "Yes", "No", or empty.
+            Default is True.
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Question")
+        self.setText(question)
+        self.setIcon(QMessageBox.Icon.Question)
+
+        # Normalize default value and ensure it's either "yes" or "no"
+        self.default_value = (
+            default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
+        )
+        self.timeout_occurred = False  # Required for YesNoAbortDialog functionality
+        self.user_responded = False  # Track if user clicked a button
+        self.timeout = timeout if timeout else float("inf")
+
+        # Add custom buttons with default button indication when timeout is set
+        button_text_yes = "Yes"
+        button_text_no = "No"
+
+        # If timeout is set, add visual indications to the default button
+        if self.timeout != float("inf"):
+            if self.default_value == "yes":
+                button_text_yes = "Yes (Default)"
+            else:
+                button_text_no = "No (Default)"
+
+        # Create buttons
+        self.yes_button = self.addButton(button_text_yes, QMessageBox.ButtonRole.AcceptRole)
+        self.no_button = self.addButton(button_text_no, QMessageBox.ButtonRole.RejectRole)
+        self.abort_button = self.addButton("Abort script", QMessageBox.ButtonRole.DestructiveRole)
+
+        # Connect button signals to track user response
+        self.yes_button.clicked.connect(self._button_clicked)
+        self.no_button.clicked.connect(self._button_clicked)
+        self.abort_button.clicked.connect(self._button_clicked)
+
+        # Simple styling for default button if timeout is set
+        if self.timeout != float("inf"):
+            # Set bold font for the default button
+            default_button = self.yes_button if self.default_value == "yes" else self.no_button
+            font = default_button.font()
+            font.setBold(True)
+            default_button.setFont(font)
+
+            # Make this the default button (responds to Enter key)
+            self.setDefaultButton(default_button)
+
+            # Set up timer and label - use milliseconds for better precision
+            self.timer_label = QLabel(f"Time remaining: {int(self.timeout)} seconds", self)
+            layout = self.layout()
+            if isinstance(layout, QGridLayout):
+                layout.addWidget(self.timer_label, 1, 1, 1, 3)
+            else:
+                raise InternalInvariantError("No grid-layout was returned!")
+            self.remaining_time = self.timeout * 1000  # Convert to milliseconds
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.update_timer)
+            self.timer.start(100)  # Update every 100ms for better precision
+
+    def _button_clicked(self):
+        """Mark that user has responded to prevent timeout override."""
+        self.user_responded = True
+        if hasattr(self, "timer"):
+            self.timer.stop()
+
+    def update_timer(self):
+        """Update the timer display and handle timeout."""
+        # Don't process timeout if user already responded
+        if self.user_responded:
+            return
+
+        self.remaining_time -= 100  # Decrement by 100ms
+
+        if self.remaining_time <= 0:
+            # Give a small grace period for button clicks
+            if not self.user_responded:
+                self.timeout_occurred = True
+                self.timer.stop()
+                self.close()
+                return
+
+        # Convert milliseconds back to seconds for display
+        remaining_seconds = self.remaining_time / 1000
+
+        # Format the time display
+        if remaining_seconds < 100:
+            # Show seconds for short timeouts
+            self.timer_label.setText(f"Time remaining: {int(remaining_seconds)} seconds")
+        else:
+            # Show hours:minutes format for longer timeouts
+            hours = int(remaining_seconds / 3600)
+            minutes = int((remaining_seconds % 3600) / 60)
+            seconds = int(remaining_seconds % 60)
+            if hours > 0:
+                self.timer_label.setText(f"Time remaining: {hours}h {minutes}m {seconds}s")
+            else:
+                self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
+
+    def exec_and_get_response(self):
+        """
+        Show the dialog and return the button clicked by the user.
+
+        Returns
+        -------
+        str
+            The response based on the button clicked ("yes", "no", or "abort").
+            If timeout occurred, returns the default_value.
+        """
+        self.exec()
+
+        # Check timeout first, but only if user didn't respond
+        if self.timeout_occurred and not self.user_responded:
+            if self.default_value in ["yes", "no"]:
+                self.logger.info(
+                    "Dialog timeout occurred - automatically selected: %s", self.default_value
+                )
+                return self.default_value
+            fallback_default = "yes"
+            self.logger.info(
+                "Dialog timeout occurred with invalid default value, automatically selected: %s",
+                fallback_default,
+            )
+            return fallback_default
+
+        # User responded - return their choice
+        if self.clickedButton() == self.yes_button:
+            return "yes"
+        elif self.clickedButton() == self.no_button:
+            return "no"
+        elif self.clickedButton() == self.abort_button:
+            return "abort"
+        return "Unknown"
+
+
+class TerminationDialog(QMessageBox):
+    """Dialog to determine how a terminated datafile should be marked."""
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Termination Status")
+        self.setText("How should the terminated datafile be marked?")
+        self.setIcon(QMessageBox.Icon.Question)
+        self.addButton("Aborted", QMessageBox.ButtonRole.RejectRole)
+        self.finish_button = self.addButton("Finished", QMessageBox.ButtonRole.AcceptRole)
+
+    def get_selection(self):
+        """Display the dialog and return the user's selection."""
+        self.exec()
+        return "finished" if self.clickedButton() == self.finish_button else "aborted"
+
+
 class TerminalOutput(QPlainTextEdit):
     """
     Custom class for terminal-like text output.
@@ -207,30 +624,25 @@ class TerminalOutput(QPlainTextEdit):
         )
         self.setPalette(palette)
 
-    def changeEvent(self, event: QEvent) -> None:
-        """Detect theme change event."""
-        if event.type() == event.Type.PaletteChange:
-            self.updateColors()
-        super().changeEvent(event)
-
     def print_colored(self, line: str) -> None:
         """
         Print a colored text.
-
-        Afterwards, recover the original text color. Follow theme
-        changes.
 
         Parameters
         ----------
         line : str
             The line to be printed.
         """
+        scrollbar = self.verticalScrollBar()
+        at_bottom = scrollbar.value() == scrollbar.maximum()
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
         text_char_format = QTextCharFormat()
         text_char_format.setForeground(QColor("royalblue"))
         cursor.insertText(line, text_char_format)
         cursor.insertText("\n", QTextCharFormat())
+        if at_bottom:
+            self.moveCursor(QTextCursor.MoveOperation.End)
 
 
 if sys.platform == "win32":
@@ -244,367 +656,10 @@ if sys.platform == "win32":
 
 
 @dataclass(frozen=True)
-class InputParameters:
-    """Parameters for script input requests."""
-
-    query: str
-    input_type: str
-    timeout: float = float("inf")
-    default_value: str = ""
-    min_value: float | None = None
-    max_value: float | None = None
-    step: float | None = None
-    decimals: int | None = None
-
-
-class ScriptThread(QThread):
-    """Control and the thread running the measurements."""
-
-    PATTERN_LINENO = r"__lineno(-?\d+)__"
-    PATTERN_FILENAME = r"__//(.*)//__"
-    PATTERN_INPUT = (
-        r"__input_(?P<type>[^:]+):(?P<strlabel>[^:]+)(?::(?P<timeout>[^:]*))"
-        r"?(?::(?P<default>[^:]*))?(?::(?P<min>[^:]*))?(?::(?P<max>[^:]*))"
-        r"?(?::(?P<step>[^:]*))?(?::(?P<decimals>[^:]*))?__"
-    )
-
-    # signal initiating user input from the GUI.
-    input_signal = Signal(InputParameters)
-    # signal to report the currently executing line number to the editor.
-    lineno_signal = Signal(int)
-    # signal to report the filename of the file that is written by the process
-    filename_signal = Signal(str)
-
-    def __init__(
-        self,
-        meta_data: dict[str, str],
-        script: str,
-        fallbackname: Path | None,
-        temp_config: Path,
-        systems: list[str],
-    ) -> None:
-        """
-        Initialize thread that handles script execution.
-
-        Parameters
-        ----------
-        meta_data : dict
-            Dictionary containing meta data such as user and comment.
-        script : str
-            User script that is supposed to be run by the ScriptThread.
-        fallbackname : Path | str
-            Filename used to initialize the data file if not specified
-            in the script. Its directory path will be used as execution
-            directory.
-        temp_config : Path
-            Temporary configuration file path.
-        systems : list
-            List of system files to load.
-        """
-        super().__init__()
-        self.proc: subprocess.Popen | None = None
-        self.conn: socket.socket | None = None
-        self.meta_data: dict[str, str] = meta_data
-        self.script: str = script
-        self.datafilefallback: str = str(fallbackname) if fallbackname else ""
-        self.temp_config: Path = temp_config
-        self.systems: list[str] = systems
-
-    def pass_input(self, inp: str) -> None:
-        """
-        Communicate user input to the subprocess.
-
-        Parameters
-        ----------
-        inp: str
-            The input to be communicated.
-        """
-        if self.proc is None or self.conn is None:
-            return
-        if len(inp) < 1 or inp[-1] != "\n":
-            inp += "\n"  # input needs to have terminating character
-        self.conn.send(("i" + inp).encode("utf-8"))
-
-    def pause(self) -> None:
-        """Communicate pause to the subprocess."""
-        if self.proc is None or self.conn is None:
-            return
-        self.conn.send(b"p")
-
-    def abort(self, char: str = "q") -> None:
-        """
-        Communicate stop to the subprocess' stdin.
-
-        Parameters
-        ----------
-        char : str
-            Single length string that is passed to the process.
-            - "q" stops and queries user for state
-            - "a" stops and sets state to `aborted`
-            - "f" stops and sets state to `finished`
-        """
-        if self.proc is None or self.conn is None:
-            return
-        self.conn.send(char.encode())
-
-    def kill(self) -> None:
-        """Kill the process and make sure it is indeed stopped."""
-        if self.proc is None or self.conn is None:
-            return
-        pid = self.proc.pid
-        self.proc.terminate()
-        try:  # if thread is still alive, kill it
-            os.kill(pid, 0)
-            self.proc.kill()
-            print("Force killed thread! Please verify all devices are")
-            print("operational before starting another script.")
-        except OSError:
-            print("Thread terminated gracefully.")  # this will likely not happen
-
-    def safe_parse(
-        self, value: str, param_name: str, converter: Callable[[str], R], default: T
-    ) -> R | T:
-        """
-        Safely parse a string.
-
-        Use a converter callable with error handling and a default
-        return value.
-
-        Parameters
-        ----------
-        value : str
-            The string value to parse.
-        param_name : str
-            Name of the parameter for error reporting.
-        converter : e.g. float, int
-            Function to convert string to desired type.
-        default : T
-            Default value to return if parsing yields a value error.
-
-        Returns
-        -------
-        Usually a subset of float | int | None
-            Parsed value of type "converter" or type "default" if
-            parsing fails.
-        """
-        try:
-            return converter(value)
-        except ValueError:
-            print(f"Warning: Invalid {param_name} value received: {value}")
-            return default
-
-    def _handle_line_number(self, line: str) -> str:
-        """
-        Handle line number pattern extraction and emission.
-
-        Parameters
-        ----------
-        line : str
-            Input line to process for line number patterns.
-
-        Returns
-        -------
-        str
-            Line with line number patterns removed.
-        """
-        if match := re.search(self.PATTERN_LINENO, line):
-            digits = int(match.group(1))
-            if digits >= 0:
-                self.lineno_signal.emit(digits)
-            line = re.sub(self.PATTERN_LINENO, "", line)
-        return line
-
-    def _handle_filename(self, line: str) -> str:
-        """
-        Handle filename pattern extraction and emission.
-
-        Parameters
-        ----------
-        line : str
-            Input line to process for filename patterns.
-
-        Returns
-        -------
-        str
-            Line with filename patterns removed.
-        """
-        if match := re.search(self.PATTERN_FILENAME, line):
-            path = match.group(1)
-            self.filename_signal.emit(path)
-            line = re.sub(self.PATTERN_FILENAME, "", line)
-        return line
-
-    def _handle_input_request(self, line: str) -> str:
-        """
-        Handle input request pattern extraction and emission.
-
-        Parameters
-        ----------
-        line : str
-            Input line to process for input request patterns.
-
-        Returns
-        -------
-        str
-            Line with input request patterns removed.
-        """
-        if match := re.search(self.PATTERN_INPUT, line):
-            input_params = self._parse_input_parameters(match)
-
-            logger.info(
-                "Requesting input type: %s, Query: %s, Timeout: %g, Default: %s, "
-                "Min: %s, Max: %s, Step: %s",
-                input_params.input_type,
-                input_params.query,
-                input_params.timeout,
-                input_params.default_value,
-                input_params.min_value,
-                input_params.max_value,
-                input_params.step,
-            )
-
-            self.input_signal.emit(input_params)
-            line = re.sub(self.PATTERN_INPUT, "", line)
-        return line
-
-    def _parse_input_parameters(self, match: re.Match) -> InputParameters:
-        """
-        Parse input parameters from regex match groups.
-
-        Parameters
-        ----------
-        match : re.Match
-            Regex match object containing input parameter groups.
-
-        Returns
-        -------
-        InputParameters
-            Parsed input parameters with type, query, timeout, defaults,
-            and numerical constraints.
-        """
-        input_type = match.group("type")
-        strlabel = match.group("strlabel").replace("%0A", "\n")
-
-        # Parse optional parameters
-        timeout = float("inf")
-        if timeout_str := match.group("timeout"):
-            timeout = self.safe_parse(timeout_str, "timeout", float, float("inf"))
-
-        default_value = match.group("default") or ""
-
-        # Parse numerical parameters
-        min_value = max_value = step = decimals = None
-        if input_type == "numerical":
-            if min_str := match.group("min"):
-                min_value = self.safe_parse(min_str, "min", float, None)
-            if max_str := match.group("max"):
-                max_value = self.safe_parse(max_str, "max", float, None)
-            if step_str := match.group("step"):
-                step = self.safe_parse(step_str, "step", float, None)
-            if decimals_str := match.group("decimals"):
-                decimals = self.safe_parse(decimals_str, "decimals", int, None)
-
-        return InputParameters(
-            query=strlabel,
-            input_type=input_type,
-            timeout=timeout,
-            default_value=default_value,
-            min_value=min_value,
-            max_value=max_value,
-            step=step,
-            decimals=decimals,
-        )
-
-    def recv_line(self, inp: str) -> None:
-        """
-        Receive a line from the input and handle it accordingly.
-
-        From inp the current executing line or an input request are
-        attemped to find, all other input is printed.
-
-        TODO: not tolerant against split strings, i.e. if sent string
-        is longer than 1024, one can expect a problematic behavior.
-        Migrate to ZMQ and directly pass strings as python objects?
-        """
-        lines = inp.split(os.linesep)
-        for i, line in enumerate(lines[:-1]):
-            # add \"\\n\" to all but the last element in split
-            # (last element contains everything after last "\n")
-            lines[i] += "\n"
-
-        for line in lines:
-            line = self._handle_line_number(line)
-            line = self._handle_input_request(line)
-            line = self._handle_filename(line)
-            if line:
-                print(line, end="")
-
-    def run(self) -> None:
-        """
-        Run the subprocess.
-
-        First writes the user script into a temporary file to make sure
-        all formating is conserved, then passes that file to the
-        interpreter to run the script. The purpose of using a subprocess
-        is to keep the namespace clear of all system files. That allows
-        changes to the system while matrix-script is running.
-        """
-        with tempfile.NamedTemporaryFile(mode="w+b") as tf:
-            for line in self.script:
-                tf.write(line.encode())
-            # all information has been written to temporary file, make sure it
-            # is updated
-            tf.flush()
-            # start socket that is used to communicate with the child process
-            # that runs the script
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            # only accept local connections and start listening
-            s.bind(("127.0.0.1", 0))  # use dynamic port
-            port = s.getsockname()[1]
-            s.listen(1)
-            # start subprocess, stderr is piped to stdout, and both of them are
-            # piped so that we can read them
-            # pass the script that we want to execute and generate correct
-            # parameters to pass to matr1x/utils.py:matrix_script_process
-            cmd = f"""import matr1x
-import matr1x.util as mu
-matr1x.reload_config({repr(str(self.temp_config))})
-mu.matrix_script_process({repr(tf.name)}, {repr(self.meta_data)},
-                         {repr(self.datafilefallback)}, {repr(port)}, {repr(self.systems)})"""
-
-            self.proc = subprocess.Popen(
-                [sys.executable, "-c", cmd],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                bufsize=0,
-            )
-            # accept a connection from the subprocess
-            # will block until a new client connects, might want to use select
-            # here to make sure the subprocess actually connects?
-            self.conn, address = s.accept()
-            # wait until the subprocess terminates and pipe its stdout to the
-            # user window
-            while self.proc.poll() is None:
-                try:
-                    datachunk = self.conn.recv(8192).decode()
-                    if len(datachunk) > 0:
-                        while datachunk[-1] != "\0":
-                            datachunk += self.conn.recv(8192).decode()
-                        self.recv_line(datachunk.replace("\0", ""))
-                except OSError:
-                    print("OS error in thread communication.")
-            self.conn.close()
-            self.temp_config.unlink()
-
-
-@dataclass(frozen=True)
 class ActionGroup:
     """Actions to be utilized in the GUI."""
 
     matrix_settings: QAction
-    about: QAction
     config: QAction
     new_file: QAction
     load: QAction
@@ -623,8 +678,8 @@ class ActionGroup:
     zoom_out: QAction
     print: QAction
     find: QAction
-    start_pause: QAction
-    stop: QAction
+    start: QAction
+    pause: QAction
     abort: QAction
     finish: QAction
     kill: QAction
@@ -632,8 +687,6 @@ class ActionGroup:
     pep8: QAction
     autocomplete: QAction
     show_log: QAction
-    toggle_metadata: QAction
-    toggle_toolbar: QAction
     system_help: QAction
     theme_actions: list[QAction]
     theme_group: QActionGroup
@@ -641,12 +694,12 @@ class ActionGroup:
     remove_desktop_integration: QAction
 
 
-@dataclass(frozen=True)
+@dataclass
 class WidgetGroup:
     """Widgets to be used in the GUI."""
 
-    dockable_metadata: QDockWidget
-    metadata: MetaDataDialog
+    dockable_metadata: MetadataDockWidget
+    meta_view: MetaDataDialog
     system_list: SystemListWidget
     status_preview: TerminalOutput
     script_edit: CodeEditor
@@ -659,27 +712,21 @@ class WidgetGroup:
     central_widget: CentralWidget
     python_info: QLabel
     lsp_info: QLabel
+    save_pulldown: QMenu
+    stop_pulldown: QMenu
+    about_box: AboutBox
+    measurement_thread: MeasurementThread
+    measurement_ui: MeasurementUI
 
 
 class UIBuilder:
-    """
-    Create the GUI.
+    """Create the GUI elements."""
 
-    In particular, widgets, actions, the toolbar, the menu and the final
-    layout of the application.
-
-    Parameters
-    ----------
-    window: MainWindow
-        The reference the the main application class.
-    """
-
-    def __init__(self, window: "MainWindow"):
-        self.window: MainWindow = window
+    def __init__(self):
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
-        self.toolbar: QToolBar = self._create_toolbar()
-        self._create_menu()
+        self.toolbar: MToolBar = self._create_toolbar()
+        self.menubar: QMenuBar = self._create_menu()
         self._create_gui()
 
     def _standard_action(self, name: str, display_name: str | None = None) -> QAction:
@@ -703,7 +750,7 @@ class UIBuilder:
         """
         if not display_name:
             display_name = name
-        action = QAction(display_name, self.window)
+        action = QAction(display_name)
         action.setShortcut(getattr(QKeySequence.StandardKey, name))
         method_name = name[:1].lower() + name[1:]
         action.triggered.connect(lambda checked, method=method_name: self._standard_method(method))
@@ -742,33 +789,12 @@ class UIBuilder:
         WidgetGroup
             The dataclass with all the widgets.
         """
-        dockable_metadata = QDockWidget("Metadata", self.window)
-        metadata = MetaDataDialog()
-        dockable_metadata.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
-        )
-        dockable_metadata.setWidget(metadata)
-        config_editor = ConfigEditWidget()
-        config_editor.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
-        self.window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, config_editor)
-        config_editor.setFloating(True)
-        config_editor.close()
+        dockable_metadata = MetadataDockWidget()
         system_list = SystemListWidget()
-        system_list.setMinimumHeight(50)
-        system_list.setMaximumHeight(50)
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
-        lsp_name = "pyrefly"
-        lsp_binary = find_binary(lsp_name)
-        if isinstance(lsp_binary, Error):
-            raise lsp_binary.error
-        lsp_parameters = ["lsp"]
-        lsp_server = LSPServer(binary=str(lsp_binary.value), parameters=lsp_parameters)
-        script_edit = CodeEditor([self.window.extension], lsp_server)
-        system_command_help = QDialog(self.window)
+        script_edit = CodeEditor()
+        system_command_help = QDialog()
         box_layout = QVBoxLayout()
         system_command_text_edit = QTextEdit()
         system_command_text_edit.setReadOnly(True)
@@ -785,28 +811,40 @@ class UIBuilder:
         stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         stop_button.setIcon(get_matrix_icon("CUSTOM_Stop"))
         stop_button.setText("Abort")
-        splitter = QSplitter(self.window)
-        central_widget = CentralWidget(self.window)
+        splitter = QSplitter()
+        central_widget = CentralWidget()
         python_info = QLabel(f"Python {platform.python_version()}")
         python_info.setToolTip(f"Python: {sys.version}")
-        lsp_info = QLabel(f"LSP: {lsp_name}")
-        lsp_info.setToolTip(f"{lsp_binary.value}")
+        lsp_info = QLabel(f"LSP: {script_edit.lsp_tc.server.name}")
+        lsp_info.setToolTip(f"{script_edit.lsp_tc.server.binary}")
+        save_pulldown = QMenu()
+        stop_pulldown = QMenu()
 
         return WidgetGroup(
             dockable_metadata=dockable_metadata,
-            metadata=metadata,
+            meta_view=dockable_metadata.meta_view,
             system_list=system_list,
             status_preview=status_preview,
             script_edit=script_edit,
             system_command_help=system_command_help,
             system_command_text_edit=system_command_text_edit,
-            config_editor=config_editor,
+            config_editor=ConfigEditWidget(),
             save_button=save_button,
             stop_button=stop_button,
             splitter=splitter,
             central_widget=central_widget,
             python_info=python_info,
             lsp_info=lsp_info,
+            save_pulldown=save_pulldown,
+            stop_pulldown=stop_pulldown,
+            about_box=AboutBox(
+                "Matrix Script",
+                get_matrix_icon("matr1x-matrix-script.png"),
+                matr1x,
+                matr1x.datetimefmt,
+            ),
+            measurement_thread=MeasurementThread(),
+            measurement_ui=MeasurementUI(),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -818,84 +856,39 @@ class UIBuilder:
         ActionGroup
             The dataclass with all the actions.
         """
-        matrix_settings = QAction("Show matrix toml", self.window)
-        matrix_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
-        matrix_settings.setShortcut(QKeySequence.StandardKey.Preferences)
-        about = QAction("About", self.window)
-        about.setMenuRole(QAction.MenuRole.AboutRole)
-        config_action = QAction(get_matrix_icon("CHAR_≡"), "Device config", self.window)
-        config_action.setToolTip("Show the devices preferences/ configuration.")
-        config_action.setCheckable(True)
-        new_file = QAction(get_matrix_icon("SP_FileIcon"), "New", self.window)
+        new_file = QAction(get_matrix_icon("SP_FileIcon"), "New")
         new_file.setShortcut(QKeySequence.StandardKey.New)
-        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open", self.window)
+        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
         load.setToolTip("Open a script file.")
         load.setShortcut(QKeySequence.StandardKey.Open)
-        save = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save", self.window)
+        save = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save")
         save.setToolTip("Save the under the current filename.")
         save.setShortcut(QKeySequence.StandardKey.Save)
-        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...", self.window)
+        save_as = QAction(get_matrix_icon("SP_DialogSaveButton"), "Save As...")
         save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.widgets.save_button.setDefaultAction(save)
         self.widgets.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        save_pulldown = QMenu(self.window)
-        save_pulldown.addAction(save_as)
-        self.widgets.save_button.setMenu(save_pulldown)
-        add_system = QAction(get_matrix_icon("CHAR_+"), "Add System", self.window)
-        add_system.setToolTip("Add a matrix system file.")
-        remove_system = QAction(get_matrix_icon("CHAR_-"), "Remove System", self.window)
-        remove_system.setEnabled(False)
-        remove_system.setToolTip("Remove the selected or last matrix system file.")
-        quit_app = QAction("Quit", self.window)
-        if os.name == "nt":
-            quit_app.setShortcut(QKeySequence.StandardKey.Close)
-        else:
-            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
-        undo = self._standard_action("Undo")
-        redo = self._standard_action("Redo")
-        cut = self._standard_action("Cut")
-        copy = self._standard_action("Copy")
-        paste = self._standard_action("Paste")
-        caption = "Toggle Line Comment\t" + config["shortcuts"]["line_comment_display"]
-        line_comment = QAction(caption, self.window)
-        line_comment.setShortcut(QKeySequence(config["shortcuts"]["line_comment_shortcut"]))
-        zoom_in = self._standard_action("ZoomIn", "Zoom in")
-        zoom_out = self._standard_action("ZoomOut", "Zoom Out")
-        print_action = QAction("Print", self.window)
+        self.widgets.save_pulldown.addAction(save_as)
+        self.widgets.save_button.setMenu(self.widgets.save_pulldown)
+        caption = "Toggle Line Comment\t" + script_config.shortcuts.line_comment_display
+        line_comment = QAction(caption)
+        line_comment.setShortcut(QKeySequence(script_config.shortcuts.line_comment_shortcut))
+        print_action = QAction("Print")
         print_action.setShortcut(QKeySequence.StandardKey.Print)
-        find = QAction("Find", self.window)
+        find = QAction("Find")
         find.setShortcut(QKeySequence.StandardKey.Find)
-        start_pause = QAction(get_matrix_icon("CUSTOM_Play"), "Start", self.window)
-        start_pause.setToolTip("Execute the script.")
-        start_pause.setCheckable(True)
-        stop = QAction(get_matrix_icon("CUSTOM_Stop"), "Stop", self.window)
-        stop.setToolTip("Stop the script and query status.")
-        stop.setEnabled(False)
-        abort = QAction(get_matrix_icon("CUSTOM_Stop"), "Abort", self.window)
-        abort.setEnabled(False)
-        finish = QAction(get_matrix_icon("CUSTOM_Stop"), "Finish", self.window)
-        finish.setEnabled(False)
-        self.widgets.stop_button.setDefaultAction(stop)
-        self.widgets.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        stop_pulldown = QMenu(self.window)
-        stop_pulldown.addAction(abort)
-        stop_pulldown.addAction(finish)
-        self.widgets.stop_button.setMenu(stop_pulldown)
-        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill", self.window)
-        kill.setEnabled(False)
         preview = QAction(
             get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")),
             "Preview",
-            self.window,
         )
         preview.setEnabled(False)
-        pep8 = QAction("Format with ruff", self.window)
+        pep8 = QAction("Format with ruff")
         pep8.setShortcut(QKeySequence("Ctrl+8"))
         theme_actions = []
-        theme_group = QActionGroup(self.window)
+        theme_group = QActionGroup(MApplication.instance())
         theme_group.setExclusionPolicy(QActionGroup.ExclusionPolicy.Exclusive)
         for theme in self.widgets.script_edit.supportedThemes():
-            action = QAction(theme, self.window)
+            action = QAction(theme)
             action.setCheckable(True)
             if theme == self.widgets.script_edit.supportedThemes()[0]:
                 action.setChecked(True)
@@ -904,105 +897,67 @@ class UIBuilder:
             )
             theme_group.addAction(action)
             theme_actions.append(action)
-        autocomplete = QAction("Tab completion", self.window)
+        autocomplete = QAction("Tab completion")
         autocomplete.setCheckable(True)
         autocomplete.setChecked(True)
-        show_log = QAction("Show Log Window", self.window)
-        toggle_metadata = QAction("Show Metadata", self.window)
-        toggle_metadata.setShortcut(QKeySequence("Ctrl+2"))
-        toggle_metadata.setCheckable(True)
-        toggle_metadata.setChecked(True)
-        toggle_toolbar = QAction("Show Toolbar", self.window)
-        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
-        toggle_toolbar.setCheckable(True)
-        toggle_toolbar.setChecked(True)
-        system_help = QAction("Show System Help", self.window)
-        post_install = QAction("Install Desktop Integration", self.window)
-        remove_desktop_integration = QAction("Remove Desktop Integration", self.window)
 
         return ActionGroup(
-            matrix_settings=matrix_settings,
-            about=about,
-            config=config_action,
+            matrix_settings=create_matrix_settings_action(),
+            config=self.widgets.config_editor.action,
             new_file=new_file,
             load=load,
             save=save,
             save_as=save_as,
-            add_system=add_system,
-            remove_system=remove_system,
-            quit_app=quit_app,
-            undo=undo,
-            redo=redo,
-            cut=cut,
-            copy=copy,
-            paste=paste,
+            add_system=self.widgets.system_list.add_action,
+            remove_system=self.widgets.system_list.remove_action,
+            quit_app=create_matr1x_quit_action(),
+            undo=self._standard_action("Undo"),
+            redo=self._standard_action("Redo"),
+            cut=self._standard_action("Cut"),
+            copy=self._standard_action("Copy"),
+            paste=self._standard_action("Paste"),
             line_comment=line_comment,
-            zoom_in=zoom_in,
-            zoom_out=zoom_out,
+            zoom_in=self._standard_action("ZoomIn", "Zoom in"),
+            zoom_out=self._standard_action("ZoomOut", "Zoom Out"),
             print=print_action,
             find=find,
-            start_pause=start_pause,
-            stop=stop,
-            abort=abort,
-            finish=finish,
-            kill=kill,
+            start=self.widgets.measurement_ui.start,
+            pause=self.widgets.measurement_ui.pause,
+            abort=self.widgets.measurement_ui.abort,
+            finish=self.widgets.measurement_ui.finish,
+            kill=self.widgets.measurement_ui.kill,
             preview=preview,
             pep8=pep8,
             autocomplete=autocomplete,
-            show_log=show_log,
-            toggle_metadata=toggle_metadata,
-            toggle_toolbar=toggle_toolbar,
-            system_help=system_help,
+            show_log=LogWindowMixin.create_show_log_action(),
+            system_help=QAction("Show System Help"),
             theme_actions=theme_actions,
             theme_group=theme_group,
-            post_install=post_install,
-            remove_desktop_integration=remove_desktop_integration,
+            post_install=LogWindowMixin.create_post_install_action(),
+            remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
-    def _create_toolbar(self) -> QToolBar:
-        """
-        Create the toolbar.
-
-        Returns
-        -------
-        QToolBar
-            The (main) toolbar.
-        """
-        main_window = self.window
-        toolbar = QToolBar("Toolbar")
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setFloatable(False)
-        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
-        icon_size = MApplication.instance().toolbar_icon_size()
-        empty = QWidget()
-        empty.setFixedWidth(icon_size)
-        empty2 = QWidget()
-        empty2.setFixedWidth(icon_size)
-        empty3 = QWidget()
-        empty3.setFixedWidth(icon_size)
-        toolbar.setIconSize(QSize(icon_size, icon_size))
+    def _create_toolbar(self) -> MToolBar:
+        """Create the toolbar."""
+        toolbar = MToolBar("Toolbar")
         toolbar.addAction(self.actions.new_file)
         toolbar.addAction(self.actions.load)
         toolbar.addWidget(self.widgets.save_button)
-        toolbar.addWidget(empty)
-        toolbar.addAction(self.actions.start_pause)
-        toolbar.addWidget(self.widgets.stop_button)
-        toolbar.addWidget(empty2)
+        toolbar.addWidget(toolbar.empty)
+        self.widgets.measurement_ui.add_to_toolbar(toolbar)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addAction(self.actions.preview)
-        toolbar.addWidget(empty3)
+        toolbar.addWidget(toolbar.empty)
         toolbar.addSeparator()
-        toolbar.addAction(self.actions.add_system)
-        toolbar.addWidget(self.widgets.system_list)
-        toolbar.addAction(self.actions.remove_system)
+        self.widgets.system_list.add_to_toolbar(toolbar)
         toolbar.addSeparator()
+        toolbar.addAction(self.widgets.dockable_metadata.action)
         toolbar.addAction(self.actions.config)
-        main_window.addToolBar(toolbar)
         return toolbar
 
-    def _create_menu(self) -> None:
+    def _create_menu(self) -> QMenuBar:
         """Create the main menu."""
-        menu = self.window.menuBar()
+        menu = QMenuBar()
         file = menu.addMenu("&File")
         file.addAction(self.actions.new_file)
         file.addAction(self.actions.load)
@@ -1010,8 +965,7 @@ class UIBuilder:
         file.addAction(self.actions.save)
         file.addAction(self.actions.save_as)
         file.addSeparator()
-        file.addAction(self.actions.add_system)
-        file.addAction(self.actions.remove_system)
+        self.widgets.system_list.add_actions_to_menu(file)
         file.addSeparator()
         file.addAction(self.actions.print)
         file.addSeparator()
@@ -1039,33 +993,29 @@ class UIBuilder:
         editor.addSeparator()
         editor.addAction(self.actions.autocomplete)
         control = menu.addMenu("&Control")
-        control.addAction(self.actions.start_pause)
-        control.addAction(self.actions.abort)
-        control.addAction(self.actions.finish)
-        control.addAction(self.actions.kill)
+        self.widgets.measurement_ui.add_to_menu(control)
         control.addSeparator()
         control.addAction(self.actions.preview)
         view = menu.addMenu("&View")
-        view.addAction(self.actions.toggle_toolbar)
-        view.addAction(self.actions.toggle_metadata)
-        view.addAction(self.actions.matrix_settings)
+        view.addAction(self.toolbar.action)
+        view.addAction(self.widgets.dockable_metadata.action)
         view.addAction(self.actions.config)
+        view.addSeparator()
+        view.addAction(self.actions.matrix_settings)
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.system_help)
-        help_menu.addAction(self.actions.show_log)
-        help_menu.addSeparator()
-        help_menu.addAction(self.actions.post_install)
-        help_menu.addAction(self.actions.remove_desktop_integration)
-        help_menu.addAction(self.actions.about)  # This is auto-moved on a Mac
+        LogWindowMixin.add_common_help_actions(help_menu, self.actions)
+        help_menu.addAction(self.widgets.about_box.action)
+        return menu
 
     def _create_gui(self) -> None:
         """Create and set up the main GUI."""
-        self.window.setCentralWidget(self.widgets.central_widget)
         layout = QVBoxLayout(self.widgets.central_widget)
         layout.setSpacing(6)
         layout.setContentsMargins(11, 4, 11, 11)
         self.widgets.splitter.addWidget(self.widgets.script_edit)
         self.widgets.splitter.addWidget(self.widgets.status_preview)
+        self.widgets.splitter.setChildrenCollapsible(False)
         layout.addWidget(self.widgets.splitter, 1)
         infobar = QHBoxLayout()
         infobar.addStretch()
@@ -1073,12 +1023,9 @@ class UIBuilder:
         infobar.addWidget(QLabel("  |  "))
         infobar.addWidget(self.widgets.lsp_info)
         layout.addLayout(infobar, 0)
-        self.window.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.widgets.dockable_metadata
-        )
 
 
-class MainWindow(QMainWindow):
+class MainWindow(LogWindowMixin, MMainWindow):
     """
     Run the logical code.
 
@@ -1096,60 +1043,50 @@ class MainWindow(QMainWindow):
         self.log_window = LoggingWindow(parent=self)  # Immediately needed, not moved to widgets!
         self.log_window.hide()
         logger.info("matrix-script starting")
-        self.systems: list[str]
         self.scriptname: Path | None = None
+        self.line_offset = get_script_prefix_offset()
         self.measurement_file: Path
-        self.systems_dirty = False
-        self.last_loaded_file: Path | None = None
         self.is_running = False
         self.shortcut_dir: tempfile.TemporaryDirectory[str] | None = None
         self.last_filename: Path | None = None
         self.settings = SaferQSettings("matr1x", "script")
-        self.output_stream = EmittingStream()
-        self.output_stream.text_written.connect(self.output_written)
-        self._cached_system_info: SystemInfo | None = None
         self._output_buffer: list[str] = []
         self._output_timer = QTimer()
         self._output_timer.timeout.connect(self._flush_output_buffer)
         self._output_timer.setSingleShot(False)
         self._output_timer.setInterval(50)
-        MApplication.instance().isDarkSignal.connect(self.update_systems)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
-        self.ui = UIBuilder(self)
+        self.ui: UIBuilder = UIBuilder()
+        self.ui.actions.start.setEnabled(True)
+        self.ui.widgets.script_edit.setValidExtensions([self.extension])
+        self.setMenuBar(self.ui.menubar)
+        self.addToolBar(self.ui.toolbar)
+        self.install_metadata_config_docks(
+            self.ui.widgets.dockable_metadata,
+            self.ui.widgets.config_editor,
+        )
+        self.setCentralWidget(self.ui.widgets.central_widget)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
-        self._reset_state(reset_metadata=True)
         check_config(matr1x.config)
-        if config["duplicate_output_to_logfile"]:
-            sys.stdout = StreamToLogger(
-                printlogger,
-                logging.INFO,
-                duplicate_stream=self.output_stream,
-            )
-            sys.stderr = StreamToLogger(
-                errorlogger,
-                logging.ERROR,
-                duplicate_stream=self.output_stream,
-            )
-        else:
-            sys.stdout = self.output_stream  # all output (stdout) is written to status preview
+        sys.stdout = StreamToLogger(logger, logging.INFO)
+        sys.stderr = StreamToLogger(logger, logging.ERROR)
         if filename is not None:
             self.load_from_filename(filename)
-        self.update_systems()  # in case the load failed just to be sure
+        else:
+            self.update_systems()
         self.ui.widgets.status_preview.appendPlainText(help_text)
         check_desktop_integration()
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
-        self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
         self.ui.actions.new_file.triggered.connect(self.new_file)
         self.ui.actions.load.triggered.connect(self.load_from_file)
         self.ui.actions.save.triggered.connect(self.save_file)
         self.ui.actions.save_as.triggered.connect(self.save_file_as)
-        self.ui.actions.add_system.triggered.connect(self.add_system)
-        self.ui.actions.remove_system.triggered.connect(self.delete_selected_system)
+        self.ui.widgets.system_list.changed.connect(self.update_systems)
         self.ui.actions.print.triggered.connect(self.print_document)
         self.ui.actions.quit_app.triggered.connect(self.close)
         self.ui.actions.find.triggered.connect(self.ui.widgets.script_edit.show_find)
@@ -1160,28 +1097,54 @@ class MainWindow(QMainWindow):
         self.ui.actions.autocomplete.toggled.connect(
             self.ui.widgets.script_edit.enableTabCompletion
         )
-        self.ui.actions.start_pause.triggered.connect(self.start_process)
-        self.ui.actions.stop.triggered.connect(lambda: self.abort_thread("q"))
-        self.ui.actions.abort.triggered.connect(lambda: self.abort_thread("a"))
-        self.ui.actions.finish.triggered.connect(lambda: self.abort_thread("f"))
+        self.ui.actions.start.triggered.connect(self.start_process)
+        self.ui.actions.pause.triggered.connect(lambda: self.ui.widgets.measurement_thread.pause())
+        self.ui.actions.abort.triggered.connect(
+            lambda: self.ui.widgets.measurement_thread.abort("a")
+        )
+        self.ui.actions.finish.triggered.connect(
+            lambda: self.ui.widgets.measurement_thread.abort("f")
+        )
         self.ui.actions.kill.triggered.connect(self.kill_thread)
         self.ui.actions.preview.triggered.connect(self.preview_data)
-        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
-        self.ui.actions.toggle_metadata.triggered.connect(self.toggle_metadata_view)
-        self.ui.actions.config.toggled.connect(self.toggle_preferences)
         self.ui.actions.system_help.triggered.connect(self.show_system_commands)
-        self.ui.actions.show_log.triggered.connect(self.show_log_window)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
-        self.ui.widgets.config_editor.visibilityChanged.connect(self.ui.actions.config.setChecked)
-        self.ui.widgets.dockable_metadata.visibilityChanged.connect(
-            self.ui.actions.toggle_metadata.setChecked
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
         )
-        self.ui.toolbar.visibilityChanged.connect(self.ui.actions.toggle_toolbar.setChecked)
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
         self.ui.widgets.script_edit.contentModified.connect(self.update_window_title)
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
-        self.ui.widgets.system_list.orderChanged.connect(self.update_systems)
+        self.ui.widgets.system_list.message.connect(self.show_message)
+        self.ui.widgets.system_list.changed.connect(
+            lambda: self.ui.widgets.script_edit.setModified(True)
+        )
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
+
+    @AutoSlot
+    def process_data(self, env: Envelope) -> None:
+        """Process the data from the measurement thread."""
+        data = env.payload
+        if isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)) and data.to_stdout:
+            self.write_output(str(data) + "\n")
+        elif isinstance(data, LineNumber):
+            self.ui.widgets.script_edit.highlight(data.line - self.line_offset)
+        elif isinstance(data, Datafile):
+            self.update_filename(data.datafile)
+        elif isinstance(data, InputParameters):
+            self.get_script_input(data)
+        elif isinstance(data, Message):
+            if data.modifier == Modifier.DELETE_CURRENT_LINE:
+                self.write_output("\r" + data.message + data.end)
+            else:
+                self.write_output(data.message + data.end)
+
+    def show_message(self, message: NotifierMessage):
+        """Show a message text and log."""
+        self.ui.widgets.status_preview.print_colored(message.text)
+        logger.log(message.level, message.text)
 
     def print_document(self) -> None:
         """Print the script."""
@@ -1194,41 +1157,15 @@ class MainWindow(QMainWindow):
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
         self.settings.setValue("created", 1)
-        self.settings.beginGroup("MainWindow")
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("splitter", self.ui.widgets.splitter.sizes())
-        self.settings.endGroup()
+        self.save_layout_state(self.settings)
+
         self.settings.beginGroup("script_edit")
-        self.settings.setValue("size", self.ui.widgets.script_edit.size())
         self.settings.setValue("monaco_zoom", self.ui.widgets.script_edit.zoomFactor())
         self.settings.setValue("theme", self.ui.actions.theme_group.checkedAction().text())
         self.settings.setValue("autocomplete", self.ui.actions.autocomplete.isChecked())
         self.settings.endGroup()
-        self.settings.beginGroup("status_preview")
-        self.settings.setValue("size", self.ui.widgets.status_preview.size())
-        self.settings.endGroup()
-        self.settings.beginGroup("Toolbars")
-        self.settings.setValue("buttons_visible", self.ui.toolbar.isVisible())
-        self.settings.setValue("position", self.toolBarArea(self.ui.toolbar).value)
-        self.settings.setValue("buttons_geometry", self.ui.toolbar.geometry())
-        self.settings.endGroup()
-        self.settings.beginGroup("dockable_metadata")
-        self.settings.setValue("visible", self.ui.widgets.dockable_metadata.isVisible())
-        self.settings.setValue(
-            "dock_position", self.dockWidgetArea(self.ui.widgets.dockable_metadata).value
-        )
-        self.settings.setValue("floating", self.ui.widgets.dockable_metadata.isFloating())
-        self.settings.setValue("position", self.ui.widgets.dockable_metadata.pos())
-        self.settings.setValue("size", self.ui.widgets.dockable_metadata.size())
-        self.settings.endGroup()
-        self.settings.beginGroup("config_editor")
-        self.settings.setValue("position", self.ui.widgets.config_editor.pos())
-        self.settings.setValue("size", self.ui.widgets.config_editor.size())
-        self.settings.endGroup()
 
-        if shiboken6.isValid(self.log_window):
-            self.settings.setValue("log_window/position", self.log_window.pos())
-            self.settings.setValue("log_window/size", self.log_window.size())
+        self.save_log_window_state(self.settings)
 
         # Only save help dialog size and position if it has been shown at least once
         if hasattr(self, "_help_dialog_shown") and self._help_dialog_shown:
@@ -1237,27 +1174,39 @@ class MainWindow(QMainWindow):
             self.settings.setValue("position", self.ui.widgets.system_command_help.pos())
             self.settings.endGroup()
 
+    def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
+        """Save matrix-script specific layout state."""
+        settings.setValue("splitter", self.ui.widgets.splitter.sizes())
+
+    def _restored_splitter_sizes(self, settings: SaferQSettings) -> list[int] | None:
+        """Return saved splitter sizes unless a pane would be collapsed."""
+        if not settings.contains("splitter"):
+            return None
+        sizes = settings.safer_value("splitter", [], type=list)
+        if len(sizes) != self.ui.widgets.splitter.count():
+            return None
+        try:
+            restored_sizes = [int(size) for size in sizes]
+        except (TypeError, ValueError):
+            return None
+        if any(size <= 0 for size in restored_sizes):
+            return None
+        return restored_sizes
+
+    def _restore_additional_layout_state(self, settings: SaferQSettings) -> None:
+        """Restore matrix-script specific layout state."""
+        splitter_sizes = self._restored_splitter_sizes(settings)
+        if splitter_sizes is not None:
+            self.ui.widgets.splitter.setSizes(splitter_sizes)
+
     def restore_window_state(self) -> None:
         """Restore app configuration from the previous use."""
-        self.resize(self.sizeHint())  # Just in case it is the first start
-        self.settings.beginGroup("MainWindow")
-        self.restoreGeometry(self.settings.safer_value("geometry", QByteArray(), type=QByteArray))
-        self.ui.widgets.splitter.setSizes(
-            [
-                int(size)
-                for size in self.settings.safer_value(
-                    "splitter", self.ui.widgets.splitter.sizes(), type=list
-                )
-            ]
-        )
-        self.settings.endGroup()
+        self.restore_layout_state(self.settings)
+
         # Check if there is a settings file. This improves the robustness
         # against strange side effect, caused by the default values.
         if self.settings.contains("created"):
             self.settings.beginGroup("script_edit")
-            self.ui.widgets.script_edit.resize(
-                self.settings.safer_value("size", self.ui.widgets.script_edit.size(), type=QSize)
-            )
             self.ui.widgets.script_edit.setZoomFactor(
                 self.settings.safer_value("monaco_zoom", 1, type=float)
             )
@@ -1270,76 +1219,7 @@ class MainWindow(QMainWindow):
                 self.settings.safer_value("autocomplete", True, type=bool)
             )
             self.settings.endGroup()
-            self.settings.beginGroup("status_preview")
-            self.ui.widgets.status_preview.resize(
-                self.settings.safer_value(
-                    "size", self.ui.widgets.status_preview.size(), type=QSize
-                )
-            )
-            self.settings.endGroup()
-            self.settings.beginGroup("Toolbars")
-            self.ui.toolbar.setVisible(
-                self.settings.safer_value("buttons_visible", True, type=bool)
-            )
-            self.ui.actions.toggle_toolbar.setChecked(
-                self.settings.safer_value("buttons_visible", True, type=bool)
-            )
-            toolbar_pos = self.settings.safer_value(
-                "position", Qt.ToolBarArea.TopToolBarArea.value, type=int
-            )
-            self.addToolBar(Qt.ToolBarArea(toolbar_pos), self.ui.toolbar)
-            self.settings.endGroup()
-            self.settings.beginGroup("dockable_metadata")
-            visible = self.settings.safer_value("visible", True, type=bool)
-            self.ui.widgets.dockable_metadata.setVisible(visible)
-            self.ui.actions.toggle_metadata.setChecked(visible)
-            dock_pos = self.settings.safer_value(
-                "dock_position", Qt.DockWidgetArea.RightDockWidgetArea.value, type=int
-            )
-            self.addDockWidget(Qt.DockWidgetArea(dock_pos), self.ui.widgets.dockable_metadata)
-            self.ui.widgets.dockable_metadata.setFloating(
-                self.settings.safer_value("floating", False, type=bool)
-            )
-            if self.ui.widgets.dockable_metadata.isFloating():
-                self.ui.widgets.dockable_metadata.move(
-                    self.settings.safer_value(
-                        "position", self.ui.widgets.dockable_metadata.pos(), type=QPoint
-                    )
-                )
-                self.ui.widgets.dockable_metadata.resize(
-                    self.settings.safer_value(
-                        "size", self.ui.widgets.dockable_metadata.size(), type=QSize
-                    )
-                )
-            else:
-                self.resizeDocks(
-                    [self.ui.widgets.dockable_metadata],
-                    [
-                        self.settings.safer_value(
-                            "size", self.ui.widgets.dockable_metadata.size(), type=QSize
-                        ).width()
-                    ],
-                    Qt.Orientation.Horizontal,
-                )
-            self.settings.endGroup()
-            self.settings.beginGroup("config_editor")
-            self.ui.widgets.config_editor.move(
-                self.settings.safer_value(
-                    "position", self.ui.widgets.config_editor.pos(), type=QPoint
-                )
-            )
-            self.ui.widgets.config_editor.resize(
-                self.settings.safer_value("size", self.ui.widgets.config_editor.size(), type=QSize)
-            )
-            self.settings.endGroup()
-            self.log_window.move(
-                self.settings.safer_value(
-                    "log_window/position", self.log_window.pos(), type=QPoint
-                )
-            )
-            self.log_window.resize(
-                self.settings.safer_value("log_window/size", self.log_window.size(), type=QSize)
-            )
+            self.restore_log_window_state(self.settings)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """
@@ -1352,9 +1232,9 @@ class MainWindow(QMainWindow):
         """
         if self.ui.widgets.system_list.hasFocus():
             if detect_shortcut(event, QKeySequence(QKeySequence.StandardKey.Delete)):
-                self.delete_selected_system()
+                self.ui.widgets.system_list.delete_systems()
             if detect_shortcut(event, QKeySequence(Qt.Key.Key_Backspace)):
-                self.delete_selected_system()
+                self.ui.widgets.system_list.delete_systems()
         super().keyPressEvent(event)
 
     def closeEvent(self, event: QEvent) -> None:
@@ -1379,84 +1259,25 @@ class MainWindow(QMainWindow):
             )
             event.ignore()
             return
-        if self.systems_dirty and self.scriptname is not None:
-            # if no file is given, nothing is saved
-            self.update_systems(update_config=False)
-            newscript = self.generate_save_content()
-            with Path(self.scriptname).open() as f:
-                saved_text = f.read()
-                if saved_text == newscript:
-                    self.systems_dirty = False
-
         if (
-            (self.ui.widgets.script_edit.isModified() or self.systems_dirty)
+            self.ui.widgets.script_edit.isModified()
             and self.ui.widgets.script_edit.toPlainText() != ""
             and not self.in_pytest
         ):
-            qApp = MApplication.instance()
-            qApp.processEvents()
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+            if not save_messagebox(self, self.save_file):
                 event.ignore()
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                # save the file
-                if self.save_file() == -1:
-                    # if save fails, ignore message
-                    event.ignore()
-                    return
         self.save_window_state()
-        self.ui.widgets.script_edit.lsp.stop()
+        self.ui.widgets.script_edit.lsp_tc.stop()
         self.ui.widgets.script_edit.server.stop()
         # QWebEngineView: Disconnect the webpage to prevent memory leaks
         if hasattr(self.ui.widgets.script_edit, "page") and self.ui.widgets.script_edit.page():
             self.ui.widgets.script_edit.page().loadFinished.disconnect()
             self.ui.widgets.script_edit.page().deleteLater()
         self.ui.widgets.script_edit.deleteLater()
-        root_logger = logging.getLogger()
-        root_logger.removeHandler(self.log_window.log_handler)
-        self.log_window.deleteLater()
-        qApp = MApplication.instance()
-        qApp.processEvents()
+        self.cleanup_log_window()
+        self.ui.widgets.system_command_help.close()
         event.accept()
-
-    def info_box(self) -> None:
-        """Display an 'about this app' widget."""
-        box = AboutBox(
-            "Matrix Script",
-            get_matrix_icon("matr1x-matrix-script.png"),
-            matr1x,
-            matr1x.datetimefmt,
-        )
-        box.exec()
-
-    def toggle_toolbar_view(self, checked: bool) -> None:
-        """
-        Toggle the visibility of the toolbar.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the toolbar.
-        """
-        if checked:
-            self.ui.toolbar.show()
-        else:
-            self.ui.toolbar.hide()
-
-    def toggle_metadata_view(self, checked: bool) -> None:
-        """
-        Toggle the visibility of the metadata.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the metadata.
-        """
-        if checked:
-            self.ui.widgets.dockable_metadata.show()
-        else:
-            self.ui.widgets.dockable_metadata.hide()
 
     def preview_data(self) -> None:
         """Launch matrix-preview with current measurement file."""
@@ -1468,28 +1289,6 @@ class MainWindow(QMainWindow):
         ]
         subprocess.Popen(preview)
 
-    def toggle_preferences(self, checked: bool) -> None:
-        """
-        Open the preferences pane.
-
-        Parameters
-        ----------
-        checked: bool
-            Show (True) or hide (False) the preferences.
-        """
-        if checked:
-            self.ui.widgets.config_editor.show()
-            self.ui.widgets.config_editor.raise_()
-            self.ui.widgets.config_editor.activateWindow()
-        else:
-            self.ui.widgets.config_editor.hide()
-
-    def show_log_window(self) -> None:
-        """Show the logging window."""
-        self.log_window.show()
-        self.log_window.raise_()
-        self.log_window.activateWindow()
-
     def _load_file_from_signal(self, filename: str) -> None:
         """Convert string to Path for opening file."""
         self.load_from_filename(Path(filename))
@@ -1497,74 +1296,15 @@ class MainWindow(QMainWindow):
     def update_window_title(self) -> None:
         """Indicate if the file was edited with an asterisk."""
         text = "Matrix Script"
-        if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
+        if self.ui.widgets.script_edit.isModified():
             text += ": *"
         elif self.scriptname:
             text += ": "
         if self.scriptname:
             text += self.scriptname.name
-        elif self.ui.widgets.script_edit.isModified() or self.systems_dirty:
+        elif self.ui.widgets.script_edit.isModified():
             text += "<unsaved>"
         self.setWindowTitle(text)
-        lsp_name = self.scriptname.name if self.scriptname else None
-        self.ui.widgets.script_edit.setFilename(lsp_name)
-
-    def add_system(self) -> None:
-        """
-        Add a system file to the system list.
-
-        Opens a QFileDialog with filter system*.py. Update help if need
-        be.
-        """
-        directory = matr1x.system_directories[-1]
-        if not self.shortcut_dir and len(matr1x.system_names) > 1:
-            self.shortcut_dir = create_temp_dir_with_symlinks(
-                matr1x.system_names, matr1x.system_directories
-            )
-        if self.shortcut_dir:
-            directory = Path(self.shortcut_dir.name) / matr1x.system_names[-1]
-        if self.last_loaded_file:
-            directory = self.last_loaded_file.parent
-        # get filenames from dialog
-        filenames = QFileDialog.getOpenFileNames(
-            self, "Select system file to add", str(directory), "system files (system*.py)"
-        )[0]
-        if filenames == []:
-            return
-        for filename in filenames:
-            self.last_loaded_file = Path(filename)
-            filename = str(Path(filename).resolve())
-            module_name = get_importable_module_name(filename)
-            if module_name:
-                self.ui.widgets.system_list.addItem(module_name)
-            else:
-                self.ui.widgets.system_list.addItem(filename)
-        self.ui.actions.remove_system.setEnabled(True)
-        self.systems_dirty = True
-        self.update_window_title()
-        self.update_systems()
-        if self.ui.widgets.system_command_help.isVisible():
-            self.show_system_commands()
-
-    def delete_selected_system(self) -> None:
-        """
-        Remove selected system from system_list.
-
-        If no selection is active the last system will be removed.
-        Update help if need be.
-        """
-        selected = self.ui.widgets.system_list.selectedItems()
-        if len(selected) > 0:
-            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.row(selected[0]))
-        elif self.ui.widgets.system_list.count() > 0:
-            self.ui.widgets.system_list.takeItem(self.ui.widgets.system_list.count() - 1)
-        if self.ui.widgets.system_list.count() == 0:
-            self.ui.actions.remove_system.setEnabled(False)
-        self.systems_dirty = True
-        self.update_window_title()
-        self.update_systems()
-        if self.ui.widgets.system_command_help.isVisible():
-            self.show_system_commands()
 
     @AutoSlot
     def get_script_input(self, params: InputParameters) -> None:
@@ -1578,6 +1318,8 @@ class MainWindow(QMainWindow):
             input_type, timeout, default_value, min_value, max_value,
             step, and decimals.
         """
+        if params.timeout is None:
+            params.timeout = float("inf")
         if params.input_type == "string":
             dialog = TextInputDialog(
                 params.query,
@@ -1588,7 +1330,7 @@ class MainWindow(QMainWindow):
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 ret = dialog.get_input_text()
             else:
-                self.abort_thread()  # abort executing script
+                self.ui.widgets.measurement_thread.abort("q")
                 return
         elif params.input_type == "bool":
             dialog = YesNoAbortDialog(
@@ -1599,7 +1341,7 @@ class MainWindow(QMainWindow):
             )
             ret = dialog.exec_and_get_response()
             if ret == "abort":
-                self.abort_thread()
+                self.ui.widgets.measurement_thread.abort("q")
                 return
         elif params.input_type == "numerical":
             try:
@@ -1627,63 +1369,26 @@ class MainWindow(QMainWindow):
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 ret = str(dialog.get_input_value())
             else:
-                self.abort_thread()  # abort executing script
+                self.ui.widgets.measurement_thread.abort("q")
                 return
         elif params.input_type == "__end_script__":
-            dialog = TerminationDialog()
-            ret = dialog.get_selection()
+            ret = TerminationDialog().get_selection()
         else:
             ret = ""
-        self.measurement_thread.pass_input(ret)
-
-    def pause_thread(self) -> None:
-        """Pause thread execution."""
-        self.measurement_thread.pause()
-
-    def abort_thread(self, char="q") -> None:
-        """
-        Abort thread execution, define measurement state as per `char`.
-
-        Parameters
-        ----------
-        char : str
-            Single length string that is passed to the process.
-            - "q" stops and queries user for state
-            - "a" stops and sets state to `aborted`
-            - "f" stops and sets state to `finished`
-        """
-        if self.ui.actions.start_pause.isChecked():
-            self.ui.actions.start_pause.setChecked(False)
-        self.measurement_thread.abort(char)
+        self.ui.widgets.measurement_thread.pass_input(ret)
 
     def kill_thread(self) -> None:
         """Kill the thread."""
-        self.measurement_thread.kill()
+        self.ui.widgets.measurement_thread.kill()
         self.ui.widgets.status_preview.print_colored(
             "Script terminated by user - file integrity might be compromised"
         )
 
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
-        if len(self.systems) == 0:
-            text = "<p style='margin: 20px;'><b>No system file selected!</b></p>"
-            text += "<p style='margin: 20px;'>"
-            text += "Please add a system file using the 'Add System' button or File menu.</p>"
-            text += "<p style='margin: 20px;'>"
-            text += "Once a system is loaded, this dialog will show information about:</p>"
-            text += "<ul style='margin-left: 40px;'>"
-            text += "<li>Available parameters that can be set or read</li>"
-            text += "<li>Connected devices and their configurations</li>"
-            text += "<li>System methods and variables</li>"
-            text += "</ul>"
-            self.ui.widgets.system_command_text_edit.setText(text)
-            return
-        system_info = self._cached_system_info
-        if system_info is None:
-            self.ui.widgets.system_command_text_edit.setText("Could not parse the system file(s)!")
-            return
+        system_info = self.ui.widgets.system_list.system_info
         text = "The following systems were selected:<br><b>"
-        for system in self.systems:
+        for system in self.ui.widgets.system_list.systems:
             text = text + system + "<br>"
         text += "<br></b>These systems provide the following:<br>"
         bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
@@ -1755,7 +1460,7 @@ class MainWindow(QMainWindow):
         # Mark that the help dialog has been shown at least once
         self._help_dialog_shown = True
 
-    def output_written(self, text: str) -> None:
+    def write_output(self, text: str) -> None:
         """
         Buffer text and update GUI periodically to prevent crashes.
 
@@ -1780,6 +1485,9 @@ class MainWindow(QMainWindow):
         # Operate on a disposable cursor so we do not move the user's cursor/selection.
         # Handle plain text and control characters in one path, because buffered writes
         # can split "\r" from the text it is meant to overwrite.
+        edit = self.ui.widgets.status_preview
+        scrollbar = edit.verticalScrollBar()
+        at_bottom = scrollbar.value() == scrollbar.maximum()
         doc = self.ui.widgets.status_preview.document()
         cursor = QTextCursor(doc)
         cursor.movePosition(QTextCursor.MoveOperation.End)
@@ -1802,7 +1510,8 @@ class MainWindow(QMainWindow):
             else:
                 cursor.insertBlock()
         cursor.endEditBlock()
-
+        if at_bottom:
+            edit.moveCursor(QTextCursor.MoveOperation.End)
         if not self._output_buffer:
             self._output_timer.stop()
 
@@ -1828,21 +1537,10 @@ class MainWindow(QMainWindow):
             True means script is running
         """
         self.is_running = flag
-        if flag:
-            self.ui.actions.start_pause.setIcon(get_matrix_icon("CUSTOM_Pause"))
-            self.ui.actions.start_pause.setText("Pause")
-            self.ui.actions.start_pause.setToolTip("Pause the currently running script.")
-            self.ui.actions.start_pause.triggered.disconnect(self.start_process)
-            self.ui.actions.start_pause.triggered.connect(self.pause_thread)
-        else:
-            self.ui.widgets.script_edit.removeHighlight()
-            self.ui.actions.start_pause.setIcon(get_matrix_icon("CUSTOM_Play"))
-            self.ui.actions.start_pause.setText("Start")
-            self.ui.actions.start_pause.setToolTip("Execute the script.")
-            self.ui.actions.start_pause.triggered.disconnect(self.pause_thread)
-            self.ui.actions.start_pause.triggered.connect(self.start_process)
-        self.ui.actions.start_pause.setChecked(False)
-        self.ui.actions.stop.setEnabled(flag)
+        self.ui.actions.start.setEnabled(not flag)
+        self.ui.actions.pause.setEnabled(flag)
+        if self.ui.actions.pause.isChecked():
+            self.ui.actions.pause.setChecked(False)
         self.ui.actions.abort.setEnabled(flag)
         self.ui.actions.finish.setEnabled(flag)
         self.ui.actions.kill.setEnabled(flag)
@@ -1850,9 +1548,8 @@ class MainWindow(QMainWindow):
         self.ui.actions.new_file.setEnabled(not flag)
         self.ui.actions.load.setEnabled(not flag)
         self.ui.actions.system_help.setEnabled(not flag)
-        self.ui.actions.add_system.setEnabled(not flag)
-        self.ui.actions.remove_system.setEnabled(not flag)
-        self.ui.widgets.metadata.setEnabled(not flag)
+        self.ui.widgets.system_list.setEnabled(not flag)
+        self.ui.widgets.meta_view.setEnabled(not flag)
 
     def process_finished(self) -> None:
         """
@@ -1862,7 +1559,7 @@ class MainWindow(QMainWindow):
         """
         self.enable_buttons(False)
         self.ui.widgets.status_preview.print_colored("\nExecution finished")
-        del self.measurement_thread
+        del self.ui.widgets.measurement_thread
 
     def run_linter(self) -> int:
         """
@@ -1873,7 +1570,7 @@ class MainWindow(QMainWindow):
         int
             The number of issues.
         """
-        self.ui.widgets.script_edit.setSettables(self._cached_system_info)
+        self.ui.widgets.script_edit.setSettables(self.ui.widgets.system_list.system_info)
         return self.ui.widgets.script_edit.returnIssues()
 
     def start_process(self) -> None:
@@ -1883,11 +1580,9 @@ class MainWindow(QMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
-        if len(self.systems) == 0:
-            self.ui.actions.start_pause.setChecked(False)
-            self.ui.widgets.status_preview.print_colored("No system selected")
-            return
-        if self.run_linter() > 0:  # run linter to make sure there are no errors
+        if (
+            self.run_linter() > 0 and not self.in_pytest
+        ):  # run linter to make sure there are no errors
             self.ui.widgets.status_preview.print_colored(
                 "Script execution was halted because of linter errors"
             )
@@ -1899,22 +1594,27 @@ class MainWindow(QMainWindow):
             a.setDefaultButton(QMessageBox.StandardButton.Ok)
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
-                self.ui.actions.start_pause.setChecked(False)
                 return
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
-        meta_data = self.ui.widgets.metadata.get_metadata()
-        temp_config = self.ui.widgets.config_editor.write_config()
-        self.measurement_thread = ScriptThread(
-            meta_data, script, self.scriptname, temp_config, self.systems
+        metadata = self.ui.widgets.meta_view.metadata
+        outputfile = str(self.scriptname) if self.scriptname else ""
+        script_item = MeasurementItem(
+            kind="script",
+            input_file=script,
+            output_file=outputfile,
+            metadata=metadata,  # ty:ignore[invalid-argument-type]
+            config=self.ui.widgets.config_editor.get_config_dict(),
+            systems=self.ui.widgets.system_list.systems,
         )
-        self.measurement_thread.lineno_signal.connect(self.ui.widgets.script_edit.highlight)
-        self.measurement_thread.input_signal.connect(self.get_script_input)
-        self.measurement_thread.filename_signal.connect(self.update_filename)
-        self.measurement_thread.finished.connect(self.process_finished)
+        self.ui.widgets.measurement_thread = MeasurementThread()
+        self.ui.widgets.measurement_thread.set_parameters(script_item)
+        self.ui.widgets.measurement_thread.finished.connect(self.process_finished)
+        self.ui.widgets.measurement_thread.data_received.connect(self.process_data)
+
         logger.info("The following user script is started:\n%s", user_script)
-        self.measurement_thread.start()
+        self.ui.widgets.measurement_thread.start()
         self.enable_buttons(True)
 
     def update_systems(self, update_config: bool = True) -> None:
@@ -1926,66 +1626,30 @@ class MainWindow(QMainWindow):
         update_config: bool
             Whether to update the config editor.
         """
-        self.systems = [
-            # use normpath here since there is no pathlib equivalent
-            normpath(self.ui.widgets.system_list.item(j).text())
-            for j in range(self.ui.widgets.system_list.count())
-        ]
-        system_info = get_system_info(self.systems)
-        if isinstance(system_info, Error):
-            self.ui.widgets.status_preview.appendPlainText(system_info.error)
-            self._cached_system_info = None
-        else:
-            self._cached_system_info = system_info.value
         # only systems that are part of matrix or ifwlib can be configured via files
-        configurable = [system for system in self.systems if not Path(system).exists()]
+        configurable = [
+            system for system in self.ui.widgets.system_list.systems if not Path(system).exists()
+        ]
         matr1x.reload_config()
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
-            self.ui.widgets.config_editor.set_full_system_list(self.systems)
-            self.ui.widgets.config_editor.set_system_info(self._cached_system_info)
+            self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
+            self.ui.widgets.config_editor.set_system_info(self.ui.widgets.system_list.system_info)
             self.ui.widgets.config_editor.update_data()
         # Update system commands with cached info
         self.update_system_commands()
+        if self.ui.widgets.system_command_help.isVisible():
+            self.show_system_commands()
         self.run_linter()
 
-    def _extract_settable_info(
-        self, system_info: SystemInfo
-    ) -> tuple[list[int], list[str], list[str]]:
-        """
-        Extract settable information from system info.
-
-        Parameters
-        ----------
-        system_info: SystemInfo
-            The system info object with the parameters to evaluate.
-        """
-        indexes = []
-        columns = []
-        units = []
-        for parameter in system_info.parameters.values():
-            if ", " in parameter.name:
-                name_parts = [name.strip() for name in parameter.name.split(", ")]
-                unit_parts = [unit.strip() for unit in parameter.unit.split(", ")]
-                for name, unit in zip(name_parts, unit_parts):
-                    indexes.append(parameter.index)
-                    columns.append(name)
-                    units.append(unit)
-            else:
-                indexes.append(parameter.index)
-                columns.append(parameter.name)
-                units.append(parameter.unit)
-
-        return (indexes, columns, units)
-
-    def save_file_as(self) -> int:
+    def save_file_as(self) -> bool:
         """
         Ask for the filename and calls write_file().
 
         Returns
         -------
-        int
-            0 (Sucess) or -1 (Error).
+        bool
+            True (Sucess) or False (Error).
         """
         filename = QFileDialog.getSaveFileName(
             self,
@@ -1995,11 +1659,11 @@ class MainWindow(QMainWindow):
         )
         filename = Path(filename[0])
         if filename == Path():
-            return -1
+            return False
         else:
             return self.write_file(filename)
 
-    def save_file(self) -> int:
+    def save_file(self) -> bool:
         """
         Try to save under the last name and call write_file().
 
@@ -2007,30 +1671,30 @@ class MainWindow(QMainWindow):
 
         Returns
         -------
-        int
-            0 (Sucess) or -1 (Error).
+        bool
+            True (Sucess) or False (Error).
         """
         if not self.last_filename:
             return self.save_file_as()
         else:
             return self.write_file(self.last_filename)
 
-    def write_file(self, filename: Path) -> int:
+    def write_file(self, filename: Path) -> bool:
         """
         Save script to file and write system information to header.
 
         Returns
         -------
-        int
-            0 (Sucess) or -1 (Error).
+        bool
+            True (Sucess) or False (Error).
         """
         if filename.suffix != self.extension:
             filename = filename.with_suffix(self.extension)
         try:
             output_file = filename.open("w")
         except OSError:
-            self.ui.widgets.status_preview.print_colored("File cannot be opened")
-            return -1
+            self.ui.widgets.status_preview.print_colored("File cannot be written.")
+            return False
         self.scriptname = filename
         self.update_systems(update_config=False)
         # set new script in editor and save it to the file
@@ -2040,9 +1704,8 @@ class MainWindow(QMainWindow):
         output_file.close()
         self.last_filename = filename
         self.ui.widgets.script_edit.setModified(False)
-        self.systems_dirty = False
         self.update_window_title()
-        return 0
+        return True
 
     def generate_save_content(self) -> str:
         """
@@ -2053,61 +1716,21 @@ class MainWindow(QMainWindow):
         str
             The script including the generated header.
         """
-        header = ""
-        system_info = self._cached_system_info
-        if len(self.systems) > 0:
-            # only attempt generating a header if a system is selected
-            try:
-                # get settable information to put into the header
-                # (columns/units)
-                settable_info = (
-                    self._extract_settable_info(system_info) if system_info is not None else None
-                )
-
-                if settable_info is not None and len(settable_info) >= 3:
-                    # write matrix file header
-                    header += (
-                        "# system def : "
-                        + ",".join(repr(s).strip("'") for s in self.systems)
-                        + "\n"
-                    )
-
-                    # Extract column names and units from settable_info
-                    # settable_info = (indexes, columns, units)
-                    column_names = [str(col).strip() for col in settable_info[1]]
-                    units = [str(unit).strip() for unit in settable_info[2]]
-
-                    header += "# system names : " + ",".join(column_names) + "\n"
-                    header += "# system units : " + ",".join(units) + "\n"
-                    header += "# file v8, time stamp : " + time.strftime(
-                        f"{matr1x.datetimefmt}\n", time.localtime()
-                    )
-                else:
-                    self.ui.widgets.status_preview.print_colored(
-                        "warning: settable_info is incomplete, creating basic header"
-                    )
-                    header += (
-                        "# system def : "
-                        + ",".join(repr(s).strip("'") for s in self.systems)
-                        + "\n"
-                    )
-                    header += "# file v8, time stamp : " + time.strftime(
-                        f"{matr1x.datetimefmt}\n", time.localtime()
-                    )
-            except Exception as e:
-                self.ui.widgets.status_preview.print_colored(
-                    f"error in generating settable_info from file: {e}, telemetry "
-                    "header could not be generated"
-                )
-        # take out script and remove trailling newlines
+        system_list = self.ui.widgets.system_list
+        flat_parameters = system_list.system_info.flat_parameters
+        header_lines = [
+            "# system def : " + ",".join(str(s) for s in system_list.systems),
+            "# system names : " + ",".join(p.name for p in flat_parameters),
+            "# system units : " + ",".join(p.unit for p in flat_parameters),
+            "# file v8, time stamp : " + time.strftime(matr1x.datetimefmt, time.localtime()),
+        ]
         script = self.ui.widgets.script_edit.toPlainText().rstrip()
-        newscript = header
-        for i, line in enumerate(script.splitlines()):
-            if i < 4 and (line.startswith(("# system ", "# file v"))):
-                # if there are already definitions of the system, skip them
-                continue
-            newscript += line + "\n"
-        return newscript
+        body_lines = [
+            line
+            for i, line in enumerate(script.splitlines())
+            if not (i < 4 and line.startswith(("# system ", "# file v")))
+        ]
+        return "\n".join(header_lines + body_lines) + "\n"
 
     def load_from_filename(self, filename: Path) -> None:
         """
@@ -2129,7 +1752,6 @@ class MainWindow(QMainWindow):
         self.scriptname = filename
         code = ""
         self.ui.widgets.system_list.clear()
-        settable_info = None
         #
         # system files
         #
@@ -2137,22 +1759,12 @@ class MainWindow(QMainWindow):
         if "# system def : " in line:
             # load system from definition in file
             system_line = line.replace("# system def : ", "").strip()
-            for syst in system_line.split(","):
-                try:
-                    self.ui.widgets.system_list.addItem(syst)
-                    self.update_systems()
-                    settable_info = (
-                        self._extract_settable_info(self._cached_system_info)
-                        if self._cached_system_info is not None
-                        else None
-                    )
-                except KeyError:
-                    self.ui.widgets.status_preview.print_colored(
-                        "System that was used to generate the "
-                        "script was not found in installed systems."
-                        " Please check .matrix.conf file."
-                    )
-                    return
+            systems = [s.strip() for s in system_line.split(",") if s.strip()]
+            self.ui.widgets.system_list.add_systems(systems)
+            system_info = self.ui.widgets.system_list.system_info
+            flat_parameters = system_info.flat_parameters
+            column_names = [p.name for p in flat_parameters]
+            units = [p.unit for p in flat_parameters]
         else:
             self.ui.widgets.status_preview.print_colored(
                 "No system defined in script, please choose system(s)"
@@ -2165,9 +1777,9 @@ class MainWindow(QMainWindow):
         code += line
         # make sure that system column definition agrees with
         # current system
-        if "# system names : " in line and settable_info is not None and len(settable_info) >= 2:
+        if "# system names : " in line:
             system_names = line.strip().replace("# system names : ", "")
-            current_columns = [str(col).strip() for col in settable_info[1]]
+            current_columns = [str(col).strip() for col in column_names]
             # Handle both "," and ", " as separators since compound columns use ", "
             loaded_columns = []
             for col in system_names.split(","):
@@ -2192,9 +1804,9 @@ class MainWindow(QMainWindow):
         code += line
         # make sure that system unit definition agrees with
         # current system
-        if "# system units : " in line and settable_info is not None and len(settable_info) >= 3:
+        if "# system units : " in line:
             system_units = line.strip().replace("# system units : ", "")
-            current_units = [str(unit).strip() for unit in settable_info[2]]
+            current_units = [str(unit).strip() for unit in units]
             # Handle both "," and ", " as separators since compound columns use ", "
             loaded_units = []
             for unit in system_units.split(","):
@@ -2218,26 +1830,15 @@ class MainWindow(QMainWindow):
         input_file.close()
         self.ui.widgets.script_edit.setPlainText(code)
         self.ui.widgets.script_edit.setModified(False)
-        self.systems_dirty = False
         self.last_filename = filename
         self.update_window_title()
-        if self.ui.widgets.system_list.count() > 0:
-            self.ui.actions.remove_system.setEnabled(True)
 
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
-        if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
-            qApp = MApplication.instance()
-            qApp.processEvents()
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+        if self.ui.widgets.script_edit.isModified() and not self.in_pytest:
+            if not save_messagebox(self, self.save_file):
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                saved = self.save_file()
-                if saved == -1:
-                    return
-        # Now, proceed opeing the file
         filename = QFileDialog.getOpenFileName(
             self,
             "Select filename to open",
@@ -2249,44 +1850,14 @@ class MainWindow(QMainWindow):
             self.load_from_filename(filename)
 
     def new_file(self) -> None:
-        """
-        Start over with a blank script.
-
-        Ask the user to write unsaved changes to a file, remove the
-        'system dirty' flag and forget last filename.
-        """
-        if self.ui.widgets.script_edit.isModified() or self.systems_dirty:
-            MApplication.instance().processEvents()
-            ret = save_messagebox(self)
-            if ret == QMessageBox.StandardButton.Cancel:
+        """Start over with a blank script."""
+        if self.ui.widgets.script_edit.isModified() and not self.in_pytest:
+            if not save_messagebox(self, self.save_file):
                 return
-            if ret == QMessageBox.StandardButton.Save:
-                saved = self.save_file()
-                if saved == -1:
-                    return
-        self._reset_state(reset_metadata=False)
-
-    def _reset_state(self, reset_metadata: bool) -> None:
-        """
-        Reset UI and state to a clean baseline.
-
-        Parameters
-        ----------
-        reset_metadata : bool
-            If True, also clear metadata and status preview fields.
-        """
-        self.systems_dirty = False
         self.last_filename = None
         self.scriptname = None
         self.ui.widgets.script_edit.setPlainText("")
         self.ui.widgets.script_edit.setModified(False)
-        if reset_metadata:
-            self.ui.widgets.status_preview.setPlainText("")
-            metadata = self.ui.widgets.metadata
-            metadata.creator.setText("")
-            metadata.identifier.setText("")
-            metadata.relation.setText("")
-            metadata.description.setText("")
 
 
 def main() -> None:
@@ -2297,7 +1868,7 @@ def main() -> None:
     app.setDesktopFileName(appname)
     ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
     ex.show()
-    protected_restore(ex.restore_window_state)
+    ex.restore_window_state()
     # handle MacOS specific FileOpenEvent from MApplication
     app.connect_file_handler(ex._load_file_from_signal)
     ret = app.exec()

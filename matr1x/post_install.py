@@ -28,11 +28,12 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QMessageBox
 
-import matr1x
+import matr1x as matr1xpackage
+from matr1x import config
 from matr1x.gui_util import (
-    SaferQSettings,
     get_install_info,
 )
+from matr1x.scripts.shared_classes import SaferQSettings
 
 __all__ = [
     "post_installation",
@@ -43,7 +44,6 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 project_root = Path(__file__).parent
-default_config_file = project_root / "default_matr1x.toml"
 icns_path = project_root / "scripts" / "icons"
 mime_path = project_root.parent
 suite_settings = SaferQSettings("matr1x", "common")
@@ -311,9 +311,9 @@ def check_system_specifics() -> bool:
 def create_folders() -> None:
     """Create directories specified in the configuration."""
     logger.info("Creating common folders (users and log)")
-    users_folder = Path(matr1x.config["matr1x"]["users_directory"]).expanduser()
+    users_folder = config.matr1x.users_directory.expanduser()
     users_folder.mkdir(parents=True, exist_ok=True)
-    log_folder = Path(matr1x.config["matr1x"]["logging_directory"]).expanduser()
+    log_folder = config.matr1x.logging_directory.expanduser()
     log_folder.mkdir(parents=True, exist_ok=True)
 
 
@@ -539,7 +539,6 @@ def windows_integration() -> None:
 
     create_shortcut("Matrix GUI", "matrix-gui.exe", "matr1x", "matr1x-matrix-gui.ico")
     create_shortcut("Matrix Script", "matrix-script.exe", "matr1x", "matr1x-matrix-script.ico")
-    create_shortcut("Matrix Preview", "matrix-preview.exe", "matr1x", "matr1x-matrix-preview.ico")
     create_shortcut("Matrix Preview", "matrix-preview.exe", "matr1x", "matr1x-matrix-preview.ico")
 
     def get_icon_location(icon_name: str) -> Path:
@@ -1049,15 +1048,14 @@ def remove_desktop_integration():
         "uninstall_core_desktopintegration()",
     ]
     subprocess.run(remove)
-    for pkg_name in matr1x.config:
-        if "install" in matr1x.config[pkg_name]:
-            guis = matr1x.config[pkg_name]["install"].get("controlguis", [])
-            uninstall_control_gui_desktop_integration(pkg_name, guis)
+    for pkg_name, section in config:
+        if section.install:
+            uninstall_control_gui_desktop_integration(pkg_name, section.install.controlguis)
 
 
 def check_desktop_integration():
     """Check the desktop integration."""
-    version, _, _, _ = get_install_info(matr1x)
+    version, _, _, _ = get_install_info(matr1xpackage)
     last_version = suite_settings.safer_value("di_version", "0", type=str)
     if version != last_version:
         logger.info("Performing automatic desktop integration.")
@@ -1088,16 +1086,16 @@ def post_installation():
         )
         return
     remove_desktop_integration()
-    if matr1x.config["matr1x"]["install"]["create_directories"]:
+    install_config = config.matr1x.install
+    if install_config.create_directories:
         create_folders()
-    if matr1x.config["matr1x"]["install"]["desktopintegration"]:
+    if install_config.desktopintegration:
         core_desktop_integration()
         # desktop integration for control guis
-        for pkg_name in matr1x.config:
-            if "install" in matr1x.config[pkg_name]:
-                guis = matr1x.config[pkg_name]["install"].get("controlguis", [])
-                control_gui_integration(pkg_name, guis)
+        for pkg_name, section in config:
+            if section.install:
+                control_gui_integration(pkg_name, section.install.controlguis)
         finalize_desktop_integration()
-    version, _, _, _ = get_install_info(matr1x)
+    version, _, _, _ = get_install_info(matr1xpackage)
     suite_settings.setValue("di_version", version)
     logger.info("Post-installation succeeded")

@@ -23,9 +23,31 @@ definitions are demonstrated.
 # Custom import area
 # ============================
 
-from matr1x import get_config_dict
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
 from matr1x.devices.dummy import dummy
+from matr1x.models import FilePath, GuiField, SciFloat
 from matr1x.system import System
+
+
+class FeatureConfig(BaseModel):
+    """Configuration for the dummy feature system."""
+
+    # These settings demonstrate how to use Pydantic for configuration.
+    # The types and default values are used for validation.
+    setting1: Literal["CURR", "VOLT"] = Field("VOLT", description="Measurement mode")
+    setting2: bool = Field(True, description="Enable feature")
+    setting3: SciFloat = GuiField(
+        3.3215,
+        ge=-1e9,
+        le=99,
+        description="Reference value",
+        decimals=4,
+    )
+    setting4: FilePath = Field("~/.matr1x.toml", description="Config file path")
+
 
 # ============================
 
@@ -46,34 +68,9 @@ class MeasSystem(System):
         initializing data collection attributes.
         """
         super().__init__()
-        # define default parameters for configurable settings
-        self.config = {
-            "setting1": "VOLT",
-            "setting2": True,
-            "setting3": 3.3215,
-            "setting4": "~/.matr1x.toml",
-        }
-        # here one updates the config with settings potentially saved in the
-        # user config. The ~/.matr1x.toml or local matr1x.toml file can contain
-        # the following:
-        # [matr1x.systems.system_dummy_feature]
-        # setting1 = "CURR"
-        # setting2 = 2
-        # additionally, types and limits can be specified in the config
-        # using the following:
-        # [matr1x.systems.system_dummy_feature._types]
-        # # type definition can be
-        # # int, float, string
-        # # string according to this specification:
-        # # type;;strict;;val1;;val2;;val3;;val4
-        # # type;;range;;lower;;upper;;step
-        # # the latter only works for int/float and upper/step are optional
-        # # string value must not contain ;;
-        # setting1 = "str;;strict;;CURR;;VOLT"
-        # # positive ints
-        # setting2 = "int;;range;;0;;300;;30"
-        # setting3 = "float"
-        self.config.update(get_config_dict("matr1x.systems.system_dummy_feature"))
+        # Load and validate configuration
+        self.load_config(FeatureConfig, "matr1x.systems.system_dummy_feature")
+
         self.dcdata["source"] = "Dummy feature system"
         self.dcdata["publisher"] = "matr1x measurement suite"
 
@@ -108,12 +105,10 @@ class MeasSystem(System):
         super().set(*args, **kwargs)
         # configure devices upon initialization
         self.devs["dev1"].p2 = 10
-        self.devs["dev2"].configure(
-            setting1=self.config["setting1"], setting2=self.config["setting2"]
-        )
+        self.devs["dev2"].configure(setting1=self.config.setting1, setting2=self.config.setting2)
         # add a comment when set is finished
         # this might not be required (i.e. added automatically) depending on your device
-        self.dcdata["description"] = f"configuring dev2 to '{self.config['setting1']}'"
+        self.dcdata["description"] = f"configuring dev2 to '{self.config.setting1}'"
 
     def reset(self, *args, **kwargs):
         """

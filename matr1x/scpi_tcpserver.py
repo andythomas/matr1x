@@ -92,7 +92,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         try:
             idx = self.normkeys.index(normcmd)
         except ValueError:
-            print(
+            print(  # noqa: T201
                 f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
                 f"sent from {self.client_address}"
             )
@@ -151,7 +151,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         try:
             idx = self.normkeys.index(normcmd)
         except ValueError:
-            print(
+            print(  # noqa: T201
                 f"{time.strftime(datetimefmt)}: invalid cmd ({cmd}) "
                 f"sent from {self.client_address}"
             )

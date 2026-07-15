@@ -36,19 +36,25 @@ system directories.
 import logging
 import os
 import sys
-import tempfile
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import tomli_w
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 # Import pymeasure threading fix to apply monkey patch automatically
 # This must be imported early to ensure all pymeasure instruments are thread-safe
 from . import pymeasure_threading_fix
 from .metadata import VALID_META_KEYS
 from .models import MainConfig, UserlibConfig, format_validation_error
-from .util import get_package_path
+from .util import (
+    create_temp_dir_with_symlinks,
+    get_package_path,
+    resolve_config_path,
+    resolve_pkgroot_path,
+)
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -60,57 +66,116 @@ os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
 # default datafile extension
 output_extension = ".ma8"
 
+# Global list to store validation errors from configuration loading
+validation_errors: list[str] = []
 
-def load_config(optional_config_path: Path | None = None):
+
+@dataclass(frozen=True)
+class Migration:
+    """Conversion info for old config entries."""
+
+    old_path: tuple[str, ...]
+    new_path: tuple[str, ...]
+    warning: str
+
+
+MIGRATIONS = [
+    Migration(
+        old_path=("matr1x", "scripts", "matrix-script", "duplicate_output_to_logfile"),
+        new_path=("matr1x", "duplicate_output_to_logfile"),
+        warning="Please move all 'duplicate_output_to_logfile' entries "
+        "to [matr1x.duplicate_output_to_logfile]\n",
+    ),
+    Migration(
+        old_path=("matr1x", "scripts", "matrix-script", "print_to_comment"),
+        new_path=("matr1x", "print_to_comment"),
+        warning="Please move all 'print_to_comment' entries to [matr1x.print_to_comment]\n",
+    ),
+]
+
+
+def get_path(data, *path) -> Any:
+    """Get a nested value from a dictionary using a sequence of keys."""
+    for key in path:
+        if not isinstance(data, dict):
+            return None
+        data = data.get(key)
+    return data
+
+
+def set_path(data, *path, value) -> None:
+    """Set a nested value in a dictionary using a sequence of keys."""
+    for key in path[:-1]:
+        data = data.setdefault(key, {})
+    data[path[-1]] = value
+
+
+def delete_path(data: dict[str, Any], *path: str) -> None:
+    """Delete a nested key from a dictionary."""
+    current = data
+    for key in path[:-1]:
+        current = current[key]
+    del current[path[-1]]
+
+
+def migrate_config(config_data):
+    """Migrate old config keys to new ones."""
+    for migration in MIGRATIONS:
+        old_value = get_path(config_data, *migration.old_path)
+        new_value = get_path(config_data, *migration.new_path)
+        if old_value is not None and new_value is None:
+            set_path(config_data, *migration.new_path, value=old_value)
+            delete_path(config_data, *migration.old_path)
+            validation_errors.append(migration.warning)
+    return config_data
+
+
+def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
     """
-    Load configuration file from default config, user config, local config, and an optional config.
+    Load configuration from user config, local config, and an optional config.
 
     The configuration files are loaded in the following order, with later files
     overriding settings from earlier ones:
-    1. Default configuration
-    2. User configuration (~/.matr1x.toml)
-    3. Local configuration (./matr1x.toml)
-    4. Optional configuration (if provided e.g. in GUI)
+    1. User configuration (~/.matr1x.toml)
+    2. Local configuration (./matr1x.toml)
+    3. Optional configuration (if provided e.g. in GUI)
 
     Parameters
     ----------
     optional_config_path : pathlib.Path, optional
         Path to an optional TOML configuration file.  If provided, settings
-        in this file will override those in the default, user, and local
-        configuration files.
+        in this file will override those in the user and local configuration
+        files.
     """
-    # Load default configuration
-    default_config_path = Path(__file__).parent / "default_matr1x.toml"
-    with default_config_path.open("rb") as f:
-        config = tomllib.load(f)
+    config_data = {}
 
-    # Override with user configuration if available
+    # Load user configuration if available
     user_config_path = Path("~/.matr1x.toml").expanduser()
     if user_config_path.exists():
         with user_config_path.open("rb") as f:
             user_config = tomllib.load(f)
-            config = merge_dicts(config, user_config)
+            config_data = merge_dicts(config_data, user_config)
 
     # Override with local configuration if available
     local_config_path = Path("./matr1x.toml")
     if local_config_path.exists():
         with local_config_path.open("rb") as f:
             local_config = tomllib.load(f)
-            config = merge_dicts(config, local_config)
+            config_data = merge_dicts(config_data, local_config)
 
     # Override with optional configuration if available
     if optional_config_path:
         if optional_config_path.exists():
             with optional_config_path.open("rb") as f:
                 optional_config = tomllib.load(f)
-                config = merge_dicts(config, optional_config)
+                config_data = merge_dicts(config_data, optional_config)
         else:
-            print(f"Warning: Optional config file not found: {optional_config_path}")
+            print(f"Warning: Optional config file not found: {optional_config_path}")  # noqa: T201
+    config_data = migrate_config(config_data)
+    return config_data
 
-    return config
 
-
-def merge_dicts(dict1, dict2):
+def merge_dicts(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
     """Recursively merges dict2 into dict1."""
     for k, v in dict2.items():
         if isinstance(v, dict) and k in dict1:
@@ -120,27 +185,36 @@ def merge_dicts(dict1, dict2):
     return dict1
 
 
-def get_config_dict(section: str):
-    """
-    Return the dictionary with config settings of a specific subsection.
+def _validate_loaded_config(loaded_config: dict[str, Any]) -> tuple[MainConfig, str]:
+    """Validate loaded config and return validated model."""
+    msg = ""
+    try:
+        # Validate and update config with defaults from the model.
+        validated = MainConfig.model_validate(loaded_config)
+    except (ValidationError, TypeError, ValueError) as e:
+        msg = format_validation_error(e)
+        validated = MainConfig()
+        if msg:
+            validation_errors.append(msg)
 
-    If no such entry exists in the config an empty dict will be returned.
-
-    Parameters
-    ----------
-    section : str
-        section name in TOML synthax
-    """
-    ret = config
-    for sec in section.split("."):
-        if sec in ret:
-            ret = ret[sec]
-        else:
-            ret = {}
-    return ret
+    return validated, msg
 
 
-def _find_differences(default_dict, current_dict):
+def _warn_config_errors(msg: str) -> None:
+    """Print configuration validation warnings."""
+    if msg == "":
+        return
+    msg = (
+        f"Please check your configuration files (e.g. {Path.home() / '.matr1x.toml'})! "
+        "Some settings might not work as intended. "
+        "The following error(s) occured:\n\n"
+    ) + msg
+    print(msg)  # noqa: T201
+
+
+def _find_differences(
+    default_dict: dict[str, Any], current_dict: dict[str, Any]
+) -> dict[str, Any]:
     """
     Recursively compares two dictionaries and finds differences.
 
@@ -154,7 +228,7 @@ def _find_differences(default_dict, current_dict):
     default_dict : dict
         The dictionary representing the default settings.
     current_dict : dict
-        The dictionary representing the current settings.
+        The settings to compare against the defaults.
 
     Returns
     -------
@@ -165,9 +239,6 @@ def _find_differences(default_dict, current_dict):
     """
     differences = {}
     for key, default_value in default_dict.items():
-        if isinstance(default_value, str):
-            if "~" in default_value:
-                default_value = str(Path(default_value).expanduser().resolve())
         if key not in current_dict:
             continue  # Key is missing in the current settings
         current_value = current_dict[key]
@@ -188,7 +259,9 @@ def _find_differences(default_dict, current_dict):
     return differences
 
 
-def write_config(config_dict, optional_config_path: Path | None = None):
+def write_config(
+    config_dict: dict[str, Any] | BaseModel, optional_config_path: Path | None = None
+):
     """
     Write non-default config options to the user config or optional config.
 
@@ -201,23 +274,28 @@ def write_config(config_dict, optional_config_path: Path | None = None):
 
     Parameters
     ----------
-    config_dict : dict
-        Dictionary containing the current configuration settings.
+    config_dict : dict or BaseModel
+        Configuration settings to write.
     optional_config_path : pathlib.Path, optional
         Path to an optional TOML configuration file.  If provided, settings
         in this file will be written without comparing to the default
         configuration.
     """
+    # Ensure we are working with a dictionary for tomli_w
+    # Using mode='json' converts Paths to strings and Enums to their values
+    if isinstance(config_dict, BaseModel):
+        dump_dict = config_dict.model_dump(mode="json", by_alias=True, exclude_none=True)
+    else:
+        dump_dict = config_dict
+
     if optional_config_path:
         with optional_config_path.open("wb") as toml_file:
-            tomli_w.dump(config_dict, toml_file)
+            tomli_w.dump(dump_dict, toml_file)
     else:
-        # load default settings
-        default_config_path = Path(__file__).parent / "default_matr1x.toml"
-        with default_config_path.open("rb") as f:
-            default_settings = tomllib.load(f)
+        # load default settings from Pydantic model
+        default_settings = MainConfig().model_dump(mode="json", by_alias=True, exclude_none=True)
         # Dictionary to store new TOML data
-        user_config = _find_differences(default_settings, config_dict)
+        user_config = _find_differences(default_settings, dump_dict)
 
         user_config_path = Path("~/.matr1x.toml").expanduser()
         if user_config:
@@ -236,108 +314,81 @@ def reload_config(optional_config_path: str | Path | None = None):
     ----------
     optional_config_path : str or pathlib.Path, optional
         Path to an optional TOML configuration file.  If provided, settings
-        in this file will override those in the default, user, and local
-        configuration files.
+        in this file will override those in the user and local configuration
+        files.
     """
-    global config
+    global config, datetimefmt, validation_errors
     if isinstance(optional_config_path, str):
         optional_config_path = Path(optional_config_path)
-    config = load_config(optional_config_path)
+    validation_errors = []
+    loaded_config = load_config(optional_config_path)
+    config, msg = _validate_loaded_config(loaded_config)
+    _warn_config_errors(msg)
+    datetimefmt = config.matr1x.datetime_format
 
 
 # load config and combine values from multiple sources
 # validate the entries
-config = load_config()
-data = dict(config)
-msg = ""
-for key in list(data.keys()):  # validate everything but matr1x
-    if key != "matr1x":
-        try:
-            UserlibConfig(**data.pop(key))
-        except (ValidationError, TypeError, ValueError) as e:
-            msg = format_validation_error(e, key + ".")
-try:
-    MainConfig.model_validate(config)
-except (ValidationError, TypeError, ValueError) as e:
-    msg += format_validation_error(e)
-if msg != "":
-    msg = (
-        f"Please check your configuration file ({Path.home() / '.matr1x.toml'})! "
-        "Some settings will not work as intended. "
-        "The following error(s) occured:\n\n"
-    ) + msg
-    print(msg)
+config: MainConfig
+config, msg = _validate_loaded_config(load_config())
+_warn_config_errors(msg)
 
-datetimefmt = config["matr1x"]["datetime_format"]
+datetimefmt = config.matr1x.datetime_format
 
-# set up logging, mostly for debugging purposes.
-# Verbose logs can be produced by changing logging.INFO to logging.DEBUG. This
-# is however not recommended in production environments.
-logfolder = Path(config["matr1x"]["logging_directory"]).expanduser()
-handlers = []
-if not logfolder.exists():
-    logfolder = Path(tempfile.gettempdir())  # set logfolder to temp directory
-    if sys.stdout is not None:
-        # if logging to temp directory also log to stdout
-        handlers.append(logging.StreamHandler(stream=sys.stdout))
-
-today = date.today().isocalendar()
-handlers.append(
-    logging.FileHandler(logfolder / f"matr1x_{today.year}{today.week:02d}.log", mode="a")
-)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format=config["matr1x"]["logging_format"],
-    datefmt=datetimefmt,
-    handlers=handlers,
-)
-
-usersfolder: Path = Path(config["matr1x"]["users_directory"]).expanduser()
+usersfolder: Path = config.matr1x.users_directory.expanduser()
 if not usersfolder.exists():
     usersfolder = Path.home()
 
-_systems_directory_str = config["matr1x"]["systems_directory"]
-
-# replace pkgroot placeholder if present
-if "<pkgroot>/" in _systems_directory_str:
-    _systems_directory = Path(__file__).resolve().parent / _systems_directory_str.replace(
-        "<pkgroot>/", ""
+# set up logging to configure, e.g., the log-windows
+logfolder = config.matr1x.logging_directory.expanduser()
+if logfolder.exists():
+    today = date.today().isocalendar()
+    handlers = [
+        logging.FileHandler(logfolder / f"matr1x_{today.year}{today.week:02d}.log", mode="a")
+    ]
+    logging.basicConfig(
+        level=logging.INFO,
+        format=config.matr1x.logging_format,
+        datefmt=datetimefmt,
+        handlers=handlers,
     )
 else:
-    _systems_directory = Path(_systems_directory_str)
-# expand eventual home
-_systems_directory = _systems_directory.expanduser()
+    logging.basicConfig(format=config.matr1x.logging_format, datefmt=datetimefmt)
+    # fallback to usersfolder if logfolder does not exist
+    logfolder = usersfolder
+
+_systems_directory = resolve_pkgroot_path(
+    config.matr1x.systems_directory, Path(__file__).resolve().parent
+)
 if not _systems_directory.is_dir():
-    print("matrix.conf: option matr1x/systems_directory is invalid, using fallback")
+    print("matrix.conf: option matr1x/systems_directory is invalid, using fallback")  # noqa: T201
     # use fallback option
     _systems_directory = Path(__file__).resolve().parent / "systems"
 
-system_names = [
+system_names: list[str] = [
     "matr1x-systems",
 ]
-system_directories = [
+system_directories: list[Path] = [
     _systems_directory,
 ]
-for section in config:
+
+# Iterate over both defined fields and extra sections
+all_sections = set(type(config).model_fields.keys())
+if config.model_extra:
+    all_sections.update(config.model_extra.keys())
+
+for section in all_sections:
     if section != "matr1x":
-        if "systems_directory" in config[section]:
-            sysdir_str = config[section]["systems_directory"]
-            # replace pkgroot placeholder
-            if "<pkgroot>/" in sysdir_str:
-                package_path = get_package_path(section)
-                if package_path is not None:
-                    sysdir = Path(package_path) / sysdir_str.replace("<pkgroot>/", "")
-                else:
-                    raise ModuleNotFoundError(f"Optional matr1x module '{section}' not found")
-            else:
-                sysdir = Path(sysdir_str)
-            # expand eventual home
-            sysdir = sysdir.expanduser()
+        section_config = getattr(config, section)
+        if hasattr(section_config, "systems_directory") and section_config.systems_directory:
+            sysdir = resolve_pkgroot_path(
+                section_config.systems_directory, get_package_path(section)
+            )
             if sysdir.is_dir():
-                system_names.append(f"{section}-systems")
+                system_names.append(section)
                 system_directories.append(sysdir)
-            else:
-                print(
-                    f"matrix.conf: option {section}/systems_directory has invalid value '{sysdir}'"
-                )
+
+# Create a temporary directory with symlinks to all system directories
+# This allows us to have a single "base" directory for all systems
+_temp_dir = create_temp_dir_with_symlinks(system_names, system_directories)
+resolved_directory = Path(_temp_dir.name)

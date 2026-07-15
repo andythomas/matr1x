@@ -25,7 +25,6 @@ import codecs
 import importlib.util
 import logging
 import os
-import re
 import site
 import subprocess
 import sys
@@ -34,7 +33,7 @@ import textwrap
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
@@ -94,10 +93,32 @@ def open_and_error(filename: str, mode: str = "r"):
 # default separator
 default_separator = "\t"
 
-# telemetry string template
-telemetry_string = (
-    " {:d}/{:d} - elapsed: {:.1f}m - remaining: " + "{:.1f}m - set/read: {:.1f}s/{:.1f}s"
-)
+
+def resolve_config_path(config: Any, path: str) -> Any:
+    """
+    Resolve a configuration path string (dot notation) to a value from the config object.
+
+    If any part of the path is missing, an empty dictionary is returned.
+
+    Parameters
+    ----------
+    config : Any
+        The configuration object (typically a Pydantic model).
+    path : str
+        The configuration path (e.g., 'matr1x.devices.visadevice').
+
+    Returns
+    -------
+    Any
+        The value at the specified path, or an empty dictionary if not found.
+    """
+    current = config
+    for sec in path.split("."):
+        try:
+            current = getattr(current, sec)
+        except (AttributeError, TypeError):
+            return {}
+    return current
 
 
 def get_package_path(package_name: str) -> Path | None:
@@ -120,67 +141,20 @@ def get_package_path(package_name: str) -> Path | None:
     return None
 
 
-def get_importable_module_name(filename_str: str) -> str | bool:
-    """
-    Get importable module name if filename point to an installed module.
+def resolve_pkgroot_path(path: str | Path, package_path: Path | None) -> Path:
+    """Resolve a path that starts with the ``<pkgroot>`` placeholder."""
+    placeholder = "<pkgroot>"
+    parts = PureWindowsPath(path).parts
 
-    If the filename does not correspond to an installed Python (sub)module
-    this method returns False.
+    if parts and parts[0] == placeholder and package_path is not None:
+        return package_path.joinpath(*parts[1:])
 
-    Parameters
-    ----------
-    filename : str
-        Path to the file.
-
-    Returns
-    -------
-    str or bool
-        Module name if importable, False otherwise.
-    """
-    # Normalize the path
-    filename = Path(filename_str).absolute()
-
-    # Check if the file exists and is a Python file or
-    # a directory with __init__.py
-    if filename.suffix == ".py" and filename.is_file():
-        module_path = filename.with_suffix("")
-    elif filename.is_dir() and (filename / "__init__.py").is_file():
-        module_path = filename
-    else:
-        return False
-
-    # Find the most specific base path in sys.path that matches
-    # the start of the module_path
-    best_match = None
-    best_len = 0
-
-    for base_path in sys.path:
-        base_path = str(Path(base_path).absolute())
-
-        if str(module_path).startswith(base_path) and len(base_path) > best_len:
-            best_match = base_path
-            best_len = len(base_path)
-
-    if best_match:
-        # Remove the base_path from the module_path and convert to module name
-        relative_path = module_path.relative_to(best_match)
-        module_name = str(relative_path).replace(os.sep, ".")
-
-        # Check if the module is installed
-        try:
-            spec = importlib.util.find_spec(module_name)
-            if spec is not None:
-                return module_name
-            return False
-        except ImportError:
-            return False
-    else:
-        return False
+    return Path(path).expanduser()
 
 
 def create_temp_dir_with_symlinks(
     names: Sequence[str], targets: Sequence[str | Path]
-) -> TemporaryDirectory:
+) -> TemporaryDirectory[str]:
     """
     Create temporary directory with symlinks.
 
@@ -286,9 +260,9 @@ def module_from_path(filename: Path) -> "types.ModuleType":
     return module
 
 
-def print_formatted_line(
+def get_formatted_line(
     vlist: list, prefix: str = "", appendix: str = "", column_width: int = 10
-) -> None:
+) -> str:
     """
     Output a formatted line with data values.
 
@@ -321,7 +295,7 @@ def print_formatted_line(
             vstr = "???"
         outstr += entry_string.format(vstr)
     outstr += f"{appendix}"
-    print(outstr)
+    return outstr
 
 
 def generate_script_prefix_suffix() -> tuple[str, str]:
@@ -405,15 +379,17 @@ def generate_script(user_script: str) -> str:
     """
     # define basic part of script, imports relevant commands
     prefix, suffix = generate_script_prefix_suffix()
+    if user_script and not user_script.endswith("\n"):
+        user_script += "\n"
     return prefix + textwrap.indent(user_script, "    ") + suffix
 
 
 def matrix_script_process(
     filename: str,
-    meta_data: dict = {},
-    scriptname: str = "",
-    port: int | None = None,
-    systems: list[str] | None = None,
+    meta_data: dict,
+    scriptname: str,
+    port: int | None,
+    systems: list[str],
 ) -> None:
     """
     Process in which the script generated by generate_script is executed.
@@ -429,17 +405,17 @@ def matrix_script_process(
     filename : str
         Filename to the (temporary) file containing the script to be executed.
         Script in file should have been generated by generate_script.
-    meta_data : dict, optional
+    meta_data : dict
         Meta data such as, e.g., user name, description.
-    scriptname : str, optional
+    scriptname : str
         Script name used as fallback template for the datafile name if it's not
         set in the script and the directory of this file is used as a base
         directory for executing the script. This means Python files inside this
         directory can be imported by the user-script.
-    port : int, optional
+    port : int or None
         Port number used for communication between the script and the graphical
         user interface.
-    systems : list, optional
+    systems : list
         List of system files to load.
 
     Returns
@@ -476,11 +452,10 @@ def matrix_script_process(
         connected = False
 
     # initialize the thread
-    n_pref = get_script_prefix_offset()
     if connected is True:
-        thread = ExecThread(script, meta_data, scriptname, client_socket, n_pref, systems)
+        thread = ExecThread(script, meta_data, scriptname, client_socket, systems)
     else:
-        thread = ExecThread(script, meta_data, scriptname, None, n_pref, systems)
+        thread = ExecThread(script, meta_data, scriptname, None, systems)
 
     control_thread = None
     stop_event: threading.Event | None = None
@@ -719,7 +694,12 @@ def init_hdf5_skel(
             )
         else:
             data_grp.create_dataset(
-                col, (0,), maxshape=(None,), chunks=(chu,), dtype=dtype, compression=True
+                col,
+                (0,),
+                maxshape=(None,),
+                chunks=(chu,),
+                dtype=dtype,
+                compression=True,
             )
         data_grp[col].attrs["unit"] = uni
 
@@ -1140,7 +1120,7 @@ def find_binary(binary: str) -> Result[Path, FileNotFoundError]:
 
 
 class StreamToLogger:
-    r"""
+    """
     Helper to pipe streams into a logger.
 
     Parameters
@@ -1149,23 +1129,12 @@ class StreamToLogger:
         The logger to use.
     level: int
         The utilized log-level.
-    duplicate_stream: SupportsWrite[str], optional
-        A second stream that receives the raw chunks exactly as they
-        were written. This is used by GUI output, where ``"\r"`` must
-        not be turned into a newline by ``print(..., file=...)``.
     """
 
-    def __init__(
-        self,
-        logger: logging.Logger,
-        level: int,
-        duplicate_stream: "SupportsWriteAndFlush[str] | None" = None,
-    ):
+    def __init__(self, logger: logging.Logger, level: int):
         self.logger: logging.Logger = logger
         self.level: int = level
         self._buffer: str = ""
-        self._duplicate = duplicate_stream
-        self._pending_carriage_return = False
 
     def write(self, message: str):
         """
@@ -1178,52 +1147,21 @@ class StreamToLogger:
         """
         if not message:
             return
-        if self._duplicate:
-            # Mirror the raw chunk before newline buffering so carriage
-            # returns keep their overwrite semantics in the GUI stream.
-            self._duplicate.write(message)
-            self._duplicate.flush()
-        parts = re.split(r"([\r\n])", message)
-        for index in range(0, len(parts), 2):
-            self._append_text(parts[index])
-            if index + 1 >= len(parts):
-                continue
-
-            separator = parts[index + 1]
-            if separator == "\r":
-                self._pending_carriage_return = True
-            else:
-                self._pending_carriage_return = False
-                self._log_buffer()
+        self._buffer += message
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            line = line.rstrip()
+            if line:
+                self.logger.log(self.level, line)
 
     def flush(self):
-        """
-        Flush the logger buffer and the duplicate stream.
-
-        The duplicate stream already received the raw chunks in
-        ``write()``. Flushing here must therefore not write buffered
-        text a second time.
-        """
-        if self._pending_carriage_return:
-            self._buffer = ""
-            self._pending_carriage_return = False
+        """Flush the buffer."""
         if self._buffer:
-            self._log_buffer()
-        if self._duplicate:
-            self._duplicate.flush()
-
-    def _log_buffer(self) -> None:
-        """Log the current buffered line if it is not empty."""
-        line = self._buffer.rstrip()
-        self._buffer = ""
-        if line:
-            self.logger.log(self.level, line)
-
-    def _append_text(self, text: str) -> None:
-        """Append text while honoring pending carriage-return overwrite state."""
-        if not text:
-            return
-        if self._pending_carriage_return:
+            self.logger.log(self.level, self._buffer.rstrip())
             self._buffer = ""
-            self._pending_carriage_return = False
-        self._buffer += text
+
+
+def log_multiline(logger: logging.Logger, message: str, level=logging.INFO):
+    """Log a multi-line message to the given logger."""
+    for line in message.splitlines():
+        logger.log(level, line)
