@@ -716,7 +716,7 @@ def reset_system_and_exit(
         reset_kwargs["status"] = "errored"
         if exception:
             system.add_comment(f"Matrix errored: {type(exception).__name__}: {exception}")
-    dispatcher.dispatch(Message("resetting devices"))
+    dispatcher.dispatch(Message("resetting devices", to_comment=False))
     system.reset(**reset_kwargs)
     sys.exit(exit_code)
 
@@ -832,6 +832,7 @@ def main() -> None:
         measurement.dispatch(ErrorMessage(system.error))
         sys.exit(1)
     system = system.value
+    measurement.set_system(system)
     verify_columns(system, settable_names_file, settable_units_file, options, measurement)
     output_filename = system.generate_datafilename(
         options.outputfile, options.inputfile, options.append
@@ -842,15 +843,17 @@ def main() -> None:
             opt_val = getattr(options, f"dc_{key.lower()}")
             if opt_val is not None:
                 system.dcdata[key] = opt_val
-    measurement.dispatch(Message("setting devices"))
+    measurement.dispatch(Message("setting devices", to_comment=False))
     system.set(input_file=options.inputfile, output_file=output_filename)
     reset_kwargs = {"input_file": options.inputfile, "output_file": output_filename}
     ret = 0
     try:
-        measurement.dispatch(Message("devices set, acquiring configuration and writing header"))
+        measurement.dispatch(
+            Message("devices set, acquiring configuration and writing header", to_comment=False)
+        )
         try:
             msg, outputfile = system.init_datafile(options.inputfile)
-            measurement.dispatch(Message(f"{msg}: {outputfile}"))
+            measurement.dispatch(Message(f"{msg}: {outputfile}", to_comment=False))
         except OSError as e:
             reset_system_and_exit(
                 measurement,
@@ -871,8 +874,7 @@ def main() -> None:
                 e,
                 immediate_error=True,
             )
-        measurement.dispatch(Message("entering loop now"))
-        measurement.set_system(system)
+        measurement.dispatch(Message("entering loop now", to_comment=False))
         measurement.set_inputfile(options.inputfile)
         if isinstance(measurement, UrwidMeasurement):
             measurement.set_systemfile(resolved_systemfile)
@@ -895,7 +897,8 @@ def main() -> None:
             )
             traceback.print_tb(e.__traceback__)
             ret = 1
-        measurement.dispatch(Message(measurement.msg))
+        if measurement.msg != "":
+            measurement.dispatch(Message(measurement.msg))
         if ret == 1:
             x = input(
                 "Shall the termination of the sequence lead to "
