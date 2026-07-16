@@ -18,8 +18,9 @@
 from collections.abc import Generator
 from pathlib import Path
 
-import matr1x.eval
 import pytest
+
+import matr1x.eval
 from matr1x.models import Envelope, Message, Modifier
 from matr1x.scripts import matrix_script
 

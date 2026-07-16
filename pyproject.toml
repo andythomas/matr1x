@@ -1,11 +1,10 @@
 [project]
-name = "matr1x"
+name = "matr1x-measurements"
 version = "8.4.1"
 description = "Python package for data acquisition and measurement control"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
 classifiers = [
-    "Private :: Do Not Upload",
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
@@ -71,6 +70,9 @@ homepage = "https://github.com/andythomas/IFW_software"
 requires = ["flit_core >=3.6,<4"]
 build-backend = "flit_core.buildapi"
 
+[tool.flit.module]
+name = "matr1x"
+
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
 timeout = 30
@@ -86,6 +88,63 @@ project-includes = [
     "matr1x"
 ]
 
+[tool.ruff]
+line-length = 99       # max per pep8
+
+[tool.ruff.lint]
+extend-select = [
+    'D',        # pydocstyle (docstring formatting)
+    'A',        # flake8 builtins (Python builtins being used as variables or parameters.)
+    'I',        # isort (sort imports)
+    'PLW0602',  # unassigned global variable
+    'W505',     # doc line too long
+    'E501',     # line too long
+    'UP',       # use most modern code allowed by lowest python version
+    'PTH',      # use modern pathlib methods if possible
+    'LOG',      # look for correct logging
+    'G',        # look for correct log formatting
+    'INP001',   # provide __init__ for packages
+    'PIE',      # use flake8-pie rules (unnecessary code pieces)
+    'PYI',      # use flake8-pyi rules (type hinting helpers)
+    'SIM300',   # use human readable comparisons (yoda condition)
+    # disable to mark required prints and reenable after cleanup finished
+    #'RUF100',   # no not allow unused noqa
+    'T201'      # do not use print statements
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**" = ["INP001", "T201"]
+"docs/conf.py" = ["PTH"]
+"docs/**" = ["INP001"]
+"matr1x/devices/**" = ["T201"]
+"matr1x/systems/system_elabftw.py" = ["T201"]
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 100
+max-doc-length = 100  # should be max 72 per pep8
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.semantic_release]
+version_toml = [
+    "pyproject.toml:project.version"
+]
+branch = "main"
+build_command = "pip install flit && flit build --no-use-vcs"
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    '''^refactor''',
+    '''^test''',
+    '''^chore''',
+    '''^ci''',
+]
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*"]
+upload_to_vcs_release = true
 
 
 [dependency-groups]

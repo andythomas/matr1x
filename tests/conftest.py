@@ -18,6 +18,7 @@
 import sys
 
 import pytest
+
 from matr1x.gui_util import MApplication
 
 

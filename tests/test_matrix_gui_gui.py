@@ -18,10 +18,11 @@
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
+
 from matr1x import output_extension
 from matr1x.eval import loadmatrix
 from matr1x.scripts import matrix_gui
-from PySide6.QtCore import Qt
 
 path = Path(__file__).resolve().parent
 test_sweep_file = path / "sweep_for_matrix_gui.sw8"
