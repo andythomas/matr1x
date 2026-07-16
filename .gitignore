@@ -1,0 +1,15 @@
+*.log
+
+# byte compiled files
+__pycache__/
+*.pyc
+
+# build files and tarball directory
+build/
+dist/
+*.egg-info/
+.DS_Store
+
+# documentation build results
+docs/_build
+docs/sphinx
