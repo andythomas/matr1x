@@ -39,7 +39,6 @@ import sys
 import tempfile
 import types
 from collections.abc import Callable, Iterator, Sequence
-from importlib.metadata import version as package_version
 from pathlib import Path
 from types import ModuleType
 from typing import (

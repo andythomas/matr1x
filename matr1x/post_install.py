@@ -43,6 +43,8 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+DISTRIBUTION_NAME = "matr1x-measurements"
+
 project_root = Path(__file__).parent
 icns_path = project_root / "scripts" / "icons"
 mime_path = project_root.parent
@@ -262,10 +264,10 @@ def create_shortcut(
     """
     shortcut_path = start_menu_path / f"{name}.lnk"
     target_path = get_installed_file(exe_name, pkgname)
-    if is_editable("matr1x"):
+    if is_editable(DISTRIBUTION_NAME):
         icon_path = icns_path / icon_name
     else:
-        icon_path = get_installed_file(icon_name, "matr1x")
+        icon_path = get_installed_file(icon_name, DISTRIBUTION_NAME)
 
     ps_command = f"""
     $WshShell = New-Object -comObject WScript.Shell
@@ -339,7 +341,7 @@ def unix_integration() -> None:
 
     for icon_path, execname in executables:
         desktop_file = execname + ".desktop"
-        executable = get_installed_file(execname, "matr1x")
+        executable = get_installed_file(execname, DISTRIBUTION_NAME)
         try:
             subprocess.run(xdg_install_basic_icon(icon_path), check=True)
             subprocess.run(
@@ -484,7 +486,7 @@ def macos_integration(pyexec: Path) -> None:
     ]
 
     for icon_path, name, execname, extraopt in executables:
-        executable = get_installed_file(execname, "matr1x")
+        executable = get_installed_file(execname, DISTRIBUTION_NAME)
         # if the '-d user' option is ever changed or made variable
         # remember to change uninstall accordingly.
         try:
@@ -537,9 +539,13 @@ def windows_integration() -> None:
     """
     start_menu_path.mkdir(parents=True, exist_ok=True)
 
-    create_shortcut("Matrix GUI", "matrix-gui.exe", "matr1x", "matr1x-matrix-gui.ico")
-    create_shortcut("Matrix Script", "matrix-script.exe", "matr1x", "matr1x-matrix-script.ico")
-    create_shortcut("Matrix Preview", "matrix-preview.exe", "matr1x", "matr1x-matrix-preview.ico")
+    create_shortcut("Matrix GUI", "matrix-gui.exe", DISTRIBUTION_NAME, "matr1x-matrix-gui.ico")
+    create_shortcut(
+        "Matrix Script", "matrix-script.exe", DISTRIBUTION_NAME, "matr1x-matrix-script.ico"
+    )
+    create_shortcut(
+        "Matrix Preview", "matrix-preview.exe", DISTRIBUTION_NAME, "matr1x-matrix-preview.ico"
+    )
 
     def get_icon_location(icon_name: str) -> Path:
         """
@@ -558,18 +564,18 @@ def windows_integration() -> None:
         Path
             The full path to the icon file.
         """
-        editable = is_editable("matr1x")
+        editable = is_editable(DISTRIBUTION_NAME)
         return (
             Path.cwd() / "scripts/icons" / icon_name
             if editable
-            else get_installed_file(icon_name, "matr1x")
+            else get_installed_file(icon_name, DISTRIBUTION_NAME)
         )
 
     icolocation_sweep = get_icon_location("matr1x-sweep-generator.ico")
     icolocation_script = get_icon_location("matr1x-matrix-script.ico")
-    matrix_preview_exe = get_installed_file("matrix-preview.exe", "matr1x")
-    matrix_script_exe = get_installed_file("matrix-script.exe", "matr1x")
-    sweep_generator_exe = get_installed_file("sweep-generator.exe", "matr1x")
+    matrix_preview_exe = get_installed_file("matrix-preview.exe", DISTRIBUTION_NAME)
+    matrix_script_exe = get_installed_file("matrix-script.exe", DISTRIBUTION_NAME)
+    sweep_generator_exe = get_installed_file("sweep-generator.exe", DISTRIBUTION_NAME)
 
     create_commands = f"""
     # Associate file extensions with matr1x.datafile
@@ -680,7 +686,7 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
         If any subprocess command fails during the integration process.
     """
     matr1xpython = Path(sys.executable)
-    editable = is_editable("matr1x")
+    editable = is_editable(pkgname)
     system_type = platform.system().lower()
     for gui in guilist:
         guiname = gui.replace("_", " ").replace("-", " ")
@@ -743,7 +749,7 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
             if editable:
                 icon = icns_path / "matr1x-control.ico"
             else:
-                icon = get_installed_file("matr1x-control.ico", "matr1x")
+                icon = get_installed_file("matr1x-control.ico", DISTRIBUTION_NAME)
             create_shortcut(guiname, gui + ".exe", pkgname, str(icon))
 
         else:
@@ -1050,7 +1056,8 @@ def remove_desktop_integration():
     subprocess.run(remove)
     for pkg_name, section in config:
         if section.install:
-            uninstall_control_gui_desktop_integration(pkg_name, section.install.controlguis)
+            dist_name = DISTRIBUTION_NAME if pkg_name == "matr1x" else pkg_name
+            uninstall_control_gui_desktop_integration(dist_name, section.install.controlguis)
 
 
 def check_desktop_integration():
@@ -1059,7 +1066,7 @@ def check_desktop_integration():
     last_version = suite_settings.safer_value("di_version", "0", type=str)
     if version != last_version:
         logger.info("Performing automatic desktop integration.")
-        # post_installation()
+        post_installation()
     else:
         logger.info("Skipping automatic desktop integration.")
 
@@ -1094,7 +1101,10 @@ def post_installation():
         # desktop integration for control guis
         for pkg_name, section in config:
             if section.install:
-                control_gui_integration(pkg_name, section.install.controlguis)
+                # config keys use import names, but get_installed_file needs
+                # distribution names; map "matr1x" -> "matr1x-measurements"
+                dist_name = DISTRIBUTION_NAME if pkg_name == "matr1x" else pkg_name
+                control_gui_integration(dist_name, section.install.controlguis)
         finalize_desktop_integration()
     version, _, _, _ = get_install_info(matr1xpackage)
     suite_settings.setValue("di_version", version)
