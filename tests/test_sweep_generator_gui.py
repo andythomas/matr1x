@@ -20,8 +20,9 @@ from pathlib import Path
 
 import numpy
 import pytest
-from matr1x.scripts import sweep_generator
 from PySide6.QtWidgets import QLineEdit
+
+from matr1x.scripts import sweep_generator
 
 path = Path(__file__).resolve().parent
 test_sweep_file = path / "sweep_for_test.sw8"

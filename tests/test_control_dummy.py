@@ -34,17 +34,18 @@ from importlib.metadata import entry_points
 from pathlib import Path
 from typing import cast
 
-import matr1x.eval
-import matr1x.util
 import numpy as np
 import pytest
+from PySide6.QtCore import QThread
+from PySide6.QtWidgets import QMessageBox
+
+import matr1x.eval
+import matr1x.util
 from matr1x import output_extension
 from matr1x.control import ControlWindow, GuiDict, MethodBundle, var
 from matr1x.control import guiObject as go
 from matr1x.control.control_dummy import exampleDict
 from matr1x.scpi_tcpserver import SCPI_TCP_Server
-from PySide6.QtCore import QThread
-from PySide6.QtWidgets import QMessageBox
 
 path = Path(__file__).resolve().parent
 

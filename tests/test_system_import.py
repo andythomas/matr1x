@@ -24,6 +24,7 @@ as valid System objects.
 from pathlib import Path
 
 import pytest
+
 from matr1x.error_handling import Success
 from matr1x.system import System
 

@@ -22,9 +22,10 @@ formats.
 
 from pathlib import Path
 
-import matr1x.eval
 import numpy as np
 import pytest
+
+import matr1x.eval
 
 path = Path(__file__).resolve().parent
 

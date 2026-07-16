@@ -24,10 +24,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-import matr1x.eval
-import matr1x.util
 import numpy as np
 import pytest
+
+import matr1x.eval
+import matr1x.util
 from matr1x import output_extension
 
 path = Path(__file__).resolve().parent

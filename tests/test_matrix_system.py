@@ -30,8 +30,9 @@ import threading
 from pathlib import Path
 from pprint import pformat
 
-import matr1x.util
 import pytest
+
+import matr1x.util
 from matr1x import output_extension
 from matr1x.error_handling import Success
 from matr1x.gui_util import get_system_info
