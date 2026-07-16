@@ -58,7 +58,7 @@ setting1 = "CURR"
 setting2 = false
 setting3 = 36.232
 setting4 = "~/.matr1x.toml"
-````
+```
 
 ### Configuring systems via Pydantic models
 
@@ -255,3 +255,4 @@ default config during installation since this would overwrite your changes.
 On posix platforms (Linux/Mac OS) the sending of emails falls back to using `sendmail` which needs
 to be configured accordingly. This is only attempting in case of incomplete configuration and the
 `sendmail` command needs to be accessible via `PATH`.
+````
