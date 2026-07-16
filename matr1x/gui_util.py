@@ -39,7 +39,6 @@ import sys
 import tempfile
 import types
 from collections.abc import Callable, Iterator, Sequence
-from importlib.metadata import version as package_version
 from pathlib import Path
 from types import ModuleType
 from typing import (
@@ -60,6 +59,8 @@ if sys.version_info >= (3, 12):
     from typing import TypeAliasType
 else:
     TypeAliasType = None
+
+from importlib.metadata import PackageNotFoundError, version
 
 import numpy as np
 import pygit2
@@ -2906,6 +2907,16 @@ class LoggerMixin:
         cls.logger = logging.getLogger(f"{cls.__module__}.{cls.__qualname__}")
 
 
+def get_package_version(module: ModuleType) -> str:
+    """Return the version of the given module."""
+    if hasattr(module, "__version__"):
+        return module.__version__
+    try:
+        return version(module.__name__)
+    except PackageNotFoundError:
+        return "unknown"
+
+
 def get_install_info(
     imported_package: ModuleType,
 ) -> tuple[str, str, str, Literal["not available"] | int]:
@@ -2943,7 +2954,7 @@ def get_install_info(
                     break
     except pygit2.GitError:
         pass
-    installed_version = package_version(imported_package.__name__)
+    installed_version = get_package_version(imported_package)
     return (installed_version, commit_branch, commit_short_sha, commit_time)
 
 
