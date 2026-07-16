@@ -1046,7 +1046,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._log_thread = None
 
     @catchEmitError
-    def refreshDict(self) -> None:
+    def refresh_guidicts(self) -> None:
         """
         Initialize GuiDicts and align them with their dock visibility.
 
@@ -1104,7 +1104,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
                     )
             self.cmd_list.update(guidict.cmds)
 
-        ControlWindow.refreshDict(self)
+        self.refresh_guidicts()
         if isinstance(self.S, system.MergedSystem):
             self.S.refresh_devs()
             self.S.opened = any(subsys.opened for subsys in self.S.subsys)
