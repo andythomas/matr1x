@@ -688,7 +688,7 @@ class MeasurementThread(QThread, LoggerMixin):
         """
         for line in iter(stream.readline, b""):
             if is_error:
-                self.logger.warning(line.decode().strip())
+                self.logger.error(line.decode().strip())
             else:
                 self.logger.info(line.decode().strip())
 
