@@ -1,0 +1,9 @@
+# CHANGELOG
+{% for version, release in context.history.released.items() -%}
+{# RELEASED #}
+## {{ version.as_semver_tag() }} ({{ release.tagged_date.strftime("%Y-%m-%d") }})
+{% for type_, commits in release["elements"] | dictsort %}
+### {{ type_ | capitalize }}
+{% for commit in commits %}
+* {{ commit.message.splitlines()[0]}} *by {{commit.commit.author }}* ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{% endfor %}{% endfor %}{% endfor %}
