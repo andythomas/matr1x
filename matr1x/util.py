@@ -846,33 +846,6 @@ class Command:
         self.setargs = ()
         self.getargs = ()
 
-    @classmethod
-    def from_deprecated_list(cls, dlist: list):
-        """
-        Create a Command from the deprecated list format.
-
-        Parameters
-        ----------
-        dlist: list
-          list containing:
-          [type, setFunction, additional set args, GetFunction,
-           additional get args, [optional polling command]]
-
-        Returns
-        -------
-        a Command object with the settings equivalent to dlist
-        """
-        if len(dlist) < 5 or len(dlist) > 6:
-            raise ValueError("command entries must be a list of lenth 5 or 6")
-        if len(dlist) > 5:
-            pcmd = dlist[5]
-        else:
-            pcmd = None
-        return cls(
-            dlist[0], dlist[1], dlist[3], setargs=dlist[2], getargs=dlist[4], polling_cmd=pcmd
-        )
-
-
 class Get(Command):
     """Class representing a Getter-command of a ControlGUI."""
 
@@ -932,9 +905,7 @@ class Set(Command):
 
 def normalize_cmds(cmds):
     """
-    Make all commands instances of Command.
-
-    Changes are performed in-place.
+    Validate that all commands are Command instances.
 
     Parameters
     ----------
@@ -945,10 +916,11 @@ def normalize_cmds(cmds):
     -------
     None
     """
-    # harmonize the cmds dictionary -> convert all to Command
     for cmd, val in cmds.items():
         if not isinstance(val, Command):
-            cmds[cmd] = Command.from_deprecated_list(val)
+            raise TypeError(
+                f"Command entry {cmd!r} must be a Command instance, got {type(val).__name__}."
+            )
 
 
 class DcDict(dict):
