@@ -1221,16 +1221,9 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.ui.actions.select_recorder.setEnabled(False)
             self.ui.actions.config_recorder.setEnabled(False)
             self.ui.actions.toggle_recorder.setEnabled(False)
-            # disable all GUI elements but look at execption list
+            # disable all GUI elements but look at exception list
             for g in self.guidicts:
-                # disable all GUI elements but look at execption list
                 g.dock.setEnabled(False)
-                # GuiDict disable themselves, but repeat it here for backward
-                # compatibility
-                for v in g.values():
-                    for widget in v.widgets:
-                        if widget is not None:
-                            widget.setEnabled(False)
                 for action in g.menu_actions:
                     action.setEnabled(False)
             self.ui.widgets.panic.setEnabled(False)
