@@ -1059,7 +1059,7 @@ def check_desktop_integration():
     last_version = suite_settings.safer_value("di_version", "0", type=str)
     if version != last_version:
         logger.info("Performing automatic desktop integration.")
-        post_installation()
+        # post_installation()
     else:
         logger.info("Skipping automatic desktop integration.")
 

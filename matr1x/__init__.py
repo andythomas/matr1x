@@ -38,6 +38,7 @@ import os
 import sys
 from dataclasses import dataclass
 from datetime import date
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,11 @@ if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib  # ty: ignore [unresolved-import]
+
+try:
+    __version__ = version("matr1x-measurements")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 # enforce PySide use in pyqtgraph
 os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
