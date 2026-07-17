@@ -88,6 +88,10 @@ project-includes = [
     "matr1x"
 ]
 
+[tool.ty.src]
+include = ["matr1x"]
+
+
 [tool.ruff]
 line-length = 99       # max per pep8
 
