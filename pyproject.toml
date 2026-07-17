@@ -33,9 +33,9 @@ dependencies = [
     "urwid>2.0",                                     # needed for GUI apps
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
     "monaco-assets >= 0.5.1",                        # needed for matrix script
-    "ruff >= 0.13.0",                                # needed for matrix script
-    "ty == 0.0.31",                                  # needed for matrix script
-    "pymeasure",                                     # shared by several device drivers
+    "ruff >= 0.15.22",                               # needed for matrix script
+    "ty == 0.0.30",                                  # needed for matrix script
+    "pymeasure >= 0.16.0",                           # shared by several device drivers
     "pyserial",                                      # shared by several device drivers
     "pyvisa",                                        # shared by several device drivers
     "pyvisa-py",                                     # shared by several device drivers
