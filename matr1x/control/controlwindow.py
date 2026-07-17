@@ -36,7 +36,6 @@ import pickle
 import sys
 import threading
 import time
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
@@ -60,7 +59,7 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x import logfolder, output_extension, scpi_tcpserver, system
-from matr1x.control.util import GuiDict, catchEmitError, var
+from matr1x.control.util import GuiDict, catchEmitError
 from matr1x.gui_util import (
     AutoSlot,
     LoggingWindow,
@@ -370,7 +369,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     ----------
     name : str
         Identifier string of the control GUI.
-    guidicts : One GuiDict or a list or tuple of GuiDict
+    guidicts : GuiDict or GuiDict subclass, or a list or tuple of those
         GuiDict object(s) which build the basis of the controlGUI.
     extra_cmds : dict, optional
         Dictionary of commands offered for the measurement system. Commands from
@@ -410,6 +409,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         # exception. see issue #357
         os.environ["QT_NO_FT_CACHE"] = "1"
         super().__init__(parent=parent)
+        self.guidicts: list[GuiDict]
+        self._harmonize_guidicts(guidicts)
         # Initialize logging window
         self.log_window = LoggingWindow(parent=self)
         self.log_window.hide()
@@ -430,12 +431,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._log_stopped_event = threading.Event()
         self._log_stopped_event.set()
         self._log_thread: threading.Thread | None = None
-        self._legacy_refresh_thread: threading.Thread | None = None
-        self._legacy_refresh_stopped = threading.Event()
-        self._legacy_refresh_stopped.set()
         self.terminate = False
         self.terminated = False
-        self.devInit = False
         self.keep_enabled = []
         self._guidict_enable_actions: list[EnableAction] = []
         self._log_interval = 60
@@ -448,9 +445,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         # initialize data logging system
         self.S_log = system.System()
         self.S_log.__name__ = f"{package}.{name}_control_logging_system"
-        # initialize data logging dictionaries
-        self.guidicts: list[GuiDict]
-        self._harmonize_guidicts(guidicts)
         self.ui = UIBuilder()
         self.setMenuBar(self.ui.menus.menu)
         self.setCentralWidget(self.ui.widgets.central_widget)
@@ -488,75 +482,33 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             if not isinstance(logging, bool) and isinstance(logging, numbers.Number):
                 self.log_interval_changed.emit(logging)
 
-    def _harmonize_guidicts(self, guidicts):
+    def _harmonize_guidicts(self, guidicts) -> None:
         """
-        Harmonize the GuiDict entries to a consistent format.
+        Normalize GuiDict inputs and attach them to this control window.
 
-        Performs two main operations:
-        1. Converts dictionary entries to 'var' objects if they aren't already
-        2. Ensures all guidicts are of GuiDict type, wrapping plain dictionaries
-           in a compatible GuiDict class if necessary
-
-        This method enables backwards compatibility with older code where guidicts
-        might be simple dictionaries rather than GuiDict objects.
-
-        Notes
-        -----
-        This method also sets parent references on all guidicts and connects their
-        error signals to the main error handler.
+        `guidicts` may contain already-created GuiDict instances or GuiDict
+        subclasses, which are instantiated here. Legacy plain dictionaries and
+        non-var data entries are intentionally not converted anymore.
         """
-        if guidicts:
-            if isinstance(guidicts, (list, tuple)):
-                self.guidicts = list(guidicts)
-            else:
-                self.guidicts = [guidicts]
+        if guidicts is None:
+            raw_guidicts = []
+        elif isinstance(guidicts, (list, tuple)):
+            raw_guidicts = list(guidicts)
         else:
-            self.guidicts = []
-        self.guidicts = [
-            g() if (callable(g) and not isinstance(g, GuiDict)) else g for g in self.guidicts
-        ]
-        # harmonize guidict entries to 'var'-objects
-        for guidict in self.guidicts:
-            for key, entry in guidict.items():
-                if not isinstance(entry, var):
-                    kwargs = {}
-                    if isinstance(entry[0], var):
-                        kwargs["dtype"] = (
-                            guidict[key][0].variableType,
-                            guidict[key][0].outType,
-                        )
-                        value = entry[0].value
-                    else:
-                        kwargs["dtype"] = entry[0]
-                        value = None
-                    if isinstance(entry[1][-1], bool):
-                        kwargs["columns"] = entry[1][:-1]
-                        kwargs["log"] = entry[1][-1]
-                    else:
-                        kwargs["columns"] = entry[1]
-                    if len(entry) > 2:
-                        kwargs["unit"] = entry[2]
-                    guidict[key] = var(**kwargs)
-                    guidict[key]._value = value
+            raw_guidicts = [guidicts]
 
-        self._convert_to_guidict()
-
-        for guidict in self.guidicts:
-            guidict.refresh_worker.sig_error.connect(self.handleError)
-        # set parent reference on guidicts
-        for g in self.guidicts:
-            g.parent = self
-
-    def _convert_to_guidict(self):
-        """Harmonize the data structure -> convert all to GuiDict."""
-        for i, guidict in enumerate(self.guidicts):
+        self.guidicts = []
+        for guidict in raw_guidicts:
+            if isinstance(guidict, type) and issubclass(guidict, GuiDict):
+                guidict = guidict()
             if not isinstance(guidict, GuiDict):
-                warnings.warn("Consider rewriting the GUI using the GuiDict class.", FutureWarning)
-
-                class _FakeGuiDict(GuiDict):
-                    data = guidict
-
-                self.guidicts[i] = _FakeGuiDict()
+                raise TypeError(
+                    "ControlWindow guidicts must be GuiDict instances or GuiDict subclasses, "
+                    f"got {type(guidict).__name__}."
+                )
+            guidict.refresh_worker.sig_error.connect(self.handleError)
+            guidict.parent = self
+            self.guidicts.append(guidict)
 
     def _restore_gui_settings(self):
         """
@@ -863,26 +815,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
         )
 
-    @staticmethod
-    def copyValues(copyDict: dict) -> None:
-        """
-        Copy the values of a guiDict from the first to the second column.
-
-        This method is deprecated. It is now part of GuiDict. Its use should
-        vanish in the future.
-
-        Parameters
-        ----------
-        copyDict : dict
-            guiDict for which the values shall be copied
-        """
-        warnings.warn(
-            "copyValues is deprecated. Consider using GuiDict.copy_values.",
-            FutureWarning,
-        )
-        for variable in copyDict.values():
-            variable.copy_value()
-
     @catchEmitError
     @AutoSlot
     def panic(self, checked: bool, reason: str) -> None:
@@ -923,26 +855,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             ):
                 self.startServer()
             self._server_disabled_by_panic = False
-
-    # device communication and related functions
-    @catchEmitError
-    def connectDev(self) -> None:
-        """
-        Initialize legacy window-level device connections.
-
-        Modern GuiDict-based control windows initialize their systems in
-        GuiDict.start(), so normal startup does not call this method for
-        those windows. Legacy windows with a custom refreshDict initialize
-        the window-level system here.
-
-        If this is overloaded in legacy code it is important that
-        self.devInit is set to True upon successful initialization.
-        """
-        if self.devInit is False:
-            if self.S:
-                logger.info("Initializing devices of window-level system")
-                self.S.set()
-            self.devInit = True
 
     def config_data_recorder(self, checked: bool) -> None:
         """
@@ -1134,7 +1046,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._log_thread = None
 
     @catchEmitError
-    def refreshDict(self) -> None:
+    def refresh_guidicts(self) -> None:
         """
         Initialize GuiDicts and align them with their dock visibility.
 
@@ -1169,66 +1081,9 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             guidict.stop(wait=wait)
         self.terminated = True
 
-    def _has_custom_refresh(self) -> bool:
-        """
-        Return whether the subclass overrides refreshDict.
-
-        Returns
-        -------
-        bool
-            True if the subclass overrides refreshDict.
-        """
-        return type(self).refreshDict is not ControlWindow.refreshDict
-
-    def _start_legacy_refresh_thread(self) -> None:
-        """Launch the legacy refresh loop in a worker thread if needed."""
-        if self._legacy_refresh_thread and self._legacy_refresh_thread.is_alive():
-            return
-        self._legacy_refresh_stopped.clear()
-        self._legacy_refresh_thread = threading.Thread(
-            target=self._legacy_refresh_entrypoint,
-            name=f"{self.__class__.__name__}-refresh",
-            daemon=True,
-        )
-        self._legacy_refresh_thread.start()
-
-    def _legacy_refresh_entrypoint(self) -> None:
-        """Execute the legacy refresh loop and signal when it terminates."""
-        try:
-            self.refreshDict()
-        finally:
-            self._legacy_refresh_stopped.set()
-
-    def _stop_legacy_refresh_thread(self, timeout: float = 5.0) -> None:
-        """
-        Stop the legacy refresh thread and wait for it to terminate.
-
-        Parameters
-        ----------
-        timeout : float, optional
-            Maximum time in seconds to wait for the thread to finish.
-            Defaults to 5.0.
-        """
-        thread = self._legacy_refresh_thread
-        if thread is None:
-            return
-        finished = self._legacy_refresh_stopped.wait(timeout)
-        if finished:
-            thread.join()
-        else:
-            logger.warning("refresh thread did not terminate within %.1f s", timeout)
-        self._legacy_refresh_thread = None
-
     # general local server and start stop overhead
     def __enter__(self):
         """Initialize devices, start GuiDict workers, and launch the SCPI server."""
-        if self._has_custom_refresh():
-            # Legacy windows own a window-level system and refresh loop.
-            # Modern GuiDict systems are opened by GuiDict.start().
-            self.connectDev()
-            if not self.devInit:
-                return
-
         # merge all cmds from the GuiDicts and the extra cmds
 
         class extraGuiDict(GuiDict):
@@ -1249,12 +1104,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
                     )
             self.cmd_list.update(guidict.cmds)
 
-        ControlWindow.refreshDict(self)
+        self.refresh_guidicts()
         if isinstance(self.S, system.MergedSystem):
             self.S.refresh_devs()
             self.S.opened = any(subsys.opened for subsys in self.S.subsys)
-        if self._has_custom_refresh():
-            self._start_legacy_refresh_thread()
         self.running = True
         self.startServer()
 
@@ -1273,7 +1126,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.terminate = True
             self.running = False
             self._stop_guidicts()
-            self._stop_legacy_refresh_thread()
         if self.logging is True:
             self.logging = False
             self._stop_logging_thread()
@@ -1369,16 +1221,9 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.ui.actions.select_recorder.setEnabled(False)
             self.ui.actions.config_recorder.setEnabled(False)
             self.ui.actions.toggle_recorder.setEnabled(False)
-            # disable all GUI elements but look at execption list
+            # disable all GUI elements but look at exception list
             for g in self.guidicts:
-                # disable all GUI elements but look at execption list
                 g.dock.setEnabled(False)
-                # GuiDict disable themselves, but repeat it here for backward
-                # compatibility
-                for v in g.values():
-                    for widget in v.widgets:
-                        if widget is not None:
-                            widget.setEnabled(False)
                 for action in g.menu_actions:
                     action.setEnabled(False)
             self.ui.widgets.panic.setEnabled(False)
@@ -1447,7 +1292,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self.terminate = True
         self.running = False
         self._stop_guidicts()
-        self._stop_legacy_refresh_thread(timeout=0.5)
         self._log_stop_event.set()
         if pointer == "loggingFunc":
             self._log_stopped_event.set()
