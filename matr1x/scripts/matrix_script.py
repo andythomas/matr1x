@@ -16,6 +16,7 @@
 """Allow to write measurement scripts in Python."""
 
 import logging
+import os
 import platform
 import re
 import subprocess
@@ -61,6 +62,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSplitter,
     QTextEdit,
+    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -79,7 +81,6 @@ from matr1x.gui_util import (
     LogWindowMixin,
     MApplication,
     check_config,
-    create_matr1x_quit_action,
     create_matrix_settings_action,
     detect_shortcut,
     find_parent_of_type,
@@ -107,11 +108,9 @@ from matr1x.post_install import (
 from matr1x.scripts.shared_classes import (
     MeasurementItem,
     MeasurementThread,
-    MeasurementUI,
+    MetadataConfigDockMainWindow,
     MetaDataDialog,
     MetadataDockWidget,
-    MMainWindow,
-    MToolBar,
     NotifierMessage,
     SaferQSettings,
     SystemListWidget,
@@ -161,7 +160,7 @@ In addition, the following variables are available. Please use help to get a lis
     """an underscore!
 
 devs  # dictionary that contains all devices
-sys  # merged system object from the selected systems
+system  # merged system object from the selected systems
 meta_data  # dictionary that contains all meta information
 
 ---
@@ -660,6 +659,7 @@ class ActionGroup:
     """Actions to be utilized in the GUI."""
 
     matrix_settings: QAction
+    about: QAction
     config: QAction
     new_file: QAction
     load: QAction
@@ -678,8 +678,8 @@ class ActionGroup:
     zoom_out: QAction
     print: QAction
     find: QAction
-    start: QAction
-    pause: QAction
+    start_pause: QAction
+    stop: QAction
     abort: QAction
     finish: QAction
     kill: QAction
@@ -687,6 +687,8 @@ class ActionGroup:
     pep8: QAction
     autocomplete: QAction
     show_log: QAction
+    toggle_metadata: QAction
+    toggle_toolbar: QAction
     system_help: QAction
     theme_actions: list[QAction]
     theme_group: QActionGroup
@@ -694,7 +696,7 @@ class ActionGroup:
     remove_desktop_integration: QAction
 
 
-@dataclass
+@dataclass(frozen=True)
 class WidgetGroup:
     """Widgets to be used in the GUI."""
 
@@ -714,9 +716,6 @@ class WidgetGroup:
     lsp_info: QLabel
     save_pulldown: QMenu
     stop_pulldown: QMenu
-    about_box: AboutBox
-    measurement_thread: MeasurementThread
-    measurement_ui: MeasurementUI
 
 
 class UIBuilder:
@@ -725,7 +724,7 @@ class UIBuilder:
     def __init__(self):
         self.widgets: WidgetGroup = self._create_widgets()
         self.actions: ActionGroup = self._create_actions()
-        self.toolbar: MToolBar = self._create_toolbar()
+        self.toolbar: QToolBar = self._create_toolbar()
         self.menubar: QMenuBar = self._create_menu()
         self._create_gui()
 
@@ -790,6 +789,7 @@ class UIBuilder:
             The dataclass with all the widgets.
         """
         dockable_metadata = MetadataDockWidget()
+        config_editor = MetadataConfigDockMainWindow.create_config_editor()
         system_list = SystemListWidget()
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
@@ -828,7 +828,7 @@ class UIBuilder:
             script_edit=script_edit,
             system_command_help=system_command_help,
             system_command_text_edit=system_command_text_edit,
-            config_editor=ConfigEditWidget(),
+            config_editor=config_editor,
             save_button=save_button,
             stop_button=stop_button,
             splitter=splitter,
@@ -837,14 +837,6 @@ class UIBuilder:
             lsp_info=lsp_info,
             save_pulldown=save_pulldown,
             stop_pulldown=stop_pulldown,
-            about_box=AboutBox(
-                "Matrix Script",
-                get_matrix_icon("matr1x-matrix-script.png"),
-                matr1x,
-                matr1x.datetimefmt,
-            ),
-            measurement_thread=MeasurementThread(),
-            measurement_ui=MeasurementUI(),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -870,6 +862,11 @@ class UIBuilder:
         self.widgets.save_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         self.widgets.save_pulldown.addAction(save_as)
         self.widgets.save_button.setMenu(self.widgets.save_pulldown)
+        quit_app = QAction("Quit")
+        if os.name == "nt":
+            quit_app.setShortcut(QKeySequence.StandardKey.Close)
+        else:
+            quit_app.setShortcut(QKeySequence.StandardKey.Quit)
         caption = "Toggle Line Comment\t" + script_config.shortcuts.line_comment_display
         line_comment = QAction(caption)
         line_comment.setShortcut(QKeySequence(script_config.shortcuts.line_comment_shortcut))
@@ -877,6 +874,23 @@ class UIBuilder:
         print_action.setShortcut(QKeySequence.StandardKey.Print)
         find = QAction("Find")
         find.setShortcut(QKeySequence.StandardKey.Find)
+        start_pause = QAction(get_matrix_icon("CUSTOM_Play"), "Start")
+        start_pause.setToolTip("Execute the script.")
+        start_pause.setCheckable(True)
+        stop = QAction(get_matrix_icon("CUSTOM_Stop"), "Stop")
+        stop.setToolTip("Stop the script and query status.")
+        stop.setEnabled(False)
+        abort = QAction(get_matrix_icon("CUSTOM_Stop"), "Abort")
+        abort.setEnabled(False)
+        finish = QAction(get_matrix_icon("CUSTOM_Stop"), "Finish")
+        finish.setEnabled(False)
+        self.widgets.stop_button.setDefaultAction(stop)
+        self.widgets.stop_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.widgets.stop_pulldown.addAction(abort)
+        self.widgets.stop_pulldown.addAction(finish)
+        self.widgets.stop_button.setMenu(self.widgets.stop_pulldown)
+        kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
+        kill.setEnabled(False)
         preview = QAction(
             get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")),
             "Preview",
@@ -900,17 +914,22 @@ class UIBuilder:
         autocomplete = QAction("Tab completion")
         autocomplete.setCheckable(True)
         autocomplete.setChecked(True)
+        toggle_toolbar = QAction("Show Toolbar")
+        toggle_toolbar.setShortcut(QKeySequence("Ctrl+1"))
+        toggle_toolbar.setCheckable(True)
+        toggle_toolbar.setChecked(True)
 
         return ActionGroup(
             matrix_settings=create_matrix_settings_action(),
-            config=self.widgets.config_editor.action,
+            about=LogWindowMixin.create_about_action(),
+            config=MetadataConfigDockMainWindow.create_device_config_action(),
             new_file=new_file,
             load=load,
             save=save,
             save_as=save_as,
             add_system=self.widgets.system_list.add_action,
             remove_system=self.widgets.system_list.remove_action,
-            quit_app=create_matr1x_quit_action(),
+            quit_app=quit_app,
             undo=self._standard_action("Undo"),
             redo=self._standard_action("Redo"),
             cut=self._standard_action("Cut"),
@@ -921,15 +940,17 @@ class UIBuilder:
             zoom_out=self._standard_action("ZoomOut", "Zoom Out"),
             print=print_action,
             find=find,
-            start=self.widgets.measurement_ui.start,
-            pause=self.widgets.measurement_ui.pause,
-            abort=self.widgets.measurement_ui.abort,
-            finish=self.widgets.measurement_ui.finish,
-            kill=self.widgets.measurement_ui.kill,
+            start_pause=start_pause,
+            stop=stop,
+            abort=abort,
+            finish=finish,
+            kill=kill,
             preview=preview,
             pep8=pep8,
             autocomplete=autocomplete,
             show_log=LogWindowMixin.create_show_log_action(),
+            toggle_metadata=MetadataConfigDockMainWindow.create_metadata_action(),
+            toggle_toolbar=toggle_toolbar,
             system_help=QAction("Show System Help"),
             theme_actions=theme_actions,
             theme_group=theme_group,
@@ -937,21 +958,42 @@ class UIBuilder:
             remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
         )
 
-    def _create_toolbar(self) -> MToolBar:
-        """Create the toolbar."""
-        toolbar = MToolBar("Toolbar")
+    def _create_toolbar(self) -> QToolBar:
+        """
+        Create the toolbar.
+
+        Returns
+        -------
+        QToolBar
+            The (main) toolbar.
+        """
+        toolbar = QToolBar("Toolbar")
+        toolbar.setObjectName("main_toolbar")
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        toolbar.setFloatable(False)
+        toolbar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
+        icon_size = MApplication.instance().toolbar_icon_size()
+        empty = QWidget()
+        empty.setFixedWidth(icon_size)
+        empty2 = QWidget()
+        empty2.setFixedWidth(icon_size)
+        empty3 = QWidget()
+        empty3.setFixedWidth(icon_size)
+        toolbar.setIconSize(QSize(icon_size, icon_size))
         toolbar.addAction(self.actions.new_file)
         toolbar.addAction(self.actions.load)
         toolbar.addWidget(self.widgets.save_button)
-        toolbar.addWidget(toolbar.empty)
-        self.widgets.measurement_ui.add_to_toolbar(toolbar)
-        toolbar.addWidget(toolbar.empty)
+        toolbar.addWidget(empty)
+        toolbar.addAction(self.actions.start_pause)
+        toolbar.addWidget(self.widgets.stop_button)
+        toolbar.addWidget(empty2)
         toolbar.addAction(self.actions.preview)
-        toolbar.addWidget(toolbar.empty)
+        toolbar.addWidget(empty3)
         toolbar.addSeparator()
         self.widgets.system_list.add_to_toolbar(toolbar)
         toolbar.addSeparator()
-        toolbar.addAction(self.widgets.dockable_metadata.action)
+        toolbar.addAction(self.actions.toggle_metadata)
         toolbar.addAction(self.actions.config)
         return toolbar
 
@@ -993,19 +1035,21 @@ class UIBuilder:
         editor.addSeparator()
         editor.addAction(self.actions.autocomplete)
         control = menu.addMenu("&Control")
-        self.widgets.measurement_ui.add_to_menu(control)
+        control.addAction(self.actions.start_pause)
+        control.addAction(self.actions.abort)
+        control.addAction(self.actions.finish)
+        control.addAction(self.actions.kill)
         control.addSeparator()
         control.addAction(self.actions.preview)
         view = menu.addMenu("&View")
-        view.addAction(self.toolbar.action)
-        view.addAction(self.widgets.dockable_metadata.action)
+        view.addAction(self.actions.toggle_toolbar)
+        view.addAction(self.actions.toggle_metadata)
         view.addAction(self.actions.config)
         view.addSeparator()
         view.addAction(self.actions.matrix_settings)
         help_menu = menu.addMenu("&Help")
         help_menu.addAction(self.actions.system_help)
         LogWindowMixin.add_common_help_actions(help_menu, self.actions)
-        help_menu.addAction(self.widgets.about_box.action)
         return menu
 
     def _create_gui(self) -> None:
@@ -1025,7 +1069,7 @@ class UIBuilder:
         layout.addLayout(infobar, 0)
 
 
-class MainWindow(LogWindowMixin, MMainWindow):
+class MainWindow(LogWindowMixin, MetadataConfigDockMainWindow):
     """
     Run the logical code.
 
@@ -1057,14 +1101,10 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self._output_timer.setInterval(50)
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-script.png"))
         self.ui: UIBuilder = UIBuilder()
-        self.ui.actions.start.setEnabled(True)
         self.ui.widgets.script_edit.setValidExtensions([self.extension])
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
-        self.install_metadata_config_docks(
-            self.ui.widgets.dockable_metadata,
-            self.ui.widgets.config_editor,
-        )
+        self.install_metadata_config_docks()
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
@@ -1081,6 +1121,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
+        self.ui.actions.about.triggered.connect(self.info_box)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
         self.ui.actions.new_file.triggered.connect(self.new_file)
         self.ui.actions.load.triggered.connect(self.load_from_file)
@@ -1097,16 +1138,13 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.actions.autocomplete.toggled.connect(
             self.ui.widgets.script_edit.enableTabCompletion
         )
-        self.ui.actions.start.triggered.connect(self.start_process)
-        self.ui.actions.pause.triggered.connect(lambda: self.ui.widgets.measurement_thread.pause())
-        self.ui.actions.abort.triggered.connect(
-            lambda: self.ui.widgets.measurement_thread.abort("a")
-        )
-        self.ui.actions.finish.triggered.connect(
-            lambda: self.ui.widgets.measurement_thread.abort("f")
-        )
+        self.ui.actions.start_pause.triggered.connect(self.start_process)
+        self.ui.actions.stop.triggered.connect(lambda: self.abort_thread("q"))
+        self.ui.actions.abort.triggered.connect(lambda: self.abort_thread("a"))
+        self.ui.actions.finish.triggered.connect(lambda: self.abort_thread("f"))
         self.ui.actions.kill.triggered.connect(self.kill_thread)
         self.ui.actions.preview.triggered.connect(self.preview_data)
+        self.connect_layout_actions()
         self.ui.actions.system_help.triggered.connect(self.show_system_commands)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
@@ -1279,6 +1317,16 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.widgets.system_command_help.close()
         event.accept()
 
+    def info_box(self) -> None:
+        """Display an 'about this app' widget."""
+        box = AboutBox(
+            "Matrix Script",
+            get_matrix_icon("matr1x-matrix-script.png"),
+            matr1x,
+            matr1x.datetimefmt,
+        )
+        box.exec()
+
     def preview_data(self) -> None:
         """Launch matrix-preview with current measurement file."""
         preview = [
@@ -1330,7 +1378,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 ret = dialog.get_input_text()
             else:
-                self.ui.widgets.measurement_thread.abort("q")
+                self.abort_thread()  # abort executing script
                 return
         elif params.input_type == "bool":
             dialog = YesNoAbortDialog(
@@ -1341,7 +1389,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             )
             ret = dialog.exec_and_get_response()
             if ret == "abort":
-                self.ui.widgets.measurement_thread.abort("q")
+                self.abort_thread()
                 return
         elif params.input_type == "numerical":
             try:
@@ -1369,17 +1417,37 @@ class MainWindow(LogWindowMixin, MMainWindow):
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 ret = str(dialog.get_input_value())
             else:
-                self.ui.widgets.measurement_thread.abort("q")
+                self.abort_thread()  # abort executing script
                 return
         elif params.input_type == "__end_script__":
             ret = TerminationDialog().get_selection()
         else:
             ret = ""
-        self.ui.widgets.measurement_thread.pass_input(ret)
+        self.measurement_thread.pass_input(ret)
+
+    def pause_thread(self) -> None:
+        """Pause thread execution."""
+        self.measurement_thread.pause()
+
+    def abort_thread(self, char="q") -> None:
+        """
+        Abort thread execution, define measurement state as per `char`.
+
+        Parameters
+        ----------
+        char : str
+            Single length string that is passed to the process.
+            - "q" stops and queries user for state
+            - "a" stops and sets state to `aborted`
+            - "f" stops and sets state to `finished`
+        """
+        if self.ui.actions.start_pause.isChecked():
+            self.ui.actions.start_pause.setChecked(False)
+        self.measurement_thread.abort(char)
 
     def kill_thread(self) -> None:
         """Kill the thread."""
-        self.ui.widgets.measurement_thread.kill()
+        self.measurement_thread.kill()
         self.ui.widgets.status_preview.print_colored(
             "Script terminated by user - file integrity might be compromised"
         )
@@ -1387,52 +1455,54 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
         system_info = self.ui.widgets.system_list.system_info
-        text = "The following systems were selected:<br><b>"
-        for system in self.ui.widgets.system_list.systems:
-            text = text + system + "<br>"
-        text += "<br></b>These systems provide the following:<br>"
         bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
-        if system_info.parameters != {}:
-            text += "<h3>Parameters</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Index</th>'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for parameter in system_info.parameters.values():
-                if parameter.settable:
-                    text += f"<tr><td>{parameter.index}</td>"
-                    text += f"<td><b>{parameter.name}</b></td>"
-                    text += f"<td>{parameter.description}</td></tr>"
-                else:
-                    text += f"<tr><td>{parameter.index}</td>"
-                    text += f"<td>{parameter.name}</td>"
-                    text += f"<td>{parameter.description}</td></tr>"
-            text += "</table>"
-        if system_info.devices != {}:
-            text += "<h3>Devices</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for device in system_info.devices.values():
-                text += f"<tr><td><b>{device.name}</b></td><td>{device.description}</td></tr>"
-            text += "</table>"
-        if system_info.methods != {}:
-            text += "<h3>System Methods and Variables</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for method in system_info.methods.values():
-                text += f"<tr><td><b>{method.name}</b></td><td>{method.description}</td></tr>"
-            text += "</table>"
+        th = '<th style="text-align: left;">{}</th>'.format
+        table_open = (
+            '<table border="1" cellpadding="5" cellspacing="0" '
+            'style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+            f'<tr style="background-color: {bg_color}; text-align: left;">'
+        )
+        systems = "".join(f"{s}<br>" for s in self.ui.widgets.system_list.systems)
+        systems = systems if systems else "None<br>"
+        classes = ", ".join(system_info.classes) if system_info.classes else "None"
+        text = (
+            f"The following systems were selected:<br><b>{systems}<br></b>"
+            f"They consist of the following classes:<br><b>{classes}<br></b>"
+            "<br>These systems provide the following:<br>"
+        )
+        if system_info.parameters:
+            rows = "".join(
+                f"<tr><td>{p.index}</td>"
+                f"<td>{f'<b>{p.name}</b>' if p.settable else p.name}</td></tr>"
+                for p in system_info.parameters.values()
+            )
+            text += (
+                f"<h3>Parameters</h3>Settable items in <b>boldface</b>"
+                f"{table_open}{th('Index')}{th('Name')}</tr>{rows}</table>"
+            )
+        if system_info.devices:
+            rows = "".join(
+                f"<tr><td><b>{d.name}</b></td><td>{d.description}</td></tr>"
+                for d in system_info.devices.values()
+            )
+            text += (
+                f"<h3>Devices</h3>{table_open}{th('Name')}{th('Description')}</tr>{rows}</table>"
+            )
+        shared = th("Prefix") + th("Name") + th("Signature")
+        if system_info.methods:
+            rows = "".join(
+                f"<tr><td>{m.prefix}</td><td><b>{m.name}</b></td>"
+                f"<td>{m.signature}</td><td>{m.doc_summary}</td></tr>"
+                for m in system_info.methods.values()
+            )
+            text += f"<h3>System Methods</h3>{table_open}{shared}"
+            text += f"{th('Docstring summary')}</tr>{rows}</table>"
+        if system_info.variables:
+            rows = "".join(
+                f"<tr><td>{v.prefix}</td><td><b>{v.name}</b></td><td>{v.signature}</td></tr>"
+                for v in system_info.variables.values()
+            )
+            text += f"<h3>System Variables</h3>{table_open}{shared}</tr>{rows}</table>"
         text += "<br>"
         self.ui.widgets.system_command_text_edit.setText(text)
 
@@ -1537,10 +1607,21 @@ class MainWindow(LogWindowMixin, MMainWindow):
             True means script is running
         """
         self.is_running = flag
-        self.ui.actions.start.setEnabled(not flag)
-        self.ui.actions.pause.setEnabled(flag)
-        if self.ui.actions.pause.isChecked():
-            self.ui.actions.pause.setChecked(False)
+        if flag:
+            self.ui.actions.start_pause.setIcon(get_matrix_icon("CUSTOM_Pause"))
+            self.ui.actions.start_pause.setText("Pause")
+            self.ui.actions.start_pause.setToolTip("Pause the currently running script.")
+            self.ui.actions.start_pause.triggered.disconnect(self.start_process)
+            self.ui.actions.start_pause.triggered.connect(self.pause_thread)
+        else:
+            self.ui.widgets.script_edit.removeHighlight()
+            self.ui.actions.start_pause.setIcon(get_matrix_icon("CUSTOM_Play"))
+            self.ui.actions.start_pause.setText("Start")
+            self.ui.actions.start_pause.setToolTip("Execute the script.")
+            self.ui.actions.start_pause.triggered.disconnect(self.pause_thread)
+            self.ui.actions.start_pause.triggered.connect(self.start_process)
+        self.ui.actions.start_pause.setChecked(False)
+        self.ui.actions.stop.setEnabled(flag)
         self.ui.actions.abort.setEnabled(flag)
         self.ui.actions.finish.setEnabled(flag)
         self.ui.actions.kill.setEnabled(flag)
@@ -1559,7 +1640,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         """
         self.enable_buttons(False)
         self.ui.widgets.status_preview.print_colored("\nExecution finished")
-        del self.ui.widgets.measurement_thread
+        del self.measurement_thread
 
     def run_linter(self) -> int:
         """
@@ -1570,7 +1651,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         int
             The number of issues.
         """
-        self.ui.widgets.script_edit.setSettables(self.ui.widgets.system_list.system_info)
+        self.ui.widgets.script_edit.setSystemInfo(self.ui.widgets.system_list.system_info)
         return self.ui.widgets.script_edit.returnIssues()
 
     def start_process(self) -> None:
@@ -1594,6 +1675,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             a.setDefaultButton(QMessageBox.StandardButton.Ok)
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
+                self.ui.actions.start_pause.setChecked(False)
                 return
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
@@ -1604,17 +1686,17 @@ class MainWindow(LogWindowMixin, MMainWindow):
             kind="script",
             input_file=script,
             output_file=outputfile,
-            metadata=metadata,  # ty:ignore[invalid-argument-type]
+            metadata=metadata,
             config=self.ui.widgets.config_editor.get_config_dict(),
             systems=self.ui.widgets.system_list.systems,
         )
-        self.ui.widgets.measurement_thread = MeasurementThread()
-        self.ui.widgets.measurement_thread.set_parameters(script_item)
-        self.ui.widgets.measurement_thread.finished.connect(self.process_finished)
-        self.ui.widgets.measurement_thread.data_received.connect(self.process_data)
+        self.measurement_thread = MeasurementThread()
+        self.measurement_thread.set_parameters(script_item)
+        self.measurement_thread.finished.connect(self.process_finished)
+        self.measurement_thread.data_received.connect(self.process_data)
 
         logger.info("The following user script is started:\n%s", user_script)
-        self.ui.widgets.measurement_thread.start()
+        self.measurement_thread.start()
         self.enable_buttons(True)
 
     def update_systems(self, update_config: bool = True) -> None:
@@ -1867,8 +1949,8 @@ def main() -> None:
     appname = "matrix-script"
     app.setDesktopFileName(appname)
     ex = MainWindow(filename=Path(sys.argv[1]) if len(sys.argv) >= 2 else None)
-    ex.show()
     ex.restore_window_state()
+    ex.show()
     # handle MacOS specific FileOpenEvent from MApplication
     app.connect_file_handler(ex._load_file_from_signal)
     ret = app.exec()

@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Contains classes shared across matr1x scripts."""
 
+import contextlib
 import importlib.util
 import logging
 import socket
@@ -22,15 +23,16 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Literal, TypedDict, final, overload
 
 import tomli_w
 from pydantic import ValidationError
-from pyqtgraph.Qt.QtGui import QColor
 from PySide6.QtCore import (
     QByteArray,
+    QObject,
     QPoint,
     QPropertyAnimation,
     QSettings,
@@ -53,20 +55,17 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMenu,
-    QSizePolicy,
     QTextEdit,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
 from matr1x import VALID_META_KEYS, resolved_directory
-from matr1x.error_handling import Error, InternalInvariantError
+from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.gui_util import (
     ConfigEditWidget,
     LoggerMixin,
     MApplication,
-    blocked_signals,
     get_matrix_icon,
     get_system_info,
 )
@@ -76,12 +75,10 @@ from matr1x.util import get_matrix_binary
 __all__ = [
     "MeasurementItem",
     "MeasurementThread",
-    "MeasurementUI",
     "MetaData",
     "MetaDataDialog",
+    "MetadataConfigDockMainWindow",
     "MetadataDockWidget",
-    "MMainWindow",
-    "MToolBar",
     "Notifier",
     "NotifierMessage",
     "SaferQSettings",
@@ -210,6 +207,11 @@ class SystemListWidget(QListWidget):
         """Return the list of systems."""
         return [self.item(i).text() for i in range(self.count())]
 
+    def clear(self) -> None:
+        """Clear the list of systems."""
+        super().clear()
+        self.systems_changed()
+
     def dropEvent(self, event: QDropEvent) -> None:
         """Emit a signal if the order changed."""
         before = self.systems
@@ -231,7 +233,6 @@ class SystemListWidget(QListWidget):
 
     def add_systems(self, filenames: list[str]) -> None:
         """Add files but avoid duplicates."""
-        added = False
         existing = {self.item(i).text() for i in range(self.count())}
         for filename in filenames:
             try:
@@ -248,27 +249,18 @@ class SystemListWidget(QListWidget):
                 msg = NotifierMessage(f"{candidate} is already present and was omitted.")
                 self.message.emit(msg)
                 continue
-            ret = get_system_info([candidate])
-            if isinstance(ret, Error):
+            import_check = self.test_import(candidate)
+            if isinstance(import_check, Error):
                 msg = NotifierMessage(
-                    f"Could not import system {candidate}: {ret.error}",
-                    level=logging.ERROR,
+                    f"{candidate} could not import and was omitted: {import_check.error}",
+                    level=logging.WARNING,
                 )
                 self.message.emit(msg)
                 continue
             super().addItem(candidate)
-            added = True
+            self.systems_changed()
             existing.add(candidate)
             self._base_directory = Path(filename)
-        if added:
-            self.systems_changed()
-        else:
-            self._sync_action_state()
-
-    def clear(self) -> None:
-        """Clear the list and synchronize action state."""
-        super().clear()
-        self._sync_action_state()
 
     def systems_changed(self) -> None:
         """Load system info and emit changed signal."""
@@ -286,6 +278,15 @@ class SystemListWidget(QListWidget):
     def system_info(self) -> SystemInfo:
         """Return the (cached) system info."""
         return self._cached_system_info
+
+    def test_import(self, filename: str) -> Result[bool, str]:
+        """Test if a filename can be imported."""
+        ret = get_system_info([filename])
+        if not isinstance(ret, Success):
+            return Error(error=ret.error)
+        if ret.value.classes[0] in self.system_info.classes:
+            return Error(error="Duplicate system class name, please rename.")
+        return Success(value=True)
 
     def query_systems(self) -> None:
         """Select and add system files(s)."""
@@ -354,21 +355,6 @@ class MetadataDockWidget(QDockWidget):
         )
         self.meta_view = MetaDataDialog()
         self.setWidget(self.meta_view)
-        self.action = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata", self)
-        self.action.setShortcut(QKeySequence("Ctrl+2"))
-        self.action.setCheckable(True)
-        self.action.setChecked(True)
-        self.action.triggered.connect(self.toggle_metadata_view)
-        self.visibilityChanged.connect(self._sync_metadata_view)
-
-    def toggle_metadata_view(self, checked: bool) -> None:
-        """Toggle the visibility of the metadata."""
-        self.setVisible(checked)
-
-    def _sync_metadata_view(self) -> None:
-        """Match view action state to the restored widget visibility."""
-        with blocked_signals(self.action):
-            self.action.setChecked(not self.isHidden())
 
 
 @final
@@ -490,61 +476,83 @@ class MeasurementItem:
         return input_file + output_file + metadata + config
 
 
-@final
-class MToolBar(QToolBar):
-    """Standard toolbar with custom properties."""
-
-    def __init__(self, title: str | None = None) -> None:
-        super().__init__(title)
-        self.setObjectName("main_toolbar")
-        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.setFloatable(False)
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea | Qt.ToolBarArea.BottomToolBarArea)
-        self.icon_size = MApplication.instance().toolbar_icon_size()
-        self.setIconSize(QSize(self.icon_size, self.icon_size))
-        self.action = QAction("Show Toolbar", self)
-        self.action.setShortcut(QKeySequence("Ctrl+1"))
-        self.action.setCheckable(True)
-        self.action.setChecked(True)
-        self.action.triggered.connect(self.toggle_toolbar_view)
-        self.visibilityChanged.connect(self.action.setChecked)
-
-    @property
-    def empty(self) -> QWidget:
-        """Return an empty widget with fixed icon size."""
-        empty = QWidget()
-        empty.setFixedWidth(self.icon_size)
-        return empty
-
-    @property
-    def spacer(self) -> QWidget:
-        """Return a spacer widget that expands horizontally."""
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        return spacer
-
-    def toggle_toolbar_view(self, checked: bool) -> None:
-        """Toggle the visibility of the toolbar."""
-        self.setVisible(checked)
+@contextlib.contextmanager
+def _blocked_signals(*objects: QObject) -> Iterator[None]:
+    """Temporarily block signals for Qt objects."""
+    blocked_objects = [(obj, obj.blockSignals(True)) for obj in objects]
+    try:
+        yield
+    finally:
+        for obj, previous_state in blocked_objects:
+            obj.blockSignals(previous_state)
 
 
-class MMainWindow(QMainWindow):
+class MetadataConfigDockMainWindow(QMainWindow):
     """Main window with shared metadata and config dock layout handling."""
 
+    ui: Any
     layout_settings_group = "MainWindowLayoutV2"
 
-    def install_metadata_config_docks(self, metadata: QDockWidget, config: QDockWidget) -> None:
+    @staticmethod
+    def create_config_editor() -> ConfigEditWidget:
+        """Create the common device config editor dock."""
+        return ConfigEditWidget()
+
+    @staticmethod
+    def create_device_config_action() -> QAction:
+        """Create the common device config action."""
+        action = QAction(get_matrix_icon("CHAR_≡"), "Device config")
+        action.setToolTip("Show the devices preferences/ configuration.")
+        action.setShortcut(QKeySequence("Ctrl+3"))
+        action.setCheckable(True)
+        return action
+
+    @staticmethod
+    def create_metadata_action() -> QAction:
+        """Create the common metadata visibility action."""
+        action = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata")
+        action.setShortcut(QKeySequence("Ctrl+2"))
+        action.setCheckable(True)
+        action.setChecked(True)
+        return action
+
+    def install_metadata_config_docks(self) -> None:
         """Install metadata and device config docks."""
+        metadata_dock = self.ui.widgets.dockable_metadata
+        config_dock = self.ui.widgets.config_editor
         self.setDockOptions(
             self.dockOptions()
             | QMainWindow.DockOption.AllowNestedDocks
             | QMainWindow.DockOption.AllowTabbedDocks
         )
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, metadata)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, config)
-        self.splitDockWidget(metadata, config, Qt.Orientation.Vertical)
-        config.hide()
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, metadata_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, config_dock)
+        self.splitDockWidget(metadata_dock, config_dock, Qt.Orientation.Vertical)
+        config_dock.hide()
+
+    def connect_layout_actions(self) -> None:
+        """Connect the shared layout actions and visibility changes."""
+        self.ui.actions.config.toggled.connect(self.toggle_preferences)
+        self.ui.actions.toggle_metadata.triggered.connect(self.toggle_metadata_view)
+        self.ui.actions.toggle_toolbar.triggered.connect(self.toggle_toolbar_view)
+        self.ui.widgets.config_editor.visibilityChanged.connect(self._sync_layout_actions)
+        self.ui.widgets.dockable_metadata.visibilityChanged.connect(self._sync_layout_actions)
+        self.ui.toolbar.visibilityChanged.connect(self._sync_layout_actions)
+
+    def layout_action_mappings(self) -> list[tuple[QAction, QWidget]]:
+        """
+        Return action and widget pairs synchronized with layout visibility.
+
+        Returns
+        -------
+        list of tuple of QAction and QWidget
+            Actions paired with the widgets whose visibility they control.
+        """
+        return [
+            (self.ui.actions.config, self.ui.widgets.config_editor),
+            (self.ui.actions.toggle_metadata, self.ui.widgets.dockable_metadata),
+            (self.ui.actions.toggle_toolbar, self.ui.toolbar),
+        ]
 
     def save_layout_state(self, settings: SaferQSettings) -> None:
         """
@@ -573,9 +581,64 @@ class MMainWindow(QMainWindow):
         self.resize(self.sizeHint())  # Just in case it is the first start.
         settings.beginGroup(self.layout_settings_group)
         self.restoreGeometry(settings.safer_value("geometry", QByteArray(), type=QByteArray))
-        self.restoreState(settings.safer_value("window_state", QByteArray(), type=QByteArray))
+        actions = [action for action, _widget in self.layout_action_mappings()]
+        with _blocked_signals(*actions):
+            self.restoreState(settings.safer_value("window_state", QByteArray(), type=QByteArray))
         self._restore_additional_layout_state(settings)
         settings.endGroup()
+        self._sync_layout_actions()
+
+    def toggle_toolbar_view(self, checked: bool) -> None:
+        """
+        Toggle the visibility of the toolbar.
+
+        Parameters
+        ----------
+        checked: bool
+            Show (True) or hide (False) the toolbar.
+        """
+        if checked:
+            self.ui.toolbar.show()
+        else:
+            self.ui.toolbar.hide()
+
+    def toggle_metadata_view(self, checked: bool) -> None:
+        """
+        Toggle the visibility of the metadata.
+
+        Parameters
+        ----------
+        checked: bool
+            Show (True) or hide (False) the metadata.
+        """
+        metadata = self.ui.widgets.dockable_metadata
+        if checked:
+            metadata.show()
+        else:
+            metadata.hide()
+
+    def toggle_preferences(self, checked: bool) -> None:
+        """
+        Toggle the preferences pane.
+
+        Parameters
+        ----------
+        checked: bool
+            Show (True) or hide (False) the preferences.
+        """
+        config_editor = self.ui.widgets.config_editor
+        if checked:
+            config_editor.show()
+            config_editor.raise_()
+            config_editor.activateWindow()
+        else:
+            config_editor.hide()
+
+    def _sync_layout_actions(self) -> None:
+        """Match view action state to the restored widget visibility."""
+        for action, widget in self.layout_action_mappings():
+            with _blocked_signals(action):
+                action.setChecked(not widget.isHidden())
 
     def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
         """
@@ -598,7 +661,6 @@ class MMainWindow(QMainWindow):
         """
 
 
-@final
 class MeasurementThread(QThread, LoggerMixin):
     """
     Execute and control a measurement subprocess via a TCP socket.
@@ -731,6 +793,7 @@ class MeasurementThread(QThread, LoggerMixin):
             "-i",
             self.parameters.input_file,
             "-p",
+            "-j",
             "--port",
             str(port),
         ]
@@ -798,55 +861,3 @@ class MeasurementThread(QThread, LoggerMixin):
                 tmp_scriptfile.close()
             if tmp_config_file.exists():
                 tmp_config_file.unlink()
-
-
-@final
-class MeasurementUI(QWidget):
-    """
-    Provide the required UI elements for the measurement thread.
-
-    The required thread safety does not allow to have the UI elements
-    in another thread.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.start = QAction(get_matrix_icon("CUSTOM_Play"), "Start")
-        self.start.setToolTip("Start the measurement.")
-        self.start.setEnabled(False)
-        self.pause = QAction(get_matrix_icon("CUSTOM_Pause"), "Pause")
-        self.pause.setToolTip("Pause the measurement.")
-        self.pause.setCheckable(True)
-        self.pause.setChecked(False)
-        self.pause.setEnabled(False)
-        self.abort = QAction(get_matrix_icon("CUSTOM_Stop", color=QColor("#B71C1C")), "Abort")
-        self.abort.setToolTip("Stop the measurement and mark as aborted.")
-        self.abort.setEnabled(False)
-        self.finish = QAction(get_matrix_icon("CUSTOM_Stop", color=QColor("#388E3C")), "Finish")
-        self.finish.setToolTip("Stop the measurement and mark as finished.")
-        self.finish.setEnabled(False)
-        self.kill = QAction(get_matrix_icon("SP_DialogCancelButton"), "Kill")
-        self.kill.setToolTip("Kill the measurement thread.")
-        self.kill.setEnabled(False)
-
-    def connect_to_thread(self, thread: MeasurementThread) -> None:
-        """Connect the UI actions to the measurement thread."""
-        self.pause.triggered.connect(thread.pause)
-        self.abort.triggered.connect(lambda checked: thread.abort())
-        self.finish.triggered.connect(thread.finish)
-        self.kill.triggered.connect(thread.kill)
-
-    def add_to_toolbar(self, toolbar: QToolBar) -> None:
-        """Add the UI actions to the toolbar."""
-        toolbar.addAction(self.start)
-        toolbar.addAction(self.pause)
-        toolbar.addAction(self.abort)
-        toolbar.addAction(self.finish)
-
-    def add_to_menu(self, menu: QMenu) -> None:
-        """Add the UI actions to the menu."""
-        menu.addAction(self.start)
-        menu.addAction(self.pause)
-        menu.addAction(self.abort)
-        menu.addAction(self.finish)
-        menu.addAction(self.kill)

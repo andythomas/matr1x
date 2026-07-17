@@ -30,7 +30,7 @@ from matr1x.system import System
 
 
 # ============================
-# This area contains the required MeasSystem definition and
+# This area contains the required system definition and
 # the optional reimplementation of the set and reset function
 # ============================
 
@@ -39,7 +39,11 @@ from matr1x.system import System
 
 # ============================
 # initialize system
-system = System()
+class MeasSystem(System):
+    """Dummy measurement system for testing system merging."""
+
+
+system = MeasSystem()
 system.dcdata["source"] = "dummy system for testing system merging"
 # ============================
 
