@@ -48,7 +48,7 @@ jobs:
 
       - name: check the pull request (branch) out
         if: steps.filter.outputs.related_code_changed == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
@@ -83,7 +83,7 @@ jobs:
 
       - name: Create pull request
         if: steps.filter.outputs.related_code_changed == 'true' && steps.ruff.outcome == 'failure'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8.1.1
         with:
           commit-message: ruff action fixes
           title: Fixes by PR-check action
@@ -134,16 +134,16 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Set up Python ${{ matrix.python-version }}
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
 
       - name: Cache & install apt packages (Ubuntu only)
         if: matrix.os == 'ubuntu-latest'
-        uses: awalsh128/cache-apt-pkgs-action@v1.6.0
+        uses: awalsh128/cache-apt-pkgs-action@v1.6.3
         with:
           packages: |
             libegl1
