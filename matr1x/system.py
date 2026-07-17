@@ -19,6 +19,7 @@ Module containing the System class definition and utility functions.
 These can be used for data acquisition and instrument control.
 """
 
+import builtins
 import importlib
 import inspect
 import logging
@@ -29,6 +30,7 @@ import time
 import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterable
+from functools import cached_property
 from operator import attrgetter
 from pathlib import Path
 from typing import Any, TypeGuard, TypeVar
@@ -41,7 +43,13 @@ from pymeasure.instruments import Instrument
 import matr1x
 from matr1x.devices.visadevice import VisaDevice
 from matr1x.error_handling import Error, Result, Success
-from matr1x.models import MeasurementData, Message, UntypedConfigModel
+from matr1x.models import (
+    MeasurementData,
+    Message,
+    SystemMethod,
+    SystemVariable,
+    UntypedConfigModel,
+)
 
 from . import VALID_META_KEYS, output_extension
 from .util import (
@@ -55,6 +63,10 @@ from .util import (
     resolve_config_path,
     save_dict_to_hdf5,
 )
+
+BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
+
+ALLOWED_SIGNATURE_TYPES = BUILTIN_TYPES | {None}
 
 logger = logging.getLogger(__name__)
 
@@ -1450,67 +1462,88 @@ class System:
         # reset devs dictionary to allow reopening
         self.devs.update(self._devs_init)
 
-    def _add_method_info_to_dict(
-        self, obj: "System", info_dict: dict[str, Any], prefix: str = "System"
-    ) -> None:
-        """
-        Add methods and variables from an object to a dictionary.
-
-        Parameters
-        ----------
-        obj : System
-            The system to extract methods and variables from
-        info_dict : dict
-            Dictionary to add the methods/variables information to
-        prefix : str, optional
-            Prefix to use in the description (default: "System")
-
-        Returns
-        -------
-        None
-            Updates the info_dict in place
-        """
-        # Find methods used as parameter getters/setters
+    @cached_property
+    def methods_and_variables(self) -> tuple[list[SystemMethod], list[SystemVariable]]:
+        """Find additional system methods and variables."""
+        methods: list[SystemMethod] = []
+        variables: list[SystemVariable] = []
         parameter_methods = set()
-        for param in obj.parameters:
+        cls_name = self.__class__.__name__
+        for param in self.parameters:
             # Check if setter/getter is a string (method name) and add to exclusion list
             if isinstance(param.setter, str):
                 parameter_methods.add(param.setter)
             if isinstance(param.getter, str):
                 parameter_methods.add(param.getter)
         base_attrs = set(dir(System()))
-        for key in dir(obj):
+        for key in dir(self):
             if key not in base_attrs and not key.startswith("_") and key not in parameter_methods:
-                if key in info_dict["methods"]:
-                    info_dict["warnings"].append(
-                        f"Method '{key}' from '{obj.__class__.__name__}' shadows a pre-existing "
-                        f"entry (prefix: {prefix})."
-                    )
-                method = getattr(obj, key)
-                if callable(method):
+                attribute = getattr(self, key)
+                if callable(attribute):
                     signature = None
                     docstring = None
                     try:
-                        signature = str(inspect.signature(method))
+                        signature = str(self._buildins_signature(getattr(type(self), key)))
                     except (TypeError, ValueError):
                         pass
-                    if method.__doc__:
-                        docstring = method.__doc__.strip()
-
-                    info_dict["methods"][key] = {
-                        "name": key,
-                        "prefix": prefix,
-                        "kind": "method",
-                        "signature": signature,
-                        "docstring": docstring,
-                    }
+                    if attribute.__doc__:
+                        docstring = attribute.__doc__.strip()
+                    method = SystemMethod(
+                        name=key,
+                        prefix=cls_name,
+                        signature=signature,
+                        docstring=docstring,
+                        callable=attribute,
+                    )
+                    methods.append(method)
                 else:
-                    info_dict["methods"][key] = {
-                        "name": key,
-                        "prefix": prefix,
-                        "kind": "variable",
-                        "signature": f" ({type(method).__name__})",
-                    }
+                    type_var = type(attribute).__name__
+                    if type_var == "NoneType":
+                        type_var = None
+                    variable = SystemVariable(name=key, prefix=cls_name, signature=type_var)
+                    variables.append(variable)
+        return methods, variables
+
+    def _buildins_signature(self, function: Callable) -> inspect.Signature:
+        """Return signature of the function with only built-ins."""
+        signature = inspect.signature(function)
+        new_params = []
+        for param in signature.parameters.values():
+            annotation = param.annotation
+            if annotation not in ALLOWED_SIGNATURE_TYPES:
+                annotation = inspect.Parameter.empty
+            new_params.append(param.replace(annotation=annotation))
+        return_annotation = signature.return_annotation
+        if return_annotation not in ALLOWED_SIGNATURE_TYPES:
+            return_annotation = inspect.Signature.empty
+        return signature.replace(parameters=new_params, return_annotation=return_annotation)
+
+    def _add_attributes_to_dict(self, info_dict: dict[str, Any]) -> None:
+        """
+        Add methods and variables from this system to a dictionary.
+
+        Parameters
+        ----------
+        info_dict : dict
+            Dictionary to add the methods/variables information to
+
+        Returns
+        -------
+        None
+            Updates the info_dict in place
+        """
+        methods, variables = self.methods_and_variables
+        cls_name = self.__class__.__name__
+        for items, category in ((methods, "methods"), (variables, "variables")):
+            target = info_dict[category]
+            for item in items:
+                if item.name in target:
+                    info_dict["warnings"].append(
+                        f"'{item.name}' from '{cls_name}' would shadow a pre-existing entry "
+                        f"and will not accesible via 'system'."
+                    )
+                else:
+                    target[item.name] = item.model_dump(exclude={"callable"})
 
     def grab_information(self) -> dict[str, Any]:
         """
@@ -1524,7 +1557,14 @@ class System:
             custom-defined system methods and variables (if any).
         """
         # generate dictionary from devices, parameters, methods and config
-        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}, "warnings": []}
+        info = {
+            "devices": {},
+            "parameters": {},
+            "methods": {},
+            "variables": {},
+            "config": {},
+            "warnings": [],
+        }
 
         # Add devices
         for dev, device_entry in self.devs.items():
@@ -1557,45 +1597,23 @@ class System:
 
         # Add parameters
         for index, param in enumerate(self.parameters):
-            # Store the parameter name (either as string or joined list)
             name = param.name
-            if isinstance(name, list):
-                # For list parameters, join the names with comma
-                display_name = ", ".join(name)
-            else:
-                display_name = name
-
-            # Store the parameter unit (either as string or joined list)
+            display_name = ", ".join(name) if isinstance(name, list) else name
             unit = param.unit
-            if isinstance(unit, list):
-                # For list parameters, join the units with comma
-                display_unit = ", ".join(unit)
-            else:
-                display_unit = unit
-
+            display_unit = ", ".join(unit) if isinstance(unit, list) else unit
             # Create an entry with the index as key
             # (use string prefix to avoid numeric parsing issues)
             param_key = f"param_{index}"
-            if param.setter is not None:
-                info["parameters"][param_key] = {
-                    "name": display_name,
-                    "unit": display_unit,
-                    "description": f"Settable parameter at index {index}",
-                    "index": index,
-                    "settable": True,
-                }
-            else:
-                info["parameters"][param_key] = {
-                    "name": display_name,
-                    "unit": display_unit,
-                    "description": f"Read-only parameter at index {index}",
-                    "index": index,
-                    "settable": False,
-                }
+            info["parameters"][param_key] = {
+                "name": display_name,
+                "unit": display_unit,
+                "index": index,
+                "settable": param.setter is not None,
+            }
 
         # Add custom methods and variables
         if self.__class__ != MergedSystem:
-            self._add_method_info_to_dict(self, info)
+            self._add_attributes_to_dict(info)
 
         system_name = getattr(self, "__name__", str(self.__class__.__name__))
 
@@ -1937,10 +1955,12 @@ class MergedSystem(System):
 
     def __getattr__(self, attr: str) -> Any:
         """
-        Return methods/variables from subsystems if they do not exist in the MergedSystem.
+        Return methods/variables from subsystems.
 
-        This method is called when an attribute is not found in the MergedSystem instance.
-        It searches for the attribute in all subsystems and returns it if found.
+        This method is called when an attribute is not found in the
+        MergedSystem instance. First, it searches for a subsystem of
+        that name, then, it searches for the attribute in all
+        subsystems.
 
         Parameters
         ----------
@@ -1950,7 +1970,7 @@ class MergedSystem(System):
         Returns
         -------
         Any
-            The attribute from a subsystem, if found.
+            The attribute if found.
 
         Raises
         ------
@@ -1958,6 +1978,8 @@ class MergedSystem(System):
             If the attribute is not found in any subsystem.
         """
         for subsys in self.subsys:
+            if attr == subsys.__class__.__name__:
+                return subsys
             if hasattr(subsys, attr):
                 return getattr(subsys, attr)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'")
@@ -2048,7 +2070,15 @@ class MergedSystem(System):
             System information, methods and parameters from all
             subsystems.
         """
-        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}, "warnings": []}
+        info = {
+            "classes": [],
+            "devices": {},
+            "parameters": {},
+            "methods": {},
+            "variables": {},
+            "config": {},
+            "warnings": [],
+        }
         base_info = super().grab_information()
         # Merge the categorized dictionaries
         if "devices" in base_info:
@@ -2060,7 +2090,8 @@ class MergedSystem(System):
         # Skip config from base class to avoid duplication -
         # we'll add individual subsystem configs below
         for subsys in self.subsys:
-            self._add_method_info_to_dict(subsys, info, prefix="Subsystem")
+            info["classes"].append(subsys.__class__.__name__)
+            subsys._add_attributes_to_dict(info)
 
             subsys_config = subsys.config
             if subsys_config:

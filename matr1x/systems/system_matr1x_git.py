@@ -23,9 +23,14 @@ from matr1x.devices.git import gitDevice
 from matr1x.system import System
 from matr1x.util import get_package_path
 
+
 # ============================
 # initialize system instance
-system = System()
+class Git(System):
+    """System adding git information to the data file header."""
+
+
+system = Git()
 # define Dublin core source parameter
 system.dcdata["source"] = "git information of matr1x"
 # ============================

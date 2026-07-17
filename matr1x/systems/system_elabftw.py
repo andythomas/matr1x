@@ -110,10 +110,10 @@ def _is_template_content(template: str) -> bool:
 
 
 # ============================
-# This area contains the required MeasSystem definition and
+# This area contains the required system definition and
 # the optional reimplementation of the set and reset function
 # ============================
-class ElabSystem(System):
+class Elab(System):
     """
     System for interfacing with elabFTW electronic lab notebook.
 
@@ -749,4 +749,4 @@ class ElabSystem(System):
 
 # ============================
 # initialize system
-system = ElabSystem()
+system = Elab()
