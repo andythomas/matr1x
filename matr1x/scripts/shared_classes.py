@@ -688,7 +688,7 @@ class MeasurementThread(QThread, LoggerMixin):
         """
         for line in iter(stream.readline, b""):
             if is_error:
-                self.logger.error(line.decode().strip())
+                self.logger.warning(line.decode().strip())
             else:
                 self.logger.info(line.decode().strip())
 
@@ -793,6 +793,12 @@ class MeasurementThread(QThread, LoggerMixin):
                     self.process_received_data("OS error in thread communication.\n")
                     break
             self.conn.close()
+            self.proc.wait()
+            if self.proc.returncode != 0:
+                self.logger.error(
+                    "Measurement failed with exit code %s. Check the logs for details.",
+                    self.proc.returncode,
+                )
         finally:
             if tmp_scriptfile is not None:
                 tmp_scriptfile.close()
