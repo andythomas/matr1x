@@ -90,6 +90,7 @@ from matr1x.gui_util import (
 from matr1x.models import (
     Datafile,
     Envelope,
+    ErrorMessage,
     Header,
     InputParameters,
     LineNumber,
@@ -1047,6 +1048,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.line_offset = get_script_prefix_offset()
         self.measurement_file: Path
         self.is_running = False
+        self.measurement_failed = False
         self.shortcut_dir: tempfile.TemporaryDirectory[str] | None = None
         self.last_filename: Path | None = None
         self.settings = SaferQSettings("matr1x", "script")
@@ -1140,6 +1142,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 self.write_output("\r" + data.message + data.end)
             else:
                 self.write_output(data.message + data.end)
+        elif isinstance(data, ErrorMessage):
+            self.write_output(data.error + "\n")
+            self.measurement_failed = True
 
     def show_message(self, message: NotifierMessage):
         """Show a message text and log."""
@@ -1558,7 +1563,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Return buttons to original state, delete the finished process.
         """
         self.enable_buttons(False)
-        self.ui.widgets.status_preview.print_colored("\nExecution finished")
+        self._flush_output_buffer()
+        if self.measurement_failed:
+            self.ui.widgets.status_preview.print_colored("\nExecution failed")
+        else:
+            self.ui.widgets.status_preview.print_colored("\nExecution finished")
         del self.ui.widgets.measurement_thread
 
     def run_linter(self) -> int:
@@ -1595,6 +1604,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
                 return
+        self.measurement_failed = False
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
