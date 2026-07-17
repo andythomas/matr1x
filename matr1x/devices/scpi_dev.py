@@ -289,6 +289,7 @@ def _build_property_kwargs(cmd) -> dict:
         kwargs["values"] = len(cmd.dtype)
         kwargs["set_process"] = lambda v, t=cmd.dtype: _list2str(v, t)
         kwargs["get_process"] = lambda v, t=cmd.dtype: _castlist(v, t)
+        kwargs["get_process_list"] = lambda v, t=cmd.dtype: _castlist(v, t)
     elif cmd.dtype == bool:
         kwargs["validator"] = strict_discrete_set
         kwargs["values"] = [True, False, None]
@@ -392,6 +393,8 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
                     del kwargs["cast"]
                 if "get_process" in kwargs:
                     del kwargs["get_process"]
+                if "get_process_list" in kwargs:
+                    del kwargs["get_process_list"]
                 attributes[att] = Instrument.setting(
                     name + f" {stringplaceholder}", f"set {att}", **kwargs
                 )
