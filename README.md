@@ -97,7 +97,7 @@ sudo apt install qt6-base-dev
 
 ## Use and configuration
 
-[Configuration options](docs/manual/configuration_options.md) can change the behavior of some
+[Configuration options](user_guide/configuration_options.md) can change the behavior of some
 aspects of the software suite.
 
 ### Naming Conventions for Folders and Files:
@@ -109,9 +109,9 @@ aspects of the software suite.
 
 It is recommended to utilize 'matrix-gui' for the first measurements. It uses
 'sweep-generator' to build input files that describe the measurement. Please see this
-[short introduction](docs/manual/sweep_generator.md).
+[short introduction](user_guide/sweep_generator.md).
 
 ## Development
 
 If you are interested in contributing to the project please see the
-[development guide](docs/manual/development.md).
+[development guide](user_guide/development.md).
