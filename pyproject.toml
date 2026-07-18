@@ -61,9 +61,7 @@ matrix-preview = "matr1x.scripts.matrix_preview:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
 [project.urls]
-homepage = "https://github.com/andythomas/IFW_software"
-
-
+homepage = "https://github.com/andythomas/matr1x"
 
 [build-system]
 # use flit since setuptools does currently not support PEP660
