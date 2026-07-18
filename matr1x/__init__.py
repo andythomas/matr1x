@@ -57,6 +57,37 @@ from .util import (
     resolve_pkgroot_path,
 )
 
+__all__ = [
+    # Config management
+    "load_config",
+    "merge_dicts",
+    "write_config",
+    "reload_config",
+    # Config data
+    "MIGRATIONS",
+    "validation_errors",
+    "config",
+    "datetimefmt",
+    # System dirs / globals
+    "usersfolder",
+    "logfolder",
+    "system_names",
+    "system_directories",
+    "resolved_directory",
+    # Version / constants
+    "__version__",
+    "output_extension",
+    # Re-exports
+    "VALID_META_KEYS",
+    "MainConfig",
+    "UserlibConfig",
+    "format_validation_error",
+    "create_temp_dir_with_symlinks",
+    "get_package_path",
+    "resolve_config_path",
+    "resolve_pkgroot_path",
+]
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:
@@ -77,7 +108,7 @@ validation_errors: list[str] = []
 
 
 @dataclass(frozen=True)
-class Migration:
+class _Migration:
     """Conversion info for old config entries."""
 
     old_path: tuple[str, ...]
@@ -86,13 +117,13 @@ class Migration:
 
 
 MIGRATIONS = [
-    Migration(
+    _Migration(
         old_path=("matr1x", "scripts", "matrix-script", "duplicate_output_to_logfile"),
         new_path=("matr1x", "duplicate_output_to_logfile"),
         warning="Please move all 'duplicate_output_to_logfile' entries "
         "to [matr1x.duplicate_output_to_logfile]\n",
     ),
-    Migration(
+    _Migration(
         old_path=("matr1x", "scripts", "matrix-script", "print_to_comment"),
         new_path=("matr1x", "print_to_comment"),
         warning="Please move all 'print_to_comment' entries to [matr1x.print_to_comment]\n",
@@ -100,7 +131,7 @@ MIGRATIONS = [
 ]
 
 
-def get_path(data, *path) -> Any:
+def _get_path(data, *path) -> Any:
     """Get a nested value from a dictionary using a sequence of keys."""
     for key in path:
         if not isinstance(data, dict):
@@ -109,14 +140,14 @@ def get_path(data, *path) -> Any:
     return data
 
 
-def set_path(data, *path, value) -> None:
+def _set_path(data, *path, value) -> None:
     """Set a nested value in a dictionary using a sequence of keys."""
     for key in path[:-1]:
         data = data.setdefault(key, {})
     data[path[-1]] = value
 
 
-def delete_path(data: dict[str, Any], *path: str) -> None:
+def _delete_path(data: dict[str, Any], *path: str) -> None:
     """Delete a nested key from a dictionary."""
     current = data
     for key in path[:-1]:
@@ -124,14 +155,14 @@ def delete_path(data: dict[str, Any], *path: str) -> None:
     del current[path[-1]]
 
 
-def migrate_config(config_data):
+def _migrate_config(config_data):
     """Migrate old config keys to new ones."""
     for migration in MIGRATIONS:
-        old_value = get_path(config_data, *migration.old_path)
-        new_value = get_path(config_data, *migration.new_path)
+        old_value = _get_path(config_data, *migration.old_path)
+        new_value = _get_path(config_data, *migration.new_path)
         if old_value is not None and new_value is None:
-            set_path(config_data, *migration.new_path, value=old_value)
-            delete_path(config_data, *migration.old_path)
+            _set_path(config_data, *migration.new_path, value=old_value)
+            _delete_path(config_data, *migration.old_path)
             validation_errors.append(migration.warning)
     return config_data
 
@@ -177,7 +208,7 @@ def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
                 config_data = merge_dicts(config_data, optional_config)
         else:
             print(f"Warning: Optional config file not found: {optional_config_path}")  # noqa: T201
-    config_data = migrate_config(config_data)
+    config_data = _migrate_config(config_data)
     return config_data
 
 
