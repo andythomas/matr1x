@@ -1630,8 +1630,6 @@ class System:
         ----------
         inputfile : str
             Filename of the inputfile to be placed in the header.
-        output_filename : Path, optional
-            Filename of the output file.
 
         Returns
         -------
