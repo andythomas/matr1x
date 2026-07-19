@@ -1,0 +1,31 @@
+# dcterms:creator : "Andy Thomas"
+# dcterms:date : "2026-07-19T22:20:25"
+# dcterms:identifier : "at20260719a"
+# dcterms:relation : ""
+# dcterms:description : "Dummy measurement to explain the software."
+# dcterms:source : "dummy system for testing matr1x-matrix"
+# dcterms:type : None
+# dcterms:publisher : None
+# dcterms:format : "text/plain; charset=UTF-8"
+# dcterms:language : "en"
+# input filename : "/Users/thomasa/Documents/GitHub/matr1x/user_guide/images/orientation-script.matrix"
+# system filename : "matr1x.systems.system_dummy"
+# system query : 
+## dev
+### name : "dummy_device name
+#### with newline"
+### conf : "0"
+dev p2	timeUTC
+cnt	s
+0.0	1784492425.815202
+1.0	1784492425.815541
+2.0	1784492425.8158872
+3.0	1784492425.816182
+4.0	1784492425.816461
+5.0	1784492425.8167412
+6.0	1784492425.817077
+7.0	1784492425.817369
+8.0	1784492425.817632
+9.0	1784492425.817909
+10.0	1784492425.818125
+# status: finished

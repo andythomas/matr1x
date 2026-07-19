@@ -2,116 +2,46 @@
 
 Python tools for data recording, instrument control and visualization.
 
+## Why Matr1x?
+
+There are several good Python software packages that provide a framework for measurements and general instrument control.
+However, Matr1x aims to provide a more integrated user experience via a collection of tools that work together seamlessly.
+Matr1x can orchestrate device drivers, based on PyMeasure, PyVisa, or any other Python package, and provides several applications with a graphical user interface.
+
+## How it works
+
+A person with some experience in Python programming creates a small, so-called system file that connects to the instrument drivers (e.g. a multimeter) and defines the desired parameters (e.g. current and voltage).
+Then, even users with no Python experience can use Matr1x to perform measurements, while more advanced users benefit from a code editor based on Monaco (which powers VS code) that allows them to write custom measurement scripts.
+Another tool for data visualization is provided as well.
+
+## Impressions of the software
+
+### Sweep Generator
+
+![Screenshot of the sweep-generator GUI](media/sweep-generator.png)
+Application to generate sweeps to perform measurements.
+
+### Matrix GUI
+
+![Screenshot of Matrix GUI](media/matrix-gui.png)
+Read previously generated sweep data and perform (a series of) measurements.
+
+### Matrix Script
+
+![Screenshot of Matrix Script](media/matrix-script.png)
+Run measurements or control other instruments in an integrated environment.
+
+### Matrix Preview
+
+![Screenshot of Matrix Preview](media/matrix-preview.png)
+Quickly preview the results of the measurements or collected log data.
+
+### Control GUIs
+
+![Screenshot of a control GUI](media/control.png)
+If even more control is required, custom panels called "control-GUI" can be added via an additional file.
+Then, manual control and general observation of the desired devices can be performed.
+
 ## Requirements
 
-A Python installation with a version between 3.10 and 3.14 is
-successfully tested to run the software.
-
-## Installation (Windows, MacOS, Linux/Unix)
-
-An overview of recommended options for the specific platforms is given in the following table.
-In most cases we recommend an installation into a dedicated virtual environment. Most Mac and
-Linux systems require the virtual environment, while Windows does not require it.
-
-| Platform   | Python distribution | Virtual environment  | editable installation |
-| ---------- | ------------------- | -------------------- | --------------------- |
-| Windows    | uv recommended      | weakly recommended   | Yes                   |
-| Linux/Unix | uv or system Python | strongly recommended | Yes                   |
-| Mac OS     | uv                  | required             | Yes                   |
-
-### <a name="basic-installation"> Basic installation
-
-Please use [Github Desktop](https://desktop.github.com/download/) to clone the repository to avoid
-missing submodules. In most cases, [installing uv](https://docs.astral.sh/uv/getting-started/installation/)
-simplifies the installation tremendously. Two command are required for the installation:
-
-- `uv sync`
-- `source .venv/bin/activate` (Mac/ Linux) or `.venv\Scripts\activate.bat` (Windows)
-
-If an optional feature is required for your setup use `uv sync --extra <FEATURE>` above.
-Available extras can be found in the `[project.optional-dependencies]` sections of `pyproject.toml`
-files.
-
-After the installation, any application launch will perform the desktop integration, i.e.
-provide application icons, start menu entries and such. For example, please launch:
-
-- `matrix-preview`
-
-A command line tool can also carry out the integration. Please start
-`matrix-di` for integration and `matrix-di -u` for
-removal. `matrix-script` might need a few minutes at the first start
-to download the editor assets.
-
-### Configuring matr1x installation
-
-The install process of matr1x core parts can be in addition to the command line arguments
-introduced above also configured by entries in the `~/.matr1x.toml` file. Some options are:
-
-```toml
-[matr1x.install]
-# control wether users and log directory are created by the installer
-create_directories = false
-# enable/disable desktop integration
-desktopintegration = true
-# enable control-dummy desktop integration
-controlguis = ["control-dummy"]
-```
-
-### Enabling control GUIs installation
-
-In order to also perform desktop integration for the control GUIs (graphical frontends for
-specific instruments) you have to include the following section in the `~/.matr1x.toml` file.
-
-```toml
-# list here control guis you want to use (see pyproject.toml for all the choices)
-controlguis = ["control_ptarmigan", "control_chaos"]
-```
-
-After adding this or adjusting the settings rerun the desktop integration via the menu in any
-of the applications or use the provided command line tool
-(see [Basic installation](#basic-installation)).
-
-### Windows
-
-1. Download the Python installer from [uv](https://docs.astral.sh/uv/getting-started/installation/)
-2. Execute [installation procedure](#basic-installation) in a command prompt or PowerShell window.
-
-After launching any application, all applications are available via the Windows start menu.
-
-### MacOS
-
-The system Python version is quite old (3.9 in Sequoia) and cannot be used to install the
-packages. Please use [uv](https://docs.astral.sh/uv/), use and perform the
-[installation procedure](#basic-installation).
-
-### <a name="linux-basic"> Linux/Unix
-
-The package can be installed on Linux systems (well tested) and also on BSD systems (not tested
-regularly) and likely other Posix compliant systems. We recommend using a virtual environment.
-Before following the installation as described in [installation procedure](#basic-installation),
-make sure you have the required system packages installed.
-
-```bash
-sudo apt install qt6-base-dev
-```
-
-## Use and configuration
-
-[Configuration options](user_guide/configuration_options.md) can change the behavior of some
-aspects of the software suite.
-
-### Naming Conventions for Folders and Files:
-
-1. Measurement data go into `~/users/xxxx/`
-2. Logs go into ~/logs
-
-## First measurement steps
-
-It is recommended to utilize 'matrix-gui' for the first measurements. It uses
-'sweep-generator' to build input files that describe the measurement. Please see this
-[short introduction](user_guide/sweep_generator.md).
-
-## Development
-
-If you are interested in contributing to the project please see the
-[development guide](user_guide/development.md).
+A Windows, Linux or Mac OS X computer with a Python installation (3.10 - 3.14) is successfully tested to run the software.

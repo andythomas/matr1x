@@ -10,10 +10,6 @@ dist/
 *.egg-info/
 .DS_Store
 
-# documentation build results
-docs/_build
-docs/sphinx
-
 # Great Docs build directory (ephemeral, do not commit)
 great-docs/
 
