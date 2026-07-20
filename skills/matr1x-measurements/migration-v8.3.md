@@ -1,5 +1,5 @@
 ---
-name: matr1x
+name: Migration8.3.0
 description: >
   Use this to update the configuration file if the previous installation if the matr1x package is <8.3.0.
 license: GNU General Public License v3 or later (GPLv3+)
