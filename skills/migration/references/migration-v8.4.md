@@ -1,11 +1,3 @@
----
-name: Migration8.4.0
-description: >
-  Use this to update the configuration file if the previous installation if the matr1x package is <8.4.0.
-license: GNU General Public License v3 or later (GPLv3+)
-compatibility: Requires Python >=3.10.
----
-
 # Matr1x
 
 ## Upgrade to v8.4

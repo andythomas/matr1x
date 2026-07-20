@@ -32,11 +32,10 @@ dynamic: true
 skill:
   skills:
     - name: Installation
-      file: skills/matr1x-measurements/SKILL.md
+      file: skills/install/SKILL.md
     - name: Migration < v8.3
-      file: skills/matr1x-measurements/migration-v8.3.md
-    - name: Migration < v8.4
-      file: skills/matr1x-measurements/migration-v8.4.md
+      file: skills/migration/SKILL.md
+
 
 # Logo & Favicon
 # ---------------
