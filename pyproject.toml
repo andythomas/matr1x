@@ -62,6 +62,7 @@ control-dummy = "matr1x.control.control_dummy:main"
 
 [project.urls]
 homepage = "https://github.com/andythomas/matr1x"
+documentation = "https://andythomas.github.io/matr1x/"
 
 [build-system]
 # use flit since setuptools does currently not support PEP660
