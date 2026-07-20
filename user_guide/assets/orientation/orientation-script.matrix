@@ -1,0 +1,10 @@
+# system def : matr1x.systems.system_dummy
+# system names : dev p2,timeUTC
+# system units : cnt,s
+# file v8, time stamp : 2026-07-20T15:11:57
+
+init_datafile("orientation_output")
+
+for value in range(11):
+    set_value("dev p2", value)
+    measure_system()

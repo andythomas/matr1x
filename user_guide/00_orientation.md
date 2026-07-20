@@ -42,15 +42,15 @@ Now, we can utilize this system-file in several ways.
 
 We can load the system file into the sweep generator and use it to control the device.
 This is shown in the screenshot below.
-![Sweep generator with loaded system file](images/orientation-sweep1.png)
+![Sweep generator with loaded system file](assets/orientation/sweep-generator.light.png)
 We added a sweep that starts at 0 and increases to 10 in steps of 1.
 Afterwards, we added a second sweep that starts at 10 and decreases back to 0 in steps of 1.
 In a real device, we could imagine a voltage source, where we could sweep the voltage from 0 to 10 V and back to 0 V.
 The sweep can be visualized utilizing the preview icon in the toolbar.
-![Sweep generator preview](images/orientation-sweep2.png)
+![Sweep generator preview](assets/orientation/sweep-preview.light.png)
 If we got the desired sweep, we can save it as a file.
 Afterwards, we can startup `matrix-gui` and can load this sweep file.
-![Matrix GUI](images/orientation-sweep3.png)
+![Matrix GUI](assets/orientation/matrix-gui.light.png)
 We enter more information to be saved as metadata (Creator, Identifier and a description) and press queue measurement.
 Pressing "Start" would now perform the measurement.
 
@@ -58,5 +58,22 @@ Pressing "Start" would now perform the measurement.
 
 If a more fine grained control is needed, a script can be used to control the device.
 The example shows the basic functionality.
-In a nutshell, any Python code plus a few custom command for the device control and read-out can be used.
-![Script instrument control](images/orientation-sweep4.png)
+In a nutshell, any Python code plus a few custom commands for the device control and read-out can be used.
+![Script instrument control](assets/orientation/matrix-script.light.png)
+In our case, the values are swept from 0 to 10 in steps of 1. 
+After each step, the a measurement is performed and the following lines illustrate the required coding effort.
+
+```python
+init_datafile("orientation_output")
+
+for value in range(11):
+    set_value("dev p2", value)
+    measure_system()
+```
+
+## Data Preview
+
+Matrix Preview can show the raw data from the measurement.
+Basic row selection, zooming and metadata inspection are available.
+![Data preview](assets/orientation/matrix-preview.light.png)
+This concludes the orientation examples showcasing most of the basic functionality.
