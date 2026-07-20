@@ -1143,7 +1143,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             else:
                 self.write_output(data.message + data.end)
         elif isinstance(data, ErrorMessage):
-            self.write_output(data.error + "\n")
+            logger.error(data.error)
             self.measurement_failed = True
 
     def show_message(self, message: NotifierMessage):
