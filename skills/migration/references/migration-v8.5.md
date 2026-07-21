@@ -14,4 +14,10 @@ class MeasSystem(System):
 
 A good name might be the filename of the module. If this name starts with `system_` strip this part from the class name. Generate a meaningful one-line docstring.
 
-5. The subclass should have a unique name, i.e. all files should use different names. `MeasSystem` is a too generic class name and has to be changed.
+5. CLASS NAME UNIQUENESS CHECK (applies to all files, independent of steps 1-4):
+   a. Search ALL .py files in this directory for any shared subclass name
+      (especially `MeasSystem`).
+   b. Every file must have a UNIQUE class name — no two files may use the same one.
+   c. Rename all occurrences. Derive names from the filename (minus `system_` prefix)
+      or from the hardware described in dcdata.
+   d. Files already using unique names do NOT need changes.
