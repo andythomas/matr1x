@@ -530,7 +530,7 @@ class ExecThread(threading.Thread):
         try:
             self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
         except OSError:
-            logger.debug("Could not report matrix script data to GUI", exc_info=True)
+            logger.exception("Could not report matrix script data to GUI")
 
     def run(self):
         """Run the script and allow to cancel at the start."""
