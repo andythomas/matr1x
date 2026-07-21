@@ -486,8 +486,7 @@ class ElabSystem(System):
         except ApiException as e:
             self.report(
                 Message(
-                    "Exception when calling /teams/current/resources_categories: "
-                    f"{e}\n",
+                    f"Exception when calling /teams/current/resources_categories: {e}\n",
                     to_comment=False,
                 )
             )
@@ -495,8 +494,7 @@ class ElabSystem(System):
         except Exception as e:
             self.report(
                 Message(
-                    "Exception when calling /teams/current/resources_categories: "
-                    f"{e}\n",
+                    f"Exception when calling /teams/current/resources_categories: {e}\n",
                     to_comment=False,
                 )
             )
