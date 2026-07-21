@@ -19,9 +19,14 @@
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
 
+
 # ============================
 # initialize system instance
-system = System()
+class Dummy(System):
+    """Dummy system for testing and demonstration purposes."""
+
+
+system = Dummy()
 # define Dublin core source parameter
 system.dcdata["source"] = "dummy system for testing matr1x-matrix"
 # ============================

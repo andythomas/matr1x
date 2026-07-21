@@ -47,15 +47,10 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
-from matr1x.error_handling import Error, InternalInvariantError, Result, Success
-from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication, get_system_info
+from matr1x.error_handling import Error, Result, Success
+from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
 from matr1x.models import SystemInfo
-from matr1x.util import (
-    find_binary,
-    generate_script,
-    get_script_prefix_offset,
-    run_python_cmdline,
-)
+from matr1x.util import find_binary, generate_script, get_script_prefix_offset, run_python_cmdline
 
 SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
@@ -83,13 +78,13 @@ class TyDiagnostic(BaseModel):
     source: str
     tags: list[int] = []
 
-    def to_monaco(self) -> dict:
+    def to_monaco(self, line_offset: int, column_offset: int) -> dict:
         return {
             "severity": {1: 8, 2: 4, 3: 2, 4: 1}.get(self.severity, 2),
-            "startLineNumber": self.range.start.line - SCRIPT_OFFSET + 1,
-            "startColumn": self.range.start.character - COLUMN_OFFSET + 1,
-            "endLineNumber": self.range.end.line - SCRIPT_OFFSET + 1,
-            "endColumn": self.range.end.character - COLUMN_OFFSET + 1,
+            "startLineNumber": self.range.start.line - line_offset + 1,
+            "startColumn": self.range.start.character - column_offset + 1,
+            "endLineNumber": self.range.end.line - line_offset + 1,
+            "endColumn": self.range.end.character - column_offset + 1,
             "message": self.message,
             "source": self.source,
             "tags": self.tags,
@@ -468,6 +463,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self.indexes = []
         self.settables = []
         self.columns = []
+        self.system_info = system_info
         for key, data in system_info.parameters.items():
             self.indexes.append(str(data.index))
             self.settables.append(data.settable)
@@ -497,9 +493,9 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
             self.errors += 1
         diagnostic = {
             "severity": 2,
-            "startLineNumber": self.lineno - SCRIPT_OFFSET,
+            "startLineNumber": self.lineno - (SCRIPT_OFFSET + self.system_info.stub_length),
             "startColumn": self.col - COLUMN_OFFSET + 1,
-            "endLineNumber": self.end_lineno - SCRIPT_OFFSET,
+            "endLineNumber": self.end_lineno - (SCRIPT_OFFSET + self.system_info.stub_length),
             "endColumn": self.end_col - COLUMN_OFFSET + 1,
             "message": f"{error_text}",
             "source": "Matrix checker",
@@ -652,10 +648,7 @@ class EditorBackend(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._is_modified = False
-        system_info = get_system_info([])
-        if isinstance(system_info, Error):
-            raise InternalInvariantError("System list should work for an empty list.")
-        self._system_info: SystemInfo = system_info.value
+        self._system_info: SystemInfo
         self._tc_diagnostics: list[dict] = []
         self._lint_timer = QTimer(self)
         self._lint_timer.setSingleShot(True)
@@ -748,7 +741,9 @@ class EditorBackend(QObject):
             hover = LSPHover.model_validate_json(payload)
         except ValidationError:
             return
-        hover.position.line = hover.position.line + SCRIPT_OFFSET - 1
+        hover.position.line = (
+            hover.position.line + SCRIPT_OFFSET + self._system_info.stub_length - 1
+        )
         hover.position.character = hover.position.character + COLUMN_OFFSET - 1
         self.hoverRequested.emit(hover)
 
@@ -760,7 +755,9 @@ class EditorBackend(QObject):
         except ValidationError:
             return
         self.contentChanged.emit(completion_request.code)
-        completion_request.position.line = completion_request.position.line + SCRIPT_OFFSET - 1
+        completion_request.position.line = (
+            completion_request.position.line + SCRIPT_OFFSET + self._system_info.stub_length - 1
+        )
         completion_request.position.character = (
             completion_request.position.character + COLUMN_OFFSET - 1
         )
@@ -785,7 +782,7 @@ class EditorBackend(QObject):
         list[dict[str, str | int]]
             Monaco-format diagnostic objects.
         """
-        script = generate_script(code)
+        script = generate_script(self._system_info.stub + code)
         diagnostics: list[dict[str, str | int]] = self._get_value_diagnostics(script)
         diagnostics.extend(self._tc_diagnostics)
         return diagnostics
@@ -928,6 +925,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self._highlight_timer.setSingleShot(True)
         self._pending_highlight_line: int | None = None
         self._current_theme: str
+        self._system_info: SystemInfo
         self.create_connections()
 
     def create_connections(self) -> None:
@@ -1144,7 +1142,10 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         if notification.method == "textDocument/publishDiagnostics":
             params = cast(dict, notification.params)
             diagnostics = [TyDiagnostic.model_validate(d) for d in params.get("diagnostics", [])]
-            tc_diagnostics = [d.to_monaco() for d in diagnostics]
+            tc_diagnostics = [
+                d.to_monaco(SCRIPT_OFFSET + self._system_info.stub_length, COLUMN_OFFSET)
+                for d in diagnostics
+            ]
             self.backend.update_tc_diagnostics(tc_diagnostics)
 
     def on_hover_requested(self, hover: LSPHover) -> None:
@@ -1200,8 +1201,9 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         if completion_result.value.error is not None or completion_result.value.result is None:
             return
         completions = self._process_lsp_completions(completion_result.value.result)
+        filtered = [item for item in completions if not item["label"].startswith("_")]
         js_command = (
-            f"window.showCompletions({completion_request.requestId}, {json.dumps(completions)})"
+            f"window.showCompletions({completion_request.requestId}, {json.dumps(filtered)})"
         )
         self._run_javascript_async(js_command)
 
@@ -1265,7 +1267,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                     "uri": DUMMY_LSP_FILENAME,
                     "version": self.version,
                 },
-                "contentChanges": [{"text": generate_script(text)}],
+                "contentChanges": [{"text": generate_script(self._system_info.stub + text)}],
             },
         )
 
@@ -1319,7 +1321,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         """
         self._run_javascript(f"window.enableTabCompletion({str(enable).lower()})")
 
-    def setSettables(self, system_info: SystemInfo) -> None:
+    def setSystemInfo(self, system_info: SystemInfo) -> None:
         """
         Receive the system info and update Monaco.
 
@@ -1328,6 +1330,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         system_info
             The system information required by the linter.
         """
+        self._system_info = system_info
         self.backend.update_system_info(system_info)
 
     def insertText(self, text: str) -> None:

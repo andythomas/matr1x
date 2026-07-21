@@ -166,7 +166,7 @@ def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWin
     assert hasattr(editor, "setTheme")
     assert hasattr(editor, "supportedThemes")
     assert hasattr(editor, "enableTabCompletion")
-    assert hasattr(editor, "setSettables")
+    assert hasattr(editor, "setSystemInfo")
     assert hasattr(editor, "insertText")
     assert hasattr(editor, "returnIssues")
 

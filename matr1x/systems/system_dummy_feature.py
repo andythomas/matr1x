@@ -53,15 +53,15 @@ class FeatureConfig(BaseModel):
 
 
 # ============================
-# This area contains the required MeasSystem definition and
+# This area contains the required System definition and
 # the optional reimplementation of the set and reset function
 # ============================
-class MeasSystem(System):
+class Feature(System):
     """Measurement system for dummy feature demonstration."""
 
     def __init__(self):
         """
-        Initialize the MeasSystem.
+        Initialize the system.
 
         This method initializes the measurement system by setting up
         default configurations, updating them from user settings, and
@@ -131,7 +131,7 @@ class MeasSystem(System):
 
 # ============================
 # initialize system
-system = MeasSystem()
+system = Feature()
 # ============================
 
 # ========================================================================
@@ -173,7 +173,7 @@ system.add_dev(
 # Those can be specified as callable function or as list with the entries
 # [device_name, method, optional (extra) arguments, optional keyword arguments]
 # Alternatively a string can be passed, which resolves to a function of sys,
-# i.e., has to be defined in the MeasSystem.
+# i.e., has to be defined in the system.
 # Further keyword arguments include the trigger function, chunks
 # (=length of readout array, used only for HDF5 systems), and a default value
 # to be used when setting the device (used if no value is specified
