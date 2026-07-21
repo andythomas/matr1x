@@ -23,7 +23,9 @@ This module provides Pydantic models used for:
 """
 
 import math
+from collections.abc import Callable
 from enum import IntFlag
+from functools import cached_property
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -272,31 +274,32 @@ class SystemParameter(BaseModel):
 
     name: str
     unit: str
-    description: str
     index: int
     settable: bool
 
 
-class SystemMethod(BaseModel):
-    """Model for method entries."""
+class SystemVariable(BaseModel):
+    """Model for variables."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: str
     prefix: str
-    kind: str
     signature: str | None = None
+
+
+class SystemMethod(SystemVariable):
+    """Model for method entries."""
+
+    model_config = ConfigDict(extra="forbid")
+
     docstring: str | None = None
+    callable: Callable[[], Any] | None = None
 
     @property
-    def description(self) -> str:
-        """Returns the description of the method."""
-        description = f"{self.prefix} {self.kind}"
-        if self.signature:
-            description += f" - {self.name}{self.signature}"
-        if self.docstring:
-            description += f" - {self.docstring.splitlines()[0]}"
-        return description
+    def doc_summary(self):
+        """Returns the first line of the docstring as a summary."""
+        return "" if not self.docstring else self.docstring.split("\n")[0].strip()
 
 
 class SystemInfo(BaseModel):
@@ -304,11 +307,13 @@ class SystemInfo(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    classes: list[str]
     devices: dict[str, SystemDevice]
     parameters: dict[str, SystemParameter]
     methods: dict[str, SystemMethod]
+    variables: dict[str, SystemVariable]
     config: dict[str, Any]
-    warnings: list[str] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
 
     @property
     def flat_parameters(self) -> list[SystemParameter]:
@@ -320,15 +325,64 @@ class SystemInfo(BaseModel):
             unit_parts = [u.strip() for u in parameter.unit.split(",")]
             for name, unit in zip(name_parts, unit_parts):
                 result.append(
-                    SystemParameter(
-                        name=name,
-                        unit=unit,
-                        description=parameter.description,
-                        index=parameter.index,
-                        settable=settable,
-                    )
+                    SystemParameter(name=name, unit=unit, index=parameter.index, settable=settable)
                 )
         return result
+
+    @cached_property
+    def stub(self) -> str:
+        """Generate the type-checking lines."""
+        text = "from typing import TYPE_CHECKING\n"
+        text += "from typing import Any as _Any\n"
+        text += "if TYPE_CHECKING:\n"
+        for cls in self.classes:
+            text += f"    class {cls}:\n"
+            text += "        def __init__(self):\n"
+            text += self._add_variables(cls)
+            text += "            pass\n"
+            text += self._add_methods(cls)
+            text += "        pass\n"
+        text += "    class MergedSystem:\n"
+        text += "        def __init__(self):\n"
+        for cls in self.classes:
+            text += f"            self.{cls} = {cls}()\n"
+        text += "            pass\n"
+        text += "    system = MergedSystem()\n"
+        return text
+
+    @cached_property
+    def stub_length(self) -> int:
+        """Return the length of the type-checking stub."""
+        return len(self.stub.splitlines())
+
+    def _add_variables(self, name: str) -> str:
+        """Generate the variable declarations."""
+        stub = ""
+        for var in self.variables.values():
+            if var.prefix == name:
+                if var.signature and var.signature != "(NoneType)":
+                    stub += f"            self.{var.name}: {var.signature}\n"
+                else:
+                    stub += f"            self.{var.name}: _Any\n"
+        return stub
+
+    def _add_methods(self, name: str) -> str:
+        """Generate the methods declarations."""
+        stub = ""
+        for method in self.methods.values():
+            if method.prefix == name:
+                stub += f"        def {method.name}"
+                if method.signature:
+                    stub += f"{method.signature}:"
+                else:
+                    stub += ":"
+                if method.docstring:
+                    stub += '\n            """'
+                    for line in method.docstring.splitlines():
+                        stub += f"\n            {line}"
+                    stub += '\n            """'
+                stub += "\n            ...\n"
+        return stub
 
 
 # --- measurement data for matrix and matrix-script

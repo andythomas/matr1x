@@ -13,4 +13,4 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module with example systems for demonstration and testing purposes."""
+"""Module with systems for general use, demonstration and testing."""

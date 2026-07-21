@@ -34,10 +34,10 @@ from matr1x.system import System
 
 
 # ============================
-# This area contains the required MeasSystem definition and
+# This area contains the required System definition and
 # the optional reimplementation of the set and reset function
 # ============================
-class MeasSystem(System):
+class Hdf5(System):
     """
     Measurement system with HDF5 support for testing matr1x-matrix.
 
@@ -47,7 +47,7 @@ class MeasSystem(System):
 
     def __init__(self):
         """
-        Initialize the MeasSystem.
+        Initialize the system.
 
         Sets up the system with a dummy source for HDF5 testing.
         """
@@ -75,7 +75,7 @@ class MeasSystem(System):
 
 
 # initialize system
-system = MeasSystem()
+system = Hdf5()
 # ========================================================================
 # This is the main system area
 # Device definition and configuration takes place here, but devices do

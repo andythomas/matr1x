@@ -25,6 +25,7 @@ import re
 import socket
 import threading
 import time
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -32,6 +33,7 @@ from datetime import datetime, timedelta
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError
 from matr1x.models import (
+    ErrorMessage,
     Header,
     InputParameters,
     MeasuredValues,
@@ -525,7 +527,10 @@ class ExecThread(threading.Thread):
                 log_multiline(logger, str(data))
         elif isinstance(data, InputParameters):
             logger.info(data)
-        self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
+        try:
+            self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
+        except OSError:
+            logger.exception("Could not report matrix script data to GUI")
 
     def run(self):
         """Run the script and allow to cancel at the start."""
@@ -544,3 +549,13 @@ class ExecThread(threading.Thread):
             exec(self.script, _vars)
         except KeyboardInterrupt:
             self.report(Message("Script interrupted during initialization", to_comment=False))
+        except Exception as e:
+            error_message = "script exited with error:\n" + "".join(
+                traceback.format_exception(type(e), e, e.__traceback__)
+            )
+            logger.exception("Unhandled exception in matrix script")
+            self.report(ErrorMessage(error_message))
+            try:
+                self.system.reset(status="errored")
+            except Exception:
+                logger.exception("Failed to reset system after matrix script exception")

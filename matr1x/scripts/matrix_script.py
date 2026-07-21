@@ -90,6 +90,7 @@ from matr1x.gui_util import (
 from matr1x.models import (
     Datafile,
     Envelope,
+    ErrorMessage,
     Header,
     InputParameters,
     LineNumber,
@@ -161,7 +162,7 @@ In addition, the following variables are available. Please use help to get a lis
     """an underscore!
 
 devs  # dictionary that contains all devices
-sys  # merged system object from the selected systems
+system  # merged system object from the selected systems
 meta_data  # dictionary that contains all meta information
 
 ---
@@ -1047,6 +1048,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.line_offset = get_script_prefix_offset()
         self.measurement_file: Path
         self.is_running = False
+        self.measurement_failed = False
         self.shortcut_dir: tempfile.TemporaryDirectory[str] | None = None
         self.last_filename: Path | None = None
         self.settings = SaferQSettings("matr1x", "script")
@@ -1140,6 +1142,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 self.write_output("\r" + data.message + data.end)
             else:
                 self.write_output(data.message + data.end)
+        elif isinstance(data, ErrorMessage):
+            logger.error(data.error)
+            self.measurement_failed = True
 
     def show_message(self, message: NotifierMessage):
         """Show a message text and log."""
@@ -1387,52 +1392,54 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
         system_info = self.ui.widgets.system_list.system_info
-        text = "The following systems were selected:<br><b>"
-        for system in self.ui.widgets.system_list.systems:
-            text = text + system + "<br>"
-        text += "<br></b>These systems provide the following:<br>"
         bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
-        if system_info.parameters != {}:
-            text += "<h3>Parameters</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Index</th>'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for parameter in system_info.parameters.values():
-                if parameter.settable:
-                    text += f"<tr><td>{parameter.index}</td>"
-                    text += f"<td><b>{parameter.name}</b></td>"
-                    text += f"<td>{parameter.description}</td></tr>"
-                else:
-                    text += f"<tr><td>{parameter.index}</td>"
-                    text += f"<td>{parameter.name}</td>"
-                    text += f"<td>{parameter.description}</td></tr>"
-            text += "</table>"
-        if system_info.devices != {}:
-            text += "<h3>Devices</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for device in system_info.devices.values():
-                text += f"<tr><td><b>{device.name}</b></td><td>{device.description}</td></tr>"
-            text += "</table>"
-        if system_info.methods != {}:
-            text += "<h3>System Methods and Variables</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for method in system_info.methods.values():
-                text += f"<tr><td><b>{method.name}</b></td><td>{method.description}</td></tr>"
-            text += "</table>"
+        th = '<th style="text-align: left;">{}</th>'.format
+        table_open = (
+            '<table border="1" cellpadding="5" cellspacing="0" '
+            'style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+            f'<tr style="background-color: {bg_color}; text-align: left;">'
+        )
+        systems = "".join(f"{s}<br>" for s in self.ui.widgets.system_list.systems)
+        systems = systems if systems else "None<br>"
+        classes = ", ".join(system_info.classes) if system_info.classes else "None"
+        text = (
+            f"The following systems were selected:<br><b>{systems}<br></b>"
+            f"They consist of the following classes:<br><b>{classes}<br></b>"
+            "<br>These systems provide the following:<br>"
+        )
+        if system_info.parameters:
+            rows = "".join(
+                f"<tr><td>{p.index}</td>"
+                f"<td>{f'<b>{p.name}</b>' if p.settable else p.name}</td></tr>"
+                for p in system_info.parameters.values()
+            )
+            text += (
+                f"<h3>Parameters</h3>Settable items in <b>boldface</b>"
+                f"{table_open}{th('Index')}{th('Name')}</tr>{rows}</table>"
+            )
+        if system_info.devices:
+            rows = "".join(
+                f"<tr><td><b>{d.name}</b></td><td>{d.description}</td></tr>"
+                for d in system_info.devices.values()
+            )
+            text += (
+                f"<h3>Devices</h3>{table_open}{th('Name')}{th('Description')}</tr>{rows}</table>"
+            )
+        shared = th("Prefix") + th("Name") + th("Signature")
+        if system_info.methods:
+            rows = "".join(
+                f"<tr><td>{m.prefix}</td><td><b>{m.name}</b></td>"
+                f"<td>{m.signature}</td><td>{m.doc_summary}</td></tr>"
+                for m in system_info.methods.values()
+            )
+            text += f"<h3>System Methods</h3>{table_open}{shared}"
+            text += f"{th('Docstring summary')}</tr>{rows}</table>"
+        if system_info.variables:
+            rows = "".join(
+                f"<tr><td>{v.prefix}</td><td><b>{v.name}</b></td><td>{v.signature}</td></tr>"
+                for v in system_info.variables.values()
+            )
+            text += f"<h3>System Variables</h3>{table_open}{shared}</tr>{rows}</table>"
         text += "<br>"
         self.ui.widgets.system_command_text_edit.setText(text)
 
@@ -1558,7 +1565,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Return buttons to original state, delete the finished process.
         """
         self.enable_buttons(False)
-        self.ui.widgets.status_preview.print_colored("\nExecution finished")
+        self._flush_output_buffer()
+        if self.measurement_failed:
+            self.ui.widgets.status_preview.print_colored("\nExecution failed")
+        else:
+            self.ui.widgets.status_preview.print_colored("\nExecution finished")
         del self.ui.widgets.measurement_thread
 
     def run_linter(self) -> int:
@@ -1570,7 +1581,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         int
             The number of issues.
         """
-        self.ui.widgets.script_edit.setSettables(self.ui.widgets.system_list.system_info)
+        self.ui.widgets.script_edit.setSystemInfo(self.ui.widgets.system_list.system_info)
         return self.ui.widgets.script_edit.returnIssues()
 
     def start_process(self) -> None:
@@ -1595,6 +1606,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
                 return
+        self.measurement_failed = False
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
