@@ -527,7 +527,10 @@ class ExecThread(threading.Thread):
                 log_multiline(logger, str(data))
         elif isinstance(data, InputParameters):
             logger.info(data)
-        self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
+        try:
+            self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
+        except OSError:
+            logger.debug("Could not report matrix script data to GUI", exc_info=True)
 
     def run(self):
         """Run the script and allow to cancel at the start."""
@@ -551,10 +554,7 @@ class ExecThread(threading.Thread):
                 traceback.format_exception(type(e), e, e.__traceback__)
             )
             logger.exception("Unhandled exception in matrix script")
-            try:
-                self.report(ErrorMessage(error_message))
-            except OSError:
-                pass
+            self.report(ErrorMessage(error_message))
             try:
                 self.system.reset(status="errored")
             except Exception:
