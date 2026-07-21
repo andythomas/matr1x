@@ -26,7 +26,11 @@ from matr1x.system import System
 
 # ============================
 # initialize system
-system = System()
+class GuiIntegration(System):
+    """Dummy system demonstrating integration of a control gui (control_dummy)."""
+
+
+system = GuiIntegration()
 system.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
 # ============================
 
