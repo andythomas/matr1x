@@ -694,7 +694,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "decorator", specifier = ">=5.2.1" },
-    { name = "elabapi-python", marker = "extra == 'elab'" },
+    { name = "elabapi-python", marker = "extra == 'elab'", specifier = ">=5.3.0" },
     { name = "h5py", specifier = ">=2.7.0" },
     { name = "jinja2", marker = "extra == 'elab'" },
     { name = "minimalmodbus" },

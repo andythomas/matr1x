@@ -846,6 +846,7 @@ class Command:
         self.setargs = ()
         self.getargs = ()
 
+
 class Get(Command):
     """Class representing a Getter-command of a ControlGUI."""
 
