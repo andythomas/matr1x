@@ -40,7 +40,7 @@ skill:
 # Logo & Favicon
 # ---------------
 # Point to a single logo file (replaces the text title in the navbar):
-logo: media/matr1x-matrix-gui.svg
+# logo: media/matr1x-matrix-gui.svg
 #favicon: media/matr1x-matrix-gui.svg
 #
 # For light/dark variants:
