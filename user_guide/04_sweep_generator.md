@@ -7,7 +7,7 @@ First, we will have a look at the graphical user interface of the sweep generato
   annotations='[
     {"x": 50,  "y": 15, "label": "1", "text": "Toolbar"},
     {"x": 50,  "y": 35, "label": "2", "text": "Parameter editor"},
-    {"x": 30,  "y": 72, "label": "3", "text": "Sweep preview"},
+    {"x": 30,  "y": 72, "label": "3", "text": "Sweep parameter preview"},
     {"x": 70,  "y": 72, "label": "4", "text": "Active parameters"}
   ]'}
 

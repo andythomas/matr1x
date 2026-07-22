@@ -1,7 +1,7 @@
 ---
 name: matr1x-install
 description: >
-  Python tools for data recording, instrument control and visualization. Use to install and setup the matr1x package.
+  Use to install and setup the matr1x package.
 license: GNU General Public License v3 or later (GPLv3+)
 compatibility: Requires Python >=3.10.
 ---
@@ -17,7 +17,7 @@ Python tools for data recording, instrument control and visualization.
 3. Clone the gitub repository `git clone https://github.com/andythomas/matr1x.git` in the desired location (called pkg-root from now on).
 4. Execute `uv sync` in pkg-root.
 5. Activate the virtual environment in pkg-root according to the OS, i.e. `source .venv/bin/activate` on Linux/MacOS, `.\.venv\Scripts\activate.bat` on Windows.
-6. Check if there is a `~/.matr1x.toml` file and the following content is included
+6. Ensure that `~/.matr1x.toml` exists and includes the following content. If the file does not exist, create it with this content. If it exists, add this content only if it is not already present:
 
 ```toml
 [matr1x.install]
