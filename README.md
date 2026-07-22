@@ -6,7 +6,7 @@ Python tools for data recording, instrument control and visualization.
 
 There are several good Python software packages that provide a framework for measurements and general instrument control.
 However, Matr1x aims to provide a more integrated user experience via a collection of tools that work together seamlessly.
-Matr1x can orchestrate device drivers, based on PyMeasure, PyVisa, or any other Python package, and provides several applications with a graphical user interface.
+Matr1x can orchestrate device drivers, based on [PyMeasure](https://pymeasure.readthedocs.io/), [PyVisa](https://pyvisa.readthedocs.io/), or any other Python package, and provides several applications with a graphical user interface.
 
 ## How it works
 
