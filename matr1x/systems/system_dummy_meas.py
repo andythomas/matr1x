@@ -38,64 +38,67 @@ from matr1x.system import System
 
 
 # ============================
-# initialize system
+# define system class
 class MeasSystem(System):
     """Dummy measurement system for testing system merging."""
 
+    def __init__(self):
+        """Initialize the dummy measurement device and parameters."""
+        super().__init__()
+        self.dcdata["source"] = "dummy system for testing system merging"
+        # ========================================================================
+        # This is the main system area.
+        # Device definition and configuration takes place here, but devices do
+        # not yet get opened!
+        #
+        # IMPORTANT:
+        #   The devices are not allowed to be opened here!
+        #   Otherwise the import would block any other use of the devices.
+        #   Make sure to adhere to this or errors will occur!
+        # ========================================================================
+        # device initialization is done by providing the class name of the device
+        # together with the constructor arguments needed to initialize the class later
+        # Here devmeas will be initialized when self.set() is called.
+        # The third parameter (args) accepts a list/tuple (even for single parameter!)
+        # of arguments that is passed upon device initialization when self.set() is
+        # called.
+        # The fourth parameter (kwargs) accepts a dictionary with keyword arguments.
+        # The fifth parameter (config_params) can be a dictionary specifying possible
+        # query options which allow to readout the configuration of a device which will
+        # be stored in the data file header.
+        self.add_dev(
+            "devmeas",
+            dummy,
+            args=("TCPIP::localhost::10005::SOCKET",),
+            kwargs={"p5": 5, "p4": [5, 3, 2, 1]},
+            config_params={"p4": "p4"},
+        )
+        # ============================
+        # define columns for measurement
+        # ============================
+        # first parameter is column name, second is units,
+        # Further parameters are the set function and read function, respectively.
+        # Those can be specified as callable function or as list with the entries
+        # [device_name, method, optional (extra) arguments, optional keyword arguments]
+        # Optional keyword arguments can be given for the trigger-function, chunks
+        # (=length of readout array, used only for HDF5 systems), and the default value
+        # to be used when setting the device (if no value is specified in the sweep
+        # file)
+        self.add_param(
+            ["devmeas p3a", "devmeas p3b"],
+            ["cnta", "cntb"],
+            ["devmeas", "p3"],
+            ["devmeas", "p3"],
+        )
+        self.add_param(
+            "devmeas p2",
+            "cnt",
+            setter=["devmeas", "p2"],
+            getter=["devmeas", "p2"],
+            trigger=["devmeas", "trg"],
+            default=5,
+        )
+        self.add_param("devmeas p1", "cnt", None, ["devmeas", "p5"])
 
-system = MeasSystem()
-system.dcdata["source"] = "dummy system for testing system merging"
-# ============================
-
-# ========================================================================
-# This is the main system area
-# Device definition and configuration takes place here, but devices do
-# not yet get opened!
-#
-# IMPORTANT:
-#   The devices are not allowed to be opened here!
-#   Otherwise the import would block any other use of the devices
-#   Make sure to adhere to this or errors will occur!
-# ========================================================================
-# device initialization is done by providing the class name of the device
-# together with the constructor arguments needed to initialize the class later
-# Here dev1F, dev2F will be initalized when system is `set`.
-# The third parameter (args) accepts a list/tuple (even for single parameter!)
-# of arguments that is passed upon device initializeation when system.set() is
-# called.
-# The fourth parameter (kwargs) accepts a dictionary with keyword arguments.
-# The fifth parameter (config_params) can be a dictionary specifying possible
-# query options which allow to readout the configuration of a device which will
-# be stored in the data file header.
-system.add_dev(
-    "devmeas",
-    dummy,
-    args=("TCPIP::localhost::10005::SOCKET",),
-    kwargs={"p5": 5, "p4": [5, 3, 2, 1]},
-    config_params={"p4": "p4"},
-)
-
-# ============================
-# define columns for measurement
-# ============================
-# first parameter is column name, second is units,
-# Further parameters are the set function and read function, respectively.
-# Those can be specified as callable function or as list with the entries
-# [device_name, method, optional (extra) arguments, optional keyword arguments]
-# Optional keyword arguments can be given for the trigger-function, chunks
-# (=length of readout array, used only for HDF5 systems), and the default value
-# to be used when setting the device (if no value is specified in the sweep
-# file)
-system.add_param(
-    ["devmeas p3a", "devmeas p3b"], ["cnta", "cntb"], ["devmeas", "p3"], ["devmeas", "p3"]
-)
-system.add_param(
-    "devmeas p2",
-    "cnt",
-    setter=["devmeas", "p2"],
-    getter=["devmeas", "p2"],
-    trigger=["devmeas", "trg"],
-    default=5,
-)
-system.add_param("devmeas p1", "cnt", None, ["devmeas", "p5"])
-# ============================
+# expose the class; System.from_file() instantiates it
+system = MeasSystem

@@ -73,6 +73,63 @@ class Feature(System):
 
         self.dcdata["source"] = "Dummy feature system"
         self.dcdata["publisher"] = "matr1x measurement suite"
+        # ========================================================================
+        # This is the main system area.
+        # Device definition and configuration takes place here, but devices do
+        # not yet get opened!
+        #
+        # IMPORTANT:
+        #   The devices are not allowed to be opened here!
+        #   Otherwise the import would block any other use of the devices.
+        #   Make sure to adhere to this or errors will occur!
+        # ========================================================================
+        # device initialization is done by providing the class name of the device
+        # together with the constructor arguments needed to initialize the class later
+        # Here dev1, dev2 will be initialized when self.set() is called.
+        # The third parameter (args) accepts a list/tuple (even for single parameter!)
+        # of arguments that is passed upon device initialization when self.set() is
+        # called.
+        # The fourth parameter (kwargs) accepts a dictionary with keyword arguments.
+        # The fifth parameter (config_params) can be a dictionary specifying possible
+        # query options which allow to readout the configuration of a device which will
+        # be stored in the data file header.
+        self.add_dev(
+            "dev1",
+            dummy,
+            args=("TCPIP::localhost::10008::SOCKET",),
+            kwargs={"p1": 5, "p4": [5, 3, 2, 1]},
+            config_params={"p4": "p4"},
+        )
+        self.add_dev(
+            "dev2",
+            dummy,
+            args=("TCPIP::localhost::10009::SOCKET",),
+            config_params={"p2": "p2"},
+        )
+        # ============================
+        # define columns for measurement
+        # ============================
+        # first parameter is column name, second is units,
+        # Further parameters are the set and read functions (keyword setter/getter).
+        # Those can be specified as callable function or as list with the entries
+        # [device_name, method, optional (extra) arguments, optional keyword arguments]
+        # Alternatively a string can be passed, which resolves to a function of self,
+        # i.e., has to be defined in the system.
+        # Further keyword arguments include the trigger function, chunks
+        # (=length of readout array, used only for HDF5 systems), and a default value
+        # to be used when setting the device (used if no value is specified
+        # in the sweep file)
+        self.add_param(["dev1 p3a", "dev1 p3b"], ["cnta", "cntb"], ["dev1", "p3"], ["dev1", "p3"])
+        self.add_param(
+            "dev1 p2",
+            "cnt",
+            setter=["dev1", "p2"],
+            getter=["dev1", "p2"],
+            trigger=["dev1", "trg"],
+            default=5.0,
+        )
+        self.add_param("dev1 p1", "cnt", None, ["dev1", "p1"])
+        self.add_param("dev2 p1", "cnt", "set_dev2_p1", "get_dev2_p1")
 
     def get_dev2_p1(self):
         """
@@ -130,63 +187,6 @@ class Feature(System):
 
 
 # ============================
-# initialize system
-system = Feature()
-# ============================
-
-# ========================================================================
-# This is the main system area
-# Device definition and configuration takes place here, but devices do
-# not yet get opened!
-#
-# IMPORTANT:
-#   The devices are not allowed to be opened here!
-#   Otherwise the import would block any other use of the devices
-#   Make sure to adhere to this or errors will occur!
-# ========================================================================
-# device initialization is done by providing the class name of the device
-# together with the constructor arguments needed to initialize the class later
-# Here dev1F, dev2F will be initalized when system is `set`.
-# The third parameter (args) accepts a list/tuple (even for single parameter!)
-# of arguments that is passed upon device initializeation when system.set() is
-# called.
-# The fourth parameter (kwargs) accepts a dictionary with keyword arguments.
-# The fifth parameter (config_params) can be a dictionary specifying possible
-# query options which allow to readout the configuration of a device which will
-# be stored in the data file header.
-system.add_dev(
-    "dev1",
-    dummy,
-    args=("TCPIP::localhost::10008::SOCKET",),
-    kwargs={"p1": 5, "p4": [5, 3, 2, 1]},
-    config_params={"p4": "p4"},
-)
-system.add_dev(
-    "dev2", dummy, args=("TCPIP::localhost::10009::SOCKET",), config_params={"p2": "p2"}
-)
-
-# ============================
-# define columns for measurement
-# ============================
-# first parameter is column name, second is units,
-# Further parameters are the set and read functions (keyword setter/getter).
-# Those can be specified as callable function or as list with the entries
-# [device_name, method, optional (extra) arguments, optional keyword arguments]
-# Alternatively a string can be passed, which resolves to a function of sys,
-# i.e., has to be defined in the system.
-# Further keyword arguments include the trigger function, chunks
-# (=length of readout array, used only for HDF5 systems), and a default value
-# to be used when setting the device (used if no value is specified
-# in the sweep file)
-system.add_param(["dev1 p3a", "dev1 p3b"], ["cnta", "cntb"], ["dev1", "p3"], ["dev1", "p3"])
-system.add_param(
-    "dev1 p2",
-    "cnt",
-    setter=["dev1", "p2"],
-    getter=["dev1", "p2"],
-    trigger=["dev1", "trg"],
-    default=5.0,
-)
-system.add_param("dev1 p1", "cnt", None, ["dev1", "p1"])
-system.add_param("dev2 p1", "cnt", "set_dev2_p1", "get_dev2_p1")
+# expose the class; System.from_file() instantiates it
+system = Feature
 # ============================

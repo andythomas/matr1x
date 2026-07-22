@@ -589,7 +589,9 @@ class System:
         Load a system from a file.
 
         If a file with the given name cannot be found the system
-        installed files are searched.
+        installed files are searched. A system module may export ``system``
+        as a ``System`` instance (legacy) or as a ``System`` subclass
+        (preferred); subclasses are instantiated after import.
 
         Parameters
         ----------
@@ -633,16 +635,20 @@ class System:
                 return Error(
                     f"Could neither import '{normfilestr}' nor 'matr1x.systems.{normfilestr}'"
                 )
-        # get new (v8 System instance
+        # A system module may expose either a legacy System instance or a
+        # System subclass.  Instantiate subclasses here so system definitions
+        # can keep all mutable setup on ``self``.
         system = getattr(mod, "system", None)
-        if not system:
+        if system is None:
             system = getattr(mod, "sys", None)
             warnings.warn(
                 "Using deprecated variable name 'sys' - please update to use 'system' instead",
                 DeprecationWarning,
             )
+        if inspect.isclass(system) and issubclass(system, System):
+            system = system()
         if not isinstance(system, System):
-            return Error("The 'system' variable is not a valid System instance.")
+            return Error("The 'system' variable is not a valid System instance or System subclass.")
         # set the name of the system to reflect the filename
         system.__name__ = str(normfilename)
         return Success(system)

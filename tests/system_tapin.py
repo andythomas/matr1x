@@ -134,6 +134,19 @@ class TapinSystem(System):
         super().__init__()
         with tap() as emit:
             emit("__init__")
+        # Instantiate and wire devices/parameters as before.
+        self.add_dev(
+            "dev",
+            dummy,
+            args=("TCPIP::localhost::10008::SOCKET",),
+        )
+        self.add_param(
+            "dev",
+            "unit",
+            setter="set_p1",
+            getter=["dev", "p1"],
+            trigger=["dev", "trg"],
+        )
 
     def set(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -162,18 +175,4 @@ class TapinSystem(System):
             raise ValueError("Value must be non-negative")
 
 
-# Instantiate and wire devices/parameters as before
-system = TapinSystem()
-system.add_dev(
-    "dev",
-    dummy,
-    args=("TCPIP::localhost::10008::SOCKET",),
-)
-
-system.add_param(
-    "dev",
-    "unit",
-    setter="set_p1",
-    getter=["dev", "p1"],
-    trigger=["dev", "trg"],
-)
+system = TapinSystem

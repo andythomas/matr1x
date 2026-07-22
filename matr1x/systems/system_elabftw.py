@@ -794,5 +794,5 @@ class Elab(System):
 
 
 # ============================
-# initialize system
-system = Elab()
+# expose the class; System.from_file() instantiates it
+system = Elab

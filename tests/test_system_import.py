@@ -61,3 +61,50 @@ def test_system_import(system_file):
     """
     system = System.from_file(system_file)
     assert isinstance(system, Success)
+
+
+@pytest.mark.parametrize(
+    ("contents", "expected_columns"),
+    [
+        (
+            """\
+from matr1x.system import System
+
+system = System()
+system.add_param("legacy value", "V")
+""",
+            ["legacy value"],
+        ),
+        (
+            """\
+from matr1x.system import System
+
+system = System
+""",
+            [],
+        ),
+        (
+            """\
+from matr1x.system import System
+
+class ClassSystem(System):
+    def __init__(self):
+        super().__init__()
+        self.add_param("class value", "V")
+
+system = ClassSystem
+""",
+            ["class value"],
+        ),
+    ],
+    ids=["legacy-instance", "base-class-export", "subclass-export"],
+)
+def test_system_file_accepts_instance_and_subclass(tmp_path, contents, expected_columns):
+    """Load both the legacy instance and preferred class-based system forms."""
+    system_file = tmp_path / "system_compatibility.py"
+    system_file.write_text(contents)
+
+    result = System.from_file(system_file)
+
+    assert isinstance(result, Success)
+    assert result.value.columns == expected_columns

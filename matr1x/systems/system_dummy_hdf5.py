@@ -53,6 +53,46 @@ class Hdf5(System):
         """
         super().__init__()
         self.dcdata["source"] = "dummy system with HDF5 for testing matr1x-matrix"
+        # ========================================================================
+        # This is the main system area.
+        # Device definition and configuration takes place here, but devices do
+        # not yet get opened!
+        #
+        # IMPORTANT:
+        #   The devices are not allowed to be opened here!
+        #   Otherwise the import would block any other use of the devices.
+        #   Make sure to adhere to this or errors will occur!
+        # ========================================================================
+        self.add_dev("devhdf", dummy, args=("TCPIP::localhost::10010::SOCKET",))
+
+        # enforce HDF5 flag, will be set automatically if needed by any Parameter
+        # self.hdf5 = True
+
+        # define columns for measurement
+        self.add_param("devhdfp4_flat", "cnt", getter=["devhdf", "p4"], dtype="f8", chunks=4)
+        self.add_param("devhdfp4_1d", "cnt", getter=["devhdf", "p4"], chunks=(4,))
+        self.add_param(
+            ["devhdf p3a", "devhdf p3b"],
+            ["cnta", "cntb"],
+            ["devhdf", "p3"],
+            ["devhdf", "p3"],
+            chunks=[1, 1],
+            dtype=["i8", "i8"],
+        )
+        self.add_param(
+            "devhdfp4_2d",
+            "cnt",
+            getter="get_p4",
+            getter_kwargs={"shape": (2, 2)},
+            chunks=(2, 2),
+        )
+        self.add_param(
+            ["rand2d_1", "rand2d_2"],
+            ["cnt", "cnt"],
+            getter=numpy.random.random,
+            getter_args=[(2, 4, 4)],
+            chunks=[(4, 4), (4, 4)],
+        )
 
     def get_p4(self, shape=-1):
         """
@@ -72,46 +112,6 @@ class Hdf5(System):
 
 
 # ============================
-
-
-# initialize system
-system = Hdf5()
-# ========================================================================
-# This is the main system area
-# Device definition and configuration takes place here, but devices do
-# not yet get opened!
-#
-# IMPORTANT:
-#   The devices are not allowed to be opened here!
-#   Otherwise the import would block any other use of the devices
-#   Make sure to adhere to this or errors will occur!
-# ========================================================================
-system.add_dev("devhdf", dummy, args=("TCPIP::localhost::10010::SOCKET",))
-
-# enforce HDF5 flag, will be set automatically if needed by any Parameter
-# system.hdf5 = True
-
-# define columns for measurement
-system.add_param("devhdfp4_flat", "cnt", getter=["devhdf", "p4"], dtype="f8", chunks=4)
-system.add_param("devhdfp4_1d", "cnt", getter=["devhdf", "p4"], chunks=(4,))
-system.add_param(
-    ["devhdf p3a", "devhdf p3b"],
-    ["cnta", "cntb"],
-    ["devhdf", "p3"],
-    ["devhdf", "p3"],
-    chunks=[1, 1],
-    dtype=["i8", "i8"],
-)
-system.add_param(
-    "devhdfp4_2d", "cnt", getter="get_p4", getter_kwargs={"shape": (2, 2)}, chunks=(2, 2)
-)
-system.add_param(
-    ["rand2d_1", "rand2d_2"],
-    ["cnt", "cnt"],
-    getter=numpy.random.random,
-    getter_args=[
-        (2, 4, 4),
-    ],
-    chunks=[(4, 4), (4, 4)],
-)
+# expose the class; System.from_file() instantiates it
+system = Hdf5
 # ============================
