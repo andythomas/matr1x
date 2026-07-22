@@ -12,7 +12,8 @@ class MeasSystem(System):
     """Measurement system for dummy feature demonstration."""
 ```
 
-A good name might be the filename of the module. If this name starts with `system_` strip this part from the class name. Generate a meaningful one-line docstring.
+A good name might be the filename of the module. 
+If this name starts with `system_` strip this part from the class name. 
 
 5. CLASS NAME UNIQUENESS CHECK (applies to all files, independent of steps 1-4):
    a. Search ALL .py files in this directory for any shared subclass name
@@ -22,20 +23,17 @@ A good name might be the filename of the module. If this name starts with `syste
       or from the hardware described in dcdata.
    d. Files already using unique names do NOT need changes.
 
+6. Make sure you did not touch the comments or docstrings. The only exception is the replacement of an referral of an old name to the new name of the class.
+
 ## Control Command Migration
 
-This skill migrates two kinds of legacy patterns in matr1x files:
+This skill migrates legacy patterns in matr1x files:
 
-1. **`cmds` dict entries** — raw lists or `Command.from_deprecated_list()` calls → `Command`, `Get`, or `Set` instantiation
-2. **`add_param` calls** — positional setter/getter arguments → explicit keyword arguments
+**`cmds` dict entries** — raw lists or `Command.from_deprecated_list()` calls → `Command`, `Get`, or `Set` instantiation
 
----
+### Legacy formats to look for
 
-### Part 1 — `cmds` dict migration
-
-#### Legacy formats to look for
-
-**Raw list values** inside a `cmds` dict:
+**Raw list values** inside a dict:
 ```python
 cmds = {
     ":key": [dtype, setfunc, setargs, getfunc, getargs],              # length 5
@@ -43,14 +41,7 @@ cmds = {
 }
 ```
 
-**Explicit `from_deprecated_list` calls**:
-```python
-cmds = {
-    ":key": Command.from_deprecated_list([dtype, setfunc, setargs, getfunc, getargs]),
-}
-```
-
-#### Conversion rules
+### Conversion rules
 
 Apply these rules to each entry (prefer `Get`/`Set` over `Command` when possible):
 
@@ -95,61 +86,15 @@ cmds = {
 
 ---
 
-### Part 2 — `add_param` call migration
-
-#### Legacy pattern to look for
-
-`add_param` calls that pass `setter` and/or `getter` **positionally** (3rd and 4th args):
-
-```python
-system.add_param(name, unit, setter, getter)
-system.add_param(name, unit, None, getter)    # setter is None
-```
-
-#### Conversion rules
-
-- Convert positional `setter` / `getter` to explicit keyword arguments.
-- If `setter` is `None` (getter-only parameter), drop the positional `None` and use `getter=` alone.
-- If `getter` is `None` (setter-only parameter), drop the positional `None` and use `setter=` alone.
-- Keep any other keyword arguments unchanged.
-
-#### Before / After example
-
-**Before:**
-```python
-system.add_param(["T_sample", "HR"], ["K", ""], "setLS", "getLS")
-system.add_param("P_sample", "%", getter=["control", "lsht"])
-system.add_param(["T_VTI", "NV"], ["K", "%"], "setVTI", "getVTI")
-system.add_param("P_VTI", "%", getter=["control", "vtih"])
-system.add_param("angle", "deg", None, "angle")
-system.add_param("plane", "", None, "plane")
-```
-
-**After:**
-```python
-system.add_param(["T_sample", "HR"], ["K", ""], setter="setLS", getter="getLS")
-system.add_param("P_sample", "%", getter=["control", "lsht"])
-system.add_param(["T_VTI", "NV"], ["K", "%"], setter="setVTI", getter="getVTI")
-system.add_param("P_VTI", "%", getter=["control", "vtih"])
-system.add_param("angle", "deg", getter="angle")
-system.add_param("plane", "", getter="plane")
-```
-
-Note: calls that already use keyword arguments (e.g. `getter=["control", "lsht"]`) require no change.
-
----
-
 ### Steps to perform the migration
 
-1. **Identify files** — ask the user which file(s) to migrate, or scan for `.py` files containing `cmds = {` with list values, `from_deprecated_list`, or `add_param(` with positional setter/getter.
+1. **Identify files** — scan for files in the control subdirectories containing `cmds = {`,`common_commands = {`, `cmd_list = {` or similar patterns with list values.
 
 2. **Read each file** fully before making changes.
 
-3. **Apply Part 1** conversions to every `cmds` dict entry that is still a list or a `from_deprecated_list` call.
+3. **Apply changes** convert the dict entries that are still a list 
 
-4. **Apply Part 2** conversions to every `add_param` call that passes setter/getter positionally.
-
-5. **Fix imports** — ensure the file imports exactly the classes it uses:
-   - Add `Get` and/or `Set` to the import if they are now used.
+4. **Fix imports** — ensure the file imports exactly the classes it uses:
+   - Add `Get` and/or `Set` and/or `Command` to the import if they are now used.
    - Remove `Get`, `Set`, or `Command` from the import if they are no longer used.
    - The import comes from `matr1x.util`.
