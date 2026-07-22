@@ -145,7 +145,7 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
-from matr1x.models import MainConfig, SystemInfo
+from matr1x.models import MainConfig, SystemInfo, validate_visa_resource
 
 from . import merge_dicts, reload_config, write_config
 from .eval import delta
@@ -426,6 +426,16 @@ class MetaViewerWidget(QDockWidget):
                 editor = QComboBox(parent)
                 editor.insertItems(0, [str(i) for i in schema["enum"]])
                 editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
+            elif json_type == "string" and ui_type == "visa_resource":
+                editor = QComboBox(parent)
+                editor.setEditable(True)
+                editor.insertItems(0, MetaViewerWidget.visa_resource_names())
+                editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
+                editor.editTextChanged.connect(
+                    lambda value: MetaViewerWidget._update_visa_editor_validation(
+                        cast(QComboBox, editor), value
+                    )
+                )
             elif json_type == "boolean":
                 editor = QCheckBox(parent)
                 editor.setStyleSheet("QCheckBox { border: none; padding: 0px; }")
@@ -549,7 +559,51 @@ class MetaViewerWidget(QDockWidget):
                     value = float(editor.text())
                 except ValueError:
                     value = editor.text()
-            index.model().setData(index, value, Qt.ItemDataRole.EditRole)
+
+            schema = cast(MetaViewerWidget.TreeModel, model).type(cast(QModelIndex, index))
+            if schema.get("ui_type") == "visa_resource":
+                try:
+                    value = validate_visa_resource(str(value))
+                except ValueError as exc:
+                    tree_model = cast(MetaViewerWidget.TreeModel, model)
+                    tree_model.setData(index, value, Qt.ItemDataRole.EditRole)
+                    tree_model.set_validation_error(index, str(exc))
+                    MetaViewerWidget._update_visa_editor_validation(
+                        cast(QComboBox, editor), str(value)
+                    )
+                    return
+            tree_model = cast(MetaViewerWidget.TreeModel, model)
+            tree_model.setData(index, value, Qt.ItemDataRole.EditRole)
+            tree_model.set_validation_error(index, None)
+
+    @staticmethod
+    def _update_visa_editor_validation(editor: QComboBox, value: str) -> None:
+        """Show VISA validation feedback on an editable resource combo box."""
+        try:
+            validate_visa_resource(value)
+        except ValueError as exc:
+            editor.setStyleSheet(
+                "QComboBox { border: 1px solid #b3261e; padding: 0px; background: #ffd9d9; }"
+            )
+            editor.setToolTip(str(exc))
+            if line_edit := editor.lineEdit():
+                line_edit.setToolTip(str(exc))
+        else:
+            editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
+            editor.setToolTip("")
+            if line_edit := editor.lineEdit():
+                line_edit.setToolTip("")
+
+    @staticmethod
+    def visa_resource_names() -> list[str]:
+        """Return VISA resource suggestions from PyVISA."""
+        try:
+            import pyvisa
+
+            return [str(resource) for resource in pyvisa.ResourceManager().list_resources()]
+        except Exception:
+            logger.debug("Could not query PyVISA resources", exc_info=True)
+            return []
 
     @staticmethod
     def resolve_schema(schema: dict, root_schema: dict | None = None) -> dict:
@@ -638,6 +692,7 @@ class MetaViewerWidget(QDockWidget):
             if isinstance(self._type, dict):
                 self.description = self._type.get("description")
             self.hidden: bool = False
+            self.validation_error: str | None = None
 
             # If value is a dict or Pydantic model, convert its items to TreeItem children
             if isinstance(self.value, (dict, BaseModel)):
@@ -873,7 +928,18 @@ class MetaViewerWidget(QDockWidget):
                 return item.data(index.column(), role)
 
             if role == Qt.ItemDataRole.ToolTipRole:
+                if index.column() == 1 and item.validation_error:
+                    return (
+                        f"{item.description or ''}\n\nValidation error: {item.validation_error}"
+                    ).strip()
                 return item.description
+
+            if (
+                role == Qt.ItemDataRole.BackgroundRole
+                and index.column() == 1
+                and item.validation_error
+            ):
+                return QBrush(QColor("#ffd9d9"))
 
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
@@ -937,6 +1003,14 @@ class MetaViewerWidget(QDockWidget):
                 item.setData(index, value, role)
                 return True
             return False
+
+        def set_validation_error(
+            self, index: QModelIndex | QPersistentModelIndex, error: str | None
+        ) -> None:
+            """Mark an item invalid and refresh its validation feedback."""
+            item = index.internalPointer()
+            item.validation_error = error
+            self.dataChanged.emit(index, index)
 
         def flags(self, index: QModelIndex | QPersistentModelIndex) -> Qt.ItemFlag:
             """
@@ -1178,6 +1252,21 @@ class MetaViewerWidget(QDockWidget):
         # restore scroll bar position
         self.tree_view.verticalScrollBar().setValue(current_pos)
 
+    def get_validation_errors(self) -> list[str]:
+        """Return validation errors currently marked in the tree."""
+        errors = []
+
+        def collect(item, parent_path: str = "") -> None:
+            path = f"{parent_path}.{item.key}" if parent_path else item.key
+            if item.validation_error:
+                errors.append(f"{path}: {item.validation_error}")
+            for child in item.child_items:
+                collect(child, path)
+
+        for item in self.model.root_item.child_items:
+            collect(item)
+        return errors
+
     def parse_header(self, hdr: dict) -> dict:
         """
         Shallow copy a matrix header to prepare for display.
@@ -1227,7 +1316,7 @@ class ConfigEditWidget(MetaViewerWidget):
             | QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
-        self.system_file = None
+        self.systemfile = None
         self.system_info: SystemInfo | None = None
         self.full_system_list = []
         widget = QWidget()
@@ -1324,6 +1413,12 @@ class ConfigEditWidget(MetaViewerWidget):
                 self.system_info = None
             else:
                 self.system_info = system_info.value
+                if self.system_info.config_validation_errors:
+                    QMessageBox.warning(
+                        self,
+                        "System configuration warning",
+                        "\n".join(self.system_info.config_validation_errors),
+                    )
         self.update_data()  # Call the original update_data method
 
     def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
@@ -1376,7 +1471,9 @@ class ConfigEditWidget(MetaViewerWidget):
                 if system_name in syst_dict:
                     try:
                         system_config = resolve_config_path(matr1x.config, system_name)
-                        if hasattr(system_config, "model_json_schema"):
+                        if "_schema" not in syst_dict[system_name] and hasattr(
+                            system_config, "model_json_schema"
+                        ):
                             syst_dict[system_name]["_schema"] = system_config.model_json_schema()
                     except Exception:
                         # If we can't get type info, continue without it
@@ -3555,13 +3652,17 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
     script = (
         "import json\n"
         "import sys\n"
+        "from matr1x import validation_errors\n"
         "from matr1x.error_handling import Error\n"
         "from matr1x.system import MergedSystem\n"
+        "validation_error_count = len(validation_errors)\n"
         f"result = MergedSystem.from_files({systems!r})\n"
         "if isinstance(result, Error):\n"
         "    print(result.error, file=sys.stderr)\n"
         "    raise SystemExit(1)\n"
-        "print(json.dumps(result.value.grab_information()))\n"
+        "info = result.value.grab_information()\n"
+        "info['config_validation_errors'] = validation_errors[validation_error_count:]\n"
+        "print(json.dumps(info))\n"
     )
     try:
         result = subprocess.run(

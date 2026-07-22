@@ -270,9 +270,15 @@ class SystemListWidget(QListWidget):
         system_info = get_system_info(self.systems)
         if isinstance(system_info, Error):
             raise InternalInvariantError("System list should work if systems work individually.")
-        if system_info.value.warnings:
-            for warning in system_info.value.warnings:
-                self.message.emit(NotifierMessage(warning, level=logging.WARNING))
+        if system_info.value.config_validation_errors:
+            warning_text = (
+                "System configuration validation failed. Default values are shown only so "
+                "you can correct the configuration; fix these entries before execution:\n\n"
+                + "".join(system_info.value.config_validation_errors)
+            )
+            self.message.emit(NotifierMessage(warning_text, level=logging.ERROR))
+        for warning in system_info.value.warnings:
+            self.message.emit(NotifierMessage(warning, level=logging.WARNING))
         self._cached_system_info = system_info.value
         self._sync_action_state()
         self.changed.emit()

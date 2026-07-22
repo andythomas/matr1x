@@ -182,7 +182,19 @@ class QueueListWidget(QListWidget):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(dialog.accept)
+
+        def save_config() -> None:
+            if config_errors := editor.get_validation_errors():
+                QMessageBox.critical(
+                    dialog,
+                    "Configuration validation error",
+                    "Fix the invalid configuration entries before saving:\n\n"
+                    + "\n".join(config_errors),
+                )
+                return
+            dialog.accept()
+
+        buttons.accepted.connect(save_config)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
         if dialog.exec():
@@ -678,6 +690,12 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 system_info = None
             else:
                 system_info = system_info.value
+                if system_info.config_validation_errors:
+                    QMessageBox.warning(
+                        self,
+                        "System configuration warning",
+                        "\n".join(system_info.config_validation_errors),
+                    )
         matr1x.reload_config()
         self.ui.widgets.config_editor.set_systemfile(configurable)
         if systemfile != self.ui.widgets.config_editor.full_system_list:
@@ -691,6 +709,14 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         inputFile = self.ui.widgets.input_file.text()
         if not Path(inputFile).exists():
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
+            return
+        if config_errors := self.ui.widgets.config_editor.get_validation_errors():
+            QMessageBox.critical(
+                self,
+                "Configuration validation error",
+                "Fix the invalid configuration entries before queueing:\n\n"
+                + "\n".join(config_errors),
+            )
             return
         self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
         # create parameter set for measurement, make sure to copy the meta data

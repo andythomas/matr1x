@@ -1148,7 +1148,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
     def show_message(self, message: NotifierMessage):
         """Show a message text and log."""
-        self.ui.widgets.status_preview.print_colored(message.text)
+        if message.level < logging.ERROR:
+            self.ui.widgets.status_preview.print_colored(message.text)
         logger.log(message.level, message.text)
 
     def print_document(self) -> None:
@@ -1591,6 +1592,14 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
+        if config_errors := self.ui.widgets.config_editor.get_validation_errors():
+            QMessageBox.critical(
+                self,
+                "Configuration validation error",
+                "Fix the invalid configuration entries before running:\n\n"
+                + "\n".join(config_errors),
+            )
+            return
         if (
             self.run_linter() > 0 and not self.in_pytest
         ):  # run linter to make sure there are no errors

@@ -28,7 +28,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from matr1x.devices.dummy import dummy
-from matr1x.models import FilePath, GuiField, SciFloat
+from matr1x.models import FilePath, GuiField, SciFloat, VisaResource
 from matr1x.system import System
 
 
@@ -47,6 +47,11 @@ class FeatureConfig(BaseModel):
         decimals=4,
     )
     setting4: FilePath = Field("~/.matr1x.toml", description="Config file path")
+    visa_address: VisaResource = GuiField(
+        "GPIB::2",
+        ui_type="visa_resource",
+        description="VISA resource address for manual GUI testing",
+    )
 
 
 # ============================
