@@ -70,7 +70,7 @@ After the installation, any application launch will perform the desktop integrat
 A command line tool can carry out the integration as well:
 Please start `matrix-di` for integration and `matrix-di -u` for removal.
 
-`matrix-script` might need a few minutes at the first start to download the editor assets.
+`matrix-script` might need a few moments at the first start to download the editor assets.
 
 ## Overview of Recommended Options
 
