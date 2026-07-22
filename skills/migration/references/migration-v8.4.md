@@ -1,6 +1,4 @@
-# Matr1x
-
-## Upgrade to v8.4
+# Upgrade to v8.4
 
 1. Check if there is a `~/.matr1x.toml` file 
 2. If yes, check if the is a `[matr1x.scripts.matrix-script]` section.

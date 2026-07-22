@@ -1,5 +1,5 @@
 ---
-name: install
+name: matr1x-install
 description: >
   Python tools for data recording, instrument control and visualization. Use to install and setup the matr1x package.
 license: GNU General Public License v3 or later (GPLv3+)
