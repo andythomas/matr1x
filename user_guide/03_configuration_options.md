@@ -264,7 +264,7 @@ relevent options are
 ```toml
 [matr1x.email]
 # smtp server address
-smtp_server = "smtp.gmail.com"
+smtp_server = "<smtp-server-address>"
 smtp_user = "<username>"
 password = "<password>"
 # sending email address compatible with the username above
