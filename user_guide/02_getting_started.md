@@ -16,11 +16,11 @@ Now, the available applications are listed below.
 
 Please start any application other than `matrix` from the command line to initiate the desktop integration.
 Afterwards, the applications are integrated into your desktop environment, e.g. startmenu, taskbar, etc.
-Please note that `matrix-script` will need a longer startup time (>1min) than the other applications, because the editor assets are automatically downloaded as well. 
+Please note that `matrix-script` will need a longer startup time than the other applications, because the editor assets are automatically downloaded as well.
 
 ## Logging
 
-Log files are stored in `~/logs`. 
+Log files are stored in `~/logs`.
 Please look into the newest files in this folder for debugging information if something does not work as expected.
 
 ## Enabling control GUI installation
