@@ -58,9 +58,6 @@ if TYPE_CHECKING:
             ...
 
 
-from .metadata import APP_META_KEY
-
-
 # allow error handling while using with
 @contextmanager
 def open_and_error(filename: str, mode: str = "r"):
@@ -922,77 +919,6 @@ def normalize_cmds(cmds):
             raise TypeError(
                 f"Command entry {cmd!r} must be a Command instance, got {type(val).__name__}."
             )
-
-
-class DcDict(dict):
-    """
-    Custom dictionary class that only allows append if key already exists.
-
-    This class extends the built-in dictionary class to modify its behavior
-    when in append mode or when a merged system exists.
-    In append mode non-empty entries are extended.
-
-    Methods
-    -------
-    overwrite_value(key, value)
-        Overwrite the value for a given key.
-    """
-
-    def __init__(self, system_ref, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.append = False
-        self.system_ref = system_ref
-
-    def __setitem__(self, key, value):
-        """
-        Set item in the dictionary with modified behavior.
-
-        This method wraps dict.__setitem__ to change behavior when in append mode
-        or when a merged system exists (append in that case).
-
-        Parameters
-        ----------
-        key : hashable
-            The key to set.
-        value : Any
-            The value to set for the given key.
-        """
-        if self.system_ref.merged_system:
-            # initialized subsystem, write into merged parent
-            if key not in APP_META_KEY:
-                # is meta key is non-editable, no append is allowed
-                super().__setitem__(key, value)
-                return
-            self._append_value(key, value, ";@set:", ref=self.system_ref.merged_system.dcdata)
-        elif self.append and self[key]:
-            # read only mode is enabled, append values
-            if key not in APP_META_KEY:
-                # is meta key is non-editable, no append is allowed
-                super().__setitem__(key, value)
-                return
-            self._append_value(key, value, ";@ap:")
-        else:
-            super().__setitem__(key, value)
-
-    def _append_value(self, key, value, sep, ref=None):
-        if not value:
-            # only append values that are not None
-            return
-        if ref:
-            # reference system is defined, write meta_data to that system
-            if key in ref.keys():
-                if ref[key]:
-                    # only append to available value if it exists (not None)
-                    ref[key] = sep.join([ref[key], value])
-                    return
-            ref[key] = sep[1:] + value
-        else:
-            # append meta data to current current array
-            if key in self.keys():
-                if self[key]:
-                    super().__setitem__(key, sep.join([self[key], value]))
-                    return
-            super().__setitem__(key, sep[1:] + value)
 
 
 def run_python_cmdline(

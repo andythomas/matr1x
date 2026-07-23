@@ -806,14 +806,14 @@ def loadmatrix(
     Parameters
     ----------
     filename : str or pathlib.Path
-      path to file
+        path to file
     structured: bool, optional
-      controls whether a structured or a plain numpy array is returned
+        controls whether a structured or a plain numpy array is returned
     print_header : bool, optional
-      if true, prints the column names read from the file together with
-      their index
+        if true, prints the column names read from the file together with
+        their index
     replace_None : boolean, optional
-      set to True to replace None values by 0 to allow plotting
+        set to True to replace None values by 0 to allow plotting
 
     Returns
     -------
@@ -874,17 +874,17 @@ def delta(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Parameters
     ----------
     data : np.array
-      Array of data with dimension 'm' containing e.g. voltage.
-      Format must be [value for +I, value for -I, value for +I, ...]
+        Array of data with dimension 'm' containing e.g. voltage.
+        Format must be [value for +I, value for -I, value for +I, ...]
 
     Returns
     -------
     pos : np.array
-      Array with dimension 'm//2' containing the contribution symmetric in
-      current
+        Array with dimension 'm//2' containing the contribution symmetric in
+        current
     neg : np.array
-      Array with dimension 'm//2' containing the contribution antisymmetric in
-      current
+        Array with dimension 'm//2' containing the contribution antisymmetric in
+        current
     """
     if len(data) % 2:
         return (np.add(data[:-1:2], data[1::2]) / 2, np.subtract(data[:-1:2], data[1::2]) / 2)
@@ -900,18 +900,18 @@ def delta3p(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Parameters
     ----------
     data : np.array
-      Array of data with dimension 'm' containing e.g. voltage.
-      Array contains triples of values with format
-      [value1 for +I, value1 for -I, value1 for +I, value2 for +I, ..]
+        Array of data with dimension 'm' containing e.g. voltage.
+        Array contains triples of values with format
+        [value1 for +I, value1 for -I, value1 for +I, value2 for +I, ..]
 
     Returns
     -------
     pos : np.array
-      Array with dimension 'm//3' containing the contribution symmetric in
-      current
+        Array with dimension 'm//3' containing the contribution symmetric in
+        current
     neg : np.array
-      Array with dimension 'm//3' containing the contribution antisymmetric in
-      current
+        Array with dimension 'm//3' containing the contribution antisymmetric in
+        current
     """
     off = len(data) % 3
     if off != 0:

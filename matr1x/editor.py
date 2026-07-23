@@ -1282,7 +1282,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
 
         Parameters
         ----------
-        theme: str
+        theme_selection: str
             Theme name.
         """
         monaco_theme = list(CodeEditor.THEMES["Standard"].values())[0]

@@ -1256,7 +1256,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
 
         Parameters
         ----------
-        event : QCloseEvent
+        a0 : QCloseEvent
             The close event.
         """
         # Save window and dock states

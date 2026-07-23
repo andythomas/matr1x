@@ -51,9 +51,7 @@ from matr1x.models import (
     UntypedConfigModel,
 )
 
-from . import VALID_META_KEYS, output_extension
 from .util import (
-    DcDict,
     construct_query_string,
     default_separator,
     flatten,
@@ -64,6 +62,28 @@ from .util import (
     save_dict_to_hdf5,
 )
 
+VALID_META_KEYS = {
+    "creator": True,
+    "date": False,
+    "identifier": True,
+    "relation": True,
+    "description": True,
+    "source": True,
+    "type": True,
+    "publisher": True,
+    "format": False,
+    "language": False,
+}
+"""
+Valid metadata keys for the dublin core metadata.
+
+The 'false' keys are auto-generated and cannot be set.
+"""
+
+APP_META_KEY = ["description"]
+"""
+The user can append to these dublin core keys.
+"""
 BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
 
 ALLOWED_SIGNATURE_TYPES = BUILTIN_TYPES | {None}
@@ -169,6 +189,77 @@ def device_query(
             raise
         retquery[k] = line
     return retquery
+
+
+class DcDict(dict):
+    """
+    Custom dictionary class that only allows append if key already exists.
+
+    This class extends the built-in dictionary class to modify its behavior
+    when in append mode or when a merged system exists.
+    In append mode non-empty entries are extended.
+
+    Methods
+    -------
+    overwrite_value(key, value)
+        Overwrite the value for a given key.
+    """
+
+    def __init__(self, system_ref, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.append = False
+        self.system_ref = system_ref
+
+    def __setitem__(self, key, value):
+        """
+        Set item in the dictionary with modified behavior.
+
+        This method wraps dict.__setitem__ to change behavior when in append mode
+        or when a merged system exists (append in that case).
+
+        Parameters
+        ----------
+        key : hashable
+            The key to set.
+        value : Any
+            The value to set for the given key.
+        """
+        if self.system_ref.merged_system:
+            # initialized subsystem, write into merged parent
+            if key not in APP_META_KEY:
+                # is meta key is non-editable, no append is allowed
+                super().__setitem__(key, value)
+                return
+            self._append_value(key, value, ";@set:", ref=self.system_ref.merged_system.dcdata)
+        elif self.append and self[key]:
+            # read only mode is enabled, append values
+            if key not in APP_META_KEY:
+                # is meta key is non-editable, no append is allowed
+                super().__setitem__(key, value)
+                return
+            self._append_value(key, value, ";@ap:")
+        else:
+            super().__setitem__(key, value)
+
+    def _append_value(self, key, value, sep, ref=None):
+        if not value:
+            # only append values that are not None
+            return
+        if ref:
+            # reference system is defined, write meta_data to that system
+            if key in ref.keys():
+                if ref[key]:
+                    # only append to available value if it exists (not None)
+                    ref[key] = sep.join([ref[key], value])
+                    return
+            ref[key] = sep[1:] + value
+        else:
+            # append meta data to current current array
+            if key in self.keys():
+                if self[key]:
+                    super().__setitem__(key, sep.join([self[key], value]))
+                    return
+            super().__setitem__(key, sep[1:] + value)
 
 
 class Parameter:
@@ -429,13 +520,14 @@ class System:
     """
     Define a measurement setup/system.
 
-    It is mostly defined by the individual parameters (stored in .parameters)
-    that are used in the system as well as the list of devices stored in .devs.
-    Additionally, it provides functions to set, trigger and read the individual
-    parameters using the specifications provided there.
-    Finally, it defines the set, query and reset function, which are used to
-    open and initialize the devices, query the device configuration/status and
-    return the system to a defined state, respectively.
+    It is mostly defined by the individual `Parameter`s (stored in
+    `parameters`) that are used in the system as well as the list of
+    devices stored in `devs`. Additionally, it provides functions to
+    set, trigger and read the individual parameters using the
+    specifications provided there. Finally, it defines the set, query
+    and reset function, which are used to open and initialize the
+    devices, query the device configuration/status and return the system
+    to a defined state, respectively.
 
     Attributes
     ----------
@@ -454,8 +546,9 @@ class System:
     devs : dict
         Contains the individual devices that belong to the system.
     dcdata : dict
-        Contains telemetry according to the Dublin Core specification that can be
-        used to generate specific header information.
+        Contains telemetry according to the Dublin Core specification
+        that can be used to generate specific header information. see
+        `VALID_META_KEYS`
     system_config_params : dict
         Contains the definition for custom device queries to read the
         configuration. Keys match the device names in .devs.
@@ -717,11 +810,7 @@ class System:
         trigger_args: tuple[Any] | list[Any] | None = None,
         trigger_kwargs: dict[str, Any] | None = None,
     ):
-        """
-        Add a parameter to the list of parameters.
-
-        For definition of the passed parameters, see class :class:`Parameter`.
-        """
+        """Add a `Parameter` to the list of parameters."""
         self.parameters.append(
             Parameter(
                 name,
@@ -890,9 +979,9 @@ class System:
         # check whether hdf5 is required and change output extensions
         if self.hdf5 is True:
             # append h5 to filename to discern filetypes
-            file_extension = ".h5" + output_extension
+            file_extension = ".h5" + matr1x.output_extension
         else:
-            file_extension = output_extension
+            file_extension = matr1x.output_extension
         refileext = file_extension.replace(".", r"\.")
 
         if outputfile:
@@ -1323,7 +1412,7 @@ class System:
         """
         Handle device opening/initialization.
 
-        For format of devs refer to .add_dev
+        For format of devs refer to `add_dev`
 
         Parameters
         ----------
@@ -1654,8 +1743,6 @@ class System:
         ----------
         inputfile : str
             Filename of the inputfile to be placed in the header.
-        output_filename : Path, optional
-            Filename of the output file.
 
         Returns
         -------

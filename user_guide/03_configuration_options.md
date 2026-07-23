@@ -1,15 +1,28 @@
 # Configuration options
 
-In the `~/.matr1x.toml` configuration file which follows a [TOML file format](https://toml.io)
-some options can be configured. These are typically only needed if some behavior of the
-programs needs to be changed and for most users the default options will be just fine.
-In addition to a config file in the users home directory one can also use a custom config
-file `matr1x.toml` in the directory where any matrix-program is started.
+## Configuration Basics
 
-While here the available global options are discussed you can find install specific options in the
-Installation section of the [README](../../README.md#installation-windows-macos-linuxunix).
+The desktop integration process of matr1x can be configured by entries in a `~/.matr1x.toml` file.
+Three examples is given in the following code block:
 
-````toml
+```toml
+[matr1x.install]
+# control wether users and log directory are created by the installer
+create_directories = false
+# enable/disable basic desktop integration
+desktopintegration = true
+# enable control-dummy desktop integration
+controlguis = ["control-dummy"]
+```
+
+The configuration file follows the [TOML file format](https://toml.io).
+Modifications are only needed if some behavior of the applications needs to be changed and for most users the default options will be just fine.
+In addition to a config file in the users home directory, one can also use a custom config file `matr1x.toml` in the current directory (where any matrix-program is started).
+After adjusting the settings rerun the desktop integration via the menu in any of the applications or use the provided command line tool.
+
+## All Options
+
+```toml
 [matr1x]
 # customize datetime format in log files: follow https://docs.python.org/3/library/time.html#time.strftime
 datetime_format = "%Y-%m-%dT%H:%M:%S"
@@ -24,7 +37,12 @@ duplicate_output_to_logfile = false
 # Enables automatic conversion of print statements to data file comments
 # Note: Measurement point outputs are excluded. This feature helps link script output with the data file.
 print_to_comment = false
+```
 
+Systems in the last given `systems_directory` path will be shown initially where system files can
+be loaded.
+
+```toml
 [matr1x.scripts.matrix-script]
 # location where matrix-script scripts are executed (files from this folder can be imported in scripts)
 # by default ("") this is the folder were matrix-script is started. The special value "<script-location>"
@@ -32,13 +50,17 @@ print_to_comment = false
 script_path= ""
 # Controls whether executed script code is stored in the data file header
 store_script_in_datafile = false
+```
 
+```toml
 [matr1x.scripts.matrix-script.shortcuts]
 # The shortcut that is displayed for the toggle line comment menu item.
 line_comment_display = "Ctrl+/"
 # The shortcut that is used for the toggle line comment menu item.
 line_comment_shortcut = "Ctrl+/"
+```
 
+```toml
 [matr1x.devices.visadevice]
 # some devices support rate limiting of transmissions to the hardware. the property 'commands per second'
 # can be used to the set the global default value use for the rate limiting
@@ -47,9 +69,9 @@ cmdpers = 30
 pts = false
 # enable Visa debug output
 visadebug = false
+```
 
-Systems in the last given `systems_directory` path will be shown initially where system files can
-be loaded. Some systems also define optional parameters which can be configured via the same
+Some systems also define optional parameters which can be configured via the same
 `~/.matr1x.toml`. An example is found in `system_dummy_feature.py` which adds four options.
 
 ```toml
@@ -242,7 +264,7 @@ relevent options are
 ```toml
 [matr1x.email]
 # smtp server address
-smtp_server = "smtp.gmail.com"
+smtp_server = "<smtp-server-address>"
 smtp_user = "<username>"
 password = "<password>"
 # sending email address compatible with the username above
@@ -255,4 +277,7 @@ default config during installation since this would overwrite your changes.
 On posix platforms (Linux/Mac OS) the sending of emails falls back to using `sendmail` which needs
 to be configured accordingly. This is only attempting in case of incomplete configuration and the
 `sendmail` command needs to be accessible via `PATH`.
-````
+
+```
+
+```
