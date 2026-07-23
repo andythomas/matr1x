@@ -159,3 +159,10 @@ dev = [
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
 ]
+
+docs = [
+    "great-docs[svg]==0.15.0"
+]
+
+[tool.uv.dependency-groups]
+docs = { requires-python = ">=3.11" }
