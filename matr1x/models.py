@@ -76,7 +76,26 @@ FolderPath = Annotated[str, GuiField(ui_type="folder")]
 
 
 def validate_visa_resource(value: str) -> str:
-    """Validate a VISA resource string without opening the instrument."""
+    """
+    Validate a VISA resource string without opening the instrument.
+
+    ``VisaResource`` can be used in Pydantic config models for systems that
+    need a VISA address. The config editor will render the field as an
+    editable combo box with PyVISA resource suggestions while still allowing
+    free text input.
+
+    Example
+    -------
+    ```python
+    from pydantic import BaseModel, Field
+
+    from matr1x.models import VisaResource
+
+
+    class DeviceConfig(BaseModel):
+        address: VisaResource = Field(..., description="VISA resource address")
+    ```
+    """
     if not value.strip():
         raise ValueError("VISA resource address must not be empty")
 

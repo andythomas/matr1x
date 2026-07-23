@@ -628,8 +628,9 @@ class MetaViewerWidget(QDockWidget):
             import pyvisa
 
             return [str(resource) for resource in pyvisa.ResourceManager().list_resources()]
-        except Exception:
-            logger.debug("Could not query PyVISA resources", exc_info=True)
+        except Exception as exc:
+            logger.info("Could not query PyVISA resources for config editor suggestions: %s", exc)
+            logger.debug("PyVISA resource discovery traceback", exc_info=True)
             return []
 
     @staticmethod

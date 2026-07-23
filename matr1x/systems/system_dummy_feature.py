@@ -47,9 +47,8 @@ class FeatureConfig(BaseModel):
         decimals=4,
     )
     setting4: FilePath = Field("~/.matr1x.toml", description="Config file path")
-    visa_address: VisaResource = GuiField(
+    visa_address: VisaResource = Field(
         "GPIB::2",
-        ui_type="visa_resource",
         description="VISA resource address for manual GUI testing",
     )
 
