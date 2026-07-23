@@ -182,20 +182,31 @@ class QueueListWidget(QListWidget):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
+        save_button = buttons.button(QDialogButtonBox.StandardButton.Save)
+
+        def update_save_button_state(*_args) -> None:
+            if config_errors := editor.get_validation_errors():
+                save_button.setEnabled(False)
+                save_button.setToolTip(
+                    "Fix the invalid configuration entries before saving:\n\n"
+                    + "\n".join(config_errors)
+                )
+                return
+            save_button.setEnabled(True)
+            save_button.setToolTip("Save device config.")
 
         def save_config() -> None:
-            if config_errors := editor.get_validation_errors():
-                QMessageBox.critical(
-                    dialog,
-                    "Configuration validation error",
-                    "Fix the invalid configuration entries before saving:\n\n"
-                    + "\n".join(config_errors),
-                )
+            update_save_button_state()
+            if not save_button.isEnabled():
                 return
             dialog.accept()
 
         buttons.accepted.connect(save_config)
         buttons.rejected.connect(dialog.reject)
+        editor.model.dataChanged.connect(update_save_button_state)
+        editor.model.validationChanged.connect(update_save_button_state)
+        editor.model.modelReset.connect(update_save_button_state)
+        update_save_button_state()
         layout.addWidget(buttons)
         if dialog.exec():
             parameters.config = editor.get_config_dict()
@@ -498,6 +509,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.queue.triggered.connect(self.queue_measurement)
         self.ui.actions.start.triggered.connect(self.run_matrix)
         self.ui.widgets.config_editor.model.dataChanged.connect(self.update_queue_action_state)
+        self.ui.widgets.config_editor.model.validationChanged.connect(self.update_queue_action_state)
         self.ui.widgets.config_editor.model.modelReset.connect(self.update_queue_action_state)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)

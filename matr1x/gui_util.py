@@ -37,6 +37,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import types
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
@@ -368,6 +369,9 @@ class MetaViewerWidget(QDockWidget):
     higher.
     """
 
+    _visa_resource_cache: list[str] | None = None
+    _visa_resource_query_running = False
+
     class EditableDelegate(QStyledItemDelegate):
         """
         Custom delegate for editable items in a view.
@@ -432,8 +436,14 @@ class MetaViewerWidget(QDockWidget):
                 editor.insertItems(0, MetaViewerWidget.visa_resource_names())
                 editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
                 editor.editTextChanged.connect(
-                    lambda value: MetaViewerWidget._update_visa_editor_validation(
-                        cast(QComboBox, editor), value
+                    lambda value, tree_model=model, model_index=index: (
+                        MetaViewerWidget._update_visa_editor_validation(
+                            cast(QComboBox, editor),
+                            value,
+                            tree_model,
+                            model_index,
+                            refresh_view=False,
+                        )
                     )
                 )
             elif json_type == "boolean":
@@ -577,26 +587,43 @@ class MetaViewerWidget(QDockWidget):
             tree_model.set_validation_error(index, None)
 
     @staticmethod
-    def _update_visa_editor_validation(editor: QComboBox, value: str) -> None:
+    def _update_visa_editor_validation(
+        editor: QComboBox,
+        value: str,
+        model: TreeModel | None = None,
+        index: QModelIndex | QPersistentModelIndex | None = None,
+        *,
+        refresh_view: bool = True,
+    ) -> None:
         """Show VISA validation feedback on an editable resource combo box."""
+        validation_error = None
         try:
             validate_visa_resource(value)
         except ValueError as exc:
+            validation_error = str(exc)
             editor.setStyleSheet(
                 "QComboBox { border: 1px solid #b3261e; padding: 0px; background: #ffd9d9; }"
             )
-            editor.setToolTip(str(exc))
+            editor.setToolTip(validation_error)
             if line_edit := editor.lineEdit():
-                line_edit.setToolTip(str(exc))
+                line_edit.setToolTip(validation_error)
         else:
             editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
             editor.setToolTip("")
             if line_edit := editor.lineEdit():
                 line_edit.setToolTip("")
 
+        if model is not None and index is not None:
+            model.set_validation_error(index, validation_error, refresh_view=refresh_view)
+
     @staticmethod
     def visa_resource_names() -> list[str]:
-        """Return VISA resource suggestions from PyVISA."""
+        """Return cached VISA resource suggestions without starting discovery."""
+        return (MetaViewerWidget._visa_resource_cache or []).copy()
+
+    @staticmethod
+    def _query_visa_resource_names() -> list[str]:
+        """Query VISA resource suggestions from PyVISA."""
         try:
             import pyvisa
 
@@ -604,6 +631,43 @@ class MetaViewerWidget(QDockWidget):
         except Exception:
             logger.debug("Could not query PyVISA resources", exc_info=True)
             return []
+
+    @staticmethod
+    def prefetch_visa_resource_names(*, force: bool = False) -> None:
+        """Start VISA resource discovery in the background if it is not already running."""
+        if not force and MetaViewerWidget._visa_resource_cache is not None:
+            return
+        if MetaViewerWidget._visa_resource_query_running:
+            return
+
+        def query_resources() -> None:
+            try:
+                MetaViewerWidget._visa_resource_cache = (
+                    MetaViewerWidget._query_visa_resource_names()
+                )
+            finally:
+                MetaViewerWidget._visa_resource_query_running = False
+
+        MetaViewerWidget._visa_resource_query_running = True
+        threading.Thread(
+            target=query_resources,
+            name="matr1x-visa-resource-query",
+            daemon=True,
+        ).start()
+
+    @staticmethod
+    def schema_contains_visa_resource(schema: Any) -> bool:
+        """Return True when a nested schema tree contains a VISA resource editor hint."""
+        if isinstance(schema, dict):
+            if schema.get("ui_type") == "visa_resource":
+                return True
+            return any(
+                MetaViewerWidget.schema_contains_visa_resource(value)
+                for value in schema.values()
+            )
+        if isinstance(schema, list):
+            return any(MetaViewerWidget.schema_contains_visa_resource(value) for value in schema)
+        return False
 
     @staticmethod
     def resolve_schema(schema: dict, root_schema: dict | None = None) -> dict:
@@ -895,6 +959,8 @@ class MetaViewerWidget(QDockWidget):
             The parent object for this model.
         """
 
+        validationChanged = Signal()
+
         def __init__(self, data: dict | BaseModel, parent=None):
             super().__init__(parent)
             self.root_item = MetaViewerWidget.TreeItem("Root", data)
@@ -1005,12 +1071,20 @@ class MetaViewerWidget(QDockWidget):
             return False
 
         def set_validation_error(
-            self, index: QModelIndex | QPersistentModelIndex, error: str | None
+            self,
+            index: QModelIndex | QPersistentModelIndex,
+            error: str | None,
+            *,
+            refresh_view: bool = True,
         ) -> None:
             """Mark an item invalid and refresh its validation feedback."""
             item = index.internalPointer()
+            if item.validation_error == error:
+                return
             item.validation_error = error
-            self.dataChanged.emit(index, index)
+            self.validationChanged.emit()
+            if refresh_view:
+                self.dataChanged.emit(index, index)
 
         def flags(self, index: QModelIndex | QPersistentModelIndex) -> Qt.ItemFlag:
             """
@@ -1242,6 +1316,8 @@ class MetaViewerWidget(QDockWidget):
             Type definition for editable meta data
         """
         # get position of scroll bar before resetting the data
+        if self.schema_contains_visa_resource(types):
+            self.prefetch_visa_resource_names()
         current_pos = self.tree_view.verticalScrollBar().value()
         self.model.resetData(self.parse_header(meta), self.parse_header(types))
         # resize and expand all entries
