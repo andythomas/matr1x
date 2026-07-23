@@ -60,7 +60,7 @@ If a more fine grained control is needed, a script can be used to control the de
 The example shows the basic functionality.
 In a nutshell, any Python code plus a few custom commands for the device control and read-out can be used.
 ![Script instrument control](assets/orientation/matrix-script.light.png)
-In our case, the values are swept from 0 to 10 in steps of 1. 
+In our case, the values are swept from 0 to 10 in steps of 1.
 After each step, the a measurement is performed and the following lines illustrate the required coding effort.
 
 ```python
