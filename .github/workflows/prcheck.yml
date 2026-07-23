@@ -14,8 +14,8 @@ on:
       - development
 
 permissions:
-  pull-requests: read
-  contents: read
+  pull-requests: write
+  contents: write
 
 jobs:
   PR-Title-and-ruff:
