@@ -516,7 +516,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.queue.triggered.connect(self.queue_measurement)
         self.ui.actions.start.triggered.connect(self.run_matrix)
         self.ui.widgets.config_editor.model.dataChanged.connect(self.update_queue_action_state)
-        self.ui.widgets.config_editor.model.validationChanged.connect(self.update_queue_action_state)
+        self.ui.widgets.config_editor.model.validationChanged.connect(
+            self.update_queue_action_state
+        )
         self.ui.widgets.config_editor.model.modelReset.connect(self.update_queue_action_state)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
