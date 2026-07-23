@@ -663,8 +663,7 @@ class MetaViewerWidget(QDockWidget):
             if schema.get("ui_type") == "visa_resource":
                 return True
             return any(
-                MetaViewerWidget.schema_contains_visa_resource(value)
-                for value in schema.values()
+                MetaViewerWidget.schema_contains_visa_resource(value) for value in schema.values()
             )
         if isinstance(schema, list):
             return any(MetaViewerWidget.schema_contains_visa_resource(value) for value in schema)

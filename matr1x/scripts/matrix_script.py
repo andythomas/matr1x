@@ -1090,7 +1090,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.actions.save_as.triggered.connect(self.save_file_as)
         self.ui.widgets.system_list.changed.connect(self.update_systems)
         self.ui.widgets.config_editor.model.dataChanged.connect(self.update_start_action_state)
-        self.ui.widgets.config_editor.model.validationChanged.connect(self.update_start_action_state)
+        self.ui.widgets.config_editor.model.validationChanged.connect(
+            self.update_start_action_state
+        )
         self.ui.widgets.config_editor.model.modelReset.connect(self.update_start_action_state)
         self.ui.actions.print.triggered.connect(self.print_document)
         self.ui.actions.quit_app.triggered.connect(self.close)
