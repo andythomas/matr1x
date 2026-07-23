@@ -2,6 +2,10 @@
 
 Python tools for data recording, instrument control and visualization.
 
+## Further information
+
+Please use the full [user-guide](https://andythomas.github.io/matr1x/) for detailed information including installation instructions, usage examples, and troubleshooting tips.
+
 ## Why Matr1x?
 
 There are several good Python software packages that provide a framework for measurements and general instrument control.
