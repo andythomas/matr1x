@@ -732,7 +732,7 @@ class System:
             system = getattr(mod, "sys", None)
             warnings.warn(
                 "Using deprecated variable name 'sys' - please update to use 'system' instead",
-                DeprecationWarning,
+                FutureWarning,
             )
         if not isinstance(system, System):
             return Error("The 'system' variable is not a valid System instance.")

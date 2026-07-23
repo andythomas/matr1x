@@ -70,8 +70,7 @@ class SR830(VisaDevice):
         warnings.warn(
             "The class SR830 is deprecated and will be removed in a future release. "
             "Please use pymeasure.instruments.srs.SR830.",
-            category=DeprecationWarning,
-            stacklevel=2,
+            category=FutureWarning,
         )
         super().__init__(
             interface,

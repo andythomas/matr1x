@@ -36,6 +36,7 @@ system directories.
 import logging
 import os
 import sys
+import warnings
 from dataclasses import dataclass
 from datetime import date
 from importlib.metadata import PackageNotFoundError, version
@@ -56,6 +57,20 @@ from .util import (
     resolve_config_path,
     resolve_pkgroot_path,
 )
+
+
+def _clean_formatwarning(
+    message: Warning | str,
+    category: type[Warning],
+    filename: str,
+    lineno: int,
+    line: str | None = None,
+) -> str:
+    """Format a warning into a single line without pulling source code context."""
+    return f"{filename}:{lineno}: {category.__name__}: {message}\n"
+
+
+warnings.formatwarning = _clean_formatwarning  # ty: ignore[invalid-assignment]
 
 __all__ = [
     # Config management

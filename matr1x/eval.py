@@ -860,7 +860,7 @@ def loadh5matrix(filename: str | Path, filehandle=False):
             the datafile for reading if loadmatrix is not sufficient.
             """
         )
-    warnings.warn("loadh5matrix will be removed soon. use loadmatrix instead")
+    warnings.warn("loadh5matrix will be removed soon. use loadmatrix instead", FutureWarning)
     return loadmatrix(filename)
 
 
