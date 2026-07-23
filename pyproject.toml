@@ -61,9 +61,8 @@ matrix-preview = "matr1x.scripts.matrix_preview:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
 [project.urls]
-homepage = "https://github.com/andythomas/IFW_software"
-
-
+Homepage = "https://github.com/andythomas/matr1x"
+Documentation = "https://andythomas.github.io/matr1x/"
 
 [build-system]
 # use flit since setuptools does currently not support PEP660
@@ -160,3 +159,10 @@ dev = [
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
 ]
+
+docs = [
+    "great-docs[svg]==0.15.0"
+]
+
+[tool.uv.dependency-groups]
+docs = { requires-python = ">=3.11" }

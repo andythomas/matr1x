@@ -759,8 +759,8 @@ class MetaViewerWidget(QDockWidget):
             ----------
             column : int
                 The column index (0 for Key, 1 for Value).
-            read_hidden : bool
-                If true, yield the hidden value, else show nothing if hidden
+            role
+                If editor is active, act like there is no value.
 
             Returns
             -------
@@ -1091,7 +1091,7 @@ class MetaViewerWidget(QDockWidget):
 
             Parameters
             ----------
-            index : QModelIndex
+            parent : QModelIndex
                 The parent index.
 
             Returns

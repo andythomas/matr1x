@@ -1,0 +1,34 @@
+# dcterms:creator : ""
+# dcterms:date : "2026-07-20T15:21:54"
+# dcterms:identifier : ""
+# dcterms:relation : ""
+# dcterms:description : None
+# dcterms:source : "dummy system for testing matr1x-matrix"
+# dcterms:type : None
+# dcterms:publisher : None
+# dcterms:format : "text/plain; charset=UTF-8"
+# dcterms:language : "en"
+# input filename : "/Users/thomasa/Documents/GitHub/matr1x/user_guide/assets/orientation/orientation-script.matrix"
+# system filename : "matr1x.systems.system_dummy"
+# system query : 
+## dev
+### name : "dummy_device name
+#### with newline"
+### conf : "0"
+dev p2	timeUTC
+cnt	s
+# comment (2026-07-20T15:21:54): Creating new datafile: orientation_output.ma8
+# comment (2026-07-20T15:21:54): acquired configuration, and initialized file
+0.0	1784553714.968734
+1.0	1784553714.9692621
+2.0	1784553714.9696698
+3.0	1784553714.97012
+4.0	1784553714.970461
+5.0	1784553714.970811
+6.0	1784553714.971144
+7.0	1784553714.971488
+8.0	1784553714.9717839
+9.0	1784553714.972096
+10.0	1784553714.9724648
+# comment (2026-07-20T15:21:54): resetting system
+# status: finished
