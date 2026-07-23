@@ -622,7 +622,7 @@ class MetaViewerWidget(QDockWidget):
         return (MetaViewerWidget._visa_resource_cache or []).copy()
 
     @staticmethod
-    def _query_visa_resource_names() -> list[str]:
+    def _query_visa_resource_names() -> list[str] | None:
         """Query VISA resource suggestions from PyVISA."""
         try:
             import pyvisa
@@ -631,7 +631,7 @@ class MetaViewerWidget(QDockWidget):
         except Exception as exc:
             logger.info("Could not query PyVISA resources for config editor suggestions: %s", exc)
             logger.debug("PyVISA resource discovery traceback", exc_info=True)
-            return []
+            return None
 
     @staticmethod
     def prefetch_visa_resource_names(*, force: bool = False) -> None:
@@ -643,9 +643,9 @@ class MetaViewerWidget(QDockWidget):
 
         def query_resources() -> None:
             try:
-                MetaViewerWidget._visa_resource_cache = (
-                    MetaViewerWidget._query_visa_resource_names()
-                )
+                resources = MetaViewerWidget._query_visa_resource_names()
+                if resources is not None:
+                    MetaViewerWidget._visa_resource_cache = resources
             finally:
                 MetaViewerWidget._visa_resource_query_running = False
 
@@ -1396,6 +1396,7 @@ class ConfigEditWidget(MetaViewerWidget):
         self.systemfile = None
         self.system_info: SystemInfo | None = None
         self.full_system_list = []
+        self._unmapped_system_config_validation_errors: list[str] = []
         widget = QWidget()
         layout = QVBoxLayout()
         button_layout = QHBoxLayout()
@@ -1490,12 +1491,6 @@ class ConfigEditWidget(MetaViewerWidget):
                 self.system_info = None
             else:
                 self.system_info = system_info.value
-                if self.system_info.config_validation_errors:
-                    QMessageBox.warning(
-                        self,
-                        "System configuration warning",
-                        "\n".join(self.system_info.config_validation_errors),
-                    )
         self.update_data()  # Call the original update_data method
 
     def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
@@ -1574,7 +1569,61 @@ class ConfigEditWidget(MetaViewerWidget):
         parse_dict_and_types(syst_dict, self.value_dict, self.types_dict)
 
         super().update_data(self.value_dict, self.types_dict)
+        self._apply_system_config_validation_errors()
         self.w_update_config.setEnabled(True)
+
+    def _iter_system_config_validation_errors(self) -> Iterator[str]:
+        """Yield individual system config validation error lines."""
+        if self.system_info is None:
+            return
+        for error in self.system_info.config_validation_errors:
+            for line in error.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    yield stripped
+
+    def _index_for_config_path(self, path: str) -> QModelIndex:
+        """Return the value-column model index for a dotted config path."""
+        for system_row, system_item in enumerate(self.model.root_item.child_items):
+            if path == system_item.key:
+                return self.model.index(system_row, 1, QModelIndex())
+            if not path.startswith(f"{system_item.key}."):
+                continue
+
+            parent_index = self.model.index(system_row, 0, QModelIndex())
+            item = system_item
+            value_index = self.model.index(system_row, 1, QModelIndex())
+            for part in path[len(system_item.key) + 1 :].split("."):
+                for child_row, child_item in enumerate(item.child_items):
+                    if child_item.key == part:
+                        value_index = self.model.index(child_row, 1, parent_index)
+                        parent_index = self.model.index(child_row, 0, parent_index)
+                        item = child_item
+                        break
+                else:
+                    return QModelIndex()
+            return value_index
+        return QModelIndex()
+
+    def _apply_system_config_validation_errors(self) -> None:
+        """Map system config validation errors to fields where possible."""
+        self._unmapped_system_config_validation_errors = []
+        for error in self._iter_system_config_validation_errors():
+            path, separator, message = error.partition(":")
+            if not separator:
+                self._unmapped_system_config_validation_errors.append(error)
+                continue
+
+            index = self._index_for_config_path(path)
+            if not index.isValid():
+                self._unmapped_system_config_validation_errors.append(error)
+                continue
+
+            self.model.set_validation_error(index, message.strip())
+
+    def get_system_config_validation_errors(self) -> list[str]:
+        """Return system config validation errors that could not be mapped to a field."""
+        return self._unmapped_system_config_validation_errors.copy()
 
     def flatten_dict(self, nested: dict, parent_key: str = "", sep: str = ".") -> dict:
         """Flatten a nested dictionary into dotted-key notation."""

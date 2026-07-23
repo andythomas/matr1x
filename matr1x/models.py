@@ -113,7 +113,7 @@ def validate_visa_resource(value: str) -> str:
 VisaResource = Annotated[
     str,
     AfterValidator(validate_visa_resource),
-    GuiField(ui_type="visa_resource"),
+    GuiField(ui_type="visa_resource", validate_default=True),
 ]
 
 

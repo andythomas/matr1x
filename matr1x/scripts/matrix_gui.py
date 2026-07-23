@@ -185,6 +185,13 @@ class QueueListWidget(QListWidget):
         save_button = buttons.button(QDialogButtonBox.StandardButton.Save)
 
         def update_save_button_state(*_args) -> None:
+            if config_errors := editor.get_system_config_validation_errors():
+                save_button.setEnabled(False)
+                save_button.setToolTip(
+                    "Fix the invalid system configuration before saving:\n\n"
+                    + "\n".join(config_errors)
+                )
+                return
             if config_errors := editor.get_validation_errors():
                 save_button.setEnabled(False)
                 save_button.setToolTip(
@@ -539,6 +546,14 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.actions.queue.setToolTip("Load systems before queueing.")
             return
 
+        if config_errors := self.ui.widgets.config_editor.get_system_config_validation_errors():
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip(
+                "Fix the invalid system configuration before queueing:\n\n"
+                + "\n".join(config_errors)
+            )
+            return
+
         if config_errors := self.ui.widgets.config_editor.get_validation_errors():
             self.ui.actions.queue.setEnabled(False)
             self.ui.actions.queue.setToolTip(
@@ -729,12 +744,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 system_info = None
             else:
                 system_info = system_info.value
-                if system_info.config_validation_errors:
-                    QMessageBox.warning(
-                        self,
-                        "System configuration warning",
-                        "\n".join(system_info.config_validation_errors),
-                    )
         matr1x.reload_config()
         self.ui.widgets.config_editor.set_systemfile(configurable)
         if systemfile != self.ui.widgets.config_editor.full_system_list:
@@ -748,6 +757,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         inputFile = self.ui.widgets.input_file.text()
         if not Path(inputFile).exists():
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
+            return
+        if self.ui.widgets.config_editor.get_system_config_validation_errors():
+            self.update_queue_action_state()
             return
         if self.ui.widgets.config_editor.get_validation_errors():
             self.update_queue_action_state()

@@ -554,7 +554,17 @@ class System:
             msg = format_validation_error(e, base=f"{section}.")
             validation_errors.append(msg)
             # Use defaults from the model if validation fails
-            validated_config = model_class()
+            try:
+                validated_config = model_class()
+            except (ValidationError, TypeError, ValueError):
+                logger.debug(
+                    "Could not instantiate default config for %s after validation error",
+                    section,
+                    exc_info=True,
+                )
+                if not hasattr(model_class, "model_construct"):
+                    raise
+                validated_config = model_class.model_construct()
 
         if sensitive_keys:
             # Move sensitive keys to sensitive_config
