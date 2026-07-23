@@ -100,5 +100,6 @@ class MeasSystem(System):
         )
         self.add_param("devmeas p1", "cnt", None, ["devmeas", "p5"])
 
+
 # expose the class; System.from_file() instantiates it
 system = MeasSystem

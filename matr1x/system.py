@@ -741,7 +741,9 @@ class System:
         if inspect.isclass(system) and issubclass(system, System):
             system = system()
         if not isinstance(system, System):
-            return Error("The 'system' variable is not a valid System instance or System subclass.")
+            return Error(
+                "The 'system' variable is not a valid System instance or System subclass."
+            )
         # set the name of the system to reflect the filename
         system.__name__ = str(normfilename)
         return Success(system)
