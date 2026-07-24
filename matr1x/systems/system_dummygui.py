@@ -56,7 +56,3 @@ class GuiIntegration(System):
         self.add_param(["guiv2", "guiv3"], ["float", "float"], ["gui", "v2v3"], ["gui", "v2v3"])
         self.add_param("guiv4", "bool", ["gui", "v4"], ["gui", "v4"])
         self.add_param("guiv5", "float", None, ["gui", "v5"])
-
-
-# expose the class; System.from_file() instantiates it
-system = GuiIntegration

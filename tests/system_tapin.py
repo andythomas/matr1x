@@ -173,6 +173,3 @@ class TapinSystem(System):
         self.devs["dev"].p1 = value
         if value < 0:
             raise ValueError("Value must be non-negative")
-
-
-system = TapinSystem

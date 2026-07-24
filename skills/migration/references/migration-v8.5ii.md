@@ -2,13 +2,14 @@
 
 ## Move from System Instance to System Class
 
-Define system setup on a `System` subclass and export the class through the module-level `system`
-name to remove the need for a `system` instance.
+Define system setup on exactly one local `System` subclass. `System.from_file` discovers and
+instantiates that class, so no module-level `system` variable is required.
+Initialized `system` and `sys` exports remain temporarily supported with a deprecation warning.
 
 ## Migration
 
 1. Read the whole system file.
-2. There should be at least one class in the system file that is a subclass of `System`.
+2. There must be exactly one class defined in the system file that is a subclass of `System`.
 3. If there is no class and `System` or a subclass of it is only instantiated (e.g. `MySystem = System()`), create a subclass with an appropriate name. A good name could be the instance name (e.g. `MySystem`). This class is called "SystemClass" from here on.
 4. If no `__init__` exists for the SystemClass, add one and call `super().__init__()` first. Please double-check that no `__init__` exists before adding one.
 5. Now identify module-level mutations of `system`: `add_dev`, `add_param`, as well as `dcdata` assignments, and `load_config`. These instance mutation need to be moved into the SystemClass, which at least requires a change of `system.` to `self.`.
@@ -46,8 +47,6 @@ class Example(System):
         self.dcdata["source"] = "example"
         self.add_dev("device", dummy, args=("TCPIP::localhost::10007::SOCKET",))
         self.add_param("voltage", "V", getter=["device", "voltage"])
-
-system = Example
 ```
 
 ## Import check

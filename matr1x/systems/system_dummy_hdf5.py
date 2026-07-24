@@ -109,9 +109,3 @@ class Hdf5(System):
             The reshaped p4 parameter array.
         """
         return numpy.asarray(self.devs["devhdf"].p4).reshape(shape)
-
-
-# ============================
-# expose the class; System.from_file() instantiates it
-system = Hdf5
-# ============================

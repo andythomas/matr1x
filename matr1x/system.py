@@ -694,9 +694,10 @@ class System:
         Load a system from a file.
 
         If a file with the given name cannot be found the system
-        installed files are searched. A system module may export ``system``
-        as a ``System`` instance (legacy) or as a ``System`` subclass
-        (preferred); subclasses are instantiated after import.
+        installed files are searched. A system module must define exactly one
+        local ``System`` subclass, which is instantiated after import. Legacy
+        initialized ``system`` and ``sys`` exports remain supported with a
+        deprecation warning.
 
         Parameters
         ----------
@@ -740,27 +741,40 @@ class System:
                 return Error(
                     f"Could neither import '{normfilestr}' nor 'matr1x.systems.{normfilestr}'"
                 )
-        # A system module may expose either a legacy System instance or a
-        # System subclass.  Instantiate subclasses here so system definitions
-        # can keep all mutable setup on ``self``.
-        system = getattr(mod, "system", None)
-        if system is None:
-            system = getattr(mod, "sys", None)
-            if system:
-                system.warnings.append(
-                    "Using deprecated variable name 'sys' - please update to use 'system' instead"
-                )
+        legacy_name = "system"
+        system = getattr(mod, legacy_name, None)
+        if not isinstance(system, System):
+            legacy_name = "sys"
+            system = getattr(mod, legacy_name, None)
+
         if isinstance(system, System):
             logger.warning(
-                "Using a legacy System instance will be deprecated soon and completely unsupported "
-                "in a future release. Please use follow the System class migration guide."
+                "Using an initialized System instance exported as '%s' is deprecated; "
+                "define exactly one local System subclass instead.",
+                legacy_name,
             )
-        if inspect.isclass(system) and issubclass(system, System):
-            system = system()
-        if not isinstance(system, System):
-            return Error(
-                "The 'system' variable is not a valid System instance or System subclass."
-            )
+        else:
+            # Imported base classes do not qualify: the system file itself
+            # must define the single concrete class that Matrix instantiates.
+            system_classes = {
+                value
+                for value in vars(mod).values()
+                if inspect.isclass(value)
+                and value is not System
+                and issubclass(value, System)
+                and value.__module__ == mod.__name__
+            }
+            if not system_classes:
+                return Error(
+                    "The system file must define exactly one local System subclass; none found."
+                )
+            if len(system_classes) > 1:
+                names = ", ".join(sorted(system_class.__name__ for system_class in system_classes))
+                return Error(
+                    "The system file must define exactly one local System subclass; "
+                    f"found: {names}."
+                )
+            system = system_classes.pop()()
         # set the name of the system to reflect the filename
         system.__name__ = str(normfilename)
         return Success(system)

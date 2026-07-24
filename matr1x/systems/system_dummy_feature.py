@@ -185,12 +185,3 @@ class Feature(System):
             self.devs["dev2"].p1 = -1
         # wrap base system function for safe handling of opening
         super().reset(*args, **kwargs)
-
-
-# ============================
-
-
-# ============================
-# expose the class; System.from_file() instantiates it
-system = Feature
-# ============================

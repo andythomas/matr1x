@@ -52,7 +52,3 @@ class Dummy(System):
             ["dev", "p2"],  # setter attribute/function is self.devs["dev"].p2
             ["dev", "p2"],  # getter attribute/function is self.devs["dev"].p2
         )
-
-
-# expose the class; System.from_file() instantiates it
-system = Dummy
