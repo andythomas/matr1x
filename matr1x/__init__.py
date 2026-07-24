@@ -355,10 +355,10 @@ def reload_config(optional_config_path: str | Path | None = None):
         in this file will override those in the user and local configuration
         files.
     """
-    global config, datetimefmt, validation_errors
+    global config, datetimefmt
     if isinstance(optional_config_path, str):
         optional_config_path = Path(optional_config_path)
-    validation_errors = []
+    validation_errors.clear()
     loaded_config = load_config(optional_config_path)
     config, msg = _validate_loaded_config(loaded_config)
     _warn_config_errors(msg)

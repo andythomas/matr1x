@@ -1089,6 +1089,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.actions.save.triggered.connect(self.save_file)
         self.ui.actions.save_as.triggered.connect(self.save_file_as)
         self.ui.widgets.system_list.changed.connect(self.update_systems)
+        self.ui.widgets.config_editor.model.dataChanged.connect(self.update_start_action_state)
+        self.ui.widgets.config_editor.model.validationChanged.connect(
+            self.update_start_action_state
+        )
+        self.ui.widgets.config_editor.model.modelReset.connect(self.update_start_action_state)
         self.ui.actions.print.triggered.connect(self.print_document)
         self.ui.actions.quit_app.triggered.connect(self.close)
         self.ui.actions.find.triggered.connect(self.ui.widgets.script_edit.show_find)
@@ -1125,6 +1130,32 @@ class MainWindow(LogWindowMixin, MMainWindow):
         )
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
 
+    def update_start_action_state(self, *_args) -> None:
+        """Enable Start only when the editor configuration is valid."""
+        if self.is_running:
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip("A measurement is currently running.")
+            return
+
+        if config_errors := self.ui.widgets.config_editor.get_system_config_validation_errors():
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip(
+                "Fix the invalid system configuration before running:\n\n"
+                + "\n".join(config_errors)
+            )
+            return
+
+        if config_errors := self.ui.widgets.config_editor.get_validation_errors():
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip(
+                "Fix the invalid configuration entries before running:\n\n"
+                + "\n".join(config_errors)
+            )
+            return
+
+        self.ui.actions.start.setEnabled(True)
+        self.ui.actions.start.setToolTip("Start the measurement.")
+
     @AutoSlot
     def process_data(self, env: Envelope) -> None:
         """Process the data from the measurement thread."""
@@ -1148,7 +1179,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
     def show_message(self, message: NotifierMessage):
         """Show a message text and log."""
-        self.ui.widgets.status_preview.print_colored(message.text)
+        if message.level < logging.ERROR:
+            self.ui.widgets.status_preview.print_colored(message.text)
         logger.log(message.level, message.text)
 
     def print_document(self) -> None:
@@ -1544,7 +1576,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
             True means script is running
         """
         self.is_running = flag
-        self.ui.actions.start.setEnabled(not flag)
+        if flag:
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip("A measurement is currently running.")
+        else:
+            self.update_start_action_state()
         self.ui.actions.pause.setEnabled(flag)
         if self.ui.actions.pause.isChecked():
             self.ui.actions.pause.setChecked(False)
@@ -1591,6 +1627,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
+        if self.ui.widgets.config_editor.get_system_config_validation_errors():
+            self.update_start_action_state()
+            return
+        if self.ui.widgets.config_editor.get_validation_errors():
+            self.update_start_action_state()
+            return
         if (
             self.run_linter() > 0 and not self.in_pytest
         ):  # run linter to make sure there are no errors
@@ -1648,6 +1690,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
             self.ui.widgets.config_editor.set_system_info(self.ui.widgets.system_list.system_info)
             self.ui.widgets.config_editor.update_data()
+            self.update_start_action_state()
         # Update system commands with cached info
         self.update_system_commands()
         if self.ui.widgets.system_command_help.isVisible():
