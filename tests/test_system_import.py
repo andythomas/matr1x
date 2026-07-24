@@ -88,10 +88,7 @@ class ClassSystem(System):
 def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export_name):
     """Load initialized legacy exports while emitting a soft-deprecation warning."""
     system_file = tmp_path / "system_legacy.py"
-    system_file.write_text(
-        "from matr1x.system import System\n\n"
-        f"{export_name} = System()\n"
-    )
+    system_file.write_text(f"from matr1x.system import System\n\n{export_name} = System()\n")
 
     with caplog.at_level(logging.WARNING, logger="matr1x.system"):
         result = System.from_file(system_file)

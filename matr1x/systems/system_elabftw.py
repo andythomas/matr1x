@@ -143,6 +143,7 @@ class Elab(System):
         self._attachments = {}
         self._tags = []
         self._resources = {}
+
     @staticmethod
     def _parse_version(version: str | None) -> tuple[int, int, int] | None:
         """Parse the numeric prefix of a version string."""
