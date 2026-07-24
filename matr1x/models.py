@@ -23,6 +23,7 @@ This module provides Pydantic models used for:
 """
 
 import math
+import threading
 from collections.abc import Callable
 from enum import IntFlag
 from functools import cached_property
@@ -75,6 +76,32 @@ FilePath = Annotated[str, GuiField(ui_type="file")]
 FolderPath = Annotated[str, GuiField(ui_type="folder")]
 
 
+_visa_resource_managers: dict[int, tuple[Any, Any]] = {}
+
+
+def get_visa_resource_manager() -> Any:
+    """
+    Return a cached PyVISA ResourceManager for the current thread.
+
+    Creating a ResourceManager can be noticeably slower than querying a known
+    resource string. The cache is kept per thread because the config editor can
+    discover resources in a background thread while validating edits in the GUI
+    thread.
+    """
+    import pyvisa
+
+    thread_id = threading.get_ident()
+    resource_manager_factory = pyvisa.ResourceManager
+    cached_resource_manager = _visa_resource_managers.get(thread_id)
+    if (
+        cached_resource_manager is None
+        or cached_resource_manager[0] is not resource_manager_factory
+    ):
+        cached_resource_manager = (resource_manager_factory, resource_manager_factory())
+        _visa_resource_managers[thread_id] = cached_resource_manager
+    return cached_resource_manager[1]
+
+
 def validate_visa_resource(value: str) -> str:
     """
     Validate a VISA resource string without opening the instrument.
@@ -99,10 +126,8 @@ def validate_visa_resource(value: str) -> str:
     if not value.strip():
         raise ValueError("VISA resource address must not be empty")
 
-    import pyvisa
-
     try:
-        resource_info = pyvisa.ResourceManager().resource_info(value)
+        resource_info = get_visa_resource_manager().resource_info(value)
     except Exception as exc:
         raise ValueError(f"Invalid VISA resource address {value!r}: {exc}") from exc
     if resource_info.resource_name is None:

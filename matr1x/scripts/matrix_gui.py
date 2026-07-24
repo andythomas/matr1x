@@ -185,18 +185,12 @@ class QueueListWidget(QListWidget):
         save_button = buttons.button(QDialogButtonBox.StandardButton.Save)
 
         def update_save_button_state(*_args) -> None:
-            if config_errors := editor.get_system_config_validation_errors():
-                save_button.setEnabled(False)
-                save_button.setToolTip(
-                    "Fix the invalid system configuration before saving:\n\n"
-                    + "\n".join(config_errors)
-                )
-                return
-            if config_errors := editor.get_validation_errors():
+            config_validation = editor.validate_config()
+            if isinstance(config_validation, Error):
                 save_button.setEnabled(False)
                 save_button.setToolTip(
                     "Fix the invalid configuration entries before saving:\n\n"
-                    + "\n".join(config_errors)
+                    + config_validation.error
                 )
                 return
             save_button.setEnabled(True)
@@ -216,7 +210,7 @@ class QueueListWidget(QListWidget):
         update_save_button_state()
         layout.addWidget(buttons)
         if dialog.exec():
-            parameters.config = editor.get_config_dict()
+            parameters.config = editor.get_config_dict(include_replacement_markers=True)
             self.item(row).setData(Qt.ItemDataRole.UserRole, parameters)
             self.item(row).setToolTip(parameters.tooltip)
 
@@ -544,19 +538,12 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             return
 
         # Sweep files are expected to contain validated system information at this point.
-        if config_errors := self.ui.widgets.config_editor.get_system_config_validation_errors():
-            self.ui.actions.queue.setEnabled(False)
-            self.ui.actions.queue.setToolTip(
-                "Fix the invalid system configuration before queueing:\n\n"
-                + "\n".join(config_errors)
-            )
-            return
-
-        if config_errors := self.ui.widgets.config_editor.get_validation_errors():
+        config_validation = self.ui.widgets.config_editor.validate_config()
+        if isinstance(config_validation, Error):
             self.ui.actions.queue.setEnabled(False)
             self.ui.actions.queue.setToolTip(
                 "Fix the invalid configuration entries before queueing:\n\n"
-                + "\n".join(config_errors)
+                + config_validation.error
             )
             return
 
@@ -756,10 +743,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         if not Path(inputFile).exists():
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
             return
-        if self.ui.widgets.config_editor.get_system_config_validation_errors():
-            self.update_queue_action_state()
-            return
-        if self.ui.widgets.config_editor.get_validation_errors():
+        config_validation = self.ui.widgets.config_editor.validate_config()
+        if isinstance(config_validation, Error):
             self.update_queue_action_state()
             return
         self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
@@ -771,7 +756,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             input_file=inputFile,
             output_file="",
             metadata=self.sys_meta_data.copy(),
-            config=self.ui.widgets.config_editor.get_config_dict(),
+            config=self.ui.widgets.config_editor.get_config_dict(include_replacement_markers=True),
             systems=self.ui.widgets.config_editor.full_system_list.copy(),
             system_info=self.ui.widgets.config_editor.system_info.model_copy(deep=True),
         )

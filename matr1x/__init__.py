@@ -103,6 +103,9 @@ except PackageNotFoundError:
 os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
 # default datafile extension
 output_extension = ".ma8"
+# Internal marker used by GUI-generated optional config to replace dynamic
+# dictionaries instead of recursively merging them with disk config.
+CONFIG_REPLACE_MARKER = "__replace__"
 
 # Global list to store validation errors from configuration loading
 validation_errors: list[str] = []
@@ -213,13 +216,29 @@ def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
     return config_data
 
 
+def _strip_config_replace_markers(value: Any) -> Any:
+    """Remove internal config replacement markers from nested values."""
+    if isinstance(value, dict):
+        return {
+            key: _strip_config_replace_markers(item)
+            for key, item in value.items()
+            if key != CONFIG_REPLACE_MARKER
+        }
+    return value
+
+
 def merge_dicts(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
     """Recursively merges dict2 into dict1."""
+    if dict2.get(CONFIG_REPLACE_MARKER) is True:
+        return _strip_config_replace_markers(dict2)
+
     for k, v in dict2.items():
+        if k == CONFIG_REPLACE_MARKER:
+            continue
         if isinstance(v, dict) and k in dict1:
             dict1[k] = merge_dicts(dict1[k], v)
         else:
-            dict1[k] = v
+            dict1[k] = _strip_config_replace_markers(v)
     return dict1
 
 

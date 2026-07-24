@@ -27,6 +27,7 @@ script and control-guis.
 from __future__ import annotations
 
 import contextlib
+import copy
 import datetime
 import inspect
 import logging
@@ -146,9 +147,9 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
-from matr1x.models import MainConfig, SystemInfo, validate_visa_resource
+from matr1x.models import MainConfig, SystemInfo, get_visa_resource_manager, validate_visa_resource
 
-from . import merge_dicts, reload_config, write_config
+from . import reload_config, write_config
 from .eval import delta
 from .util import resolve_config_path
 
@@ -425,7 +426,20 @@ class MetaViewerWidget(QDockWidget):
             ui_type = cast(str | None, schema.get("ui_type"))
             decimals = cast(int | None, schema.get("decimals"))
 
-            if "enum" in schema:
+            if index.column() == 0 and model._is_dynamic_dict_child(item):
+                editor = QLineEdit(parent)
+                editor.setStyleSheet("QLineEdit { border: none; padding: 0px; }")
+                editor.textChanged.connect(
+                    lambda value, line_edit=editor, tree_model=model, model_index=index: (
+                        MetaViewerWidget._update_dynamic_key_editor_validation(
+                            line_edit,
+                            value,
+                            tree_model,
+                            model_index,
+                        )
+                    )
+                )
+            elif "enum" in schema:
                 # strict, use combobox
                 editor = QComboBox(parent)
                 editor.insertItems(0, [str(i) for i in schema["enum"]])
@@ -435,7 +449,7 @@ class MetaViewerWidget(QDockWidget):
                 editor.setEditable(True)
                 editor.insertItems(0, MetaViewerWidget.visa_resource_names())
                 editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
-                editor.editTextChanged.connect(
+                editor.currentTextChanged.connect(
                     lambda value, tree_model=model, model_index=index: (
                         MetaViewerWidget._update_visa_editor_validation(
                             cast(QComboBox, editor),
@@ -516,6 +530,8 @@ class MetaViewerWidget(QDockWidget):
             value = index.model().data(index, Qt.ItemDataRole.EditRole)
             if isinstance(editor, QTextEdit):
                 editor.setText(str(value))
+                editor.selectAll()
+                QTimer.singleShot(0, editor.selectAll)
                 editor.resize(editor.sizeHint())
             elif isinstance(editor, QCheckBox):
                 editor.setChecked(bool(value))
@@ -534,7 +550,16 @@ class MetaViewerWidget(QDockWidget):
                 except (ValueError, TypeError):
                     editor.setValue(0.0)
             elif isinstance(editor, QLineEdit):
-                editor.setText(str(value))
+                text = str(value)
+                editor.setText(text)
+                if text:
+                    editor.setSelection(0, len(text))
+                    QTimer.singleShot(
+                        0,
+                        lambda line_edit=editor, length=len(text): line_edit.setSelection(
+                            0, length
+                        ),
+                    )
 
         def setModelData(
             self,
@@ -554,6 +579,8 @@ class MetaViewerWidget(QDockWidget):
             index : QModelIndex
                 The index of the item being edited.
             """
+            tree_model = cast(MetaViewerWidget.TreeModel, model)
+            item = index.internalPointer()
             if isinstance(editor, QTextEdit):
                 value = editor.toPlainText()
             elif isinstance(editor, QCheckBox):
@@ -565,24 +592,27 @@ class MetaViewerWidget(QDockWidget):
             elif isinstance(editor, (QSpinBox, QDoubleSpinBox)):
                 value = editor.value()
             elif isinstance(editor, QLineEdit):
-                try:
-                    value = float(editor.text())
-                except ValueError:
+                if index.column() == 0 and tree_model._is_dynamic_dict_child(item):
                     value = editor.text()
+                    tree_model.setData(index, value, Qt.ItemDataRole.EditRole)
+                    return
+                else:
+                    try:
+                        value = float(editor.text())
+                    except ValueError:
+                        value = editor.text()
 
-            schema = cast(MetaViewerWidget.TreeModel, model).type(cast(QModelIndex, index))
+            schema = tree_model.type(cast(QModelIndex, index))
             if schema.get("ui_type") == "visa_resource":
                 try:
                     value = validate_visa_resource(str(value))
                 except ValueError as exc:
-                    tree_model = cast(MetaViewerWidget.TreeModel, model)
                     tree_model.setData(index, value, Qt.ItemDataRole.EditRole)
                     tree_model.set_validation_error(index, str(exc))
                     MetaViewerWidget._update_visa_editor_validation(
                         cast(QComboBox, editor), str(value)
                     )
                     return
-            tree_model = cast(MetaViewerWidget.TreeModel, model)
             tree_model.setData(index, value, Qt.ItemDataRole.EditRole)
             tree_model.set_validation_error(index, None)
 
@@ -614,7 +644,33 @@ class MetaViewerWidget(QDockWidget):
                 line_edit.setToolTip("")
 
         if model is not None and index is not None:
+            model.setData(index, value, Qt.ItemDataRole.EditRole)
             model.set_validation_error(index, validation_error, refresh_view=refresh_view)
+            if not refresh_view:
+                model.dataChanged.emit(index, index)
+
+    @staticmethod
+    def _update_dynamic_key_editor_validation(
+        editor: QLineEdit,
+        value: str,
+        model: TreeModel,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        """Update dynamic dictionary key validation while a label is edited."""
+        model.set_dynamic_dict_key(index, value, refresh_view=False)
+        item = index.internalPointer()
+        validation_error = (
+            item.validation_error if item.validation_error_column == index.column() else None
+        )
+
+        if validation_error:
+            editor.setStyleSheet(
+                "QLineEdit { border: 1px solid #b3261e; padding: 0px; background: #ffd9d9; }"
+            )
+            editor.setToolTip(validation_error)
+        else:
+            editor.setStyleSheet("QLineEdit { border: none; padding: 0px; }")
+            editor.setToolTip("")
 
     @staticmethod
     def visa_resource_names() -> list[str]:
@@ -625,9 +681,7 @@ class MetaViewerWidget(QDockWidget):
     def _query_visa_resource_names() -> list[str] | None:
         """Query VISA resource suggestions from PyVISA."""
         try:
-            import pyvisa
-
-            return [str(resource) for resource in pyvisa.ResourceManager().list_resources()]
+            return [str(resource) for resource in get_visa_resource_manager().list_resources()]
         except Exception as exc:
             logger.info("Could not query PyVISA resources for config editor suggestions: %s", exc)
             logger.debug("PyVISA resource discovery traceback", exc_info=True)
@@ -712,6 +766,34 @@ class MetaViewerWidget(QDockWidget):
 
         return schema
 
+    @staticmethod
+    def default_value_from_schema(schema: dict, root_schema: dict | None = None) -> Any:
+        """
+        Create a reasonable editable default value for a JSON schema node.
+
+        This is used when the config editor inserts a new entry into a dynamic
+        mapping such as ``dict[str, SomePydanticModel]``.
+        """
+        schema = MetaViewerWidget.resolve_schema(schema, root_schema)
+        if "default" in schema:
+            return schema["default"]
+
+        json_type = schema.get("type")
+        if json_type == "object":
+            return {
+                key: MetaViewerWidget.default_value_from_schema(prop_schema, root_schema)
+                for key, prop_schema in schema.get("properties", {}).items()
+            }
+        if json_type == "array":
+            return []
+        if json_type == "boolean":
+            return False
+        if json_type == "integer":
+            return int(schema.get("minimum", 0))
+        if json_type == "number":
+            return float(schema.get("minimum", 0.0))
+        return ""
+
     class TreeItem:
         """
         An item in the TreeModel.
@@ -745,6 +827,8 @@ class MetaViewerWidget(QDockWidget):
             self.key: str = key
             self.value: Any = value
             self.root_schema: dict | None = root_schema or (parent.root_schema if parent else None)
+            if isinstance(types, dict) and isinstance(types.get("_schema"), dict):
+                self.root_schema = types["_schema"]
 
             # Resolve schema if it's a dict
             if isinstance(types, dict):
@@ -757,6 +841,7 @@ class MetaViewerWidget(QDockWidget):
                 self.description = self._type.get("description")
             self.hidden: bool = False
             self.validation_error: str | None = None
+            self.validation_error_column: int | None = None
 
             # If value is a dict or Pydantic model, convert its items to TreeItem children
             if isinstance(self.value, (dict, BaseModel)):
@@ -780,11 +865,15 @@ class MetaViewerWidget(QDockWidget):
                         continue
 
                     # Determine type from Pydantic schema or nested types dict
-                    cast_type = {}
+                    cast_type = self.child_type(child_key)
+                    if cast_type is None:
+                        cast_type = {}
                     if isinstance(schema, dict):
-                        cast_type = schema.get("properties", {}).get(child_key)
-                        if cast_type is None:
-                            cast_type = schema.get(child_key, {})
+                        schema_type = schema.get("properties", {}).get(child_key)
+                        if schema_type is not None:
+                            cast_type = schema_type
+                        elif child_key in schema:
+                            cast_type = schema[child_key]
 
                     self.child_items.append(
                         MetaViewerWidget.TreeItem(
@@ -809,6 +898,37 @@ class MetaViewerWidget(QDockWidget):
                 else:
                     # length 0 list, replace with string representation
                     self.value = str(self.value)
+
+        def is_container(self) -> bool:
+            """Return True for values represented by child rows or structural nodes."""
+            return isinstance(self.value, (tuple, list, dict, np.ndarray, BaseModel))
+
+        def is_dynamic_dict(self) -> bool:
+            """Return True for Pydantic ``dict[str, T]`` schema nodes."""
+            return (
+                isinstance(self.value, dict)
+                and isinstance(self._type, dict)
+                and self._type.get("type") == "object"
+                and isinstance(self._type.get("additionalProperties"), dict)
+            )
+
+        def child_type(self, child_key: str) -> dict | None:
+            """Return the schema for a child key, including dynamic map values."""
+            if not isinstance(self._type, dict):
+                return None
+
+            child_schema = self._type.get("properties", {}).get(child_key)
+            if child_schema is not None:
+                return child_schema
+
+            if child_key in self._type:
+                return self._type[child_key]
+
+            additional_properties = self._type.get("additionalProperties")
+            if isinstance(additional_properties, dict):
+                return additional_properties
+
+            return None
 
         def child(self, row: int) -> MetaViewerWidget.TreeItem:
             """
@@ -994,7 +1114,7 @@ class MetaViewerWidget(QDockWidget):
                 return item.data(index.column(), role)
 
             if role == Qt.ItemDataRole.ToolTipRole:
-                if index.column() == 1 and item.validation_error:
+                if item.validation_error and item.validation_error_column == index.column():
                     return (
                         f"{item.description or ''}\n\nValidation error: {item.validation_error}"
                     ).strip()
@@ -1002,8 +1122,8 @@ class MetaViewerWidget(QDockWidget):
 
             if (
                 role == Qt.ItemDataRole.BackgroundRole
-                and index.column() == 1
                 and item.validation_error
+                and item.validation_error_column == index.column()
             ):
                 return QBrush(QColor("#ffd9d9"))
 
@@ -1066,9 +1186,105 @@ class MetaViewerWidget(QDockWidget):
             """
             if role == Qt.ItemDataRole.EditRole:
                 item = index.internalPointer()
+                if index.column() == 0 and self._is_dynamic_dict_child(item):
+                    return self.set_dynamic_dict_key(index, value)
                 item.setData(index, value, role)
+                if index.column() == 1:
+                    self.validate_schema_values(self.index(index.row(), 0, self.parent(index)))
+                    self.dataChanged.emit(index, index)
                 return True
             return False
+
+        @staticmethod
+        def _is_dynamic_dict_child(item: MetaViewerWidget.TreeItem) -> bool:
+            """Return True when an item is a user-labelled dynamic dict child."""
+            parent_item = item.parent()
+            return parent_item is not None and parent_item.is_dynamic_dict()
+
+        def _validate_dynamic_dict_keys(
+            self,
+            parent_index: QModelIndex | QPersistentModelIndex,
+            *,
+            edited_item: MetaViewerWidget.TreeItem | None = None,
+        ) -> None:
+            """Validate all editable child keys in a dynamic dictionary."""
+            if not parent_index.isValid():
+                return
+            parent_item = parent_index.internalPointer()
+            if not parent_item.is_dynamic_dict():
+                return
+
+            keys = [child.key.strip() for child in parent_item.child_items]
+            for row, item in enumerate(parent_item.child_items):
+                index = self.index(row, 0, parent_index)
+                key = item.key.strip()
+
+                if not key:
+                    self.set_validation_error(
+                        index,
+                        "Entry name must not be empty.",
+                        refresh_view=item is not edited_item,
+                    )
+                    continue
+
+                if keys.count(key) > 1:
+                    self.set_validation_error(
+                        index,
+                        f"Entry name '{key}' already exists.",
+                        refresh_view=item is not edited_item,
+                    )
+                    continue
+
+                self.set_validation_error(index, None, refresh_view=item is not edited_item)
+
+        def set_dynamic_dict_key(
+            self,
+            index: QModelIndex | QPersistentModelIndex,
+            value: Any,
+            *,
+            refresh_view: bool = True,
+        ) -> bool:
+            """Set and validate a dynamic dictionary key."""
+            item = index.internalPointer()
+            item.key = str(value).strip()
+            self._validate_dynamic_dict_keys(
+                self.parent(index),
+                edited_item=None if refresh_view else item,
+            )
+            if refresh_view:
+                self.dataChanged.emit(index, index)
+            return True
+
+        def validate_schema_values(self, index: QModelIndex) -> None:
+            """Mark schema-level validation errors in a subtree."""
+            if not index.isValid():
+                return
+
+            item = index.internalPointer()
+            if item.child_count() > 0:
+                parent_index = index.siblingAtColumn(0)
+                for row in range(item.child_count()):
+                    self.validate_schema_values(self.index(row, 0, parent_index))
+                return
+
+            if item.is_dynamic_dict():
+                return
+
+            schema = item.type(1)
+            if not isinstance(schema, dict):
+                return
+
+            value_index = index.siblingAtColumn(1)
+            value = item.data(1, Qt.ItemDataRole.EditRole)
+            validation_error = None
+            if schema.get("type") == "string":
+                if schema.get("ui_type") == "visa_resource":
+                    try:
+                        validate_visa_resource(str(value))
+                    except ValueError as exc:
+                        validation_error = str(exc)
+
+            self.set_validation_error(value_index, validation_error)
 
         def set_validation_error(
             self,
@@ -1079,12 +1295,92 @@ class MetaViewerWidget(QDockWidget):
         ) -> None:
             """Mark an item invalid and refresh its validation feedback."""
             item = index.internalPointer()
-            if item.validation_error == error:
+            column = index.column() if error is not None else None
+            if item.validation_error == error and item.validation_error_column == column:
+                return
+            if error is None and item.validation_error_column not in (None, index.column()):
                 return
             item.validation_error = error
+            item.validation_error_column = column
             self.validationChanged.emit()
             if refresh_view:
                 self.dataChanged.emit(index, index)
+
+        def add_dynamic_dict_entry(
+            self,
+            parent: QModelIndex,
+            key: str | None = None,
+        ) -> Result[QModelIndex, str]:
+            """
+            Add a keyed child to a dynamic dictionary item.
+
+            Parameters
+            ----------
+            parent : QModelIndex
+                The selected dynamic dictionary item.
+            key : str
+                New dictionary key.
+            """
+            if not parent.isValid():
+                return Error("Select a dynamic dictionary entry first.")
+
+            parent_item = parent.internalPointer()
+            if not parent_item.is_dynamic_dict():
+                return Error("Selected entry does not support adding keyed children.")
+
+            if key is None:
+                key = ""
+
+            key = key.strip()
+            if key and key in {child.key for child in parent_item.child_items}:
+                return Error(f"Entry '{key}' already exists.")
+
+            value_schema = parent_item.child_type(key) or {}
+            value = MetaViewerWidget.default_value_from_schema(
+                value_schema, parent_item.root_schema
+            )
+            row = parent_item.child_count()
+            parent_index = parent.siblingAtColumn(0)
+            self.beginInsertRows(parent_index, row, row)
+            parent_item.child_items.append(
+                MetaViewerWidget.TreeItem(
+                    key,
+                    value,
+                    value_schema,
+                    parent_item,
+                    parent_item.root_schema,
+                )
+            )
+            self.endInsertRows()
+            new_index = self.index(row, 0, parent_index)
+            self._validate_dynamic_dict_keys(parent_index)
+            self.validate_schema_values(new_index)
+            return Success(new_index)
+
+        def remove_dynamic_dict_entry(self, index: QModelIndex) -> Result[None, str]:
+            """
+            Remove a child from a dynamic dictionary item.
+
+            Parameters
+            ----------
+            index : QModelIndex
+                The selected dictionary child.
+            """
+            if not index.isValid():
+                return Error("Select an entry to remove first.")
+
+            item = index.internalPointer()
+            parent_item = item.parent()
+            if parent_item is None or not parent_item.is_dynamic_dict():
+                return Error("Selected entry is not part of a dynamic dictionary.")
+
+            row = item.row()
+            parent_index = self.parent(index).siblingAtColumn(0)
+            self.beginRemoveRows(parent_index, row, row)
+            del parent_item.child_items[row]
+            self.endRemoveRows()
+            self._validate_dynamic_dict_keys(parent_index)
+            return Success(None)
 
         def flags(self, index: QModelIndex | QPersistentModelIndex) -> Qt.ItemFlag:
             """
@@ -1102,7 +1398,16 @@ class MetaViewerWidget(QDockWidget):
             """
             if not index.isValid():
                 return Qt.ItemFlag.NoItemFlags
+            item = index.internalPointer()
+            if index.column() == 0 and self._is_dynamic_dict_child(item):
+                return (
+                    Qt.ItemFlag.ItemIsSelectable
+                    | Qt.ItemFlag.ItemIsEnabled
+                    | Qt.ItemFlag.ItemIsEditable
+                )
             if index.column() == 1:
+                if item.child_count() > 0 or item.is_container():
+                    return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
                 return (
                     Qt.ItemFlag.ItemIsSelectable
                     | Qt.ItemFlag.ItemIsEnabled
@@ -1400,7 +1705,6 @@ class ConfigEditWidget(MetaViewerWidget):
         layout = QVBoxLayout()
         button_layout = QHBoxLayout()
 
-        # Dublin Core Elements
         self.w_update_config: QPushButton = QPushButton("Reload config")
         self.w_update_config.setEnabled(False)
         self.w_update_config.clicked.connect(self.reload_and_update_data)
@@ -1415,6 +1719,117 @@ class ConfigEditWidget(MetaViewerWidget):
         self.action.setCheckable(True)
         self.action.toggled.connect(self.toggle_visibility)
         self.visibilityChanged.connect(self._sync_metadata_view)
+
+    def index_for_item(self, item) -> QModelIndex:
+        """Return a fresh model index for a tree item."""
+        rows = []
+        current = item
+        while current.parent() is not None and current.parent() != self.model.root_item:
+            rows.append(current.row())
+            current = current.parent()
+        if current.parent() == self.model.root_item:
+            rows.append(current.row())
+
+        index = QModelIndex()
+        for row in reversed(rows):
+            index = self.model.index(row, 0, index)
+
+        return index
+
+    def add_dynamic_entry(self, index: QModelIndex | None = None) -> None:
+        """Add an editable placeholder entry under the selected dynamic dictionary."""
+        if index is None:
+            index = self.tree_view.currentIndex()
+        if not index.isValid():
+            return
+
+        result = self.model.add_dynamic_dict_entry(index.siblingAtColumn(0))
+        if isinstance(result, Error):
+            logger.warning("Could not add dynamic config entry: %s", result.error)
+            return
+
+        self.tree_view.expand(index)
+        self.install_dynamic_entry_controls()
+        self.tree_view.setCurrentIndex(result.value)
+        self.tree_view.edit(result.value)
+
+    def remove_dynamic_entry(
+        self,
+        index: QModelIndex | None = None,
+    ) -> None:
+        """Remove the selected child from a dynamic dictionary."""
+        if index is None:
+            index = self.tree_view.currentIndex()
+        if not index.isValid():
+            return
+
+        result = self.model.remove_dynamic_dict_entry(index.siblingAtColumn(0))
+        if isinstance(result, Error):
+            logger.warning("Could not remove dynamic config entry: %s", result.error)
+            return
+
+        self.install_dynamic_entry_controls()
+
+    def make_dynamic_entry_button(
+        self,
+        text: str,
+        tooltip: str,
+        callback: Callable[[], None],
+    ) -> QWidget:
+        """Create an inline text button for dynamic config entries."""
+        button = QPushButton(self.tree_view)
+        button.setText(text)
+        button.setToolTip(tooltip)
+        button.clicked.connect(callback)
+
+        widget = QWidget(self.tree_view)
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(button)
+        layout.addStretch()
+        return widget
+
+    def install_dynamic_entry_controls(self) -> None:
+        """Install inline add/remove buttons for dynamic dictionary config nodes."""
+
+        def visit(parent: QModelIndex = QModelIndex()) -> None:
+            for row in range(self.model.rowCount(parent)):
+                key_index = self.model.index(row, 0, parent)
+                value_index = self.model.index(row, 1, parent)
+                item = key_index.internalPointer()
+                parent_item = item.parent()
+
+                if item.is_dynamic_dict():
+                    self.tree_view.setIndexWidget(
+                        value_index,
+                        self.make_dynamic_entry_button(
+                            "Add entry",
+                            f"Add entry to {item.key}",
+                            lambda _checked=False, tree_item=item: self.add_dynamic_entry(
+                                self.index_for_item(tree_item)
+                            ),
+                        ),
+                    )
+                elif (
+                    parent_item is not None
+                    and parent_item.is_dynamic_dict()
+                    and (item.child_count() > 0 or item.is_container())
+                ):
+                    self.tree_view.setIndexWidget(
+                        value_index,
+                        self.make_dynamic_entry_button(
+                            "Remove",
+                            f"Remove entry {item.key}",
+                            lambda _checked=False, tree_item=item: self.remove_dynamic_entry(
+                                self.index_for_item(tree_item)
+                            ),
+                        ),
+                    )
+
+                visit(key_index)
+
+        visit()
 
     def toggle_visibility(self, checked: bool) -> None:
         """Toggle the visibility of this dock widget."""
@@ -1490,86 +1905,197 @@ class ConfigEditWidget(MetaViewerWidget):
                 self.system_info = None
             else:
                 self.system_info = system_info.value
-        self.update_data()  # Call the original update_data method
+        self.update_data(preserve_edits=False)
 
-    def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
-        """Update the configuration data in the widget."""
-        syst_dict = {}
-        reload_config()
+    @staticmethod
+    def nested_config_value(config: dict[str, Any], dotted_key: str) -> Any:
+        """Return a value from a nested config dict using a dotted key."""
+        current = config
+        for key in dotted_key.split("."):
+            if not isinstance(current, dict) or key not in current:
+                return None
+            current = current[key]
+        return current
 
-        # Check if we have a merged system by looking for comma-separated system names
-        is_merged_system = self.system_info is not None and any(
+    @staticmethod
+    def is_dynamic_dict_schema(schema: dict[str, Any] | None) -> bool:
+        """Return True for JSON schema nodes representing dynamic dictionaries."""
+        return (
+            isinstance(schema, dict)
+            and schema.get("type") == "object"
+            and isinstance(schema.get("additionalProperties"), dict)
+        )
+
+    @staticmethod
+    def child_schema(schema: dict[str, Any] | None, key: str) -> dict[str, Any] | None:
+        """Return the JSON schema for a named child, if available."""
+        if not isinstance(schema, dict):
+            return None
+
+        properties = schema.get("properties")
+        if isinstance(properties, dict) and isinstance(properties.get(key), dict):
+            return properties[key]
+
+        additional_properties = schema.get("additionalProperties")
+        if isinstance(additional_properties, dict):
+            return additional_properties
+
+        return None
+
+    @staticmethod
+    def merge_config_values(
+        base: dict[str, Any],
+        update: dict[str, Any],
+        schema: dict[str, Any] | None = None,
+    ) -> None:
+        """Deep-merge configuration values while preserving schema metadata."""
+        for key, value in update.items():
+            if key == "_schema":
+                continue
+            key_schema = ConfigEditWidget.child_schema(schema, key)
+            if ConfigEditWidget.is_dynamic_dict_schema(key_schema):
+                base[key] = value
+            elif key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                ConfigEditWidget.merge_config_values(base[key], value, key_schema)
+            else:
+                base[key] = value
+
+    def _pending_config_snapshot(self, preserve_edits: bool) -> dict[str, Any]:
+        """Return the current editor state when edits should survive a reload."""
+        if not preserve_edits:
+            return {}
+
+        try:
+            return self.get_config_dict()
+        except Exception:
+            logger.debug("Could not preserve pending config editor values", exc_info=True)
+            return {}
+
+    def _has_merged_system_config(self) -> bool:
+        """Return True when the subprocess reports a merged system config entry."""
+        return self.system_info is not None and any(
             "," in system_name for system_name in self.system_info.config.keys()
         )
 
-        # parse config of systems specified in self.systemfile
-        # Skip individual system configs if we have a merged system to avoid duplicates
-        if self.systemfile is not None and not is_merged_system:
-            for syst in self.systemfile:
-                syst_dict[syst.strip()] = resolve_config_path(matr1x.config, syst.strip())
+    def _config_from_systemfile(self) -> dict[str, Any]:
+        """Load persisted config sections for the selected systems."""
+        syst_dict: dict[str, Any] = {}
+        if self.systemfile is None or self._has_merged_system_config():
+            return syst_dict
 
-        # parse config from system info (from subprocess)
-        if self.system_info is not None:
-            for system_name, config_info in self.system_info.config.items():
-                if system_name not in syst_dict:
-                    syst_dict[system_name] = {}
+        for syst in self.systemfile:
+            system_name = syst.strip()
+            syst_dict[system_name] = resolve_config_path(matr1x.config, system_name)
+        return syst_dict
 
-                # Check for Pydantic-based config (contains 'value' and 'schema' keys)
-                if (
-                    isinstance(config_info, dict)
-                    and "value" in config_info
-                    and "schema" in config_info
-                ):
-                    syst_dict[system_name] = config_info["value"]
-                    syst_dict[system_name]["_schema"] = config_info["schema"]
-                    continue
+    @staticmethod
+    def _runtime_config_value(config_info: Any) -> dict[str, Any]:
+        """Extract editable runtime config values from subprocess system info."""
+        if not isinstance(config_info, dict):
+            return {}
 
-                # Add runtime config from system info
-                for key, value_info in config_info.items():
-                    if isinstance(value_info, dict):
-                        if "value" in value_info:
-                            # Extract just the value from the nested structure
-                            syst_dict[system_name][key] = value_info["value"]
-                        else:
-                            # If it's a dict but doesn't have 'value' key,
-                            # it might be the nested structure itself, skip it
-                            continue
-                    else:
-                        syst_dict[system_name][key] = value_info
+        if "value" in config_info and "schema" in config_info:
+            value = copy.deepcopy(config_info["value"])
+            value["_schema"] = config_info["schema"]
+            return value
 
-            # Try to get type information from config system for all systems with config
-            for system_name, config_info in self.system_info.config.items():
-                if system_name in syst_dict:
-                    try:
-                        system_config = resolve_config_path(matr1x.config, system_name)
-                        if "_schema" not in syst_dict[system_name] and hasattr(
-                            system_config, "model_json_schema"
-                        ):
-                            syst_dict[system_name]["_schema"] = system_config.model_json_schema()
-                    except Exception:
-                        # If we can't get type info, continue without it
-                        pass
+        runtime_config = {}
+        for key, value_info in config_info.items():
+            if isinstance(value_info, dict):
+                if "value" in value_info:
+                    runtime_config[key] = value_info["value"]
+            else:
+                runtime_config[key] = value_info
+        return runtime_config
 
-        def parse_dict_and_types(d, dv, dt):
-            for key, item in d.items():
+    def _merge_system_info_config(self, syst_dict: dict[str, Any]) -> None:
+        """Overlay runtime config reported by the subprocess onto base config."""
+        if self.system_info is None:
+            return
+
+        for system_name, config_info in self.system_info.config.items():
+            runtime_config = self._runtime_config_value(config_info)
+            if "_schema" in runtime_config:
+                syst_dict[system_name] = runtime_config
+                continue
+
+            syst_dict.setdefault(system_name, {})
+            if runtime_config:
+                syst_dict[system_name].update(runtime_config)
+
+    def _attach_runtime_schemas(self, syst_dict: dict[str, Any]) -> None:
+        """Attach JSON schema metadata for systems that expose config models."""
+        if self.system_info is None:
+            return
+
+        for system_name in self.system_info.config:
+            if system_name not in syst_dict or "_schema" in syst_dict[system_name]:
+                continue
+            try:
+                system_config = resolve_config_path(matr1x.config, system_name)
+                if hasattr(system_config, "model_json_schema"):
+                    syst_dict[system_name]["_schema"] = system_config.model_json_schema()
+            except Exception:
+                logger.debug("Could not attach runtime schema for %s", system_name, exc_info=True)
+
+    def _apply_pending_config(
+        self,
+        syst_dict: dict[str, Any],
+        pending_config: dict[str, Any],
+    ) -> None:
+        """Overlay unsaved edits back onto freshly loaded config data."""
+        if not pending_config:
+            return
+
+        for system_name, system_config in syst_dict.items():
+            pending_system_config = self.nested_config_value(pending_config, system_name)
+            if isinstance(system_config, dict) and isinstance(pending_system_config, dict):
+                schema = system_config.get("_schema")
+                self.merge_config_values(system_config, pending_system_config, schema)
+
+    @staticmethod
+    def split_config_and_types(config: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Split config values from embedded ``_schema`` metadata for tree rendering."""
+
+        def parse_dict_and_types(
+            source: dict[str, Any],
+            value_target: dict[str, Any],
+            type_target: dict[str, Any],
+        ) -> None:
+            for key, item in source.items():
                 if key == "_schema":
-                    dt["_schema"] = d[key]
-                    continue
+                    type_target["_schema"] = item
                 elif isinstance(item, dict):
-                    dv[key] = {}
-                    dt[key] = {}
-                    parse_dict_and_types(item, dv[key], dt[key])
+                    value_target[key] = {}
+                    type_target[key] = {}
+                    parse_dict_and_types(item, value_target[key], type_target[key])
                 else:
-                    dv[key] = d[key]
+                    value_target[key] = item
 
-        self.value_dict = {}
-        self.types_dict = {}
+        value_dict: dict[str, Any] = {}
+        types_dict: dict[str, Any] = {}
+        parse_dict_and_types(config, value_dict, types_dict)
+        return value_dict, types_dict
 
-        parse_dict_and_types(syst_dict, self.value_dict, self.types_dict)
-
+    def update_data(
+        self,
+        meta: Any = None,
+        types: dict[Any, Any] | None = None,
+        *,
+        preserve_edits: bool = True,
+    ) -> None:
+        """Update the configuration data in the widget."""
+        pending_config = self._pending_config_snapshot(preserve_edits)
+        reload_config()
+        syst_dict = self._config_from_systemfile()
+        self._merge_system_info_config(syst_dict)
+        self._attach_runtime_schemas(syst_dict)
+        self._apply_pending_config(syst_dict, pending_config)
+        self.value_dict, self.types_dict = self.split_config_and_types(syst_dict)
         super().update_data(self.value_dict, self.types_dict)
         self._apply_system_config_validation_errors()
         self.w_update_config.setEnabled(True)
+        self.install_dynamic_entry_controls()
 
     def _iter_system_config_validation_errors(self) -> Iterator[str]:
         """Yield individual system config validation error lines."""
@@ -1624,36 +2150,33 @@ class ConfigEditWidget(MetaViewerWidget):
         """Return system config validation errors that could not be mapped to a field."""
         return self._unmapped_system_config_validation_errors.copy()
 
-    def flatten_dict(self, nested: dict, parent_key: str = "", sep: str = ".") -> dict:
-        """Flatten a nested dictionary into dotted-key notation."""
-        items = {}
-        for key, value in nested.items():
-            new_key = f"{parent_key}{sep}{key}" if parent_key else key
-            if isinstance(value, dict):
-                # If all nested values are non-dicts, stop flattening here
-                if all(not isinstance(v, dict) for v in value.values()):
-                    items[new_key] = value
-                else:
-                    items.update(self.flatten_dict(value, new_key, sep))
-            else:
-                items[new_key] = value
-        return items
-
     def apply_config_dict(self, config: dict) -> None:
-        """Apply values from a nested config dict to the tree items."""
+        """Apply queued config values to the matching loaded system entries."""
+        config = self.strip_config_markers(config)
+        for system_name, system_config in self.value_dict.items():
+            queued_system_config = self.nested_config_value(config, system_name)
+            if not isinstance(system_config, dict) or not isinstance(queued_system_config, dict):
+                continue
 
-        def _merge(base: dict, update: dict) -> None:
-            """Deep-merge update into base."""
-            for key, val in update.items():
-                if key in base and isinstance(base[key], dict) and isinstance(val, dict):
-                    _merge(base[key], val)
-                else:
-                    base[key] = val
+            schema = self.types_dict.get(system_name, {}).get("_schema")
+            self.merge_config_values(system_config, queued_system_config, schema)
 
-        _merge(self.value_dict, self.flatten_dict(config))
         super().update_data(self.value_dict, self.types_dict)
+        self._apply_system_config_validation_errors()
+        self.install_dynamic_entry_controls()
 
-    def parse_item(self, item) -> Any:
+    @staticmethod
+    def strip_config_markers(config: Any) -> Any:
+        """Remove internal config merge markers from a nested config structure."""
+        if isinstance(config, dict):
+            return {
+                key: ConfigEditWidget.strip_config_markers(value)
+                for key, value in config.items()
+                if key != matr1x.CONFIG_REPLACE_MARKER
+            }
+        return config
+
+    def parse_item(self, item, *, include_replacement_markers: bool = False) -> Any:
         """
         Parse a TreeItem and its children into a configuration dictionary.
 
@@ -1669,9 +2192,23 @@ class ConfigEditWidget(MetaViewerWidget):
             if the item has no children.
         """
         if item.child_count() > 0:
+            if isinstance(item.value, (tuple, list, np.ndarray)):
+                return [
+                    self.parse_item(
+                        child_item,
+                        include_replacement_markers=include_replacement_markers,
+                    )
+                    for child_item in item.child_items
+                ]
+
             config = {}
+            if include_replacement_markers and item.is_dynamic_dict():
+                config[matr1x.CONFIG_REPLACE_MARKER] = True
             for child_item in item.child_items:
-                config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(child_item)
+                config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(
+                    child_item,
+                    include_replacement_markers=include_replacement_markers,
+                )
 
             # If the item itself represents a Pydantic model, validate the config
             if isinstance(item.value, BaseModel):
@@ -1686,6 +2223,11 @@ class ConfigEditWidget(MetaViewerWidget):
                     )
                     return config  # Fallback to raw config on error
             return config
+
+        if item.is_dynamic_dict():
+            if include_replacement_markers:
+                return {matr1x.CONFIG_REPLACE_MARKER: True}
+            return {}
 
         # Handle leaf nodes
         schema = item.type(1)
@@ -1706,7 +2248,44 @@ class ConfigEditWidget(MetaViewerWidget):
                     return raw_value
         return item.data(1, Qt.ItemDataRole.EditRole)
 
-    def get_config_dict(self) -> dict:
+    def validate_item(self, item, path: tuple[str, ...] = ()) -> list[str]:
+        """Validate editable tree values against JSON-schema constraints used by the GUI."""
+        errors = []
+        current_path = (*path, item.key) if item.parent() is not None else path
+        if item.validation_error:
+            return errors
+        if item.child_count() > 0:
+            for child_item in item.child_items:
+                errors.extend(self.validate_item(child_item, current_path))
+            return errors
+
+        schema = item.type(1)
+        if not isinstance(schema, dict):
+            return errors
+
+        value = item.data(1, Qt.ItemDataRole.EditRole)
+        location = ".".join(current_path)
+        if schema.get("type") == "string":
+            if schema.get("ui_type") == "visa_resource":
+                try:
+                    validate_visa_resource(str(value))
+                except ValueError as exc:
+                    errors.append(f"{location}: {exc}")
+                return errors
+
+        return errors
+
+    def validate_config(self) -> Result[None, str]:
+        """Validate current editor values before a measurement is started."""
+        errors = self.get_system_config_validation_errors()
+        errors.extend(self.get_validation_errors())
+        for item in self.model.root_item.child_items:
+            errors.extend(self.validate_item(item))
+        if errors:
+            return Error("Invalid device configuration:\n\n" + "\n".join(errors))
+        return Success(None)
+
+    def get_config_dict(self, *, include_replacement_markers: bool = False) -> dict:
         """
         Extract and normalize configuration data from the tree view.
 
@@ -1719,8 +2298,20 @@ class ConfigEditWidget(MetaViewerWidget):
         def create_nested_dict(keys, item):
             """Create a nested dictioinary from QItemView."""
             if len(keys) == 1:
-                return {keys[0]: self.parse_item(item)}
+                return {
+                    keys[0]: self.parse_item(
+                        item,
+                        include_replacement_markers=include_replacement_markers,
+                    )
+                }
             return {keys[0]: create_nested_dict(keys[1:], item)}
+
+        def merge_preserving_markers(base, update):
+            for key, value in update.items():
+                if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                    merge_preserving_markers(base[key], value)
+                else:
+                    base[key] = value
 
         config_dict = {}
         for item in self.model.root_item.child_items:
@@ -1729,13 +2320,13 @@ class ConfigEditWidget(MetaViewerWidget):
                 continue
             sys_key = item.key
             key_parts = sys_key.split(".")
-            merge_dicts(config_dict, create_nested_dict(key_parts, item))
+            merge_preserving_markers(config_dict, create_nested_dict(key_parts, item))
 
         return config_dict
 
     def write_config(self) -> Path:
         """Write the configuration to a temporary file."""
-        return self.write_config_dict(self.get_config_dict())
+        return self.write_config_dict(self.get_config_dict(include_replacement_markers=True))
 
     @staticmethod
     def write_config_dict(config_dict: dict[str, Any]) -> Path:

@@ -495,7 +495,7 @@ class MeasurementItem:
         input_file = f"Input:\n{self.input_file}\n\n"
         output_file = f"Output:\n{self.output_file or '<use input>'}\n\n"
         metadata = f"Metadata:\n{tomli_w.dumps(self.remove_nones(self.metadata))}"
-        normalized_config = self.remove_nones(self.config)
+        normalized_config = self.remove_nones(ConfigEditWidget.strip_config_markers(self.config))
         config = f"\nConfig:\n{tomli_w.dumps(normalized_config)}" if normalized_config else ""
         return input_file + output_file + metadata + config
 
