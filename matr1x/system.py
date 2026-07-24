@@ -750,6 +750,11 @@ class System:
                 system.warnings.append(
                     "Using deprecated variable name 'sys' - please update to use 'system' instead"
                 )
+        if isinstance(system, System):
+            logger.warning(
+                "Using a legacy System instance will be deprecated soon and completely unsupported "
+                "in a future release. Please use follow the System class migration guide."
+            )
         if inspect.isclass(system) and issubclass(system, System):
             system = system()
         if not isinstance(system, System):
