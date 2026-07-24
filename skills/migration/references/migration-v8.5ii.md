@@ -1,34 +1,25 @@
 # Upgrade to v8.5
 
-## System Class Migration
+## Move from System Instance to System Class
 
-Define system setup on a `System` subclass and export the class through the module-level
-`system` name. `System.from_file()` instantiates that class. Legacy files that export an
-already-created `System` instance are still supported, so conversion is optional but recommended.
+Define system setup on a `System` subclass and export the class through the module-level `system`
+name to remove the need for a `system` instance.
 
 ## Migration
 
-1. Read the whole system file and identify module-level mutations of `system`: `add_dev`,
-   `add_param`, `dcdata` assignments, `load_config`, and other instance setup.
-2. Keep the existing `class MySystem(System)` or create one. Add `__init__`, call
-   `super().__init__()` first, then move every instance mutation into it and change `system.` to
-   `self.`.
-3. Leave behavior methods such as `set`, `reset`, getters, and setters on the class. Do not open
-   devices in `__init__`; only register descriptors with `self.add_dev`.
-4. If the file uses the deprecated `sys` export name, rename it to `system` during the migration:
-   replace `sys = MySystem()` with `system = MySystem` and change all adjacent `sys.` setup calls
-   to `self.` inside `__init__`. A minimal file may use `system = System`.
-5. Preserve comments as source: move each comment or section heading with the adjacent setup
-   block into `__init__`. Keep its wording unless changing `system` to `self` is needed for
-   accuracy; do not drop instructional comments merely because their code moves.
-6. Preserve order: configuration and metadata must be initialized before any setup that relies on
-   them, and device/parameter registrations should retain their former order.
-7. Validate with `System.from_file(path)` and the relevant test suite. Confirm legacy instance
-   files still load if compatibility is changed.
+1. Read the whole system file.
+2. There should be at least one class in the system file that is a subclass of `System`.
+3. If there is no class and `System` or a subclass of it is only instantiated (e.g. `MySystem = System()`), create a subclass with an appropriate name. A good name could be the instance name (e.g. `MySystem`). This class is called "SystemClass" from here on.
+4. If no `__init__` exists for the SystemClass, add one and call `super().__init__()` first. Please double-check that no `__init__` exists before adding one.
+5. Now identify module-level mutations of `system`: `add_dev`, `add_param`, as well as `dcdata` assignments, and `load_config`. These instance mutation need to be moved into the SystemClass, which at least requires a change of `system.` to `self.`.
+6. Preserve the imports, it is not required to add or remove imports.
+7. Preserve comments as source: move each comment or section heading with the adjacent setup block into `__init__`. Keep its wording unless changing `system` to `self` is needed for accuracy; do not drop instructional comments merely because their code moves.
+8. Preserve order: configuration and metadata must be initialized before any setup that relies on them, and device/parameter registrations should retain their former order.
+9. Now, inspect the remaining items in the module for any items that need to be moved into the SystemClass. In particular, this includes functions that use the former `system` instance and need to become methods of SystemClass, which again at least requires a change of `system.` to `self.`.
 
 ## Examples
 
-Before (legacy, supported):
+Before:
 
 ```python
 from matr1x.devices.dummy import dummy
@@ -43,7 +34,7 @@ system.add_dev("device", dummy, args=("TCPIP::localhost::10007::SOCKET",))
 system.add_param("voltage", "V", getter=["device", "voltage"])
 ```
 
-After (recommended):
+After:
 
 ```python
 from matr1x.devices.dummy import dummy
@@ -59,27 +50,9 @@ class Example(System):
 system = Example
 ```
 
-For a system with no specialization, this is sufficient:
+## Import check
 
-```python
-from matr1x.system import System
-
-system = System
-```
-
-## Compatibility
-
-Do not change the loader to reject `system = MySystem()` or `system = System()`.
-Both are valid legacy forms. The preferred class export only changes where the instance is
-created, not the public behavior of the resulting system.
-
-`sys` remains supported only for backward compatibility and produces a deprecation warning.
-When converting a system file, replace it with `system`; retain `sys` only when a task explicitly
-requires leaving that legacy file untouched.
-
-## Checks
-
-Use a focused import check while developing:
+Use a focused import check after the change for every file:
 
 ```python
 from pathlib import Path
@@ -90,4 +63,16 @@ result = System.from_file(Path("path/to/system_file.py"))
 assert isinstance(result, Success)
 ```
 
-Also run the system-import tests and any tests exercising the migrated system.
+## Steps to Perform the Migration
+
+1. **Identify files** — scan for files in the system subdirectories. Most likely the filenames have a `system_`-prefix.
+
+2. **Read each file** fully before making changes.
+
+3. **Apply changes** as described in the "Migration" step by step instructions.
+
+4. **Validate changes** using the following two checks:
+   - `ty check`: This should catch any remaining items that need to be moved in the SystemClass.
+   - Import check (as described above): This should catch the additional errors.
+
+5. **Perform additonal changes** as required by the previous step and repeat validation until all errors are resolved.
