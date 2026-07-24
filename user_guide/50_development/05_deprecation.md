@@ -16,8 +16,8 @@ Assuming the current stable version is **`v8.4.0`**, the deprecation sequence wo
 | **`v8.6.0`** _(dev: `8.5.0dev`)_ | **Loud Deprecation** |
 | **`v9.0.0`**                     | **Hard Removal**     |
 
-- **Soft Deprecation** The legacy item is marked as deprecated. **Quiet warnings** (such as log entries) are emitted when the item is called. The replacement API is available.
-- **Loud Deprecation** Warnings are escalated to **prominent messages** (e.g., UI pop-ups, terminal notices, or `FutureWarning`s) to alert holdouts.
+- **Soft Deprecation** The legacy item is marked as deprecated. **Quiet warnings** (such as log warnings) are emitted when the item is called. The replacement API is available.
+- **Loud Deprecation** Warnings are escalated to **prominent messages** (e.g. log errors or even UI pop-ups) to alert holdouts.
 - **Hard Removal** The old item is completely removed from the codebase. Calling it will result in an error.
 
 ## Upgrade Timeline
@@ -33,3 +33,4 @@ Assuming the current stable version is **`v8.4.0`**, the deprecation sequence wo
 | SR830 lock in driver |    8.0.1    |  9.0.0  |
 | `loadh5matrix`       |    8.1.0    |  9.0.0  |
 | `sys` use in systems |    8.0.1    |  9.0.0  |
+| `function` in sweep  |    8.0.1    |  9.0.0  |
