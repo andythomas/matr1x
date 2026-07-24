@@ -39,6 +39,7 @@ dependencies = [
     "pyserial",                                      # shared by several device drivers
     "pyvisa",                                        # shared by several device drivers
     "pyvisa-py",                                     # shared by several device drivers
+    "zeroconf",                                      # needed by pyvisa-py resource discovery
     "minimalmodbus",                                 # shared by several device drivers
 ]
 

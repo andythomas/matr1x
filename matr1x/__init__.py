@@ -36,6 +36,7 @@ system directories.
 import logging
 import os
 import sys
+import warnings
 from dataclasses import dataclass
 from datetime import date
 from importlib.metadata import PackageNotFoundError, version
@@ -56,6 +57,22 @@ from .util import (
     resolve_config_path,
     resolve_pkgroot_path,
 )
+
+
+def _clean_formatwarning(
+    message: Warning | str,
+    category: type[Warning],
+    filename: str,
+    lineno: int,
+    line: str | None = None,
+) -> str:
+    """Format a warning into a single line without pulling source code context."""
+    return f"{filename}:{lineno}: {category.__name__}: {message}\n"
+
+
+warnings.formatwarning = _clean_formatwarning  # ty: ignore[invalid-assignment]
+
+deprecation_marker = "[MATR1X_DEPRECATED]"
 
 __all__ = [
     # Config management
@@ -87,6 +104,7 @@ __all__ = [
     "get_package_path",
     "resolve_config_path",
     "resolve_pkgroot_path",
+    "deprecation_marker",
 ]
 
 if sys.version_info >= (3, 11):
@@ -355,10 +373,10 @@ def reload_config(optional_config_path: str | Path | None = None):
         in this file will override those in the user and local configuration
         files.
     """
-    global config, datetimefmt, validation_errors
+    global config, datetimefmt
     if isinstance(optional_config_path, str):
         optional_config_path = Path(optional_config_path)
-    validation_errors = []
+    validation_errors.clear()
     loaded_config = load_config(optional_config_path)
     config, msg = _validate_loaded_config(loaded_config)
     _warn_config_errors(msg)

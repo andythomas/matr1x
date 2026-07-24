@@ -178,12 +178,15 @@ class ExecThread(threading.Thread):
         self.script = script
         self.meta_data = meta_data
         self.scriptname = scriptname
+        validation_error_count = len(matr1x.validation_errors)
         system = MergedSystem.from_files(systems)
         if isinstance(system, Error):
             raise InternalInvariantError(
                 "Systems should not contain errors at this point. "
                 f"Nevertheless this happened: {system.error}"
             )
+        if system_config_errors := matr1x.validation_errors[validation_error_count:]:
+            raise ValueError("Invalid system configuration:\n" + "".join(system_config_errors))
         self.system: MergedSystem = system.value
         self.stop_status = Status()
         self.pause_flag = False

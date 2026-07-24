@@ -44,7 +44,7 @@ from typing import NoReturn, cast
 import urwid
 from pydantic import ValidationError
 
-from matr1x import reload_config
+from matr1x import reload_config, validation_errors
 from matr1x.error_handling import Error
 from matr1x.models import (
     Datafile,
@@ -827,9 +827,15 @@ def main() -> None:
         resolved_systemfile = systemfile_header
     else:
         measurement.dispatch(ErrorMessage("no system file specified"))
+    validation_error_count = len(validation_errors)
     system = MergedSystem.from_files(resolved_systemfile)
     if isinstance(system, Error):
         measurement.dispatch(ErrorMessage(system.error))
+        sys.exit(1)
+    if system_config_errors := validation_errors[validation_error_count:]:
+        measurement.dispatch(
+            ErrorMessage("Invalid system configuration:\n" + "".join(system_config_errors))
+        )
         sys.exit(1)
     system = system.value
     measurement.set_system(system)

@@ -182,8 +182,38 @@ class QueueListWidget(QListWidget):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(dialog.accept)
+        save_button = buttons.button(QDialogButtonBox.StandardButton.Save)
+
+        def update_save_button_state(*_args) -> None:
+            if config_errors := editor.get_system_config_validation_errors():
+                save_button.setEnabled(False)
+                save_button.setToolTip(
+                    "Fix the invalid system configuration before saving:\n\n"
+                    + "\n".join(config_errors)
+                )
+                return
+            if config_errors := editor.get_validation_errors():
+                save_button.setEnabled(False)
+                save_button.setToolTip(
+                    "Fix the invalid configuration entries before saving:\n\n"
+                    + "\n".join(config_errors)
+                )
+                return
+            save_button.setEnabled(True)
+            save_button.setToolTip("Save device config.")
+
+        def save_config() -> None:
+            update_save_button_state()
+            if not save_button.isEnabled():
+                return
+            dialog.accept()
+
+        buttons.accepted.connect(save_config)
         buttons.rejected.connect(dialog.reject)
+        editor.model.dataChanged.connect(update_save_button_state)
+        editor.model.validationChanged.connect(update_save_button_state)
+        editor.model.modelReset.connect(update_save_button_state)
+        update_save_button_state()
         layout.addWidget(buttons)
         if dialog.exec():
             parameters.config = editor.get_config_dict()
@@ -388,6 +418,7 @@ class UIBuilder:
             get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")), "Generator"
         )
         queue = QAction(get_matrix_icon("CHAR_+"), "Queue")
+        queue.setToolTip("Queue the measurement.")
         queue.setEnabled(False)
         return ActionGroup(
             preview=preview,
@@ -484,6 +515,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.sweep.triggered.connect(self.start_sweep_generator)
         self.ui.actions.queue.triggered.connect(self.queue_measurement)
         self.ui.actions.start.triggered.connect(self.run_matrix)
+        self.ui.widgets.config_editor.model.dataChanged.connect(self.update_queue_action_state)
+        self.ui.widgets.config_editor.model.validationChanged.connect(
+            self.update_queue_action_state
+        )
+        self.ui.widgets.config_editor.model.modelReset.connect(self.update_queue_action_state)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
@@ -498,6 +534,34 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.widgets.measurement_thread.data_received.connect(self.process_data)
         self.ui.widgets.measurement_thread.finished.connect(self.process_finished)
         self.ui.widgets.meas_list.changed.connect(self.measurement_list_changed)
+
+    def update_queue_action_state(self, *_args) -> None:
+        """Enable Queue only when an input file and a valid configuration are present."""
+        input_file = self.ui.widgets.input_file.text()
+        if not input_file or not Path(input_file).exists():
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip("Select an existing input file before queueing.")
+            return
+
+        # Sweep files are expected to contain validated system information at this point.
+        if config_errors := self.ui.widgets.config_editor.get_system_config_validation_errors():
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip(
+                "Fix the invalid system configuration before queueing:\n\n"
+                + "\n".join(config_errors)
+            )
+            return
+
+        if config_errors := self.ui.widgets.config_editor.get_validation_errors():
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip(
+                "Fix the invalid configuration entries before queueing:\n\n"
+                + "\n".join(config_errors)
+            )
+            return
+
+        self.ui.actions.queue.setEnabled(True)
+        self.ui.actions.queue.setToolTip("Queue the measurement.")
 
     @AutoSlot
     def process_data(self, env: Envelope) -> None:
@@ -684,13 +748,19 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor.set_full_system_list(systemfile)
             self.ui.widgets.config_editor.set_system_info(system_info)
             self.ui.widgets.config_editor.update_data()
-        self.ui.actions.queue.setEnabled(True)
+        self.update_queue_action_state()
 
     def queue_measurement(self) -> None:
         """Queue a measurement into the measurement menu."""
         inputFile = self.ui.widgets.input_file.text()
         if not Path(inputFile).exists():
             QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
+            return
+        if self.ui.widgets.config_editor.get_system_config_validation_errors():
+            self.update_queue_action_state()
+            return
+        if self.ui.widgets.config_editor.get_validation_errors():
+            self.update_queue_action_state()
             return
         self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
         # create parameter set for measurement, make sure to copy the meta data
