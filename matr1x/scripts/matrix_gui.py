@@ -543,11 +543,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.actions.queue.setToolTip("Select an existing input file before queueing.")
             return
 
-        if not self.ui.widgets.config_editor.full_system_list:
-            self.ui.actions.queue.setEnabled(False)
-            self.ui.actions.queue.setToolTip("Load systems before queueing.")
-            return
-
+        # Sweep files are expected to contain validated system information at this point.
         if config_errors := self.ui.widgets.config_editor.get_system_config_validation_errors():
             self.ui.actions.queue.setEnabled(False)
             self.ui.actions.queue.setToolTip(
