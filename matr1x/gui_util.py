@@ -3802,26 +3802,32 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
     except Exception as e:
         return Error(f"Could not run system info subprocess: {e}")
 
-    if result.returncode == 0:
-        output_str = result.stdout.decode()
-        # Find the last line that looks like JSON to avoid warnings/garbage
-        json_str = ""
-        for line in reversed(output_str.splitlines()):
-            if line.strip().startswith("{") and line.strip().endswith("}"):
-                json_str = line.strip()
-                break
+    if result.returncode != 0:
+        stderr_output = result.stderr.decode()
+        return Error(stderr_output)
+    output_str = result.stdout.decode()
+    error_output = result.stderr.decode().strip()
+    if error_output != "":
+        marker = matr1x.deprecation_marker
+        if marker in error_output:
+            logger.error(error_output)
+        else:
+            logger.warning(error_output)
+    # Find the last line that looks like JSON to avoid warnings/garbage
+    json_str = ""
+    for line in reversed(output_str.splitlines()):
+        if line.strip().startswith("{") and line.strip().endswith("}"):
+            json_str = line.strip()
+            break
 
-        if not json_str:
-            return Error(f"Warning: No JSON found in subprocess output:\n{output_str}")
+    if not json_str:
+        return Error(f"Warning: No JSON found in subprocess output:\n{output_str}")
 
-        try:
-            validated_data = SystemInfo.model_validate_json(json_str)
-            return Success(validated_data)
-        except ValidationError as e:
-            return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
-
-    stderr_output = result.stderr.decode()
-    return Error(stderr_output)
+    try:
+        validated_data = SystemInfo.model_validate_json(json_str)
+        return Success(validated_data)
+    except ValidationError as e:
+        return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
 
 
 def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:

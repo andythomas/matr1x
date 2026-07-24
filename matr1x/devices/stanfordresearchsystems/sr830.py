@@ -21,7 +21,15 @@ import warnings
 import numpy as np
 from wrapt import synchronized
 
+import matr1x
 from matr1x.devices.visadevice import VisaDevice
+
+warnings.warn(
+    f"{matr1x.deprecation_marker} "
+    "The class SR830 is deprecated and will be removed in a future release. "
+    "Please use pymeasure.instruments.srs.SR830.",
+    category=FutureWarning,
+)
 
 
 class SR830(VisaDevice):
@@ -67,12 +75,6 @@ class SR830(VisaDevice):
         **kwargs :
           Keyword arguments passed to the VisaDevice constructor.
         """
-        warnings.warn(
-            "The class SR830 is deprecated and will be removed in a future release. "
-            "Please use pymeasure.instruments.srs.SR830.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
         super().__init__(
             interface,
             write_termination="\r",

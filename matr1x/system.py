@@ -27,7 +27,6 @@ import os
 import re
 import sys
 import time
-import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 from functools import cached_property
@@ -576,6 +575,9 @@ class System:
         self._devs_init = {}  # variable holding dev init info for reopeneing
         self.query_dict = {}  # store device information query
 
+        # Allow warnings
+        self.warnings: list[str] = []
+
         # initialize flag to check whether system has been set
         self.opened = False
         self.system_config_params = {}
@@ -740,10 +742,10 @@ class System:
         system = getattr(mod, "system", None)
         if not system:
             system = getattr(mod, "sys", None)
-            warnings.warn(
-                "Using deprecated variable name 'sys' - please update to use 'system' instead",
-                DeprecationWarning,
-            )
+            if system:
+                system.warnings.append(
+                    "Using deprecated variable name 'sys' - please update to use 'system' instead"
+                )
         if not isinstance(system, System):
             return Error("The 'system' variable is not a valid System instance.")
         # set the name of the system to reflect the filename
@@ -1662,7 +1664,7 @@ class System:
             "methods": {},
             "variables": {},
             "config": {},
-            "warnings": [],
+            "warnings": self.warnings,
         }
 
         # Add devices
@@ -2202,6 +2204,9 @@ class MergedSystem(System):
                     }
                 else:
                     info["config"][subsys_name] = subsys_config
+
+            if hasattr(subsys, "warnings") and subsys.warnings:
+                info["warnings"].extend(subsys.warnings)
 
         return info
 

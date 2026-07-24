@@ -1540,6 +1540,12 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             )
             QMessageBox.warning(self, "Deprecation error.", warning_text)
             return
+        if functions:
+            warning_text = (
+                "File uses deprecated 'function' feature (all entries None). "
+                "Re-save file to ensure future compatibility."
+            )
+            logger.error(warning_text)
         self.columns.parameter = parameter
         # initialize layout with values specified in file
         for col in range(len(self.columns.name)):
