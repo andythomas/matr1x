@@ -11,28 +11,30 @@ We will have a look at `system_dummy.py`, which is part of this package.
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
 
-system = System()
-# define Dublin core source parameter
-system.dcdata["source"] = "dummy system for testing matr1x-matrix"
+class Dummy(System):
+    def __init__(self):
+        super().__init__()
+        # define Dublin core source parameter
+        self.dcdata["source"] = "dummy system for testing matr1x-matrix"
 
-system.add_dev(
-    "dev",  # name of device, must be unique
-    dummy,  # device class, not instanced
-    args=("TCPIP::localhost::10007::SOCKET",),  # arguments for init
-    # {"timeout": 100, }  # kwargs can be given if needed
-)
+        self.add_dev(
+            "dev",  # name of device, must be unique
+            dummy,  # device class, not instanced
+            args=("TCPIP::localhost::10007::SOCKET",),  # arguments for init
+            # {"timeout": 100, }  # kwargs can be given if needed
+        )
 
-system.add_param(
-    "dev p2",  # parameter name, must be unique
-    "cnt",  # parameter unit for the data file header
-    ["dev", "p2"],  # setter attribute/function is system.devs["dev"].p2
-    ["dev", "p2"],  # getter attribute/function is system.devs["dev"].p2
-)
+        self.add_param(
+            "dev p2",  # parameter name, must be unique
+            "cnt",  # parameter unit for the data file header
+            ["dev", "p2"],  # setter attribute/function is self.devs["dev"].p2
+            ["dev", "p2"],  # getter attribute/function is self.devs["dev"].p2
+        )
 ```
 
 The `dummy` device driver is imported to mimic a device but to be able to run the example on any computer.
-Then, `System` is also imported, all device drivers are an instance or subclass of this class.
-In this simple example, we instantiate it as `system`.
+Then, `System` is imported as the base class for the system definition.
+The file defines exactly one local `System` subclass, `Dummy`, which Matrix detects and instantiates.
 Metadata can be added using a subset of the [Dublin Core vocabulary](https://en.wikipedia.org/wiki/Dublin_Core).
 In our example, only "source" is set.
 The imported dummy device is added to the list of devices and, finally, one `Parameter` is added to the system, which is used to read and write data from the device.

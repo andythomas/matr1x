@@ -398,7 +398,6 @@ class SystemInfo(BaseModel):
         for cls in self.classes:
             text += f"            self.{cls} = {cls}()\n"
         text += "            pass\n"
-        text += "    system = MergedSystem()\n"
         return text
 
     @cached_property
