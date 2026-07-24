@@ -72,6 +72,8 @@ def _clean_formatwarning(
 
 warnings.formatwarning = _clean_formatwarning  # ty: ignore[invalid-assignment]
 
+deprecation_marker = "[MATR1X_DEPRECATED]"
+
 __all__ = [
     # Config management
     "load_config",
@@ -102,6 +104,7 @@ __all__ = [
     "get_package_path",
     "resolve_config_path",
     "resolve_pkgroot_path",
+    "deprecation_marker",
 ]
 
 if sys.version_info >= (3, 11):

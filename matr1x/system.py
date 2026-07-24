@@ -27,7 +27,6 @@ import os
 import re
 import sys
 import time
-import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 from functools import cached_property
