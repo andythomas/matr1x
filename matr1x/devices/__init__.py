@@ -50,10 +50,6 @@ def listToStr(floatList: list[float]) -> str:
     """
     return ",".join(str(r) for r in floatList)
 
-
-T = TypeVar("T")
-
-
 @overload
 def strToList(string: str) -> list[float]: ...
 @overload
