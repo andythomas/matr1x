@@ -230,7 +230,9 @@ def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
     config_data = _migrate_config(config_data)
     try:
         if config_data["matr1x"]["install"]["root_path"]:
-            validation_errors.append("The config entry 'matr1x.install.root_path' will be ignored.")
+            validation_errors.append(
+                "The config entry 'matr1x.install.root_path' will be ignored."
+            )
     except (KeyError, TypeError):
         pass
     return config_data
