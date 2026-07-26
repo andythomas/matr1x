@@ -721,8 +721,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             return
         system = system.value
         self.sys_meta_data = system.dcdata
-        configurable = [system for system in systemfile if not Path(system.strip()).exists()]
         # Get system information using subprocess (cache for reuse)
+        system_info = None
         if systemfile:
             system_info = get_system_info(systemfile)
             if isinstance(system_info, Error):
@@ -736,6 +736,15 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                         "to correct these entries:\n%s",
                         "".join(system_info.config_validation_errors),
                     )
+        configurable = (
+            [
+                instance.config_section or instance.source
+                for instance in system_info.instances
+                if not Path(instance.source).exists()
+            ]
+            if system_info is not None
+            else []
+        )
         matr1x.reload_config()
         self.ui.widgets.config_editor.set_systemfile(configurable)
         if systemfile != self.ui.widgets.config_editor.full_system_list:

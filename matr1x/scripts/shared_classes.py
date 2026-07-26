@@ -17,6 +17,7 @@
 
 import importlib.util
 import logging
+import re
 import socket
 import subprocess
 import sys
@@ -30,7 +31,10 @@ import tomli_w
 from pydantic import ValidationError
 from pyqtgraph.Qt.QtGui import QColor
 from PySide6.QtCore import (
+    QAbstractItemModel,
     QByteArray,
+    QModelIndex,
+    QPersistentModelIndex,
     QPoint,
     QPropertyAnimation,
     QSettings,
@@ -40,8 +44,9 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QAction, QDropEvent, QKeySequence
+from PySide6.QtGui import QAction, QBrush, QDropEvent, QKeySequence
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QDialog,
     QDialogButtonBox,
     QDockWidget,
@@ -51,9 +56,12 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QSizePolicy,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -61,16 +69,17 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x import VALID_META_KEYS, resolved_directory
-from matr1x.error_handling import Error, InternalInvariantError, Result, Success
+from matr1x.error_handling import Error, InternalInvariantError, Result
 from matr1x.gui_util import (
     ConfigEditWidget,
     LoggerMixin,
     MApplication,
     blocked_signals,
     get_matrix_icon,
+    get_system_capability,
     get_system_info,
 )
-from matr1x.models import Envelope, SystemInfo
+from matr1x.models import Envelope, SystemCapability, SystemInfo, SystemReference
 from matr1x.util import get_matrix_binary
 
 __all__ = [
@@ -158,15 +167,120 @@ class Notifier(QWidget):
 
 
 @final
+class _SystemReferenceDelegate(QStyledItemDelegate):
+    """Edit only the label portion of a reusable system reference."""
+
+    def __init__(self, system_list: "SystemListWidget") -> None:
+        super().__init__(system_list)
+        self.system_list = system_list
+        self.closeEditor.connect(lambda *_args: self.system_list._finish_label_edit())
+
+    def createEditor(
+        self,
+        parent: QWidget,
+        _option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> QWidget:
+        """Keep the source visible and edit only a compact label suffix."""
+        item = self.system_list.item(index.row())
+        if not item.data(SystemListWidget.REUSABLE_ROLE):
+            return QWidget(parent)
+
+        editor = QWidget(parent)
+        editor.setObjectName("system_reference_editor")
+        layout = QHBoxLayout(editor)
+        layout.setContentsMargins(2, 0, 2, 0)
+        layout.setSpacing(0)
+        layout.addWidget(QLabel(f"{item.data(SystemListWidget.SOURCE_ROLE)}::", editor))
+
+        label_editor = QLineEdit(editor)
+        label_editor.setObjectName("system_instance_label")
+        label_editor.setMaximumWidth(160)
+        label_editor.setProperty(
+            "committed_token",
+            item.data(SystemListWidget.COMMITTED_TOKEN_ROLE),
+        )
+        label_editor.textChanged.connect(
+            lambda text, current=item, widget=label_editor: (
+                self.system_list._validate_label_editor(
+                    current,
+                    widget,
+                    text,
+                )
+            )
+        )
+        label_editor.editingFinished.connect(
+            lambda current_editor=editor: self._finish_editor(current_editor)
+        )
+        layout.addWidget(label_editor)
+        layout.addStretch()
+        editor.setFocusProxy(label_editor)
+        return editor
+
+    def _finish_editor(self, editor: QWidget) -> None:
+        """Commit and close a composite editor once."""
+        if editor.property("finishing"):
+            return
+        editor.setProperty("finishing", True)
+        self.commitData.emit(editor)
+        self.closeEditor.emit(editor)
+
+    @staticmethod
+    def _label_editor(editor: QWidget) -> QLineEdit | None:
+        """Return the label input contained in a composite row editor."""
+        return editor.findChild(QLineEdit, "system_instance_label")
+
+    def setEditorData(
+        self,
+        editor: QWidget,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        """Populate the transient editor with the instance label only."""
+        label_editor = self._label_editor(editor)
+        if label_editor is None:
+            return
+        item = self.system_list.item(index.row())
+        label_editor.setText(str(item.data(SystemListWidget.LABEL_ROLE) or ""))
+        label_editor.selectAll()
+        label_editor.setFocus()
+
+    def setModelData(
+        self,
+        editor: QWidget,
+        _model: QAbstractItemModel,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        """Commit a valid label through the system-list identity logic."""
+        label_editor = self._label_editor(editor)
+        if label_editor is None:
+            return
+        self.system_list._commit_label(
+            self.system_list.item(index.row()),
+            label_editor,
+        )
+
+
+@final
 class SystemListWidget(QListWidget):
     """A custom QListWidget that contains the systems."""
 
     changed = Signal()
+    reference_renamed = Signal(str, str)
+    validation_changed = Signal()
     message = Signal(NotifierMessage)
 
-    def __init__(self) -> None:
-        """Initialize the class with sorting enabled."""
+    SOURCE_ROLE = int(Qt.ItemDataRole.UserRole)
+    LABEL_ROLE = SOURCE_ROLE + 1
+    REUSABLE_ROLE = SOURCE_ROLE + 2
+    CLASS_ROLE = SOURCE_ROLE + 3
+    PREFIX_ROLE = SOURCE_ROLE + 4
+    COMMITTED_TOKEN_ROLE = SOURCE_ROLE + 5
+
+    def __init__(self, *, report_config_errors: bool = True) -> None:
+        """Initialize the system list and its configuration-error policy."""
         super().__init__()
+        self._report_config_errors = report_config_errors
+        self._editing_label_valid: bool | None = None
         self._base_directory: Path = resolved_directory
         self.add_action = QAction(get_matrix_icon("CHAR_+"), "Add System", self)
         self.add_action.setToolTip("Add a matrix system file.")
@@ -179,6 +293,12 @@ class SystemListWidget(QListWidget):
             raise InternalInvariantError("System list should work for an empty list.")
         self._cached_system_info: SystemInfo = system_info.value
         self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self.setItemDelegate(_SystemReferenceDelegate(self))
+        self.setEditTriggers(
+            QAbstractItemView.EditTrigger.SelectedClicked
+            | QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+        )
         self.setMinimumHeight(50)
         self.setMaximumHeight(50)
         self._sync_action_state()
@@ -207,8 +327,37 @@ class SystemListWidget(QListWidget):
 
     @property
     def systems(self) -> list[str]:
-        """Return the list of systems."""
+        """Return compact static or labelled system tokens."""
         return [self.item(i).text() for i in range(self.count())]
+
+    @property
+    def references(self) -> list[SystemReference]:
+        """Return validated structured system references."""
+        return [SystemReference.from_value(system) for system in self.systems]
+
+    def references_valid(self) -> bool:
+        """Return whether every reusable row has a valid globally unique label."""
+        if self._editing_label_valid is False:
+            return False
+        labels: set[str] = set()
+        try:
+            for index in range(self.count()):
+                item = self.item(index)
+                label = item.data(self.LABEL_ROLE)
+                if item.data(self.REUSABLE_ROLE):
+                    reference = SystemReference(
+                        source=item.data(self.SOURCE_ROLE),
+                        label=label,
+                    )
+                    assert reference.label is not None
+                    if reference.label in labels:
+                        return False
+                    labels.add(reference.label)
+                elif label:
+                    return False
+        except (ValidationError, AssertionError):
+            return False
+        return True
 
     def clear(self) -> None:
         """Clear the list of systems."""
@@ -235,23 +384,26 @@ class SystemListWidget(QListWidget):
             self._sync_action_state()
 
     def add_systems(self, filenames: list[str]) -> None:
-        """Add files but avoid duplicates."""
-        existing = {self.item(i).text() for i in range(self.count())}
+        """Add static systems once and reusable systems as labelled instances."""
+        existing_sources = {self.item(i).data(self.SOURCE_ROLE) for i in range(self.count())}
         for filename in filenames:
             try:
-                module = importlib.util.find_spec(filename)
+                requested_reference = SystemReference.from_value(filename)
+            except ValidationError as error:
+                self.message.emit(NotifierMessage(str(error), level=logging.WARNING))
+                continue
+            requested_source = requested_reference.source
+            try:
+                module = importlib.util.find_spec(requested_source)
             except ModuleNotFoundError:
                 module = None
             if module is None:
-                filename = Path(filename).resolve()
-                module_name = self.get_importable_module_name(filename)
+                resolved_source = Path(requested_source).resolve()
+                module_name = self.get_importable_module_name(resolved_source)
             else:
                 module_name = module.name
-            candidate = str(module_name if module_name is not None else filename)
-            if candidate in existing:
-                msg = NotifierMessage(f"{candidate} is already present and was omitted.")
-                self.message.emit(msg)
-                continue
+                resolved_source = Path(requested_source)
+            candidate = str(module_name if module_name is not None else resolved_source)
             import_check = self.test_import(candidate)
             if isinstance(import_check, Error):
                 msg = NotifierMessage(
@@ -260,22 +412,149 @@ class SystemListWidget(QListWidget):
                 )
                 self.message.emit(msg)
                 continue
-            super().addItem(candidate)
+            capability = import_check.value
+            if requested_reference.label is not None and not capability.reusable:
+                self.message.emit(
+                    NotifierMessage(
+                        f"{candidate} is static and does not accept a label.",
+                        level=logging.WARNING,
+                    )
+                )
+                continue
+            if not capability.reusable and candidate in existing_sources:
+                msg = NotifierMessage(f"{candidate} is already present and was omitted.")
+                self.message.emit(msg)
+                continue
+
+            if not capability.reusable and any(
+                self.item(i).data(self.CLASS_ROLE) == capability.class_name
+                for i in range(self.count())
+            ):
+                msg = NotifierMessage(
+                    f"{candidate} was omitted: duplicate system class name "
+                    f"'{capability.class_name}'.",
+                    level=logging.WARNING,
+                )
+                self.message.emit(msg)
+                continue
+
+            label = (
+                requested_reference.label or self._suggest_label(capability)
+                if capability.reusable
+                else None
+            )
+            item = QListWidgetItem()
+            item.setData(self.SOURCE_ROLE, candidate)
+            item.setData(self.LABEL_ROLE, label)
+            item.setData(self.REUSABLE_ROLE, capability.reusable)
+            item.setData(self.CLASS_ROLE, capability.class_name)
+            item.setData(self.PREFIX_ROLE, capability.label_prefix)
+            self._update_item_token(item)
+            item.setData(self.COMMITTED_TOKEN_ROLE, item.text())
+            if capability.reusable:
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            super().addItem(item)
             self.systems_changed()
-            existing.add(candidate)
-            self._base_directory = Path(filename)
+            existing_sources.add(candidate)
+            self._base_directory = Path(requested_source)
+
+    def _suggest_label(self, capability: SystemCapability) -> str:
+        """Return the first unused numbered label for a reusable system."""
+        prefix = capability.label_prefix
+        if prefix is None:
+            prefix = re.sub(r"[^A-Za-z0-9_]", "_", capability.class_name).lower()
+            if not prefix or prefix[0].isdigit():
+                prefix = f"_{prefix}"
+        used = {
+            self.item(i).data(self.LABEL_ROLE)
+            for i in range(self.count())
+            if self.item(i).data(self.LABEL_ROLE)
+        }
+        index = 1
+        while f"{prefix}{index}" in used:
+            index += 1
+        return f"{prefix}{index}"
+
+    def _update_item_token(self, item: QListWidgetItem) -> None:
+        """Synchronize the item's compatibility text with its row data."""
+        source = str(item.data(self.SOURCE_ROLE))
+        label = item.data(self.LABEL_ROLE)
+        item.setText(f"{source}::{label or ''}" if item.data(self.REUSABLE_ROLE) else source)
+
+    def _validate_label_editor(self, item: QListWidgetItem, editor: QLineEdit, label: str) -> bool:
+        """Validate transient label text without changing the underlying row."""
+        valid = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", label) is not None
+        if valid:
+            valid = all(
+                self.item(index) is item or self.item(index).data(self.LABEL_ROLE) != label
+                for index in range(self.count())
+            )
+        self._editing_label_valid = valid
+        editor.setProperty("invalid", not valid)
+        editor.setStyleSheet("QLineEdit { border: 1px solid #c33; }" if not valid else "")
+        self.validation_changed.emit()
+        return valid
+
+    def _finish_label_edit(self) -> None:
+        """Clear transient validation state when editing ends or is cancelled."""
+        if self._editing_label_valid is None:
+            return
+        self._editing_label_valid = None
+        self.validation_changed.emit()
+
+    @staticmethod
+    def _set_item_label_validity(item: QListWidgetItem, valid: bool) -> None:
+        """Show the validity of committed label text on the rendered row."""
+        item.setData(
+            Qt.ItemDataRole.ForegroundRole,
+            QBrush(QColor("#b3261e")) if not valid else None,
+        )
+        item.setToolTip(
+            "" if valid else "Reusable system labels must be valid and globally unique."
+        )
+
+    def _commit_label(self, item: QListWidgetItem, editor: QLineEdit) -> None:
+        """Commit edited text once and reload valid system information."""
+        label = editor.text()
+        valid = self._validate_label_editor(item, editor, label)
+        item.setData(self.LABEL_ROLE, label)
+        self._update_item_token(item)
+        self._set_item_label_validity(item, valid)
+        self._editing_label_valid = None
+        self.validation_changed.emit()
+        if not valid:
+            self.message.emit(
+                NotifierMessage(
+                    "Reusable system labels must be valid and globally unique.",
+                    level=logging.WARNING,
+                )
+            )
+            self.systems_changed()
+            return
+        old_token = str(editor.property("committed_token"))
+        if old_token != item.text():
+            self.reference_renamed.emit(old_token, item.text())
+            editor.setProperty("committed_token", item.text())
+            item.setData(self.COMMITTED_TOKEN_ROLE, item.text())
+            self.systems_changed()
 
     def systems_changed(self) -> None:
         """Load system info and emit changed signal."""
+        if not self.references_valid():
+            self._sync_action_state()
+            self.changed.emit()
+            return
         system_info = get_system_info(self.systems)
         if isinstance(system_info, Error):
             raise InternalInvariantError("System list should work if systems work individually.")
-        if system_info.value.config_validation_errors:
+        if self._report_config_errors and system_info.value.config_validation_errors:
             warning_text = (
                 "System configuration validation failed. Default values are shown only so "
                 "you can correct the configuration; fix these entries before execution:\n\n"
                 + "".join(system_info.value.config_validation_errors)
             )
+            # This is actionable in the config editor and should remain in the
+            # log without automatically opening the separate log window.
             self.message.emit(NotifierMessage(warning_text, level=logging.WARNING))
         for warning in system_info.value.warnings:
             self.message.emit(NotifierMessage(warning, level=logging.WARNING))
@@ -288,14 +567,9 @@ class SystemListWidget(QListWidget):
         """Return the (cached) system info."""
         return self._cached_system_info
 
-    def test_import(self, filename: str) -> Result[bool, str]:
-        """Test if a filename can be imported."""
-        ret = get_system_info([filename])
-        if not isinstance(ret, Success):
-            return Error(error=ret.error)
-        if ret.value.classes[0] in self.system_info.classes:
-            return Error(error="Duplicate system class name, please rename.")
-        return Success(value=True)
+    def test_import(self, filename: str) -> Result[SystemCapability, str]:
+        """Inspect whether a source imports and whether it is reusable."""
+        return get_system_capability(filename)
 
     def query_systems(self) -> None:
         """Select and add system files(s)."""

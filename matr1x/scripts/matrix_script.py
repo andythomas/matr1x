@@ -98,6 +98,7 @@ from matr1x.models import (
     Message,
     Modifier,
     SetValues,
+    SystemReference,
     Telemetry,
 )
 from matr1x.post_install import (
@@ -1053,6 +1054,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.last_filename: Path | None = None
         self.settings = SaferQSettings("matr1x", "script")
         self._output_buffer: list[str] = []
+        self._config_after_label_rename: dict[str, Any] | None = None
+        self._config_section_after_label_rename: str | None = None
         self._output_timer = QTimer()
         self._output_timer.timeout.connect(self._flush_output_buffer)
         self._output_timer.setSingleShot(False)
@@ -1125,6 +1128,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.widgets.script_edit.contentModified.connect(self.update_window_title)
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
         self.ui.widgets.system_list.message.connect(self.show_message)
+        self.ui.widgets.system_list.reference_renamed.connect(self.prepare_system_label_rename)
+        self.ui.widgets.system_list.validation_changed.connect(self.update_start_action_state)
         self.ui.widgets.system_list.changed.connect(
             lambda: self.ui.widgets.script_edit.setModified(True)
         )
@@ -1135,6 +1140,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
         if self.is_running:
             self.ui.actions.start.setEnabled(False)
             self.ui.actions.start.setToolTip("A measurement is currently running.")
+            return
+
+        if not self.ui.widgets.system_list.references_valid():
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip("Fix the reusable system labels before running.")
             return
 
         config_validation = self.ui.widgets.config_editor.validate_config()
@@ -1621,6 +1631,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
+        if not self.ui.widgets.system_list.references_valid():
+            self.update_start_action_state()
+            return
         config_validation = self.ui.widgets.config_editor.validate_config()
         if isinstance(config_validation, Error):
             self.ui.widgets.config_editor.show_for_validation_errors()
@@ -1673,24 +1686,89 @@ class MainWindow(LogWindowMixin, MMainWindow):
         update_config: bool
             Whether to update the config editor.
         """
-        retained_config = self.ui.widgets.config_editor.get_config_dict()
-        # only systems that are part of matrix or ifwlib can be configured via files
+        system_info = self.ui.widgets.system_list.system_info
+        current_config = self.ui.widgets.config_editor.get_config_dict()
+        retained_config = (
+            self._config_after_label_rename
+            if self._config_after_label_rename is not None
+            else current_config
+        )
+        renamed_config_section = self._config_section_after_label_rename
         configurable = [
-            system for system in self.ui.widgets.system_list.systems if not Path(system).exists()
+            instance.config_section or instance.source
+            for instance in system_info.instances
+            if not Path(instance.source).exists()
         ]
         matr1x.reload_config()
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
-            self.ui.widgets.config_editor.set_system_info(self.ui.widgets.system_list.system_info)
+            self.ui.widgets.config_editor.set_system_info(system_info)
             self.ui.widgets.config_editor.update_data()
             self.ui.widgets.config_editor.apply_config_dict(retained_config)
+            if renamed_config_section is not None:
+                config_info = system_info.config.get(renamed_config_section, {})
+                if isinstance(config_info, dict):
+                    source_value = config_info.get("source_value", {})
+                    if isinstance(source_value, dict):
+                        self.ui.widgets.config_editor.apply_config_dict(
+                            {renamed_config_section: source_value}
+                        )
+            self._config_after_label_rename = None
+            self._config_section_after_label_rename = None
             self.update_start_action_state()
         # Update system commands with cached info
         self.update_system_commands()
         if self.ui.widgets.system_command_help.isVisible():
             self.show_system_commands()
         self.run_linter()
+
+    def prepare_system_label_rename(self, old_token: str, new_token: str) -> None:
+        """Retain current config editor values under a renamed instance path."""
+        self._config_section_after_label_rename = None
+        config = self.ui.widgets.config_editor.get_config_dict()
+        old_reference = SystemReference.from_value(old_token)
+        new_reference = SystemReference.from_value(new_token)
+        old_instance = next(
+            (
+                instance
+                for instance in self.ui.widgets.system_list.system_info.instances
+                if instance.source == old_reference.source
+                and instance.label == old_reference.label
+            ),
+            None,
+        )
+        if (
+            old_instance is None
+            or old_instance.config_section is None
+            or new_reference.label is None
+        ):
+            self._config_after_label_rename = config
+            return
+
+        old_parts = old_instance.config_section.split(".")
+        new_parts = [*old_parts[:-1], new_reference.label]
+
+        def pop_path(data: dict, parts: list[str]) -> Any:
+            current = data
+            for part in parts[:-1]:
+                value = current.get(part)
+                if not isinstance(value, dict):
+                    return None
+                current = value
+            return current.pop(parts[-1], None)
+
+        def set_path(data: dict, parts: list[str], value: Any) -> None:
+            current = data
+            for part in parts[:-1]:
+                current = current.setdefault(part, {})
+            current[parts[-1]] = value
+
+        values = pop_path(config, old_parts)
+        if values is not None:
+            set_path(config, new_parts, values)
+        self._config_after_label_rename = config
+        self._config_section_after_label_rename = ".".join(new_parts)
 
     def save_file_as(self) -> bool:
         """
@@ -1738,6 +1816,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
         bool
             True (Sucess) or False (Error).
         """
+        if not self.ui.widgets.system_list.references_valid():
+            self.ui.widgets.status_preview.print_colored(
+                "Reusable system labels must be valid before saving."
+            )
+            return False
         if filename.suffix != self.extension:
             filename = filename.with_suffix(self.extension)
         try:

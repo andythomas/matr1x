@@ -86,7 +86,7 @@ from matr1x.gui_util import (
     save_messagebox,
     validator,
 )
-from matr1x.models import SystemInfo
+from matr1x.models import SystemInfo, SystemReference
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
@@ -678,7 +678,9 @@ class UIBuilder:
         table_width = sweep_preview.viewport().width()
         sweep_preview.setColumnWidth(0, table_width)
 
-        system_list = SystemListWidget()
+        # A sweep describes parameter ranges and system identity only. Device
+        # configuration is supplied and validated later by the execution UI.
+        system_list = SystemListWidget(report_config_errors=False)
 
         notifier = Notifier(logger)
 
@@ -1106,18 +1108,34 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         bool
             True on success and False on error during import.
         """
-        if any(self.columns.parameter):
+        previous_columns = self.columns.model_copy(deep=True)
+        self.reset_layout()
+        same_instance_structure = self._apply_system_info_to_columns(
+            self.ui.widgets.system_list.system_info,
+            previous_columns=previous_columns,
+        )
+        if any(previous_columns.parameter) and not any(self.columns.parameter):
             self.ui.widgets.notifier.show_message(
                 NotifierMessage(
                     "All previous sweep parameters have been cleared.", logging.WARNING
                 )
             )
-        self.reset_layout()
-        self._apply_system_info_to_columns(self.ui.widgets.system_list.system_info)
         self.populate_layout()
+        if same_instance_structure:
+            for column, widgets in enumerate(self.grid_widgets):
+                if column < len(previous_columns.repeat):
+                    widgets.repeat.setValue(previous_columns.repeat[column])
+                if column < len(previous_columns.up_down):
+                    widgets.updown.setCheckState(Qt.CheckState(previous_columns.up_down[column]))
+                if column < len(previous_columns.loop_over):
+                    widgets.loopover.setCurrentIndex(previous_columns.loop_over[column] + 1)
         return True
 
-    def _apply_system_info_to_columns(self, system_info: SystemInfo) -> None:
+    def _apply_system_info_to_columns(
+        self,
+        system_info: SystemInfo,
+        previous_columns: ColumnData | None = None,
+    ) -> bool:
         """
         Update column data to match the current system.
 
@@ -1125,23 +1143,38 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         parameters. Sweep parameters for columns that exist in both the
         old and new system are preserved; all other columns start empty.
         """
-        old_cols = self.columns.name
+        previous = previous_columns or self.columns
+        old_cols = previous.name
+        old_units = previous.unit
+        old_parameters = previous.parameter
+        old_sources = [SystemReference.from_value(token).source for token in previous.filenames]
+        new_tokens = self.ui.widgets.system_list.systems
+        new_sources = [SystemReference.from_value(token).source for token in new_tokens]
         settable_parameters = [p for p in system_info.flat_parameters if p.settable]
         self.columns.name = [p.name for p in settable_parameters]
         self.columns.unit = [p.unit for p in settable_parameters]
         self.columns.sign = [generate_col_index(p.index) for p in settable_parameters]
         save_sweep_params = {}
-        for index, old_col in enumerate(old_cols):
-            if old_col in self.columns.name:
-                newloc = self.columns.name.index(old_col)
-                save_sweep_params[newloc] = self.columns.parameter[index]
+        same_instance_structure = (
+            old_sources == new_sources
+            and len(old_parameters) == len(self.columns.name)
+            and old_units == self.columns.unit
+        )
+        if same_instance_structure:
+            save_sweep_params = dict(enumerate(old_parameters))
+        else:
+            for index, old_col in enumerate(old_cols):
+                if old_col in self.columns.name:
+                    newloc = self.columns.name.index(old_col)
+                    save_sweep_params[newloc] = old_parameters[index]
         self.columns.parameter = []
         for pos in range(len(self.columns.name)):
             if pos in save_sweep_params:
                 self.columns.parameter.append(save_sweep_params[pos])
             else:
                 self.columns.parameter.append([])
-        self.columns.filenames = self.ui.widgets.system_list.systems
+        self.columns.filenames = new_tokens
+        return same_instance_structure
 
     def add2grid(
         self, widgets: LabelWidgets | ColumnWidgets, row: int = 0, column: int = 0
@@ -1312,6 +1345,14 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         bool
             Saved (True) or errored (False)
         """
+        if not self.ui.widgets.system_list.references_valid():
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(
+                    "Reusable system labels must be valid before saving.",
+                    logging.WARNING,
+                )
+            )
+            return False
         result = self.generate_datafile()
         if isinstance(result, Error):
             self.ui.widgets.notifier.show_message(

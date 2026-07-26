@@ -148,7 +148,12 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
-from matr1x.models import MainConfig, SystemInfo
+from matr1x.models import (
+    MainConfig,
+    SystemCapability,
+    SystemInfo,
+    SystemReference,
+)
 from matr1x.visa_helpers import get_visa_resource_manager, validate_visa_resource
 
 from . import merge_dicts, reload_config, write_config
@@ -833,21 +838,27 @@ class MetaViewerWidget(QDockWidget):
                         else:
                             items.append((child_key, child_value, False))
                 else:
-                    items = [(k, v, False) for k, v in self.value.items()]
-                    present_keys = self.value.keys()
                     properties = schema.get("properties", {})
-                    for child_key in schema.get("required", []):
-                        if child_key in present_keys or child_key not in properties:
-                            continue
-                        items.append(
-                            (
-                                child_key,
-                                MetaViewerWidget.default_value_from_schema(
-                                    properties[child_key], self.root_schema
-                                ),
-                                True,
+                    required = set(schema.get("required", []))
+                    items = []
+                    for child_key, child_schema in properties.items():
+                        if child_key in self.value:
+                            items.append((child_key, self.value[child_key], False))
+                        elif child_key in required:
+                            items.append(
+                                (
+                                    child_key,
+                                    MetaViewerWidget.default_value_from_schema(
+                                        child_schema, self.root_schema
+                                    ),
+                                    True,
+                                )
                             )
-                        )
+                    items.extend(
+                        (child_key, child_value, False)
+                        for child_key, child_value in self.value.items()
+                        if child_key not in properties
+                    )
 
                 for child_key, child_value, child_missing in items:
                     if child_key == "_schema":
@@ -4050,8 +4061,14 @@ class MApplication(QApplication):
 
 
 # Common system information functions for matrix scripts
-def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
-    """Get system information using subprocess."""
+def get_system_info(
+    systems: Sequence[str | Path | SystemReference],
+) -> Result[SystemInfo, str]:
+    """Get system information using a subprocess."""
+    try:
+        tokens = [SystemReference.from_value(system).to_token() for system in systems]
+    except ValidationError as error:
+        return Error(str(error))
     script = (
         "import json\n"
         "import sys\n"
@@ -4059,7 +4076,7 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
         "from matr1x.error_handling import Error\n"
         "from matr1x.system import MergedSystem\n"
         "validation_error_count = len(validation_errors)\n"
-        f"result = MergedSystem.from_files({systems!r})\n"
+        f"result = MergedSystem.from_references({tokens!r})\n"
         "if isinstance(result, Error):\n"
         "    print(result.error, file=sys.stderr)\n"
         "    raise SystemExit(1)\n"
@@ -4106,6 +4123,35 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
         return Success(validated_data)
     except ValidationError as e:
         return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
+
+
+def get_system_capability(source: str) -> Result[SystemCapability, str]:
+    """Inspect one system definition without constructing it."""
+    script = (
+        "import sys\n"
+        "from matr1x.error_handling import Error\n"
+        "from matr1x.system import System\n"
+        f"result = System.inspect_file({source!r})\n"
+        "if isinstance(result, Error):\n"
+        "    print(result.error, file=sys.stderr)\n"
+        "    raise SystemExit(1)\n"
+        "print(result.value.model_dump_json())\n"
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception as error:
+        return Error(f"Could not inspect system in subprocess: {error}")
+    if result.returncode != 0:
+        return Error(result.stderr.decode())
+    try:
+        output = result.stdout.decode().splitlines()[-1]
+        return Success(SystemCapability.model_validate_json(output))
+    except (IndexError, ValidationError) as error:
+        return Error(f"Could not parse system capability: {error}")
 
 
 def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:

@@ -31,6 +31,13 @@ The sweep can then be generated, previewed and manipulated until it suits the re
 We suggest to play with the interface to get familiar with the available options.
 Overall, it offers several possibilities to generate and customize a sweep used for device control.
 
+Systems which opt in to reusable instances can be added more than once. Their
+system-list row shows the complete `system_import_name::<label>` reference once.
+Select and click the row to edit only its label; the suggested initial label
+comes from the system's prefix. The label must be globally unique before the
+sweep can be saved. Renaming it retains the already entered sweep ranges and
+modifiers.
+
 1. Basic sweeps (similar to numpy linspace)
 2. Appending several basic sweeps.
 3. Up and down modifier 

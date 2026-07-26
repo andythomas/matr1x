@@ -29,6 +29,7 @@ from pydantic import BaseModel
 import matr1x
 import matr1x.system as system_module
 from matr1x.error_handling import Error, Success
+from matr1x.models import SystemReference
 from matr1x.system import System
 
 # Collect all files in the system-folder
@@ -62,7 +63,13 @@ def test_system_import(system_file):
     system_file : Path
         Path to the system configuration file to import.
     """
-    system = System.from_file(system_file)
+    capability = System.inspect_file(system_file)
+    assert isinstance(capability, Success)
+    reference = SystemReference(
+        source=str(system_file),
+        label="test_instance" if capability.value.reusable else None,
+    )
+    system = System.from_file(reference)
     assert isinstance(system, Success)
 
 

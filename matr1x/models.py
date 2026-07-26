@@ -23,6 +23,7 @@ This module provides Pydantic models used for:
 """
 
 import math
+import re
 from collections.abc import Callable
 from enum import IntFlag
 from functools import cached_property
@@ -280,6 +281,65 @@ class MainConfig(ConfigBaseModel):
 # --- merged system "air-gap" evaluations
 
 
+class SystemReference(BaseModel):
+    """Identify one static system or one labelled reusable system instance."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: str
+    label: str | None = None
+
+    @model_validator(mode="after")
+    def validate_reference(self):
+        """Validate the source and optional instance label."""
+        if not self.source.strip():
+            raise ValueError("System source must not be empty")
+        if "::" in self.source:
+            raise ValueError("'::' is reserved and cannot occur in a system source")
+        if self.label is not None and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", self.label) is None:
+            raise ValueError(
+                "System label must start with a letter or underscore and contain only "
+                "letters, digits, and underscores"
+            )
+        return self
+
+    @classmethod
+    def from_value(cls, value: "SystemReference | str | Path") -> "SystemReference":
+        """Normalize a reference object, source path, or compact ``source::label`` token."""
+        if isinstance(value, cls):
+            return value
+        token = str(value).strip()
+        if "::" not in token:
+            return cls(source=token)
+        source, label = token.rsplit("::", 1)
+        return cls(source=source, label=label)
+
+    def to_token(self) -> str:
+        """Return the compact representation used in legacy-compatible headers."""
+        if self.label is None:
+            return self.source
+        return f"{self.source}::{self.label}"
+
+
+class SystemCapability(BaseModel):
+    """Describe a system class without constructing an instance."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str
+    reusable: bool = False
+    label_prefix: str | None = None
+    class_name: str
+
+
+class SystemInstanceInfo(SystemCapability):
+    """Describe one selected and constructed system instance."""
+
+    label: str | None = None
+    accessor_name: str
+    config_section: str | None = None
+
+
 class SystemDevice(BaseModel):
     """Model for device entries."""
 
@@ -335,6 +395,7 @@ class SystemInfo(BaseModel):
     methods: dict[str, SystemMethod]
     variables: dict[str, SystemVariable]
     config: dict[str, Any]
+    instances: list[SystemInstanceInfo] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     config_validation_errors: list[str] = Field(default_factory=list)
 
