@@ -560,10 +560,10 @@ class System:
     """
 
     reusable: ClassVar[bool] = False
-    """Whether the system may be loaded more than once with distinct labels."""
+    """Whether the system may be loaded more than once with distinct names."""
 
-    label_prefix: ClassVar[str | None] = None
-    """Optional prefix used by GUIs when suggesting an instance label."""
+    name_prefix: ClassVar[str | None] = None
+    """Optional prefix used by GUIs when suggesting an instance name."""
 
     def __init__(self, name=None):
         """
@@ -577,7 +577,6 @@ class System:
         self._name: str | None = None
         self.name = name
         self.source: str | None = None
-        self.instance_label: str | None = None
         self.config_base_section: str | None = None
         self.config_section: str | None = None
 
@@ -643,8 +642,8 @@ class System:
     @property
     def accessor_name(self) -> str:
         """Return the attribute name used to expose this subsystem after merging."""
-        if self.reusable and self.instance_label is not None:
-            return f"{self.__class__.__name__}_{self.instance_label}"
+        if self.reusable and self.name is not None:
+            return f"{self.__class__.__name__}_{self.name}"
         if self.name is not None and self.name.isidentifier():
             return self.name
         return self.__class__.__name__
@@ -732,7 +731,7 @@ class System:
         cls,
         filename: str | Path | SystemReference,
     ) -> Result["System", str]:
-        """Load and construct a static or labelled reusable system."""
+        """Load and construct a static or named reusable system."""
         return cls._from_file(filename)
 
     @classmethod
@@ -830,16 +829,16 @@ class System:
             return Error(
                 f"Reusable system class '{system_class.__name__}' must inherit ReusableSystem"
             )
-        prefix = system_class.label_prefix
+        prefix = system_class.name_prefix
         if prefix is not None and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", prefix) is None:
             return Error(
-                f"Reusable system '{reference.source}' has invalid label prefix {prefix!r}"
+                f"Reusable system '{reference.source}' has invalid name prefix {prefix!r}"
             )
         return Success(
             SystemCapability(
                 source=reference.source,
                 reusable=reusable,
-                label_prefix=prefix,
+                name_prefix=prefix,
                 class_name=system_class.__name__,
             )
         )
@@ -853,7 +852,7 @@ class System:
         Load and construct a system from a file or importable module.
 
         A system module must define exactly one local ``System`` subclass.
-        Reusable subclasses receive their required label during construction.
+        Reusable subclasses receive their required name during construction.
         Legacy initialized ``system`` and ``sys`` exports remain supported for
         static systems with a deprecation warning.
         """
@@ -872,14 +871,14 @@ class System:
                     f"Reusable system '{reference.source}' must be defined as a "
                     "ReusableSystem subclass, not an initialized module export"
                 )
-            if reference.label is not None:
-                return Error(f"Static system '{reference.source}' does not accept a label")
+            if reference.name is not None:
+                return Error(f"Static system '{reference.source}' does not accept a name")
             system = definition
         elif issubclass(definition, ReusableSystem):
-            if reference.label is None:
-                return Error(f"Reusable system '{reference.source}' requires a label")
+            if reference.name is None:
+                return Error(f"Reusable system '{reference.source}' requires a name")
             try:
-                system = definition(reference.label)
+                system = definition(reference.name)
             except ValueError as error:
                 return Error(str(error))
         else:
@@ -887,8 +886,8 @@ class System:
                 return Error(
                     f"Reusable system class '{definition.__name__}' must inherit ReusableSystem"
                 )
-            if reference.label is not None:
-                return Error(f"Static system '{reference.source}' does not accept a label")
+            if reference.name is not None:
+                return Error(f"Static system '{reference.source}' does not accept a name")
             system = definition()
 
         system.source = reference.source
@@ -2113,23 +2112,22 @@ class ReusableSystem(System):
 
     reusable: ClassVar[bool] = True
 
-    def __init__(self, label: str, name=None):
+    def __init__(self, name: str):
         """
-        Initialize a reusable system with its permanent instance label.
+        Initialize a reusable system with its permanent instance name.
 
-        Subclasses receive the label before defining configuration, devices,
-        parameters, or other label-derived state.
+        Subclasses receive the name before defining configuration, devices,
+        parameters, or other name-derived state.
         """
-        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", label) is None:
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
             raise ValueError(
-                "System label must start with a letter or underscore and contain only "
+                "System name must start with a letter or underscore and contain only "
                 "letters, digits, and underscores"
             )
-        prefix = self.label_prefix
+        prefix = self.name_prefix
         if prefix is not None and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", prefix) is None:
-            raise ValueError(f"Reusable system has invalid label prefix {prefix!r}")
+            raise ValueError(f"Reusable system has invalid name prefix {prefix!r}")
         super().__init__(name)
-        self.instance_label = label
 
     def load_config(
         self,
@@ -2137,11 +2135,12 @@ class ReusableSystem(System):
         section: str,
         sensitive_keys: list[str] | None = None,
     ) -> None:
-        """Load the configuration subsection selected by this instance's label."""
+        """Load the configuration subsection selected by this instance's name."""
+        assert self.name is not None
         self.config_base_section = section
         self._load_config_section(
             model_class,
-            f"{section}.{self.instance_label}",
+            f"{section}.{self.name}",
             sensitive_keys,
         )
 
@@ -2185,7 +2184,7 @@ class MergedSystem(System):
         self.__name__ = ",".join(
             SystemReference(
                 source=subsys.source or subsys.__name__,
-                label=subsys.instance_label,
+                name=subsys.name if subsys.reusable else None,
             ).to_token()
             for subsys in self.subsys
         )
@@ -2271,16 +2270,16 @@ class MergedSystem(System):
         cls,
         references: Iterable[str | Path | SystemReference],
     ) -> Result["MergedSystem", str]:
-        """Load, bind, and merge static or labelled reusable system references."""
+        """Load, bind, and merge static or named reusable system references."""
         normalized: list[SystemReference] = []
-        labels: set[str] = set()
+        names: set[str] = set()
         try:
             for value in references:
                 reference = SystemReference.from_value(value)
-                if reference.label is not None:
-                    if reference.label in labels:
-                        return Error(f"Duplicate reusable system label '{reference.label}'")
-                    labels.add(reference.label)
+                if reference.name is not None:
+                    if reference.name in names:
+                        return Error(f"Duplicate reusable system name '{reference.name}'")
+                    names.add(reference.name)
                 normalized.append(reference)
         except (ValidationError, ValueError) as error:
             return Error(str(error))
@@ -2498,9 +2497,9 @@ class MergedSystem(System):
             info["instances"].append(
                 SystemInstanceInfo(
                     source=subsys.source or subsys.__name__,
-                    label=subsys.instance_label,
+                    name=subsys.name,
                     reusable=subsys.reusable,
-                    label_prefix=subsys.label_prefix,
+                    name_prefix=subsys.name_prefix,
                     class_name=subsys.__class__.__name__,
                     accessor_name=subsys.accessor_name,
                     config_section=subsys.config_section,

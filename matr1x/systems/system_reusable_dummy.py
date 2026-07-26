@@ -24,25 +24,25 @@ class ReusableDummyConfig(SystemConfigModel):
 class ReusableDummy(ReusableSystem):
     """Dummy system which may be selected multiple times."""
 
-    label_prefix = "dummy"
+    name_prefix = "dummy"
 
-    def __init__(self, label: str):
-        """Initialize one labelled dummy system instance."""
-        super().__init__(label)
+    def __init__(self, name: str):
+        """Initialize one named dummy system instance."""
+        super().__init__(name)
         self.dcdata["source"] = "reusable dummy system for testing matr1x"
         self.load_config(
             ReusableDummyConfig,
             "matr1x.systems.system_reusable_dummy",
         )
         self.add_dev(
-            label,
+            name,
             dummy,
             args=(getattr(self.config, "address", ""),),
             kwargs={"p2": self.config.initial_p2},
         )
         self.add_param(
-            f"{label} p2",
+            f"{name} p2",
             "cnt",
-            setter=[label, "p2"],
-            getter=[label, "p2"],
+            setter=[name, "p2"],
+            getter=[name, "p2"],
         )

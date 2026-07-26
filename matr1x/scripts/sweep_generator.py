@@ -1348,7 +1348,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         if not self.ui.widgets.system_list.references_valid():
             self.ui.widgets.notifier.show_message(
                 NotifierMessage(
-                    "Reusable system labels must be valid before saving.",
+                    "Reusable system names must be valid before saving.",
                     logging.WARNING,
                 )
             )

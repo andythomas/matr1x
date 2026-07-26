@@ -67,7 +67,7 @@ def test_system_import(system_file):
     assert isinstance(capability, Success)
     reference = SystemReference(
         source=str(system_file),
-        label="test_instance" if capability.value.reusable else None,
+        name="test_instance" if capability.value.reusable else None,
     )
     system = System.from_file(reference)
     assert isinstance(system, Success)
