@@ -710,7 +710,7 @@ class System:
             System as defined in the file or an error string.
         """
         normfilename = filename.expanduser()
-
+        legacy_warning: str | None = None
         if normfilename.is_file():
             try:
                 mod = module_from_path(normfilename)
@@ -748,10 +748,9 @@ class System:
             system = getattr(mod, legacy_name, None)
 
         if isinstance(system, System):
-            logger.warning(
-                "Using an initialized System instance exported as '%s' is deprecated; "
-                "define exactly one local System subclass instead.",
-                legacy_name,
+            legacy_warning = (
+                f"Using an initialized System instance exported as '{legacy_name}' is deprecated; "
+                "define exactly one local System subclass instead."
             )
         else:
             # Imported base classes do not qualify: the system file itself
@@ -777,6 +776,8 @@ class System:
             system = system_classes.pop()()
         # set the name of the system to reflect the filename
         system.__name__ = str(normfilename)
+        if legacy_warning:
+            system.warnings.append(legacy_warning)
         return Success(system)
 
     @property
