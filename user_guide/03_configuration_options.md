@@ -163,11 +163,11 @@ class FeatureConfig(SystemConfigModel):
         description="VISA resource address",
     )
 
-class MeasSystem(System):
+class Feature(System):
     """Measurement system for dummy feature demonstration."""
 
     def __init__(self):
-        """Initialize the MeasSystem."""
+        """Initialize the Feature system."""
         super().__init__()
         # Load and validate configuration using the model
         self.load_config(FeatureConfig, "matr1x.systems.system_dummy_feature")
