@@ -68,7 +68,7 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.editor import CodeEditor
-from matr1x.error_handling import InternalInvariantError, install_error_handler
+from matr1x.error_handling import Error, InternalInvariantError, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     AutoSlot,
@@ -1137,19 +1137,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.actions.start.setToolTip("A measurement is currently running.")
             return
 
-        if config_errors := self.ui.widgets.config_editor.get_system_config_validation_errors():
-            self.ui.actions.start.setEnabled(False)
-            self.ui.actions.start.setToolTip(
-                "Fix the invalid system configuration before running:\n\n"
-                + "\n".join(config_errors)
-            )
-            return
-
-        if config_errors := self.ui.widgets.config_editor.get_validation_errors():
+        config_validation = self.ui.widgets.config_editor.validate_config()
+        if isinstance(config_validation, Error):
             self.ui.actions.start.setEnabled(False)
             self.ui.actions.start.setToolTip(
                 "Fix the invalid configuration entries before running:\n\n"
-                + "\n".join(config_errors)
+                + config_validation.error
             )
             return
 
@@ -1627,10 +1620,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
-        if self.ui.widgets.config_editor.get_system_config_validation_errors():
-            self.update_start_action_state()
-            return
-        if self.ui.widgets.config_editor.get_validation_errors():
+        config_validation = self.ui.widgets.config_editor.validate_config()
+        if isinstance(config_validation, Error):
             self.update_start_action_state()
             return
         if (

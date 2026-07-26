@@ -72,14 +72,17 @@ visadebug = false
 ```
 
 Some systems also define optional parameters which can be configured via the same
-`~/.matr1x.toml`. An example is found in `system_dummy_feature.py` which adds four options.
+`~/.matr1x.toml`. An example is found in `system_dummy_feature.py`:
 
 ```toml
 [matr1x.systems.system_dummy_feature]
-setting1 = "CURR"
-setting2 = false
-setting3 = 36.232
-setting4 = "~/.matr1x.toml"
+measurement_mode = "CURR"
+output_enabled = false
+reference_value = 36.232
+config_file = "~/.matr1x.toml"
+averaging_count = 10
+settling_time = 0.5
+visa_address = "GPIB::2"
 ```
 
 ### Configuring systems via Pydantic models
@@ -94,41 +97,70 @@ the following example from `system_dummy_feature.py`.
 
 ```python
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from matr1x.models import FilePath, GuiField, SciFloat
+from matr1x.models import (
+    FilePath,
+    GuiField,
+    SciFloat,
+    SystemConfigModel,
+    VisaResource,
+)
 from matr1x.system import System
 
-class DummyConfig(BaseModel):
+class FeatureConfig(SystemConfigModel):
     """Configuration for dummy feature."""
+
     # 1. Dropdown menu (using Literal)
-    setting1: Literal["CURR", "VOLT"] = Field("VOLT", description="Measurement mode")
+    measurement_mode: Literal["CURR", "VOLT"] = Field(
+        "VOLT",
+        description="Measurement mode",
+    )
 
     # 2. Checkbox (using bool)
-    setting2: bool = Field(True, description="Enable feature")
+    output_enabled: bool = Field(
+        True,
+        description="Enable the simulated output",
+    )
 
-    # 3. Spinbox with limits (using ge/le/multiple_of)
-    # Use GuiField to set display decimals easily
-    setting3: float = GuiField(
+    # 3. Scientific-notation editor with limits
+    reference_value: SciFloat = GuiField(
         3.3215,
         ge=-1e9,
         le=99,
         description="Reference value",
-        decimals=4
+        decimals=4,
     )
 
     # 4. Path selector (File/Folder dialog)
     # Use FilePath or FolderPath types to trigger a browser button
-    setting4: FilePath = Field(
+    config_file: FilePath = Field(
         "~/.matr1x.toml",
-        description="Config file path"
+        description="Config file path",
     )
 
-    # 5. Scientific notation (scifloat)
-    # Use SciFloat type to enable scientific notation
-    setting5: SciFloat = Field(
-        1.23e-6,
-        description="A small value"
+    # 5. Integer spinbox with inclusive limits
+    averaging_count: int = Field(
+        10,
+        ge=1,
+        le=1000,
+        description="Number of samples to average",
+    )
+
+    # 6. Floating-point spinbox with limits and a step size
+    settling_time: float = GuiField(
+        0.5,
+        ge=0.0,
+        le=60.0,
+        multiple_of=0.1,
+        decimals=1,
+        description="Settling time in seconds",
+    )
+
+    # 7. Editable VISA resource selector
+    visa_address: VisaResource = Field(
+        "GPIB::2",
+        description="VISA resource address",
     )
 
 class MeasSystem(System):
@@ -138,7 +170,7 @@ class MeasSystem(System):
         """Initialize the MeasSystem."""
         super().__init__()
         # Load and validate configuration using the model
-        self.load_config(DummyConfig, "matr1x.systems.system_dummy_feature")
+        self.load_config(FeatureConfig, "matr1x.systems.system_dummy_feature")
 
     def set(self, *args, **kwargs):
         """Initialize and configure the measurement."""
@@ -147,8 +179,8 @@ class MeasSystem(System):
         # configure devices upon initialization using attribute access
         self.devs["dev1"].p2 = 10
         self.devs["dev2"].configure(
-            setting1=self.config.setting1,
-            setting2=self.config.setting2
+            measurement_mode=self.config.measurement_mode,
+            output_enabled=self.config.output_enabled,
         )
 ```
 

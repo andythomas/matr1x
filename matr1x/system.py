@@ -36,7 +36,7 @@ from typing import Any, TypeGuard, TypeVar
 
 import h5py
 import numpy as np
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pymeasure.instruments import Instrument
 
 import matr1x
@@ -88,6 +88,19 @@ BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(o
 ALLOWED_SIGNATURE_TYPES = BUILTIN_TYPES | {None}
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_config_with_defaults(
+    model_class: type[BaseModel],
+    config_data: dict[str, Any],
+) -> BaseModel:
+    """Validate explicit configuration and defaults in one model-validation pass."""
+    default_data = model_class.model_construct().model_dump(
+        mode="python",
+        by_alias=True,
+        round_trip=True,
+    )
+    return model_class.model_validate({**default_data, **config_data})
 
 
 ConfigScheme = tuple[str, tuple, dict[str, Any]]
@@ -614,7 +627,7 @@ class System:
 
     def load_config(
         self,
-        model_class: type[Any],
+        model_class: type[BaseModel],
         section: str,
         sensitive_keys: list[str] | None = None,
     ) -> None:
@@ -642,7 +655,7 @@ class System:
 
         try:
             # Validate the config data
-            validated_config = model_class(**config_data)
+            validated_config = _validate_config_with_defaults(model_class, config_data)
         except (ValidationError, TypeError, ValueError) as e:
             from . import format_validation_error, validation_errors
 

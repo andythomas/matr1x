@@ -41,6 +41,7 @@ from pydantic import (
 
 import matr1x
 from matr1x.util import flatten, get_formatted_line
+from matr1x.visa_helpers import validate_visa_resource
 
 
 def GuiField(
@@ -73,41 +74,6 @@ def GuiField(
 SciFloat = Annotated[float, GuiField(ui_type="scifloat")]
 FilePath = Annotated[str, GuiField(ui_type="file")]
 FolderPath = Annotated[str, GuiField(ui_type="folder")]
-
-
-def validate_visa_resource(value: str) -> str:
-    """
-    Validate a VISA resource string without opening the instrument.
-
-    ``VisaResource`` can be used in Pydantic config models for systems that
-    need a VISA address. The config editor will render the field as an
-    editable combo box with PyVISA resource suggestions while still allowing
-    free text input.
-
-    Example
-    -------
-    ```python
-    from pydantic import BaseModel, Field
-
-    from matr1x.models import VisaResource
-
-
-    class DeviceConfig(BaseModel):
-        address: VisaResource = Field(..., description="VISA resource address")
-    ```
-    """
-    if not value.strip():
-        raise ValueError("VISA resource address must not be empty")
-
-    import pyvisa
-
-    try:
-        resource_info = pyvisa.ResourceManager().resource_info(value)
-    except Exception as exc:
-        raise ValueError(f"Invalid VISA resource address {value!r}: {exc}") from exc
-    if resource_info.resource_name is None:
-        raise ValueError(f"Invalid VISA resource address {value!r}")
-    return value
 
 
 VisaResource = Annotated[
@@ -145,6 +111,12 @@ def format_validation_error(e: ValidationError | TypeError | ValueError, base: s
         # Handle TypeError and ValueError which don't have errors() method
         msg += f"{base}: {str(e)}\n"
     return msg
+
+
+class SystemConfigModel(BaseModel):
+    """Base model for system configuration with validated default values."""
+
+    model_config = ConfigDict(validate_default=True)
 
 
 class ConfigBaseModel(BaseModel):
