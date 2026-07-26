@@ -518,7 +518,10 @@ class MetaViewerWidget(QDockWidget):
                 editor.setText(str(value))
                 editor.resize(editor.sizeHint())
             elif isinstance(editor, QCheckBox):
-                editor.setChecked(bool(value))
+                if isinstance(value, str):
+                    editor.setChecked(value.strip().casefold() == "true")
+                else:
+                    editor.setChecked(bool(value))
             elif isinstance(editor, FileLineEdit):
                 editor.setText(str(value))
             elif isinstance(editor, QComboBox):
