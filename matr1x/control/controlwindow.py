@@ -370,7 +370,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     name : str
         Identifier string of the control GUI.
     guidicts : GuiDict or GuiDict subclass, or a list or tuple of those
-        GuiDict object(s) which build the basis of the controlGUI.
+        GuiDict object(s) which build the basis of the controlGUI. Their
+        Systems must have unique names that are valid Python identifiers.
     extra_cmds : dict, optional
         Dictionary of commands offered for the measurement system. Commands from
         the GuiDict object are merged together with this list.
@@ -443,8 +444,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._server_disabled_by_panic = False
         self._port = port
         # initialize data logging system
-        self.S_log = system.System()
-        self.S_log.__name__ = f"{package}.{name}_control_logging_system"
+        self.S_log = system.System(name=f"{package}.{name}_control_logging_system")
         self.ui = UIBuilder()
         self.setMenuBar(self.ui.menus.menu)
         self.setCentralWidget(self.ui.widgets.central_widget)
@@ -505,6 +505,17 @@ class ControlWindow(LogWindowMixin, QMainWindow):
                 raise TypeError(
                     "ControlWindow guidicts must be GuiDict instances or GuiDict subclasses, "
                     f"got {type(guidict).__name__}."
+                )
+            if not isinstance(guidict.S, system.System):
+                raise TypeError(
+                    f"GuiDict {type(guidict).__name__}.S must be a System instance, "
+                    f"got {type(guidict.S).__name__}."
+                )
+            system_name = guidict.S.name
+            if system_name is None or not system_name.isidentifier():
+                raise ValueError(
+                    f"GuiDict {type(guidict).__name__}.S must have a name that is a "
+                    "valid Python identifier."
                 )
             guidict.refresh_worker.sig_error.connect(self.handleError)
             guidict.parent = self
