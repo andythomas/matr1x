@@ -21,38 +21,34 @@ from matr1x.system import System
 
 
 # ============================
-# initialize system instance
+# define system class
 class Dummy(System):
     """Dummy system for testing and demonstration purposes."""
 
+    def __init__(self):
+        """Initialize the dummy device and its measurement parameter."""
+        super().__init__()
+        self.dcdata["source"] = "dummy system for testing matr1x-matrix"
+        # ========================================================================
+        # This is the main system area.
+        # Device definition and configuration takes place here, but devices are
+        # not yet opened.
+        # ========================================================================
+        self.add_dev(
+            "dev",  # name of device, must be unique
+            dummy,  # device class, not instanced
+            args=("TCPIP::localhost::10007::SOCKET",),  # arguments for init
+            # {"timeout": 100, }  # kwargs can be given if needed
+        )
+        # The device class is instantiated as dummy(*args) when self.set() is
+        # called upon start of the measurement.
 
-system = Dummy()
-# define Dublin core source parameter
-system.dcdata["source"] = "dummy system for testing matr1x-matrix"
-# ============================
-
-
-# ========================================================================
-# This is the main system area
-# Device definition and configuration takes place here, but devices are
-# not yet opened
-# ========================================================================
-system.add_dev(
-    "dev",  # name of device, must be unique
-    dummy,  # device class, not instanced
-    args=("TCPIP::localhost::10007::SOCKET",),  # arguments for init
-    # {"timeout": 100, }  # kwargs can be given if needed
-)
-# The device classes will be instanced and initalized as dummy(*args)
-# when system.set() is called upon start of the measurement.
-
-# ==============================
-# define columns for measurement
-# ==============================
-system.add_param(
-    "dev p2",  # parameter name, must be unique
-    "cnt",  # parameter unit for the data file header
-    ["dev", "p2"],  # setter attribute/function is system.devs["dev"].p2
-    ["dev", "p2"],  # getter attribute/function is system.devs["dev"].p2
-)
-# ==============================
+        # ==============================
+        # define columns for measurement
+        # ==============================
+        self.add_param(
+            "dev p2",  # parameter name, must be unique
+            "cnt",  # parameter unit for the data file header
+            ["dev", "p2"],  # setter attribute/function is self.devs["dev"].p2
+            ["dev", "p2"],  # getter attribute/function is self.devs["dev"].p2
+        )

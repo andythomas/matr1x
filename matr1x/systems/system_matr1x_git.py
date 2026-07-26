@@ -25,20 +25,21 @@ from matr1x.util import get_package_path
 
 
 # ============================
-# initialize system instance
+# define system class
 class Git(System):
     """System adding git information to the data file header."""
 
+    def __init__(self):
+        """Initialize the git metadata device."""
+        super().__init__()
+        self.dcdata["source"] = "git information of matr1x"
+        self.add_dev(
+            "git",
+            gitDevice,
+            # package path of matr1x can be used if an editable install out
+            # of a git repository is used. Otherwise hard code the path here.
+            args=(get_package_path("matr1x"),),
+        )
 
-system = Git()
-# define Dublin core source parameter
-system.dcdata["source"] = "git information of matr1x"
+
 # ============================
-
-system.add_dev(
-    "git",
-    gitDevice,
-    # package path of matr1x can be used if an editable install out
-    # of a git repository is used. Otherwise hard code the path here.
-    args=(get_package_path("matr1x"),),
-)

@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from matr1x.error_handling import Success
+from matr1x.error_handling import Error, Success
 from matr1x.system import System
 
 # Collect all files in the system-folder
@@ -61,3 +61,94 @@ def test_system_import(system_file):
     """
     system = System.from_file(system_file)
     assert isinstance(system, Success)
+
+
+def test_system_file_discovers_local_subclass(tmp_path):
+    """Load the sole System subclass defined by the system file."""
+    system_file = tmp_path / "system_compatibility.py"
+    system_file.write_text(
+        """\
+from matr1x.system import System
+
+class ClassSystem(System):
+    def __init__(self):
+        super().__init__()
+        self.add_param("class value", "V")
+"""
+    )
+
+    result = System.from_file(system_file)
+
+    assert isinstance(result, Success)
+    assert result.value.columns == ["class value"]
+
+
+@pytest.mark.parametrize("export_name", ["system", "sys"])
+def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export_name):
+    """Load initialized legacy exports while emitting a soft-deprecation warning."""
+    system_file = tmp_path / "system_legacy.py"
+    system_file.write_text(f"from matr1x.system import System\n\n{export_name} = System()\n")
+
+    result = System.from_file(system_file)
+    warning = result.value.warnings[0]
+
+    assert isinstance(result, Success)
+    assert f"exported as '{export_name}' is deprecated" in warning
+
+
+def test_system_file_ignores_imported_system_base(tmp_path, monkeypatch):
+    """Only a subclass defined by the system file is considered an entry point."""
+    base_file = tmp_path / "imported_system_base.py"
+    base_file.write_text(
+        """\
+from matr1x.system import System
+
+class ImportedBase(System):
+    pass
+"""
+    )
+    system_file = tmp_path / "system_derived.py"
+    system_file.write_text(
+        """\
+from imported_system_base import ImportedBase
+
+class LocalSystem(ImportedBase):
+    pass
+"""
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    result = System.from_file(system_file)
+
+    assert isinstance(result, Success)
+    assert type(result.value).__name__ == "LocalSystem"
+
+
+@pytest.mark.parametrize(
+    ("contents", "error"),
+    [
+        ("from matr1x.system import System\n", "none found"),
+        (
+            """\
+from matr1x.system import System
+
+class First(System):
+    pass
+
+class Second(System):
+    pass
+""",
+            "found: First, Second",
+        ),
+    ],
+    ids=["no-local-subclass", "multiple-local-subclasses"],
+)
+def test_system_file_requires_exactly_one_local_subclass(tmp_path, contents, error):
+    """Reject system files that do not meet the single-local-subclass contract."""
+    system_file = tmp_path / "system_invalid.py"
+    system_file.write_text(contents)
+
+    result = System.from_file(system_file)
+
+    assert isinstance(result, Error)
+    assert error in result.error
