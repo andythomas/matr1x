@@ -636,8 +636,6 @@ class MetaViewerWidget(QDockWidget):
         if model is not None and index is not None:
             model.setData(index, value, Qt.ItemDataRole.EditRole)
             model.set_validation_error(index, validation_error, refresh_view=refresh_view)
-            if not refresh_view:
-                model.dataChanged.emit(index, index)
 
     @staticmethod
     def visa_resource_names() -> list[str]:
