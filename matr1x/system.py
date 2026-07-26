@@ -90,19 +90,6 @@ ALLOWED_SIGNATURE_TYPES = BUILTIN_TYPES | {None}
 logger = logging.getLogger(__name__)
 
 
-def _validate_config_with_defaults(
-    model_class: type[BaseModel],
-    config_data: dict[str, Any],
-) -> BaseModel:
-    """Validate explicit configuration and defaults in one model-validation pass."""
-    default_data = model_class.model_construct().model_dump(
-        mode="python",
-        by_alias=True,
-        round_trip=True,
-    )
-    return model_class.model_validate({**default_data, **config_data})
-
-
 ConfigScheme = tuple[str, tuple, dict[str, Any]]
 ConfigValue = str | Callable[[], Any] | ConfigScheme
 ConfigParameter = dict[str, ConfigValue]
@@ -655,7 +642,7 @@ class System:
 
         try:
             # Validate the config data
-            validated_config = _validate_config_with_defaults(model_class, config_data)
+            validated_config = model_class.model_validate(config_data)
         except (ValidationError, TypeError, ValueError) as e:
             from . import format_validation_error, validation_errors
 
