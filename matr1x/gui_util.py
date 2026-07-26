@@ -1102,7 +1102,9 @@ class MetaViewerWidget(QDockWidget):
             """
             if not index.isValid():
                 return Qt.ItemFlag.NoItemFlags
-            if index.column() == 1:
+            item = index.internalPointer()
+            is_container = item.child_count() > 0 or isinstance(item.value, (dict, BaseModel))
+            if index.column() == 1 and not is_container:
                 return (
                     Qt.ItemFlag.ItemIsSelectable
                     | Qt.ItemFlag.ItemIsEnabled
