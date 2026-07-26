@@ -1512,6 +1512,13 @@ class ConfigEditWidget(MetaViewerWidget):
         else:
             self.hide()
 
+    def show_for_validation_errors(self) -> None:
+        """Bring the configuration editor forward after validation fails."""
+        self.action.setChecked(True)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
     def _sync_metadata_view(self) -> None:
         """Match view action state to the restored widget visibility."""
         with blocked_signals(self.action):
@@ -1608,7 +1615,13 @@ class ConfigEditWidget(MetaViewerWidget):
                     and "schema" in config_info
                 ):
                     syst_dict[system_name] = copy.deepcopy(config_info["value"])
-                    syst_dict[system_name]["_schema"] = config_info["schema"]
+                    schema = config_info["schema"]
+                    for field_name, field_schema in schema.get("properties", {}).items():
+                        if field_name not in syst_dict[system_name] and "default" in field_schema:
+                            syst_dict[system_name][field_name] = field_schema["default"]
+                    # The tree model adds absent required fields as editable,
+                    # explicitly missing items using this schema.
+                    syst_dict[system_name]["_schema"] = schema
                     continue
 
                 # Add runtime config from system info
@@ -1824,18 +1837,33 @@ class ConfigEditWidget(MetaViewerWidget):
         return items
 
     def apply_config_dict(self, config: dict) -> None:
-        """Apply values from a nested config dict to the tree items."""
+        """Apply values for configuration sections present in the current tree."""
 
-        def _merge(base: dict, update: dict) -> None:
-            """Deep-merge update into base."""
-            for key, val in update.items():
-                if key in base and isinstance(base[key], dict) and isinstance(val, dict):
-                    _merge(base[key], val)
-                else:
-                    base[key] = val
+        def apply_values(value: Any, path: str = "") -> None:
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    child_path = f"{path}.{key}" if path else key
+                    apply_values(child, child_path)
+                return
 
-        _merge(self.value_dict, self.flatten_dict(config))
-        super().update_data(self.value_dict, self.types_dict)
+            # Do not turn a missing required field into a literal null value.
+            if value is None:
+                return
+            index = self._index_for_config_path(path)
+            if not index.isValid():
+                return
+
+            validation_error = None
+            if self.model.type(index).get("ui_type") == "visa_resource":
+                try:
+                    value = validate_visa_resource(str(value))
+                except ValueError as exc:
+                    validation_error = str(exc)
+            self.model.setData(index, value, Qt.ItemDataRole.EditRole)
+            self.model.set_validation_error(index, validation_error)
+            self.model.dataChanged.emit(index, index)
+
+        apply_values(config)
 
     def parse_item(self, item) -> Any:
         """

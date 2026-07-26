@@ -15,14 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in matrix script."""
 
+import logging
 from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
 
 import matr1x.eval
-from matr1x.models import Envelope, Message, Modifier
-from matr1x.scripts import matrix_script
+from matr1x.error_handling import Success
+from matr1x.models import Envelope, Message, Modifier, SystemInfo
+from matr1x.scripts import matrix_script, shared_classes
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
 
@@ -143,6 +146,34 @@ def test_start_action_disabled_for_invalid_config(
 
     assert not main_window.ui.actions.start.isEnabled()
     assert "invalid address" in main_window.ui.actions.start.toolTip()
+    assert main_window.ui.widgets.config_editor.isVisible()
+
+
+def test_adding_system_preserves_unsaved_config(
+    qapp, matrix_script_window: matrix_script.MainWindow
+):
+    """Rebuilding for another static system retains compatible editor values."""
+    main_window = matrix_script_window
+    system_list = main_window.ui.widgets.system_list
+    system_list.clear()
+    system_list.add_systems(["matr1x.systems.system_dummy_feature"])
+    entered_index = main_window.ui.widgets.config_editor._index_for_config_path(
+        "matr1x.systems.system_dummy_feature.reference_value"
+    )
+    assert entered_index.isValid()
+    main_window.ui.widgets.config_editor.model.setData(
+        entered_index,
+        42.5,
+        Qt.ItemDataRole.EditRole,
+    )
+
+    system_list.add_systems(["matr1x.systems.system_dummy_meas"])
+    qapp.processEvents()
+
+    retained_index = main_window.ui.widgets.config_editor._index_for_config_path(
+        "matr1x.systems.system_dummy_feature.reference_value"
+    )
+    assert retained_index.data(Qt.ItemDataRole.EditRole) == "42.5"
 
 
 def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):

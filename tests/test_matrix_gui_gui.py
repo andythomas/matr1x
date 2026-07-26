@@ -101,6 +101,7 @@ def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch):
 
     main_window.ui.widgets.input_file.setText(str(test_sweep_file))
     qtbot.waitUntil(lambda: main_window.ui.actions.queue.isEnabled(), timeout=2000)
+    main_window.ui.actions.config.setChecked(False)
     monkeypatch.setattr(
         main_window.ui.widgets.config_editor,
         "get_validation_errors",
@@ -111,5 +112,6 @@ def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch):
 
     assert not main_window.ui.actions.queue.isEnabled()
     assert "invalid address" in main_window.ui.actions.queue.toolTip()
+    assert main_window.ui.widgets.config_editor.isVisible()
     main_window.queue_measurement()
     assert main_window.ui.widgets.meas_list.count() == 0

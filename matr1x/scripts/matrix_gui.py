@@ -540,6 +540,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         # Sweep files are expected to contain validated system information at this point.
         config_validation = self.ui.widgets.config_editor.validate_config()
         if isinstance(config_validation, Error):
+            self.ui.widgets.config_editor.show_for_validation_errors()
             self.ui.actions.queue.setEnabled(False)
             self.ui.actions.queue.setToolTip(
                 "Fix the invalid configuration entries before queueing:\n\n"
@@ -729,6 +730,12 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 system_info = None
             else:
                 system_info = system_info.value
+                if system_info.config_validation_errors:
+                    logger.warning(
+                        "System configuration validation failed; use the device config editor "
+                        "to correct these entries:\n%s",
+                        "".join(system_info.config_validation_errors),
+                    )
         matr1x.reload_config()
         self.ui.widgets.config_editor.set_systemfile(configurable)
         if systemfile != self.ui.widgets.config_editor.full_system_list:
@@ -745,6 +752,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             return
         config_validation = self.ui.widgets.config_editor.validate_config()
         if isinstance(config_validation, Error):
+            self.ui.widgets.config_editor.show_for_validation_errors()
             self.update_queue_action_state()
             return
         self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
