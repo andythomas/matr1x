@@ -1198,6 +1198,10 @@ class GuiDict(UserDict[str, var]):
         Flag to decide if the GuiDict can be disabled. If this is set to True the
         underlying devices should all provide a `close` method or be a pymeasure
         Instrument. Otherwise likely reenabling will fail.
+    S : System
+        System used by this part of the control GUI. If omitted, an empty
+        system named after the GuiDict class is created. Every GuiDict used in
+        one ControlWindow must have a uniquely named System.
     """
 
     data: dict[str, var] = {}
@@ -1208,7 +1212,7 @@ class GuiDict(UserDict[str, var]):
     def __init__(self) -> None:
         super().__init__(self.data)
         if not hasattr(self, "S"):
-            self.S = System()
+            self.S = System(name=self.__class__.__name__)
         self._refresh_thread: QThread = QThread()
         self._panic: bool = False
         self._extended_visible = threading.Event()

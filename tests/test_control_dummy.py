@@ -46,6 +46,7 @@ from matr1x.control import ControlWindow, GuiDict, MethodBundle, var
 from matr1x.control import guiObject as go
 from matr1x.control.control_dummy import exampleDict
 from matr1x.scpi_tcpserver import SCPI_TCP_Server
+from matr1x.system import System
 
 path = Path(__file__).resolve().parent
 
@@ -230,6 +231,41 @@ def test_control_window_panic_stops_and_restores_server(qapp, qtbot, monkeypatch
     assert window.start_server_calls >= 1
     assert window._server_disabled_by_panic is False
     assert window._local_server is not None
+
+
+def test_control_window_uses_unique_guidict_system_names(qapp, qtbot):
+    """Implicit GuiDict systems use their unique names after merging."""
+
+    class FirstPanel(GuiDict):
+        data = {"First": var(None, columns="Readout")}
+
+    class SecondPanel(GuiDict):
+        data = {"Second": var(None, columns="Readout")}
+
+    window = ControlWindow("named-systems", [FirstPanel, SecondPanel])
+    qtbot.addWidget(window)
+
+    assert [guidict.S.name for guidict in window.guidicts] == [
+        "FirstPanel",
+        "SecondPanel",
+    ]
+    assert window.S.FirstPanel is window.guidicts[0].S
+    assert window.S.SecondPanel is window.guidicts[1].S
+
+
+def test_control_window_rejects_duplicate_system_names(qapp):
+    """System instance names are the unique binding contract in a control GUI."""
+
+    class FirstPanel(GuiDict):
+        S = System(name="shared")
+        data = {"First": var(None, columns="Readout")}
+
+    class SecondPanel(GuiDict):
+        S = System(name="shared")
+        data = {"Second": var(None, columns="Readout")}
+
+    with pytest.raises(ValueError, match="Duplicate subsystem accessor name 'shared'"):
+        ControlWindow("duplicate-systems", [FirstPanel, SecondPanel])
 
 
 def test_methodbundle_guidict_method_runs_on_gui_thread(qapp, qtbot):
