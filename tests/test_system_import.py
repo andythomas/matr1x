@@ -21,7 +21,6 @@ matr1x/systems directory and runs tests to ensure they can be imported
 as valid System objects.
 """
 
-import logging
 from pathlib import Path
 
 import pytest
@@ -90,11 +89,11 @@ def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export
     system_file = tmp_path / "system_legacy.py"
     system_file.write_text(f"from matr1x.system import System\n\n{export_name} = System()\n")
 
-    with caplog.at_level(logging.WARNING, logger="matr1x.system"):
-        result = System.from_file(system_file)
+    result = System.from_file(system_file)
+    warning = result.value.warnings[0]
 
     assert isinstance(result, Success)
-    assert f"exported as '{export_name}' is deprecated" in caplog.text
+    assert f"exported as '{export_name}' is deprecated" in warning
 
 
 def test_system_file_ignores_imported_system_base(tmp_path, monkeypatch):
