@@ -91,6 +91,9 @@ project-includes = [
 [tool.ty.src]
 include = ["matr1x"]
 
+[tool.ty.rules]
+unused-ignore-comment = "ignore"
+
 
 [tool.ruff]
 line-length = 99       # max per pep8
