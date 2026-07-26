@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in matrix script."""
 
-import logging
 from collections.abc import Generator
 from pathlib import Path
 
@@ -23,9 +22,8 @@ import pytest
 from PySide6.QtCore import Qt
 
 import matr1x.eval
-from matr1x.error_handling import Success
-from matr1x.models import Envelope, Message, Modifier, SystemInfo
-from matr1x.scripts import matrix_script, shared_classes
+from matr1x.models import Envelope, Message, Modifier
+from matr1x.scripts import matrix_script
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
 
