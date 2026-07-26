@@ -260,7 +260,7 @@ def set_value(parameter, value):
             None,
         ] * len(_system.columns[i])
     else:
-        _setvalues[i] = setv
+        _setvalues[i] = setv  # ty: ignore[invalid-assignment]
     return setv
 
 

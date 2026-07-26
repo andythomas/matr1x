@@ -4209,7 +4209,6 @@ class hasLogActions(Protocol):
     def show_log(self) -> QAction:
         """The action to show the log window."""
 
-
     @property
     def post_install(self) -> QAction:
         """The action to post-install the application."""
