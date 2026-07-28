@@ -7,29 +7,8 @@ To give a better idea of the required coding effort and the resulting instrument
 
 We will have a look at `system_dummy.py`, which is part of this package.
 
-```python
-from matr1x.devices.dummy import dummy
-from matr1x.system import System
-
-class Dummy(System):
-    def __init__(self):
-        super().__init__()
-        # define Dublin core source parameter
-        self.dcdata["source"] = "dummy system for testing matr1x-matrix"
-
-        self.add_dev(
-            "dev",  # name of device, must be unique
-            dummy,  # device class, not instanced
-            args=("TCPIP::localhost::10007::SOCKET",),  # arguments for init
-            # {"timeout": 100, }  # kwargs can be given if needed
-        )
-
-        self.add_param(
-            "dev p2",  # parameter name, must be unique
-            "cnt",  # parameter unit for the data file header
-            ["dev", "p2"],  # setter attribute/function is self.devs["dev"].p2
-            ["dev", "p2"],  # getter attribute/function is self.devs["dev"].p2
-        )
+```markdown
+{{{< include "matr1x/systems/system_dummwy.py">}}}
 ```
 
 The `dummy` device driver is imported to mimic a device but to be able to run the example on any computer.
