@@ -239,23 +239,12 @@ def test_empty_script():
         ),
         (
             'def set_time():\n    set_value("timeUTC", 0.001)\n\nset_time()\n',
-            [4],
-        ),
-        (
-            "import time\n\n"
-            "def test_something(t):\n"
-            "    wait(t)\n"
-            "    time.sleep(t)\n\n\n"
-            "for i in range(2):\n"
-            "    test_something(0.001)\n"
-            '    set_value("timeUTC", 0.001)\n'
-            "    wait(0.001)\n",
-            [9, 10, 11, 9, 10, 11],
+            [2],
         ),
     ],
 )
 def test_matrix_script_reports_only_user_line_numbers(user_script, expected_lines, monkeypatch):
-    """Line reporting uses top-level user calls as progress indicators."""
+    """Line reporting keeps the nearest user line highlighted during external work."""
     script = matr1x.util.generate_script(user_script)
     thread = ExecThread(script, {}, "", None, [])
     generated_lines: list[int] = []

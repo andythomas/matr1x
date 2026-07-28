@@ -115,23 +115,17 @@ def _configure_script_storing(system: _MergedSystem, script: str) -> None:
 
 
 def _find_caller_frame() -> _types.FrameType | None:
-    """Find the top-level user frame, falling back to the nearest user frame."""
+    """Find the nearest stack frame belonging to the user script."""
     frame = _inspect.currentframe()
-    nearest_user_frame = None
-    outermost_module_frame = None
-
     while frame:
         if (
             frame.f_code.co_filename == "<string>"
             and _user_script_start_line <= frame.f_lineno <= _user_script_end_line
         ):
-            if nearest_user_frame is None:
-                nearest_user_frame = frame
-            if frame.f_code.co_name == "<module>":
-                outermost_module_frame = frame
+            return frame
         frame = frame.f_back
 
-    return outermost_module_frame or nearest_user_frame
+    return None
 
 
 @_wrapt.decorator
