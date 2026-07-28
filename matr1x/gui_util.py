@@ -1513,8 +1513,11 @@ class ConfigEditWidget(MetaViewerWidget):
             self.hide()
 
     def show_for_validation_errors(self) -> None:
-        """Bring the configuration editor forward after validation fails."""
-        self.action.setChecked(True)
+        """Open the configuration editor once after validation fails."""
+        if self.isVisible():
+            return
+        with blocked_signals(self.action):
+            self.action.setChecked(True)
         self.show()
         self.raise_()
         self.activateWindow()
