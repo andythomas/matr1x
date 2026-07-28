@@ -162,7 +162,7 @@ dev = [
 ]
 
 docs = [
-    "great-docs[svg]==0.15.0"
+    "great-docs[svg]==0.16.0"
 ]
 
 [tool.uv.dependency-groups]
