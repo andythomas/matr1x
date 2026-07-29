@@ -40,8 +40,8 @@ import wrapt as _wrapt
 import matr1x as _matr1x
 import matr1x.util as _matrix_util
 from matr1x.models import Datafile as _Datafile
+from matr1x.models import ExecutionLines as _ExecutionLines
 from matr1x.models import Header as _Header
-from matr1x.models import LineNumber as _LineNumber
 from matr1x.models import MeasuredValues as _MeasuredValues
 from matr1x.models import Message as _Message
 from matr1x.models import SetValues as _SetValues
@@ -114,18 +114,28 @@ def _configure_script_storing(system: _MergedSystem, script: str) -> None:
             )
 
 
-def _find_caller_frame() -> _types.FrameType | None:
-    """Find the nearest stack frame belonging to the user script."""
+def _find_caller_lines() -> list[int]:
+    """Find the active user-script lines, from innermost to outermost."""
     frame = _inspect.currentframe()
-    while frame:
-        if (
-            frame.f_code.co_filename == "<string>"
-            and _user_script_start_line <= frame.f_lineno <= _user_script_end_line
-        ):
-            return frame
-        frame = frame.f_back
+    lines: list[int] = []
+    seen_lines: set[int] = set()
 
-    return None
+    try:
+        while frame is not None:
+            line = frame.f_lineno
+            if (
+                frame.f_code.co_filename == "<string>"
+                and _user_script_start_line <= line <= _user_script_end_line
+                and line not in seen_lines
+            ):
+                lines.append(line)
+                seen_lines.add(line)
+            frame = frame.f_back
+    finally:
+        # Explicitly break the frame reference cycle created by currentframe().
+        del frame
+
+    return lines
 
 
 @_wrapt.decorator
@@ -137,12 +147,9 @@ def _lineno_decorator(wrapped, instance, args, kwargs):
 
 
 def _show_lineno() -> None:
-    """Report the executing line number back to the GUI."""
-    if frame := _find_caller_frame():
-        caller_filename = frame.f_code.co_filename
-        if caller_filename == "<string>":
-            # report line only if called directly from script
-            _report(_LineNumber(frame.f_lineno))
+    """Report the active user-script call chain back to the GUI."""
+    if lines := _find_caller_lines():
+        _report(_ExecutionLines(lines=lines))
 
 
 @_wrapt.decorator
@@ -208,7 +215,7 @@ def _reset_setvalues() -> None:
 
 
 # inject line number decorator to time.sleep
-_time.sleep = _lineno_decorator(_time.sleep)  # type: ignore time shadowing is intended!
+_time.sleep = _lineno_decorator(_time.sleep)  # ty: ignore[invalid-assignment]
 # inject breakpoint and line number decorators to system methods
 _inject_decorator(_system, _breakpoint)
 for subsys in _system.subsys:
