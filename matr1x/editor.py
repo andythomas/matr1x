@@ -625,7 +625,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self._validate_column()
 
 
-class EditorBackend(QObject):
+class EditorBackend(QObject, LoggerMixin):
     """
     Backend bridge to be used with the Monaco editor.
 
@@ -707,6 +707,20 @@ class EditorBackend(QObject):
         diagnostics = self._lint(self._current_code)
         self.lintingComplete.emit(json.dumps(diagnostics))
         self._issues = len(diagnostics)
+        self.logger.debug("Linter reported %d issue(s).", self._issues)
+        for diagnostic in diagnostics:
+            self.logger.debug(
+                "Linter diagnostic: source=%s, severity=%s, code=%s, "
+                "range=%s:%s-%s:%s, message=%s",
+                diagnostic.get("source", "unknown"),
+                diagnostic.get("severity", "unknown"),
+                diagnostic.get("code", "unknown"),
+                diagnostic.get("startLineNumber", "unknown"),
+                diagnostic.get("startColumn", "unknown"),
+                diagnostic.get("endLineNumber", "unknown"),
+                diagnostic.get("endColumn", "unknown"),
+                diagnostic.get("message", ""),
+            )
 
     def update_system_info(self, system_info: SystemInfo) -> None:
         """
@@ -808,6 +822,7 @@ class EditorBackend(QObject):
             checker.visit(tree)
             return checker.returnDiagnostics()
         except Exception:
+            self.logger.debug("Matrix value checker failed.", exc_info=True)
             return []
 
 
