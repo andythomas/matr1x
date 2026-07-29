@@ -22,6 +22,7 @@ These can be used for data acquisition and instrument control.
 import builtins
 import importlib
 import inspect
+import keyword
 import logging
 import os
 import re
@@ -630,7 +631,7 @@ class System:
     @property
     def accessor_name(self) -> str:
         """Return the attribute name used to expose this subsystem after merging."""
-        if self.name is not None and self.name.isidentifier():
+        if self.name is not None and self.name.isidentifier() and not keyword.iskeyword(self.name):
             return self.name
         return self.__class__.__name__
 

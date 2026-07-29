@@ -1201,7 +1201,8 @@ class GuiDict(UserDict[str, var]):
     S : System
         System used by this part of the control GUI. If omitted, an empty
         system named after the GuiDict class is created. Every GuiDict used in
-        one ControlWindow must have a uniquely named System.
+        one ControlWindow must have a uniquely named System whose name is a
+        valid, non-keyword Python identifier.
     """
 
     data: dict[str, var] = {}
@@ -1891,11 +1892,23 @@ Kill the other process ({otherpid}) before restarting.""",
 
     kwargs["package"] = package
     logger.info("Starting GUI")
-    with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
-        ret = app.exec()
-    logger.info("Exiting GUI")
-    if lockfile:
-        # clean exit, remove lockfile
-        if lockfilename.exists():
+    ret = 1
+    try:
+        with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
+            ret = app.exec()
+    except Exception as exc:
+        logger.exception("Control GUI '%s' failed to start", name)
+        QMessageBox.critical(
+            None,
+            "Control GUI startup failed",
+            f"""The control GUI '{name}' could not be started.
+
+{type(exc).__name__}: {exc}
+
+See the application log for more details.""",
+        )
+    finally:
+        if lockfile and lockfilename.exists():
             lockfilename.unlink()
+    logger.info("Exiting GUI")
     sys.exit(ret)

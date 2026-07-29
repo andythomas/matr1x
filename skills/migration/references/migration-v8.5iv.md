@@ -9,7 +9,8 @@ for example as `window.S.temperature`.
 The name must:
 
 - be unique among all `GuiDict` systems in the `ControlWindow`; and
-- be a valid Python identifier according to `str.isidentifier()`.
+- be a valid Python identifier according to `str.isidentifier()`; and
+- not be a Python keyword such as `class` or `return`.
 
 For example, `temperature`, `magnet_2`, and `cryostat` are valid names.
 Names containing spaces, hyphens, or dots, such as `temperature control`,

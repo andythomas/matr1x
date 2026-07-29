@@ -29,6 +29,7 @@ for various data acquisition setups.
 """
 
 import ast
+import keyword
 import logging
 import numbers
 import os
@@ -371,7 +372,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         Identifier string of the control GUI.
     guidicts : GuiDict or GuiDict subclass, or a list or tuple of those
         GuiDict object(s) which build the basis of the controlGUI. Their
-        Systems must have unique names that are valid Python identifiers.
+        Systems must have unique names that are valid, non-keyword Python
+        identifiers.
     extra_cmds : dict, optional
         Dictionary of commands offered for the measurement system. Commands from
         the GuiDict object are merged together with this list.
@@ -498,6 +500,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             raw_guidicts = [guidicts]
 
         self.guidicts = []
+        system_owners: dict[str, str] = {}
         for guidict in raw_guidicts:
             if isinstance(guidict, type) and issubclass(guidict, GuiDict):
                 guidict = guidict()
@@ -512,11 +515,22 @@ class ControlWindow(LogWindowMixin, QMainWindow):
                     f"got {type(guidict.S).__name__}."
                 )
             system_name = guidict.S.name
-            if system_name is None or not system_name.isidentifier():
+            if (
+                system_name is None
+                or not system_name.isidentifier()
+                or keyword.iskeyword(system_name)
+            ):
                 raise ValueError(
                     f"GuiDict {type(guidict).__name__}.S must have a name that is a "
-                    "valid Python identifier."
+                    "valid Python identifier and not a Python keyword."
                 )
+            if previous_owner := system_owners.get(system_name):
+                raise ValueError(
+                    f"GuiDict {type(guidict).__name__}.S uses duplicate System name "
+                    f"{system_name!r}, which is already used by GuiDict {previous_owner}. "
+                    "Every GuiDict in a ControlWindow must use a unique System name."
+                )
+            system_owners[system_name] = type(guidict).__name__
             guidict.refresh_worker.sig_error.connect(self.handleError)
             guidict.parent = self
             self.guidicts.append(guidict)
