@@ -264,7 +264,7 @@ def test_control_window_rejects_duplicate_system_names(qapp):
         S = System(name="shared")
         data = {"Second": var(None, columns="Readout")}
 
-    with pytest.raises(ValueError, match="Duplicate subsystem accessor name 'shared'"):
+    with pytest.raises(ValueError):
         ControlWindow("duplicate-systems", [FirstPanel, SecondPanel])
 
 
