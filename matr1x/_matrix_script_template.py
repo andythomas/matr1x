@@ -81,6 +81,7 @@ _ntot = None  # total number of measurement points for telemetry
 _starttime = _time.time()
 _preset = _starttime
 _reset_kwargs = {}
+_user_script_start_line, _user_script_end_line = _matrix_util.get_user_script_line_range(_script)
 
 
 def _configure_execution_path(scriptname: str | _Path) -> None:
@@ -114,30 +115,17 @@ def _configure_script_storing(system: _MergedSystem, script: str) -> None:
 
 
 def _find_caller_frame() -> _types.FrameType | None:
-    """Find the frame of the actual caller, skip decorator frames."""
-    # stepping twice back on frame, since the inner most frame is from
-    # this and the second one is from the _lineno decorator/function.
+    """Find the nearest stack frame belonging to the user script."""
     frame = _inspect.currentframe()
-    frame = frame.f_back.f_back if (frame and frame.f_back) else None
-    # Try to find the first frame called in script environment
-    # in Python 3.13+
     while frame:
-        if frame.f_code.co_filename == "<string>":
-            if frame.f_code.co_name.startswith("_") or frame.f_code.co_name in ["wait", "print"]:
-                frame = frame.f_back
-                continue
-            else:
-                return frame
-
+        if (
+            frame.f_code.co_filename == "<string>"
+            and _user_script_start_line <= frame.f_lineno <= _user_script_end_line
+        ):
+            return frame
         frame = frame.f_back
 
-    # Fallback for Python <=3.12: step back a fixed number of frames
-    frame = _inspect.currentframe()
-    steps_back = 3 if _sys.version_info >= (3, 13) else 2
-    for _ in range(steps_back):
-        frame = frame.f_back if frame else None
-
-    return frame  # Returns the frame that we believe to be the caller
+    return None
 
 
 @_wrapt.decorator
@@ -639,11 +627,11 @@ def measure_system(
     return return_list
 
 
-# ==== BEGIN USER SCRIPT AREA ====
 try:
     # the pass statement is needed to handle "empty" scripts
     # an empty script is one without code, but only comments
     pass
+    # ==== BEGIN USER SCRIPT AREA ====
     # USER_SCRIPT_INSERTION_POINT
 # ==== END USER SCRIPT AREA ====
 except KeyboardInterrupt:
