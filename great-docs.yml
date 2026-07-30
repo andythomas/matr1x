@@ -35,6 +35,8 @@ skill:
       file: skills/install/SKILL.md
     - name: Migration
       file: skills/migration/SKILL.md
+    - name: Dependabot
+      file: skills/dependabot/SKILL.md
 
 
 # Logo & Favicon

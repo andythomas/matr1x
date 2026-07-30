@@ -791,8 +791,3 @@ class Elab(System):
         self._attachments = {}
         self._tags = []
         self._resources = {}
-
-
-# ============================
-# initialize system
-system = Elab()

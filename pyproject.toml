@@ -165,5 +165,8 @@ docs = [
     "great-docs[svg]==0.15.0"
 ]
 
+[tool.uv]
+override-dependencies = []
+
 [tool.uv.dependency-groups]
 docs = { requires-python = ">=3.11" }

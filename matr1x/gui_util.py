@@ -518,7 +518,10 @@ class MetaViewerWidget(QDockWidget):
                 editor.setText(str(value))
                 editor.resize(editor.sizeHint())
             elif isinstance(editor, QCheckBox):
-                editor.setChecked(bool(value))
+                if isinstance(value, str):
+                    editor.setChecked(value.strip().casefold() == "true")
+                else:
+                    editor.setChecked(bool(value))
             elif isinstance(editor, FileLineEdit):
                 editor.setText(str(value))
             elif isinstance(editor, QComboBox):
@@ -1102,7 +1105,9 @@ class MetaViewerWidget(QDockWidget):
             """
             if not index.isValid():
                 return Qt.ItemFlag.NoItemFlags
-            if index.column() == 1:
+            item = index.internalPointer()
+            is_container = item.child_count() > 0 or isinstance(item.value, (dict, BaseModel))
+            if index.column() == 1 and not is_container:
                 return (
                     Qt.ItemFlag.ItemIsSelectable
                     | Qt.ItemFlag.ItemIsEnabled
