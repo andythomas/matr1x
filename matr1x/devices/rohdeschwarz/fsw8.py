@@ -189,8 +189,7 @@ class FSW8(VisaDevice):
         elif sweType == "auto":
             self.write("SWE:TYPE AUTO")
         else:
-            print(
-                f"Please choose a valid sweep type! Your input was:{sweType}")
+            print(f"Please choose a valid sweep type! Your input was:{sweType}")
         self.query("*OPC?")
 
         if average:
@@ -223,8 +222,7 @@ class FSW8(VisaDevice):
                 # Calculates the linear average of all samples contained in a sweep point
                 self.write("DETector AVER")
             else:
-                print(
-                    f"Please choose a valid detector type! Your input was:{detector}")
+                print(f"Please choose a valid detector type! Your input was:{detector}")
 
             self.write("AVER:STAT ON")
             self.write(f"AVER:COUN {average}")
