@@ -3,7 +3,7 @@ name: CI Docs
 on:
   push:
     branches:
-      - great-docs
+      - docs-update-I
 
 jobs:
   build-docs:
@@ -47,7 +47,7 @@ jobs:
     name: "Publish Docs"
     runs-on: ubuntu-latest
     needs: "build-docs"
-    if: github.ref == 'refs/heads/great-docs'
+    if: github.ref == 'refs/heads/docs-update-I'
     permissions:
       pages: write
       id-token: write
