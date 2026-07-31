@@ -92,7 +92,7 @@ experience.
 The definition of default values for the options and the access to them is performed as shown in
 the following example from `system_dummy_feature.py`.
 
-{{< include "matr1x/systems/system_dummy_feature.py" lines="16-55" >}}
+{{< include "matr1x/systems/system_dummy_feature.py" lines="16-76" >}}
 
 Descriptions provided in `Field(description="...")` are automatically shown as **tooltips** in the GUI configuration editor.
 
