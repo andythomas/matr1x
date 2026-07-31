@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg clip-rule="evenodd" fill-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2" version="1.1" viewBox="0 0 1024 1024" xml:space="preserve" xmlns="http://www.w3.org/2000/svg">
+<svg clip-rule="evenodd" fill-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2" version="1.1" width="1024px" height="1024px" viewBox="0 0 1024 1024" xml:space="preserve" xmlns="http://www.w3.org/2000/svg">
     <g transform="matrix(.84603 0 0 .84603 79.555 83.649)">
         <path d="m1024 141.84c0-37.618-14.94-73.695-41.544-100.3-26.6-26.6-62.677-41.544-100.3-41.544h-740.32c-37.618-0-73.695 14.944-100.3 41.544s-41.544 62.677-41.544 100.3v740.32c-0 37.618 14.944 73.695 41.544 100.3 26.6 26.604 62.677 41.544 100.3 41.544h740.32c37.618 0 73.695-14.94 100.3-41.544 26.604-26.6 41.544-62.677 41.544-100.3v-740.32z"/>
         <path d="m1024 0h-1024v882.16c-0 37.618 14.944 73.695 41.544 100.3 26.6 26.604 62.677 41.544 100.3 41.544h882.16v-1024z" fill="none"/>
