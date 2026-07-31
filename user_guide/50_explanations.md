@@ -68,4 +68,3 @@ The script editor serves as the core interface for `matrix-script`.
 Built on the [Monaco editor](https://microsoft.github.io/monaco-editor/), it provides essential convenience features such as syntax highlighting, hover help, and error detection via an LSP.
 Here, users combine standard Python language constructs with custom function calls and properties provided by the package to write tailored instrument-control code.
 Upon execution, the software integrates this custom script with the active metadata and device configuration to drive the measurement process, ultimately generating the physical output and saving the collected data into a structured output file.
-The editor is based on the [Monace editor](https://microsoft.github.io/monaco-editor/) and provides basic convenience features such as syntax highlighting, hover help and error detection via an LSP.
