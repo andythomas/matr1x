@@ -7,9 +7,7 @@ To give a better idea of the required coding effort and the resulting instrument
 
 We will have a look at `system_dummy.py`, which is part of this package.
 
-```markdown
-{{{< include "matr1x/systems/system_dummwy.py">}}}
-```
+{{< include "matr1x/systems/system_dummy.py" lines="16-1000" >}}
 
 The `dummy` device driver is imported to mimic a device but to be able to run the example on any computer.
 Then, `System` is imported as the base class for the system definition.
