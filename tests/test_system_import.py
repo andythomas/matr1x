@@ -30,7 +30,7 @@ import matr1x
 import matr1x.system as system_module
 from matr1x.error_handling import Error, Success
 from matr1x.models import SystemReference
-from matr1x.system import System
+from matr1x.system import MergedSystem, StatefulSystem, System
 
 # Collect all files in the system-folder
 path = Path(__file__).resolve().parent
@@ -67,7 +67,7 @@ def test_system_import(system_file):
     assert isinstance(capability, Success)
     reference = SystemReference(
         source=str(system_file),
-        name="test_instance" if capability.value.reusable else None,
+        state=capability.value.states[0] if capability.value.stateful else None,
     )
     system = System.from_file(reference)
     assert isinstance(system, Success)
@@ -188,3 +188,61 @@ def test_system_file_requires_exactly_one_local_subclass(tmp_path, contents, err
 
     assert isinstance(result, Error)
     assert error in result.error
+
+
+def test_stateful_system_selects_state_and_config_section(monkeypatch):
+    """The selected state determines the accessor and configuration section."""
+    sections = []
+
+    class ExampleConfig(BaseModel):
+        value: int
+
+    class ConfiguredStatefulSystem(StatefulSystem):
+        states = ("primary", "secondary")
+
+        def __init__(self, state):
+            super().__init__(state)
+            self.load_config(ExampleConfig, "matr1x.systems.configured")
+
+    def resolve_config(_config, section):
+        sections.append(section)
+        return {"value": 7}
+
+    monkeypatch.setattr(system_module, "resolve_config_path", resolve_config)
+
+    system = ConfiguredStatefulSystem("secondary")
+
+    assert system.state == "secondary"
+    assert system.accessor_name == "ConfiguredStatefulSystem_secondary"
+    assert sections == ["matr1x.systems.configured.secondary"]
+    assert system.config_section == "matr1x.systems.configured.secondary"
+    assert system.config.value == 7
+
+
+def test_state_exclusion_groups_control_coexistence():
+    """States share one group by default and explicit groups may coexist."""
+
+    class ExclusiveSystem(StatefulSystem):
+        states = ("primary", "secondary")
+
+    primary = ExclusiveSystem("primary")
+    primary.source = "example"
+    secondary = ExclusiveSystem("secondary")
+    secondary.source = "example"
+
+    with pytest.raises(ValueError, match="share exclusion group"):
+        MergedSystem([primary, secondary])
+
+    class IndependentSystem(StatefulSystem):
+        states = ("primary", "secondary")
+        state_exclusion_groups = {"primary": "first", "secondary": "second"}
+
+    primary = IndependentSystem("primary")
+    primary.source = "example"
+    secondary = IndependentSystem("secondary")
+    secondary.source = "example"
+
+    assert [system.state for system in MergedSystem([primary, secondary]).subsys] == [
+        "primary",
+        "secondary",
+    ]

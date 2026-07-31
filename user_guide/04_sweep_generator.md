@@ -31,12 +31,12 @@ The sweep can then be generated, previewed and manipulated until it suits the re
 We suggest to play with the interface to get familiar with the available options.
 Overall, it offers several possibilities to generate and customize a sweep used for device control.
 
-Systems which opt in to reusable instances can be added more than once. Their
-system-list row shows the complete `system_import_name::<name>` reference once.
-Select and click the row to edit only its instance name; the suggested initial
-name comes from the system's prefix. The name must be globally unique before the
-sweep can be saved. Renaming it retains the already entered sweep ranges and
-modifiers.
+Stateful systems expose a predefined state selector directly in each system-list
+row. By default, only one state of a system can be selected. A system may declare
+independent exclusion groups when different states represent separate devices;
+in that case it can be added once for each group. Selecting a state occupied by
+another row swaps the two selections atomically. The saved reference uses the
+form `system_import_name::<state>`.
 
 1. Basic sweeps (similar to numpy linspace)
 2. Appending several basic sweeps.

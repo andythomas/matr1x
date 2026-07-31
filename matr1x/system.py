@@ -46,9 +46,9 @@ from matr1x.models import (
     MeasurementData,
     Message,
     SystemCapability,
-    SystemInstanceInfo,
     SystemMethod,
     SystemReference,
+    SystemSelectionInfo,
     SystemVariable,
     UntypedConfigModel,
 )
@@ -555,15 +555,18 @@ class System:
         Contains the definition for custom device queries to read the
         configuration. Keys match the device names in .devs.
     name : str or None
-        Optional instance name. A valid Python identifier is used as the
-        subsystem accessor after merging.
+        Optional system name used by control GUIs and as the subsystem accessor
+        for ordinary systems.
     """
 
-    reusable: ClassVar[bool] = False
-    """Whether the system may be loaded more than once with distinct names."""
+    stateful: ClassVar[bool] = False
+    """Whether construction requires one predefined state."""
 
-    name_prefix: ClassVar[str | None] = None
-    """Optional prefix used by GUIs when suggesting an instance name."""
+    states: ClassVar[tuple[str, ...]] = ()
+    """Ordered states exposed by a stateful system."""
+
+    state_exclusion_groups: ClassVar[dict[str, str]] = {}
+    """Optional state-to-exclusion-group declarations."""
 
     def __init__(self, name=None):
         """
@@ -576,8 +579,8 @@ class System:
         """
         self._name: str | None = None
         self.name = name
+        self._state: str | None = None
         self.source: str | None = None
-        self.config_base_section: str | None = None
         self.config_section: str | None = None
 
         self._config = matr1x.config.matr1x.scripts.matrix_script
@@ -642,11 +645,16 @@ class System:
     @property
     def accessor_name(self) -> str:
         """Return the attribute name used to expose this subsystem after merging."""
-        if self.reusable and self.name is not None:
-            return f"{self.__class__.__name__}_{self.name}"
+        if self.stateful and self.state is not None:
+            return f"{self.__class__.__name__}_{self.state}"
         if self.name is not None and self.name.isidentifier():
             return self.name
         return self.__class__.__name__
+
+    @property
+    def state(self) -> str | None:
+        """Return the immutable construction state, if any."""
+        return self._state
 
     def load_config(
         self,
@@ -670,7 +678,6 @@ class System:
         sensitive_keys : list[str], optional
             A list of keys that should be moved to sensitive_config.
         """
-        self.config_base_section = section
         self._load_config_section(model_class, section, sensitive_keys)
 
     def _load_config_section(
@@ -731,7 +738,7 @@ class System:
         cls,
         filename: str | Path | SystemReference,
     ) -> Result["System", str]:
-        """Load and construct a static or named reusable system."""
+        """Load and construct a static or stateful system."""
         return cls._from_file(filename)
 
     @classmethod
@@ -824,21 +831,24 @@ class System:
 
         definition, _, _ = definition_result.value
         system_class = definition if inspect.isclass(definition) else type(definition)
-        reusable = issubclass(system_class, ReusableSystem)
-        if not reusable and getattr(system_class, "reusable", False):
+        stateful = issubclass(system_class, StatefulSystem)
+        if not stateful and getattr(system_class, "stateful", False):
             return Error(
-                f"Reusable system class '{system_class.__name__}' must inherit ReusableSystem"
+                f"Stateful system class '{system_class.__name__}' must inherit StatefulSystem"
             )
-        prefix = system_class.name_prefix
-        if prefix is not None and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", prefix) is None:
-            return Error(
-                f"Reusable system '{reference.source}' has invalid name prefix {prefix!r}"
-            )
+        states: tuple[str, ...] = ()
+        groups: dict[str, str] = {}
+        if stateful:
+            try:
+                states, groups = cast(type[StatefulSystem], system_class).state_declaration()
+            except ValueError as error:
+                return Error(f"Stateful system '{reference.source}' is invalid: {error}")
         return Success(
             SystemCapability(
                 source=reference.source,
-                reusable=reusable,
-                name_prefix=prefix,
+                stateful=stateful,
+                states=states,
+                state_exclusion_groups=groups,
                 class_name=system_class.__name__,
             )
         )
@@ -852,7 +862,7 @@ class System:
         Load and construct a system from a file or importable module.
 
         A system module must define exactly one local ``System`` subclass.
-        Reusable subclasses receive their required name during construction.
+        Stateful subclasses receive their required state during construction.
         Legacy initialized ``system`` and ``sys`` exports remain supported for
         static systems with a deprecation warning.
         """
@@ -866,28 +876,28 @@ class System:
         definition, normfilename, legacy_warning = definition_result.value
 
         if isinstance(definition, System):
-            if definition.reusable:
+            if definition.stateful:
                 return Error(
-                    f"Reusable system '{reference.source}' must be defined as a "
-                    "ReusableSystem subclass, not an initialized module export"
+                    f"Stateful system '{reference.source}' must be defined as a "
+                    "StatefulSystem subclass, not an initialized module export"
                 )
-            if reference.name is not None:
-                return Error(f"Static system '{reference.source}' does not accept a name")
+            if reference.state is not None:
+                return Error(f"Static system '{reference.source}' does not accept a state")
             system = definition
-        elif issubclass(definition, ReusableSystem):
-            if reference.name is None:
-                return Error(f"Reusable system '{reference.source}' requires a name")
+        elif issubclass(definition, StatefulSystem):
+            if reference.state is None:
+                return Error(f"Stateful system '{reference.source}' requires a state")
             try:
-                system = definition(reference.name)
+                system = definition(reference.state)
             except ValueError as error:
                 return Error(str(error))
         else:
-            if definition.reusable:
+            if definition.stateful:
                 return Error(
-                    f"Reusable system class '{definition.__name__}' must inherit ReusableSystem"
+                    f"Stateful system class '{definition.__name__}' must inherit StatefulSystem"
                 )
-            if reference.name is not None:
-                return Error(f"Static system '{reference.source}' does not accept a name")
+            if reference.state is not None:
+                return Error(f"Static system '{reference.source}' does not accept a state")
             system = definition()
 
         system.source = reference.source
@@ -1721,6 +1731,8 @@ class System:
             if isinstance(param.getter, str):
                 parameter_methods.add(param.getter)
         base_attrs = set(dir(System()))
+        if self.stateful:
+            base_attrs.update(dir(StatefulSystem))
         for key in dir(self):
             if key not in base_attrs and not key.startswith("_") and key not in parameter_methods:
                 attribute = getattr(self, key)
@@ -1786,7 +1798,7 @@ class System:
             for item in items:
                 target_key = (
                     f"{cls_name}.{item.name}"
-                    if prefix is not None and self.reusable
+                    if prefix is not None and self.stateful
                     else item.name
                 )
                 if target_key in target:
@@ -2107,27 +2119,47 @@ class System:
                 datafile.write(f"# status: {status}")
 
 
-class ReusableSystem(System):
-    """Base class for systems that may be selected more than once."""
+class StatefulSystem(System):
+    """Base class for systems constructed in one predefined state."""
 
-    reusable: ClassVar[bool] = True
+    stateful: ClassVar[bool] = True
+    _DEFAULT_STATE_GROUP: ClassVar[str] = "__default__"
 
-    def __init__(self, name: str):
-        """
-        Initialize a reusable system with its permanent instance name.
+    @classmethod
+    def state_declaration(cls) -> tuple[tuple[str, ...], dict[str, str]]:
+        """Validate and return states with a complete exclusion-group mapping."""
+        states = cls.states
+        if not isinstance(states, tuple) or not states:
+            raise ValueError("'states' must be a non-empty tuple")
+        if any(not isinstance(state, str) or not state.isidentifier() for state in states):
+            raise ValueError("every state must be a valid Python identifier")
+        if len(set(states)) != len(states):
+            raise ValueError("states must be unique")
 
-        Subclasses receive the name before defining configuration, devices,
-        parameters, or other name-derived state.
-        """
-        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
+        declared_groups = cls.state_exclusion_groups
+        if not isinstance(declared_groups, dict):
+            raise ValueError("'state_exclusion_groups' must be a dictionary")
+        unknown_states = set(declared_groups) - set(states)
+        if unknown_states:
+            unknown = ", ".join(sorted(unknown_states))
+            raise ValueError(f"exclusion groups contain unknown states: {unknown}")
+        if any(not isinstance(group, str) or not group for group in declared_groups.values()):
+            raise ValueError("exclusion-group names must be non-empty strings")
+
+        groups = {state: declared_groups.get(state, cls._DEFAULT_STATE_GROUP) for state in states}
+        return states, groups
+
+    def __init__(self, state: str):
+        """Initialize a stateful system with its permanent state."""
+        states, _ = self.state_declaration()
+        if state not in states:
+            choices = ", ".join(states)
             raise ValueError(
-                "System name must start with a letter or underscore and contain only "
-                "letters, digits, and underscores"
+                f"Stateful system '{self.__class__.__name__}' does not define state "
+                f"{state!r}; expected one of: {choices}"
             )
-        prefix = self.name_prefix
-        if prefix is not None and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", prefix) is None:
-            raise ValueError(f"Reusable system has invalid name prefix {prefix!r}")
-        super().__init__(name)
+        super().__init__()
+        self._state = state
 
     def load_config(
         self,
@@ -2135,12 +2167,11 @@ class ReusableSystem(System):
         section: str,
         sensitive_keys: list[str] | None = None,
     ) -> None:
-        """Load the configuration subsection selected by this instance's name."""
-        assert self.name is not None
-        self.config_base_section = section
+        """Load the configuration subsection selected by this system's state."""
+        assert self.state is not None
         self._load_config_section(
             model_class,
-            f"{section}.{self.name}",
+            f"{section}.{self.state}",
             sensitive_keys,
         )
 
@@ -2184,7 +2215,7 @@ class MergedSystem(System):
         self.__name__ = ",".join(
             SystemReference(
                 source=subsys.source or subsys.__name__,
-                name=subsys.name if subsys.reusable else None,
+                state=subsys.state,
             ).to_token()
             for subsys in self.subsys
         )
@@ -2192,9 +2223,33 @@ class MergedSystem(System):
         parameter_entries: list[tuple[Parameter, System, int]] = []
         seen_devices: dict[str, System] = {}
         seen_accessors: set[str] = set()
+        selected_groups: dict[tuple[str, str, str], str] = {}
 
         # Merge devices, config, and parameters while retaining subsystem ownership.
         for subsys in self.subsys:
+            if isinstance(subsys, StatefulSystem):
+                assert subsys.state is not None
+                _, groups = subsys.state_declaration()
+                source = subsys.source or subsys.__class__.__module__
+                group = groups[subsys.state]
+                source_path = Path(source).expanduser()
+                system_identity = (
+                    str(source_path.resolve())
+                    if source_path.is_file()
+                    else subsys.__class__.__module__
+                )
+                group_key = (
+                    system_identity,
+                    subsys.__class__.__qualname__,
+                    group,
+                )
+                if group_key in selected_groups:
+                    other_state = selected_groups[group_key]
+                    raise ValueError(
+                        f"States '{other_state}' and '{subsys.state}' from '{source}' "
+                        f"share exclusion group '{group}'"
+                    )
+                selected_groups[group_key] = subsys.state
             if subsys.accessor_name in seen_accessors:
                 raise ValueError(f"Duplicate subsystem accessor name '{subsys.accessor_name}'")
             seen_accessors.add(subsys.accessor_name)
@@ -2226,7 +2281,7 @@ class MergedSystem(System):
             )
             subsys.merged_system = self
 
-        if any(subsys.reusable for subsys in self.subsys):
+        if any(subsys.stateful for subsys in self.subsys):
             seen_columns: dict[str, System] = {}
             for parameter, subsys, _ in parameter_entries:
                 names = (
@@ -2251,7 +2306,7 @@ class MergedSystem(System):
             )
         )
         for parameter, subsys, local_index in parameter_entries:
-            if not subsys.reusable and parameter in self.parameters:
+            if not subsys.stateful and parameter in self.parameters:
                 print(f"removing duplicated column {parameter.name} from merged system")  # noqa: T201
                 continue
             self.parameters.append(parameter)
@@ -2270,16 +2325,11 @@ class MergedSystem(System):
         cls,
         references: Iterable[str | Path | SystemReference],
     ) -> Result["MergedSystem", str]:
-        """Load, bind, and merge static or named reusable system references."""
+        """Load, bind, and merge static or stateful system references."""
         normalized: list[SystemReference] = []
-        names: set[str] = set()
         try:
             for value in references:
                 reference = SystemReference.from_value(value)
-                if reference.name is not None:
-                    if reference.name in names:
-                        return Error(f"Duplicate reusable system name '{reference.name}'")
-                    names.add(reference.name)
                 normalized.append(reference)
         except (ValidationError, ValueError) as error:
             return Error(str(error))
@@ -2474,7 +2524,7 @@ class MergedSystem(System):
         """
         info = {
             "classes": [],
-            "instances": [],
+            "selections": [],
             "devices": {},
             "parameters": {},
             "methods": {},
@@ -2494,12 +2544,17 @@ class MergedSystem(System):
         # we'll add individual subsystem configs below
         for subsys in self.subsys:
             info["classes"].append(subsys.accessor_name)
-            info["instances"].append(
-                SystemInstanceInfo(
+            states: tuple[str, ...] = ()
+            groups: dict[str, str] = {}
+            if isinstance(subsys, StatefulSystem):
+                states, groups = subsys.state_declaration()
+            info["selections"].append(
+                SystemSelectionInfo(
                     source=subsys.source or subsys.__name__,
-                    name=subsys.name,
-                    reusable=subsys.reusable,
-                    name_prefix=subsys.name_prefix,
+                    state=subsys.state,
+                    stateful=subsys.stateful,
+                    states=states,
+                    state_exclusion_groups=groups,
                     class_name=subsys.__class__.__name__,
                     accessor_name=subsys.accessor_name,
                     config_section=subsys.config_section,
@@ -2516,11 +2571,6 @@ class MergedSystem(System):
                     info["config"][subsys_name] = {
                         "value": subsys_config.model_dump(
                             by_alias=True, exclude=set(subsys._sensitive_keys)
-                        ),
-                        "source_value": subsys_config.model_dump(
-                            by_alias=True,
-                            include=subsys_config.model_fields_set,
-                            exclude=set(subsys._sensitive_keys),
                         ),
                         "schema": subsys_config.__class__.model_json_schema(),
                     }
@@ -2551,8 +2601,8 @@ class MergedSystem(System):
         self.opened = True
 
     def query(self) -> dict[str, dict[str, Any]]:
-        """Query devices and keep reusable system configuration instance-scoped."""
-        if not any(subsystem.reusable for subsystem in self.subsys):
+        """Query devices and keep stateful system configuration selection-scoped."""
+        if not any(subsystem.stateful for subsystem in self.subsys):
             return super().query()
 
         result: dict[str, Any] = {}

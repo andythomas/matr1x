@@ -17,7 +17,6 @@
 
 import importlib.util
 import logging
-import re
 import socket
 import subprocess
 import sys
@@ -31,7 +30,6 @@ import tomli_w
 from pydantic import ValidationError
 from pyqtgraph.Qt.QtGui import QColor
 from PySide6.QtCore import (
-    QAbstractItemModel,
     QByteArray,
     QModelIndex,
     QPersistentModelIndex,
@@ -44,9 +42,11 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QAction, QBrush, QDropEvent, QKeySequence
+from PySide6.QtGui import QAction, QDropEvent, QFocusEvent, QKeySequence, QMouseEvent, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDockWidget,
@@ -167,13 +167,73 @@ class Notifier(QWidget):
 
 
 @final
+class _SystemReferenceEditor(QWidget):
+    """Forward source-area mouse gestures to the owning system list."""
+
+    def __init__(self, system_list: "SystemListWidget", parent: QWidget) -> None:
+        super().__init__(parent)
+        self._system_list = system_list
+
+    def _forward_mouse_event(self, event: QMouseEvent) -> None:
+        viewport = self._system_list.viewport()
+        position = viewport.mapFromGlobal(event.globalPosition().toPoint())
+        forwarded_event = QMouseEvent(
+            event.type(),
+            position,
+            event.globalPosition(),
+            event.button(),
+            event.buttons(),
+            event.modifiers(),
+            event.pointingDevice(),
+        )
+        QApplication.sendEvent(viewport, forwarded_event)
+        event.accept()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Forward selection and drag initialization."""
+        self._forward_mouse_event(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """Forward an active row drag."""
+        self._forward_mouse_event(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        """Forward completion of selection or dragging."""
+        self._forward_mouse_event(event)
+
+
+@final
+class _SystemStateSelector(QComboBox):
+    """Select the owning system-list row when interacting with its state."""
+
+    def __init__(
+        self,
+        system_list: "SystemListWidget",
+        item: QListWidgetItem,
+        parent: QWidget,
+    ) -> None:
+        super().__init__(parent)
+        self._system_list = system_list
+        self._item = item
+
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        """Keep keyboard focus and list selection synchronized."""
+        self._system_list.setCurrentItem(self._item)
+        super().focusInEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Select the row before opening the state menu."""
+        self._system_list.setCurrentItem(self._item)
+        super().mousePressEvent(event)
+
+
+@final
 class _SystemReferenceDelegate(QStyledItemDelegate):
-    """Edit only the name portion of a reusable system reference."""
+    """Provide a persistent state combobox for stateful system rows."""
 
     def __init__(self, system_list: "SystemListWidget") -> None:
         super().__init__(system_list)
         self.system_list = system_list
-        self.closeEditor.connect(lambda *_args: self.system_list._finish_name_edit())
 
     def createEditor(
         self,
@@ -181,81 +241,49 @@ class _SystemReferenceDelegate(QStyledItemDelegate):
         _option: QStyleOptionViewItem,
         index: QModelIndex | QPersistentModelIndex,
     ) -> QWidget:
-        """Keep the source visible and edit only a compact name suffix."""
+        """Create a source label followed by an always-visible state selector."""
         item = self.system_list.item(index.row())
-        if not item.data(SystemListWidget.REUSABLE_ROLE):
+        if not item.data(SystemListWidget.STATEFUL_ROLE):
             return QWidget(parent)
 
-        editor = QWidget(parent)
+        editor = _SystemReferenceEditor(self.system_list, parent)
         editor.setObjectName("system_reference_editor")
+        editor.setAutoFillBackground(True)
         layout = QHBoxLayout(editor)
         layout.setContentsMargins(2, 0, 2, 0)
-        layout.setSpacing(0)
-        layout.addWidget(QLabel(f"{item.data(SystemListWidget.SOURCE_ROLE)}::", editor))
+        layout.setSpacing(4)
 
-        name_editor = QLineEdit(editor)
-        name_editor.setObjectName("system_instance_name")
-        name_editor.setMaximumWidth(160)
-        name_editor.setProperty(
-            "committed_token",
-            item.data(SystemListWidget.COMMITTED_TOKEN_ROLE),
+        source_label = QLabel(f"{item.data(SystemListWidget.SOURCE_ROLE)}::", editor)
+        source_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(source_label)
+
+        state_selector = _SystemStateSelector(self.system_list, item, editor)
+        state_selector.setObjectName("system_state")
+        state_selector.setEditable(False)
+        state_selector.setToolTip(str(item.data(SystemListWidget.SOURCE_ROLE)))
+        state_selector.addItems(item.data(SystemListWidget.STATES_ROLE))
+        state_selector.setCurrentText(str(item.data(SystemListWidget.STATE_ROLE)))
+        state_selector.currentTextChanged.connect(
+            lambda state, current=item: self.system_list._select_state(current, state)
         )
-        name_editor.textChanged.connect(
-            lambda text, current=item, widget=name_editor: self.system_list._validate_name_editor(
-                current,
-                widget,
-                text,
-            )
-        )
-        name_editor.editingFinished.connect(
-            lambda current_editor=editor: self._finish_editor(current_editor)
-        )
-        layout.addWidget(name_editor)
+        layout.addWidget(state_selector)
         layout.addStretch()
-        editor.setFocusProxy(name_editor)
+        editor.setFocusProxy(state_selector)
         return editor
-
-    def _finish_editor(self, editor: QWidget) -> None:
-        """Commit and close a composite editor once."""
-        if editor.property("finishing"):
-            return
-        editor.setProperty("finishing", True)
-        self.commitData.emit(editor)
-        self.closeEditor.emit(editor)
-
-    @staticmethod
-    def _name_editor(editor: QWidget) -> QLineEdit | None:
-        """Return the name input contained in a composite row editor."""
-        return editor.findChild(QLineEdit, "system_instance_name")
 
     def setEditorData(
         self,
         editor: QWidget,
         index: QModelIndex | QPersistentModelIndex,
     ) -> None:
-        """Populate the transient editor with the instance name only."""
-        name_editor = self._name_editor(editor)
-        if name_editor is None:
+        """Synchronize the persistent combobox with row data."""
+        state_selector = editor.findChild(QComboBox, "system_state")
+        if state_selector is None:
             return
         item = self.system_list.item(index.row())
-        name_editor.setText(str(item.data(SystemListWidget.NAME_ROLE) or ""))
-        name_editor.selectAll()
-        name_editor.setFocus()
-
-    def setModelData(
-        self,
-        editor: QWidget,
-        _model: QAbstractItemModel,
-        index: QModelIndex | QPersistentModelIndex,
-    ) -> None:
-        """Commit a valid name through the system-list identity logic."""
-        name_editor = self._name_editor(editor)
-        if name_editor is None:
-            return
-        self.system_list._commit_name(
-            self.system_list.item(index.row()),
-            name_editor,
-        )
+        blocked = state_selector.blockSignals(True)
+        state_selector.setCurrentText(str(item.data(SystemListWidget.STATE_ROLE)))
+        state_selector.blockSignals(blocked)
 
 
 @final
@@ -263,22 +291,19 @@ class SystemListWidget(QListWidget):
     """A custom QListWidget that contains the systems."""
 
     changed = Signal()
-    reference_renamed = Signal(str, str)
-    validation_changed = Signal()
     message = Signal(NotifierMessage)
 
     SOURCE_ROLE = int(Qt.ItemDataRole.UserRole)
-    NAME_ROLE = SOURCE_ROLE + 1
-    REUSABLE_ROLE = SOURCE_ROLE + 2
+    STATE_ROLE = SOURCE_ROLE + 1
+    STATEFUL_ROLE = SOURCE_ROLE + 2
     CLASS_ROLE = SOURCE_ROLE + 3
-    PREFIX_ROLE = SOURCE_ROLE + 4
-    COMMITTED_TOKEN_ROLE = SOURCE_ROLE + 5
+    STATES_ROLE = SOURCE_ROLE + 4
+    GROUPS_ROLE = SOURCE_ROLE + 5
 
     def __init__(self, *, report_config_errors: bool = True) -> None:
         """Initialize the system list and its configuration-error policy."""
         super().__init__()
         self._report_config_errors = report_config_errors
-        self._editing_name_valid: bool | None = None
         self._base_directory: Path = resolved_directory
         self.add_action = QAction(get_matrix_icon("CHAR_+"), "Add System", self)
         self.add_action.setToolTip("Add a matrix system file.")
@@ -292,11 +317,8 @@ class SystemListWidget(QListWidget):
         self._cached_system_info: SystemInfo = system_info.value
         self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         self.setItemDelegate(_SystemReferenceDelegate(self))
-        self.setEditTriggers(
-            QAbstractItemView.EditTrigger.SelectedClicked
-            | QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
-        )
+        self.itemSelectionChanged.connect(self._sync_selection_highlights)
+        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.setMinimumHeight(50)
         self.setMaximumHeight(50)
         self._sync_action_state()
@@ -333,30 +355,6 @@ class SystemListWidget(QListWidget):
         """Return validated structured system references."""
         return [SystemReference.from_value(system) for system in self.systems]
 
-    def references_valid(self) -> bool:
-        """Return whether every reusable row has a valid globally unique name."""
-        if self._editing_name_valid is False:
-            return False
-        names: set[str] = set()
-        try:
-            for index in range(self.count()):
-                item = self.item(index)
-                name = item.data(self.NAME_ROLE)
-                if item.data(self.REUSABLE_ROLE):
-                    reference = SystemReference(
-                        source=item.data(self.SOURCE_ROLE),
-                        name=name,
-                    )
-                    assert reference.name is not None
-                    if reference.name in names:
-                        return False
-                    names.add(reference.name)
-                elif name:
-                    return False
-        except (ValidationError, AssertionError):
-            return False
-        return True
-
     def clear(self) -> None:
         """Clear the list of systems."""
         super().clear()
@@ -382,7 +380,7 @@ class SystemListWidget(QListWidget):
             self._sync_action_state()
 
     def add_systems(self, filenames: list[str]) -> None:
-        """Add static systems once and reusable systems as named instances."""
+        """Add static systems once and stateful systems once per free group."""
         existing_sources = {self.item(i).data(self.SOURCE_ROLE) for i in range(self.count())}
         for filename in filenames:
             try:
@@ -411,20 +409,20 @@ class SystemListWidget(QListWidget):
                 self.message.emit(msg)
                 continue
             capability = import_check.value
-            if requested_reference.name is not None and not capability.reusable:
+            if requested_reference.state is not None and not capability.stateful:
                 self.message.emit(
                     NotifierMessage(
-                        f"{candidate} is static and does not accept a name.",
+                        f"{candidate} is static and does not accept a state.",
                         level=logging.WARNING,
                     )
                 )
                 continue
-            if not capability.reusable and candidate in existing_sources:
+            if not capability.stateful and candidate in existing_sources:
                 msg = NotifierMessage(f"{candidate} is already present and was omitted.")
                 self.message.emit(msg)
                 continue
 
-            if not capability.reusable and any(
+            if not capability.stateful and any(
                 self.item(i).data(self.CLASS_ROLE) == capability.class_name
                 for i in range(self.count())
             ):
@@ -436,112 +434,163 @@ class SystemListWidget(QListWidget):
                 self.message.emit(msg)
                 continue
 
-            name = (
-                requested_reference.name or self._suggest_name(capability)
-                if capability.reusable
-                else None
-            )
+            state = None
+            if capability.stateful:
+                state = requested_reference.state or self._first_state_in_free_group(
+                    candidate, capability
+                )
+                if state is None:
+                    self.message.emit(
+                        NotifierMessage(f"{candidate} already uses every available state group.")
+                    )
+                    continue
+                if state not in capability.states:
+                    self.message.emit(
+                        NotifierMessage(
+                            f"{candidate} does not define state {state!r}.",
+                            level=logging.WARNING,
+                        )
+                    )
+                    continue
+                if self._group_is_used(
+                    candidate,
+                    capability.state_exclusion_groups[state],
+                ):
+                    self.message.emit(
+                        NotifierMessage(
+                            f"{candidate} state {state!r} conflicts with an already "
+                            "selected state.",
+                            level=logging.WARNING,
+                        )
+                    )
+                    continue
+
             item = QListWidgetItem()
             item.setData(self.SOURCE_ROLE, candidate)
-            item.setData(self.NAME_ROLE, name)
-            item.setData(self.REUSABLE_ROLE, capability.reusable)
+            item.setData(self.STATE_ROLE, state)
+            item.setData(self.STATEFUL_ROLE, capability.stateful)
             item.setData(self.CLASS_ROLE, capability.class_name)
-            item.setData(self.PREFIX_ROLE, capability.name_prefix)
+            item.setData(self.STATES_ROLE, capability.states)
+            item.setData(self.GROUPS_ROLE, capability.state_exclusion_groups)
             self._update_item_token(item)
-            item.setData(self.COMMITTED_TOKEN_ROLE, item.text())
-            if capability.reusable:
+            if capability.stateful:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
             super().addItem(item)
+            if capability.stateful:
+                self.openPersistentEditor(item)
+                self._sync_selection_highlights()
             self.systems_changed()
             existing_sources.add(candidate)
             self._base_directory = Path(requested_source)
 
-    def _suggest_name(self, capability: SystemCapability) -> str:
-        """Return the first unused numbered name for a reusable system."""
-        prefix = capability.name_prefix
-        if prefix is None:
-            prefix = re.sub(r"[^A-Za-z0-9_]", "_", capability.class_name).lower()
-            if not prefix or prefix[0].isdigit():
-                prefix = f"_{prefix}"
-        used = {
-            self.item(i).data(self.NAME_ROLE)
-            for i in range(self.count())
-            if self.item(i).data(self.NAME_ROLE)
-        }
-        index = 1
-        while f"{prefix}{index}" in used:
-            index += 1
-        return f"{prefix}{index}"
+    def _group_is_used(
+        self,
+        source: str,
+        group: str,
+        *,
+        except_item: QListWidgetItem | None = None,
+    ) -> bool:
+        """Return whether another row for the source occupies an exclusion group."""
+        for index in range(self.count()):
+            item = self.item(index)
+            if item is except_item or item.data(self.SOURCE_ROLE) != source:
+                continue
+            state = item.data(self.STATE_ROLE)
+            groups = item.data(self.GROUPS_ROLE) or {}
+            if state is not None and groups.get(state) == group:
+                return True
+        return False
+
+    def _first_state_in_free_group(
+        self,
+        source: str,
+        capability: SystemCapability,
+    ) -> str | None:
+        """Return the first state whose exclusion group is not occupied."""
+        for state in capability.states:
+            group = capability.state_exclusion_groups[state]
+            if not self._group_is_used(source, group):
+                return state
+        return None
 
     def _update_item_token(self, item: QListWidgetItem) -> None:
-        """Synchronize the item's compatibility text with its row data."""
+        """Synchronize the item's serialized token with its row data."""
         source = str(item.data(self.SOURCE_ROLE))
-        name = item.data(self.NAME_ROLE)
-        item.setText(f"{source}::{name or ''}" if item.data(self.REUSABLE_ROLE) else source)
+        state = item.data(self.STATE_ROLE)
+        item.setText(
+            SystemReference(
+                source=source,
+                state=state if item.data(self.STATEFUL_ROLE) else None,
+            ).to_token()
+        )
 
-    def _validate_name_editor(self, item: QListWidgetItem, editor: QLineEdit, name: str) -> bool:
-        """Validate transient name text without changing the underlying row."""
-        valid = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is not None
-        if valid:
-            valid = all(
-                self.item(index) is item or self.item(index).data(self.NAME_ROLE) != name
-                for index in range(self.count())
-            )
-        self._editing_name_valid = valid
-        editor.setProperty("invalid", not valid)
-        editor.setStyleSheet("QLineEdit { border: 1px solid #c33; }" if not valid else "")
-        self.validation_changed.emit()
-        return valid
-
-    def _finish_name_edit(self) -> None:
-        """Clear transient validation state when editing ends or is cancelled."""
-        if self._editing_name_valid is None:
+    def _sync_state_editor(self, item: QListWidgetItem) -> None:
+        """Update one persistent combobox after an atomic state assignment."""
+        editor = self.indexWidget(self.indexFromItem(item))
+        if editor is None:
             return
-        self._editing_name_valid = None
-        self.validation_changed.emit()
+        state_selector = editor.findChild(QComboBox, "system_state")
+        if state_selector is None:
+            return
+        blocked = state_selector.blockSignals(True)
+        state_selector.setCurrentText(str(item.data(self.STATE_ROLE)))
+        state_selector.blockSignals(blocked)
 
-    @staticmethod
-    def _set_item_name_validity(item: QListWidgetItem, valid: bool) -> None:
-        """Show the validity of committed name text on the rendered row."""
-        item.setData(
-            Qt.ItemDataRole.ForegroundRole,
-            QBrush(QColor("#b3261e")) if not valid else None,
-        )
-        item.setToolTip(
-            "" if valid else "Reusable system names must be valid and globally unique."
-        )
+    def _sync_selection_highlights(self) -> None:
+        """Show list selection behind persistent state editors."""
+        list_palette = self.palette()
+        for index in range(self.count()):
+            item = self.item(index)
+            editor = self.indexWidget(self.indexFromItem(item))
+            if editor is None:
+                continue
+            selected = item.isSelected()
+            editor_palette = editor.palette()
+            background = list_palette.color(
+                QPalette.ColorRole.Highlight if selected else QPalette.ColorRole.Base
+            )
+            foreground = list_palette.color(
+                QPalette.ColorRole.HighlightedText if selected else QPalette.ColorRole.Text
+            )
+            editor_palette.setColor(QPalette.ColorRole.Base, background)
+            editor_palette.setColor(QPalette.ColorRole.Window, background)
+            editor_palette.setColor(QPalette.ColorRole.Text, foreground)
+            editor_palette.setColor(QPalette.ColorRole.WindowText, foreground)
+            editor.setPalette(editor_palette)
+            source_label = editor.findChild(QLabel)
+            if source_label is not None:
+                source_label.setPalette(editor_palette)
 
-    def _commit_name(self, item: QListWidgetItem, editor: QLineEdit) -> None:
-        """Commit edited text once and reload valid system information."""
-        name = editor.text()
-        valid = self._validate_name_editor(item, editor, name)
-        item.setData(self.NAME_ROLE, name)
+    def _select_state(self, item: QListWidgetItem, state: str) -> None:
+        """Assign a state and atomically swap with a conflicting row."""
+        previous_state = item.data(self.STATE_ROLE)
+        if state == previous_state:
+            return
+
+        groups = item.data(self.GROUPS_ROLE)
+        source = item.data(self.SOURCE_ROLE)
+        target_group = groups[state]
+        conflicting_item = None
+        for index in range(self.count()):
+            candidate = self.item(index)
+            if candidate is item or candidate.data(self.SOURCE_ROLE) != source:
+                continue
+            candidate_state = candidate.data(self.STATE_ROLE)
+            candidate_groups = candidate.data(self.GROUPS_ROLE)
+            if candidate_groups[candidate_state] == target_group:
+                conflicting_item = candidate
+                break
+
+        item.setData(self.STATE_ROLE, state)
         self._update_item_token(item)
-        self._set_item_name_validity(item, valid)
-        self._editing_name_valid = None
-        self.validation_changed.emit()
-        if not valid:
-            self.message.emit(
-                NotifierMessage(
-                    "Reusable system names must be valid and globally unique.",
-                    level=logging.WARNING,
-                )
-            )
-            self.systems_changed()
-            return
-        old_token = str(editor.property("committed_token"))
-        if old_token != item.text():
-            self.reference_renamed.emit(old_token, item.text())
-            editor.setProperty("committed_token", item.text())
-            item.setData(self.COMMITTED_TOKEN_ROLE, item.text())
-            self.systems_changed()
+        if conflicting_item is not None:
+            conflicting_item.setData(self.STATE_ROLE, previous_state)
+            self._update_item_token(conflicting_item)
+            self._sync_state_editor(conflicting_item)
+        self.systems_changed()
 
     def systems_changed(self) -> None:
         """Load system info and emit changed signal."""
-        if not self.references_valid():
-            self._sync_action_state()
-            self.changed.emit()
-            return
         system_info = get_system_info(self.systems)
         if isinstance(system_info, Error):
             raise InternalInvariantError("System list should work if systems work individually.")
@@ -566,7 +615,7 @@ class SystemListWidget(QListWidget):
         return self._cached_system_info
 
     def test_import(self, filename: str) -> Result[SystemCapability, str]:
-        """Inspect whether a source imports and whether it is reusable."""
+        """Inspect whether a source imports and which states it exposes."""
         return get_system_capability(filename)
 
     def query_systems(self) -> None:

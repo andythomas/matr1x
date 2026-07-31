@@ -77,6 +77,7 @@ from matr1x.models import (
     MeasuredValues,
     Message,
     SetValues,
+    SystemInfo,
     Telemetry,
 )
 from matr1x.post_install import (
@@ -108,6 +109,15 @@ if sys.platform == "win32":
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
+
+
+def _configurable_system_sections(system_info: SystemInfo) -> list[str]:
+    """Return resolved configuration sections for importable systems."""
+    return [
+        selection.config_section or selection.source
+        for selection in system_info.selections
+        if not Path(selection.source).exists()
+    ]
 
 
 class LabelWithSignal(QLabel):
@@ -170,11 +180,14 @@ class QueueListWidget(QListWidget):
     def change_config(self, row: int) -> None:
         """Change the config of the item."""
         parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        if parameters.system_info is None:
+            raise InternalInvariantError("Queued measurement should include system information.")
         dialog = QDialog(self)
         dialog.setWindowTitle("Edit Device Config")
         editor = ConfigEditWidget(popup=True)
-        editor.set_systemfile(self.parameters(row).systems)
-        editor.set_system_info(self.parameters(row).system_info)
+        editor.set_systemfile(_configurable_system_sections(parameters.system_info))
+        editor.set_full_system_list(parameters.systems)
+        editor.set_system_info(parameters.system_info)
         editor.update_data()
         editor.apply_config_dict(parameters.config)
         layout = QVBoxLayout(dialog)
@@ -737,13 +750,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                         "".join(system_info.config_validation_errors),
                     )
         configurable = (
-            [
-                instance.config_section or instance.source
-                for instance in system_info.instances
-                if not Path(instance.source).exists()
-            ]
-            if system_info is not None
-            else []
+            _configurable_system_sections(system_info) if system_info is not None else []
         )
         matr1x.reload_config()
         self.ui.widgets.config_editor.set_systemfile(configurable)

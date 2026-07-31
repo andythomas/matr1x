@@ -838,27 +838,21 @@ class MetaViewerWidget(QDockWidget):
                         else:
                             items.append((child_key, child_value, False))
                 else:
+                    items = [(k, v, False) for k, v in self.value.items()]
+                    present_keys = self.value.keys()
                     properties = schema.get("properties", {})
-                    required = set(schema.get("required", []))
-                    items = []
-                    for child_key, child_schema in properties.items():
-                        if child_key in self.value:
-                            items.append((child_key, self.value[child_key], False))
-                        elif child_key in required:
-                            items.append(
-                                (
-                                    child_key,
-                                    MetaViewerWidget.default_value_from_schema(
-                                        child_schema, self.root_schema
-                                    ),
-                                    True,
-                                )
+                    for child_key in schema.get("required", []):
+                        if child_key in present_keys or child_key not in properties:
+                            continue
+                        items.append(
+                            (
+                                child_key,
+                                MetaViewerWidget.default_value_from_schema(
+                                    properties[child_key], self.root_schema
+                                ),
+                                True,
                             )
-                    items.extend(
-                        (child_key, child_value, False)
-                        for child_key, child_value in self.value.items()
-                        if child_key not in properties
-                    )
+                        )
 
                 for child_key, child_value, child_missing in items:
                     if child_key == "_schema":

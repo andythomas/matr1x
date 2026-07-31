@@ -23,7 +23,6 @@ This module provides Pydantic models used for:
 """
 
 import math
-import re
 from collections.abc import Callable
 from enum import IntFlag
 from functools import cached_property
@@ -282,25 +281,22 @@ class MainConfig(ConfigBaseModel):
 
 
 class SystemReference(BaseModel):
-    """Identify one static system or one named reusable system instance."""
+    """Identify one static system or one selected state of a stateful system."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     source: str
-    name: str | None = None
+    state: str | None = None
 
     @model_validator(mode="after")
     def validate_reference(self):
-        """Validate the source and optional instance name."""
+        """Validate the source and optional state."""
         if not self.source.strip():
             raise ValueError("System source must not be empty")
         if "::" in self.source:
             raise ValueError("'::' is reserved and cannot occur in a system source")
-        if self.name is not None and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", self.name) is None:
-            raise ValueError(
-                "System name must start with a letter or underscore and contain only "
-                "letters, digits, and underscores"
-            )
+        if self.state is not None and not self.state.isidentifier():
+            raise ValueError("System state must be a valid Python identifier")
         return self
 
     @classmethod
@@ -311,14 +307,14 @@ class SystemReference(BaseModel):
         token = str(value).strip()
         if "::" not in token:
             return cls(source=token)
-        source, name = token.rsplit("::", 1)
-        return cls(source=source, name=name)
+        source, state = token.rsplit("::", 1)
+        return cls(source=source, state=state)
 
     def to_token(self) -> str:
         """Return the compact representation used in legacy-compatible headers."""
-        if self.name is None:
+        if self.state is None:
             return self.source
-        return f"{self.source}::{self.name}"
+        return f"{self.source}::{self.state}"
 
 
 class SystemCapability(BaseModel):
@@ -327,15 +323,16 @@ class SystemCapability(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source: str
-    reusable: bool = False
-    name_prefix: str | None = None
+    stateful: bool = False
+    states: tuple[str, ...] = ()
+    state_exclusion_groups: dict[str, str] = Field(default_factory=dict)
     class_name: str
 
 
-class SystemInstanceInfo(SystemCapability):
-    """Describe one selected and constructed system instance."""
+class SystemSelectionInfo(SystemCapability):
+    """Describe one selected and constructed system."""
 
-    name: str | None = None
+    state: str | None = None
     accessor_name: str
     config_section: str | None = None
 
@@ -395,7 +392,7 @@ class SystemInfo(BaseModel):
     methods: dict[str, SystemMethod]
     variables: dict[str, SystemVariable]
     config: dict[str, Any]
-    instances: list[SystemInstanceInfo] = Field(default_factory=list)
+    selections: list[SystemSelectionInfo] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     config_validation_errors: list[str] = Field(default_factory=list)
 
