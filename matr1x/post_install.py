@@ -303,9 +303,8 @@ def check_system_specifics() -> bool:
         result = all(check_command(cmd, desc) for cmd, desc in commands_to_check)
         return result
     elif "windows" in os_type:
-        # Set the PYTHONUTF8 environment variable for the current user
         os.environ["PYTHONUTF8"] = "1"
-        os.system("setx PYTHONUTF8 1")
+        subprocess.run(["setx", "PYTHONUTF8", "1"], check=True, capture_output=True)
         return True
     return True
 

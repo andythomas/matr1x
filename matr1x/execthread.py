@@ -26,7 +26,6 @@ import socket
 import threading
 import time
 import traceback
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -575,7 +574,7 @@ class ExecThread(threading.Thread):
                 "_script": self.script,
                 "_system": self.system,
             }
-            self.system.report: Callable[[MeasurementData], None] = self.report
+            setattr(self.system, "report", self.report)
             exec(self.script, _vars)
         except KeyboardInterrupt:
             self.report(Message("Script interrupted during initialization", to_comment=False))

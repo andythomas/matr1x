@@ -464,7 +464,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self.settables = []
         self.columns = []
         self.system_info = system_info
-        for key, data in system_info.parameters.items():
+        for _, data in system_info.parameters.items():
             self.indexes.append(str(data.index))
             self.settables.append(data.settable)
             self.columns.append(data.name)
@@ -1141,7 +1141,11 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         """Handle notifications from the LSP server."""
         if notification.method == "textDocument/publishDiagnostics":
             params = cast(dict, notification.params)
-            diagnostics = [TyDiagnostic.model_validate(d) for d in params.get("diagnostics", [])]
+            diagnostics = [
+                TyDiagnostic.model_validate(d)
+                for d in params.get("diagnostics", [])
+                if d.get("severity", 1) < 4
+            ]
             tc_diagnostics = [
                 d.to_monaco(SCRIPT_OFFSET + self._system_info.stub_length, COLUMN_OFFSET)
                 for d in diagnostics
@@ -1211,7 +1215,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         """Convert LSP completion results to Monaco format."""
         monaco_completions = []
         if isinstance(lsp_completions, list):
-            for i, item in enumerate(lsp_completions):
+            for item in lsp_completions:
                 if isinstance(item, dict):
                     doc_field = item.get("documentation", "")
                     monaco_documentation = None
@@ -1227,9 +1231,10 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                         "documentation": monaco_documentation,
                     }
                     monaco_completions.append(monaco_completion)
-        elif isinstance(lsp_completions, dict):
-            if "items" in lsp_completions:
-                return self._process_lsp_completions(lsp_completions["items"])
+        # unreachable code removed 20260726. Uncomment to restore.
+        # elif isinstance(lsp_completions, dict):
+        #     if "items" in lsp_completions:
+        #         return self._process_lsp_completions(lsp_completions["items"])
         return monaco_completions
 
     def _convert_completion_kind(self, lsp_kind):
