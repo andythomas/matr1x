@@ -1212,7 +1212,9 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         )
         self._run_javascript_async(js_command)
 
-    def _process_lsp_completions(self, lsp_completions: list[dict[str, str]]):
+    def _process_lsp_completions(
+        self, lsp_completions: list[dict[str, Any]] | dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Convert LSP completion results to Monaco format."""
         monaco_completions = []
         if isinstance(lsp_completions, list):
@@ -1237,10 +1239,9 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                         "documentation": monaco_documentation,
                     }
                     monaco_completions.append(monaco_completion)
-        # unreachable code removed 20260726. Uncomment to restore.
-        # elif isinstance(lsp_completions, dict):
-        #     if "items" in lsp_completions:
-        #         return self._process_lsp_completions(lsp_completions["items"])
+        elif isinstance(lsp_completions, dict):
+            if "items" in lsp_completions:
+                return self._process_lsp_completions(lsp_completions["items"])
         return monaco_completions
 
     def _convert_completion_kind(self, lsp_kind):
