@@ -22,6 +22,7 @@ JavaScript should be used outside of this module!
 
 import ast
 import hashlib
+import html
 import json
 import re
 import socket
@@ -1182,7 +1183,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         if isinstance(contents, list):
             popup = [{"value": "Unknown"}]
         else:
-            text = contents.value.rsplit("Go to", 1)[0]
+            text = html.unescape(contents.value.rsplit("Go to", 1)[0])
             popup = [{"value": text}]
         js_command = f"window.showHover({hover.requestId}, {json.dumps(popup)})"
         self._run_javascript_async(js_command)
@@ -1221,9 +1222,14 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                     monaco_documentation = None
                     if doc_field:
                         if isinstance(doc_field, dict):
+                            if "value" in doc_field:
+                                doc_field["value"] = html.unescape(doc_field["value"])
                             monaco_documentation = doc_field
                         elif isinstance(doc_field, str) and doc_field.strip():
-                            monaco_documentation = {"kind": "markdown", "value": doc_field}
+                            monaco_documentation = {
+                                "kind": "markdown",
+                                "value": html.unescape(doc_field),
+                            }
                     monaco_completion = {
                         "label": item.get("label", ""),
                         "insertText": item.get("insertText", item.get("label", "")),
