@@ -26,6 +26,7 @@ import socket
 import threading
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
