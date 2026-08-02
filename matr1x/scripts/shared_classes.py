@@ -37,6 +37,7 @@ from PySide6.QtCore import (
     QSize,
     Qt,
     QThread,
+    QTimer,
     Signal,
 )
 from PySide6.QtGui import QAction, QDropEvent, QKeySequence
@@ -122,6 +123,9 @@ class Notifier(QWidget):
         self._close_button.setFixedSize(20, 20)
         self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._close_button.clicked.connect(self.hide_animated)
+        self._dismiss_timer = QTimer()
+        self._dismiss_timer.setSingleShot(True)
+        self._dismiss_timer.timeout.connect(self.hide_animated)
         self._content.addWidget(self._icon)
         self._content.addWidget(self._text, 1)
         self._content.addWidget(self._close_button)
@@ -139,10 +143,13 @@ class Notifier(QWidget):
         self._icon.setPixmap(get_matrix_icon(icon_name).pixmap(size, size))
         self._text.setText(message.text)
         self._logger.log(message.level, message.text)
+        self._dismiss_timer.stop()
+        if message.level < logging.ERROR:
+            self._dismiss_timer.start(3000)
         self.show_animated()
 
     def show_animated(self):
-        """Show the notification until the user clicks the close button."""
+        """Show the notification. Auto-dismiss for warnings and below."""
         self.setVisible(True)
         # Already visible — just update content, no need to re-animate
         if self.maximumHeight() > 0:
