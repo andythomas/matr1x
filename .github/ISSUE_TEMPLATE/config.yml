@@ -1,1 +1,5 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Feature Requests are Paused
+    url: https://github.com/andythomas/matr1x#readme
+    about: We are not accepting feature requests until further notice.
