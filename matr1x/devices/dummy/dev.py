@@ -36,7 +36,7 @@ cmd_list: dict[str, Command] = {
 dummy_dev = makeSCPIdevice(cmd_list)
 
 
-class dummy(dummy_dev):
+class dummy(dummy_dev):  # ty: ignore[unsupported-base]
     """
     Dummy device for testing.
 
