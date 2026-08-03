@@ -41,3 +41,9 @@ W. Xu et al. [reported](https://doi.org/10.1109/ICPC58990.2023.00039) 29 out of 
 Furthermore, type checking enables refactoring of lower code quality, which would otherwise inherently increase the number of bugs.
 
 Please note that we will assist with adding type hints to pull requests for new features or bug fixes.
+
+### Do you accept patches for upstream bugs?
+
+Unfortunately, it is not possible for us to accept patches for upstream bugs.
+This was attempted in the past and only led to increased complexity, a higher maintenance burden, and potential regressions.
+In very rare cases where our software does not work properly at all and an upstream fix is not (and will not be) available, we will consider patches.
