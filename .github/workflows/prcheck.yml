@@ -21,6 +21,7 @@ jobs:
   PR-Title-and-ruff:
     if: >
       startsWith(github.head_ref, 'ruff-patches') == false &&
+      startsWith(github.head_ref, 'complexipy-patches') == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.draft == false
     timeout-minutes: 1

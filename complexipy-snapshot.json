@@ -5,7 +5,7 @@
     "functions": [
       {
         "name": "guiObject::getWidget",
-        "complexity": 17
+        "complexity": 18
       },
       {
         "name": "sendNotificationEmail",
