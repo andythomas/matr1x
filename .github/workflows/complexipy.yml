@@ -13,7 +13,8 @@ on:
       - development
 
 permissions:
-  security-events: write
+  contents: write
+  pull-requests: write
 
 jobs:
   changes:
@@ -39,10 +40,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
-      - name: Set up Python
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
           activate-environment: true
 
@@ -51,11 +55,15 @@ jobs:
         shell: bash
 
       - name: Run complexipy
-        continue-on-error: true
         id: complexipy
-        run: complexipy . --output-format sarif --output complexipy-results.sarif --ignore-complexity
+        run: complexipy .
 
-      - name: Upload SARIF results
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Create pull request on reduced complexity
+        uses: peter-evans/create-pull-request@v8.1.1
         with:
-          sarif_file: complexipy-results.sarif
+          commit-message: "chore: update complexipy baseline"
+          title: "Update complexipy baseline"
+          body: "Auto-generated PR lowering complexity baseline after improvements."
+          labels: complexipy, automated pr
+          branch: "complexipy-patches/${{ github.head_ref }}"
+          base: ${{ github.head_ref }}
