@@ -1896,9 +1896,7 @@ class ConfigEditWidget(MetaViewerWidget):
                 validated = item.value.__class__.model_validate(config)
                 return validated.model_dump(mode="json", by_alias=True, exclude_none=True)
             except ValidationError as e:
-                logger.warning(
-                    "Validation error during config extraction for %s: %s", item.key, e
-                )
+                logger.warning("Validation error during config extraction for %s: %s", item.key, e)
                 return config
 
         return config
