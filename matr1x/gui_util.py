@@ -1861,13 +1861,16 @@ class ConfigEditWidget(MetaViewerWidget):
     def _parse_leaf_item(cls, item: MetaViewerWidget.TreeItem) -> Any:
         """Parse and type-coerce a leaf TreeItem value."""
         raw_value = item.data(1, Qt.ItemDataRole.EditRole)
+        if raw_value is None:
+            return None
+
         schema = item.type(1)
         if not isinstance(schema, dict):
             return raw_value
 
         json_type = schema.get("type")
         if json_type == "boolean":
-            return str(raw_value).lower() == "true"
+            return raw_value.lower() == "true"
 
         if json_type == "integer":
             try:
