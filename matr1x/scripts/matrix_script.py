@@ -94,6 +94,7 @@ from matr1x.models import (
     ExecutionLines,
     Header,
     InputParameters,
+    LogEntry,
     MeasuredValues,
     Message,
     Modifier,
@@ -1176,6 +1177,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
         elif isinstance(data, ErrorMessage):
             logger.error(data.error)
             self.measurement_failed = True
+        elif isinstance(data, LogEntry):
+            data.log_record(logger)
 
     def show_message(self, message: NotifierMessage):
         """Show a message text and log."""

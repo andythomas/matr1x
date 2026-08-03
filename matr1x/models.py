@@ -22,12 +22,13 @@ This module provides Pydantic models used for:
 3. Handling structured measurement, telemetry, and message data.
 """
 
+import logging
 import math
 from collections.abc import Callable
 from enum import IntFlag
 from functools import cached_property
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, final
 
 from pydantic import (
     AfterValidator,
@@ -439,6 +440,7 @@ class SystemInfo(BaseModel):
 # --- measurement data for matrix and matrix-script
 
 
+@final
 class Header(BaseModel):
     """Model for the header of a measurement output."""
 
@@ -455,6 +457,7 @@ class Header(BaseModel):
         return "\n".join(lines)
 
 
+@final
 class SetValues(BaseModel):
     """Model for the set values."""
 
@@ -471,6 +474,7 @@ class SetValues(BaseModel):
         return get_formatted_line(flatten(self.set_values), prefix="Set : ")
 
 
+@final
 class MeasuredValues(BaseModel):
     """Model for the measured values."""
 
@@ -487,6 +491,7 @@ class MeasuredValues(BaseModel):
         return get_formatted_line(flatten(self.measured_values), prefix="Meas: ")
 
 
+@final
 class Telemetry(BaseModel):
     """Model for the telemetry data."""
 
@@ -516,6 +521,7 @@ class Modifier(IntFlag):
     DELETE_CURRENT_LINE = 1
 
 
+@final
 class Message(BaseModel):
     """Model for messages."""
 
@@ -545,6 +551,7 @@ class Message(BaseModel):
         )
 
 
+@final
 class ErrorMessage(BaseModel):
     """Model for the error message."""
 
@@ -556,12 +563,14 @@ class ErrorMessage(BaseModel):
         super().__init__(**data)
 
 
+@final
 class ExecutionLines(BaseModel):
     """Active user-script lines ordered from innermost to outermost."""
 
     lines: list[int] = Field(min_length=1)
 
 
+@final
 class Datafile(BaseModel):
     """Model for the datafile."""
 
@@ -573,6 +582,7 @@ class Datafile(BaseModel):
         super().__init__(**data)
 
 
+@final
 class InputParameters(BaseModel):
     """Parameters for script input requests."""
 
@@ -594,6 +604,24 @@ class InputParameters(BaseModel):
         )
 
 
+@final
+class LogEntry(BaseModel):
+    """Model for log entries."""
+
+    name: str
+    level: int
+    getMessage: str
+    created: float
+    lineno: int
+
+    def log_record(self, logger: logging.Logger) -> None:
+        """Create a logging record from the log entry data."""
+        record = logger.makeRecord(
+            self.name, self.level, __file__, self.lineno, self.getMessage, (), exc_info=None
+        )
+        logger.handle(record)
+
+
 MeasurementData = (
     Header
     | SetValues
@@ -604,6 +632,7 @@ MeasurementData = (
     | Datafile
     | ExecutionLines
     | InputParameters
+    | LogEntry
 )
 
 

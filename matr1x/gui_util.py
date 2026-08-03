@@ -4210,9 +4210,17 @@ class LoggingWindow(QMainWindow):
 class hasLogActions(Protocol):
     """The actions needed by the LogWindowMixin."""
 
-    show_log: QAction
-    post_install: QAction
-    remove_desktop_integration: QAction
+    @property
+    def show_log(self) -> QAction:
+        """The action to show the log window."""
+
+    @property
+    def post_install(self) -> QAction:
+        """The action to post-install the application."""
+
+    @property
+    def remove_desktop_integration(self) -> QAction:
+        """The action to remove desktop integration."""
 
 
 class LogWindowMixin:
