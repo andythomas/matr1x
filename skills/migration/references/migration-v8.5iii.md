@@ -2,9 +2,9 @@
 
 ## Validate system configuration defaults
 
-`System.load_config()` continues to accept plain Pydantic `BaseModel` classes, but it does not
-enable validation of their default values. Use `SystemConfigModel` for system configuration so
-both configured values and defaults are validated.
+`System.load_config()` needs to be switched from `BaseModel` classes to
+`SystemConfigModel` to enable validation of their default values. For migration
+perform the following steps:
 
 1. Find every Pydantic model passed to `load_config(...)` in a system file.
    Do not change unrelated `BaseModel` classes.
