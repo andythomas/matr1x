@@ -518,7 +518,10 @@ class MetaViewerWidget(QDockWidget):
                 editor.setText(str(value))
                 editor.resize(editor.sizeHint())
             elif isinstance(editor, QCheckBox):
-                editor.setChecked(bool(value))
+                if isinstance(value, str):
+                    editor.setChecked(value.strip().casefold() == "true")
+                else:
+                    editor.setChecked(bool(value))
             elif isinstance(editor, FileLineEdit):
                 editor.setText(str(value))
             elif isinstance(editor, QComboBox):
@@ -4207,9 +4210,17 @@ class LoggingWindow(QMainWindow):
 class hasLogActions(Protocol):
     """The actions needed by the LogWindowMixin."""
 
-    show_log: QAction
-    post_install: QAction
-    remove_desktop_integration: QAction
+    @property
+    def show_log(self) -> QAction:
+        """The action to show the log window."""
+
+    @property
+    def post_install(self) -> QAction:
+        """The action to post-install the application."""
+
+    @property
+    def remove_desktop_integration(self) -> QAction:
+        """The action to remove desktop integration."""
 
 
 class LogWindowMixin:

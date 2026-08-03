@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMenu,
+    QPushButton,
     QSizePolicy,
     QTextEdit,
     QToolBar,
@@ -118,9 +119,16 @@ class Notifier(QWidget):
         self._content.setContentsMargins(0, 0, 0, 0)
         self._icon = QLabel()
         self._text = QLabel()
+        self._close_button = QPushButton("✕")
+        self._close_button.setFixedSize(20, 20)
+        self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._close_button.clicked.connect(self.hide_animated)
+        self._dismiss_timer = QTimer()
+        self._dismiss_timer.setSingleShot(True)
+        self._dismiss_timer.timeout.connect(self.hide_animated)
         self._content.addWidget(self._icon)
-        self._content.addWidget(self._text)
-        self._content.addStretch()
+        self._content.addWidget(self._text, 1)
+        self._content.addWidget(self._close_button)
         self.setLayout(self._content)
 
     def show_message(self, message: NotifierMessage):
@@ -135,17 +143,24 @@ class Notifier(QWidget):
         self._icon.setPixmap(get_matrix_icon(icon_name).pixmap(size, size))
         self._text.setText(message.text)
         self._logger.log(message.level, message.text)
+        self._dismiss_timer.stop()
+        if message.level < logging.ERROR:
+            self._dismiss_timer.start(3000)
         self.show_animated()
 
     def show_animated(self):
-        """Show the notification and hide after 3s."""
+        """Show the notification. Auto-dismiss for warnings and below."""
         self.setVisible(True)
+        # Already visible — just update content, no need to re-animate
+        if self.maximumHeight() > 0:
+            return
+        if hasattr(self, "anim") and self.anim.state() == QPropertyAnimation.State.Running:
+            self.anim.stop()
         self.anim = QPropertyAnimation(self, b"maximumHeight")
         self.anim.setDuration(250)
         self.anim.setStartValue(0)
         self.anim.setEndValue(int(self.sizeHint().height()))
         self.anim.start()
-        QTimer.singleShot(3000, self.hide_animated)
 
     def hide_animated(self):
         """Hide the notification."""
