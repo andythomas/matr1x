@@ -1734,20 +1734,8 @@ class ConfigEditWidget(MetaViewerWidget):
         return value
 
     @classmethod
-    def _schema_validation_error(cls, item) -> str | None:
-        """Validate one leaf value against constraints represented in JSON schema."""
-        if item.missing:
-            return "Field required"
-
-        schema = item.type(1)
-        if not isinstance(schema, dict):
-            return None
-
-        try:
-            value = cls._coerce_schema_value(item.value, schema)
-        except (TypeError, ValueError):
-            return f"Input should be a valid {schema.get('type', 'value')}"
-
+    def _validate_enum_or_const(cls, value: Any, schema: dict[str, Any]) -> str | None:
+        """Validate enum choices and const values."""
         if "enum" in schema:
             try:
                 enum = [
@@ -1762,32 +1750,64 @@ class ConfigEditWidget(MetaViewerWidget):
         if "const" in schema and value != schema["const"]:
             return f"Input should be {schema['const']!r}"
 
-        if schema.get("type") in {"integer", "number"}:
-            if "minimum" in schema and value < schema["minimum"]:
-                return f"Input should be greater than or equal to {schema['minimum']}"
-            if "maximum" in schema and value > schema["maximum"]:
-                return f"Input should be less than or equal to {schema['maximum']}"
-            if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
-                return f"Input should be greater than {schema['exclusiveMinimum']}"
-            if "exclusiveMaximum" in schema and value >= schema["exclusiveMaximum"]:
-                return f"Input should be less than {schema['exclusiveMaximum']}"
-            if multiple_of := schema.get("multipleOf"):
-                quotient = value / multiple_of
-                if not math.isclose(quotient, round(quotient), abs_tol=1e-12):
-                    return f"Input should be a multiple of {multiple_of}"
+        return None
 
-        if schema.get("type") == "string":
-            if "minLength" in schema and len(value) < schema["minLength"]:
-                return f"Input should have at least {schema['minLength']} characters"
-            if "maxLength" in schema and len(value) > schema["maxLength"]:
-                return f"Input should have at most {schema['maxLength']} characters"
-            if "pattern" in schema and re.search(schema["pattern"], value) is None:
-                return f"Input should match pattern {schema['pattern']!r}"
-            if schema.get("ui_type") == "visa_resource":
-                try:
-                    validate_visa_resource(value)
-                except ValueError as exc:
-                    return str(exc)
+    @classmethod
+    def _validate_numeric_constraints(cls, value: Any, schema: dict[str, Any]) -> str | None:
+        """Validate numeric range and multipleOf constraints."""
+        if "minimum" in schema and value < schema["minimum"]:
+            return f"Input should be greater than or equal to {schema['minimum']}"
+        if "maximum" in schema and value > schema["maximum"]:
+            return f"Input should be less than or equal to {schema['maximum']}"
+        if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
+            return f"Input should be greater than {schema['exclusiveMinimum']}"
+        if "exclusiveMaximum" in schema and value >= schema["exclusiveMaximum"]:
+            return f"Input should be less than {schema['exclusiveMaximum']}"
+        if multiple_of := schema.get("multipleOf"):
+            quotient = value / multiple_of
+            if not math.isclose(quotient, round(quotient), abs_tol=1e-12):
+                return f"Input should be a multiple of {multiple_of}"
+        return None
+
+    @classmethod
+    def _validate_string_constraints(cls, value: Any, schema: dict[str, Any]) -> str | None:
+        """Validate string length, regex patterns, and specialized UI types like visa_resource."""
+        if "minLength" in schema and len(value) < schema["minLength"]:
+            return f"Input should have at least {schema['minLength']} characters"
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            return f"Input should have at most {schema['maxLength']} characters"
+        if "pattern" in schema and re.search(schema["pattern"], value) is None:
+            return f"Input should match pattern {schema['pattern']!r}"
+        if schema.get("ui_type") == "visa_resource":
+            try:
+                validate_visa_resource(value)
+            except ValueError as exc:
+                return str(exc)
+        return None
+
+    @classmethod
+    def _schema_validation_error(cls, item) -> str | None:
+        """Validate one leaf value against constraints represented in JSON schema."""
+        if item.missing:
+            return "Field required"
+
+        schema = item.type(1)
+        if not isinstance(schema, dict):
+            return None
+
+        try:
+            value = cls._coerce_schema_value(item.value, schema)
+        except (TypeError, ValueError):
+            return f"Input should be a valid {schema.get('type', 'value')}"
+
+        if err := cls._validate_enum_or_const(value, schema):
+            return err
+
+        json_type = schema.get("type")
+        if json_type in {"integer", "number"}:
+            return cls._validate_numeric_constraints(value, schema)
+        if json_type == "string":
+            return cls._validate_string_constraints(value, schema)
 
         return None
 
@@ -1837,7 +1857,53 @@ class ConfigEditWidget(MetaViewerWidget):
         _merge(self.value_dict, self.flatten_dict(config))
         super().update_data(self.value_dict, self.types_dict)
 
-    def parse_item(self, item) -> Any:
+    @classmethod
+    def _parse_leaf_item(cls, item: MetaViewerWidget.TreeItem) -> Any:
+        """Parse and type-coerce a leaf TreeItem value."""
+        raw_value = item.data(1, Qt.ItemDataRole.EditRole)
+        schema = item.type(1)
+        if not isinstance(schema, dict):
+            return raw_value
+
+        json_type = schema.get("type")
+        if json_type == "boolean":
+            return str(raw_value).lower() == "true"
+
+        if json_type == "integer":
+            try:
+                return int(raw_value)
+            except (ValueError, TypeError):
+                return raw_value
+
+        if json_type == "number":
+            try:
+                return float(raw_value)
+            except (ValueError, TypeError):
+                return raw_value
+
+        return raw_value
+
+    def _parse_container_item(self, item: MetaViewerWidget.TreeItem) -> dict | Any:
+        """Parse child TreeItems into a dictionary and validate Pydantic models."""
+        config = {
+            child_item.data(0, Qt.ItemDataRole.EditRole): self.parse_item(child_item)
+            for child_item in item.child_items
+            if not child_item.missing
+        }
+
+        if isinstance(item.value, BaseModel):
+            try:
+                validated = item.value.__class__.model_validate(config)
+                return validated.model_dump(mode="json", by_alias=True, exclude_none=True)
+            except ValidationError as e:
+                logger.warning(
+                    "Validation error during config extraction for %s: %s", item.key, e
+                )
+                return config
+
+        return config
+
+    def parse_item(self, item: MetaViewerWidget.TreeItem) -> Any:
         """
         Parse a TreeItem and its children into a configuration dictionary.
 
@@ -1853,44 +1919,8 @@ class ConfigEditWidget(MetaViewerWidget):
             if the item has no children.
         """
         if item.child_count() > 0:
-            config = {}
-            for child_item in item.child_items:
-                if child_item.missing:
-                    continue
-                config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(child_item)
-
-            # If the item itself represents a Pydantic model, validate the config
-            if isinstance(item.value, BaseModel):
-                try:
-                    # Validate and convert back to a plain dict for the writing process
-                    # Use model_validate to check types and apply default values
-                    validated = item.value.__class__.model_validate(config)
-                    return validated.model_dump(mode="json", by_alias=True, exclude_none=True)
-                except ValidationError as e:
-                    logger.warning(
-                        "Validation error during config extraction for %s: %s", item.key, e
-                    )
-                    return config  # Fallback to raw config on error
-            return config
-
-        # Handle leaf nodes
-        schema = item.type(1)
-        if schema:
-            json_type = schema.get("type")
-            raw_value = item.data(1, Qt.ItemDataRole.EditRole)
-            if json_type == "boolean":
-                return str(raw_value).lower() == "true"
-            elif json_type == "integer":
-                try:
-                    return int(raw_value)
-                except (ValueError, TypeError):
-                    return raw_value
-            elif json_type == "number":
-                try:
-                    return float(raw_value)
-                except (ValueError, TypeError):
-                    return raw_value
-        return item.data(1, Qt.ItemDataRole.EditRole)
+            return self._parse_container_item(item)
+        return self._parse_leaf_item(item)
 
     def get_config_dict(self) -> dict:
         """

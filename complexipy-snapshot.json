@@ -176,10 +176,6 @@
     "file_name": "gui_util.py",
     "functions": [
       {
-        "name": "ConfigEditWidget::parse_item",
-        "complexity": 19
-      },
-      {
         "name": "SimplePlotWidget::_update_linesetting",
         "complexity": 20
       },
