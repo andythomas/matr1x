@@ -13,3 +13,7 @@ repos:
     rev: v0.0.63
     hooks:
       - id: ty
+  - repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v6.2.0
+    hooks:
+      - id: complexipy
