@@ -162,6 +162,7 @@ dev = [
     "sphinx>=7.4.7",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
+    "complexipy>=6.2.0",
 ]
 
 docs = [
@@ -173,3 +174,9 @@ override-dependencies = []
 
 [tool.uv.dependency-groups]
 docs = { requires-python = ">=3.11" }
+
+[tool.complexipy]
+paths = ["matr1x"]
+max-complexity-allowed = 15
+snapshot-create = false
+snapshot-ignore = false
