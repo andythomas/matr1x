@@ -162,6 +162,7 @@ dev = [
     "sphinx>=7.4.7",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
+    "complexipy>=6.2.0",
 ]
 
 docs = [
