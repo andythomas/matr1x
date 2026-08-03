@@ -975,8 +975,6 @@ Please investigate the error and eventually restart matrix-preview""",
                 # dimensions not compatible
                 # <1D or >3D data cannot be 2d plotted.
                 return -5
-            if i == 1 and self.w_plot2d_comp.isChecked() is True:
-                return -12
 
         z, x, y = data_vars
 
