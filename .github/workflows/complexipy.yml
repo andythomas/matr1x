@@ -1,0 +1,61 @@
+name: Complexity check
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - main
+      - development
+
+permissions:
+  security-events: write
+
+jobs:
+  changes:
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    outputs:
+      related_code_changed: ${{ steps.filter.outputs.related_code_changed }}
+    steps:
+      - id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            related_code_changed:
+              - '**/*.py'
+              - '.github/workflows/**'
+
+  complexipy:
+    needs: changes
+    if: needs.changes.outputs.related_code_changed == 'true'
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Set up Python
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          activate-environment: true
+
+      - name: Install dependencies
+        run: uv tool install complexipy==6.2.0
+        shell: bash
+
+      - name: Run complexipy
+        continue-on-error: true
+        id: complexipy
+        run: complexipy . --output-format sarif --output complexipy-results.sarif --ignore-complexity
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: complexipy-results.sarif
