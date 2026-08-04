@@ -6,6 +6,13 @@
 
 Please note that [Commitizen](https://github.com/commitizen-tools/commitizen) can assist with message generation.
 
+## Type Checking
+
+Early bug detection relies on strict type boundaries. To prevent type erosion, two core constraints apply:
+
+- **Within a class:** `Any` and `Unknown` should not cross method signatures.
+- **Outside a class:** `Any` and `Unknown` must never cross public class boundaries.
+
 ## Specific editor settings
 
 ### Zed editor settings

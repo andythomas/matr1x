@@ -29,18 +29,6 @@ Yes, Dark mode is provided for all matr1x graphical user interfaces.
 This includes dynamic, automatic switching between light and dark mode based on the system settings.
 Consequently, this extends to the user guide as well, where all images are provided in two variants.
 
-### Why is type-checking used in the code base? Python is and should be a dynamic language!
-
-Let us consider a [quote](https://thenewstack.io/guido-van-rossum-on-types-speed-and-the-future-of-python/) from van Rossum first: "My assumption is that many, many people developing Python software professionally, for some kind of production situation, are using a static type checker. Especially anybody who has a continuous integration cycle — probably, one of the steps in their testing routine that happens for basically every commit is 'Run a static type checker'"
-
-Scientific data acquisition and instrument control are certainly similar to a production situation, and we do use continuous integration.
-So, why do so many people in that situation use it?
-The answer is simple: it catches bugs early.
-W. Xu et al. [reported](https://doi.org/10.1109/ICPC58990.2023.00039) 29 out of 40 bugs caught with and 14/40 without type checking and the experience with our own code base is very similar.
-Furthermore, type checking enables refactoring of lower code quality, which would otherwise inherently increase the number of bugs.
-
-Please note that we will assist with adding type hints to pull requests for new features or bug fixes.
-
 ### Do you accept patches for upstream bugs?
 
 Unfortunately, it is not possible for us to accept patches for upstream bugs.
