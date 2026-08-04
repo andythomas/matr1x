@@ -159,14 +159,13 @@ dev = [
     "pre-commit>=4.3.0",
     "pytest>=8.4.1",
     "pytest-env>=1.1.5",
-    "sphinx>=7.4.7",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
     "complexipy>=6.2.0",
 ]
 
 docs = [
-    "great-docs[svg]==0.15.0"
+    "great-docs[svg]==0.16.0"
 ]
 
 [tool.uv]
