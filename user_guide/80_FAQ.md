@@ -26,7 +26,6 @@ However, the possibility to run arbitrary Python code in `matrix-script` will to
 ### Is there a Dark mode?
 
 Yes, Dark mode is provided for all matr1x graphical user interfaces.
-In previous discussions, this feature was considered essential by some users.
 This includes dynamic, automatic switching between light and dark mode based on the system settings.
 Consequently, this extends to the user guide as well, where all images are provided in two variants.
 
