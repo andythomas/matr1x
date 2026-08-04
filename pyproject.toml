@@ -34,7 +34,7 @@ dependencies = [
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
     "monaco-assets >= 0.5.1",                        # needed for matrix script
     "ruff >= 0.15.22",                               # needed for matrix script
-    "ty == 0.0.30",                                  # needed for matrix script
+    "ty == 0.0.63",                                  # needed for matrix script
     "pymeasure >= 0.16.0",                           # shared by several device drivers
     "pyserial",                                      # shared by several device drivers
     "pyvisa",                                        # shared by several device drivers
@@ -90,6 +90,9 @@ project-includes = [
 
 [tool.ty.src]
 include = ["matr1x"]
+
+[tool.ty.rules]
+unused-ignore-comment = "ignore"
 
 
 [tool.ruff]
@@ -158,11 +161,21 @@ dev = [
     "pytest-env>=1.1.5",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
+    "complexipy>=6.2.0",
 ]
 
 docs = [
     "great-docs[svg]==0.16.0"
 ]
 
+[tool.uv]
+override-dependencies = []
+
 [tool.uv.dependency-groups]
 docs = { requires-python = ">=3.11" }
+
+[tool.complexipy]
+paths = ["matr1x"]
+max-complexity-allowed = 15
+snapshot-create = false
+snapshot-ignore = false

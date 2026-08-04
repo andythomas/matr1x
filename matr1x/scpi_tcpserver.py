@@ -371,6 +371,7 @@ class SCPI_TCP_Server:
             self.server.shutdown()
             self.server.socket.close()
             self.server.server_close()
-            self.server.RequestHandlerClass.terminate: bool = True
+            # the next line apparently does not do anything and was commented 20260725
+            # self.server.RequestHandlerClass.terminate: bool = True
             self.running = False
             logger.info("server stopped on %s", self.server.server_address)
