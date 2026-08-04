@@ -1,22 +1,47 @@
 # Glossary
 
-Here, we will try to clarify some wording that is used throughout repository, in general, and the user guide, in particular.
+This glossary defines key terms and roles used throughout the repository and the user guide.
 
 ## Target Audiences & Roles
 
 ### GUI User
 
-A person who uses our package to perform measurements exclusively through graphical interfaces (`sweep-generator` and `matrix-gui`).
+**GUI Users** operate the software package to perform measurements exclusively through graphical interfaces, such as `sweep-generator` and `matrix-gui`.
 
 ### Script User
 
-A person who writes custom measurement scripts using `matrix-script`. 
+**Script Users** utilize the software package to execute measurements programmatically via `matrix-script`.
 
-### System Coder
+### System Programmer
 
-A person responsible for maintaining a specific hardware or experimental setup. 
-This includes writing or maintaining system configuration files and custom control GUIs.
+**System Programmers** maintain and configure specific hardware environments or experimental setups.
 
-### Package programmer
+### Primary Programmer
 
-A developer who adds, modifies, or maintains the core codebase of the package itself.
+**Primary Programmers** install the software package on the host computer and develop the initial system code.
+
+### Package Programmer
+
+**Package Programmers** develop, modify, and maintain the core codebase of the software package itself.
+
+## Major GUI Components
+
+### Device Config
+
+An editor used to modify the operational settings of attached instruments prior to a measurement.
+
+### Measurement Queue
+
+The primary `matrix-gui` interface for sequentially executing a list of measurement sweep files.
+
+### Metadata
+
+A panel for attaching descriptive context to measurement file headers.
+
+### Parameter Editor
+
+The main interface within `sweep-generator` used to define measurement variables and generate sweep files for execution.
+
+### Script Editor
+
+The core interface of `matrix-script` where users write tailored Python code to control instruments and drive the measurement process.
