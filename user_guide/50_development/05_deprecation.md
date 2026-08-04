@@ -28,10 +28,12 @@ Assuming the current stable version is **`v8.4.0`**, the deprecation sequence wo
 
 ## Deprecated items
 
-| Item                 | Deprecation | Removal |
-| :------------------- | :---------: | :-----: |
-| SR830 lock in driver |    8.0.1    |  9.0.0  |
-| `loadh5matrix`       |    8.1.0    |  9.0.0  |
-| `sys` use in systems |    8.0.1    |  9.0.0  |
-| `function` in sweep  |    8.0.1    |  9.0.0  |
-| initialized `system` |    8.5.0    |  9.0.0  |
+| Item                  | Deprecation | Removal |
+| :-------------------- | :---------: | :-----: |
+| SR830 lock in driver  |    8.0.1    |  9.0.0  |
+| `loadh5matrix`        |    8.1.0    |  9.0.0  |
+| `sys` use in systems  |    8.0.1    |  9.0.0  |
+| `function` in sweep   |    8.0.1    |  9.0.0  |
+| initialized `system`  |    8.5.0    |  9.0.0  |
+| `root_path` in config |    8.5.0    |  9.0.0  |
+

@@ -20,8 +20,6 @@ from matr1x.devices.dummy import dummy
 from matr1x.system import System
 
 
-# ============================
-# define system class
 class Dummy(System):
     """Dummy system for testing and demonstration purposes."""
 
@@ -29,11 +27,8 @@ class Dummy(System):
         """Initialize the dummy device and its measurement parameter."""
         super().__init__()
         self.dcdata["source"] = "dummy system for testing matr1x-matrix"
-        # ========================================================================
-        # This is the main system area.
         # Device definition and configuration takes place here, but devices are
         # not yet opened.
-        # ========================================================================
         self.add_dev(
             "dev",  # name of device, must be unique
             dummy,  # device class, not instanced
@@ -43,9 +38,7 @@ class Dummy(System):
         # The device class is instantiated as dummy(*args) when self.set() is
         # called upon start of the measurement.
 
-        # ==============================
         # define columns for measurement
-        # ==============================
         self.add_param(
             "dev p2",  # parameter name, must be unique
             "cnt",  # parameter unit for the data file header
