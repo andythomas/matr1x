@@ -77,6 +77,7 @@ from matr1x.models import (
     MeasuredValues,
     Message,
     SetValues,
+    SystemInfo,
     Telemetry,
 )
 from matr1x.post_install import (
@@ -688,60 +689,70 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         else:
             self.sg.raise_()
 
-    def parse_system_from_inputfile(self, input_file_path: str) -> None:
-        """Parse the system from an input file."""
+    def _systemfile_from_inputfile(self, input_file_path: str) -> list[str] | None:
+        """Read the system file list declared in an input-file header."""
         input_path = Path(input_file_path)
         if not input_path.exists():
-            return
+            return None
         with open_and_error(input_file_path, "r") as f:
             if isinstance(f, Error):
                 QMessageBox.warning(
                     self, "Input file error!", f"Input file cannot be parsed: {f.error}."
                 )
-                return
+                return None
             for line in f.value:
                 system_pattern = r"^# [Ss]ystem filename : (.+)"
                 if match := re.match(system_pattern, line.strip()):
-                    systemfile: list[str] = match.group(1).split(",")
-                    break
+                    return match.group(1).split(",")
                 if line.strip() and not line.strip().startswith("#"):
-                    # should not occur
                     QMessageBox.warning(
                         self, "System file error!", "No system specified in input file."
                     )
-                    return
-            else:
-                QMessageBox.warning(
-                    self, "System file error!", "No system specified in input file."
-                )
-                return
+                    return None
+        QMessageBox.warning(self, "System file error!", "No system specified in input file.")
+        return None
+
+    def _get_inputfile_system_info(self, systemfile: list[str]) -> SystemInfo | None:
+        """Retrieve system information and report configuration validation errors."""
+        system_info = get_system_info(systemfile)
+        if isinstance(system_info, Error):
+            print(system_info.error)  # noqa: T201
+            return None
+
+        system_info = system_info.value
+        if system_info.config_validation_errors:
+            logger.warning(
+                "System configuration validation failed; use the device config editor "
+                "to correct these entries:\n%s",
+                "".join(system_info.config_validation_errors),
+            )
+        return system_info
+
+    def _update_config_editor(self, systemfile: list[str], system_info: SystemInfo | None) -> None:
+        """Refresh the configuration editor when its systems have changed."""
+        config_editor = self.ui.widgets.config_editor
+        configurable = [system for system in systemfile if not Path(system.strip()).exists()]
+        config_editor.set_systemfile(configurable)
+        if systemfile == config_editor.full_system_list:
+            return
+        config_editor.set_full_system_list(systemfile)
+        config_editor.set_system_info(system_info)
+        config_editor.update_data()
+
+    def parse_system_from_inputfile(self, input_file_path: str) -> None:
+        """Parse the system from an input file."""
+        systemfile = self._systemfile_from_inputfile(input_file_path)
+        if systemfile is None:
+            return
         system = MergedSystem.from_files(systemfile)
         if isinstance(system, Error):
             QMessageBox.warning(self, "System file error!", system.error)
             return
         system = system.value
         self.sys_meta_data = system.dcdata
-        configurable = [system for system in systemfile if not Path(system.strip()).exists()]
-        # Get system information using subprocess (cache for reuse)
-        if systemfile:
-            system_info = get_system_info(systemfile)
-            if isinstance(system_info, Error):
-                print(system_info.error)  # noqa: T201
-                system_info = None
-            else:
-                system_info = system_info.value
-                if system_info.config_validation_errors:
-                    logger.warning(
-                        "System configuration validation failed; use the device config editor "
-                        "to correct these entries:\n%s",
-                        "".join(system_info.config_validation_errors),
-                    )
+        system_info = self._get_inputfile_system_info(systemfile) if systemfile else None
         matr1x.reload_config()
-        self.ui.widgets.config_editor.set_systemfile(configurable)
-        if systemfile != self.ui.widgets.config_editor.full_system_list:
-            self.ui.widgets.config_editor.set_full_system_list(systemfile)
-            self.ui.widgets.config_editor.set_system_info(system_info)
-            self.ui.widgets.config_editor.update_data()
+        self._update_config_editor(systemfile, system_info)
         self.update_queue_action_state()
 
     def queue_measurement(self) -> None:
