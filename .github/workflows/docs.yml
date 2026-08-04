@@ -1,9 +1,6 @@
 name: CI Docs
 
-on:
-  push:
-    branches:
-      - docs-update-I
+on: workflow_dispatch
 
 jobs:
   build-docs:
@@ -47,7 +44,7 @@ jobs:
     name: "Publish Docs"
     runs-on: ubuntu-latest
     needs: "build-docs"
-    if: github.ref == 'refs/heads/docs-update-I'
+    if: github.ref == 'refs/heads/development'
     permissions:
       pages: write
       id-token: write
