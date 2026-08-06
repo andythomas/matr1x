@@ -58,7 +58,7 @@ def test_matrix_gui_run(qtbot, qapp):
     -------
     main window is visible
     sweep exists
-    config setting3 is successfully changed
+    config reference value is successfully changed
     """
     main_window = matrix_gui.MainWindow()
     main_window.show()
@@ -71,17 +71,25 @@ def test_matrix_gui_run(qtbot, qapp):
     main_window.ui.widgets.input_file.setText(str(test_sweep_file))
     main_window.ui.actions.config.trigger()
     system_index = main_window.ui.widgets.config_editor.model.index(0, 0)
-    setting3_index = main_window.ui.widgets.config_editor.model.index(2, 1, system_index)
-    value3 = 2
+    reference_value_row = next(
+        row
+        for row in range(main_window.ui.widgets.config_editor.model.rowCount(system_index))
+        if main_window.ui.widgets.config_editor.model.index(row, 0, system_index).data()
+        == "reference_value"
+    )
+    reference_value_index = main_window.ui.widgets.config_editor.model.index(
+        reference_value_row, 1, system_index
+    )
+    reference_value = 2
     main_window.ui.widgets.config_editor.model.setData(
-        setting3_index, value3, Qt.ItemDataRole.EditRole
+        reference_value_index, reference_value, Qt.ItemDataRole.EditRole
     )
     main_window.queue_measurement()
     main_window.ui.actions.start.trigger()
     qtbot.waitUntil(lambda: not main_window.running, timeout=5000)
     ma8file = test_sweep_file.with_suffix(".ma8")
     header, data = loadmatrix(ma8file)
-    assert header["system query"]["system_config"]["setting3"] == value3
+    assert header["system query"]["system_config"]["reference_value"] == reference_value
 
 
 def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch):

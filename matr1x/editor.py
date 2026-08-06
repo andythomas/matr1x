@@ -22,6 +22,7 @@ JavaScript should be used outside of this module!
 
 import ast
 import hashlib
+import html
 import json
 import re
 import socket
@@ -464,7 +465,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self.settables = []
         self.columns = []
         self.system_info = system_info
-        for key, data in system_info.parameters.items():
+        for _, data in system_info.parameters.items():
             self.indexes.append(str(data.index))
             self.settables.append(data.settable)
             self.columns.append(data.name)
@@ -1141,7 +1142,11 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         """Handle notifications from the LSP server."""
         if notification.method == "textDocument/publishDiagnostics":
             params = cast(dict, notification.params)
-            diagnostics = [TyDiagnostic.model_validate(d) for d in params.get("diagnostics", [])]
+            diagnostics = [
+                TyDiagnostic.model_validate(d)
+                for d in params.get("diagnostics", [])
+                if d.get("severity", 1) < 4
+            ]
             tc_diagnostics = [
                 d.to_monaco(SCRIPT_OFFSET + self._system_info.stub_length, COLUMN_OFFSET)
                 for d in diagnostics
@@ -1178,7 +1183,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         if isinstance(contents, list):
             popup = [{"value": "Unknown"}]
         else:
-            text = contents.value.rsplit("Go to", 1)[0]
+            text = html.unescape(contents.value.rsplit("Go to", 1)[0])
             popup = [{"value": text}]
         js_command = f"window.showHover({hover.requestId}, {json.dumps(popup)})"
         self._run_javascript_async(js_command)
@@ -1207,19 +1212,26 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         )
         self._run_javascript_async(js_command)
 
-    def _process_lsp_completions(self, lsp_completions: list[dict[str, str]]):
+    def _process_lsp_completions(
+        self, lsp_completions: list[dict[str, Any]] | dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Convert LSP completion results to Monaco format."""
         monaco_completions = []
         if isinstance(lsp_completions, list):
-            for i, item in enumerate(lsp_completions):
+            for item in lsp_completions:
                 if isinstance(item, dict):
                     doc_field = item.get("documentation", "")
                     monaco_documentation = None
                     if doc_field:
                         if isinstance(doc_field, dict):
+                            if "value" in doc_field:
+                                doc_field["value"] = html.unescape(doc_field["value"])
                             monaco_documentation = doc_field
                         elif isinstance(doc_field, str) and doc_field.strip():
-                            monaco_documentation = {"kind": "markdown", "value": doc_field}
+                            monaco_documentation = {
+                                "kind": "markdown",
+                                "value": html.unescape(doc_field),
+                            }
                     monaco_completion = {
                         "label": item.get("label", ""),
                         "insertText": item.get("insertText", item.get("label", "")),

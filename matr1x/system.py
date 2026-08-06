@@ -36,7 +36,7 @@ from typing import Any, TypeGuard, TypeVar
 
 import h5py
 import numpy as np
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pymeasure.instruments import Instrument
 
 import matr1x
@@ -95,99 +95,6 @@ ConfigValue = str | Callable[[], Any] | ConfigScheme
 ConfigParameter = dict[str, ConfigValue]
 
 T = TypeVar("T")
-
-
-def is_config_scheme(value: object) -> TypeGuard[ConfigScheme]:
-    """Return True if the value is a valid ConfigScheme tuple."""
-    return (
-        type(value) is tuple
-        and len(value) == 3
-        and isinstance(value[0], str)
-        and isinstance(value[1], tuple)
-        and isinstance(value[2], dict)
-    )
-
-
-def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
-    """Query a device config string via ``query`` or ``ask``."""
-    query_method = getattr(device_handle, "query", None)
-    if callable(query_method):
-        return str(query_method(query))
-
-    ask_method = getattr(device_handle, "ask", None)
-    if callable(ask_method):
-        return str(ask_method(query))
-
-    raise AttributeError(
-        f"config_params entry {query!r} needs a device query method, "
-        "but neither query() nor ask() is available"
-    )
-
-
-def device_query(
-    device_handle: VisaDevice | Instrument, config_params: ConfigParameter
-) -> dict[str, Any]:
-    """
-    Query the current configuration of the device.
-
-    Parameters
-    ----------
-    device_handle : VisaDevice or pymeasure device
-        Must be an open device that implements the query function.
-    config_params : dict
-        Dictionary must adhere to the following format. Key is
-        descriptor which is used to identify the parameter. The
-        corresponding values must be one of:
-
-        * An attribute or method name (if callable without arguments of
-          the device object)
-        * A callable function (without arguments)
-        * A query string for the device
-        * A list of the following scheme
-        [method_name : str, args : tuple, kwargs : dict]
-
-    Returns
-    -------
-    dict
-        A dictionary of dictionaries containing the configuration. The
-        keys of are the parameters that were queried.
-    """
-    if hasattr(device_handle, "name"):
-        device_id = device_handle.name
-    else:
-        device_id = device_handle.__class__.__name__
-    adapter = getattr(device_handle, "adapter", None)
-    connection = getattr(adapter, "connection", None)
-    resource_name = getattr(connection, "resource_name", None)
-    if resource_name:
-        device_id += f" {resource_name}"
-    retquery: dict[str, Any] = {}
-    for k, q in config_params.items():
-        try:
-            if isinstance(q, str) and not callable(q):
-                try:
-                    attr = getattr(device_handle, q)
-                except AttributeError:
-                    line = _query_device_config(device_handle, q)
-                else:
-                    if callable(attr):
-                        line = attr()
-                    else:
-                        line = attr
-            elif callable(q) and not isinstance(q, tuple) and not isinstance(q, str):
-                line = q()
-            elif is_config_scheme(q) and not callable(q):
-                method = getattr(device_handle, q[0])
-                if not callable(method):
-                    raise ValueError(f"config_params: method '{q[0]}' is not callable")
-                line = str(method(*q[1], **q[2]))
-            else:
-                raise ValueError(f"config_params: Ambiguous class of {q!r}")
-        except Exception:
-            logger.exception("exception during config query of %s", device_id)
-            raise
-        retquery[k] = line
-    return retquery
 
 
 class DcDict(dict):
@@ -612,9 +519,102 @@ class System:
             language="en",
         )
 
+    @staticmethod
+    def _is_config_scheme(value: object) -> TypeGuard[ConfigScheme]:
+        """Return True if the value is a valid ConfigScheme tuple."""
+        return (
+            type(value) is tuple
+            and len(value) == 3
+            and isinstance(value[0], str)
+            and isinstance(value[1], tuple)
+            and isinstance(value[2], dict)
+        )
+
+    @staticmethod
+    def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
+        """Query a device config string via ``query`` or ``ask``."""
+        query_method = getattr(device_handle, "query", None)
+        if callable(query_method):
+            return str(query_method(query))
+
+        ask_method = getattr(device_handle, "ask", None)
+        if callable(ask_method):
+            return str(ask_method(query))
+
+        raise AttributeError(
+            f"config_params entry {query!r} needs a device query method, "
+            "but neither query() nor ask() is available"
+        )
+
+    @staticmethod
+    def _device_query(
+        device_handle: VisaDevice | Instrument, config_params: ConfigParameter
+    ) -> dict[str, Any]:
+        """
+        Query the current configuration of the device.
+
+        Parameters
+        ----------
+        device_handle : VisaDevice or pymeasure device
+            Must be an open device that implements the query function.
+        config_params : dict
+            Dictionary must adhere to the following format. Key is
+            descriptor which is used to identify the parameter. The
+            corresponding values must be one of:
+
+            * An attribute or method name (if callable without arguments of
+              the device object)
+            * A callable function (without arguments)
+            * A query string for the device
+            * A list of the following scheme
+            [method_name : str, args : tuple, kwargs : dict]
+
+        Returns
+        -------
+        dict
+            A dictionary of dictionaries containing the configuration. The
+            keys of are the parameters that were queried.
+        """
+        if hasattr(device_handle, "name"):
+            device_id = device_handle.name
+        else:
+            device_id = device_handle.__class__.__name__
+        adapter = getattr(device_handle, "adapter", None)
+        connection = getattr(adapter, "connection", None)
+        resource_name = getattr(connection, "resource_name", None)
+        if resource_name:
+            device_id += f" {resource_name}"
+        retquery: dict[str, Any] = {}
+        for k, q in config_params.items():
+            try:
+                if isinstance(q, str) and not callable(q):
+                    try:
+                        attr = getattr(device_handle, q)
+                    except AttributeError:
+                        line = System._query_device_config(device_handle, q)
+                    else:
+                        if callable(attr):
+                            line = attr()
+                        else:
+                            line = attr
+                elif callable(q) and not isinstance(q, tuple) and not isinstance(q, str):
+                    line = q()
+                elif System._is_config_scheme(q) and not callable(q):
+                    method = getattr(device_handle, q[0])
+                    if not callable(method):
+                        raise ValueError(f"config_params: method '{q[0]}' is not callable")
+                    line = str(method(*q[1], **q[2]))
+                else:
+                    raise ValueError(f"config_params: Ambiguous class of {q!r}")
+            except Exception:
+                logger.exception("exception during config query of %s", device_id)
+                raise
+            retquery[k] = line
+        return retquery
+
     def load_config(
         self,
-        model_class: type[Any],
+        model_class: type[BaseModel],
         section: str,
         sensitive_keys: list[str] | None = None,
     ) -> None:
@@ -642,7 +642,7 @@ class System:
 
         try:
             # Validate the config data
-            validated_config = model_class(**config_data)
+            validated_config = model_class.model_validate(config_data)
         except (ValidationError, TypeError, ValueError) as e:
             from . import format_validation_error, validation_errors
 
@@ -1511,15 +1511,15 @@ class System:
             try:
                 if key in self.system_config_params.keys() and hasattr(dev, "config_params"):
                     # device config_params are specified in system and device
-                    retquery[key] = device_query(
+                    retquery[key] = System._device_query(
                         dev, {**self.system_config_params[key], **dev.config_params}
                     )
                 elif key in self.system_config_params.keys():
                     # device config query is specified in system
-                    retquery[key] = device_query(dev, self.system_config_params[key])
+                    retquery[key] = System._device_query(dev, self.system_config_params[key])
                 elif hasattr(dev, "config_params"):
                     # device has config query specified, should return dictionary
-                    retquery[key] = device_query(dev, dev.config_params)
+                    retquery[key] = System._device_query(dev, dev.config_params)
                 else:
                     # no query details available
                     retquery[key] = {}

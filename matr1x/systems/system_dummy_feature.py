@@ -25,28 +25,42 @@ definitions are demonstrated.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from matr1x.devices.dummy import dummy
-from matr1x.models import FilePath, GuiField, SciFloat, VisaResource
+from matr1x.models import FilePath, GuiField, SciFloat, SystemConfigModel, VisaResource
 from matr1x.system import System
 
 
-class FeatureConfig(BaseModel):
+class FeatureConfig(SystemConfigModel):
     """Configuration for the dummy feature system."""
 
-    # These settings demonstrate how to use Pydantic for configuration.
+    # These options demonstrate how to use Pydantic for configuration.
     # The types and default values are used for validation.
-    setting1: Literal["CURR", "VOLT"] = Field("VOLT", description="Measurement mode")
-    setting2: bool = Field(True, description="Enable feature")
-    setting3: SciFloat = GuiField(
+    measurement_mode: Literal["CURR", "VOLT"] = Field("VOLT", description="Measurement mode")
+    output_enabled: bool = Field(True, description="Enable the simulated output")
+    reference_value: SciFloat = GuiField(
         3.3215,
         ge=-1e9,
         le=99,
         description="Reference value",
         decimals=4,
     )
-    setting4: FilePath = Field("~/.matr1x.toml", description="Config file path")
+    config_file: FilePath = Field("~/.matr1x.toml", description="Config file path")
+    averaging_count: int = Field(
+        10,
+        ge=1,
+        le=1000,
+        description="Number of samples to average",
+    )
+    settling_time: float = GuiField(
+        0.5,
+        ge=0.0,
+        le=60.0,
+        multiple_of=0.1,
+        decimals=1,
+        description="Settling time in seconds",
+    )
     visa_address: VisaResource = Field(
         "GPIB::2",
         description="VISA resource address for manual GUI testing",
@@ -166,10 +180,15 @@ class Feature(System):
         super().set(*args, **kwargs)
         # configure devices upon initialization
         self.devs["dev1"].p2 = 10
-        self.devs["dev2"].configure(setting1=self.config.setting1, setting2=self.config.setting2)
+        self.devs["dev2"].configure(
+            measurement_mode=self.config.measurement_mode,
+            output_enabled=self.config.output_enabled,
+        )
         # add a comment when set is finished
         # this might not be required (i.e. added automatically) depending on your device
-        self.dcdata["description"] = f"configuring dev2 to '{self.config.setting1}'"
+        self.dcdata["description"] = (
+            f"configuring dev2 for '{self.config.measurement_mode}' measurements"
+        )
 
     def reset(self, *args, **kwargs):
         """

@@ -72,14 +72,17 @@ visadebug = false
 ```
 
 Some systems also define optional parameters which can be configured via the same
-`~/.matr1x.toml`. An example is found in `system_dummy_feature.py` which adds four options.
+`~/.matr1x.toml`. An example is found in `system_dummy_feature.py`:
 
 ```toml
 [matr1x.systems.system_dummy_feature]
-setting1 = "CURR"
-setting2 = false
-setting3 = 36.232
-setting4 = "~/.matr1x.toml"
+measurement_mode = "CURR"
+output_enabled = false
+reference_value = 36.232
+config_file = "~/.matr1x.toml"
+averaging_count = 10
+settling_time = 0.5
+visa_address = "GPIB::2"
 ```
 
 ### Configuring systems via Pydantic models
@@ -92,65 +95,7 @@ experience.
 The definition of default values for the options and the access to them is performed as shown in
 the following example from `system_dummy_feature.py`.
 
-```python
-from typing import Literal
-from pydantic import BaseModel, Field
-
-from matr1x.models import FilePath, GuiField, SciFloat
-from matr1x.system import System
-
-class DummyConfig(BaseModel):
-    """Configuration for dummy feature."""
-    # 1. Dropdown menu (using Literal)
-    setting1: Literal["CURR", "VOLT"] = Field("VOLT", description="Measurement mode")
-
-    # 2. Checkbox (using bool)
-    setting2: bool = Field(True, description="Enable feature")
-
-    # 3. Spinbox with limits (using ge/le/multiple_of)
-    # Use GuiField to set display decimals easily
-    setting3: float = GuiField(
-        3.3215,
-        ge=-1e9,
-        le=99,
-        description="Reference value",
-        decimals=4
-    )
-
-    # 4. Path selector (File/Folder dialog)
-    # Use FilePath or FolderPath types to trigger a browser button
-    setting4: FilePath = Field(
-        "~/.matr1x.toml",
-        description="Config file path"
-    )
-
-    # 5. Scientific notation (scifloat)
-    # Use SciFloat type to enable scientific notation
-    setting5: SciFloat = Field(
-        1.23e-6,
-        description="A small value"
-    )
-
-class MeasSystem(System):
-    """Measurement system for dummy feature demonstration."""
-
-    def __init__(self):
-        """Initialize the MeasSystem."""
-        super().__init__()
-        # Load and validate configuration using the model
-        self.load_config(DummyConfig, "matr1x.systems.system_dummy_feature")
-
-    def set(self, *args, **kwargs):
-        """Initialize and configure the measurement."""
-        # wrap base system function for safe handling of opening
-        super().set(*args, **kwargs)
-        # configure devices upon initialization using attribute access
-        self.devs["dev1"].p2 = 10
-        self.devs["dev2"].configure(
-            setting1=self.config.setting1,
-            setting2=self.config.setting2
-        )
-```
+{{< include "matr1x/systems/system_dummy_feature.py" lines="16-76" >}}
 
 Descriptions provided in `Field(description="...")` are automatically shown as **tooltips** in the GUI configuration editor.
 
