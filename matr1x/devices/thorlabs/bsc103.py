@@ -483,7 +483,7 @@ class BSC103(VisaDevice):
         """
         resp = self.ReqResp(self.message(0x0005, (0x00, 0x00), dst, respLen=90)).data
 
-        # TODO: implement the other values
+        # TODO: implement the other values  # noqa: FIX002
         SerialNmbr = int.from_bytes(resp[:4], "little")
         ModelNmbr = resp[4:12].decode("ascii").replace("\x00", "")
         Notes = resp[18:66].decode("ascii").replace("\x00", "")

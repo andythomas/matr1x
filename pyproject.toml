@@ -112,6 +112,7 @@ extend-select = [
     'T201',     # do not use print statements
     'NPY',      # find numpy legace code
     'ISC',      # concatenate strings consistently
+    'FIX',      # catch unfinished code parts
 ]
 
 [tool.ruff.lint.per-file-ignores]

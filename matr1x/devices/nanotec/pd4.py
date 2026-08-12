@@ -393,7 +393,7 @@ class NanotecPD4(VisaDevice):
                         self.moving = False
                 except VisaIOError:
                     # why is this required at all?
-                    # TODO: Test on device
+                    # TODO: Test on device  # noqa: FIX002
                     self.moving = True
         self.setRotDir(initRotDir)
 
