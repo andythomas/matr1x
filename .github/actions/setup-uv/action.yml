@@ -8,6 +8,7 @@ inputs:
   activate-environment:
     description: "Whether to activate the virtual environment"
     required: false
+    default: "false"
 
 runs:
   using: "composite"
