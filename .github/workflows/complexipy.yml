@@ -46,7 +46,7 @@ jobs:
           ref: ${{ github.head_ref }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@${{ vars.UV_SETUP_ACTION }}
+        uses: ./.github/actions/setup-uv
         with:
           activate-environment: true
 
