@@ -137,7 +137,7 @@ class NanotecPD4(VisaDevice):
         # store time of last reference run in a string formatted as "YYYY-MM-DD hh:mm:ss"
         timeStamp = time.localtime()
         formattedTime = time.strftime("%Y-%m-%d %H:%M:%S", timeStamp)
-        print(formattedTime)
+        print(formattedTime)  # noqa: T201
         self.last_reference_run = formattedTime
         self.query("#1y4")  # loads moving record
         self.setPosMode("abs")  # sets positioning mode to absolute
@@ -243,7 +243,7 @@ class NanotecPD4(VisaDevice):
         -------
         None
         """
-        print("setting pos mode")
+        print("setting pos mode")  # noqa: T201
         if mode == "rel":
             self.pos_mode = mode
             self.query("#1p1")
@@ -516,7 +516,7 @@ class NanotecPD4(VisaDevice):
         """
         answer = self.query("#1$")
         status = answer.replace("001$", "")
-        print(status)
+        print(status)  # noqa: T201
         isPosError = (int(status) & 0b100) != 0
         self.poserror = isPosError
         return isPosError

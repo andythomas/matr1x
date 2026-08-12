@@ -140,7 +140,7 @@ class BSC103(VisaDevice):
                 logger.info(string)
 
         if self.debug & 0x02:
-            print(f"{colors.get(color, '')}{string}{colors['ENDC']}")
+            print(f"{colors.get(color, '')}{string}{colors['ENDC']}")  # noqa: T201
 
     def bytestostr(self, bytearr):
         """
