@@ -132,7 +132,7 @@ class Lakeshore475(VisaDevice):
         """
         self.write(
             f"ANALOG {str(mode)}, {str(bipolar)}, {str(lowfield)}, "
-            + f"{str(highfield)}, {manualOut:.4f}, {str(voltlimit)}"
+            f"{str(highfield)}, {manualOut:.4f}, {str(voltlimit)}"
         )
 
     def configureControl(self, pValue, iValue, rampRate, maxVSlope, on=False):

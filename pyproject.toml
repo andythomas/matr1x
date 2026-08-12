@@ -111,6 +111,7 @@ extend-select = [
     'RUF100',   # no not allow unused noqa
     'T201',     # do not use print statements
     'NPY',      # find numpy legace code
+    'ISC',      # concatenate strings consistently
 ]
 
 [tool.ruff.lint.per-file-ignores]
