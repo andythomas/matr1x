@@ -146,7 +146,7 @@ class PSA_E4440A(VisaDevice):
         """
         fStop = fCent + (fSpan / 2)
         if fStop > 8e9:
-            print("Warning, attempting to set Frequency exceeding 8GHz, returning")
+            print("Warning, attempting to set Frequency exceeding 8GHz, returning")  # noqa: T201
             return
 
         if average:
@@ -157,7 +157,7 @@ class PSA_E4440A(VisaDevice):
             elif avgType == "scalar":
                 self.write("AVERage:TYPE SCAL")
             else:
-                print(f"Please choose a valid average type! Your input was: {str(avgType)}")
+                print(f"Please choose a valid average type! Your input was: {str(avgType)}")  # noqa: T201
             self.write("AVER:STAT ON")
             self.write(f"AVERage:COUNt {average}")
             self.maxAverage = max(average, self.maxAverage)
@@ -176,7 +176,7 @@ class PSA_E4440A(VisaDevice):
         elif scale == "log":
             self.write("DISP:WIND:TRAC:Y:SCAL:SPAC LOG")
         else:
-            print(f"Please choose a valid scale! Your input was: {str(scale)}")
+            print(f"Please choose a valid scale! Your input was: {str(scale)}")  # noqa: T201
 
         # selects the sweep type automatic mode
         self.write("SWEep:TYPE AUTO")
@@ -248,7 +248,7 @@ class PSA_E4440A(VisaDevice):
         try:
             self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print(f"{str(precision)} is not a valid precision")
+            print(f"{str(precision)} is not a valid precision")  # noqa: T201
             # return
         if precision == "ascii":
             data = self.query("TRAC:DATA? TRACE1")

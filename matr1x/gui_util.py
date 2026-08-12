@@ -1362,7 +1362,7 @@ class MetaViewerWidget(QDockWidget):
         dict
             Copied header data.
         """
-        # TODO: Implement sorting?
+        # TODO: Implement sorting?  # noqa: FIX002
         return hdr.copy()
 
 
@@ -1449,7 +1449,7 @@ class ConfigEditWidget(MetaViewerWidget):
         dict
             Parsed header data.
         """
-        # TODO: Implement sorting?
+        # TODO: Implement sorting?  # noqa: FIX002
         return {key: val for key, val in hdr.items() if key not in {"columns", "units"}}
 
     def set_systemfile(self, systemfile: list) -> None:

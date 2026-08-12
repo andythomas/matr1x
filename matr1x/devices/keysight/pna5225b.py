@@ -145,7 +145,7 @@ class PNA5225b(VisaDevice):
         elif scale == "log":
             self.write(f"CALC{channel}:FORM MLOG")
         else:
-            print(f"Please choose a valid scale! Your input was: {scale}")
+            print(f"Please choose a valid scale! Your input was: {scale}")  # noqa: T201
 
         if createTrace:
             self.createTrace(name, param)
@@ -353,7 +353,7 @@ class PNA5225b(VisaDevice):
         try:
             self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print(f"{str(precision)} is not a valid precision")
+            print(f"{str(precision)} is not a valid precision")  # noqa: T201
             return
 
         if precision == "ascii":
@@ -411,7 +411,7 @@ class PNA5225b(VisaDevice):
         try:
             self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print(f"{str(precision)} is not a valid precision")
+            print(f"{str(precision)} is not a valid precision")  # noqa: T201
             return
 
         if precision == "ascii":
