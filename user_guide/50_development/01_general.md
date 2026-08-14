@@ -13,6 +13,14 @@ Early bug detection relies on strict type boundaries. To prevent type erosion, t
 - **Within a class:** `Any` and `Unknown` should not cross method signatures.
 - **Outside a class:** `Any` and `Unknown` must never cross public class boundaries.
 
+## Pre-commit hooks
+
+For anyone interested to run the pre-commit hooks locally and also using the exact versions fixed by uv.lock you can use:
+
+{{< include "../_includes/pre_commit.yml" >}}
+
+add the `pre-commit-config.yaml` to `.git/info/exclude`.
+
 ## Specific editor settings
 
 ### Zed editor settings
