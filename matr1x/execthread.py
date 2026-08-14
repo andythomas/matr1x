@@ -25,6 +25,7 @@ import re
 import socket
 import threading
 import time
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -32,8 +33,10 @@ from datetime import datetime, timedelta
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError
 from matr1x.models import (
+    ErrorMessage,
     Header,
     InputParameters,
+    LogEntry,
     MeasuredValues,
     MeasurementData,
     Message,
@@ -45,8 +48,6 @@ from matr1x.system import MergedSystem
 from matr1x.util import log_multiline
 
 __all__ = ["ExecThread"]
-
-logger = logging.getLogger(__name__)
 
 
 def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime:
@@ -126,6 +127,25 @@ class Status:
     finished: bool | None = None
 
 
+class _CaptureHandler(logging.Handler):
+    """Logging handler that captures log records and feeds a callback."""
+
+    def __init__(self, cb: Callable[[LogEntry], None]):
+        """Initialize the handler with a callback function."""
+        super().__init__()
+        self.send: Callable[[LogEntry], None] = cb
+
+    def emit(self, record: logging.LogRecord):
+        log = LogEntry(
+            name=record.name,
+            level=record.levelno,
+            getMessage=record.getMessage(),
+            created=record.created,
+            lineno=record.lineno,
+        )
+        self.send(log)
+
+
 class ExecThread(threading.Thread):
     """
     Thread that handles the execution of the measurement script.
@@ -173,15 +193,23 @@ class ExecThread(threading.Thread):
             List of system files to load.
         """
         super().__init__()
+        self.logger = logging.getLogger(f"{self.__module__}")
+        self.logger.propagate = False
+        capture_handler = _CaptureHandler(self._send2socket)
+        self.logger.addHandler(capture_handler)
+
         self.script = script
         self.meta_data = meta_data
         self.scriptname = scriptname
+        validation_error_count = len(matr1x.validation_errors)
         system = MergedSystem.from_files(systems)
         if isinstance(system, Error):
             raise InternalInvariantError(
                 "Systems should not contain errors at this point. "
                 f"Nevertheless this happened: {system.error}"
             )
+        if system_config_errors := matr1x.validation_errors[validation_error_count:]:
+            raise ValueError("Invalid system configuration:\n" + "".join(system_config_errors))
         self.system: MergedSystem = system.value
         self.stop_status = Status()
         self.pause_flag = False
@@ -470,8 +498,7 @@ class ExecThread(threading.Thread):
             self.check_for_interrupt_and_pause()
         # remove trailling line feed
         ret = self.recv.strip()
-        # print output
-        logger.info("User input received: %s", ret)
+        self.logger.info("User input received: %s", ret)
         self.recv = ""
         return ret
 
@@ -512,20 +539,28 @@ class ExecThread(threading.Thread):
         data : ScriptData
             The data to report.
         """
-        if self.socket is None:
-            return
         conf = matr1x.config.matr1x
         if isinstance(data, Message):
             if data.should_comment:
                 self.system.add_comment(data.message)
             if data.should_log:
-                log_multiline(logger, data.message.lstrip("\n"))
+                log_multiline(self.logger, data.message.lstrip("\n"))
         elif isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)):
             if data.to_stdout and conf.duplicate_output_to_logfile:
-                log_multiline(logger, str(data))
+                log_multiline(self.logger, str(data))
         elif isinstance(data, InputParameters):
-            logger.info(data)
-        self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
+            self.logger.info(data)
+        self._send2socket(data)
+
+    def _send2socket(self, data: MeasurementData) -> None:
+        """Send data via the socket across the air-gap."""
+        if self.socket is None:
+            return
+        try:
+            self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
+        except OSError:
+            self.logger.propagate = True
+            self.logger.exception("Could not report matrix script data to GUI")
 
     def run(self):
         """Run the script and allow to cancel at the start."""
@@ -540,7 +575,19 @@ class ExecThread(threading.Thread):
                 "_script": self.script,
                 "_system": self.system,
             }
-            self.system.report: Callable[[MeasurementData], None] = self.report
+            setattr(self.system, "report", self.report)
             exec(self.script, _vars)
         except KeyboardInterrupt:
             self.report(Message("Script interrupted during initialization", to_comment=False))
+        except Exception as e:
+            error_message = "script exited with error:\n" + "".join(
+                traceback.format_exception(type(e), e, e.__traceback__)
+            )
+            self.logger.propagate = True
+            self.logger.exception("Unhandled exception in matrix script")
+            self.report(ErrorMessage(error_message))
+            try:
+                self.system.reset(status="errored")
+            except Exception:
+                self.logger.propagate = True
+                self.logger.exception("Failed to reset system after matrix script exception")

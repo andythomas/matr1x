@@ -1,0 +1,19 @@
+name: Code analysis
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  complexity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check Python Code Complexity
+        uses: rohaquinlop/complexipy-action@v5
+        with:
+          paths: matr1x
+          sort: desc
+          ignore_complexity: true
+          failed: true

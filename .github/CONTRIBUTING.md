@@ -1,4 +1,4 @@
-# How to contribute to Matr1x
+## How to contribute to Matr1x
 
 ### Did you find a bug or have a suggestion for improvement?
 
@@ -15,10 +15,11 @@ If you find a bug:
 3. Make your changes and commit them with clear, descriptive messages.
 4. Format the code with `ruff format` and check it with `ruff check` and `ty check`.
 5. Ensure the new code passes the test suite: `pytest`.
-6. Push to your fork and submit a pull request.
+6. Push to your fork and submit a pull request to the `development` branch using [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ### Development Setup
 
+We recommend setting up your development environment using a `uv` virtual environment.
 Make sure your installation has all the required dependencies.
 
 ```bash

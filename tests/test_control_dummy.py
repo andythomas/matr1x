@@ -34,17 +34,18 @@ from importlib.metadata import entry_points
 from pathlib import Path
 from typing import cast
 
-import matr1x.eval
-import matr1x.util
 import numpy as np
 import pytest
+from PySide6.QtCore import QThread
+from PySide6.QtWidgets import QMessageBox
+
+import matr1x.eval
+import matr1x.util
 from matr1x import output_extension
 from matr1x.control import ControlWindow, GuiDict, MethodBundle, var
 from matr1x.control import guiObject as go
 from matr1x.control.control_dummy import exampleDict
 from matr1x.scpi_tcpserver import SCPI_TCP_Server
-from PySide6.QtCore import QThread
-from PySide6.QtWidgets import QMessageBox
 
 path = Path(__file__).resolve().parent
 
@@ -296,7 +297,7 @@ def test_matrix_script_control_dummy(start_control_dummy):
         tf.flush()
         script = (
             "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, ['system_dummygui'])"
+            f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, ['system_dummygui'])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

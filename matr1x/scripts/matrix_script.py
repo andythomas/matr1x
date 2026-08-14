@@ -90,9 +90,11 @@ from matr1x.gui_util import (
 from matr1x.models import (
     Datafile,
     Envelope,
+    ErrorMessage,
     Header,
     InputParameters,
     LineNumber,
+    LogEntry,
     MeasuredValues,
     Message,
     Modifier,
@@ -161,7 +163,7 @@ In addition, the following variables are available. Please use help to get a lis
     """an underscore!
 
 devs  # dictionary that contains all devices
-sys  # merged system object from the selected systems
+system  # merged system object from the selected systems
 meta_data  # dictionary that contains all meta information
 
 ---
@@ -1047,6 +1049,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.line_offset = get_script_prefix_offset()
         self.measurement_file: Path
         self.is_running = False
+        self.measurement_failed = False
         self.shortcut_dir: tempfile.TemporaryDirectory[str] | None = None
         self.last_filename: Path | None = None
         self.settings = SaferQSettings("matr1x", "script")
@@ -1087,6 +1090,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.actions.save.triggered.connect(self.save_file)
         self.ui.actions.save_as.triggered.connect(self.save_file_as)
         self.ui.widgets.system_list.changed.connect(self.update_systems)
+        self.ui.widgets.config_editor.model.dataChanged.connect(self.update_start_action_state)
+        self.ui.widgets.config_editor.model.validationChanged.connect(
+            self.update_start_action_state
+        )
+        self.ui.widgets.config_editor.model.modelReset.connect(self.update_start_action_state)
         self.ui.actions.print.triggered.connect(self.print_document)
         self.ui.actions.quit_app.triggered.connect(self.close)
         self.ui.actions.find.triggered.connect(self.ui.widgets.script_edit.show_find)
@@ -1123,6 +1131,32 @@ class MainWindow(LogWindowMixin, MMainWindow):
         )
         self.ui.widgets.central_widget.file_dropped.connect(self._load_file_from_signal)
 
+    def update_start_action_state(self, *_args) -> None:
+        """Enable Start only when the editor configuration is valid."""
+        if self.is_running:
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip("A measurement is currently running.")
+            return
+
+        if config_errors := self.ui.widgets.config_editor.get_system_config_validation_errors():
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip(
+                "Fix the invalid system configuration before running:\n\n"
+                + "\n".join(config_errors)
+            )
+            return
+
+        if config_errors := self.ui.widgets.config_editor.get_validation_errors():
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip(
+                "Fix the invalid configuration entries before running:\n\n"
+                + "\n".join(config_errors)
+            )
+            return
+
+        self.ui.actions.start.setEnabled(True)
+        self.ui.actions.start.setToolTip("Start the measurement.")
+
     @AutoSlot
     def process_data(self, env: Envelope) -> None:
         """Process the data from the measurement thread."""
@@ -1140,10 +1174,16 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 self.write_output("\r" + data.message + data.end)
             else:
                 self.write_output(data.message + data.end)
+        elif isinstance(data, ErrorMessage):
+            logger.error(data.error)
+            self.measurement_failed = True
+        elif isinstance(data, LogEntry):
+            data.log_record(logger)
 
     def show_message(self, message: NotifierMessage):
         """Show a message text and log."""
-        self.ui.widgets.status_preview.print_colored(message.text)
+        if message.level < logging.ERROR:
+            self.ui.widgets.status_preview.print_colored(message.text)
         logger.log(message.level, message.text)
 
     def print_document(self) -> None:
@@ -1387,52 +1427,54 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
         system_info = self.ui.widgets.system_list.system_info
-        text = "The following systems were selected:<br><b>"
-        for system in self.ui.widgets.system_list.systems:
-            text = text + system + "<br>"
-        text += "<br></b>These systems provide the following:<br>"
         bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
-        if system_info.parameters != {}:
-            text += "<h3>Parameters</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Index</th>'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for parameter in system_info.parameters.values():
-                if parameter.settable:
-                    text += f"<tr><td>{parameter.index}</td>"
-                    text += f"<td><b>{parameter.name}</b></td>"
-                    text += f"<td>{parameter.description}</td></tr>"
-                else:
-                    text += f"<tr><td>{parameter.index}</td>"
-                    text += f"<td>{parameter.name}</td>"
-                    text += f"<td>{parameter.description}</td></tr>"
-            text += "</table>"
-        if system_info.devices != {}:
-            text += "<h3>Devices</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for device in system_info.devices.values():
-                text += f"<tr><td><b>{device.name}</b></td><td>{device.description}</td></tr>"
-            text += "</table>"
-        if system_info.methods != {}:
-            text += "<h3>System Methods and Variables</h3>"
-            text += '<table border="1" cellpadding="5" cellspacing="0" '
-            text += 'style="border-collapse: collapse; text-align: left; '
-            text += 'margin-bottom: 20px;">'
-            text += f'<tr style="background-color: {bg_color}; text-align: left;">'
-            text += '<th style="text-align: left;">Name</th>'
-            text += '<th style="text-align: left;">Description</th></tr>'
-            for method in system_info.methods.values():
-                text += f"<tr><td><b>{method.name}</b></td><td>{method.description}</td></tr>"
-            text += "</table>"
+        th = '<th style="text-align: left;">{}</th>'.format
+        table_open = (
+            '<table border="1" cellpadding="5" cellspacing="0" '
+            'style="border-collapse: collapse; text-align: left; margin-bottom: 20px;">'
+            f'<tr style="background-color: {bg_color}; text-align: left;">'
+        )
+        systems = "".join(f"{s}<br>" for s in self.ui.widgets.system_list.systems)
+        systems = systems if systems else "None<br>"
+        classes = ", ".join(system_info.classes) if system_info.classes else "None"
+        text = (
+            f"The following systems were selected:<br><b>{systems}<br></b>"
+            f"They consist of the following classes:<br><b>{classes}<br></b>"
+            "<br>These systems provide the following:<br>"
+        )
+        if system_info.parameters:
+            rows = "".join(
+                f"<tr><td>{p.index}</td>"
+                f"<td>{f'<b>{p.name}</b>' if p.settable else p.name}</td></tr>"
+                for p in system_info.parameters.values()
+            )
+            text += (
+                f"<h3>Parameters</h3>Settable items in <b>boldface</b>"
+                f"{table_open}{th('Index')}{th('Name')}</tr>{rows}</table>"
+            )
+        if system_info.devices:
+            rows = "".join(
+                f"<tr><td><b>{d.name}</b></td><td>{d.description}</td></tr>"
+                for d in system_info.devices.values()
+            )
+            text += (
+                f"<h3>Devices</h3>{table_open}{th('Name')}{th('Description')}</tr>{rows}</table>"
+            )
+        shared = th("Prefix") + th("Name") + th("Signature")
+        if system_info.methods:
+            rows = "".join(
+                f"<tr><td>{m.prefix}</td><td><b>{m.name}</b></td>"
+                f"<td>{m.signature}</td><td>{m.doc_summary}</td></tr>"
+                for m in system_info.methods.values()
+            )
+            text += f"<h3>System Methods</h3>{table_open}{shared}"
+            text += f"{th('Docstring summary')}</tr>{rows}</table>"
+        if system_info.variables:
+            rows = "".join(
+                f"<tr><td>{v.prefix}</td><td><b>{v.name}</b></td><td>{v.signature}</td></tr>"
+                for v in system_info.variables.values()
+            )
+            text += f"<h3>System Variables</h3>{table_open}{shared}</tr>{rows}</table>"
         text += "<br>"
         self.ui.widgets.system_command_text_edit.setText(text)
 
@@ -1537,7 +1579,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
             True means script is running
         """
         self.is_running = flag
-        self.ui.actions.start.setEnabled(not flag)
+        if flag:
+            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setToolTip("A measurement is currently running.")
+        else:
+            self.update_start_action_state()
         self.ui.actions.pause.setEnabled(flag)
         if self.ui.actions.pause.isChecked():
             self.ui.actions.pause.setChecked(False)
@@ -1558,7 +1604,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Return buttons to original state, delete the finished process.
         """
         self.enable_buttons(False)
-        self.ui.widgets.status_preview.print_colored("\nExecution finished")
+        self._flush_output_buffer()
+        if self.measurement_failed:
+            self.ui.widgets.status_preview.print_colored("\nExecution failed")
+        else:
+            self.ui.widgets.status_preview.print_colored("\nExecution finished")
         del self.ui.widgets.measurement_thread
 
     def run_linter(self) -> int:
@@ -1570,7 +1620,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         int
             The number of issues.
         """
-        self.ui.widgets.script_edit.setSettables(self.ui.widgets.system_list.system_info)
+        self.ui.widgets.script_edit.setSystemInfo(self.ui.widgets.system_list.system_info)
         return self.ui.widgets.script_edit.returnIssues()
 
     def start_process(self) -> None:
@@ -1580,6 +1630,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Disable/enable buttons to reflect run state and get selected
         systems. Then runs the script defined in the edit.
         """
+        if self.ui.widgets.config_editor.get_system_config_validation_errors():
+            self.update_start_action_state()
+            return
+        if self.ui.widgets.config_editor.get_validation_errors():
+            self.update_start_action_state()
+            return
         if (
             self.run_linter() > 0 and not self.in_pytest
         ):  # run linter to make sure there are no errors
@@ -1595,6 +1651,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             ret = a.exec()
             if ret == QMessageBox.StandardButton.Cancel:
                 return
+        self.measurement_failed = False
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
@@ -1636,6 +1693,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
             self.ui.widgets.config_editor.set_system_info(self.ui.widgets.system_list.system_info)
             self.ui.widgets.config_editor.update_data()
+            self.update_start_action_state()
         # Update system commands with cached info
         self.update_system_commands()
         if self.ui.widgets.system_command_help.isVisible():

@@ -25,33 +25,34 @@ from matr1x.system import System
 
 
 # ============================
-# initialize system
-system = System()
-system.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
-# ============================
+# define system class
+class GuiIntegration(System):
+    """Dummy system demonstrating integration of a control gui (control_dummy)."""
 
-# ========================================================================
-# This is the main system area
-# Device definition and configuration takes place here, but devices do
-# not yet get opened!
-#
-# IMPORTANT:
-#   The devices are not allowed to be opened here!
-#   Otherwise the import would block any other use of the devices
-#   Make sure to adhere to this or errors will occur!
-# ========================================================================
-system.add_dev(
-    "gui",
-    control_dummy.clientdevice,
-    ("TCPIP::localhost::8897::SOCKET",),
-    kwargs={"name": "control-dummy"},
-)
-# ============================
-# define columns for measurement
-# ============================
-system.add_param("guiv1", "int", ["gui", "v1"], ["gui", "v1"])
-system.add_param(["guiv2", "guiv3"], ["float", "float"], ["gui", "v2v3"], ["gui", "v2v3"])
-system.add_param("guiv4", "bool", ["gui", "v4"], ["gui", "v4"])
-system.add_param("guiv5", "float", None, ["gui", "v5"])
-
-# ============================
+    def __init__(self):
+        """Initialize the control GUI device and its parameters."""
+        super().__init__()
+        self.dcdata["source"] = "dummy system with GUI for testing matr1x-matrix"
+        # ========================================================================
+        # This is the main system area.
+        # Device definition and configuration takes place here, but devices do
+        # not yet get opened!
+        #
+        # IMPORTANT:
+        #   The devices are not allowed to be opened here!
+        #   Otherwise the import would block any other use of the devices.
+        #   Make sure to adhere to this or errors will occur!
+        # ========================================================================
+        self.add_dev(
+            "gui",
+            control_dummy.clientdevice,
+            ("TCPIP::localhost::8897::SOCKET",),
+            kwargs={"name": "control-dummy"},
+        )
+        # ============================
+        # define columns for measurement
+        # ============================
+        self.add_param("guiv1", "int", ["gui", "v1"], ["gui", "v1"])
+        self.add_param(["guiv2", "guiv3"], ["float", "float"], ["gui", "v2v3"], ["gui", "v2v3"])
+        self.add_param("guiv4", "bool", ["gui", "v4"], ["gui", "v4"])
+        self.add_param("guiv5", "float", None, ["gui", "v5"])

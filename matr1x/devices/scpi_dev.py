@@ -38,7 +38,7 @@ __all__ = ["makeSCPIdevice"]
 _typeplaceholder = {int: "%d", float: "%g", bool: "%d", str: "%s", None: ""}
 
 
-def _make_identifier(s):
+def _make_identifier(s: str) -> str:
     """
     Create valid Python identifier by omitting invalid characters.
 
@@ -59,7 +59,7 @@ def _make_identifier(s):
     return s
 
 
-def _strict_length(value, values):
+def _strict_length(value: list | tuple, values: int) -> list | tuple:
     """
     Pymeasure validator to enforce array length.
 
@@ -85,7 +85,7 @@ def _strict_length(value, values):
     return value
 
 
-def _list2str(value, dtype):
+def _list2str(value: list, dtype: list) -> str:
     """
     Convert a list of values to a comma-separated string.
 
@@ -110,7 +110,7 @@ def _list2str(value, dtype):
     return ",".join(ret)
 
 
-def _castlist(values, dtype):
+def _castlist(values: list, dtype: list) -> list:
     """
     Convert a list of string values to their appropriate data types.
 
@@ -158,7 +158,7 @@ def _constructor(self, adapter, name="clientdevice", **kwargs):
     Instrument.__init__(self, adapter, name, **kwargs)
 
 
-def _query(self, cmd):
+def _query(self, cmd: str) -> str:
     """
     Query the instrument with a command and return the response.
 
@@ -175,7 +175,7 @@ def _query(self, cmd):
     return self.ask(cmd)
 
 
-def _check_set_errors(self):
+def _check_set_errors(self) -> list:
     """
     Check for error responses after setting a value.
 
@@ -197,7 +197,7 @@ def _check_set_errors(self):
     return []
 
 
-def _create_setnwait(attr, pollattr):
+def _create_setnwait(attr: str, pollattr: str):
     """
     Return a set and wait method which can be used in system files.
 
@@ -230,7 +230,7 @@ def _create_setnwait(attr, pollattr):
     return setnwait
 
 
-def _create_parameterless(cmd):
+def _create_parameterless(cmd: str):
     """
     Return a parameterless function that triggers a command.
 
@@ -289,6 +289,7 @@ def _build_property_kwargs(cmd) -> dict:
         kwargs["values"] = len(cmd.dtype)
         kwargs["set_process"] = lambda v, t=cmd.dtype: _list2str(v, t)
         kwargs["get_process"] = lambda v, t=cmd.dtype: _castlist(v, t)
+        kwargs["get_process_list"] = lambda v, t=cmd.dtype: _castlist(v, t)
     elif cmd.dtype == bool:
         kwargs["validator"] = strict_discrete_set
         kwargs["values"] = [True, False, None]
@@ -338,7 +339,7 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
         normalize_cmds(entry)
         cmd_list.update(entry)
 
-    attributes = dict()
+    attributes: dict[str, Any] = {}
     methods: dict[str, Callable] = {
         "__init__": _constructor,
         "query": _query,
@@ -364,14 +365,14 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
     for name, cmd in cmd_list.items():
         # create an pymeasure attribute for every command
         att = _make_identifier(name)
-        stringplaceholder = ""  # Initialize to prevent unbound variable
-        try:
-            stringplaceholder = _typeplaceholder[cmd.dtype]
-        except (KeyError, TypeError):
-            if isinstance(cmd.dtype, (tuple, list)):
-                stringplaceholder = "%s"
-            elif cmd.setfunc is not None:
-                raise
+        if isinstance(cmd.dtype, (list, tuple)):
+            stringplaceholder = "%s"
+        elif (placeholder := _typeplaceholder.get(cmd.dtype)) is not None:
+            stringplaceholder = placeholder
+        elif cmd.setfunc is not None:
+            raise KeyError(f"Unsupported dtype for command with setfunc: {cmd.dtype!r}")
+        else:
+            stringplaceholder = "%s"
 
         kwargs = _build_property_kwargs(cmd)
 
@@ -392,6 +393,8 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
                     del kwargs["cast"]
                 if "get_process" in kwargs:
                     del kwargs["get_process"]
+                if "get_process_list" in kwargs:
+                    del kwargs["get_process_list"]
                 attributes[att] = Instrument.setting(
                     name + f" {stringplaceholder}", f"set {att}", **kwargs
                 )

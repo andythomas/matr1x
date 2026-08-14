@@ -496,6 +496,25 @@ class varData(BaseModel):
 
     This used to store, validate and normalize the data for subsequent
     use in the var class.
+
+    Parameters
+    ----------
+    dType : type or None
+        Type of the variable (float, int, str, ...).
+    columns : list[guiObject] | guiObject, optional
+        Required GUI elements, typically two entries: View the current
+        value and alter it. The values are enumerations from guiObject.
+    unit : str, optional
+        Unit string used in the label and data logging.
+    log_default : bool, optional, default = False
+        Boolean flag to set the default behavior in the logging config.
+    init : list[object1, object2] or object
+        Initialization values for column1 and column2. A single object
+        is assumed to apply to both columns.
+    hide : bool, optional, default = False
+        Flag to mark extendable entries that are initially hidden.
+    modify : MethodBundle
+        Modify the standard widget with stored methods.
     """
 
     model_config = {"arbitrary_types_allowed": True}
@@ -562,25 +581,6 @@ class var(QObject):
 
     Emits valueChanged signal if the value has changed so it can
     be connected to a display.
-
-    Parameters
-    ----------
-    dType : type or None
-        Type of the variable (float, int, str, ...).
-    columns : list[guiObject] | guiObject, optional
-        Reqired GUI elements, typically two entries: View the current
-        value and alter it. The values are enumerations from guiObject.
-    unit : str, optional
-        Unit string used in the label and data logging.
-    log_default : bool, optional, default = False
-        Boolean flag to set the default behavior in the logging config.
-    init : list[object1, object2] or object
-        Initialization values for column1 and column2. A single object
-        is assumed to apply to both columns.
-    hide : bool, optional, default = False
-        Flag to mark extendable entries that are initially hidden.
-    modify : MethodBundle
-        Modify the standard widget with stored methods.
     """
 
     valueChanged: Signal = Signal(object)
@@ -605,6 +605,7 @@ class var(QObject):
     def __init__(self, __dtype: type | None, /) -> None: ...
 
     def __init__(self, *args, **kwargs) -> None:
+        """Initialize the variable storage."""
         super().__init__()
         self._data: varData = varData(*args, **kwargs)
         self.log = None if self._data.dtype is None else self._data.log_default
@@ -1035,85 +1036,6 @@ class var(QObject):
                 # allow a type mismatch in case a variable is not set
                 if self.value is not None:
                     raise
-
-    def __getitem__(self, idx: int) -> Any:
-        """
-        Access GUI dictionary items for backward compatibility.
-
-        This function shall be declared deprecated in future.
-
-        Parameters
-        ----------
-        idx : int
-            Index of the item to retrieve.
-
-        Returns
-        -------
-        Any
-            The requested item.
-
-        Raises
-        ------
-        NotImplementedError
-            If the index is not supported.
-        """
-        if idx == 0:
-            return self
-        if idx == 1:
-            if self.widgets:
-                return self.widgets
-            if isinstance(self._data.columns, list):
-                return self._data.columns + [
-                    self.log,
-                ]
-            return [
-                self._data.columns,
-            ] + [
-                self.log,
-            ]
-        if idx == 2:
-            return self.unit
-        raise NotImplementedError
-
-    def __setitem__(self, idx: int, value: Any) -> None:
-        """
-        Set an item in the GUI dictionary.
-
-        This function provides backward compatible access to the GUI dictionary items.
-        It will be deprecated in the future.
-
-        Parameters
-        ----------
-        idx : int
-            Index of the item to set.
-        value : Any
-            The value to set.
-
-        Raises
-        ------
-        NotImplementedError
-            If the index is not supported.
-        """
-        if idx == 1:
-            self.widgets = value
-        else:
-            raise NotImplementedError
-
-    def __len__(self) -> int:
-        """
-        Get the length of the GUI dictionary items.
-
-        This function provides backward compatible access to the GUI dictionary items.
-        It will be deprecated in the future.
-
-        Returns
-        -------
-        int
-            The length of the GUI dictionary items.
-        """
-        if self.unit:
-            return 3
-        return 2
 
 
 class MyQDockWidget(QDockWidget):
@@ -1767,22 +1689,24 @@ def linear_trend(
     Parameters
     ----------
     timestamps : array-like
-      time stamps of data in Unix-time in seconds (e.g. from `time.time()`)
+        time stamps of data in Unix-time in seconds (e.g. from `time.time()`)
     data : array-like
-      past data points (most recent data point has index 0!).
-      shape is assumed to be same for the two arguments
+        past data points (most recent data point has index 0!).
+        shape is assumed to be same for the two arguments
     interval : float, optional
-      time interval of the data points which should be considered. Older data
-      points are ignored.
+        time interval of the data points which should be considered. Older data
+        points are ignored.
 
-    Note: best use collections.deque and appendleft to generate the needed data
+    Note
+    ----
+    Best use collections.deque and appendleft to generate the needed data
 
     Returns
     -------
     slope, stdev
-      slope and standard deviation of past `interval` seconds. If there are
-      insufficient data points to calculate the statistics each value will be
-      `None`.
+        slope and standard deviation of past `interval` seconds. If there are
+        insufficient data points to calculate the statistics each value will be
+        `None`.
     """
     ret = (None, None)
     mask = (time.time() - numpy.asarray(timestamps)) < interval
@@ -1807,14 +1731,14 @@ def sendNotificationEmail(
     Parameters
     ----------
     address : str
-     email adress(es) in a comma seperated list
+        email adress(es) in a comma seperated list
     subject : str
-     email subject
+        email subject
     msgtext : str
-     email message, can contain HTML code including img-tags
-     (-> attach the image file)
+        email message, can contain HTML code including img-tags
+        (-> attach the image file)
     attachments: list
-     list of file names of things to attach to the email.
+        list of file names of things to attach to the email.
     """
     # a check for valid email adresses should be added here!
     if address == "":

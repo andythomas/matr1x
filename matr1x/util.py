@@ -58,9 +58,6 @@ if TYPE_CHECKING:
             ...
 
 
-from .metadata import APP_META_KEY
-
-
 # allow error handling while using with
 @contextmanager
 def open_and_error(filename: str, mode: str = "r"):
@@ -92,6 +89,10 @@ def open_and_error(filename: str, mode: str = "r"):
 
 # default separator
 default_separator = "\t"
+
+_USER_SCRIPT_START_MARKER = "# ==== BEGIN USER SCRIPT AREA ===="
+_USER_SCRIPT_END_MARKER = "# ==== END USER SCRIPT AREA ===="
+_USER_SCRIPT_INSERTION_POINT = "    # USER_SCRIPT_INSERTION_POINT"
 
 
 def resolve_config_path(config: Any, path: str) -> Any:
@@ -313,10 +314,6 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
         - suffix : str
             Corresponding suffix of the script, finishes the try statement.
     """
-    # Marker constants
-    USER_SCRIPT_START_MARKER = "# ==== BEGIN USER SCRIPT AREA ===="
-    USER_SCRIPT_END_MARKER = "# ==== END USER SCRIPT AREA ===="
-    USER_SCRIPT_INSERTION_POINT = "    # USER_SCRIPT_INSERTION_POINT"
     template_path = Path(__file__).parent / "_matrix_script_template.py"
 
     if not template_path.exists():
@@ -326,22 +323,68 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
         template_content = f.read()
 
     # Find the markers
-    start_marker_pos = template_content.find(USER_SCRIPT_START_MARKER)
-    end_marker_pos = template_content.find(USER_SCRIPT_END_MARKER)
-    insertion_point_pos = template_content.find(USER_SCRIPT_INSERTION_POINT)
+    start_marker_pos = template_content.find(_USER_SCRIPT_START_MARKER)
+    end_marker_pos = template_content.find(_USER_SCRIPT_END_MARKER)
+    insertion_point_pos = template_content.find(_USER_SCRIPT_INSERTION_POINT)
 
     if start_marker_pos == -1:
-        raise ValueError(f"Start marker '{USER_SCRIPT_START_MARKER}' not found in template")
+        raise ValueError(f"Start marker '{_USER_SCRIPT_START_MARKER}' not found in template")
     if end_marker_pos == -1:
-        raise ValueError(f"End marker '{USER_SCRIPT_END_MARKER}' not found in template")
+        raise ValueError(f"End marker '{_USER_SCRIPT_END_MARKER}' not found in template")
     if insertion_point_pos == -1:
-        raise ValueError(f"Insertion point '{USER_SCRIPT_INSERTION_POINT}' not found in template")
+        raise ValueError(f"Insertion point '{_USER_SCRIPT_INSERTION_POINT}' not found in template")
 
     # Split the template at the insertion point
     prefix = template_content[:insertion_point_pos]
-    suffix = template_content[insertion_point_pos + len(USER_SCRIPT_INSERTION_POINT) :]
+    suffix = template_content[insertion_point_pos + len(_USER_SCRIPT_INSERTION_POINT) :]
 
     return prefix, suffix
+
+
+def get_user_script_line_range(script: str) -> tuple[int, int]:
+    """
+    Return the inclusive generated-source line range containing user code.
+
+    Parameters
+    ----------
+    script : str
+        Script produced by :func:`generate_script`.
+
+    Returns
+    -------
+    tuple[int, int]
+        First and last line belonging to the user-script insertion area.
+
+    Raises
+    ------
+    ValueError
+        If the generated-script boundary markers are missing or out of order.
+    """
+    lines = script.splitlines()
+    start_lines = [
+        line_number
+        for line_number, line in enumerate(lines, start=1)
+        if line.strip() == _USER_SCRIPT_START_MARKER
+    ]
+    end_lines = [
+        line_number
+        for line_number, line in enumerate(lines, start=1)
+        if line.strip() == _USER_SCRIPT_END_MARKER
+    ]
+
+    if not start_lines:
+        raise ValueError(
+            f"Start marker '{_USER_SCRIPT_START_MARKER}' not found in generated script"
+        )
+    if not end_lines:
+        raise ValueError(f"End marker '{_USER_SCRIPT_END_MARKER}' not found in generated script")
+
+    first_line = start_lines[0] + 1
+    last_line = end_lines[-1] - 1
+    if first_line > last_line:
+        raise ValueError("User-script boundary markers are out of order")
+
+    return first_line, last_line
 
 
 def get_script_prefix_offset() -> int:
@@ -846,32 +889,6 @@ class Command:
         self.setargs = ()
         self.getargs = ()
 
-    @classmethod
-    def from_deprecated_list(cls, dlist: list):
-        """
-        Create a Command from the deprecated list format.
-
-        Parameters
-        ----------
-        dlist: list
-          list containing:
-          [type, setFunction, additional set args, GetFunction,
-           additional get args, [optional polling command]]
-
-        Returns
-        -------
-        a Command object with the settings equivalent to dlist
-        """
-        if len(dlist) < 5 or len(dlist) > 6:
-            raise ValueError("command entries must be a list of lenth 5 or 6")
-        if len(dlist) > 5:
-            pcmd = dlist[5]
-        else:
-            pcmd = None
-        return cls(
-            dlist[0], dlist[1], dlist[3], setargs=dlist[2], getargs=dlist[4], polling_cmd=pcmd
-        )
-
 
 class Get(Command):
     """Class representing a Getter-command of a ControlGUI."""
@@ -932,9 +949,7 @@ class Set(Command):
 
 def normalize_cmds(cmds):
     """
-    Make all commands instances of Command.
-
-    Changes are performed in-place.
+    Validate that all commands are Command instances.
 
     Parameters
     ----------
@@ -945,81 +960,11 @@ def normalize_cmds(cmds):
     -------
     None
     """
-    # harmonize the cmds dictionary -> convert all to Command
     for cmd, val in cmds.items():
         if not isinstance(val, Command):
-            cmds[cmd] = Command.from_deprecated_list(val)
-
-
-class DcDict(dict):
-    """
-    Custom dictionary class that only allows append if key already exists.
-
-    This class extends the built-in dictionary class to modify its behavior
-    when in append mode or when a merged system exists.
-    In append mode non-empty entries are extended.
-
-    Methods
-    -------
-    overwrite_value(key, value)
-        Overwrite the value for a given key.
-    """
-
-    def __init__(self, system_ref, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.append = False
-        self.system_ref = system_ref
-
-    def __setitem__(self, key, value):
-        """
-        Set item in the dictionary with modified behavior.
-
-        This method wraps dict.__setitem__ to change behavior when in append mode
-        or when a merged system exists (append in that case).
-
-        Parameters
-        ----------
-        key : hashable
-            The key to set.
-        value : Any
-            The value to set for the given key.
-        """
-        if self.system_ref.merged_system:
-            # initialized subsystem, write into merged parent
-            if key not in APP_META_KEY:
-                # is meta key is non-editable, no append is allowed
-                super().__setitem__(key, value)
-                return
-            self._append_value(key, value, ";@set:", ref=self.system_ref.merged_system.dcdata)
-        elif self.append and self[key]:
-            # read only mode is enabled, append values
-            if key not in APP_META_KEY:
-                # is meta key is non-editable, no append is allowed
-                super().__setitem__(key, value)
-                return
-            self._append_value(key, value, ";@ap:")
-        else:
-            super().__setitem__(key, value)
-
-    def _append_value(self, key, value, sep, ref=None):
-        if not value:
-            # only append values that are not None
-            return
-        if ref:
-            # reference system is defined, write meta_data to that system
-            if key in ref.keys():
-                if ref[key]:
-                    # only append to available value if it exists (not None)
-                    ref[key] = sep.join([ref[key], value])
-                    return
-            ref[key] = sep[1:] + value
-        else:
-            # append meta data to current current array
-            if key in self.keys():
-                if self[key]:
-                    super().__setitem__(key, sep.join([self[key], value]))
-                    return
-            super().__setitem__(key, sep[1:] + value)
+            raise TypeError(
+                f"Command entry {cmd!r} must be a Command instance, got {type(val).__name__}."
+            )
 
 
 def run_python_cmdline(

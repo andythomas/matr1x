@@ -18,10 +18,11 @@
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
+
 from matr1x import output_extension
 from matr1x.eval import loadmatrix
 from matr1x.scripts import matrix_gui
-from PySide6.QtCore import Qt
 
 path = Path(__file__).resolve().parent
 test_sweep_file = path / "sweep_for_matrix_gui.sw8"
@@ -81,3 +82,26 @@ def test_matrix_gui_run(qtbot, qapp):
     ma8file = test_sweep_file.with_suffix(".ma8")
     header, data = loadmatrix(ma8file)
     assert header["system query"]["system_config"]["setting3"] == value3
+
+
+def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch):
+    """Invalid device config disables Queue and exposes the reason in the tooltip."""
+    main_window = matrix_gui.MainWindow()
+    main_window.show()
+    qtbot.waitExposed(main_window)
+    qapp.processEvents()
+
+    main_window.ui.widgets.input_file.setText(str(test_sweep_file))
+    qtbot.waitUntil(lambda: main_window.ui.actions.queue.isEnabled(), timeout=2000)
+    monkeypatch.setattr(
+        main_window.ui.widgets.config_editor,
+        "get_validation_errors",
+        lambda: ["matr1x.systems.demo.devices.dev.address: invalid address"],
+    )
+
+    main_window.update_queue_action_state()
+
+    assert not main_window.ui.actions.queue.isEnabled()
+    assert "invalid address" in main_window.ui.actions.queue.toolTip()
+    main_window.queue_measurement()
+    assert main_window.ui.widgets.meas_list.count() == 0

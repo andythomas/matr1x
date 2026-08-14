@@ -18,8 +18,9 @@
 from collections.abc import Generator
 from pathlib import Path
 
-import matr1x.eval
 import pytest
+
+import matr1x.eval
 from matr1x.models import Envelope, Message, Modifier
 from matr1x.scripts import matrix_script
 
@@ -127,6 +128,23 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainW
     assert main_window.windowTitle() == "Matrix Script"
 
 
+def test_start_action_disabled_for_invalid_config(
+    matrix_script_window: matrix_script.MainWindow, monkeypatch
+):
+    """Invalid device config disables Start and exposes the reason in the tooltip."""
+    main_window = matrix_script_window
+    monkeypatch.setattr(
+        main_window.ui.widgets.config_editor,
+        "get_validation_errors",
+        lambda: ["matr1x.systems.demo.devices.dev.address: invalid address"],
+    )
+
+    main_window.update_start_action_state()
+
+    assert not main_window.ui.actions.start.isEnabled()
+    assert "invalid address" in main_window.ui.actions.start.toolTip()
+
+
 def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
     """
     Confirm the existance of all required methods.
@@ -165,7 +183,7 @@ def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWin
     assert hasattr(editor, "setTheme")
     assert hasattr(editor, "supportedThemes")
     assert hasattr(editor, "enableTabCompletion")
-    assert hasattr(editor, "setSettables")
+    assert hasattr(editor, "setSystemInfo")
     assert hasattr(editor, "insertText")
     assert hasattr(editor, "returnIssues")
 

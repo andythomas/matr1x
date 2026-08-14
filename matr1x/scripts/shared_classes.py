@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMenu,
+    QPushButton,
     QSizePolicy,
     QTextEdit,
     QToolBar,
@@ -61,7 +62,7 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x import VALID_META_KEYS, resolved_directory
-from matr1x.error_handling import Error, InternalInvariantError
+from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.gui_util import (
     ConfigEditWidget,
     LoggerMixin,
@@ -118,9 +119,16 @@ class Notifier(QWidget):
         self._content.setContentsMargins(0, 0, 0, 0)
         self._icon = QLabel()
         self._text = QLabel()
+        self._close_button = QPushButton("✕")
+        self._close_button.setFixedSize(20, 20)
+        self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._close_button.clicked.connect(self.hide_animated)
+        self._dismiss_timer = QTimer()
+        self._dismiss_timer.setSingleShot(True)
+        self._dismiss_timer.timeout.connect(self.hide_animated)
         self._content.addWidget(self._icon)
-        self._content.addWidget(self._text)
-        self._content.addStretch()
+        self._content.addWidget(self._text, 1)
+        self._content.addWidget(self._close_button)
         self.setLayout(self._content)
 
     def show_message(self, message: NotifierMessage):
@@ -135,17 +143,24 @@ class Notifier(QWidget):
         self._icon.setPixmap(get_matrix_icon(icon_name).pixmap(size, size))
         self._text.setText(message.text)
         self._logger.log(message.level, message.text)
+        self._dismiss_timer.stop()
+        if message.level < logging.ERROR:
+            self._dismiss_timer.start(3000)
         self.show_animated()
 
     def show_animated(self):
-        """Show the notification and hide after 3s."""
+        """Show the notification. Auto-dismiss for warnings and below."""
         self.setVisible(True)
+        # Already visible — just update content, no need to re-animate
+        if self.maximumHeight() > 0:
+            return
+        if hasattr(self, "anim") and self.anim.state() == QPropertyAnimation.State.Running:
+            self.anim.stop()
         self.anim = QPropertyAnimation(self, b"maximumHeight")
         self.anim.setDuration(250)
         self.anim.setStartValue(0)
         self.anim.setEndValue(int(self.sizeHint().height()))
         self.anim.start()
-        QTimer.singleShot(3000, self.hide_animated)
 
     def hide_animated(self):
         """Hide the notification."""
@@ -210,6 +225,11 @@ class SystemListWidget(QListWidget):
         """Return the list of systems."""
         return [self.item(i).text() for i in range(self.count())]
 
+    def clear(self) -> None:
+        """Clear the list of systems."""
+        super().clear()
+        self.systems_changed()
+
     def dropEvent(self, event: QDropEvent) -> None:
         """Emit a signal if the order changed."""
         before = self.systems
@@ -231,7 +251,6 @@ class SystemListWidget(QListWidget):
 
     def add_systems(self, filenames: list[str]) -> None:
         """Add files but avoid duplicates."""
-        added = False
         existing = {self.item(i).text() for i in range(self.count())}
         for filename in filenames:
             try:
@@ -248,36 +267,33 @@ class SystemListWidget(QListWidget):
                 msg = NotifierMessage(f"{candidate} is already present and was omitted.")
                 self.message.emit(msg)
                 continue
-            ret = get_system_info([candidate])
-            if isinstance(ret, Error):
+            import_check = self.test_import(candidate)
+            if isinstance(import_check, Error):
                 msg = NotifierMessage(
-                    f"Could not import system {candidate}: {ret.error}",
-                    level=logging.ERROR,
+                    f"{candidate} could not import and was omitted: {import_check.error}",
+                    level=logging.WARNING,
                 )
                 self.message.emit(msg)
                 continue
             super().addItem(candidate)
-            added = True
+            self.systems_changed()
             existing.add(candidate)
             self._base_directory = Path(filename)
-        if added:
-            self.systems_changed()
-        else:
-            self._sync_action_state()
-
-    def clear(self) -> None:
-        """Clear the list and synchronize action state."""
-        super().clear()
-        self._sync_action_state()
 
     def systems_changed(self) -> None:
         """Load system info and emit changed signal."""
         system_info = get_system_info(self.systems)
         if isinstance(system_info, Error):
             raise InternalInvariantError("System list should work if systems work individually.")
-        if system_info.value.warnings:
-            for warning in system_info.value.warnings:
-                self.message.emit(NotifierMessage(warning, level=logging.WARNING))
+        if system_info.value.config_validation_errors:
+            warning_text = (
+                "System configuration validation failed. Default values are shown only so "
+                "you can correct the configuration; fix these entries before execution:\n\n"
+                + "".join(system_info.value.config_validation_errors)
+            )
+            self.message.emit(NotifierMessage(warning_text, level=logging.ERROR))
+        for warning in system_info.value.warnings:
+            self.message.emit(NotifierMessage(warning, level=logging.WARNING))
         self._cached_system_info = system_info.value
         self._sync_action_state()
         self.changed.emit()
@@ -286,6 +302,15 @@ class SystemListWidget(QListWidget):
     def system_info(self) -> SystemInfo:
         """Return the (cached) system info."""
         return self._cached_system_info
+
+    def test_import(self, filename: str) -> Result[bool, str]:
+        """Test if a filename can be imported."""
+        ret = get_system_info([filename])
+        if not isinstance(ret, Success):
+            return Error(error=ret.error)
+        if ret.value.classes[0] in self.system_info.classes:
+            return Error(error="Duplicate system class name, please rename.")
+        return Success(value=True)
 
     def query_systems(self) -> None:
         """Select and add system files(s)."""

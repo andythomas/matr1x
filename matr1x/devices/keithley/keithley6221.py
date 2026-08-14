@@ -460,7 +460,7 @@ class Keithley6221(VisaDevice):
             self.write("SOUR:DELT:ARM")
             time.sleep(5)
         self.write("INIT:IMM")
-        print(self.query("*OPC?"))
+        print(self.query("*OPC?"))  # noqa: T201
 
     def pulseStop(self):
         """

@@ -19,6 +19,7 @@ Module containing the System class definition and utility functions.
 These can be used for data acquisition and instrument control.
 """
 
+import builtins
 import importlib
 import inspect
 import logging
@@ -26,9 +27,9 @@ import os
 import re
 import sys
 import time
-import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterable
+from functools import cached_property
 from operator import attrgetter
 from pathlib import Path
 from typing import Any, TypeGuard, TypeVar
@@ -41,11 +42,15 @@ from pymeasure.instruments import Instrument
 import matr1x
 from matr1x.devices.visadevice import VisaDevice
 from matr1x.error_handling import Error, Result, Success
-from matr1x.models import MeasurementData, Message, UntypedConfigModel
+from matr1x.models import (
+    MeasurementData,
+    Message,
+    SystemMethod,
+    SystemVariable,
+    UntypedConfigModel,
+)
 
-from . import VALID_META_KEYS, output_extension
 from .util import (
-    DcDict,
     construct_query_string,
     default_separator,
     flatten,
@@ -55,6 +60,32 @@ from .util import (
     resolve_config_path,
     save_dict_to_hdf5,
 )
+
+VALID_META_KEYS = {
+    "creator": True,
+    "date": False,
+    "identifier": True,
+    "relation": True,
+    "description": True,
+    "source": True,
+    "type": True,
+    "publisher": True,
+    "format": False,
+    "language": False,
+}
+"""
+Valid metadata keys for the dublin core metadata.
+
+The 'false' keys are auto-generated and cannot be set.
+"""
+
+APP_META_KEY = ["description"]
+"""
+The user can append to these dublin core keys.
+"""
+BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
+
+ALLOWED_SIGNATURE_TYPES = BUILTIN_TYPES | {None}
 
 logger = logging.getLogger(__name__)
 
@@ -66,97 +97,75 @@ ConfigParameter = dict[str, ConfigValue]
 T = TypeVar("T")
 
 
-def is_config_scheme(value: object) -> TypeGuard[ConfigScheme]:
-    """Return True if the value is a valid ConfigScheme tuple."""
-    return (
-        type(value) is tuple
-        and len(value) == 3
-        and isinstance(value[0], str)
-        and isinstance(value[1], tuple)
-        and isinstance(value[2], dict)
-    )
-
-
-def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
-    """Query a device config string via ``query`` or ``ask``."""
-    query_method = getattr(device_handle, "query", None)
-    if callable(query_method):
-        return str(query_method(query))
-
-    ask_method = getattr(device_handle, "ask", None)
-    if callable(ask_method):
-        return str(ask_method(query))
-
-    raise AttributeError(
-        f"config_params entry {query!r} needs a device query method, "
-        "but neither query() nor ask() is available"
-    )
-
-
-def device_query(
-    device_handle: VisaDevice | Instrument, config_params: ConfigParameter
-) -> dict[str, Any]:
+class DcDict(dict):
     """
-    Query the current configuration of the device.
+    Custom dictionary class that only allows append if key already exists.
 
-    Parameters
-    ----------
-    device_handle : VisaDevice or pymeasure device
-        Must be an open device that implements the query function.
-    config_params : dict
-        Dictionary must adhere to the following format. Key is
-        descriptor which is used to identify the parameter. The
-        corresponding values must be one of:
+    This class extends the built-in dictionary class to modify its behavior
+    when in append mode or when a merged system exists.
+    In append mode non-empty entries are extended.
 
-        * An attribute or method name (if callable without arguments of
-          the device object)
-        * A callable function (without arguments)
-        * A query string for the device
-        * A list of the following scheme
-        [method_name : str, args : tuple, kwargs : dict]
-
-    Returns
+    Methods
     -------
-    dict
-        A dictionary of dictionaries containing the configuration. The
-        keys of are the parameters that were queried.
+    overwrite_value(key, value)
+        Overwrite the value for a given key.
     """
-    if hasattr(device_handle, "name"):
-        device_id = device_handle.name
-    else:
-        device_id = device_handle.__class__.__name__
-    adapter = getattr(device_handle, "adapter", None)
-    connection = getattr(adapter, "connection", None)
-    resource_name = getattr(connection, "resource_name", None)
-    if resource_name:
-        device_id += f" {resource_name}"
-    retquery: dict[str, Any] = {}
-    for k, q in config_params.items():
-        try:
-            if isinstance(q, str) and not callable(q):
-                try:
-                    attr = getattr(device_handle, q)
-                except AttributeError:
-                    line = _query_device_config(device_handle, q)
-                else:
-                    if callable(attr):
-                        line = attr()
-                    else:
-                        line = attr
-            elif callable(q) and not isinstance(q, tuple) and not isinstance(q, str):
-                line = q()
-            elif is_config_scheme(q) and not callable(q):
-                method = getattr(device_handle, q[0])
-                if not callable(method):
-                    raise ValueError(f"config_params: method '{q[0]}' is not callable")
-                line = str(method(*q[1], **q[2]))
-            else:
-                raise ValueError(f"config_params: Ambiguous class of {q!r}")
-        except Exception:
-            logger.exception("exception during config query of %s", device_id)
-            raise
-        retquery[k] = line
-    return retquery
+
+    def __init__(self, system_ref, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.append = False
+        self.system_ref = system_ref
+
+    def __setitem__(self, key, value):
+        """
+        Set item in the dictionary with modified behavior.
+
+        This method wraps dict.__setitem__ to change behavior when in append mode
+        or when a merged system exists (append in that case).
+
+        Parameters
+        ----------
+        key : hashable
+            The key to set.
+        value : Any
+            The value to set for the given key.
+        """
+        if self.system_ref.merged_system:
+            # initialized subsystem, write into merged parent
+            if key not in APP_META_KEY:
+                # is meta key is non-editable, no append is allowed
+                super().__setitem__(key, value)
+                return
+            self._append_value(key, value, ";@set:", ref=self.system_ref.merged_system.dcdata)
+        elif self.append and self[key]:
+            # read only mode is enabled, append values
+            if key not in APP_META_KEY:
+                # is meta key is non-editable, no append is allowed
+                super().__setitem__(key, value)
+                return
+            self._append_value(key, value, ";@ap:")
+        else:
+            super().__setitem__(key, value)
+
+    def _append_value(self, key, value, sep, ref=None):
+        if not value:
+            # only append values that are not None
+            return
+        if ref:
+            # reference system is defined, write meta_data to that system
+            if key in ref.keys():
+                if ref[key]:
+                    # only append to available value if it exists (not None)
+                    ref[key] = sep.join([ref[key], value])
+                    return
+            ref[key] = sep[1:] + value
+        else:
+            # append meta data to current current array
+            if key in self.keys():
+                if self[key]:
+                    super().__setitem__(key, sep.join([self[key], value]))
+                    return
+            super().__setitem__(key, sep[1:] + value)
 
 
 class Parameter:
@@ -417,13 +426,14 @@ class System:
     """
     Define a measurement setup/system.
 
-    It is mostly defined by the individual parameters (stored in .parameters)
-    that are used in the system as well as the list of devices stored in .devs.
-    Additionally, it provides functions to set, trigger and read the individual
-    parameters using the specifications provided there.
-    Finally, it defines the set, query and reset function, which are used to
-    open and initialize the devices, query the device configuration/status and
-    return the system to a defined state, respectively.
+    It is mostly defined by the individual `Parameter`s (stored in
+    `parameters`) that are used in the system as well as the list of
+    devices stored in `devs`. Additionally, it provides functions to
+    set, trigger and read the individual parameters using the
+    specifications provided there. Finally, it defines the set, query
+    and reset function, which are used to open and initialize the
+    devices, query the device configuration/status and return the system
+    to a defined state, respectively.
 
     Attributes
     ----------
@@ -442,8 +452,9 @@ class System:
     devs : dict
         Contains the individual devices that belong to the system.
     dcdata : dict
-        Contains telemetry according to the Dublin Core specification that can be
-        used to generate specific header information.
+        Contains telemetry according to the Dublin Core specification
+        that can be used to generate specific header information. see
+        `VALID_META_KEYS`
     system_config_params : dict
         Contains the definition for custom device queries to read the
         configuration. Keys match the device names in .devs.
@@ -470,6 +481,9 @@ class System:
         self.devs = {}
         self._devs_init = {}  # variable holding dev init info for reopeneing
         self.query_dict = {}  # store device information query
+
+        # Allow warnings
+        self.warnings: list[str] = []
 
         # initialize flag to check whether system has been set
         self.opened = False
@@ -504,6 +518,99 @@ class System:
             format="text/plain; charset=UTF-8",
             language="en",
         )
+
+    @staticmethod
+    def _is_config_scheme(value: object) -> TypeGuard[ConfigScheme]:
+        """Return True if the value is a valid ConfigScheme tuple."""
+        return (
+            type(value) is tuple
+            and len(value) == 3
+            and isinstance(value[0], str)
+            and isinstance(value[1], tuple)
+            and isinstance(value[2], dict)
+        )
+
+    @staticmethod
+    def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
+        """Query a device config string via ``query`` or ``ask``."""
+        query_method = getattr(device_handle, "query", None)
+        if callable(query_method):
+            return str(query_method(query))
+
+        ask_method = getattr(device_handle, "ask", None)
+        if callable(ask_method):
+            return str(ask_method(query))
+
+        raise AttributeError(
+            f"config_params entry {query!r} needs a device query method, "
+            "but neither query() nor ask() is available"
+        )
+
+    @staticmethod
+    def _device_query(
+        device_handle: VisaDevice | Instrument, config_params: ConfigParameter
+    ) -> dict[str, Any]:
+        """
+        Query the current configuration of the device.
+
+        Parameters
+        ----------
+        device_handle : VisaDevice or pymeasure device
+            Must be an open device that implements the query function.
+        config_params : dict
+            Dictionary must adhere to the following format. Key is
+            descriptor which is used to identify the parameter. The
+            corresponding values must be one of:
+
+            * An attribute or method name (if callable without arguments of
+              the device object)
+            * A callable function (without arguments)
+            * A query string for the device
+            * A list of the following scheme
+            [method_name : str, args : tuple, kwargs : dict]
+
+        Returns
+        -------
+        dict
+            A dictionary of dictionaries containing the configuration. The
+            keys of are the parameters that were queried.
+        """
+        if hasattr(device_handle, "name"):
+            device_id = device_handle.name
+        else:
+            device_id = device_handle.__class__.__name__
+        adapter = getattr(device_handle, "adapter", None)
+        connection = getattr(adapter, "connection", None)
+        resource_name = getattr(connection, "resource_name", None)
+        if resource_name:
+            device_id += f" {resource_name}"
+        retquery: dict[str, Any] = {}
+        for k, q in config_params.items():
+            try:
+                if isinstance(q, str) and not callable(q):
+                    try:
+                        attr = getattr(device_handle, q)
+                    except AttributeError:
+                        line = System._query_device_config(device_handle, q)
+                    else:
+                        if callable(attr):
+                            line = attr()
+                        else:
+                            line = attr
+                elif callable(q) and not isinstance(q, tuple) and not isinstance(q, str):
+                    line = q()
+                elif System._is_config_scheme(q) and not callable(q):
+                    method = getattr(device_handle, q[0])
+                    if not callable(method):
+                        raise ValueError(f"config_params: method '{q[0]}' is not callable")
+                    line = str(method(*q[1], **q[2]))
+                else:
+                    raise ValueError(f"config_params: Ambiguous class of {q!r}")
+            except Exception:
+                logger.exception("exception during config query of %s", device_id)
+                raise
+            retquery[k] = line
+        return retquery
 
     def load_config(
         self,
@@ -542,7 +649,17 @@ class System:
             msg = format_validation_error(e, base=f"{section}.")
             validation_errors.append(msg)
             # Use defaults from the model if validation fails
-            validated_config = model_class()
+            try:
+                validated_config = model_class()
+            except (ValidationError, TypeError, ValueError):
+                logger.debug(
+                    "Could not instantiate default config for %s after validation error",
+                    section,
+                    exc_info=True,
+                )
+                if not hasattr(model_class, "model_construct"):
+                    raise
+                validated_config = model_class.model_construct()
 
         if sensitive_keys:
             # Move sensitive keys to sensitive_config
@@ -577,7 +694,10 @@ class System:
         Load a system from a file.
 
         If a file with the given name cannot be found the system
-        installed files are searched.
+        installed files are searched. A system module must define exactly one
+        local ``System`` subclass, which is instantiated after import. Legacy
+        initialized ``system`` and ``sys`` exports remain supported with a
+        deprecation warning.
 
         Parameters
         ----------
@@ -590,7 +710,7 @@ class System:
             System as defined in the file or an error string.
         """
         normfilename = filename.expanduser()
-
+        legacy_warning: str | None = None
         if normfilename.is_file():
             try:
                 mod = module_from_path(normfilename)
@@ -621,18 +741,43 @@ class System:
                 return Error(
                     f"Could neither import '{normfilestr}' nor 'matr1x.systems.{normfilestr}'"
                 )
-        # get new (v8 System instance
-        system = getattr(mod, "system", None)
-        if not system:
-            system = getattr(mod, "sys", None)
-            warnings.warn(
-                "Using deprecated variable name 'sys' - please update to use 'system' instead",
-                DeprecationWarning,
-            )
+        legacy_name = "system"
+        system = getattr(mod, legacy_name, None)
         if not isinstance(system, System):
-            return Error("The 'system' variable is not a valid System instance.")
+            legacy_name = "sys"
+            system = getattr(mod, legacy_name, None)
+
+        if isinstance(system, System):
+            legacy_warning = (
+                f"Using an initialized System instance exported as '{legacy_name}' is deprecated; "
+                "define exactly one local System subclass instead."
+            )
+        else:
+            # Imported base classes do not qualify: the system file itself
+            # must define the single concrete class that Matrix instantiates.
+            system_classes = {
+                value
+                for value in vars(mod).values()
+                if inspect.isclass(value)
+                and value is not System
+                and issubclass(value, System)
+                and value.__module__ == mod.__name__
+            }
+            if not system_classes:
+                return Error(
+                    "The system file must define exactly one local System subclass; none found."
+                )
+            if len(system_classes) > 1:
+                names = ", ".join(sorted(system_class.__name__ for system_class in system_classes))
+                return Error(
+                    "The system file must define exactly one local System subclass; "
+                    f"found: {names}."
+                )
+            system = system_classes.pop()()
         # set the name of the system to reflect the filename
         system.__name__ = str(normfilename)
+        if legacy_warning:
+            system.warnings.append(legacy_warning)
         return Success(system)
 
     @property
@@ -699,11 +844,7 @@ class System:
         trigger_args: tuple[Any] | list[Any] | None = None,
         trigger_kwargs: dict[str, Any] | None = None,
     ):
-        """
-        Add a parameter to the list of parameters.
-
-        For definition of the passed parameters, see class :class:`Parameter`.
-        """
+        """Add a `Parameter` to the list of parameters."""
         self.parameters.append(
             Parameter(
                 name,
@@ -872,9 +1013,9 @@ class System:
         # check whether hdf5 is required and change output extensions
         if self.hdf5 is True:
             # append h5 to filename to discern filetypes
-            file_extension = ".h5" + output_extension
+            file_extension = ".h5" + matr1x.output_extension
         else:
-            file_extension = output_extension
+            file_extension = matr1x.output_extension
         refileext = file_extension.replace(".", r"\.")
 
         if outputfile:
@@ -1305,7 +1446,7 @@ class System:
         """
         Handle device opening/initialization.
 
-        For format of devs refer to .add_dev
+        For format of devs refer to `add_dev`
 
         Parameters
         ----------
@@ -1370,15 +1511,15 @@ class System:
             try:
                 if key in self.system_config_params.keys() and hasattr(dev, "config_params"):
                     # device config_params are specified in system and device
-                    retquery[key] = device_query(
+                    retquery[key] = System._device_query(
                         dev, {**self.system_config_params[key], **dev.config_params}
                     )
                 elif key in self.system_config_params.keys():
                     # device config query is specified in system
-                    retquery[key] = device_query(dev, self.system_config_params[key])
+                    retquery[key] = System._device_query(dev, self.system_config_params[key])
                 elif hasattr(dev, "config_params"):
                     # device has config query specified, should return dictionary
-                    retquery[key] = device_query(dev, dev.config_params)
+                    retquery[key] = System._device_query(dev, dev.config_params)
                 else:
                     # no query details available
                     retquery[key] = {}
@@ -1450,67 +1591,88 @@ class System:
         # reset devs dictionary to allow reopening
         self.devs.update(self._devs_init)
 
-    def _add_method_info_to_dict(
-        self, obj: "System", info_dict: dict[str, Any], prefix: str = "System"
-    ) -> None:
-        """
-        Add methods and variables from an object to a dictionary.
-
-        Parameters
-        ----------
-        obj : System
-            The system to extract methods and variables from
-        info_dict : dict
-            Dictionary to add the methods/variables information to
-        prefix : str, optional
-            Prefix to use in the description (default: "System")
-
-        Returns
-        -------
-        None
-            Updates the info_dict in place
-        """
-        # Find methods used as parameter getters/setters
+    @cached_property
+    def methods_and_variables(self) -> tuple[list[SystemMethod], list[SystemVariable]]:
+        """Find additional system methods and variables."""
+        methods: list[SystemMethod] = []
+        variables: list[SystemVariable] = []
         parameter_methods = set()
-        for param in obj.parameters:
+        cls_name = self.__class__.__name__
+        for param in self.parameters:
             # Check if setter/getter is a string (method name) and add to exclusion list
             if isinstance(param.setter, str):
                 parameter_methods.add(param.setter)
             if isinstance(param.getter, str):
                 parameter_methods.add(param.getter)
         base_attrs = set(dir(System()))
-        for key in dir(obj):
+        for key in dir(self):
             if key not in base_attrs and not key.startswith("_") and key not in parameter_methods:
-                if key in info_dict["methods"]:
-                    info_dict["warnings"].append(
-                        f"Method '{key}' from '{obj.__class__.__name__}' shadows a pre-existing "
-                        f"entry (prefix: {prefix})."
-                    )
-                method = getattr(obj, key)
-                if callable(method):
+                attribute = getattr(self, key)
+                if callable(attribute):
                     signature = None
                     docstring = None
                     try:
-                        signature = str(inspect.signature(method))
+                        signature = str(self._buildins_signature(getattr(type(self), key)))
                     except (TypeError, ValueError):
                         pass
-                    if method.__doc__:
-                        docstring = method.__doc__.strip()
-
-                    info_dict["methods"][key] = {
-                        "name": key,
-                        "prefix": prefix,
-                        "kind": "method",
-                        "signature": signature,
-                        "docstring": docstring,
-                    }
+                    if attribute.__doc__:
+                        docstring = attribute.__doc__.strip()
+                    method = SystemMethod(
+                        name=key,
+                        prefix=cls_name,
+                        signature=signature,
+                        docstring=docstring,
+                        callable=attribute,
+                    )
+                    methods.append(method)
                 else:
-                    info_dict["methods"][key] = {
-                        "name": key,
-                        "prefix": prefix,
-                        "kind": "variable",
-                        "signature": f" ({type(method).__name__})",
-                    }
+                    type_var = type(attribute).__name__
+                    if type_var == "NoneType":
+                        type_var = None
+                    variable = SystemVariable(name=key, prefix=cls_name, signature=type_var)
+                    variables.append(variable)
+        return methods, variables
+
+    def _buildins_signature(self, function: Callable) -> inspect.Signature:
+        """Return signature of the function with only built-ins."""
+        signature = inspect.signature(function)
+        new_params = []
+        for param in signature.parameters.values():
+            annotation = param.annotation
+            if annotation not in ALLOWED_SIGNATURE_TYPES:
+                annotation = inspect.Parameter.empty
+            new_params.append(param.replace(annotation=annotation))
+        return_annotation = signature.return_annotation
+        if return_annotation not in ALLOWED_SIGNATURE_TYPES:
+            return_annotation = inspect.Signature.empty
+        return signature.replace(parameters=new_params, return_annotation=return_annotation)
+
+    def _add_attributes_to_dict(self, info_dict: dict[str, Any]) -> None:
+        """
+        Add methods and variables from this system to a dictionary.
+
+        Parameters
+        ----------
+        info_dict : dict
+            Dictionary to add the methods/variables information to
+
+        Returns
+        -------
+        None
+            Updates the info_dict in place
+        """
+        methods, variables = self.methods_and_variables
+        cls_name = self.__class__.__name__
+        for items, category in ((methods, "methods"), (variables, "variables")):
+            target = info_dict[category]
+            for item in items:
+                if item.name in target:
+                    info_dict["warnings"].append(
+                        f"'{item.name}' from '{cls_name}' would shadow a pre-existing entry "
+                        f"and will not accesible via 'system'."
+                    )
+                else:
+                    target[item.name] = item.model_dump(exclude={"callable"})
 
     def grab_information(self) -> dict[str, Any]:
         """
@@ -1524,7 +1686,14 @@ class System:
             custom-defined system methods and variables (if any).
         """
         # generate dictionary from devices, parameters, methods and config
-        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}, "warnings": []}
+        info = {
+            "devices": {},
+            "parameters": {},
+            "methods": {},
+            "variables": {},
+            "config": {},
+            "warnings": self.warnings,
+        }
 
         # Add devices
         for dev, device_entry in self.devs.items():
@@ -1557,45 +1726,23 @@ class System:
 
         # Add parameters
         for index, param in enumerate(self.parameters):
-            # Store the parameter name (either as string or joined list)
             name = param.name
-            if isinstance(name, list):
-                # For list parameters, join the names with comma
-                display_name = ", ".join(name)
-            else:
-                display_name = name
-
-            # Store the parameter unit (either as string or joined list)
+            display_name = ", ".join(name) if isinstance(name, list) else name
             unit = param.unit
-            if isinstance(unit, list):
-                # For list parameters, join the units with comma
-                display_unit = ", ".join(unit)
-            else:
-                display_unit = unit
-
+            display_unit = ", ".join(unit) if isinstance(unit, list) else unit
             # Create an entry with the index as key
             # (use string prefix to avoid numeric parsing issues)
             param_key = f"param_{index}"
-            if param.setter is not None:
-                info["parameters"][param_key] = {
-                    "name": display_name,
-                    "unit": display_unit,
-                    "description": f"Settable parameter at index {index}",
-                    "index": index,
-                    "settable": True,
-                }
-            else:
-                info["parameters"][param_key] = {
-                    "name": display_name,
-                    "unit": display_unit,
-                    "description": f"Read-only parameter at index {index}",
-                    "index": index,
-                    "settable": False,
-                }
+            info["parameters"][param_key] = {
+                "name": display_name,
+                "unit": display_unit,
+                "index": index,
+                "settable": param.setter is not None,
+            }
 
         # Add custom methods and variables
         if self.__class__ != MergedSystem:
-            self._add_method_info_to_dict(self, info)
+            self._add_attributes_to_dict(info)
 
         system_name = getattr(self, "__name__", str(self.__class__.__name__))
 
@@ -1630,8 +1777,6 @@ class System:
         ----------
         inputfile : str
             Filename of the inputfile to be placed in the header.
-        output_filename : Path, optional
-            Filename of the output file.
 
         Returns
         -------
@@ -1937,10 +2082,12 @@ class MergedSystem(System):
 
     def __getattr__(self, attr: str) -> Any:
         """
-        Return methods/variables from subsystems if they do not exist in the MergedSystem.
+        Return methods/variables from subsystems.
 
-        This method is called when an attribute is not found in the MergedSystem instance.
-        It searches for the attribute in all subsystems and returns it if found.
+        This method is called when an attribute is not found in the
+        MergedSystem instance. First, it searches for a subsystem of
+        that name, then, it searches for the attribute in all
+        subsystems.
 
         Parameters
         ----------
@@ -1950,7 +2097,7 @@ class MergedSystem(System):
         Returns
         -------
         Any
-            The attribute from a subsystem, if found.
+            The attribute if found.
 
         Raises
         ------
@@ -1958,6 +2105,8 @@ class MergedSystem(System):
             If the attribute is not found in any subsystem.
         """
         for subsys in self.subsys:
+            if attr == subsys.__class__.__name__:
+                return subsys
             if hasattr(subsys, attr):
                 return getattr(subsys, attr)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'")
@@ -2048,7 +2197,15 @@ class MergedSystem(System):
             System information, methods and parameters from all
             subsystems.
         """
-        info = {"devices": {}, "parameters": {}, "methods": {}, "config": {}, "warnings": []}
+        info = {
+            "classes": [],
+            "devices": {},
+            "parameters": {},
+            "methods": {},
+            "variables": {},
+            "config": {},
+            "warnings": [],
+        }
         base_info = super().grab_information()
         # Merge the categorized dictionaries
         if "devices" in base_info:
@@ -2060,7 +2217,8 @@ class MergedSystem(System):
         # Skip config from base class to avoid duplication -
         # we'll add individual subsystem configs below
         for subsys in self.subsys:
-            self._add_method_info_to_dict(subsys, info, prefix="Subsystem")
+            info["classes"].append(subsys.__class__.__name__)
+            subsys._add_attributes_to_dict(info)
 
             subsys_config = subsys.config
             if subsys_config:
@@ -2074,6 +2232,9 @@ class MergedSystem(System):
                     }
                 else:
                     info["config"][subsys_name] = subsys_config
+
+            if hasattr(subsys, "warnings") and subsys.warnings:
+                info["warnings"].extend(subsys.warnings)
 
         return info
 

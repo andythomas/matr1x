@@ -110,10 +110,10 @@ def _is_template_content(template: str) -> bool:
 
 
 # ============================
-# This area contains the required MeasSystem definition and
+# This area contains the required system definition and
 # the optional reimplementation of the set and reset function
 # ============================
-class ElabSystem(System):
+class Elab(System):
     """
     System for interfacing with elabFTW electronic lab notebook.
 
@@ -143,6 +143,36 @@ class ElabSystem(System):
         self._attachments = {}
         self._tags = []
         self._resources = {}
+
+    @staticmethod
+    def _parse_version(version: str | None) -> tuple[int, int, int] | None:
+        """Parse the numeric prefix of a version string."""
+        if not version:
+            return None
+        match = re.match(r"^\D*(\d+)\.(\d+)\.(\d+)", version)
+        if match is None:
+            return None
+        major, minor, patch = match.groups()
+        return int(major), int(minor), int(patch)
+
+    def _warn_legacy_server_version(self, info) -> None:
+        """Warn if the connected eLabFTW server predates the resources API split."""
+        version = getattr(info, "version", None)
+        if version is None:
+            version = getattr(info, "elabftw_version", None)
+        parsed_version = self._parse_version(str(version) if version is not None else None)
+        if parsed_version is None or parsed_version >= (5, 3, 0):
+            return
+
+        self.report(
+            Message(
+                "Connected eLabFTW server version "
+                f"{version} is older than 5.3.0. Basic integration may still work, "
+                "but resource creation/category assignment can fail because the API changed "
+                "in eLabFTW 5.3.0.",
+                to_comment=False,
+            )
+        )
 
     def set(self, *args, **kwargs):
         """
@@ -186,7 +216,8 @@ class ElabSystem(System):
         # test server connection by a harmless read-only query
         try:
             info_client = elabapi_python.InfoApi(self.api_client)
-            info_client.get_info()
+            info = info_client.get_info()
+            self._warn_legacy_server_version(info)
         except Exception:
             if self.config.require_server:
                 self.report(
@@ -444,21 +475,37 @@ class ElabSystem(System):
         if not category_name:
             return None
 
-        itemsTypesApi = elabapi_python.ItemsTypesResourcesTemplatesApi(self.api_client)
         try:
-            # Read all resources categories that are accessible.
-            response = itemsTypesApi.read_items_types()
+            payload = self.api_client.call_api(
+                "/teams/current/resources_categories",
+                "GET",
+                header_params={"Accept": "application/json"},
+                response_type=object,
+                _return_http_data_only=True,
+            )
         except ApiException as e:
             self.report(
                 Message(
-                    "Exception when calling ItemsTypesResourcesTemplatesApi->"
-                    f"read_item_types: {e}\n",
+                    f"Exception when calling /teams/current/resources_categories: {e}\n",
                     to_comment=False,
                 )
             )
             return None
-        # find id for search category
-        return next((item.id for item in response if item.title == category_name), None)
+        except Exception as e:
+            self.report(
+                Message(
+                    f"Exception when calling /teams/current/resources_categories: {e}\n",
+                    to_comment=False,
+                )
+            )
+            return None
+
+        for item in payload:
+            title = item["title"]
+            category_id = item["id"]
+            if title == category_name and category_id is not None:
+                return int(category_id)
+        return None
 
     def _create_resource(self, name: str) -> int | None:
         """
@@ -494,19 +541,18 @@ class ElabSystem(System):
             raise ValueError("Valid resource category could not be found, but is needed.")
         # create an instance of the API class
         itemsApi = elabapi_python.ItemsApi(self.api_client)
-        body = {"category_id": resource_cat}
-
-        item_id = None
         try:
-            response = itemsApi.post_item_with_http_info(body=body)
-            locationHeaderInResponse = response[2].get("Location")
-            item_id = int(locationHeaderInResponse.split("/").pop())
-            itemsApi.patch_item(body={"title": name}, id=item_id)
+            response = itemsApi.post_item_with_http_info(body={"category": resource_cat})
+            headers = response[2]
+            location = headers.get("Location") or headers.get("location")
+            if location is None:
+                raise ValueError("Missing Location header in create item response")
+            item_id = int(location.split("/").pop())
+            itemsApi.patch_item(body={"title": name, "category": resource_cat}, id=item_id)
             self.report(Message(f"created ElabFTW resource with name {name}", to_comment=False))
         except ApiException as e:
             self.report(Message(f"Exception when calling ItemsApi: {e}\n", to_comment=False))
-        if item_id is None:
-            raise ValueError("Failed to create resource - itemId is None")
+            raise ValueError("Failed to create resource due to eLabFTW API error") from e
         return item_id
 
     def _search_resource(self, resource: str) -> int | None:
@@ -745,8 +791,3 @@ class ElabSystem(System):
         self._attachments = {}
         self._tags = []
         self._resources = {}
-
-
-# ============================
-# initialize system
-system = ElabSystem()
