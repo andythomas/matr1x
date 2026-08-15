@@ -55,11 +55,20 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - uses: astral-sh/ruff-action@v4.0.0
+      - name: Set up uv
         if: steps.filter.outputs.related_code_changed == 'true'
-        with:
-          version: "0.15.10"
-          args: "--version"
+        uses: ./.github/actions/setup-uv
+
+      - name: Install ruff from uv.lock
+        if: steps.filter.outputs.related_code_changed == 'true'
+        run: |
+          uv export --locked --no-dev --no-header --no-annotate --no-hashes --no-emit-project > "$RUNNER_TEMP/requirements.txt"
+          ruff_requirement="$(grep -E '^ruff==' "$RUNNER_TEMP/requirements.txt")"
+          uv tool install "$ruff_requirement" --constraints "$RUNNER_TEMP/requirements.txt"
+
+      - name: Show ruff version
+        if: steps.filter.outputs.related_code_changed == 'true'
+        run: ruff --version
 
       - name: Auto-fix code with ruff
         if: steps.filter.outputs.related_code_changed == 'true'
@@ -138,7 +147,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Set up Python ${{ matrix.python-version }}
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        uses: ./.github/actions/setup-uv
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
@@ -155,7 +164,7 @@ jobs:
 
       - name: Install dependencies
         run: >
-          uv sync --all-packages --all-extras
+          uv sync --locked --all-packages --all-extras
         shell: bash
 
       - name: Run type checker
