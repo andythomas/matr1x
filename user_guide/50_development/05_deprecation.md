@@ -38,8 +38,8 @@ Please note that the notiications overwrite each other and inform the correspond
 
 ## Removed in the current `development` version
 
-| Item                 | Deprecation |         Remedy          |
-| :------------------- | :---------: | :---------------------: |
-| `function` in sweep  |    8.0.1    |   use `matrix_script`   |
-| SR830 lock in driver |    8.0.1    | use `ifwlib` equivalent |
-| `loadh5matrix`       |    8.1.0    |    use `loadmatrix`     |
+| Item                 | Deprecation |           Remedy           |
+| :------------------- | :---------: | :------------------------: |
+| `function` in sweep  |    8.0.1    |    use `matrix_script`     |
+| SR830 lock in driver |    8.0.1    | use `pymeasure` equivalent |
+| `loadh5matrix`       |    8.1.0    |      use `loadmatrix`      |
