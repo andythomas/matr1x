@@ -1,40 +1,25 @@
 # Development notes
 
-## How to contribute
+{{< include "../../../.github/CONTRIBUTING.md" >}}
 
-We welcome contributions! Report bugs, suggest features, or submit fixes via GitHub:
+## Conventional Commits
 
-- [Raise an issue](https://github.com/andythomas/matr1x/issues)
-- Submit a [pull request](https://github.com/andythomas/matr1x/pulls)
+Please note that [Commitizen](https://github.com/commitizen-tools/commitizen) can assist with message generation.
 
-All changes require a pull request and are subject to unit tests, commit hooks, CI, and code
-review. Direct commits to `main` are not possible.
+## Type Checking
 
-We use [semantic versioning](https://semver.org/). Pull request titles must follow a
-[specific pattern](https://www.conventionalcommits.org/en/v1.0.0/) for automatic versioning.
+Early bug detection relies on strict type boundaries. To prevent type erosion, two core constraints apply:
 
-Titles must start with a prefix (`feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
-`chore`, `revert`, `ci`), followed by a colon and a space. A quick introduction can be found
-[here](https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716).
+- **Within a class:** `Any` and `Unknown` should not cross method signatures.
+- **Outside a class:** `Any` and `Unknown` must never cross public class boundaries.
 
-[Commitizen](https://github.com/commitizen-tools/commitizen) can assist with message generation.
+## Pre-commit hooks
 
-## Setting up a development environment
+For anyone interested to run the pre-commit hooks locally and also using the exact versions fixed by uv.lock you can use:
 
-We recommend setting up your development environment using a `uv` virtual environment.
+{{< include "../_includes/pre_commit.yml" >}}
 
-### Virtual environment with uv
-
-Follow the installation instructions in the README. To obtain all dependencies, including optional
-extras, use `uv sync --all-extras`.
-
-## Testing the code locally
-
-Run unit tests within your virtual environment using:
-
-```bash
-pytest
-```
+add the `pre-commit-config.yaml` to `.git/info/exclude`.
 
 ## Specific editor settings
 

@@ -123,8 +123,7 @@ def parse_cmd_line() -> argparse.Namespace:
         "-af",
         "--append",
         action="store_true",
-        help="instead of appending a continuous number "
-        + "to the output file, append to output file.",
+        help="instead of appending a continuous number to the output file, append to output file.",
     )
     parser.add_argument(
         "-p",
@@ -897,8 +896,8 @@ def main() -> None:
             measurement.dispatch(
                 Message(
                     "Received keyboard interrupt, file may be corrupt!\n"
-                    + "Some devices may be in unknown state. Check traceback!\n"
-                    + "Traceback of error:\n"
+                    "Some devices may be in unknown state. Check traceback!\n"
+                    "Traceback of error:\n"
                 )
             )
             traceback.print_tb(e.__traceback__)

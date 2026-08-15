@@ -28,15 +28,15 @@ from pathlib import Path
 import elabapi_python
 from elabapi_python.rest import ApiException
 from jinja2 import Template
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from matr1x.models import Message
+from matr1x.models import Message, SystemConfigModel
 from matr1x.system import MergedSystem, System
 
 logger = logging.getLogger(__name__)
 
 
-class ElabConfig(BaseModel):
+class ElabConfig(SystemConfigModel):
     """Configuration parameters for elabFTW system."""
 
     # Sensitive configuration (will be moved to sensitive_config)

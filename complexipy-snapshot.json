@@ -176,10 +176,6 @@
     "file_name": "gui_util.py",
     "functions": [
       {
-        "name": "ConfigEditWidget::parse_item",
-        "complexity": 19
-      },
-      {
         "name": "SimplePlotWidget::_update_linesetting",
         "complexity": 20
       },
@@ -293,10 +289,6 @@
     "path": "matr1x/scripts/sweep_generator.py",
     "file_name": "sweep_generator.py",
     "functions": [
-      {
-        "name": "MainWindow::open_file",
-        "complexity": 18
-      },
       {
         "name": "ColumnData::calculate_sweep",
         "complexity": 32

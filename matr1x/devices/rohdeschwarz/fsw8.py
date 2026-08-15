@@ -189,7 +189,7 @@ class FSW8(VisaDevice):
         elif sweType == "auto":
             self.write("SWE:TYPE AUTO")
         else:
-            print(f"Please choose a valid sweep type! Your input was:{sweType}")
+            print(f"Please choose a valid sweep type! Your input was:{sweType}")  # noqa: T201
         self.query("*OPC?")
 
         if average:
@@ -210,7 +210,7 @@ class FSW8(VisaDevice):
                 # power averaging mode for correct power measurements in FFT
                 # sweep mode
             else:
-                print(f"Please choose a valid average type! Your input was:{avgType}")
+                print(f"Please choose a valid average type! Your input was:{avgType}")  # noqa: T201
             self.query("*OPC?")
 
             if detector == "rms":
@@ -222,7 +222,7 @@ class FSW8(VisaDevice):
                 # Calculates the linear average of all samples contained in a sweep point
                 self.write("DETector AVER")
             else:
-                print(f"Please choose a valid detector type! Your input was:{detector}")
+                print(f"Please choose a valid detector type! Your input was:{detector}")  # noqa: T201
 
             self.write("AVER:STAT ON")
             self.write(f"AVER:COUN {average}")

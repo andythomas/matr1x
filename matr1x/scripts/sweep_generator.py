@@ -1504,7 +1504,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         params = {
             "# params : ": [],
             "# loop_over : ": [],
-            "# functions : ": [],
             "# up_down : ": [],
             "# repeat : ": [],
         }
@@ -1525,27 +1524,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         except PermissionError:
             QMessageBox.warning(self, "Permission error.", "No permission to open the sweep file.")
             return
-        # 'Functions' is depracated. Old files read and issue a warning if the functionality
-        # is used. Otherwise they just load. Delete the this backward compatibility for Matrix v9.
-        # Andy 20250306
-        if len(params.values()) == 5:  # old filename
-            (parameter, loop_over, functions, up_down, repeat) = params.values()
-        else:
-            (parameter, loop_over, up_down, repeat) = params.values()
-            functions = None
-        if functions and any(function != "None" for function in functions):
-            warning_text = (
-                "This file uses the removed 'function' functionality."
-                "Please use matrix-script. File did not load!"
-            )
-            QMessageBox.warning(self, "Deprecation error.", warning_text)
-            return
-        if functions:
-            warning_text = (
-                "File uses deprecated 'function' feature (all entries None). "
-                "Re-save file to ensure future compatibility."
-            )
-            logger.error(warning_text)
+        (parameter, loop_over, up_down, repeat) = params.values()
         self.columns.parameter = parameter
         # initialize layout with values specified in file
         for col in range(len(self.columns.name)):

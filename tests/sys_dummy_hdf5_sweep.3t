@@ -5,7 +5,6 @@
 # Settable column label : c,c,f
 # params : [[['1', '10', '10']], [['0', '0.9', '10']], [['0.01', '0.01', '1']]]
 # loop_over : [-1, -1, 0]
-# functions : ['None', 'None', 'None']
 # up_down : [0, 0, 0]
 # repeat : [1, 1, 1]
 # Time stamp : 2024-09-17T20:51:08

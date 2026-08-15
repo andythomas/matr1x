@@ -37,7 +37,7 @@ from typing import Any, TypeGuard, TypeVar
 
 import h5py
 import numpy as np
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pymeasure.instruments import Instrument
 
 import matr1x
@@ -637,7 +637,7 @@ class System:
 
     def load_config(
         self,
-        model_class: type[Any],
+        model_class: type[BaseModel],
         section: str,
         sensitive_keys: list[str] | None = None,
     ) -> None:
@@ -665,7 +665,7 @@ class System:
 
         try:
             # Validate the config data
-            validated_config = model_class(**config_data)
+            validated_config = model_class.model_validate(config_data)
         except (ValidationError, TypeError, ValueError) as e:
             from . import format_validation_error, validation_errors
 

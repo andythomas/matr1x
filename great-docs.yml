@@ -38,11 +38,10 @@ skill:
     - name: Dependabot
       file: skills/dependabot/SKILL.md
 
-
 # Logo & Favicon
 # ---------------
 # Point to a single logo file (replaces the text title in the navbar):
-# logo: media/matr1x-matrix-gui.svg
+logo: media/matr1x-matrix-gui.svg
 #favicon: media/matr1x-matrix-gui.svg
 #
 # For light/dark variants:
@@ -74,6 +73,8 @@ github_style: icon
 # - Use 'members: false' to exclude methods from documentation
 # - Add 'desc:' to sections for descriptions
 
+announcement: "We are happy to announce the first publicly available version and welcome new users."
+
 reference:
   - title: Classes
     desc: Main classes provided by the package
@@ -81,7 +82,7 @@ reference:
       - name: system.Parameter
         members: false
       - name: system.System
-        members: false  # 19 methods listed below
+        members: false # 19 methods listed below
 
   - title: system.System Methods
     desc: Methods for the system.System class
@@ -97,7 +98,6 @@ reference:
       - system.VALID_META_KEYS
       - system.APP_META_KEY
 
-
 # Site URL
 # --------
 # Canonical address of the deployed documentation site.
@@ -108,7 +108,7 @@ reference:
 # Site Settings
 # -------------
 site:
-  theme: sandstone             # Quarto theme
+  theme: sandstone # Quarto theme
 #   toc: true                  # Show table of contents (default: true)
 #   toc-depth: 2               # TOC heading depth (default: 2)
 #   toc-title: On this page    # TOC title (default: "On this page")
