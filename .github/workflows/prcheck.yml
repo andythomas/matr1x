@@ -12,6 +12,7 @@ on:
     branches:
       - main
       - development
+      - release-candidate
 
 permissions:
   pull-requests: write

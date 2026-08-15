@@ -297,7 +297,7 @@ def test_matrix_script_control_dummy(start_control_dummy):
         tf.flush()
         script = (
             "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, ['system_dummygui'])"
+            f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, ['system_dummygui'])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

@@ -122,7 +122,7 @@ class FH55(VisaDevice):
         elif field_abs < 3:
             self.query("#RANGE 6")
         else:
-            print(f"Field {field} T is not within a valid range!")
+            print(f"Field {field} T is not within a valid range!")  # noqa: T201
 
     def getTemp(self):
         """Return temp in degree celsius."""
@@ -144,7 +144,7 @@ class FH55(VisaDevice):
         elif filter_status == "OFF":
             self.query("#FILTER 0")
         else:
-            print(f"Please choose a valid filter status (ON/OFF)! Your input was: {filter_status}")
+            print(f"Please choose a valid filter status (ON/OFF)! Your input was: {filter_status}")  # noqa: T201
 
     def getMode(self):
         """Return the AC/DC mode."""
@@ -155,7 +155,7 @@ class FH55(VisaDevice):
         elif mode == 1:
             return "AC"
         else:
-            return print(f"Please choose a valid mode (0/1)! Your input was: {mode}")
+            return print(f"Please choose a valid mode (0/1)! Your input was: {mode}")  # noqa: T201
 
     def setMode(self, mode):
         """

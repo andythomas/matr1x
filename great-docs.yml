@@ -73,6 +73,8 @@ github_style: icon
 # - Use 'members: false' to exclude methods from documentation
 # - Add 'desc:' to sections for descriptions
 
+announcement: "We are happy to announce the first publicly available version and welcome new users."
+
 reference:
   - title: Classes
     desc: Main classes provided by the package

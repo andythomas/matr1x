@@ -111,7 +111,7 @@ class SR830(VisaDevice):
         elif refSource == "int":  # set internal reference source
             self.write("FMOD 1")
         else:
-            print(f"Please choose a valid reference source! Your input was: {refSource}")
+            print(f"Please choose a valid reference source! Your input was: {refSource}")  # noqa: T201
 
         if refTrig == "sine":
             self.write("RSLP 0")  # sine zero crossing
@@ -120,7 +120,7 @@ class SR830(VisaDevice):
         elif refTrig == "falling":
             self.write("RSLP 2")  # TTL falling edge
         else:
-            print(f"Please choose a valid reference trigger! Your input was: {refTrig}")
+            print(f"Please choose a valid reference trigger! Your input was: {refTrig}")  # noqa: T201
 
         # set reserve mode
         self.write("RMOD 2")  # Reserve (i=0), Normal (i=1), Low Noise (i=2)
@@ -165,21 +165,21 @@ class SR830(VisaDevice):
         elif inputSource == "100Mohm":
             self.write("ISRC 3")
         else:
-            print(f"Please choose a valid input configuration! Your input was: {inputSource}")
+            print(f"Please choose a valid input configuration! Your input was: {inputSource}")  # noqa: T201
 
         if inputGround == "Float":
             self.write("IGND 0")
         elif inputGround == "Ground":
             self.write("IGND 1")
         else:
-            print(f"Please choose a valid input shield grounding! Your input was: {inputGround}")
+            print(f"Please choose a valid input shield grounding! Your input was: {inputGround}")  # noqa: T201
 
         if inputCoupling == "AC":
             self.write("ICPL 0")
         elif inputCoupling == "DC":
             self.write("ICPL 1")
         else:
-            print(f"Please choose a valid input coupling! Your input was: {inputCoupling}")
+            print(f"Please choose a valid input coupling! Your input was: {inputCoupling}")  # noqa: T201
 
     @synchronized
     def setFilters(self, inputFilter=None):
@@ -207,7 +207,7 @@ class SR830(VisaDevice):
                 "Please choose a valid input line notch filter status!"
                 f"Your input was: {inputFilter}"
             )
-            print(error)
+            print(error)  # noqa: T201
 
     @synchronized
     def setTimeConstant(self, timeConst=None):
@@ -289,24 +289,24 @@ class SR830(VisaDevice):
         fPoints : int
           T...
         """
-        print("\n", "buffer_size:", self.query("SPTS ?"), "\n")
+        print("\n", "buffer_size:", self.query("SPTS ?"), "\n")  # noqa: T201
         x = self.query(f"TRCA? 1,0,{fPoints}")
         X = np.fromstring(x, sep=",").transpose()
-        print("finished reading X, len X : ", len(X))
+        print("finished reading X, len X : ", len(X))  # noqa: T201
         if len(X) != fPoints:
-            print("X too short, rereading")
+            print("X too short, rereading")  # noqa: T201
             x = self.query(f"TRCA? 1,0,{fPoints}")
             X = np.fromstring(x, sep=",").transpose()
-            print("finished rereading X, len X : ", len(X))
+            print("finished rereading X, len X : ", len(X))  # noqa: T201
         time.sleep(0.1)
         y = self.query(f"TRCA? 2,0,{fPoints}")
         Y = np.fromstring(y, sep=",").transpose()
-        print("finished reading Y, len Y : ", len(Y))
+        print("finished reading Y, len Y : ", len(Y))  # noqa: T201
         if len(Y) != fPoints:
-            print("Y too short, rereading")
+            print("Y too short, rereading")  # noqa: T201
             y = self.query(f"TRCA? 2,0,{fPoints}")
             Y = np.fromstring(y, sep=",").transpose()
-            print("finished rereading Y, len Y : ", len(Y))
+            print("finished rereading Y, len Y : ", len(Y))  # noqa: T201
         self.write("REST")  # resets buffer
-        print("buffer reset")
+        print("buffer reset")  # noqa: T201
         return X, Y
