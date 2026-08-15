@@ -224,7 +224,7 @@ def test_empty_script():
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         script = (
             "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, [])"
+            f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, [])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

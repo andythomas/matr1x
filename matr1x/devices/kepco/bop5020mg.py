@@ -106,7 +106,7 @@ class BOP5020mg(VisaDevice):
         """
         self.setVoltageProtection(current)
         if np.abs(current) > 20:
-            print("Warning, attempting to set current exceeding 20A, returning")
+            print("Warning, attempting to set current exceeding 20A, returning")  # noqa: T201
             return
         current_now = self.getCurrent()
         while np.abs(current - current_now) > tolerance:

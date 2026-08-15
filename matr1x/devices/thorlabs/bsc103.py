@@ -140,7 +140,7 @@ class BSC103(VisaDevice):
                 logger.info(string)
 
         if self.debug & 0x02:
-            print(f"{colors.get(color, '')}{string}{colors['ENDC']}")
+            print(f"{colors.get(color, '')}{string}{colors['ENDC']}")  # noqa: T201
 
     def bytestostr(self, bytearr):
         """
@@ -483,7 +483,7 @@ class BSC103(VisaDevice):
         """
         resp = self.ReqResp(self.message(0x0005, (0x00, 0x00), dst, respLen=90)).data
 
-        # TODO: implement the other values
+        # TODO: implement the other values  # noqa: FIX002
         SerialNmbr = int.from_bytes(resp[:4], "little")
         ModelNmbr = resp[4:12].decode("ascii").replace("\x00", "")
         Notes = resp[18:66].decode("ascii").replace("\x00", "")
