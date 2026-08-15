@@ -799,11 +799,11 @@ class System:
         # check if hdf5 format has to be used
         for parm in self.parameters:
             if isinstance(parm.chunks, (list, tuple)):
-                if not isinstance(parm.name, (list, tuple)):
-                    self.hdf5 = True
-                elif any([isinstance(p, (tuple,)) for p in parm.chunks]):
-                    self.hdf5 = True
-                elif any([p > 1 for p in parm.chunks]):
+                if (
+                    not isinstance(parm.name, (list, tuple))
+                    or any([isinstance(p, (tuple,)) for p in parm.chunks])
+                    or any([p > 1 for p in parm.chunks])
+                ):
                     self.hdf5 = True
             elif parm.chunks > 1:
                 self.hdf5 = True
@@ -1100,7 +1100,7 @@ class System:
             if len(func) >= 2:
                 info += f" related to device {func[0]}, parameter {func[1]}."
             else:
-                info += f" with list-like property: {str(func)}."
+                info += f" with list-like property: {func!s}."
         print(info)  # noqa: T201
 
     def set_value(
@@ -1710,13 +1710,13 @@ class System:
             if len(device_entry) > 1:
                 args = device_entry[1]
                 if args and len(args) > 0:
-                    args_str = f", args={str(args)}"
+                    args_str = f", args={args!s}"
 
             kwargs_str = ""
             if len(device_entry) > 2:
                 kwargs = device_entry[2]
                 if kwargs and len(kwargs) > 0:
-                    kwargs_str = f", kwargs={str(kwargs)}"
+                    kwargs_str = f", kwargs={kwargs!s}"
 
             # Format the device information
             info["devices"][dev] = {
@@ -1810,7 +1810,7 @@ class System:
                 save_dict_to_hdf5(self.query_dict, data_file, "system query")
 
                 for dckey, dcvalue in self.dcdata.items():
-                    if dckey not in VALID_META_KEYS.keys():
+                    if dckey not in VALID_META_KEYS:
                         # values that are not in the dc specifications are
                         # just added as attribute
                         data_file.attrs[f"{dckey}"] = dcvalue
@@ -1826,7 +1826,7 @@ class System:
             telemetry += [default_separator]  # ty: ignore[unsupported-operator]
             with Path(self.filename).open("w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
-                    if dckey not in VALID_META_KEYS.keys():
+                    if dckey not in VALID_META_KEYS:
                         # values that are not in the dc specifications are
                         # just added as attribute
                         if dcvalue is not None:

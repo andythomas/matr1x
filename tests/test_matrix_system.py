@@ -225,7 +225,7 @@ def _launch_tapin_script(
         execscript = (
             "import matr1x.util as mu\n"
             "mu.matrix_script_process(\n"
-            f"{repr(tf.name)}, {{}}, '', None, [{repr(str(system_tapin_abs_path))}]\n"
+            f"{tf.name!r}, {{}}, '', None, [{str(system_tapin_abs_path)!r}]\n"
             ")"
         )
         ret = subprocess.run([sys.executable, "-c", execscript], cwd=path, env=env)

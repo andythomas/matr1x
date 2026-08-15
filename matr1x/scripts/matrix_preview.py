@@ -865,7 +865,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 "Error when opening file",
                 f"""
 The following error was raised when opening the file:
-{repr(exc_value)}
+{exc_value!r}
 Please investigate the error and eventually restart matrix-preview""",
             )
             sys.exit(-1)

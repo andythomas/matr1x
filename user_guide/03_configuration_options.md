@@ -117,11 +117,7 @@ The basic use is to provide a type hint and a Field definition. To simplify conf
 If a config setting contains sensitive information (e.g., a password or API key) that should not be stored in measurement data files, it should be specified in the `sensitive_keys` argument of `load_config`. This automatically moves these keys to `self.sensitive_config` and excludes them from metadata.
 
 ```python
-        self.load_config(
-            MyConfig,
-            "matr1x.systems.my_system",
-            sensitive_keys=["password", "api_key"]
-        )
+self.load_config(MyConfig, "matr1x.systems.my_system", sensitive_keys=["password", "api_key"])
 ```
 
 An implementation example for this can be found in the `system_elabftw.py` system.

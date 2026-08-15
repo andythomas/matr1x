@@ -914,7 +914,7 @@ def main() -> None:
                 reset_kwargs["status"] = "aborted"
         if ret == 2:
             reset_kwargs["status"] = "aborted"
-        if "status" not in reset_kwargs.keys():
+        if "status" not in reset_kwargs:
             reset_kwargs["status"] = "finished"
     except Exception as e:
         traceback.print_exc()

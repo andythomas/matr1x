@@ -27,7 +27,7 @@ logging.basicConfig(
     force=True,
 )
 
-from matr1x.post_install import post_installation, remove_desktop_integration  # noqa
+from matr1x.post_install import post_installation, remove_desktop_integration
 
 parser = argparse.ArgumentParser(
     description="Perform or remove desktop integration of the matr1x applications.",

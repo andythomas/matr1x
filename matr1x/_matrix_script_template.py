@@ -699,7 +699,7 @@ except Exception as e:
     else:
         _system.add_comment(f"Script errored: {exc_type.__name__}: {e}")
 # mark last open file as finished, if not labeled elsewhere
-if "status" not in _reset_kwargs.keys():
+if "status" not in _reset_kwargs:
     _reset_kwargs["status"] = "finished"
 # the reset function is called at the script end only, but we
 # nevertheless specify the last datafile name to be as close as possible

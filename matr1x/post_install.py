@@ -36,9 +36,9 @@ from matr1x.gui_util import (
 from matr1x.scripts.shared_classes import SaferQSettings
 
 __all__ = [
+    "check_desktop_integration",
     "post_installation",
     "remove_desktop_integration",
-    "check_desktop_integration",
 ]
 
 logger = logging.getLogger(__name__)
@@ -348,7 +348,7 @@ def unix_integration() -> None:
                     "desktop-file-install",
                     "--mode=755",
                     f"--dir={Path.home() / '.local/share/applications'}",
-                    f"{str(mime_path)}/{desktop_file}",
+                    f"{mime_path!s}/{desktop_file}",
                     "--set-key=Exec",
                     f"--set-value={executable}",
                 ],
@@ -698,7 +698,7 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
                     xdg_install_basic_icon(str(icon), size="128"),
                     check=True,
                 )
-                desktop_file_name = Path(f"{str(mime_path)}/python.{pkgname}.{gui}.desktop")
+                desktop_file_name = Path(f"{mime_path!s}/python.{pkgname}.{gui}.desktop")
                 shutil.copy(mime_path / "matrix-controlGUI.desktop", desktop_file_name)
 
                 subprocess.run(

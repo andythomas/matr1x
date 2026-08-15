@@ -1058,9 +1058,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         pattern = re.compile(r"\.\d+t$")
         # remove this method with next major update, i.e. Matrix v9
         # also simplifies FileDropMixin
-        if pattern.search(str(file_path)) is not None:
-            return True
-        elif file_path.suffix == self.extension:
+        if pattern.search(str(file_path)) is not None or file_path.suffix == self.extension:
             return True
         else:
             return False
@@ -1517,7 +1515,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                         self.ui.widgets.system_list.add_systems(match.group(1).split(","))
                         if not self.update_systems():
                             return
-                    for key in params.keys():
+                    for key in params:
                         if key in line:
                             # read the parameters from the corresponding line
                             line = line.strip().replace(key, "")

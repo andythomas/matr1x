@@ -623,9 +623,7 @@ def _process_column_unit_lines(
 
     # Check if we should break based on file type
     should_break = False
-    if headerlines == 3:  # for ma6, ma7 files
-        should_break = True
-    elif extension == ".ma8" and headerlines == 2:  # ma8 files have only two header lines
+    if headerlines == 3 or extension == ".ma8" and headerlines == 2:  # for ma6, ma7 files
         should_break = True
 
     return headerlines, should_break

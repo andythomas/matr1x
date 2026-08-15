@@ -173,7 +173,7 @@ def catchEmitError(method: _F) -> _F:
         except Exception:
             # report error to the main thread if relevant part can't be disabled
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            pointer = getattr(method, "__name__")
+            pointer = method.__name__
             logger.exception("Handling error in %s", pointer)
             # if the GuiDict which raised the error allows disabling lets just
             # disable it and swallow the error
@@ -1536,7 +1536,7 @@ class GuiDict(UserDict[str, var]):
         elif cmd.setfunc in self:  # if GuiDict.data entry
 
             def setfunc(value, c=self.data[cmd.setfunc]):
-                setattr(c, "value", value)
+                c.value = value
 
             return setfunc, ()
         elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
@@ -1610,7 +1610,7 @@ class GuiDict(UserDict[str, var]):
         elif cmd.getfunc in self:  # if GuiDict.data entry
 
             def getfunc(c=self.data[cmd.getfunc]):
-                return getattr(c, "value")
+                return c.value
 
             return getfunc, ()
         elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method

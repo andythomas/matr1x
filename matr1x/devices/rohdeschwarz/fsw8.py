@@ -245,14 +245,14 @@ class FSW8(VisaDevice):
             self.write(f"INP:ATT {attVal}dB")
         self.query("*OPC?")
 
-        self.write(f"SWE:POIN {str(swePoints)}")
-        self.write(f"BWID:RES {str(resBW)} Hz")
+        self.write(f"SWE:POIN {swePoints!s}")
+        self.write(f"BWID:RES {resBW!s} Hz")
         if vidBW:
-            self.write(f"BWID:VID {str(vidBW)} Hz")
+            self.write(f"BWID:VID {vidBW!s} Hz")
         else:
             # automatic video bandwidth selection
             self.write("BAND:VID:AUTO ON")
-        self.write(f"DISP:TRAC:Y:RLEV {str(refLev)}dbm")
+        self.write(f"DISP:TRAC:Y:RLEV {refLev!s}dbm")
         self.query("*OPC?")
 
         # activates automatic sweep time.
@@ -298,8 +298,8 @@ class FSW8(VisaDevice):
         fSpan : float
             The frequency span in Hz.
         """
-        self.write(f"FREQ:CENT {str(fCent)} HZ")
-        self.write(f"FREQ:SPAN {str(fSpan)} HZ")
+        self.write(f"FREQ:CENT {fCent!s} HZ")
+        self.write(f"FREQ:SPAN {fSpan!s} HZ")
 
     @synchronized
     def setStartStopFreq(self, fStart, fStop):

@@ -141,8 +141,7 @@ class PPMS:
         """
         rate = abs(rate)
 
-        if rate > self.MAX_FIELD_RATE:
-            rate = self.MAX_FIELD_RATE
+        rate = min(rate, self.MAX_FIELD_RATE)
 
         return rate
 

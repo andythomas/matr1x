@@ -220,7 +220,7 @@ def _create_thread_safe_property_creator(original_method, method_name):
         )
 
     # Mark as patched
-    setattr(thread_safe_property_creator, "_threading_patched", True)
+    thread_safe_property_creator._threading_patched = True
     thread_safe_property_creator.__name__ = f"thread_safe_{method_name}"
 
     return thread_safe_property_creator
@@ -288,8 +288,8 @@ def _patch_pymeasure_instrument_init():
         return result
 
     # Mark as patched and replace the class method
-    setattr(thread_safe_init, "_threading_patched", True)
-    setattr(Instrument, "__init__", thread_safe_init)
+    thread_safe_init._threading_patched = True
+    Instrument.__init__ = thread_safe_init
 
 
 # Apply the monkey patches automatically when this module is imported

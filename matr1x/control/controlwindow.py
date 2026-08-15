@@ -1307,7 +1307,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self,
             f"Error in {pointer}",
             f"""The following error was raised in {pointer}:
-{repr(exc_value)}
+{exc_value!r}
 Please investigate the error and eventually restart the graphical user interface""",
         )
         ret = qApp.exec()

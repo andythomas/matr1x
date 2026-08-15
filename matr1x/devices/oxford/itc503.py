@@ -188,7 +188,7 @@ class ITC503(IsobusDevice):
             List of [P, I, D] values.
         """
         for cmd, val, digits in zip(("P", "I", "D"), pid, (3, 1, 1)):
-            self.query(f"{cmd}{str(round(val, digits))}")
+            self.query(f"{cmd}{round(val, digits)!s}")
 
     def setAutoPID(self, aPID):
         """

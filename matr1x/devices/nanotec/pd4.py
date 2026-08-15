@@ -64,7 +64,7 @@ class NanotecPD4(VisaDevice):
         **kwargs
             Additional arguments passed to VisaDevice
         """
-        if "timeout" not in kwargs.keys():
+        if "timeout" not in kwargs:
             kwargs["timeout"] = 2e3
         self.timeout = kwargs["timeout"]
         super().__init__(

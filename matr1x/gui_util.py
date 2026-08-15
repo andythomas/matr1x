@@ -993,11 +993,11 @@ class MetaViewerWidget(QDockWidget):
                 The role of the data being set (default is EditRole).
             """
             if not index.isValid():
-                return None
+                return
             if index.column() == 1:
                 if self.child_count() > 0:
                     # prevent writing into the header lines
-                    return None
+                    return
                 if role == Qt.ItemDataRole.EditRole:
                     self.value = value
                     self.hidden = False
@@ -1640,14 +1640,14 @@ class ConfigEditWidget(MetaViewerWidget):
         def parse_dict_and_types(d, dv, dt):
             for key, item in d.items():
                 if key == "_schema":
-                    dt["_schema"] = d[key]
+                    dt["_schema"] = item
                     continue
                 elif isinstance(item, dict):
                     dv[key] = {}
                     dt[key] = {}
                     parse_dict_and_types(item, dv[key], dt[key])
                 else:
-                    dv[key] = d[key]
+                    dv[key] = item
 
         self.value_dict = {}
         self.types_dict = {}
@@ -2493,9 +2493,12 @@ class SimplePlotWidget(QGroupBox):
                 if yc is not None and xc is not None:
                     if len(yc) != len(xc):
                         self._raise_error("error in math: arrays have different length")
-                    elif len(yc.shape) > 1 and all(np.array(yc.shape) > 1):
-                        self._raise_error("error in math: y array has too high dimension")
-                    elif len(xc.shape) > 1 and all(np.array(xc.shape) > 1):
+                    elif (
+                        len(yc.shape) > 1
+                        and all(np.array(yc.shape) > 1)
+                        or len(xc.shape) > 1
+                        and all(np.array(xc.shape) > 1)
+                    ):
                         self._raise_error("error in math: y array has too high dimension")
                     else:
                         y, x = yc, xc
@@ -2751,7 +2754,7 @@ class SimplePlotWidget(QGroupBox):
                     self.plt.setData(x=x, y=z, *args, **kwargs)
                 except ValueError as e:
                     # Handle shape mismatch errors
-                    self._raise_error(f"Plot error: {str(e)}")
+                    self._raise_error(f"Plot error: {e!s}")
 
             # After plotting, if autorange is enabled on any axis, recompute now.
             auto_range = self.vb.state["autoRange"]
@@ -4314,7 +4317,6 @@ class ReadOnlyTable(QTableWidget):
         index = self.currentIndex()
         if index.isValid():
             QApplication.clipboard().setText(str(index.data()))
-        return
 
 
 class LoggingWindow(QMainWindow):
