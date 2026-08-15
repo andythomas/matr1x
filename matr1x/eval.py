@@ -22,7 +22,6 @@ package as well as functions for processing data in the preview.
 
 import ast
 import re
-import warnings
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
@@ -838,32 +837,6 @@ def loadmatrix(
         print(list(enumerate(header["columns"])))  # noqa: T201
 
     return header, data
-
-
-def loadh5matrix(filename: str | Path, filehandle=False):
-    """
-    Load matrix data is hdf5 format.
-
-    Note: This utility function is deprecated and is replaced by loadmatrix(filename)!
-
-    Parameters
-    ----------
-    filename : str or pathlib.Path
-        path to file
-    filehandle : bool, optional
-        not implemented, raises NotImplementedError if True
-    """
-    if filehandle:
-        raise NotImplementedError(
-            """
-            use h5py.File(filename, 'r', swmr=True, libver='latest') to open
-            the datafile for reading if loadmatrix is not sufficient.
-            """
-        )
-    msg = "loadh5matrix will be removed soon. use loadmatrix instead"
-    warnings.warn(msg, FutureWarning)
-    print(msg)  # noqa: T201
-    return loadmatrix(filename)
 
 
 ######################
