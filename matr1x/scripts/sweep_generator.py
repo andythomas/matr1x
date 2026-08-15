@@ -908,10 +908,10 @@ class SweepPreviewPopup(QDialog):
             The index of the sweep to be displayed.
         """
         self.data_table.setRowCount(len(self.sweep[index]))
-        for index, item in zip(range(len(self.sweep[index])), self.sweep[index]):
+        for idx, item in enumerate(self.sweep[index]):
             value = QTableWidgetItem(str(item))
             value.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.data_table.setItem(index, 0, value)
+            self.data_table.setItem(idx, 0, value)
 
     def mouse_moved(self, event: tuple[QPointF]) -> None:
         """Implement event to update cursor position while pointer is in plot."""
