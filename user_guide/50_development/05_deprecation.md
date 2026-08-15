@@ -32,14 +32,14 @@ Please note that the notiications overwrite each other and inform the correspond
 
 | Item                  | Deprecation | Removal |
 | :-------------------- | :---------: | :-----: |
-| SR830 lock in driver  |    8.0.1    | >=8.7.0 |
 | `sys` use in systems  |    8.0.1    | >=8.7.0 |
 | initialized `system`  |    8.5.0    | >=8.7.0 |
 | `root_path` in config |    8.5.0    | >=8.7.0 |
 
 ## Removed in the current `development` version
 
-| Item                | Deprecation |
-| :------------------ | :---------: |
-| `function` in sweep |    8.0.1    |
-| `loadh5matrix`      |    8.1.0    |
+| Item                 | Deprecation |         Remedy          |
+| :------------------- | :---------: | :---------------------: |
+| `function` in sweep  |    8.0.1    |   use `matrix_script`   |
+| SR830 lock in driver |    8.0.1    | use `ifwlib` equivalent |
+| `loadh5matrix`       |    8.1.0    |    use `loadmatrix`     |
