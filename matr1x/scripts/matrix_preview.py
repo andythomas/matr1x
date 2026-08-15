@@ -859,7 +859,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.meta_viewer.update_data(self.header)
         except Exception:
             # file could not be opened
-            exc_type, exc_value, exc_traceback = sys.exc_info()
+            _exc_type, exc_value, _exc_traceback = sys.exc_info()
             _ = QMessageBox.critical(
                 self,
                 "Error when opening file",

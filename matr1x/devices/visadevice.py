@@ -185,13 +185,13 @@ class VisaDevice:
                 for key, val in kwargs.items():
                     if hasattr(self.connection, key):
                         setattr(self.connection, key, val)
-            except Exception as e:
+            except Exception:
                 logger.info("Exception during opening of %s", self.name)
                 try:
                     self.connection.close()
                 except AttributeError:
                     pass
-                raise e
+                raise
             self._opened = True
 
     def close(self):

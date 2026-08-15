@@ -88,7 +88,7 @@ def test_matrix_gui_run(qtbot, qapp):
     main_window.ui.actions.start.trigger()
     qtbot.waitUntil(lambda: not main_window.running, timeout=5000)
     ma8file = test_sweep_file.with_suffix(".ma8")
-    header, data = loadmatrix(ma8file)
+    header, _data = loadmatrix(ma8file)
     assert header["system query"]["system_config"]["reference_value"] == reference_value
 
 

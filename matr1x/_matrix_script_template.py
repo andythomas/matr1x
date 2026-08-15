@@ -72,9 +72,8 @@ _validated_config = _matr1x.config.matr1x.scripts.matrix_script
 
 # pass meta information
 for _key, _value in _meta_data.items():
-    if _key in _matr1x.VALID_META_KEYS.keys():
-        if _matr1x.VALID_META_KEYS[_key]:
-            _system.dcdata[_key] = _value
+    if _matr1x.VALID_META_KEYS.get(_key):
+        _system.dcdata[_key] = _value
 _setvalues = []  # buffer for set values for printing
 _npoints = 0  # internal measurement point counter
 _ntot = None  # total number of measurement points for telemetry
@@ -379,9 +378,7 @@ def input_bool(query: str, timeout: float = float("inf"), default_value: str = "
     """
     _show_lineno()
     ret = _input(message=query, input_type="bool", timeout=timeout, default_value=default_value)
-    if ret == "yes":
-        return True
-    return False
+    return ret == "yes"
 
 
 def input_numerical(

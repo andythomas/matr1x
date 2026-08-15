@@ -263,9 +263,7 @@ class Ps10(VisaDevice):
             True if the motor is moving, False otherwise
         """
         ret = self.query_int("?VACT1")
-        if ret == 0:
-            return False
-        return True
+        return ret != 0
 
     def readAngle(self):
         """

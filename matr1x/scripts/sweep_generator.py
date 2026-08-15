@@ -998,10 +998,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         If the script was modified without saving, a dialog asks how to
         proceed.
         """
-        if self.dirty and not self.in_pytest:
-            if not save_messagebox(self, self.save_file):
-                a0.ignore()
-                return
+        if self.dirty and not self.in_pytest and not save_messagebox(self, self.save_file):
+            a0.ignore()
+            return
         self.save_window_state()
         self.cleanup_log_window(enabled=self._owns_log_window)
         a0.accept()
@@ -1058,10 +1057,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         pattern = re.compile(r"\.\d+t$")
         # remove this method with next major update, i.e. Matrix v9
         # also simplifies FileDropMixin
-        if pattern.search(str(file_path)) is not None or file_path.suffix == self.extension:
-            return True
-        else:
-            return False
+        return bool(
+            pattern.search(str(file_path)) is not None or file_path.suffix == self.extension
+        )
 
     def reset_layout(self) -> None:
         """Reset layout to clean state."""
@@ -1474,9 +1472,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def load_file(self) -> None:
         """Open a QFileDialog to open an existing sweep file."""
-        if self.dirty and not self.in_pytest:
-            if not save_messagebox(self, self.save_file):
-                return
+        if self.dirty and not self.in_pytest and not save_messagebox(self, self.save_file):
+            return
         prefilled_file = self.last_filename if self.last_filename is not None else usersfolder
         filename = QFileDialog.getOpenFileName(
             self,
@@ -1567,9 +1564,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         reset_systems : bool, optional
             If True, also clear loaded systems and related state.
         """
-        if self.dirty and not self.in_pytest:
-            if not save_messagebox(self, self.save_file):
-                return
+        if self.dirty and not self.in_pytest and not save_messagebox(self, self.save_file):
+            return
         self._reset_state(reset_systems)
 
     def _reset_state(self, reset_systems: bool) -> None:

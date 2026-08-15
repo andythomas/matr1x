@@ -162,10 +162,7 @@ class PPMS:
         bool
             True if the field is within the permissible range, False otherwise.
         """
-        if abs(field) > self.MAX_FIELD:
-            return False
-        else:
-            return True
+        return not abs(field) > self.MAX_FIELD
 
     @synchronized
     def set_field(self, setpoint, rate, persistent=False):
@@ -314,10 +311,7 @@ class PPMS:
             True if the temperature is within the maximum allowed range,
             False otherwise.
         """
-        if abs(temperature) >= self.MAX_TEMPERATURE:
-            return False
-        else:
-            return True
+        return not abs(temperature) >= self.MAX_TEMPERATURE
 
     @synchronized
     def set_temperature(self, setpoint: float, rate: float = 1):

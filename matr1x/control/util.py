@@ -172,7 +172,7 @@ def catchEmitError(method: _F) -> _F:
             return method(self, *args, **kwargs)
         except Exception:
             # report error to the main thread if relevant part can't be disabled
-            exc_type, exc_value, exc_traceback = sys.exc_info()
+            exc_type, exc_value, _exc_traceback = sys.exc_info()
             pointer = method.__name__
             logger.exception("Handling error in %s", pointer)
             # if the GuiDict which raised the error allows disabling lets just
@@ -197,7 +197,7 @@ def catchEmitError(method: _F) -> _F:
         FunctionMaker.create(
             method,
             "return call(%(shortsignature)s)",
-            dict(call=call, _method=method),
+            {"call": call, "_method": method},
             __wrapped__=method,
         ),
     )
@@ -1711,16 +1711,15 @@ def linear_trend(
     ret = (None, None)
     mask = (time.time() - numpy.asarray(timestamps)) < interval
     t, y = numpy.asarray(timestamps)[mask], numpy.asarray(data)[mask]
-    if len(t) >= 2:
-        if numpy.all([isinstance(el, numbers.Number) for el in y]):
-            slope = numpy.mean(numpy.gradient(y, t))
-            std = numpy.std(y)
-            ret = (slope, std)
+    if len(t) >= 2 and numpy.all([isinstance(el, numbers.Number) for el in y]):
+        slope = numpy.mean(numpy.gradient(y, t))
+        std = numpy.std(y)
+        ret = (slope, std)
     return ret
 
 
 def sendNotificationEmail(
-    address: str, subject: str, msgtext: str, attachments: list[str | Path] = []
+    address: str, subject: str, msgtext: str, attachments: list[str | Path] | None = None
 ) -> None:
     """
     Send messages to a list of email addresses.
@@ -1741,6 +1740,8 @@ def sendNotificationEmail(
         list of file names of things to attach to the email.
     """
     # a check for valid email adresses should be added here!
+    if attachments is None:
+        attachments = []
     if address == "":
         return
     msg = MIMEMultipart()

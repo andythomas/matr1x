@@ -71,7 +71,7 @@ class gitDevice:
             self.repo = pygit2.Repository(self.repo_path)
         except Exception as e:
             print(f"Exception occurred: {e}")  # noqa: T201
-            raise e
+            raise
 
     def get_commit_hash(self):
         """

@@ -75,36 +75,36 @@ warnings.formatwarning = _clean_formatwarning  # ty: ignore[invalid-assignment]
 deprecation_marker = "[MATR1X_DEPRECATED]"
 
 __all__ = [
-    # Config management
-    "load_config",
-    "merge_dicts",
-    "write_config",
-    "reload_config",
+    "APP_META_KEY",
     # Config data
     "MIGRATIONS",
-    "validation_errors",
-    "config",
-    "datetimefmt",
-    # System dirs / globals
-    "usersfolder",
-    "logfolder",
-    "system_names",
-    "system_directories",
-    "resolved_directory",
-    # Version / constants
-    "__version__",
-    "output_extension",
     # Re-exports
     "VALID_META_KEYS",
-    "APP_META_KEY",
     "MainConfig",
     "UserlibConfig",
-    "format_validation_error",
+    # Version / constants
+    "__version__",
+    "config",
     "create_temp_dir_with_symlinks",
+    "datetimefmt",
+    "deprecation_marker",
+    "format_validation_error",
     "get_package_path",
+    # Config management
+    "load_config",
+    "logfolder",
+    "merge_dicts",
+    "output_extension",
+    "reload_config",
     "resolve_config_path",
     "resolve_pkgroot_path",
-    "deprecation_marker",
+    "resolved_directory",
+    "system_directories",
+    "system_names",
+    # System dirs / globals
+    "usersfolder",
+    "validation_errors",
+    "write_config",
 ]
 
 if sys.version_info >= (3, 11):

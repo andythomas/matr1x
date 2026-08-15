@@ -153,18 +153,16 @@ class DcDict(dict):
             return
         if ref:
             # reference system is defined, write meta_data to that system
-            if key in ref.keys():
-                if ref[key]:
-                    # only append to available value if it exists (not None)
-                    ref[key] = sep.join([ref[key], value])
-                    return
+            if ref.get(key):
+                # only append to available value if it exists (not None)
+                ref[key] = sep.join([ref[key], value])
+                return
             ref[key] = sep[1:] + value
         else:
             # append meta data to current current array
-            if key in self.keys():
-                if self[key]:
-                    super().__setitem__(key, sep.join([self[key], value]))
-                    return
+            if key in self.keys() and self[key]:
+                super().__setitem__(key, sep.join([self[key], value]))
+                return
             super().__setitem__(key, sep[1:] + value)
 
 
@@ -276,9 +274,8 @@ class Parameter:
                 )
             if len(name) != len(unit):
                 raise ValueError("Name and unit have unequal length")
-            if dtypes is not None:
-                if len(name) != len(dtypes):
-                    raise ValueError("Name and dtypes have unequal length")
+            if dtypes is not None and len(name) != len(dtypes):
+                raise ValueError("Name and dtypes have unequal length")
             for val, key in zip([chunks, default], ["chunks", "default"]):
                 if val is not None:
                     if not isinstance(val, (list, tuple)):
@@ -339,16 +336,15 @@ class Parameter:
                     for chunk in chunks:
                         self.chunks.append(self.verify(chunk, int))
                 else:
-                    ValueError(f"Invalid type, expected list for chunks, but received {chunks}.")
+                    raise ValueError(
+                        f"Invalid type, expected list for chunks, but received {chunks}."
+                    )
             else:
                 self.chunks = self.verify(chunks, int)
 
     def __lt__(self, other: object) -> bool:
         """Define comparison function for sorting."""
-        if isinstance(other, Parameter):
-            if "timeUTC" in other.name:
-                return True
-        return False
+        return bool(isinstance(other, Parameter) and "timeUTC" in other.name)
 
     def __eq__(self, other: object) -> bool:
         """Define equivalence of parameters."""
@@ -801,8 +797,8 @@ class System:
             if isinstance(parm.chunks, (list, tuple)):
                 if (
                     not isinstance(parm.name, (list, tuple))
-                    or any([isinstance(p, (tuple,)) for p in parm.chunks])
-                    or any([p > 1 for p in parm.chunks])
+                    or any(isinstance(p, (tuple,)) for p in parm.chunks)
+                    or any(p > 1 for p in parm.chunks)
                 ):
                     self.hdf5 = True
             elif parm.chunks > 1:
@@ -884,12 +880,12 @@ class System:
         if args is not None and kwargs is not None:
             entry = [descriptor, args, kwargs]
         elif kwargs is not None:
-            entry = [descriptor, tuple(), kwargs]
+            entry = [descriptor, (), kwargs]
         elif args is not None:
             entry = [descriptor, args]
         else:
             # device instance can be initialized without arguments
-            entry = [descriptor, tuple()]
+            entry = [descriptor, ()]
         self.devs[name] = entry
         self._devs_init[name] = entry
         if config_params is not None:
@@ -1509,12 +1505,12 @@ class System:
         for key, dev in self.devs.items():
             # get device
             try:
-                if key in self.system_config_params.keys() and hasattr(dev, "config_params"):
+                if key in self.system_config_params and hasattr(dev, "config_params"):
                     # device config_params are specified in system and device
                     retquery[key] = System._device_query(
                         dev, {**self.system_config_params[key], **dev.config_params}
                     )
-                elif key in self.system_config_params.keys():
+                elif key in self.system_config_params:
                     # device config query is specified in system
                     retquery[key] = System._device_query(dev, self.system_config_params[key])
                 elif hasattr(dev, "config_params"):

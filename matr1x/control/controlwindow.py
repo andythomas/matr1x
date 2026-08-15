@@ -1096,7 +1096,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         extra_gui_dict.set_cmd_funcs(window_obj=self, system=self.S)
         self.cmd_list = extra_gui_dict.cmds
         for guidict in self.guidicts:
-            for name in guidict.cmds.keys():
+            for name in guidict.cmds:
                 if name in self.cmd_list:
                     raise ValueError(
                         f"command {name} from {guidict} is already present."
@@ -1119,7 +1119,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     ):
         """Stop GuiDict workers, close devices, and stop the logging thread."""
         if exc_type is not None:
-            logger.exception("Unhandled exception in context manager")
+            logger.error("Unhandled exception in context manager")
 
         self.stopServer()
         if self.running is True:

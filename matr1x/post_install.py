@@ -1049,8 +1049,10 @@ def remove_desktop_integration():
     remove = [
         sys.executable,
         "-c",
-        "from matr1x.post_install import uninstall_core_desktopintegration;"
-        "uninstall_core_desktopintegration()",
+        (
+            "from matr1x.post_install import uninstall_core_desktopintegration;"
+            "uninstall_core_desktopintegration()"
+        ),
     ]
     subprocess.run(remove)
     for pkg_name, section in config:

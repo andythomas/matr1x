@@ -1296,10 +1296,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.script_edit.isModified()
             and self.ui.widgets.script_edit.toPlainText() != ""
             and not self.in_pytest
-        ):
-            if not save_messagebox(self, self.save_file):
-                event.ignore()
-                return
+        ) and not save_messagebox(self, self.save_file):
+            event.ignore()
+            return
         self.save_window_state()
         self.ui.widgets.script_edit.lsp_tc.stop()
         self.ui.widgets.script_edit.server.stop()
@@ -1317,8 +1316,10 @@ class MainWindow(LogWindowMixin, MMainWindow):
         preview = [
             sys.executable,
             "-c",
-            f"from matr1x.scripts import matrix_preview; "
-            f"matrix_preview.main(file=r'{self.measurement_file}')",
+            (
+                f"from matr1x.scripts import matrix_preview; "
+                f"matrix_preview.main(file=r'{self.measurement_file}')"
+            ),
         ]
         subprocess.Popen(preview)
 

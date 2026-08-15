@@ -152,10 +152,7 @@ class Danfysik9100(VisaDevice):
             True if ramping, False if stopped
         """
         q = self.query("RR")
-        if q == "S":
-            return False
-        else:
-            return True
+        return q != "S"
 
     def setOutput(self, output=None):
         """

@@ -106,9 +106,7 @@ def _is_hdf5(filename: Path) -> bool:
     filename = Path(filename)
     with filename.open("rb") as file:
         first_bytes = file.read(4)
-    if first_bytes == b"\x89HDF":
-        return True
-    return False
+    return first_bytes == b"\x89HDF"
 
 
 def _get_nested_dict(data: dict, path: list) -> dict:
@@ -556,7 +554,7 @@ def _load_hdf5_file(
         # the following line relies on the fact that the first item has
         # the correct length, the code fails later if there are unequal
         # length
-        npoints = len(list(h5g.values())[0])
+        npoints = len(next(iter(h5g.values())))
         for name, v in h5g.items():
             if len(v.shape) == 1:
                 dtypeslist.append((name, v.dtype))
