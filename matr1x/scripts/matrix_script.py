@@ -1293,6 +1293,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 timeout=params.timeout,
                 default_value=params.default_value,
             )
+            dialog.exec()
             ret = dialog.get_input_text()
         elif params.input_type == "bool":
             dialog = YesNoAbortDialog(
@@ -1314,6 +1315,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 step=params.step,
                 decimals=params.decimals,
             )
+            dialog.exec()
             ret = str(dialog.get_input_value())
         else:
             ret = ""
