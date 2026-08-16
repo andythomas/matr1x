@@ -673,7 +673,6 @@ class MeasurementThread(QThread, LoggerMixin):
         char : str
             ``a`` sets state to aborted,
             ``f`` sets state to finished.
-            ``q`` query the user
         """
         if self.proc is None or self.conn is None:
             return

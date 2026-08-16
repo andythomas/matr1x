@@ -515,8 +515,6 @@ class ExecThread(threading.Thread):
         if self.recv_flag is False:
             if inp == "p":
                 self.pause(not self.pause_flag)
-            elif inp == "q":
-                self.stop()
             elif inp == "f":
                 self.stop(True)
             elif inp == "a":

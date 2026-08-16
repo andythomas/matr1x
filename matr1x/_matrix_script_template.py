@@ -642,9 +642,6 @@ except KeyboardInterrupt:
     elif _status.finished is False:
         # supposed to be marked as aborted
         _reset_kwargs["status"] = "aborted"
-    else:
-        # finished is None, so ask what is supposed to happen
-        _reset_kwargs["status"] = _input(message="", input_type="__end_script__", timeout=None)
 except Exception as e:
     _report(_Message("script exited with error:", to_comment=False))
     # get traceback information and format accordingly

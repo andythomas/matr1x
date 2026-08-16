@@ -529,23 +529,6 @@ class YesNoAbortDialog(TimeoutDialogBase):
         return "no"
 
 
-class TerminationDialog(QMessageBox):
-    """Dialog to determine how a terminated datafile should be marked."""
-
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Termination Status")
-        self.setText("How should the terminated datafile be marked?")
-        self.setIcon(QMessageBox.Icon.Question)
-        self.addButton("Aborted", QMessageBox.ButtonRole.RejectRole)
-        self.finish_button = self.addButton("Finished", QMessageBox.ButtonRole.AcceptRole)
-
-    def get_selection(self):
-        """Display the dialog and return the user's selection."""
-        self.exec()
-        return "finished" if self.clickedButton() == self.finish_button else "aborted"
-
-
 class TerminalOutput(QPlainTextEdit):
     """
     Custom class for terminal-like text output.
@@ -1367,8 +1350,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
             else:
                 self.ui.widgets.measurement_thread.abort("a")
                 return
-        elif params.input_type == "__end_script__":
-            ret = TerminationDialog().get_selection()
         else:
             ret = ""
         self.ui.widgets.measurement_thread.pass_input(ret)
