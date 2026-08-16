@@ -27,7 +27,8 @@ logging.basicConfig(
     force=True,
 )
 
-from matr1x.post_install import post_installation, remove_desktop_integration
+# Configure console logging before importing matr1x, which initializes logging.
+from matr1x.post_install import post_installation, remove_desktop_integration  # noqa: E402
 
 parser = argparse.ArgumentParser(
     description="Perform or remove desktop integration of the matr1x applications.",
