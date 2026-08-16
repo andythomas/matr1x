@@ -434,9 +434,9 @@ class ExecThread(threading.Thread):
     def input(
         self,
         *,
+        timeout: float | None,
         message: str = "",
         input_type: str = "string",
-        timeout: float = float("inf"),
         default_value: str | float = "",
         min_value: float | None = None,  # Optional: minimum value for numerical input
         max_value: float | None = None,  # Optional: maximum value for numerical input

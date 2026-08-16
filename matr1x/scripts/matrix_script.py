@@ -50,7 +50,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
     QFileDialog,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -68,13 +67,12 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.editor import CodeEditor
-from matr1x.error_handling import Error, InternalInvariantError, install_error_handler
+from matr1x.error_handling import Error, install_error_handler
 from matr1x.gui_util import (
     AboutBox,
     AutoSlot,
     ConfigEditWidget,
     FileDropMixin,
-    LoggerMixin,
     LoggingWindow,
     LogWindowMixin,
     MApplication,
@@ -190,8 +188,9 @@ class TimeoutDialogBase(QDialog):
     def __init__(
         self,
         query: str,
+        timeout: float | None,
+        *,
         parent: QWidget | None = None,
-        timeout: float = float("inf"),
         default_value: Any = "",
     ):
         """
@@ -201,11 +200,10 @@ class TimeoutDialogBase(QDialog):
         ----------
         query : str
             The text to display on the label above the input field.
+        timeout : float or None
+            Timeout in seconds before dialog automatically closes. None means no timeout.
         parent : QWidget, optional
             The parent widget of the dialog.
-        timeout : float, optional
-            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
-            0 is interpreted as infinity.
         default_value : Any, optional
             Default value to show in input field.
         """
@@ -310,8 +308,9 @@ class TextInputDialog(TimeoutDialogBase):
     def __init__(
         self,
         query: str,
+        timeout: float | None,
+        *,
         parent: QWidget | None = None,
-        timeout: float = float("inf"),
         default_value: str = "",
     ):
         """
@@ -321,15 +320,14 @@ class TextInputDialog(TimeoutDialogBase):
         ----------
         query : str
             The text to display on the label above the input field.
+        timeout : float or None
+            Timeout in seconds before dialog automatically closes. None means no timeout.
         parent : QWidget, optional
             The parent widget of the dialog.
-        timeout : float, optional
-            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
-            0 is interpreted as infinity.
         default_value : str, optional
             Default value to show in input field.
         """
-        super().__init__(query, parent, timeout, default_value)
+        super().__init__(query, timeout, parent=parent, default_value=default_value)
 
         # Create the input widget
         self.input = QLineEdit(self)
@@ -358,8 +356,9 @@ class NumericalInputDialog(TimeoutDialogBase):
     def __init__(
         self,
         query: str,
+        timeout: float | None,
+        *,
         parent: QWidget | None = None,
-        timeout: float = float("inf"),
         default_value: float = 0.0,
         min_value: float | None = -100e9,
         max_value: float | None = 100e9,
@@ -373,11 +372,10 @@ class NumericalInputDialog(TimeoutDialogBase):
         ----------
         query : str
             The text to display on the label above the input field.
+        timeout : float or None
+            Timeout in seconds before dialog automatically closes. None means no timeout.
         parent : QWidget, optional
             The parent widget of the dialog.
-        timeout : float, optional
-            Timeout in seconds before dialog automatically closes. Default is infinity (no timeout).
-            0 is interpreted as infinity.
         default_value : float, optional
             Default value to show in input field.
         min_value : float, optional
@@ -389,7 +387,7 @@ class NumericalInputDialog(TimeoutDialogBase):
         decimals : int, optional
             Number of decimal places. Default is 2.
         """
-        super().__init__(query, parent, timeout, default_value)
+        super().__init__(query, timeout, parent=parent, default_value=default_value)
 
         # Create the spinbox
         self.input_spinbox = QDoubleSpinBox(self)
@@ -429,8 +427,9 @@ class YesNoAbortDialog(TimeoutDialogBase):
     def __init__(
         self,
         question: str,
+        timeout: float | None,
+        *,
         parent: QWidget | None = None,
-        timeout: float = float("inf"),
         default_value: str = "yes",
     ):
         """
@@ -440,11 +439,11 @@ class YesNoAbortDialog(TimeoutDialogBase):
         ----------
         question : str
             The question to display on the label.
+        timeout : float or None
+            Timeout in seconds before dialog automatically returns default_value.
+            None means no timeout.
         parent : QWidget, optional
             The parent widget of the dialog.
-        timeout : float, optional
-            Timeout in seconds before dialog automatically returns default_value.
-            Default is infinity (no timeout). 0 is interpreted as infinity.
         default_value : str, optional
             Default value to return if timeout occurs. Should be "Yes", "No", or empty.
         """
@@ -452,7 +451,7 @@ class YesNoAbortDialog(TimeoutDialogBase):
             default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
         )
         self._timeout_occurred = False
-        super().__init__(question, parent, timeout, self._default_value)
+        super().__init__(question, timeout, parent=parent, default_value=self._default_value)
 
         # Hide the ok_button from TimeoutDialogBase (we use yes/no instead)
         self.ok_button.hide()
@@ -1281,8 +1280,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
             input_type, timeout, default_value, min_value, max_value,
             step, and decimals.
         """
-        if params.timeout is None:
-            params.timeout = float("inf")
         if params.input_type == "string":
             dialog = TextInputDialog(
                 params.query,
