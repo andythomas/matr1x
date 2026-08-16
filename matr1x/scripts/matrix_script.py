@@ -423,7 +423,7 @@ class NumericalInputDialog(TimeoutDialogBase):
         return self.input_spinbox.value()
 
 
-class YesNoAbortDialog(QMessageBox, LoggerMixin):
+class YesNoAbortDialog(TimeoutDialogBase):
     """Modal dialog for boolean input for matrix-script."""
 
     def __init__(
@@ -447,103 +447,48 @@ class YesNoAbortDialog(QMessageBox, LoggerMixin):
             Default is infinity (no timeout). 0 is interpreted as infinity.
         default_value : str, optional
             Default value to return if timeout occurs. Should be "Yes", "No", or empty.
-            Default is True.
         """
-        super().__init__(parent)
-        self.setWindowTitle("Question")
-        self.setText(question)
-        self.setIcon(QMessageBox.Icon.Question)
-
-        # Normalize default value and ensure it's either "yes" or "no"
-        self.default_value = (
+        self._default_value = (
             default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
         )
-        self.timeout_occurred = False  # Required for YesNoAbortDialog functionality
-        self.user_responded = False  # Track if user clicked a button
-        self.timeout = timeout if timeout else float("inf")
+        self._timeout_occurred = False
+        super().__init__(question, parent, timeout, self._default_value)
 
-        # Add custom buttons with default button indication when timeout is set
+        # Hide the ok_button from TimeoutDialogBase (we use yes/no instead)
+        self.ok_button.hide()
+
+        # Replace ok_button with yes/no buttons
         button_text_yes = "Yes"
         button_text_no = "No"
-
-        # If timeout is set, add visual indications to the default button
         if self.timeout != float("inf"):
-            if self.default_value == "yes":
+            if self._default_value == "yes":
                 button_text_yes = "Yes (Default)"
             else:
                 button_text_no = "No (Default)"
 
-        # Create buttons
-        self.yes_button = self.addButton(button_text_yes, QMessageBox.ButtonRole.AcceptRole)
-        self.no_button = self.addButton(button_text_no, QMessageBox.ButtonRole.RejectRole)
-        self.abort_button = self.addButton("Abort script", QMessageBox.ButtonRole.DestructiveRole)
+        self.yes_button = QPushButton(button_text_yes, self)
+        self.no_button = QPushButton(button_text_no, self)
 
-        # Connect button signals to track user response
         self.yes_button.clicked.connect(self._button_clicked)
+        self.yes_button.clicked.connect(self.accept)
         self.no_button.clicked.connect(self._button_clicked)
-        self.abort_button.clicked.connect(self._button_clicked)
+        self.no_button.clicked.connect(self.reject)
 
-        # Simple styling for default button if timeout is set
-        if self.timeout != float("inf"):
-            # Set bold font for the default button
-            default_button = self.yes_button if self.default_value == "yes" else self.no_button
-            font = default_button.font()
-            font.setBold(True)
-            default_button.setFont(font)
+        # Build layout (no input widget)
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(self.label)
+        main_layout.addWidget(self.timer_label)
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.yes_button)
+        button_layout.addWidget(self.no_button)
+        button_layout.addWidget(self.abort_button)
+        main_layout.addLayout(button_layout)
 
-            # Make this the default button (responds to Enter key)
-            self.setDefaultButton(default_button)
-
-            # Set up timer and label - use milliseconds for better precision
-            self.timer_label = QLabel(f"Time remaining: {int(self.timeout)} seconds", self)
-            layout = self.layout()
-            if isinstance(layout, QGridLayout):
-                layout.addWidget(self.timer_label, 1, 1, 1, 3)
-            else:
-                raise InternalInvariantError("No grid-layout was returned!")
-            self.remaining_time = self.timeout * 1000  # Convert to milliseconds
-            self.timer = QTimer(self)
-            self.timer.timeout.connect(self.update_timer)
-            self.timer.start(100)  # Update every 100ms for better precision
-
-    def _button_clicked(self):
-        """Mark that user has responded to prevent timeout override."""
-        self.user_responded = True
-        if hasattr(self, "timer"):
-            self.timer.stop()
-
-    def update_timer(self):
-        """Update the timer display and handle timeout."""
-        # Don't process timeout if user already responded
-        if self.user_responded:
-            return
-
-        self.remaining_time -= 100  # Decrement by 100ms
-
-        if self.remaining_time <= 0:
-            # Give a small grace period for button clicks
-            if not self.user_responded:
-                self.timeout_occurred = True
-                self.timer.stop()
-                self.close()
-                return
-
-        # Convert milliseconds back to seconds for display
-        remaining_seconds = self.remaining_time / 1000
-
-        # Format the time display
-        if remaining_seconds < 100:
-            # Show seconds for short timeouts
-            self.timer_label.setText(f"Time remaining: {int(remaining_seconds)} seconds")
-        else:
-            # Show hours:minutes format for longer timeouts
-            hours = int(remaining_seconds / 3600)
-            minutes = int((remaining_seconds % 3600) / 60)
-            seconds = int(remaining_seconds % 60)
-            if hours > 0:
-                self.timer_label.setText(f"Time remaining: {hours}h {minutes}m {seconds}s")
-            else:
-                self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
+    def accept(self):
+        """Track timeout before accepting."""
+        if hasattr(self, "timer") and not self.user_responded:
+            self._timeout_occurred = True
+        super().accept()
 
     def exec_and_get_response(self):
         """
@@ -555,30 +500,15 @@ class YesNoAbortDialog(QMessageBox, LoggerMixin):
             The response based on the button clicked ("yes", "no", or "abort").
             If timeout occurred, returns the default_value.
         """
-        self.exec()
+        result = self.exec()
 
-        # Check timeout first, but only if user didn't respond
-        if self.timeout_occurred and not self.user_responded:
-            if self.default_value in ["yes", "no"]:
-                self.logger.info(
-                    "Dialog timeout occurred - automatically selected: %s", self.default_value
-                )
-                return self.default_value
-            fallback_default = "yes"
-            self.logger.info(
-                "Dialog timeout occurred with invalid default value, automatically selected: %s",
-                fallback_default,
-            )
-            return fallback_default
-
-        # User responded - return their choice
-        if self.clickedButton() == self.yes_button:
+        if self._timeout_occurred and not self.user_responded:
+            return self._default_value
+        if result == QDialog.DialogCode.Accepted:
             return "yes"
-        elif self.clickedButton() == self.no_button:
+        elif result == QDialog.DialogCode.Rejected:
             return "no"
-        elif self.clickedButton() == self.abort_button:
-            return "abort"
-        return "Unknown"
+        return "no"
 
 
 class TerminationDialog(QMessageBox):
