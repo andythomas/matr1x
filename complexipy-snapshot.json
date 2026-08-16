@@ -304,15 +304,15 @@
         "complexity": 18
       },
       {
+        "name": "System::init_datafile",
+        "complexity": 22
+      },
+      {
         "name": "System::query",
         "complexity": 23
       },
       {
         "name": "System::_device_query",
-        "complexity": 24
-      },
-      {
-        "name": "System::init_datafile",
         "complexity": 24
       },
       {
