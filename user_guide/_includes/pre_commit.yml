@@ -22,13 +22,14 @@ repos:
   # Run ty type checker using local ty
   - id: ty
     name: ty type checker
-    entry: uv run ty
+    entry: uv run ty check
     language: system
     types_or: [python, pyi]
 
   # Run complexipy using local complexipy
   - id: complexipy
     name: complexipy
-    entry: uv run complexipy
+    entry: uv run complexipy .
     language: system
     types_or: [python, pyi]
+    pass_filenames: false
