@@ -242,7 +242,7 @@ class TimeoutDialogBase(QDialog):
         self.abort_aborted_button.clicked.connect(self._button_clicked)
         self.abort_aborted_button.clicked.connect(lambda: self.done(2))
         self.abort_finished_button.clicked.connect(self._button_clicked)
-        self.abort_finished_button.clicked.connect(lambda: self.done(1))
+        self.abort_finished_button.clicked.connect(lambda: self.done(3))
 
         # Ensure the dialog stays on top of the main window
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
@@ -532,7 +532,7 @@ class YesNoAbortDialog(TimeoutDialogBase):
             return "yes"
         elif result == QDialog.DialogCode.Rejected:
             return "no"
-        elif result == 1:
+        elif result == 3:
             return "abort_f"
         elif result == 2:
             return "abort_a"
@@ -1302,7 +1302,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             result = dialog.exec()
             if result == QDialog.DialogCode.Accepted:
                 ret = dialog.get_input_text()
-            elif result == 1:
+            elif result == 3:
                 self.ui.widgets.measurement_thread.abort("f")
                 return
             elif result == 2:
@@ -1351,7 +1351,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             result = dialog.exec()
             if result == QDialog.DialogCode.Accepted:
                 ret = str(dialog.get_input_value())
-            elif result == 1:
+            elif result == 3:
                 self.ui.widgets.measurement_thread.abort("f")
                 return
             elif result == 2:

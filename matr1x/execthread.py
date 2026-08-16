@@ -512,14 +512,18 @@ class ExecThread(threading.Thread):
         inp : str
             The input string to be handled.
         """
+        # Control characters always take priority over pending input
+        if inp == "p":
+            self.pause(not self.pause_flag)
+            return
+        elif inp == "f":
+            self.stop(True)
+            return
+        elif inp == "a":
+            self.stop(False)
+            return
         if self.recv_flag is False:
-            if inp == "p":
-                self.pause(not self.pause_flag)
-            elif inp == "f":
-                self.stop(True)
-            elif inp == "a":
-                self.stop(False)
-            elif inp == "i":
+            if inp == "i":
                 # reset input if already available
                 self.recv = ""
                 self.recv_flag = True
