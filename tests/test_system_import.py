@@ -83,7 +83,7 @@ class ClassSystem(System):
     assert result.value.columns == ["class value"]
 
 
-@pytest.mark.parametrize("export_name", ["system", "sys"])
+@pytest.mark.parametrize("export_name", ["system"])
 def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export_name):
     """Load initialized legacy exports while emitting a soft-deprecation warning."""
     system_file = tmp_path / "system_legacy.py"

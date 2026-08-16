@@ -32,7 +32,6 @@ Please note that the notiications overwrite each other and inform the correspond
 
 | Item                  | Deprecation | Removal |
 | :-------------------- | :---------: | :-----: |
-| `sys` use in systems  |    8.0.1    | >=8.7.0 |
 | initialized `system`  |    8.5.0    | >=8.7.0 |
 | `root_path` in config |    8.5.0    | >=8.7.0 |
 
@@ -42,4 +41,5 @@ Please note that the notiications overwrite each other and inform the correspond
 | :------------------- | :---------: | :------------------------: |
 | `function` in sweep  |    8.0.1    |    use `matrix_script`     |
 | SR830 lock in driver |    8.0.1    | use `pymeasure` equivalent |
+| `sys` use in systems |    8.0.1    |     rename to `system`     |
 | `loadh5matrix`       |    8.1.0    |      use `loadmatrix`      |

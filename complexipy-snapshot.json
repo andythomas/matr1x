@@ -329,7 +329,7 @@
       },
       {
         "name": "System::from_file",
-        "complexity": 39
+        "complexity": 38
       },
       {
         "name": "Parameter::__init__",
