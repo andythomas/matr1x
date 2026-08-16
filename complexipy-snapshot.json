@@ -231,7 +231,7 @@
       },
       {
         "name": "main",
-        "complexity": 32
+        "complexity": 28
       }
     ]
   },
@@ -274,10 +274,6 @@
       {
         "name": "MainWindow::update_system_commands",
         "complexity": 16
-      },
-      {
-        "name": "MainWindow::get_script_input",
-        "complexity": 18
       },
       {
         "name": "MainWindow::load_from_filename",
