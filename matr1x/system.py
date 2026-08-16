@@ -696,7 +696,7 @@ class System:
         If a file with the given name cannot be found the system
         installed files are searched. A system module must define exactly one
         local ``System`` subclass, which is instantiated after import. Legacy
-        initialized ``system`` and ``sys`` exports remain supported with a
+        initialized ``system`` exports remain supported with a
         deprecation warning.
 
         Parameters
@@ -743,9 +743,6 @@ class System:
                 )
         legacy_name = "system"
         system = getattr(mod, legacy_name, None)
-        if not isinstance(system, System):
-            legacy_name = "sys"
-            system = getattr(mod, legacy_name, None)
 
         if isinstance(system, System):
             legacy_warning = (
