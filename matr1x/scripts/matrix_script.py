@@ -490,6 +490,7 @@ class YesNoAbortDialog(TimeoutDialogBase):
             default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
         )
         self._timeout_occurred = False
+        self._response = "yes"  # Track which button was clicked
         super().__init__(question, timeout, parent=parent, default_value=self._default_value)
 
         # Hide the ok_button from TimeoutDialogBase (we use yes/no instead)
@@ -499,10 +500,12 @@ class YesNoAbortDialog(TimeoutDialogBase):
         self.yes_button = QPushButton("Yes", self)
         self.no_button = QPushButton("No", self)
 
+        self.yes_button.clicked.connect(lambda: setattr(self, "_response", "yes"))
         self.yes_button.clicked.connect(self._button_clicked)
         self.yes_button.clicked.connect(self.accept)
+        self.no_button.clicked.connect(lambda: setattr(self, "_response", "no"))
         self.no_button.clicked.connect(self._button_clicked)
-        self.no_button.clicked.connect(self.reject)
+        self.no_button.clicked.connect(self.accept)
 
         # Build layout with yes/no buttons in answer row
         self.setup_layout(answer_buttons=[self.yes_button, self.no_button])
@@ -513,30 +516,21 @@ class YesNoAbortDialog(TimeoutDialogBase):
             self._timeout_occurred = True
         super().accept()
 
-    def exec_and_get_response(self):
+    def get_response(self) -> str:
         """
-        Show the dialog and return the button clicked by the user.
+        Show the dialog and return the user's yes/no response.
+
+        Assumes the caller will handle abort/finish via ``result()``.
 
         Returns
         -------
         str
-            The response based on the button clicked:
-            "yes" / "no" / "abort_f" / "abort_a".
-            If timeout occurred, returns the default_value.
+            "yes" or "no" (or default_value on timeout).
         """
-        result = self.exec()
-
+        self.exec()
         if self._timeout_occurred and not self.user_responded:
             return self._default_value
-        if result == QDialog.DialogCode.Accepted:
-            return "yes"
-        elif result == QDialog.DialogCode.Rejected:
-            return "no"
-        elif result == 3:
-            return "abort_f"
-        elif result == 2:
-            return "abort_a"
-        return "no"
+        return self._response
 
 
 class TerminalOutput(QPlainTextEdit):
@@ -1102,7 +1096,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         elif isinstance(data, Datafile):
             self.update_filename(data.datafile)
         elif isinstance(data, InputParameters):
-            self.get_script_input(data)
+            self._get_script_input(data)
         elif isinstance(data, Message):
             if data.modifier == Modifier.DELETE_CURRENT_LINE:
                 self.write_output("\r" + data.message + data.end)
@@ -1281,7 +1275,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.setWindowTitle(text)
 
     @AutoSlot
-    def get_script_input(self, params: InputParameters) -> None:
+    def _get_script_input(self, params: InputParameters) -> None:
         """
         Open a dialog and forward input to the script.
 
@@ -1299,18 +1293,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 timeout=params.timeout,
                 default_value=params.default_value,
             )
-            result = dialog.exec()
-            if result == QDialog.DialogCode.Accepted:
-                ret = dialog.get_input_text()
-            elif result == 3:
-                self.ui.widgets.measurement_thread.abort("f")
-                return
-            elif result == 2:
-                self.ui.widgets.measurement_thread.abort("a")
-                return
-            else:
-                self.ui.widgets.measurement_thread.abort("a")
-                return
+            ret = dialog.get_input_text()
         elif params.input_type == "bool":
             dialog = YesNoAbortDialog(
                 params.query,
@@ -1318,26 +1301,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 parent=self,
                 default_value=params.default_value,
             )
-            ret = dialog.exec_and_get_response()
-            if ret == "abort_f":
-                self.ui.widgets.measurement_thread.abort("f")
-                return
-            elif ret == "abort_a":
-                self.ui.widgets.measurement_thread.abort("a")
-                return
+            ret = dialog.get_response()
         elif params.input_type == "numerical":
-            try:
-                # Convert default_value string to float
-                numerical_default_value = (
-                    float(params.default_value) if params.default_value else 0.0
-                )
-            except ValueError:
-                self.ui.widgets.status_preview.appendPlainText(
-                    f"Warning: Invalid default_value '{params.default_value}' "
-                    "for numerical input. Using 0.0",
-                )
-                numerical_default_value = 0.0
-
+            numerical_default_value = self._parse_numerical_default(params.default_value)
             dialog = NumericalInputDialog(
                 params.query,
                 parent=self,
@@ -1348,21 +1314,43 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 step=params.step,
                 decimals=params.decimals,
             )
-            result = dialog.exec()
-            if result == QDialog.DialogCode.Accepted:
-                ret = str(dialog.get_input_value())
-            elif result == 3:
-                self.ui.widgets.measurement_thread.abort("f")
-                return
-            elif result == 2:
-                self.ui.widgets.measurement_thread.abort("a")
-                return
-            else:
-                self.ui.widgets.measurement_thread.abort("a")
-                return
+            ret = str(dialog.get_input_value())
         else:
             ret = ""
+
+        if self._handle_dialog_result(dialog) is not None:
+            return
         self.ui.widgets.measurement_thread.pass_input(ret)
+
+    def _handle_dialog_result(self, dialog: TimeoutDialogBase) -> str | None:
+        """
+        Handle the result of a dialog and abort the script if needed.
+
+        Returns
+        -------
+        None
+            If the user accepted the dialog (input should be passed to script).
+        str
+            The abort character ("a" or "f") if the user clicked Abort or Finish.
+        """
+        result = dialog.result()
+        if result == QDialog.DialogCode.Accepted:
+            return None
+        if result == 3:
+            self.ui.widgets.measurement_thread.abort("f")
+            return "f"
+        self.ui.widgets.measurement_thread.abort("a")
+        return "a"
+
+    def _parse_numerical_default(self, default_value: str) -> float:
+        """Parse a default value string into a float, with warning on failure."""
+        try:
+            return float(default_value) if default_value else 0.0
+        except ValueError:
+            self.ui.widgets.status_preview.appendPlainText(
+                f"Warning: Invalid default_value '{default_value}' for numerical input. Using 0.0",
+            )
+            return 0.0
 
     def kill_thread(self) -> None:
         """Kill the thread."""
