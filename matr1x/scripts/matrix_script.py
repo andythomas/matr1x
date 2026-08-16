@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -223,12 +224,20 @@ class TimeoutDialogBase(QDialog):
         self.timer_label.setVisible(self.timeout != float("inf"))
 
         self.ok_button = QPushButton("Send input", self)
-        self.abort_button = QPushButton("Abort script", self)
 
         self.ok_button.clicked.connect(self._button_clicked)
         self.ok_button.clicked.connect(self.accept)
-        self.abort_button.clicked.connect(self._button_clicked)
-        self.abort_button.clicked.connect(self.reject)
+
+        # Termination buttons (abort / finish)
+        self.abort_aborted_button = QPushButton("Abort", self)
+        self.abort_aborted_button.setIcon(get_matrix_icon("CUSTOM_Stop", color=QColor("#B71C1C")))
+        self.abort_finished_button = QPushButton("Finish", self)
+        self.abort_finished_button.setIcon(get_matrix_icon("CUSTOM_Stop", color=QColor("#388E3C")))
+
+        self.abort_aborted_button.clicked.connect(self._button_clicked)
+        self.abort_aborted_button.clicked.connect(lambda: self.done(2))
+        self.abort_finished_button.clicked.connect(self._button_clicked)
+        self.abort_finished_button.clicked.connect(lambda: self.done(1))
 
         # Ensure the dialog stays on top of the main window
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
@@ -274,20 +283,40 @@ class TimeoutDialogBase(QDialog):
             else:
                 self.timer_label.setText(f"Time remaining: {minutes}m {seconds}s")
 
-    def setup_layout(self):
-        """Set up the dialog layout."""
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.ok_button)
-        button_layout.addWidget(self.abort_button)
+    def setup_layout(self, answer_buttons: list[QWidget] | None = None):
+        """Set up the dialog layout.
 
-        main_layout = QVBoxLayout()
+        Parameters
+        ----------
+        answer_buttons : list of QWidget, optional
+            Buttons for the answer row. If None, uses ``ok_button``.
+        """
+        main_layout = QVBoxLayout(self)
         main_layout.addWidget(self.label)
         if self.input_widget:
             main_layout.addWidget(self.input_widget)
         main_layout.addWidget(self.timer_label)
-        main_layout.addLayout(button_layout)
 
-        self.setLayout(main_layout)
+        # Answer row (ok_button or custom buttons)
+        answer_layout = QHBoxLayout()
+        if answer_buttons is None:
+            answer_layout.addWidget(self.ok_button)
+        else:
+            for button in answer_buttons:
+                answer_layout.addWidget(button)
+        main_layout.addLayout(answer_layout)
+
+        # Separator
+        separator = QFrame(self)
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        main_layout.addWidget(separator)
+
+        # Termination row (abort / finish)
+        termination_layout = QHBoxLayout()
+        termination_layout.addWidget(self.abort_aborted_button)
+        termination_layout.addWidget(self.abort_finished_button)
+        main_layout.addLayout(termination_layout)
 
     def accept(self):
         """Handle dialog acceptance."""
@@ -456,32 +485,17 @@ class YesNoAbortDialog(TimeoutDialogBase):
         # Hide the ok_button from TimeoutDialogBase (we use yes/no instead)
         self.ok_button.hide()
 
-        # Replace ok_button with yes/no buttons
-        button_text_yes = "Yes"
-        button_text_no = "No"
-        if self.timeout != float("inf"):
-            if self._default_value == "yes":
-                button_text_yes = "Yes (Default)"
-            else:
-                button_text_no = "No (Default)"
-
-        self.yes_button = QPushButton(button_text_yes, self)
-        self.no_button = QPushButton(button_text_no, self)
+        # Create yes/no buttons
+        self.yes_button = QPushButton("Yes", self)
+        self.no_button = QPushButton("No", self)
 
         self.yes_button.clicked.connect(self._button_clicked)
         self.yes_button.clicked.connect(self.accept)
         self.no_button.clicked.connect(self._button_clicked)
         self.no_button.clicked.connect(self.reject)
 
-        # Build layout (no input widget)
-        main_layout = QVBoxLayout(self)
-        main_layout.addWidget(self.label)
-        main_layout.addWidget(self.timer_label)
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.yes_button)
-        button_layout.addWidget(self.no_button)
-        button_layout.addWidget(self.abort_button)
-        main_layout.addLayout(button_layout)
+        # Build layout with yes/no buttons in answer row
+        self.setup_layout(answer_buttons=[self.yes_button, self.no_button])
 
     def accept(self):
         """Track timeout before accepting."""
@@ -496,7 +510,8 @@ class YesNoAbortDialog(TimeoutDialogBase):
         Returns
         -------
         str
-            The response based on the button clicked ("yes", "no", or "abort").
+            The response based on the button clicked:
+            "yes" / "no" / "abort_f" / "abort_a".
             If timeout occurred, returns the default_value.
         """
         result = self.exec()
@@ -507,6 +522,10 @@ class YesNoAbortDialog(TimeoutDialogBase):
             return "yes"
         elif result == QDialog.DialogCode.Rejected:
             return "no"
+        elif result == 1:
+            return "abort_f"
+        elif result == 2:
+            return "abort_a"
         return "no"
 
 
@@ -1287,21 +1306,31 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 timeout=params.timeout,
                 default_value=params.default_value,
             )
-            if dialog.exec() == QDialog.DialogCode.Accepted:
+            result = dialog.exec()
+            if result == QDialog.DialogCode.Accepted:
                 ret = dialog.get_input_text()
+            elif result == 1:
+                self.ui.widgets.measurement_thread.abort("f")
+                return
+            elif result == 2:
+                self.ui.widgets.measurement_thread.abort("a")
+                return
             else:
-                self.ui.widgets.measurement_thread.abort("q")
+                self.ui.widgets.measurement_thread.abort("a")
                 return
         elif params.input_type == "bool":
             dialog = YesNoAbortDialog(
                 params.query,
-                parent=self,
                 timeout=params.timeout,
+                parent=self,
                 default_value=params.default_value,
             )
             ret = dialog.exec_and_get_response()
-            if ret == "abort":
-                self.ui.widgets.measurement_thread.abort("q")
+            if ret == "abort_f":
+                self.ui.widgets.measurement_thread.abort("f")
+                return
+            elif ret == "abort_a":
+                self.ui.widgets.measurement_thread.abort("a")
                 return
         elif params.input_type == "numerical":
             try:
@@ -1326,10 +1355,17 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 step=params.step,
                 decimals=params.decimals,
             )
-            if dialog.exec() == QDialog.DialogCode.Accepted:
+            result = dialog.exec()
+            if result == QDialog.DialogCode.Accepted:
                 ret = str(dialog.get_input_value())
+            elif result == 1:
+                self.ui.widgets.measurement_thread.abort("f")
+                return
+            elif result == 2:
+                self.ui.widgets.measurement_thread.abort("a")
+                return
             else:
-                self.ui.widgets.measurement_thread.abort("q")
+                self.ui.widgets.measurement_thread.abort("a")
                 return
         elif params.input_type == "__end_script__":
             ret = TerminationDialog().get_selection()
