@@ -1385,7 +1385,7 @@ wheels = [
 
 [[package]]
 name = "matr1x-measurements"
-version = "8.4.1"
+version = "8.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "decorator" },
