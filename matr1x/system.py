@@ -470,6 +470,7 @@ class System:
         self._config = matr1x.config.matr1x.scripts.matrix_script
         # define merged system reference
         self.merged_system: MergedSystem | None = None
+        self._reporter: Callable[[MeasurementData], None] | None = None
         # initialize lists for later use
         self.parameters: list[Parameter] = []
 
@@ -967,16 +968,23 @@ class System:
         """
         Report data through the communication layer.
 
-        For this to function the method needs to be injected into the MergedSystem.
+        A runner can install a callback with :meth:`set_reporter` to receive
+        measurement data directly.
 
         Parameters
         ----------
         data : MeasurementData
             The data to report.
         """
+        if self._reporter is not None:
+            self._reporter(data)
         # Defer to merged_system if it is present
-        if self.merged_system:
+        elif self.merged_system:
             self.merged_system.report(data)
+
+    def set_reporter(self, reporter: Callable[[MeasurementData], None]) -> None:
+        """Set the callback that forwards measurement data to the runner."""
+        self._reporter = reporter
 
     def generate_datafilename(
         self, outputfile: str | Path = "", inputfile: str | Path = "", append=False
