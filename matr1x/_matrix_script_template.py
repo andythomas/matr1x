@@ -24,7 +24,6 @@ and markers that must be replaced before execution.
 import builtins as _builtins
 import datetime as _datetime
 import inspect as _inspect
-import math as _math
 import os as _os
 import re as _re
 import sys as _sys
@@ -611,7 +610,7 @@ def measure_system(
     return_list = _system.take_measurement_point()
     _report(_MeasuredValues(return_list, to_stdout=print_data))
     elapsed = _time.time() - _starttime
-    remaining = (elapsed / _npoints * _ntot - elapsed) / 60 if _ntot else _math.nan
+    remaining = (elapsed / _npoints * _ntot - elapsed) / 60 if _ntot else None
     _report(
         _Telemetry(
             point=_npoints,
