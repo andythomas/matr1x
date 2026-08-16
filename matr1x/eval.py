@@ -54,10 +54,10 @@ OptionalFields = TypedDict(
         "dcterms:creator": str,
         "dcterms:date": str,
         "dcterms:identifier": str,
-        "dcterms:relation": str | None,
+        "dcterms:relation": str,
         "dcterms:description": str,
         "dcterms:source": str,
-        "dcterms:type": str | None,
+        "dcterms:type": str,
         "dcterms:publisher": str,
         "dcterms:format": str,
         "dcterms:language": str,
@@ -544,7 +544,7 @@ def _load_hdf5_file(
 
         # parse additional attributes
         for key, val in h5f.attrs.items():
-            header[key.lower()] = val if val != "__None__" else None
+            header[key.lower()] = "" if val == "__None__" else val
 
         # parse System query entry into hierarchical dictionary
         if filename.suffix == ".ma8":
@@ -602,7 +602,7 @@ def _process_header_lines(
         key, val = strippedline.split(" :", maxsplit=1)
         key = key.strip()
         if val.strip() == "None":
-            val = None
+            val = ""
         else:
             val = val[1:]  # remove initial space
 
