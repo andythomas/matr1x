@@ -50,7 +50,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
     QFileDialog,
-    QFrame,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -210,6 +210,11 @@ class TimeoutDialogBase(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Matrix-script input")
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowTitleHint
+        )
 
         self.default_value = default_value
         self.user_responded = False  # Track if user clicked a button
@@ -292,10 +297,14 @@ class TimeoutDialogBase(QDialog):
             Buttons for the answer row. If None, uses ``ok_button``.
         """
         main_layout = QVBoxLayout(self)
-        main_layout.addWidget(self.label)
+
+        # Query group
+        query_group = QGroupBox("Query", self)
+        query_layout = QVBoxLayout(query_group)
+        query_layout.addWidget(self.label)
         if self.input_widget:
-            main_layout.addWidget(self.input_widget)
-        main_layout.addWidget(self.timer_label)
+            query_layout.addWidget(self.input_widget)
+        query_layout.addWidget(self.timer_label)
 
         # Answer row (ok_button or custom buttons)
         answer_layout = QHBoxLayout()
@@ -304,19 +313,20 @@ class TimeoutDialogBase(QDialog):
         else:
             for button in answer_buttons:
                 answer_layout.addWidget(button)
-        main_layout.addLayout(answer_layout)
+        query_layout.addLayout(answer_layout)
+        main_layout.addWidget(query_group)
+        main_layout.addSpacing(12)
 
-        # Separator
-        separator = QFrame(self)
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
-        main_layout.addWidget(separator)
+        # End Script group
+        end_group = QGroupBox("End Script", self)
+        end_layout = QHBoxLayout(end_group)
+        end_layout.addWidget(self.abort_aborted_button)
+        end_layout.addWidget(self.abort_finished_button)
+        main_layout.addWidget(end_group)
 
-        # Termination row (abort / finish)
-        termination_layout = QHBoxLayout()
-        termination_layout.addWidget(self.abort_aborted_button)
-        termination_layout.addWidget(self.abort_finished_button)
-        main_layout.addLayout(termination_layout)
+        # Fixed dialog size - no resizing
+        self.adjustSize()
+        self.setFixedSize(self.size())
 
     def accept(self):
         """Handle dialog acceptance."""
