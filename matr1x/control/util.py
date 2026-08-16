@@ -114,7 +114,16 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-_F = TypeVar("_F", bound=Callable[..., Any])
+class NamedCallable(Protocol):
+    """Callable object with a name suitable for error reporting."""
+
+    @property
+    def __name__(self) -> str: ...
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+_F = TypeVar("_F", bound=NamedCallable)
 
 
 class variable(Protocol):
@@ -1718,6 +1727,37 @@ def linear_trend(
     return ret
 
 
+def _create_email_attachment(filename: str | Path) -> MIMEBase | None:
+    """Create a MIME attachment for a file, or return ``None`` if it is absent."""
+    fpath = Path(filename)
+    if not fpath.is_file():
+        return None
+
+    ctype, encoding = mimetypes.guess_type(fpath)
+    if ctype is None or encoding is not None:
+        ctype = "application/octet-stream"
+    maintype, subtype = ctype.split("/", 1)
+
+    if maintype == "text":
+        with fpath.open() as fp:
+            attachment = MIMEText(fp.read(), _subtype=subtype)
+    elif maintype == "image":
+        with fpath.open("rb") as fp:
+            attachment = MIMEImage(fp.read(), _subtype=subtype)
+        attachment.add_header("Content-ID", f"<{fpath.name}>")
+    elif maintype == "audio":
+        with fpath.open("rb") as fp:
+            attachment = MIMEAudio(fp.read(), _subtype=subtype)
+    else:
+        with fpath.open("rb") as fp:
+            attachment = MIMEBase(maintype, subtype)
+            attachment.set_payload(fp.read())
+        encoders.encode_base64(attachment)
+
+    attachment.add_header("Content-Disposition", "attachment", filename=fpath.name)
+    return attachment
+
+
 def sendNotificationEmail(
     address: str, subject: str, msgtext: str, attachments: list[str | Path] | None = None
 ) -> None:
@@ -1740,8 +1780,6 @@ def sendNotificationEmail(
         list of file names of things to attach to the email.
     """
     # a check for valid email adresses should be added here!
-    if attachments is None:
-        attachments = []
     if address == "":
         return
     msg = MIMEMultipart()
@@ -1749,41 +1787,10 @@ def sendNotificationEmail(
     msg["Subject"] = subject
     mimetxt = MIMEText(msgtext, "html")
     msg.attach(mimetxt)
-    # add attachments (code adapted from
-    # https://docs.python.org/3.4/library/email-examples.html)
-    for fname in attachments:
-        fpath = Path(fname)
-        if not fpath.is_file():
-            continue
-        # Guess the content type based on the file's extension.  Encoding
-        # will be ignored, although we should check for simple things like
-        # gzip'd or compressed files.
-        ctype, encoding = mimetypes.guess_type(fpath)
-        if ctype is None or encoding is not None:
-            # No guess could be made, or the file is encoded (compressed),
-            # so use a generic bag-of-bits type.
-            ctype = "application/octet-stream"
-        maintype, subtype = ctype.split("/", 1)
-        if maintype == "text":
-            with fpath.open() as fp:
-                # Note: we should handle calculating the charset
-                att = MIMEText(fp.read(), _subtype=subtype)
-        elif maintype == "image":
-            with fpath.open("rb") as fp:
-                att = MIMEImage(fp.read(), _subtype=subtype)
-            att.add_header("Content-ID", f"<{fpath.name}>")
-        elif maintype == "audio":
-            with fpath.open("rb") as fp:
-                att = MIMEAudio(fp.read(), _subtype=subtype)
-        else:
-            with fpath.open("rb") as fp:
-                att = MIMEBase(maintype, subtype)
-                att.set_payload(fp.read())
-            # Encode the payload using Base64
-            encoders.encode_base64(att)
-        # Set the filename parameter
-        att.add_header("Content-Disposition", "attachment", filename=fpath.name)
-        msg.attach(att)
+    for filename in attachments or []:
+        attachment = _create_email_attachment(filename)
+        if attachment is not None:
+            msg.attach(attachment)
 
     # read email config
     conf = config.matr1x.email

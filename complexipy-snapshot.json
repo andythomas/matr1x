@@ -8,10 +8,6 @@
         "complexity": 17
       },
       {
-        "name": "sendNotificationEmail",
-        "complexity": 17
-      },
-      {
         "name": "var::_generate_widgets",
         "complexity": 18
       },
@@ -123,7 +119,7 @@
     "functions": [
       {
         "name": "CodeEditor::_process_lsp_completions",
-        "complexity": 26
+        "complexity": 25
       }
     ]
   },
@@ -337,7 +333,7 @@
       },
       {
         "name": "Parameter::__init__",
-        "complexity": 53
+        "complexity": 51
       }
     ]
   },
