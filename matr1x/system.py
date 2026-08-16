@@ -22,6 +22,7 @@ These can be used for data acquisition and instrument control.
 import builtins
 import importlib
 import inspect
+import keyword
 import logging
 import os
 import re
@@ -458,6 +459,9 @@ class System:
     system_config_params : dict
         Contains the definition for custom device queries to read the
         configuration. Keys match the device names in .devs.
+    name : str or None
+        Optional instance name. ControlWindow binds a valid name here as the
+        subsystem's accessor name after merging.
     """
 
     def __init__(self, name=None):
@@ -469,7 +473,8 @@ class System:
         name : str, optional
             Name of the measurement system.
         """
-        self.__name__ = str(name)
+        self._name: str | None = None
+        self.name = name
 
         self._config = matr1x.config.matr1x.scripts.matrix_script
         # define merged system reference
@@ -611,6 +616,24 @@ class System:
                 raise
             retquery[k] = line
         return retquery
+
+    @property
+    def name(self) -> str | None:
+        """Return the optional instance name."""
+        return self._name
+
+    @name.setter
+    def name(self, value: str | None) -> None:
+        """Set the instance name while retaining the legacy ``__name__`` field."""
+        self._name = None if value is None else str(value)
+        self.__name__ = str(value)
+
+    @property
+    def accessor_name(self) -> str:
+        """Return the attribute name used to expose this subsystem after merging."""
+        if self.name is not None and self.name.isidentifier() and not keyword.iskeyword(self.name):
+            return self.name
+        return self.__class__.__name__
 
     def load_config(
         self,
@@ -2016,7 +2039,12 @@ class MergedSystem(System):
         # filename, so this needs to come here
         super().__init__()
         self._filename: Path | None = None
-        self.__name__: str = ",".join([subsys.__name__ for subsys in self.subsys])
+        self.__name__ = ",".join([subsys.__name__ for subsys in self.subsys])
+        seen_accessors: set[str] = set()
+        for subsys in self.subsys:
+            if subsys.accessor_name in seen_accessors:
+                raise ValueError(f"Duplicate subsystem accessor name '{subsys.accessor_name}'")
+            seen_accessors.add(subsys.accessor_name)
         # merge devices, config_dicts, config and parameters
         for subsys in self.subsys:
             self.devs = {**self.devs, **subsys.devs}
@@ -2105,7 +2133,7 @@ class MergedSystem(System):
             If the attribute is not found in any subsystem.
         """
         for subsys in self.subsys:
-            if attr == subsys.__class__.__name__:
+            if attr == subsys.accessor_name:
                 return subsys
             if hasattr(subsys, attr):
                 return getattr(subsys, attr)

@@ -29,6 +29,7 @@ for various data acquisition setups.
 """
 
 import ast
+import keyword
 import logging
 import numbers
 import os
@@ -36,9 +37,11 @@ import pickle
 import sys
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
+from typing import Any
 
 from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence
@@ -370,7 +373,9 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     name : str
         Identifier string of the control GUI.
     guidicts : GuiDict or GuiDict subclass, or a list or tuple of those
-        GuiDict object(s) which build the basis of the controlGUI.
+        GuiDict object(s) which build the basis of the controlGUI. Their
+        Systems must have unique names that are valid, non-keyword Python
+        identifiers.
     extra_cmds : dict, optional
         Dictionary of commands offered for the measurement system. Commands from
         the GuiDict object are merged together with this list.
@@ -443,8 +448,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._server_disabled_by_panic = False
         self._port = port
         # initialize data logging system
-        self.S_log = system.System()
-        self.S_log.__name__ = f"{package}.{name}_control_logging_system"
+        self.S_log = system.System(name=f"{package}.{name}_control_logging_system")
         self.ui = UIBuilder()
         self.setMenuBar(self.ui.menus.menu)
         self.setCentralWidget(self.ui.widgets.central_widget)
@@ -482,7 +486,40 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             if not isinstance(logging, bool) and isinstance(logging, numbers.Number):
                 self.log_interval_changed.emit(logging)
 
-    def _harmonize_guidicts(self, guidicts) -> None:
+    @staticmethod
+    def _validate_guidict(guidict: Any, system_owners: dict[str, str]) -> GuiDict:
+        """Instantiate and validate a single GuiDict."""
+        if isinstance(guidict, type) and issubclass(guidict, GuiDict):
+            guidict = guidict()
+        if not isinstance(guidict, GuiDict):
+            raise TypeError(
+                "ControlWindow guidicts must be GuiDict instances or GuiDict subclasses, "
+                f"got {type(guidict).__name__}."
+            )
+        if not isinstance(guidict.S, system.System):
+            raise TypeError(
+                f"GuiDict {type(guidict).__name__}.S must be a System instance, "
+                f"got {type(guidict.S).__name__}."
+            )
+        system_name = guidict.S.name
+        if system_name is None or not system_name.isidentifier() or keyword.iskeyword(system_name):
+            raise ValueError(
+                f"GuiDict {type(guidict).__name__}.S must have a name that is a "
+                "valid Python identifier and not a Python keyword."
+            )
+        if previous_owner := system_owners.get(system_name):
+            raise ValueError(
+                f"GuiDict {type(guidict).__name__}.S uses duplicate System name "
+                f"{system_name!r}, which is already used by GuiDict {previous_owner}. "
+                "Every GuiDict in a ControlWindow must use a unique System name."
+            )
+        system_owners[system_name] = type(guidict).__name__
+        return guidict
+
+    def _harmonize_guidicts(
+        self,
+        guidicts: GuiDict | type[GuiDict] | Sequence[GuiDict | type[GuiDict]] | None,
+    ) -> None:
         """
         Normalize GuiDict inputs and attach them to this control window.
 
@@ -498,14 +535,9 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             raw_guidicts = [guidicts]
 
         self.guidicts = []
-        for guidict in raw_guidicts:
-            if isinstance(guidict, type) and issubclass(guidict, GuiDict):
-                guidict = guidict()
-            if not isinstance(guidict, GuiDict):
-                raise TypeError(
-                    "ControlWindow guidicts must be GuiDict instances or GuiDict subclasses, "
-                    f"got {type(guidict).__name__}."
-                )
+        system_owners: dict[str, str] = {}
+        for item in raw_guidicts:
+            guidict = self._validate_guidict(item, system_owners)
             guidict.refresh_worker.sig_error.connect(self.handleError)
             guidict.parent = self
             self.guidicts.append(guidict)

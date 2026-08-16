@@ -1198,6 +1198,11 @@ class GuiDict(UserDict[str, var]):
         Flag to decide if the GuiDict can be disabled. If this is set to True the
         underlying devices should all provide a `close` method or be a pymeasure
         Instrument. Otherwise likely reenabling will fail.
+    S : System
+        System used by this part of the control GUI. If omitted, an empty
+        system named after the GuiDict class is created. Every GuiDict used in
+        one ControlWindow must have a uniquely named System whose name is a
+        valid, non-keyword Python identifier.
     """
 
     data: dict[str, var] = {}
@@ -1208,7 +1213,7 @@ class GuiDict(UserDict[str, var]):
     def __init__(self) -> None:
         super().__init__(self.data)
         if not hasattr(self, "S"):
-            self.S = System()
+            self.S = System(name=self.__class__.__name__)
         self._refresh_thread: QThread = QThread()
         self._panic: bool = False
         self._extended_visible = threading.Event()
@@ -1887,11 +1892,23 @@ Kill the other process ({otherpid}) before restarting.""",
 
     kwargs["package"] = package
     logger.info("Starting GUI")
-    with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
-        ret = app.exec()
-    logger.info("Exiting GUI")
-    if lockfile:
-        # clean exit, remove lockfile
-        if lockfilename.exists():
+    ret = 1
+    try:
+        with window_class(name, guidicts=guidicts, extra_cmds=extra_cmds, **kwargs):
+            ret = app.exec()
+    except Exception as exc:
+        logger.exception("Control GUI '%s' failed to start", name)
+        QMessageBox.critical(
+            None,
+            "Control GUI startup failed",
+            f"""The control GUI '{name}' could not be started.
+
+{type(exc).__name__}: {exc}
+
+See the application log for more details.""",
+        )
+    finally:
+        if lockfile and lockfilename.exists():
             lockfilename.unlink()
+    logger.info("Exiting GUI")
     sys.exit(ret)
