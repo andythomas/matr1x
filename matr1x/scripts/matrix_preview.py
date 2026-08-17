@@ -313,6 +313,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.w_plot2d_comp: QCheckBox  # 2D complex plotting checkbox
         self.w_transpose: QCheckBox  # Transpose checkbox
         self.spw: SimplePlotWidget
+        self.w_placeholder: QLabel  # Shown instead of the plot before a file is loaded
         self.iv: pyqtgraph.ImageView | None = None  # Image view widget
         self.column_items: list[str] = []  # Column descriptions for current file
 
@@ -446,8 +447,9 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         """Initialize the complete GUI layout.
 
         The full layout is built at startup. File-dependent widgets
-        (file selector, column selectors, plot) start out empty and
-        disabled until a file is loaded via populate_file_data().
+        (file selector, column selectors) start out empty and disabled
+        until a file is loaded via populate_file_data(). The plot widget
+        is hidden and replaced by a placeholder until then.
         """
         self.setWindowTitle("Matrix Preview")
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-preview.png"))
@@ -483,7 +485,15 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         # minimum height of plot widget, could be removed but then
         # window always needs to be resized
         self.spw.setMinimumHeight(350)
+        # the plot widget is replaced by a placeholder until a file is loaded
+        self.spw.setVisible(False)
         self.iv = None
+        self.w_placeholder = QLabel(
+            f"No file loaded.\n\nOpen a matrix file ({', '.join(self.allowed_extensions)}) "
+            "or drag & drop it onto this window."
+        )
+        self.w_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.w_placeholder.setMinimumHeight(350)
 
         self.grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
         for i in range(3):
@@ -492,6 +502,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
         self.grid.addWidget(self.w_transpose, 2, 2, 1, 1)
         self.grid.addWidget(self.spw, 4, 0, 1, -1)
+        self.grid.addWidget(self.w_placeholder, 4, 0, 1, -1)
         self.grid.addWidget(self.w_status, 6, 0, 1, -1)
         # set rescaling behavior
         self.grid.setColumnStretch(1, 1)
@@ -552,6 +563,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def populate_file_data(self):
         """Populate the file-dependent GUI elements after loading a file."""
+        # replace the placeholder with the plot widget on first file load
+        if self.w_placeholder.isVisible():
+            self.w_placeholder.hide()
+            self.spw.show()
+
         # stop a possibly running auto update from the previous file
         self.ui.actions.auto_update.blockSignals(True)
         self.ui.actions.auto_update.setChecked(False)
@@ -890,6 +906,9 @@ Please investigate the error and eventually restart matrix-preview""",
 
         Also, decide which one is appropriate from the state of the gui.
         """
+        if not self.names:
+            # no file loaded yet, nothing to plot
+            return 0
         if self.w_plot2d.isChecked() is True or self.w_plot2d_comp.isChecked() is True:
             ret = self.reload_data_2d()
         else:
