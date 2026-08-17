@@ -133,8 +133,7 @@ version_toml = [
     "pyproject.toml:project.version"
 ]
 branch = "main"
-build_command = "pip install uv && uv lock --offline && uv build --no-sources"
-assets = ["uv.lock"]
+build_command = "pip install uv && uv lock --offline && git add -- uv.lock && uv build --no-sources"
 
 [tool.semantic_release.changelog]
 exclude_commit_patterns = [
