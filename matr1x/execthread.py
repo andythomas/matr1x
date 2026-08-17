@@ -575,7 +575,7 @@ class ExecThread(threading.Thread):
                 "_script": self.script,
                 "_system": self.system,
             }
-            setattr(self.system, "report", self.report)
+            self.system.set_reporter(self.report)
             exec(self.script, _vars)
         except KeyboardInterrupt:
             self.report(Message("Script interrupted during initialization", to_comment=False))

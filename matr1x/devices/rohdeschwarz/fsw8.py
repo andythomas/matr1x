@@ -189,7 +189,7 @@ class FSW8(VisaDevice):
         elif sweType == "auto":
             self.write("SWE:TYPE AUTO")
         else:
-            print(f"Please choose a valid sweep type! Your input was:{sweType}")
+            print(f"Please choose a valid sweep type! Your input was:{sweType}")  # noqa: T201
         self.query("*OPC?")
 
         if average:
@@ -210,7 +210,7 @@ class FSW8(VisaDevice):
                 # power averaging mode for correct power measurements in FFT
                 # sweep mode
             else:
-                print(f"Please choose a valid average type! Your input was:{avgType}")
+                print(f"Please choose a valid average type! Your input was:{avgType}")  # noqa: T201
             self.query("*OPC?")
 
             if detector == "rms":
@@ -222,7 +222,7 @@ class FSW8(VisaDevice):
                 # Calculates the linear average of all samples contained in a sweep point
                 self.write("DETector AVER")
             else:
-                print(f"Please choose a valid detector type! Your input was:{detector}")
+                print(f"Please choose a valid detector type! Your input was:{detector}")  # noqa: T201
 
             self.write("AVER:STAT ON")
             self.write(f"AVER:COUN {average}")
@@ -245,14 +245,14 @@ class FSW8(VisaDevice):
             self.write(f"INP:ATT {attVal}dB")
         self.query("*OPC?")
 
-        self.write(f"SWE:POIN {str(swePoints)}")
-        self.write(f"BWID:RES {str(resBW)} Hz")
+        self.write(f"SWE:POIN {swePoints!s}")
+        self.write(f"BWID:RES {resBW!s} Hz")
         if vidBW:
-            self.write(f"BWID:VID {str(vidBW)} Hz")
+            self.write(f"BWID:VID {vidBW!s} Hz")
         else:
             # automatic video bandwidth selection
             self.write("BAND:VID:AUTO ON")
-        self.write(f"DISP:TRAC:Y:RLEV {str(refLev)}dbm")
+        self.write(f"DISP:TRAC:Y:RLEV {refLev!s}dbm")
         self.query("*OPC?")
 
         # activates automatic sweep time.
@@ -298,8 +298,8 @@ class FSW8(VisaDevice):
         fSpan : float
             The frequency span in Hz.
         """
-        self.write(f"FREQ:CENT {str(fCent)} HZ")
-        self.write(f"FREQ:SPAN {str(fSpan)} HZ")
+        self.write(f"FREQ:CENT {fCent!s} HZ")
+        self.write(f"FREQ:SPAN {fSpan!s} HZ")
 
     @synchronized
     def setStartStopFreq(self, fStart, fStop):

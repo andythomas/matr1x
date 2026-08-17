@@ -198,7 +198,7 @@ def test_matrix_script_dummy_merged():
         script = (
             "import matr1x.util as mu\n"
             "mu.matrix_script_process(\n"
-            f"{repr(tf.name)}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
+            f"{tf.name!r}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
             ")"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
@@ -223,8 +223,7 @@ def test_empty_script():
     """
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         script = (
-            "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, [])"
+            f"import matr1x.util as mu\nmu.matrix_script_process({tf.name!r}, {{}}, '', None, [])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

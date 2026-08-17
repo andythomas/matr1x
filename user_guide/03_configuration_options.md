@@ -72,14 +72,17 @@ visadebug = false
 ```
 
 Some systems also define optional parameters which can be configured via the same
-`~/.matr1x.toml`. An example is found in `system_dummy_feature.py` which adds four options.
+`~/.matr1x.toml`. An example is found in `system_dummy_feature.py`:
 
 ```toml
 [matr1x.systems.system_dummy_feature]
-setting1 = "CURR"
-setting2 = false
-setting3 = 36.232
-setting4 = "~/.matr1x.toml"
+measurement_mode = "CURR"
+output_enabled = false
+reference_value = 36.232
+config_file = "~/.matr1x.toml"
+averaging_count = 10
+settling_time = 0.5
+visa_address = "GPIB::2"
 ```
 
 ### Configuring systems via Pydantic models
@@ -114,11 +117,7 @@ The basic use is to provide a type hint and a Field definition. To simplify conf
 If a config setting contains sensitive information (e.g., a password or API key) that should not be stored in measurement data files, it should be specified in the `sensitive_keys` argument of `load_config`. This automatically moves these keys to `self.sensitive_config` and excludes them from metadata.
 
 ```python
-        self.load_config(
-            MyConfig,
-            "matr1x.systems.my_system",
-            sensitive_keys=["password", "api_key"]
-        )
+self.load_config(MyConfig, "matr1x.systems.my_system", sensitive_keys=["password", "api_key"])
 ```
 
 An implementation example for this can be found in the `system_elabftw.py` system.

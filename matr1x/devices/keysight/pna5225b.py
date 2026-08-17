@@ -145,7 +145,7 @@ class PNA5225b(VisaDevice):
         elif scale == "log":
             self.write(f"CALC{channel}:FORM MLOG")
         else:
-            print(f"Please choose a valid scale! Your input was: {scale}")
+            print(f"Please choose a valid scale! Your input was: {scale}")  # noqa: T201
 
         if createTrace:
             self.createTrace(name, param)
@@ -186,9 +186,9 @@ class PNA5225b(VisaDevice):
             self.write(f"SENS{channel}:AVER OFF")
 
         # SENSe<cnum>:SWEep:POINts <num>
-        self.write(f"SENS{channel}:SWE:POIN {str(fPoints)}")
+        self.write(f"SENS{channel}:SWE:POIN {fPoints!s}")
         # SENSe<cnum>:BWIDth
-        self.write(f"SENS{channel}:BWID {str(if_bw)}")
+        self.write(f"SENS{channel}:BWID {if_bw!s}")
 
     @synchronized
     def configureSweep(self, channel, fStart, fStop, getData=False):
@@ -217,9 +217,9 @@ class PNA5225b(VisaDevice):
             The sweep data if getData is True, None otherwise.
         """
         # SENSe<cnum>:FREQuency:STARt <num>
-        self.write(f"SENS{channel}:FREQ:STAR {str(fStart)}")
+        self.write(f"SENS{channel}:FREQ:STAR {fStart!s}")
         # SENSe<cnum>:FREQuency:STOP <num>
-        self.write(f"SENS{channel}:FREQ:STOP {str(fStop)}")
+        self.write(f"SENS{channel}:FREQ:STOP {fStop!s}")
 
         if getData:
             return self.getSweepData(channel)
@@ -353,7 +353,7 @@ class PNA5225b(VisaDevice):
         try:
             self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print(f"{str(precision)} is not a valid precision")
+            print(f"{precision!s} is not a valid precision")  # noqa: T201
             return
 
         if precision == "ascii":
@@ -411,7 +411,7 @@ class PNA5225b(VisaDevice):
         try:
             self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print(f"{str(precision)} is not a valid precision")
+            print(f"{precision!s} is not a valid precision")  # noqa: T201
             return
 
         if precision == "ascii":

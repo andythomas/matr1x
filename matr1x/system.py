@@ -22,6 +22,7 @@ These can be used for data acquisition and instrument control.
 import builtins
 import importlib
 import inspect
+import keyword
 import logging
 import os
 import re
@@ -36,7 +37,7 @@ from typing import Any, TypeGuard, TypeVar
 
 import h5py
 import numpy as np
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pymeasure.instruments import Instrument
 
 import matr1x
@@ -153,18 +154,16 @@ class DcDict(dict):
             return
         if ref:
             # reference system is defined, write meta_data to that system
-            if key in ref.keys():
-                if ref[key]:
-                    # only append to available value if it exists (not None)
-                    ref[key] = sep.join([ref[key], value])
-                    return
+            if ref.get(key):
+                # only append to available value if it exists (not None)
+                ref[key] = sep.join([ref[key], value])
+                return
             ref[key] = sep[1:] + value
         else:
             # append meta data to current current array
-            if key in self.keys():
-                if self[key]:
-                    super().__setitem__(key, sep.join([self[key], value]))
-                    return
+            if key in self.keys() and self[key]:
+                super().__setitem__(key, sep.join([self[key], value]))
+                return
             super().__setitem__(key, sep[1:] + value)
 
 
@@ -276,9 +275,8 @@ class Parameter:
                 )
             if len(name) != len(unit):
                 raise ValueError("Name and unit have unequal length")
-            if dtypes is not None:
-                if len(name) != len(dtypes):
-                    raise ValueError("Name and dtypes have unequal length")
+            if dtypes is not None and len(name) != len(dtypes):
+                raise ValueError("Name and dtypes have unequal length")
             for val, key in zip([chunks, default], ["chunks", "default"]):
                 if val is not None:
                     if not isinstance(val, (list, tuple)):
@@ -339,16 +337,15 @@ class Parameter:
                     for chunk in chunks:
                         self.chunks.append(self.verify(chunk, int))
                 else:
-                    ValueError(f"Invalid type, expected list for chunks, but received {chunks}.")
+                    raise ValueError(
+                        f"Invalid type, expected list for chunks, but received {chunks}."
+                    )
             else:
                 self.chunks = self.verify(chunks, int)
 
     def __lt__(self, other: object) -> bool:
         """Define comparison function for sorting."""
-        if isinstance(other, Parameter):
-            if "timeUTC" in other.name:
-                return True
-        return False
+        return bool(isinstance(other, Parameter) and "timeUTC" in other.name)
 
     def __eq__(self, other: object) -> bool:
         """Define equivalence of parameters."""
@@ -458,6 +455,9 @@ class System:
     system_config_params : dict
         Contains the definition for custom device queries to read the
         configuration. Keys match the device names in .devs.
+    name : str or None
+        Optional instance name. ControlWindow binds a valid name here as the
+        subsystem's accessor name after merging.
     """
 
     def __init__(self, name=None):
@@ -469,11 +469,13 @@ class System:
         name : str, optional
             Name of the measurement system.
         """
-        self.__name__ = str(name)
+        self._name: str | None = None
+        self.name = name
 
         self._config = matr1x.config.matr1x.scripts.matrix_script
         # define merged system reference
         self.merged_system: MergedSystem | None = None
+        self._reporter: Callable[[MeasurementData], None] | None = None
         # initialize lists for later use
         self.parameters: list[Parameter] = []
 
@@ -612,9 +614,27 @@ class System:
             retquery[k] = line
         return retquery
 
+    @property
+    def name(self) -> str | None:
+        """Return the optional instance name."""
+        return self._name
+
+    @name.setter
+    def name(self, value: str | None) -> None:
+        """Set the instance name while retaining the legacy ``__name__`` field."""
+        self._name = None if value is None else str(value)
+        self.__name__ = str(value)
+
+    @property
+    def accessor_name(self) -> str:
+        """Return the attribute name used to expose this subsystem after merging."""
+        if self.name is not None and self.name.isidentifier() and not keyword.iskeyword(self.name):
+            return self.name
+        return self.__class__.__name__
+
     def load_config(
         self,
-        model_class: type[Any],
+        model_class: type[BaseModel],
         section: str,
         sensitive_keys: list[str] | None = None,
     ) -> None:
@@ -642,7 +662,7 @@ class System:
 
         try:
             # Validate the config data
-            validated_config = model_class(**config_data)
+            validated_config = model_class.model_validate(config_data)
         except (ValidationError, TypeError, ValueError) as e:
             from . import format_validation_error, validation_errors
 
@@ -696,7 +716,7 @@ class System:
         If a file with the given name cannot be found the system
         installed files are searched. A system module must define exactly one
         local ``System`` subclass, which is instantiated after import. Legacy
-        initialized ``system`` and ``sys`` exports remain supported with a
+        initialized ``system`` exports remain supported with a
         deprecation warning.
 
         Parameters
@@ -743,9 +763,6 @@ class System:
                 )
         legacy_name = "system"
         system = getattr(mod, legacy_name, None)
-        if not isinstance(system, System):
-            legacy_name = "sys"
-            system = getattr(mod, legacy_name, None)
 
         if isinstance(system, System):
             legacy_warning = (
@@ -799,11 +816,11 @@ class System:
         # check if hdf5 format has to be used
         for parm in self.parameters:
             if isinstance(parm.chunks, (list, tuple)):
-                if not isinstance(parm.name, (list, tuple)):
-                    self.hdf5 = True
-                elif any([isinstance(p, (tuple,)) for p in parm.chunks]):
-                    self.hdf5 = True
-                elif any([p > 1 for p in parm.chunks]):
+                if (
+                    not isinstance(parm.name, (list, tuple))
+                    or any(isinstance(p, (tuple,)) for p in parm.chunks)
+                    or any(p > 1 for p in parm.chunks)
+                ):
                     self.hdf5 = True
             elif parm.chunks > 1:
                 self.hdf5 = True
@@ -884,12 +901,12 @@ class System:
         if args is not None and kwargs is not None:
             entry = [descriptor, args, kwargs]
         elif kwargs is not None:
-            entry = [descriptor, tuple(), kwargs]
+            entry = [descriptor, (), kwargs]
         elif args is not None:
             entry = [descriptor, args]
         else:
             # device instance can be initialized without arguments
-            entry = [descriptor, tuple()]
+            entry = [descriptor, ()]
         self.devs[name] = entry
         self._devs_init[name] = entry
         if config_params is not None:
@@ -971,16 +988,23 @@ class System:
         """
         Report data through the communication layer.
 
-        For this to function the method needs to be injected into the MergedSystem.
+        A runner can install a callback with :meth:`set_reporter` to receive
+        measurement data directly.
 
         Parameters
         ----------
         data : MeasurementData
             The data to report.
         """
+        if self._reporter is not None:
+            self._reporter(data)
         # Defer to merged_system if it is present
-        if self.merged_system:
+        elif self.merged_system:
             self.merged_system.report(data)
+
+    def set_reporter(self, reporter: Callable[[MeasurementData], None]) -> None:
+        """Set the callback that forwards measurement data to the runner."""
+        self._reporter = reporter
 
     def generate_datafilename(
         self, outputfile: str | Path = "", inputfile: str | Path = "", append=False
@@ -1100,7 +1124,7 @@ class System:
             if len(func) >= 2:
                 info += f" related to device {func[0]}, parameter {func[1]}."
             else:
-                info += f" with list-like property: {str(func)}."
+                info += f" with list-like property: {func!s}."
         print(info)  # noqa: T201
 
     def set_value(
@@ -1509,12 +1533,12 @@ class System:
         for key, dev in self.devs.items():
             # get device
             try:
-                if key in self.system_config_params.keys() and hasattr(dev, "config_params"):
+                if key in self.system_config_params and hasattr(dev, "config_params"):
                     # device config_params are specified in system and device
                     retquery[key] = System._device_query(
                         dev, {**self.system_config_params[key], **dev.config_params}
                     )
-                elif key in self.system_config_params.keys():
+                elif key in self.system_config_params:
                     # device config query is specified in system
                     retquery[key] = System._device_query(dev, self.system_config_params[key])
                 elif hasattr(dev, "config_params"):
@@ -1710,13 +1734,13 @@ class System:
             if len(device_entry) > 1:
                 args = device_entry[1]
                 if args and len(args) > 0:
-                    args_str = f", args={str(args)}"
+                    args_str = f", args={args!s}"
 
             kwargs_str = ""
             if len(device_entry) > 2:
                 kwargs = device_entry[2]
                 if kwargs and len(kwargs) > 0:
-                    kwargs_str = f", kwargs={str(kwargs)}"
+                    kwargs_str = f", kwargs={kwargs!s}"
 
             # Format the device information
             info["devices"][dev] = {
@@ -1810,7 +1834,7 @@ class System:
                 save_dict_to_hdf5(self.query_dict, data_file, "system query")
 
                 for dckey, dcvalue in self.dcdata.items():
-                    if dckey not in VALID_META_KEYS.keys():
+                    if dckey not in VALID_META_KEYS:
                         # values that are not in the dc specifications are
                         # just added as attribute
                         data_file.attrs[f"{dckey}"] = dcvalue
@@ -1826,7 +1850,7 @@ class System:
             telemetry += [default_separator]  # ty: ignore[unsupported-operator]
             with Path(self.filename).open("w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
-                    if dckey not in VALID_META_KEYS.keys():
+                    if dckey not in VALID_META_KEYS:
                         # values that are not in the dc specifications are
                         # just added as attribute
                         if dcvalue is not None:
@@ -2016,7 +2040,12 @@ class MergedSystem(System):
         # filename, so this needs to come here
         super().__init__()
         self._filename: Path | None = None
-        self.__name__: str = ",".join([subsys.__name__ for subsys in self.subsys])
+        self.__name__ = ",".join([subsys.__name__ for subsys in self.subsys])
+        seen_accessors: set[str] = set()
+        for subsys in self.subsys:
+            if subsys.accessor_name in seen_accessors:
+                raise ValueError(f"Duplicate subsystem accessor name '{subsys.accessor_name}'")
+            seen_accessors.add(subsys.accessor_name)
         # merge devices, config_dicts, config and parameters
         for subsys in self.subsys:
             self.devs = {**self.devs, **subsys.devs}
@@ -2105,7 +2134,7 @@ class MergedSystem(System):
             If the attribute is not found in any subsystem.
         """
         for subsys in self.subsys:
-            if attr == subsys.__class__.__name__:
+            if attr == subsys.accessor_name:
                 return subsys
             if hasattr(subsys, attr):
                 return getattr(subsys, attr)

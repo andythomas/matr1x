@@ -465,7 +465,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self.settables = []
         self.columns = []
         self.system_info = system_info
-        for _, data in system_info.parameters.items():
+        for data in system_info.parameters.values():
             self.indexes.append(str(data.index))
             self.settables.append(data.settable)
             self.columns.append(data.name)
@@ -1248,9 +1248,8 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                         "documentation": monaco_documentation,
                     }
                     monaco_completions.append(monaco_completion)
-        elif isinstance(lsp_completions, dict):
-            if "items" in lsp_completions:
-                return self._process_lsp_completions(lsp_completions["items"])
+        elif isinstance(lsp_completions, dict) and "items" in lsp_completions:
+            return self._process_lsp_completions(lsp_completions["items"])
         return monaco_completions
 
     def _convert_completion_kind(self, lsp_kind):
@@ -1306,7 +1305,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         theme_selection: str
             Theme name.
         """
-        monaco_theme = list(CodeEditor.THEMES["Standard"].values())[0]
+        monaco_theme = next(iter(CodeEditor.THEMES["Standard"].values()))
         for name, theme_pair in CodeEditor.THEMES.items():
             if name == theme_selection:
                 dark = MApplication.instance().isDark

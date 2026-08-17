@@ -8,10 +8,6 @@
         "complexity": 17
       },
       {
-        "name": "sendNotificationEmail",
-        "complexity": 17
-      },
-      {
         "name": "var::_generate_widgets",
         "complexity": 18
       },
@@ -123,7 +119,7 @@
     "functions": [
       {
         "name": "CodeEditor::_process_lsp_completions",
-        "complexity": 26
+        "complexity": 25
       }
     ]
   },
@@ -175,10 +171,6 @@
     "path": "matr1x/gui_util.py",
     "file_name": "gui_util.py",
     "functions": [
-      {
-        "name": "ConfigEditWidget::parse_item",
-        "complexity": 19
-      },
       {
         "name": "SimplePlotWidget::_update_linesetting",
         "complexity": 20
@@ -294,10 +286,6 @@
     "file_name": "sweep_generator.py",
     "functions": [
       {
-        "name": "MainWindow::open_file",
-        "complexity": 18
-      },
-      {
         "name": "ColumnData::calculate_sweep",
         "complexity": 32
       }
@@ -337,11 +325,11 @@
       },
       {
         "name": "System::from_file",
-        "complexity": 39
+        "complexity": 38
       },
       {
         "name": "Parameter::__init__",
-        "complexity": 53
+        "complexity": 51
       }
     ]
   },
