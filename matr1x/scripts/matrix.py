@@ -27,7 +27,6 @@ a file of ascii or hdf5 format, depending on the system specifications.
 import argparse
 import io
 import logging
-import math
 import os
 import queue
 import re
@@ -631,16 +630,6 @@ def measurementloop(
             if line.startswith("#"):
                 continue
             points += 1
-    datacb(
-        Telemetry(
-            point=0,
-            points=points,
-            elapsed=0,
-            remaining=math.nan,
-            settime=math.nan,
-            readtime=math.nan,
-        )
-    )
     starttime = time.time()
     for point_idx, datapoint in enumerate(parse_inputfile(inputfile, system)):
         preset = time.time()

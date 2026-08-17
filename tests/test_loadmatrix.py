@@ -106,6 +106,8 @@ def test_loadmatrix_hdf5_ma8():
     h, d = matr1x.eval.loadmatrix(datafile)
     assert ma8_header_keys == set(h.keys())
     assert h["dcterms:publisher"] == "matr1x measurement suite"
+    assert h["dcterms:relation"] == ""
+    assert h["dcterms:type"] == ""
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
@@ -135,7 +137,7 @@ def test_loadmatrix_ma8():
     h, d = matr1x.eval.loadmatrix(datafile)
     assert ma8_header_keys == set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
-    assert h["dcterms:type"] is None
+    assert h["dcterms:type"] == ""
     assert h["dcterms:identifier"] == "random numpy"
     assert d["timeUTC"].shape == (100,)  # check shape of dataset
     assert len(h["columns"]) == 6  # check number of data columns
