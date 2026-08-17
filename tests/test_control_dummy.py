@@ -46,6 +46,7 @@ from matr1x.control import ControlWindow, GuiDict, MethodBundle, var
 from matr1x.control import guiObject as go
 from matr1x.control.control_dummy import exampleDict
 from matr1x.scpi_tcpserver import SCPI_TCP_Server
+from matr1x.system import System
 
 path = Path(__file__).resolve().parent
 
@@ -232,6 +233,41 @@ def test_control_window_panic_stops_and_restores_server(qapp, qtbot, monkeypatch
     assert window._local_server is not None
 
 
+def test_control_window_uses_unique_guidict_system_names(qapp, qtbot):
+    """Implicit GuiDict systems use their unique names after merging."""
+
+    class FirstPanel(GuiDict):
+        data = {"First": var(None, columns="Readout")}
+
+    class SecondPanel(GuiDict):
+        data = {"Second": var(None, columns="Readout")}
+
+    window = ControlWindow("named-systems", [FirstPanel, SecondPanel])
+    qtbot.addWidget(window)
+
+    assert [guidict.S.name for guidict in window.guidicts] == [
+        "FirstPanel",
+        "SecondPanel",
+    ]
+    assert window.S.FirstPanel is window.guidicts[0].S
+    assert window.S.SecondPanel is window.guidicts[1].S
+
+
+def test_control_window_rejects_duplicate_system_names(qapp):
+    """System instance names are the unique binding contract in a control GUI."""
+
+    class FirstPanel(GuiDict):
+        S = System(name="shared")
+        data = {"First": var(None, columns="Readout")}
+
+    class SecondPanel(GuiDict):
+        S = System(name="shared")
+        data = {"Second": var(None, columns="Readout")}
+
+    with pytest.raises(ValueError):
+        ControlWindow("duplicate-systems", [FirstPanel, SecondPanel])
+
+
 def test_methodbundle_guidict_method_runs_on_gui_thread(qapp, qtbot):
     """MethodBundle change handlers should execute through the GUI thread."""
 
@@ -297,7 +333,7 @@ def test_matrix_script_control_dummy(start_control_dummy):
         tf.flush()
         script = (
             "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, ['system_dummygui'])"
+            f"mu.matrix_script_process({tf.name!r}, {{}}, '', None, ['system_dummygui'])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

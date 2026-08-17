@@ -1526,8 +1526,7 @@ class MercuryITC(VisaDevice):
             Negative values will be clamped to 0.
         """
         for parm in pid:
-            if parm < 0:
-                parm = 0
+            parm = max(parm, 0)
         self.setVal(pid[0], *self.workingDict["P"][1:])
         self.setVal(pid[1], *self.workingDict["I"][1:])
         self.setVal(pid[2], *self.workingDict["D"][1:])

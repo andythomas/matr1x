@@ -465,7 +465,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self.settables = []
         self.columns = []
         self.system_info = system_info
-        for _, data in system_info.parameters.items():
+        for data in system_info.parameters.values():
             self.indexes.append(str(data.index))
             self.settables.append(data.settable)
             self.columns.append(data.name)
@@ -924,7 +924,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.setAcceptDrops(True)
         self._highlight_timer = QTimer(self)
         self._highlight_timer.setSingleShot(True)
-        self._pending_highlight_line: int | None = None
+        self._pending_highlight_lines: list[int] | None = None
         self._current_theme: str
         self._system_info: SystemInfo
         self.create_connections()
@@ -1082,31 +1082,32 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
             f"window.editor.updateOptions({{ readOnly: {str(read_only).lower()} }})"
         )
 
-    def highlight(self, line_number: int) -> None:
+    def highlight(self, line_numbers: list[int]) -> None:
         """
-        Highlight this line number.
+        Highlight active user-script lines.
 
         Parameters
         ----------
-        line_number: int
-            The line number to highlight.
+        line_numbers: list[int]
+            Line numbers ordered from the innermost execution point to its
+            outermost user-script caller.
         """
-        self._pending_highlight_line = line_number
+        self._pending_highlight_lines = list(dict.fromkeys(line_numbers))
         self._highlight_timer.start(HIGHLIGHT_INTERVAL_MS)
 
     def removeHighlight(self) -> None:
         """Remove line highlighting."""
         self._highlight_timer.stop()
-        self._pending_highlight_line = None
+        self._pending_highlight_lines = None
         self._run_javascript("window.clearLineHighlight()")
 
     def _apply_pending_highlight(self) -> None:
         """Apply the most recently requested line highlight."""
-        if self._pending_highlight_line is None:
+        if self._pending_highlight_lines is None:
             return
-        line_number = self._pending_highlight_line
-        self._pending_highlight_line = None
-        self._run_javascript(f"window.highlightLine({line_number})")
+        line_numbers = self._pending_highlight_lines
+        self._pending_highlight_lines = None
+        self._run_javascript(f"window.highlightLines({json.dumps(line_numbers)})")
 
     def lsp_initialize(self) -> None:
         """Initialize the server/client communication."""
@@ -1239,9 +1240,8 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                         "documentation": monaco_documentation,
                     }
                     monaco_completions.append(monaco_completion)
-        elif isinstance(lsp_completions, dict):
-            if "items" in lsp_completions:
-                return self._process_lsp_completions(lsp_completions["items"])
+        elif isinstance(lsp_completions, dict) and "items" in lsp_completions:
+            return self._process_lsp_completions(lsp_completions["items"])
         return monaco_completions
 
     def _convert_completion_kind(self, lsp_kind):
@@ -1297,7 +1297,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         theme_selection: str
             Theme name.
         """
-        monaco_theme = list(CodeEditor.THEMES["Standard"].values())[0]
+        monaco_theme = next(iter(CodeEditor.THEMES["Standard"].values()))
         for name, theme_pair in CodeEditor.THEMES.items():
             if name == theme_selection:
                 dark = MApplication.instance().isDark

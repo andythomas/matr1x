@@ -668,7 +668,7 @@ class Elab(System):
 
         try:
             create_body = {"tags": self._tags}
-            response_body, status_code, response_headers = (
+            _response_body, _status_code, response_headers = (
                 experiments_api.post_experiment_with_http_info(body=create_body)
             )
 
@@ -739,7 +739,7 @@ class Elab(System):
         status
             Status of the experiment to print.
         """
-        logger.exception("Detailed error message:")
+        logger.error("Detailed error message:")
         backup_info = (
             "some error occured during creation of lab book entry.\n"
             "see log file for details.\n"

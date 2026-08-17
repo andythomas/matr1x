@@ -110,7 +110,7 @@ def format_validation_error(e: ValidationError | TypeError | ValueError, base: s
             msg += "\n"
     else:
         # Handle TypeError and ValueError which don't have errors() method
-        msg += f"{base}: {str(e)}\n"
+        msg += f"{base}: {e!s}\n"
     return msg
 
 
@@ -536,15 +536,10 @@ class ErrorMessage(BaseModel):
 
 
 @final
-class LineNumber(BaseModel):
-    """Model for the line number data."""
+class ExecutionLines(BaseModel):
+    """Active user-script lines ordered from innermost to outermost."""
 
-    line: int
-
-    def __init__(self, line: int | None = None, **data: Any):
-        if line is not None:
-            data["line"] = line
-        super().__init__(**data)
+    lines: list[int] = Field(min_length=1)
 
 
 @final
@@ -565,7 +560,7 @@ class InputParameters(BaseModel):
 
     query: str
     input_type: str
-    timeout: float | None = float("inf")
+    timeout: float | None = None
     default_value: str = ""
     min_value: float | None = None
     max_value: float | None = None
@@ -607,7 +602,7 @@ MeasurementData = (
     | Message
     | ErrorMessage
     | Datafile
-    | LineNumber
+    | ExecutionLines
     | InputParameters
     | LogEntry
 )

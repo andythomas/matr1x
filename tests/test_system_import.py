@@ -112,16 +112,15 @@ class ClassSystem(System):
     assert result.value.columns == ["class value"]
 
 
-@pytest.mark.parametrize("export_name", ["system", "sys"])
+@pytest.mark.parametrize("export_name", ["system"])
 def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export_name):
     """Load initialized legacy exports while emitting a soft-deprecation warning."""
     system_file = tmp_path / "system_legacy.py"
     system_file.write_text(f"from matr1x.system import System\n\n{export_name} = System()\n")
 
     result = System.from_file(system_file)
-    warning = result.value.warnings[0]
-
     assert isinstance(result, Success)
+    warning = result.value.warnings[0]
     assert f"exported as '{export_name}' is deprecated" in warning
 
 

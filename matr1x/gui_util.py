@@ -993,11 +993,11 @@ class MetaViewerWidget(QDockWidget):
                 The role of the data being set (default is EditRole).
             """
             if not index.isValid():
-                return None
+                return
             if index.column() == 1:
                 if self.child_count() > 0:
                     # prevent writing into the header lines
-                    return None
+                    return
                 if role == Qt.ItemDataRole.EditRole:
                     self.value = value
                     self.hidden = False
@@ -1391,7 +1391,7 @@ class MetaViewerWidget(QDockWidget):
         #     }
         # """)
 
-    def update_data(self, meta, types: dict = {}) -> None:
+    def update_data(self, meta, types: dict | None = None) -> None:
         """
         Update data stored in the model and resize table to fit contents.
 
@@ -1403,6 +1403,8 @@ class MetaViewerWidget(QDockWidget):
             Type definition for editable meta data
         """
         # get position of scroll bar before resetting the data
+        if types is None:
+            types = {}
         if self.schema_contains_visa_resource(types):
             self.prefetch_visa_resource_names()
         current_pos = self.tree_view.verticalScrollBar().value()
@@ -1444,7 +1446,7 @@ class MetaViewerWidget(QDockWidget):
         dict
             Copied header data.
         """
-        # TODO: Implement sorting?
+        # TODO: Implement sorting?  # noqa: FIX002
         return hdr.copy()
 
 
@@ -1541,7 +1543,7 @@ class ConfigEditWidget(MetaViewerWidget):
         dict
             Parsed header data.
         """
-        # TODO: Implement sorting?
+        # TODO: Implement sorting?  # noqa: FIX002
         return {key: val for key, val in hdr.items() if key not in {"columns", "units"}}
 
     def set_systemfile(self, systemfile: list) -> None:
@@ -2495,7 +2497,7 @@ class SimplePlotWidget(QGroupBox):
             if self.x_is_categorical or self.z_is_categorical:
                 return y, x
 
-            if self.math_mode in self.default_math.keys():
+            if self.math_mode in self.default_math:
                 # some of our default math is supposed to be used
                 x = self.default_math[self.math_mode][0](x)
                 y = self.default_math[self.math_mode][1](y)
@@ -2532,9 +2534,12 @@ class SimplePlotWidget(QGroupBox):
                 if yc is not None and xc is not None:
                     if len(yc) != len(xc):
                         self._raise_error("error in math: arrays have different length")
-                    elif len(yc.shape) > 1 and all(np.array(yc.shape) > 1):
-                        self._raise_error("error in math: y array has too high dimension")
-                    elif len(xc.shape) > 1 and all(np.array(xc.shape) > 1):
+                    elif (
+                        len(yc.shape) > 1
+                        and all(np.array(yc.shape) > 1)
+                        or len(xc.shape) > 1
+                        and all(np.array(xc.shape) > 1)
+                    ):
                         self._raise_error("error in math: y array has too high dimension")
                     else:
                         y, x = yc, xc
@@ -2790,7 +2795,7 @@ class SimplePlotWidget(QGroupBox):
                     self.plt.setData(x=x, y=z, *args, **kwargs)
                 except ValueError as e:
                     # Handle shape mismatch errors
-                    self._raise_error(f"Plot error: {str(e)}")
+                    self._raise_error(f"Plot error: {e!s}")
 
             # After plotting, if autorange is enabled on any axis, recompute now.
             auto_range = self.vb.state["autoRange"]
@@ -3182,7 +3187,7 @@ class SimplePlotWidget(QGroupBox):
         if hasattr(new_plot, "vb") and new_plot.vb is not None:
             new_plot.vb.sigRangeChanged.connect(self._on_range_changed)
         # reset global plot2d flag
-        if any([plot.plot2d for plot in self.plots]) is True:
+        if any(plot.plot2d for plot in self.plots) is True:
             self._toggle_plot2d(True)
         else:
             self._toggle_plot2d(False)
@@ -3760,10 +3765,7 @@ def detect_shortcut(event, shortcut):
         keys = shortcut[0]
     else:
         raise ValueError("Shortcut has to be of type(str) or type(QKeySequence).")
-    if key == keys.key() and modifiers == keys.keyboardModifiers():
-        return True
-    else:
-        return False
+    return bool(key == keys.key() and modifiers == keys.keyboardModifiers())
 
 
 def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
@@ -3793,10 +3795,7 @@ def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
     ret = msg.exec()
     if ret == QMessageBox.StandardButton.Cancel:
         return False
-    if ret == QMessageBox.StandardButton.Save:
-        if not save_cb():
-            return False
-    return True
+    return not (ret == QMessageBox.StandardButton.Save and not save_cb())
 
 
 class ThemeDetector(QWidget):
@@ -4353,7 +4352,6 @@ class ReadOnlyTable(QTableWidget):
         index = self.currentIndex()
         if index.isValid():
             QApplication.clipboard().setText(str(index.data()))
-        return
 
 
 class LoggingWindow(QMainWindow):

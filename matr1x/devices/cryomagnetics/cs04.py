@@ -97,7 +97,7 @@ class CS04(VisaDevice):
             self.reset()
             return
         if abs(field) > self.max_field:
-            print(f"Request for too large field ({field} T). Max is {self.max_field} T")
+            print(f"Request for too large field ({field} T). Max is {self.max_field} T")  # noqa: T201
             return
         self._setpoint = field
         if field > 0:

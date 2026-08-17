@@ -32,7 +32,7 @@ import matr1x.eval
 import matr1x.util
 from matr1x import output_extension
 from matr1x.execthread import ExecThread
-from matr1x.models import LineNumber, MeasurementData
+from matr1x.models import ExecutionLines, MeasurementData
 
 path = Path(__file__).resolve().parent
 
@@ -198,7 +198,7 @@ def test_matrix_script_dummy_merged():
         script = (
             "import matr1x.util as mu\n"
             "mu.matrix_script_process(\n"
-            f"{repr(tf.name)}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
+            f"{tf.name!r}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
             ")"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
@@ -223,8 +223,7 @@ def test_empty_script():
     """
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         script = (
-            "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, [])"
+            f"import matr1x.util as mu\nmu.matrix_script_process({tf.name!r}, {{}}, '', None, [])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
@@ -250,8 +249,8 @@ def test_matrix_script_reports_only_user_line_numbers(user_script, expected_line
     generated_lines: list[int] = []
 
     def collect_line_numbers(data: MeasurementData) -> None:
-        if isinstance(data, LineNumber):
-            generated_lines.append(data.line)
+        if isinstance(data, ExecutionLines):
+            generated_lines.append(data.lines[0])
 
     with monkeypatch.context() as patch:
         patch.setattr(thread, "report", collect_line_numbers)

@@ -1,0 +1,35 @@
+repos:
+
+- repo: local
+  hooks:
+
+  # Run the linter using local ruff
+  - id: ruff-check
+    name: ruff check
+    entry: uv run ruff check --fix
+    language: system
+    types_or: [python, pyi]
+    require_serial: true
+
+  # Run the formatter using local ruff
+  - id: ruff-format
+    name: ruff format
+    entry: uv run ruff format
+    language: system
+    types_or: [python, pyi]
+    require_serial: true
+
+  # Run ty type checker using local ty
+  - id: ty
+    name: ty type checker
+    entry: uv run ty check
+    language: system
+    types_or: [python, pyi]
+
+  # Run complexipy using local complexipy
+  - id: complexipy
+    name: complexipy
+    entry: uv run complexipy .
+    language: system
+    types_or: [python, pyi]
+    pass_filenames: false

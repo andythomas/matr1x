@@ -56,7 +56,7 @@ class BSC103(VisaDevice):
         Specific to the used controller.
     """
 
-    def __init__(self, interface, conf={}, debug=0x00):
+    def __init__(self, interface, conf=None, debug=0x00):
         """
         Initialize a new BSC103 device.
 
@@ -84,6 +84,8 @@ class BSC103(VisaDevice):
             If byte 0x02 is set, debug information is written to console.
             0x03 activates both.
         """
+        if conf is None:
+            conf = {}
         self.debug = debug
         super().__init__(
             interface,
@@ -140,7 +142,7 @@ class BSC103(VisaDevice):
                 logger.info(string)
 
         if self.debug & 0x02:
-            print(f"{colors.get(color, '')}{string}{colors['ENDC']}")
+            print(f"{colors.get(color, '')}{string}{colors['ENDC']}")  # noqa: T201
 
     def bytestostr(self, bytearr):
         """
@@ -483,7 +485,7 @@ class BSC103(VisaDevice):
         """
         resp = self.ReqResp(self.message(0x0005, (0x00, 0x00), dst, respLen=90)).data
 
-        # TODO: implement the other values
+        # TODO: implement the other values  # noqa: FIX002
         SerialNmbr = int.from_bytes(resp[:4], "little")
         ModelNmbr = resp[4:12].decode("ascii").replace("\x00", "")
         Notes = resp[18:66].decode("ascii").replace("\x00", "")
@@ -604,7 +606,7 @@ class BSC103(VisaDevice):
         resp = self.ReqResp(self.message(0x0441, (channel, 0x00), dst, respLen=20)).data
 
         # True => positive/HW forward, False => negative/HW reverse
-        homeDir = not int.from_bytes(resp[2:4], "little") == 2
+        homeDir = int.from_bytes(resp[2:4], "little") != 2
         limSwitch = int.from_bytes(resp[4:6], "little") == 4
 
         homeVel = self.uStepsto_mm(int.from_bytes(resp[6:10], "little"))

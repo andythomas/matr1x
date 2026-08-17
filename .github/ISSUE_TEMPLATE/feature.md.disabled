@@ -1,0 +1,14 @@
+---
+name: New feature
+about: Suggest a new feature.
+title: ""
+labels: "enhancement"
+---
+
+## Prework
+
+- I assure that I checked the [handbook](https://andythomas.github.io/matr1x/). Please note the search function!
+
+## Proposal
+
+Describe the new feature concisely. Please consider the affected parts of the application(s). If it changes some of the [described items](https://andythomas.github.io/matr1x/user-guide/explanations.html), please comment on it.

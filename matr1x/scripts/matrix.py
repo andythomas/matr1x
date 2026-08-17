@@ -27,7 +27,6 @@ a file of ascii or hdf5 format, depending on the system specifications.
 import argparse
 import io
 import logging
-import math
 import os
 import queue
 import re
@@ -81,8 +80,7 @@ else:
 stdout = cast(io.TextIOWrapper, sys.stdout)
 stdout.reconfigure(line_buffering=True)
 
-abortmap = {"q": 1, "a": 2, "f": 3}
-# define abort conditions for different keys
+abortmap = {"a": 2, "f": 3}
 
 
 def flush_input():
@@ -123,8 +121,7 @@ def parse_cmd_line() -> argparse.Namespace:
         "-af",
         "--append",
         action="store_true",
-        help="instead of appending a continuous number "
-        + "to the output file, append to output file.",
+        help="instead of appending a continuous number to the output file, append to output file.",
     )
     parser.add_argument(
         "-p",
@@ -134,7 +131,7 @@ def parse_cmd_line() -> argparse.Namespace:
     )
 
     # add keys to allow transmitting meta data
-    for key in VALID_META_KEYS.keys():
+    for key in VALID_META_KEYS:
         parser.add_argument(
             f"-d{key[:2].lower()}",
             f"--dc_{key.lower()}",
@@ -232,8 +229,8 @@ class PlainMeasurement:
         int
             The result of the key press (0 = no special key pressed).
         """
-        key = self._next_control_key()
-        if key in ("q", "a", "f"):
+        key = (self._next_control_key() or "").lower()
+        if key in abortmap:
             self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
             self._system.add_comment(f"measurement aborted after {points} points")
             return abortmap[key]
@@ -242,8 +239,8 @@ class PlainMeasurement:
             self._system.add_comment("measurement paused")
             while True:
                 time.sleep(0.1)
-                key = self._next_control_key()
-                if key in ("q", "a", "f"):
+                key = (self._next_control_key() or "").lower()
+                if key in abortmap:
                     self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
                     self._system.add_comment(f"measurement aborted after {points} points")
                     return abortmap[key]
@@ -371,7 +368,9 @@ class UrwidMeasurement(PlainMeasurement):
         units_flat = list(flatten(self._system.units))
         columns_flat = cast(list[str], columns_flat)
         units_flat = cast(list[str], units_flat)
-        info = urwid.Text("Pause/Quit graciously with p/q after current cycle", align="center")
+        info = urwid.Text(
+            "Pause/Abort/Finish graciously with p/a/f after current cycle", align="center"
+        )
         outf = urwid.Text(f" output filename : {self._system.filename}\n", wrap="clip")
         self.inpf = urwid.Text(f" Input filename  : {self._inputfile}\n", wrap="clip")
         self.systemf = urwid.Text(f" systemfile      : {','.join(self._systemfile)}", wrap="clip")
@@ -457,13 +456,13 @@ class UrwidMeasurement(PlainMeasurement):
                 #  ("mouse release", 1, 35, 20)
                 # -> ignore those.
                 continue
-            if key.lower() in ("q", "f", "a"):
+            if (key := key.lower()) in abortmap:
                 self.msg += f"Note: aborted with {key} after {points} points"
                 self._system.add_comment(
                     f"measurement aborted by keyboard input after {points} points"
                 )
-                return abortmap[key.lower()]
-            if key in ("p", "P"):
+                return abortmap[key]
+            if key == "p":
                 self.msg += f"paused at {time.time()} after {points} points\n"
                 self.status.set_text("paused - continue with 'p'")
                 self._system.add_comment("measurement paused by keyboard input")
@@ -473,13 +472,13 @@ class UrwidMeasurement(PlainMeasurement):
                 while flag:
                     time.sleep(0.1)
                     for key in self.loop.screen.get_input():  #  type: ignore
-                        if key.lower() in ("q", "f", "a"):
+                        if (key := key.lower()) in abortmap:
                             self.msg += f"Note: aborted with {key} after {points} points"
                             self._system.add_comment(
                                 f"measurement aborted by keyboard input after {points} points"
                             )
-                            return abortmap[key.lower()]
-                        if key in ("p", "P"):
+                            return abortmap[key]
+                        if key == "p":
                             flag = False
                 self.status.set_text("")
                 self.loop.draw_screen()
@@ -631,16 +630,6 @@ def measurementloop(
             if line.startswith("#"):
                 continue
             points += 1
-    datacb(
-        Telemetry(
-            point=0,
-            points=points,
-            elapsed=0,
-            remaining=math.nan,
-            settime=math.nan,
-            readtime=math.nan,
-        )
-    )
     starttime = time.time()
     for point_idx, datapoint in enumerate(parse_inputfile(inputfile, system)):
         preset = time.time()
@@ -886,7 +875,7 @@ def main() -> None:
             measurement.set_systemfile(resolved_systemfile)
             measurement.prepare()
         else:
-            control_string = "To pause or quit after next point, press p/q"
+            control_string = "To pause, abort or finish after next point, press p/a/f"
             if os.name != "nt":
                 control_string += " and enter"
             if sys.stdout.isatty():
@@ -897,25 +886,17 @@ def main() -> None:
             measurement.dispatch(
                 Message(
                     "Received keyboard interrupt, file may be corrupt!\n"
-                    + "Some devices may be in unknown state. Check traceback!\n"
-                    + "Traceback of error:\n"
+                    "Some devices may be in unknown state. Check traceback!\n"
+                    "Traceback of error:\n"
                 )
             )
             traceback.print_tb(e.__traceback__)
-            ret = 1
+            ret = 2
         if measurement.msg != "":
             measurement.dispatch(Message(measurement.msg))
-        if ret == 1:
-            x = input(
-                "Shall the termination of the sequence lead to "
-                "marking the datafile as aborted? (Y/n)"
-            )
-            if x.lower().startswith("y") or x == "":
-                measurement.dispatch(Message("marking file as aborted"))
-                reset_kwargs["status"] = "aborted"
         if ret == 2:
             reset_kwargs["status"] = "aborted"
-        if "status" not in reset_kwargs.keys():
+        if "status" not in reset_kwargs:
             reset_kwargs["status"] = "finished"
     except Exception as e:
         traceback.print_exc()

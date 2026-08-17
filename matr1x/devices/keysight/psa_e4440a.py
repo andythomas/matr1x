@@ -146,7 +146,7 @@ class PSA_E4440A(VisaDevice):
         """
         fStop = fCent + (fSpan / 2)
         if fStop > 8e9:
-            print("Warning, attempting to set Frequency exceeding 8GHz, returning")
+            print("Warning, attempting to set Frequency exceeding 8GHz, returning")  # noqa: T201
             return
 
         if average:
@@ -157,26 +157,26 @@ class PSA_E4440A(VisaDevice):
             elif avgType == "scalar":
                 self.write("AVERage:TYPE SCAL")
             else:
-                print(f"Please choose a valid average type! Your input was: {str(avgType)}")
+                print(f"Please choose a valid average type! Your input was: {avgType!s}")  # noqa: T201
             self.write("AVER:STAT ON")
             self.write(f"AVERage:COUNt {average}")
             self.maxAverage = max(average, self.maxAverage)
         else:
             self.write("AVER:STAT OFF")
 
-        self.write(f"FREQ:CENT {str(fCent)} HZ")
-        self.write(f"FREQ:SPAN {str(fSpan)} HZ")
-        self.write(f"SWE:POIN {str(fPoints)}")
-        self.write(f"BAND:VID {str(vidBW)} Hz")
-        self.write(f"BAND {str(resBW)} Hz")
-        self.write(f"DISP:WIND:TRAC:Y:RLEV {str(refLev)} dbm")
+        self.write(f"FREQ:CENT {fCent!s} HZ")
+        self.write(f"FREQ:SPAN {fSpan!s} HZ")
+        self.write(f"SWE:POIN {fPoints!s}")
+        self.write(f"BAND:VID {vidBW!s} Hz")
+        self.write(f"BAND {resBW!s} Hz")
+        self.write(f"DISP:WIND:TRAC:Y:RLEV {refLev!s} dbm")
 
         if scale == "lin":
             self.write("DISP:WIND:TRAC:Y:SCAL:SPAC LIN")
         elif scale == "log":
             self.write("DISP:WIND:TRAC:Y:SCAL:SPAC LOG")
         else:
-            print(f"Please choose a valid scale! Your input was: {str(scale)}")
+            print(f"Please choose a valid scale! Your input was: {scale!s}")  # noqa: T201
 
         # selects the sweep type automatic mode
         self.write("SWEep:TYPE AUTO")
@@ -248,7 +248,7 @@ class PSA_E4440A(VisaDevice):
         try:
             self.write(f"FORM {precdict[precision][0]}")
         except KeyError:
-            print(f"{str(precision)} is not a valid precision")
+            print(f"{precision!s} is not a valid precision")  # noqa: T201
             # return
         if precision == "ascii":
             data = self.query("TRAC:DATA? TRACE1")

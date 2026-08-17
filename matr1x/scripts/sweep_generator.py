@@ -908,10 +908,10 @@ class SweepPreviewPopup(QDialog):
             The index of the sweep to be displayed.
         """
         self.data_table.setRowCount(len(self.sweep[index]))
-        for index, item in zip(range(len(self.sweep[index])), self.sweep[index]):
+        for idx, item in enumerate(self.sweep[index]):
             value = QTableWidgetItem(str(item))
             value.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.data_table.setItem(index, 0, value)
+            self.data_table.setItem(idx, 0, value)
 
     def mouse_moved(self, event: tuple[QPointF]) -> None:
         """Implement event to update cursor position while pointer is in plot."""
@@ -998,10 +998,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         If the script was modified without saving, a dialog asks how to
         proceed.
         """
-        if self.dirty and not self.in_pytest:
-            if not save_messagebox(self, self.save_file):
-                a0.ignore()
-                return
+        if self.dirty and not self.in_pytest and not save_messagebox(self, self.save_file):
+            a0.ignore()
+            return
         self.save_window_state()
         self.cleanup_log_window(enabled=self._owns_log_window)
         a0.accept()
@@ -1058,12 +1057,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         pattern = re.compile(r"\.\d+t$")
         # remove this method with next major update, i.e. Matrix v9
         # also simplifies FileDropMixin
-        if pattern.search(str(file_path)) is not None:
-            return True
-        elif file_path.suffix == self.extension:
-            return True
-        else:
-            return False
+        return bool(
+            pattern.search(str(file_path)) is not None or file_path.suffix == self.extension
+        )
 
     def reset_layout(self) -> None:
         """Reset layout to clean state."""
@@ -1476,9 +1472,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def load_file(self) -> None:
         """Open a QFileDialog to open an existing sweep file."""
-        if self.dirty and not self.in_pytest:
-            if not save_messagebox(self, self.save_file):
-                return
+        if self.dirty and not self.in_pytest and not save_messagebox(self, self.save_file):
+            return
         prefilled_file = self.last_filename if self.last_filename is not None else usersfolder
         filename = QFileDialog.getOpenFileName(
             self,
@@ -1504,7 +1499,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         params = {
             "# params : ": [],
             "# loop_over : ": [],
-            "# functions : ": [],
             "# up_down : ": [],
             "# repeat : ": [],
         }
@@ -1517,7 +1511,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                         self.ui.widgets.system_list.add_systems(match.group(1).split(","))
                         if not self.update_systems():
                             return
-                    for key in params.keys():
+                    for key in params:
                         if key in line:
                             # read the parameters from the corresponding line
                             line = line.strip().replace(key, "")
@@ -1525,27 +1519,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         except PermissionError:
             QMessageBox.warning(self, "Permission error.", "No permission to open the sweep file.")
             return
-        # 'Functions' is depracated. Old files read and issue a warning if the functionality
-        # is used. Otherwise they just load. Delete the this backward compatibility for Matrix v9.
-        # Andy 20250306
-        if len(params.values()) == 5:  # old filename
-            (parameter, loop_over, functions, up_down, repeat) = params.values()
-        else:
-            (parameter, loop_over, up_down, repeat) = params.values()
-            functions = None
-        if functions and any(function != "None" for function in functions):
-            warning_text = (
-                "This file uses the removed 'function' functionality."
-                "Please use matrix-script. File did not load!"
-            )
-            QMessageBox.warning(self, "Deprecation error.", warning_text)
-            return
-        if functions:
-            warning_text = (
-                "File uses deprecated 'function' feature (all entries None). "
-                "Re-save file to ensure future compatibility."
-            )
-            logger.error(warning_text)
+        (parameter, loop_over, up_down, repeat) = params.values()
         self.columns.parameter = parameter
         # initialize layout with values specified in file
         for col in range(len(self.columns.name)):
@@ -1569,9 +1543,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         reset_systems : bool, optional
             If True, also clear loaded systems and related state.
         """
-        if self.dirty and not self.in_pytest:
-            if not save_messagebox(self, self.save_file):
-                return
+        if self.dirty and not self.in_pytest and not save_messagebox(self, self.save_file):
+            return
         self._reset_state(reset_systems)
 
     def _reset_state(self, reset_systems: bool) -> None:

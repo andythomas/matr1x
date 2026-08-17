@@ -268,9 +268,9 @@ class QueueListWidget(QListWidget):
 
     def keyPressEvent(self, a0: QKeyEvent) -> None:
         """Allow to modify systems list with keyboard shortcuts."""
-        if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)):
-            self.remove_measurement()
-        elif detect_shortcut(a0, QKeySequence(Qt.Key.Key_Backspace)):
+        if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)) or detect_shortcut(
+            a0, QKeySequence(Qt.Key.Key_Backspace)
+        ):
             self.remove_measurement()
         super().keyPressEvent(a0)
 
