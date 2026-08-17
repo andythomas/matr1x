@@ -59,10 +59,7 @@ class TIC500(VisaDevice):
             kwargs["read_termination"] = "\r\n"
         if "timeout" not in kwargs:
             kwargs["timeout"] = 2000
-        if "setlimit" not in kwargs:
-            self.setlimit = 301
-        else:
-            self.setlimit = kwargs["setlimit"]
+        self.setlimit = kwargs.get("setlimit", 301)
         super().__init__(interface, **kwargs)
 
     @synchronized
@@ -280,7 +277,7 @@ class TIC500(VisaDevice):
             True if PID control is on, False otherwise
         """
         ret = self.query(f"{channel}.PID.Mode?")
-        return True if ret == "On" else False
+        return ret == "On"
 
     @synchronized
     def set_state(self, state, channel):
@@ -329,7 +326,7 @@ class TIC500(VisaDevice):
             True if output is enabled, False otherwise
         """
         ret = self.query("OutputEnable?")
-        return True if ret == "On" else False
+        return ret == "On"
 
     @synchronized
     def disable_channel(self, channel):

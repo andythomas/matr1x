@@ -105,9 +105,7 @@ def _is_hdf5(filename: Path) -> bool:
     filename = Path(filename)
     with filename.open("rb") as file:
         first_bytes = file.read(4)
-    if first_bytes == b"\x89HDF":
-        return True
-    return False
+    return first_bytes == b"\x89HDF"
 
 
 def _get_nested_dict(data: dict, path: list) -> dict:
@@ -555,7 +553,7 @@ def _load_hdf5_file(
         # the following line relies on the fact that the first item has
         # the correct length, the code fails later if there are unequal
         # length
-        npoints = len(list(h5g.values())[0])
+        npoints = len(next(iter(h5g.values())))
         for name, v in h5g.items():
             if len(v.shape) == 1:
                 dtypeslist.append((name, v.dtype))
@@ -622,9 +620,7 @@ def _process_column_unit_lines(
 
     # Check if we should break based on file type
     should_break = False
-    if headerlines == 3:  # for ma6, ma7 files
-        should_break = True
-    elif extension == ".ma8" and headerlines == 2:  # ma8 files have only two header lines
+    if headerlines == 3 or extension == ".ma8" and headerlines == 2:  # for ma6, ma7 files
         should_break = True
 
     return headerlines, should_break

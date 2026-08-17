@@ -71,7 +71,7 @@ class gitDevice:
             self.repo = pygit2.Repository(self.repo_path)
         except Exception as e:
             print(f"Exception occurred: {e}")  # noqa: T201
-            raise e
+            raise
 
     def get_commit_hash(self):
         """
@@ -153,11 +153,11 @@ class gitDevice:
         }
 
         for filepath, flags in status.items():
-            if flags & pygit2.GIT_STATUS_INDEX_NEW:
-                status_output["staged"].append(filepath)
-            elif flags & pygit2.GIT_STATUS_INDEX_MODIFIED:
-                status_output["staged"].append(filepath)
-            elif flags & pygit2.GIT_STATUS_INDEX_DELETED:
+            if (
+                flags & pygit2.GIT_STATUS_INDEX_NEW
+                or flags & pygit2.GIT_STATUS_INDEX_MODIFIED
+                or flags & pygit2.GIT_STATUS_INDEX_DELETED
+            ):
                 status_output["staged"].append(filepath)
             elif flags & pygit2.GIT_STATUS_WT_MODIFIED:
                 status_output["modified"].append(filepath)

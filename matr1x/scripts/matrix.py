@@ -133,7 +133,7 @@ def parse_cmd_line() -> argparse.Namespace:
     )
 
     # add keys to allow transmitting meta data
-    for key in VALID_META_KEYS.keys():
+    for key in VALID_META_KEYS:
         parser.add_argument(
             f"-d{key[:2].lower()}",
             f"--dc_{key.lower()}",
@@ -914,7 +914,7 @@ def main() -> None:
                 reset_kwargs["status"] = "aborted"
         if ret == 2:
             reset_kwargs["status"] = "aborted"
-        if "status" not in reset_kwargs.keys():
+        if "status" not in reset_kwargs:
             reset_kwargs["status"] = "finished"
     except Exception as e:
         traceback.print_exc()

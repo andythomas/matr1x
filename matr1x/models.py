@@ -110,7 +110,7 @@ def format_validation_error(e: ValidationError | TypeError | ValueError, base: s
             msg += "\n"
     else:
         # Handle TypeError and ValueError which don't have errors() method
-        msg += f"{base}: {str(e)}\n"
+        msg += f"{base}: {e!s}\n"
     return msg
 
 

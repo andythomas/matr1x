@@ -56,7 +56,7 @@ class BSC103(VisaDevice):
         Specific to the used controller.
     """
 
-    def __init__(self, interface, conf={}, debug=0x00):
+    def __init__(self, interface, conf=None, debug=0x00):
         """
         Initialize a new BSC103 device.
 
@@ -84,6 +84,8 @@ class BSC103(VisaDevice):
             If byte 0x02 is set, debug information is written to console.
             0x03 activates both.
         """
+        if conf is None:
+            conf = {}
         self.debug = debug
         super().__init__(
             interface,
@@ -604,7 +606,7 @@ class BSC103(VisaDevice):
         resp = self.ReqResp(self.message(0x0441, (channel, 0x00), dst, respLen=20)).data
 
         # True => positive/HW forward, False => negative/HW reverse
-        homeDir = not int.from_bytes(resp[2:4], "little") == 2
+        homeDir = int.from_bytes(resp[2:4], "little") != 2
         limSwitch = int.from_bytes(resp[4:6], "little") == 4
 
         homeVel = self.uStepsto_mm(int.from_bytes(resp[6:10], "little"))

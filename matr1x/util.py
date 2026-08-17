@@ -48,9 +48,9 @@ if TYPE_CHECKING:
 
     from _typeshed import SupportsWrite
 
-    _T = TypeVar("_T", contravariant=True)
+    _T_contra = TypeVar("_T_contra", contravariant=True)
 
-    class SupportsWriteAndFlush(SupportsWrite[_T], Protocol[_T]):
+    class SupportsWriteAndFlush(SupportsWrite[_T_contra], Protocol[_T_contra]):
         """Provide a type for a stream that have write and flush methods."""
 
         def flush(self) -> None:

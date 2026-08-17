@@ -141,7 +141,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         except ValueError:
             # no value was given or space was ommitted, split failed,
             # will not do anything for that command
-            if not cmd[0] == "*":
+            if cmd[0] != "*":
                 # if what was sent was a * cmd (requires no value),
                 # then go on with parsing
                 return

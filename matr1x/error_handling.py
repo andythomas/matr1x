@@ -54,7 +54,7 @@ def _show_error_messagebox(
 ) -> None:
     """Show a QMessageBox for any uncaught exception."""
     formatted = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    logger.exception("Unhandled exception.")
+    logger.error("Unhandled exception.")
 
     msg = QMessageBox()
     msg.setIcon(QMessageBox.Icon.Critical)

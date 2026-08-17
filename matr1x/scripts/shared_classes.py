@@ -75,14 +75,14 @@ from matr1x.models import Envelope, SystemInfo
 from matr1x.util import get_matrix_binary
 
 __all__ = [
+    "MMainWindow",
+    "MToolBar",
     "MeasurementItem",
     "MeasurementThread",
     "MeasurementUI",
     "MetaData",
     "MetaDataDialog",
     "MetadataDockWidget",
-    "MMainWindow",
-    "MToolBar",
     "Notifier",
     "NotifierMessage",
     "SaferQSettings",
@@ -744,11 +744,11 @@ class MeasurementThread(QThread, LoggerMixin):
             cmd = (
                 f"import matr1x\n"
                 f"import matr1x.util as mu\n"
-                f"matr1x.reload_config({repr(str(temp_config_file))})\n"
-                f"mu.matrix_script_process({repr(script_tempfile.name)}, "
-                f"{repr(self.parameters.metadata)}, "
-                f"{repr(self.parameters.output_file)}, {repr(port)}, "
-                f"{repr(self.parameters.systems)})"
+                f"matr1x.reload_config({str(temp_config_file)!r})\n"
+                f"mu.matrix_script_process({script_tempfile.name!r}, "
+                f"{self.parameters.metadata!r}, "
+                f"{self.parameters.output_file!r}, {port!r}, "
+                f"{self.parameters.systems!r})"
             )
             return [sys.executable, "-c", cmd]
         result = [

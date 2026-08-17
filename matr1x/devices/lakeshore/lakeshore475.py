@@ -131,8 +131,8 @@ class Lakeshore475(VisaDevice):
             Manual output value. Default is 0.
         """
         self.write(
-            f"ANALOG {str(mode)}, {str(bipolar)}, {str(lowfield)}, "
-            f"{str(highfield)}, {manualOut:.4f}, {str(voltlimit)}"
+            f"ANALOG {mode!s}, {bipolar!s}, {lowfield!s}, "
+            f"{highfield!s}, {manualOut:.4f}, {voltlimit!s}"
         )
 
     def configureControl(self, pValue, iValue, rampRate, maxVSlope, on=False):
@@ -157,7 +157,7 @@ class Lakeshore475(VisaDevice):
         """
         if on is False:
             self.write("CMODE 0")
-        self.write(f"CPARAM {str(pValue)}, {str(iValue)}, {str(rampRate)}, " + f"{str(maxVSlope)}")
+        self.write(f"CPARAM {pValue!s}, {iValue!s}, {rampRate!s}, " + f"{maxVSlope!s}")
         if on is True:
             self.write("CMODE 1")
 

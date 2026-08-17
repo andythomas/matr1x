@@ -114,7 +114,16 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-_F = TypeVar("_F", bound=Callable[..., Any])
+class NamedCallable(Protocol):
+    """Callable object with a name suitable for error reporting."""
+
+    @property
+    def __name__(self) -> str: ...
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+_F = TypeVar("_F", bound=NamedCallable)
 
 
 class variable(Protocol):
@@ -172,8 +181,8 @@ def catchEmitError(method: _F) -> _F:
             return method(self, *args, **kwargs)
         except Exception:
             # report error to the main thread if relevant part can't be disabled
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            pointer = getattr(method, "__name__")
+            exc_type, exc_value, _exc_traceback = sys.exc_info()
+            pointer = method.__name__
             logger.exception("Handling error in %s", pointer)
             # if the GuiDict which raised the error allows disabling lets just
             # disable it and swallow the error
@@ -197,7 +206,7 @@ def catchEmitError(method: _F) -> _F:
         FunctionMaker.create(
             method,
             "return call(%(shortsignature)s)",
-            dict(call=call, _method=method),
+            {"call": call, "_method": method},
             __wrapped__=method,
         ),
     )
@@ -1541,7 +1550,7 @@ class GuiDict(UserDict[str, var]):
         elif cmd.setfunc in self:  # if GuiDict.data entry
 
             def setfunc(value, c=self.data[cmd.setfunc]):
-                setattr(c, "value", value)
+                c.value = value
 
             return setfunc, ()
         elif hasattr(window_obj, cmd.setfunc):  # if ControlWindow method
@@ -1615,7 +1624,7 @@ class GuiDict(UserDict[str, var]):
         elif cmd.getfunc in self:  # if GuiDict.data entry
 
             def getfunc(c=self.data[cmd.getfunc]):
-                return getattr(c, "value")
+                return c.value
 
             return getfunc, ()
         elif hasattr(window_obj, cmd.getfunc):  # if ControlWindow method
@@ -1716,16 +1725,46 @@ def linear_trend(
     ret = (None, None)
     mask = (time.time() - numpy.asarray(timestamps)) < interval
     t, y = numpy.asarray(timestamps)[mask], numpy.asarray(data)[mask]
-    if len(t) >= 2:
-        if numpy.all([isinstance(el, numbers.Number) for el in y]):
-            slope = numpy.mean(numpy.gradient(y, t))
-            std = numpy.std(y)
-            ret = (slope, std)
+    if len(t) >= 2 and numpy.all([isinstance(el, numbers.Number) for el in y]):
+        slope = numpy.mean(numpy.gradient(y, t))
+        std = numpy.std(y)
+        ret = (slope, std)
     return ret
 
 
+def _create_email_attachment(filename: str | Path) -> MIMEBase | None:
+    """Create a MIME attachment for a file, or return ``None`` if it is absent."""
+    fpath = Path(filename)
+    if not fpath.is_file():
+        return None
+
+    ctype, encoding = mimetypes.guess_type(fpath)
+    if ctype is None or encoding is not None:
+        ctype = "application/octet-stream"
+    maintype, subtype = ctype.split("/", 1)
+
+    if maintype == "text":
+        with fpath.open() as fp:
+            attachment = MIMEText(fp.read(), _subtype=subtype)
+    elif maintype == "image":
+        with fpath.open("rb") as fp:
+            attachment = MIMEImage(fp.read(), _subtype=subtype)
+        attachment.add_header("Content-ID", f"<{fpath.name}>")
+    elif maintype == "audio":
+        with fpath.open("rb") as fp:
+            attachment = MIMEAudio(fp.read(), _subtype=subtype)
+    else:
+        with fpath.open("rb") as fp:
+            attachment = MIMEBase(maintype, subtype)
+            attachment.set_payload(fp.read())
+        encoders.encode_base64(attachment)
+
+    attachment.add_header("Content-Disposition", "attachment", filename=fpath.name)
+    return attachment
+
+
 def sendNotificationEmail(
-    address: str, subject: str, msgtext: str, attachments: list[str | Path] = []
+    address: str, subject: str, msgtext: str, attachments: list[str | Path] | None = None
 ) -> None:
     """
     Send messages to a list of email addresses.
@@ -1753,41 +1792,10 @@ def sendNotificationEmail(
     msg["Subject"] = subject
     mimetxt = MIMEText(msgtext, "html")
     msg.attach(mimetxt)
-    # add attachments (code adapted from
-    # https://docs.python.org/3.4/library/email-examples.html)
-    for fname in attachments:
-        fpath = Path(fname)
-        if not fpath.is_file():
-            continue
-        # Guess the content type based on the file's extension.  Encoding
-        # will be ignored, although we should check for simple things like
-        # gzip'd or compressed files.
-        ctype, encoding = mimetypes.guess_type(fpath)
-        if ctype is None or encoding is not None:
-            # No guess could be made, or the file is encoded (compressed),
-            # so use a generic bag-of-bits type.
-            ctype = "application/octet-stream"
-        maintype, subtype = ctype.split("/", 1)
-        if maintype == "text":
-            with fpath.open() as fp:
-                # Note: we should handle calculating the charset
-                att = MIMEText(fp.read(), _subtype=subtype)
-        elif maintype == "image":
-            with fpath.open("rb") as fp:
-                att = MIMEImage(fp.read(), _subtype=subtype)
-            att.add_header("Content-ID", f"<{fpath.name}>")
-        elif maintype == "audio":
-            with fpath.open("rb") as fp:
-                att = MIMEAudio(fp.read(), _subtype=subtype)
-        else:
-            with fpath.open("rb") as fp:
-                att = MIMEBase(maintype, subtype)
-                att.set_payload(fp.read())
-            # Encode the payload using Base64
-            encoders.encode_base64(att)
-        # Set the filename parameter
-        att.add_header("Content-Disposition", "attachment", filename=fpath.name)
-        msg.attach(att)
+    for filename in attachments or []:
+        attachment = _create_email_attachment(filename)
+        if attachment is not None:
+            msg.attach(attachment)
 
     # read email config
     conf = config.matr1x.email
