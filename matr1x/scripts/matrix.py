@@ -369,7 +369,7 @@ class UrwidMeasurement(PlainMeasurement):
         units_flat = list(flatten(self._system.units))
         columns_flat = cast(list[str], columns_flat)
         units_flat = cast(list[str], units_flat)
-        info = urwid.Text("Pause/Quit graciously with p/q after current cycle", align="center")
+        info = urwid.Text("Pause/Abort/Finish graciously with p/a/f after current cycle", align="center")
         outf = urwid.Text(f" output filename : {self._system.filename}\n", wrap="clip")
         self.inpf = urwid.Text(f" Input filename  : {self._inputfile}\n", wrap="clip")
         self.systemf = urwid.Text(f" systemfile      : {','.join(self._systemfile)}", wrap="clip")
