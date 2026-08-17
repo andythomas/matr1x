@@ -310,9 +310,9 @@ window.setModificationState = (modified) => {
 window.isModified = () => isModified;
 
 // Line highlighting utility functions
-window.highlightLine = (lineNumber) => {
+window.highlightLines = (lineNumbers) => {
   if (!editor) {
-    console.warn("Editor not ready to highlight a line.");
+    console.warn("Editor not ready to highlight lines.");
     return;
   }
 
@@ -321,6 +321,17 @@ window.highlightLine = (lineNumber) => {
     window.currentLineHighlight = editor.deltaDecorations(window.currentLineHighlight, []);
   }
 
+  const uniqueLineNumbers = [
+    ...new Set(lineNumbers.filter((lineNumber) => Number.isInteger(lineNumber) && lineNumber > 0)),
+  ];
+  window.currentHighlightedLines = uniqueLineNumbers;
+  if (uniqueLineNumbers.length === 0) {
+    window.currentPrimaryHighlightedLine = null;
+    return;
+  }
+  const primaryLineNumber = uniqueLineNumbers[0];
+  window.currentPrimaryHighlightedLine = primaryLineNumber;
+
   // Get theme colors
   const theme = editor._themeService.getColorTheme();
   const backgroundColor =
@@ -328,34 +339,45 @@ window.highlightLine = (lineNumber) => {
     theme.getColor("editor.selectionHighlightBackground");
   const borderColor =
     theme.getColor("editorLineNumber.activeForeground") || theme.getColor("focusBorder");
+  const relatedBackgroundColor = backgroundColor?.transparent(0.35) || backgroundColor;
+  const relatedBorderColor = borderColor?.transparent(0.5) || borderColor;
 
   // Update CSS variables with theme colors
   document.documentElement.style.setProperty("--highlight-bg", backgroundColor);
   document.documentElement.style.setProperty("--highlight-border", borderColor);
+  document.documentElement.style.setProperty("--highlight-related-bg", relatedBackgroundColor);
+  document.documentElement.style.setProperty("--highlight-related-border", relatedBorderColor);
 
   // Add new line highlighting using theme colors
   window.currentLineHighlight = editor.deltaDecorations(
     [],
-    [
-      {
-        range: new monaco.Range(lineNumber, 1, lineNumber, 1),
-        options: {
-          isWholeLine: true,
-          className: "highlighted-line",
-          linesDecorationsClassName: "highlighted-line-decoration",
-        },
-      },
-    ],
+    uniqueLineNumbers.map((lineNumber) => ({
+      range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+      options:
+        lineNumber === primaryLineNumber
+          ? {
+              isWholeLine: true,
+              className: "highlighted-line",
+              linesDecorationsClassName: "highlighted-line-decoration",
+            }
+          : {
+              isWholeLine: true,
+              className: "highlighted-related-line",
+              linesDecorationsClassName: "highlighted-related-line-decoration",
+            },
+    })),
   );
 
-  // Scroll to the highlighted line
-  editor.revealLineInCenter(lineNumber);
+  // Keep the innermost execution point visible.
+  editor.revealLineInCenter(primaryLineNumber);
 };
 
 window.clearLineHighlight = () => {
   if (editor && window.currentLineHighlight) {
     window.currentLineHighlight = editor.deltaDecorations(window.currentLineHighlight, []);
   }
+  window.currentHighlightedLines = [];
+  window.currentPrimaryHighlightedLine = null;
 };
 
 // Function to enable/disable tab completion

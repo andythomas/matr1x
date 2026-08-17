@@ -91,9 +91,9 @@ from matr1x.models import (
     Datafile,
     Envelope,
     ErrorMessage,
+    ExecutionLines,
     Header,
     InputParameters,
-    LineNumber,
     LogEntry,
     MeasuredValues,
     Message,
@@ -1156,8 +1156,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
         data = env.payload
         if isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)) and data.to_stdout:
             self.write_output(str(data) + "\n")
-        elif isinstance(data, LineNumber):
-            self.ui.widgets.script_edit.highlight(data.line - self.line_offset)
+        elif isinstance(data, ExecutionLines):
+            self.ui.widgets.script_edit.highlight([line - self.line_offset for line in data.lines])
         elif isinstance(data, Datafile):
             self.update_filename(data.datafile)
         elif isinstance(data, InputParameters):
@@ -1597,6 +1597,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
         Return buttons to original state, delete the finished process.
         """
+        self.ui.widgets.script_edit.removeHighlight()
         self.enable_buttons(False)
         self._flush_output_buffer()
         if self.measurement_failed:

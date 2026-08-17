@@ -32,7 +32,7 @@ import matr1x.eval
 import matr1x.util
 from matr1x import output_extension
 from matr1x.execthread import ExecThread
-from matr1x.models import LineNumber, MeasurementData
+from matr1x.models import ExecutionLines, MeasurementData
 
 path = Path(__file__).resolve().parent
 
@@ -249,8 +249,8 @@ def test_matrix_script_reports_only_user_line_numbers(user_script, expected_line
     generated_lines: list[int] = []
 
     def collect_line_numbers(data: MeasurementData) -> None:
-        if isinstance(data, LineNumber):
-            generated_lines.append(data.line)
+        if isinstance(data, ExecutionLines):
+            generated_lines.append(data.lines[0])
 
     with monkeypatch.context() as patch:
         patch.setattr(thread, "report", collect_line_numbers)

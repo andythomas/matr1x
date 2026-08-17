@@ -536,15 +536,10 @@ class ErrorMessage(BaseModel):
 
 
 @final
-class LineNumber(BaseModel):
-    """Model for the line number data."""
+class ExecutionLines(BaseModel):
+    """Active user-script lines ordered from innermost to outermost."""
 
-    line: int
-
-    def __init__(self, line: int | None = None, **data: Any):
-        if line is not None:
-            data["line"] = line
-        super().__init__(**data)
+    lines: list[int] = Field(min_length=1)
 
 
 @final
@@ -607,7 +602,7 @@ MeasurementData = (
     | Message
     | ErrorMessage
     | Datafile
-    | LineNumber
+    | ExecutionLines
     | InputParameters
     | LogEntry
 )

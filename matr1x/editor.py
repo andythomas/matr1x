@@ -924,7 +924,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.setAcceptDrops(True)
         self._highlight_timer = QTimer(self)
         self._highlight_timer.setSingleShot(True)
-        self._pending_highlight_line: int | None = None
+        self._pending_highlight_lines: list[int] | None = None
         self._current_theme: str
         self._system_info: SystemInfo
         self.create_connections()
@@ -1082,31 +1082,32 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
             f"window.editor.updateOptions({{ readOnly: {str(read_only).lower()} }})"
         )
 
-    def highlight(self, line_number: int) -> None:
+    def highlight(self, line_numbers: list[int]) -> None:
         """
-        Highlight this line number.
+        Highlight active user-script lines.
 
         Parameters
         ----------
-        line_number: int
-            The line number to highlight.
+        line_numbers: list[int]
+            Line numbers ordered from the innermost execution point to its
+            outermost user-script caller.
         """
-        self._pending_highlight_line = line_number
+        self._pending_highlight_lines = list(dict.fromkeys(line_numbers))
         self._highlight_timer.start(HIGHLIGHT_INTERVAL_MS)
 
     def removeHighlight(self) -> None:
         """Remove line highlighting."""
         self._highlight_timer.stop()
-        self._pending_highlight_line = None
+        self._pending_highlight_lines = None
         self._run_javascript("window.clearLineHighlight()")
 
     def _apply_pending_highlight(self) -> None:
         """Apply the most recently requested line highlight."""
-        if self._pending_highlight_line is None:
+        if self._pending_highlight_lines is None:
             return
-        line_number = self._pending_highlight_line
-        self._pending_highlight_line = None
-        self._run_javascript(f"window.highlightLine({line_number})")
+        line_numbers = self._pending_highlight_lines
+        self._pending_highlight_lines = None
+        self._run_javascript(f"window.highlightLines({json.dumps(line_numbers)})")
 
     def lsp_initialize(self) -> None:
         """Initialize the server/client communication."""
