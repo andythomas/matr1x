@@ -134,6 +134,7 @@ version_toml = [
 ]
 branch = "main"
 build_command = "pip install uv && uv lock --offline && uv build --no-sources"
+assets = ["uv.lock"]
 
 [tool.semantic_release.changelog]
 exclude_commit_patterns = [
