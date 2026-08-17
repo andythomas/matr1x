@@ -925,7 +925,6 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self._highlight_timer = QTimer(self)
         self._highlight_timer.setSingleShot(True)
         self._pending_highlight_lines: list[int] | None = None
-        self._type_check_version: int | None = None
         self._current_theme: str
         self._system_info: SystemInfo
         self.create_connections()
@@ -1154,13 +1153,6 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                 for d in diagnostics
             ]
             self.backend.update_tc_diagnostics(tc_diagnostics)
-            version = params.get("version")
-            self._type_check_version = version if isinstance(version, int) else None
-
-    @property
-    def type_check_version(self) -> int | None:
-        """Return the document version from the latest applied type-check result."""
-        return self._type_check_version
 
     def on_hover_requested(self, hover: LSPHover) -> None:
         """
