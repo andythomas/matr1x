@@ -886,7 +886,7 @@ def main() -> None:
             measurement.set_systemfile(resolved_systemfile)
             measurement.prepare()
         else:
-            control_string = "To pause or abort after next point, press p/a"
+            control_string = "To pause, abort or finish after next point, press p/a/f"
             if os.name != "nt":
                 control_string += " and enter"
             if sys.stdout.isatty():
