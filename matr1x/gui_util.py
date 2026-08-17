@@ -1608,12 +1608,9 @@ class ConfigEditWidget(MetaViewerWidget):
 
     @staticmethod
     def _pydantic_config_value(config_info: dict[str, Any]) -> dict[str, Any]:
-        """Copy a Pydantic config value and add schema-defined defaults."""
+        """Copy a Pydantic config value and retain its schema."""
         config = copy.deepcopy(config_info["value"])
         schema = config_info["schema"]
-        for field_name, field_schema in schema.get("properties", {}).items():
-            if field_name not in config and "default" in field_schema:
-                config[field_name] = field_schema["default"]
         # The tree model adds absent required fields as editable, explicitly
         # missing items using this schema.
         config["_schema"] = schema
