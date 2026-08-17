@@ -144,8 +144,8 @@ class Notifier(QWidget):
         self._text.setText(message.text)
         self._logger.log(message.level, message.text)
         self._dismiss_timer.stop()
-        if message.level < logging.ERROR:
-            self._dismiss_timer.start(3000)
+        if message.level < logging.WARNING:
+            self._dismiss_timer.start(5000)
         self.show_animated()
 
     def show_animated(self):
@@ -291,9 +291,9 @@ class SystemListWidget(QListWidget):
                 "you can correct the configuration; fix these entries before execution:\n\n"
                 + "".join(system_info.value.config_validation_errors)
             )
-            self.message.emit(NotifierMessage(warning_text, level=logging.ERROR))
+            self.message.emit(NotifierMessage(warning_text, level=logging.WARNING))
         for warning in system_info.value.warnings:
-            self.message.emit(NotifierMessage(warning, level=logging.WARNING))
+            self.message.emit(NotifierMessage(warning[0], warning[1]))
         self._cached_system_info = system_info.value
         self._sync_action_state()
         self.changed.emit()

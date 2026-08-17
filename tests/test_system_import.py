@@ -93,7 +93,7 @@ def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export
     warning = result.value.warnings[0]
 
     assert isinstance(result, Success)
-    assert f"exported as '{export_name}' is deprecated" in warning
+    assert f"exported as '{export_name}' is deprecated" in warning[0]
 
 
 def test_system_file_ignores_imported_system_base(tmp_path, monkeypatch):

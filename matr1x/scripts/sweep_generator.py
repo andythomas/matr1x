@@ -1104,9 +1104,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         """
         if any(self.columns.parameter):
             self.ui.widgets.notifier.show_message(
-                NotifierMessage(
-                    "All previous sweep parameters have been cleared.", logging.WARNING
-                )
+                NotifierMessage("All previous sweep parameters have been cleared.", logging.INFO)
             )
         self.reset_layout()
         self._apply_system_info_to_columns(self.ui.widgets.system_list.system_info)
