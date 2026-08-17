@@ -230,8 +230,8 @@ class PlainMeasurement:
         int
             The result of the key press (0 = no special key pressed).
         """
-        key = self._next_control_key()
-        if key in ("a", "f"):
+        key = (self._next_control_key() or "").lower()
+        if key in abortmap:
             self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
             self._system.add_comment(f"measurement aborted after {points} points")
             return abortmap[key]
@@ -240,8 +240,8 @@ class PlainMeasurement:
             self._system.add_comment("measurement paused")
             while True:
                 time.sleep(0.1)
-                key = self._next_control_key()
-                if key in ("a", "f"):
+                key = (self._next_control_key() or "").lower()
+                if key in abortmap:
                     self.dispatch(Message(f"Note: aborted with {key} after {points} points\n\n\n"))
                     self._system.add_comment(f"measurement aborted after {points} points")
                     return abortmap[key]
@@ -457,13 +457,13 @@ class UrwidMeasurement(PlainMeasurement):
                 #  ("mouse release", 1, 35, 20)
                 # -> ignore those.
                 continue
-            if key.lower() in ("f", "a"):
+            if (key := key.lower()) in abortmap:
                 self.msg += f"Note: aborted with {key} after {points} points"
                 self._system.add_comment(
                     f"measurement aborted by keyboard input after {points} points"
                 )
-                return abortmap[key.lower()]
-            if key in ("p", "P"):
+                return abortmap[key]
+            if key == "p":
                 self.msg += f"paused at {time.time()} after {points} points\n"
                 self.status.set_text("paused - continue with 'p'")
                 self._system.add_comment("measurement paused by keyboard input")
@@ -473,13 +473,13 @@ class UrwidMeasurement(PlainMeasurement):
                 while flag:
                     time.sleep(0.1)
                     for key in self.loop.screen.get_input():  #  type: ignore
-                        if key.lower() in ("f", "a"):
+                        if (key := key.lower()) in abortmap:
                             self.msg += f"Note: aborted with {key} after {points} points"
                             self._system.add_comment(
                                 f"measurement aborted by keyboard input after {points} points"
                             )
-                            return abortmap[key.lower()]
-                        if key in ("p", "P"):
+                            return abortmap[key]
+                        if key == "p":
                             flag = False
                 self.status.set_text("")
                 self.loop.draw_screen()
