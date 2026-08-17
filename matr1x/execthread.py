@@ -434,9 +434,9 @@ class ExecThread(threading.Thread):
     def input(
         self,
         *,
+        timeout: float | None,
         message: str = "",
         input_type: str = "string",
-        timeout: float = float("inf"),
         default_value: str | float = "",
         min_value: float | None = None,  # Optional: minimum value for numerical input
         max_value: float | None = None,  # Optional: maximum value for numerical input
@@ -512,16 +512,18 @@ class ExecThread(threading.Thread):
         inp : str
             The input string to be handled.
         """
+        # Control characters always take priority over pending input
+        if inp == "p":
+            self.pause(not self.pause_flag)
+            return
+        elif inp == "f":
+            self.stop(True)
+            return
+        elif inp == "a":
+            self.stop(False)
+            return
         if self.recv_flag is False:
-            if inp == "p":
-                self.pause(not self.pause_flag)
-            elif inp == "q":
-                self.stop()
-            elif inp == "f":
-                self.stop(True)
-            elif inp == "a":
-                self.stop(False)
-            elif inp == "i":
+            if inp == "i":
                 # reset input if already available
                 self.recv = ""
                 self.recv_flag = True

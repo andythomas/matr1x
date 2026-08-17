@@ -560,7 +560,7 @@ class InputParameters(BaseModel):
 
     query: str
     input_type: str
-    timeout: float | None = float("inf")
+    timeout: float | None = None
     default_value: str = ""
     min_value: float | None = None
     max_value: float | None = None

@@ -343,7 +343,7 @@ def wait(
     _interrupt(duration=duration, until=until, message=message, silent=silent)
 
 
-def input(query: str, timeout: float = float("inf"), default_value: str = "") -> str:  # noqa: A001
+def input(query: str, timeout: float | None = None, default_value: str = "") -> str:  # noqa: A001
     """
     Ask user to provide some free text input.
 
@@ -351,8 +351,8 @@ def input(query: str, timeout: float = float("inf"), default_value: str = "") ->
     ----------
     query : str
         Query string presented to the user so they know what to enter.
-    timeout : float, optional
-        Max. time in seconds to wait for user input (default=infinity).
+    timeout : float or None, optional
+        Max. time in seconds to wait for user input (default=None, no timeout).
     default_value : str, optional
         Value to return if timeout occurs. Default is empty string.
 
@@ -365,7 +365,7 @@ def input(query: str, timeout: float = float("inf"), default_value: str = "") ->
     return _input(message=query, timeout=timeout, default_value=default_value)
 
 
-def input_bool(query: str, timeout: float = float("inf"), default_value: str = "yes") -> bool:
+def input_bool(query: str, timeout: float | None = None, default_value: str = "yes") -> bool:
     """
     Ask user to answer a yes/no question.
 
@@ -373,8 +373,8 @@ def input_bool(query: str, timeout: float = float("inf"), default_value: str = "
     ----------
     query : str
         Question to ask the user.
-    timeout : float, optional
-        Max. time in seconds to wait for user input (default=infinity).
+    timeout : float or None, optional
+        Max. time in seconds to wait for user input (default=None, no timeout).
     default_value : str, optional
         Value to return if timeout occurs. Default is yes.
 
@@ -390,7 +390,7 @@ def input_bool(query: str, timeout: float = float("inf"), default_value: str = "
 
 def input_numerical(
     query: str,
-    timeout=float("inf"),
+    timeout: float | None = None,
     default_value: float = 0.0,
     min_value: float = -100e9,
     max_value: float = 100e9,
@@ -404,8 +404,8 @@ def input_numerical(
     ----------
     query : str
         Question to ask the user.
-    timeout : float, optional
-        Max. time in seconds to wait for user input (default=infinity).
+    timeout : float or None, optional
+        Max. time in seconds to wait for user input (default=None, no timeout).
     default_value : float, optional
         Value to return if timeout occurs. Default is 0.0.
     min_value : float, optional
@@ -646,9 +646,6 @@ except KeyboardInterrupt:
     elif _status.finished is False:
         # supposed to be marked as aborted
         _reset_kwargs["status"] = "aborted"
-    else:
-        # finished is None, so ask what is supposed to happen
-        _reset_kwargs["status"] = _input(message="", input_type="__end_script__")
 except Exception as e:
     _report(_Message("script exited with error:", to_comment=False))
     # get traceback information and format accordingly
