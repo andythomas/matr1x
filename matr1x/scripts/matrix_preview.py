@@ -60,7 +60,6 @@ from matr1x.gui_util import (
     MetaViewerWidget,
     SimplePlotWidget,
     check_config,
-    clear_layout,
     create_matr1x_quit_action,
     create_matrix_settings_action,
     get_matrix_icon,
@@ -302,13 +301,12 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.closing_allowed = True
         self.multidim = False
         self.error = False
-        self.ui_initialized = False
         self.lu_time = 0.0
 
         # Thread and update properties
         self.update_thread: UpdateThread | None = None
 
-        # UI components that are recreated for each file in init_ui()
+        # UI components that are created once in init_basic_ui()
         self.w_l: list = []  # Labels for axes
         self.column_selector: list[QComboBox]
         self.w_plot2d: QCheckBox  # 2D plotting checkbox
@@ -390,9 +388,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.fetch_data()
         self.multidim = False
         self.error = False
-        self.clear_ui()
-        self.init_ui()
-        self.ui.file_selector.installEventFilter(self)
+        self.populate_file_data()
 
     def file_list_refresh(self):
         """Refresh all files with the correct extension in the selected directory."""
@@ -408,13 +404,13 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.file_list_refresh()
         ctext = self.ui.file_selector.currentText()
         self.ui.file_selector.setToolTip(str(self.file_dir))
-        self.ui.file_selector.currentIndexChanged.disconnect()
+        self.ui.file_selector.blockSignals(True)
         self.ui.file_selector.clear()
         self.ui.file_selector.addItems(self.data_files)
         index = self.data_files.index(ctext)
         self.ui.file_selector.setCurrentIndex(index)  # current index can differ from
         # self.file_index, problem?
-        self.ui.file_selector.currentIndexChanged.connect(self.file_index_changed)
+        self.ui.file_selector.blockSignals(False)
 
     def closeEvent(self, a0):
         """Store toolbar position on close."""
@@ -447,7 +443,12 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         subprocess.Popen(preview)
 
     def init_basic_ui(self):
-        """Initialize basic GUI that works without chosen filename."""
+        """Initialize the complete GUI layout.
+
+        The full layout is built at startup. File-dependent widgets
+        (file selector, column selectors, plot) start out empty and
+        disabled until a file is loaded via populate_file_data().
+        """
         self.setWindowTitle("Matrix Preview")
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-preview.png"))
         pyqtgraph.setConfigOption("background", "w")
@@ -457,7 +458,51 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.widget = QWidget()
         self.w_status = QLabel("")
         self.w_status.setStyleSheet("QLabel { color : red; }")
+
+        self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
+        self.w_l[2].setVisible(False)
+
+        self.column_selector = [QComboBox(), QComboBox(), QComboBox()]
+        for i in range(3):
+            self.column_selector[i].setEnabled(False)
+            self.column_selector[i].currentIndexChanged.connect(self.index_changed)
+        self.column_selector[2].setVisible(False)
+
+        self.w_plot2d = QCheckBox("2d plotting")
+        self.w_plot2d.toggled.connect(self.plotting_toggled)
+
+        self.w_plot2d_comp = QCheckBox("2d complex")
+        self.w_plot2d_comp.toggled.connect(self.plotting_complex)
+        self.w_plot2d_comp.setVisible(False)
+
+        self.w_transpose = QCheckBox("transpose")
+        self.w_transpose.setVisible(False)
+        self.w_transpose.toggled.connect(self.transpose_toggled)
+
+        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
+        # minimum height of plot widget, could be removed but then
+        # window always needs to be resized
+        self.spw.setMinimumHeight(350)
+        self.iv = None
+
+        self.grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
+        for i in range(3):
+            self.grid.addWidget(self.w_l[i], i + 1, 0)
+            self.grid.addWidget(self.column_selector[i], i + 1, 1)
+        self.grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
+        self.grid.addWidget(self.w_transpose, 2, 2, 1, 1)
+        self.grid.addWidget(self.spw, 4, 0, 1, -1)
         self.grid.addWidget(self.w_status, 6, 0, 1, -1)
+        # set rescaling behavior
+        self.grid.setColumnStretch(1, 1)
+        self.grid.setRowStretch(4, 1)
+        self.grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        # although this seems counter intuitive. setting the minimum width
+        # limits the maximum window size in case long filenames are used.
+        # see #328
+        self.setMinimumWidth(800)
+        self.setMaximumWidth(self._get_maximum_screen_width())
+
         self.widget.setLayout(self.grid)
         self.setCentralWidget(self.widget)
         self.ui = UIBuilder()
@@ -487,6 +532,8 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
         )
         self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
+        self.ui.file_selector.currentIndexChanged.connect(self.file_index_changed)
+        self.ui.file_selector.installEventFilter(self)
 
     def setup_meta_viewer(self) -> None:
         """Configure the metadata view dock widget."""
@@ -503,90 +550,44 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.meta_viewer)
         self.meta_viewer.visibilityChanged.connect(self.ui.actions.meta.setChecked)
 
-    def init_ui(self):
-        """Initialize GUI for popup."""
-        # File list
+    def populate_file_data(self):
+        """Populate the file-dependent GUI elements after loading a file."""
+        # stop a possibly running auto update from the previous file
+        self.ui.actions.auto_update.blockSignals(True)
+        self.ui.actions.auto_update.setChecked(False)
+        self.ui.actions.auto_update.blockSignals(False)
+
+        # file list
+        self.ui.file_selector.blockSignals(True)
+        self.ui.file_selector.clear()
         self.ui.file_selector.addItems(self.data_files)
         self.ui.file_selector.setCurrentIndex(self.file_index)
-        self.ui.file_selector.currentIndexChanged.connect(self.file_index_changed)
+        self.ui.file_selector.blockSignals(False)
 
-        # Update
-        auinit = False
-        self.ui.actions.auto_update.setChecked(auinit)
-        self.updatethread(auinit)
-
-        self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
-        self.w_l[2].setVisible(False)
-
-        self.column_selector = [QComboBox(), QComboBox(), QComboBox()]
-        self.column_selector[1].setEnabled(False)
-        self.column_selector[2].setVisible(False)
-
+        # column selectors
         self.column_items = [
             f"{name} ({unit}), shape: {shape}"
             for name, unit, shape in zip(self.names, self.units, self.shapes)
         ]
-
         for i in range(3):
+            self.column_selector[i].blockSignals(True)
+            self.column_selector[i].clear()
             self.column_selector[i].addItems([""] + self.column_items)
-            self.column_selector[i].currentIndexChanged.connect(self.index_changed)
+            self.column_selector[i].blockSignals(False)
+        self.column_selector[0].setEnabled(True)
+        self.column_selector[2].setEnabled(True)
 
-        self.w_plot2d = QCheckBox("2d plotting")
-        self.w_plot2d.toggled.connect(self.plotting_toggled)
+        self.reset()
 
-        self.w_plot2d_comp = QCheckBox("2d complex")
-        self.w_plot2d_comp.toggled.connect(self.plotting_complex)
-        self.w_plot2d_comp.setVisible(False)
-
-        self.w_transpose = QCheckBox("transpose")
-        self.w_transpose.setVisible(False)
-        self.w_transpose.toggled.connect(self.transpose_toggled)
-
-        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
-        # minimum height of plot widget, could be removed but then
-        # window always needs to be resized
-        self.spw.setMinimumHeight(350)
-        self.iv = None
-
-        self.grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
-        for i in range(3):
-            self.grid.addWidget(self.w_l[i], i + 1, 0)
-            self.grid.addWidget(self.column_selector[i], i + 1, 1)
-        self.grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
-        self.grid.addWidget(self.w_transpose, 2, 2, 1, 1)
-        self.grid.addWidget(self.spw, 4, 0, 1, -1)
-        # set rescaling behavior
-        self.grid.setColumnStretch(1, 1)
-        self.grid.setRowStretch(4, 1)
-        self.grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
-        # although this seems counter intuitive. setting the minimum width
-        # limits the maximum window size in case long filenames are used.
-        # see #328
-        self.setMinimumWidth(800)
-        self.setMaximumWidth(self._get_maximum_screen_width())
-
-        if not self.ui_initialized:
-            self.ui.actions.export_png.setEnabled(True)
-            self.ui.actions.export_data.setEnabled(True)
-            self.ui.actions.update.setEnabled(True)
-            self.ui.actions.auto_update.setEnabled(True)
-            self.ui.actions.previous.setEnabled(True)
-            self.ui.file_selector.setEnabled(True)
-            self.ui.actions.next.setEnabled(True)
-            self.ui.actions.meta.setEnabled(True)
-            # do not duplicate the items next time
-            self.ui_initialized = True
-
-    def clear_ui(self) -> None:
-        """Clear the UI."""
-        for i in reversed(range(2, self.grid.count())):
-            item = self.grid.takeAt(i)
-            if item is None:
-                continue
-            if widget := item.widget():
-                widget.deleteLater()
-            elif layout := item.layout():
-                clear_layout(layout)
+        # enable file-dependent actions
+        self.ui.actions.export_png.setEnabled(True)
+        self.ui.actions.export_data.setEnabled(True)
+        self.ui.actions.update.setEnabled(True)
+        self.ui.actions.auto_update.setEnabled(True)
+        self.ui.actions.previous.setEnabled(True)
+        self.ui.file_selector.setEnabled(True)
+        self.ui.actions.next.setEnabled(True)
+        self.ui.actions.meta.setEnabled(True)
 
     def toggle_meta(self, state):
         """Toggle the meta data view."""
@@ -674,7 +675,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                     self.column_selector[i].clear()
                     self.column_selector[i].addItems([""] + self.column_items)
                 self.reset()
-                self.spw.reset()
         else:
             self.spw.refresh_all_plots()
         self.meta_viewer.update_data(self.header)
@@ -826,14 +826,24 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 self.column_selector[i].setItemText(j + 1, item)
 
     def reset(self):
-        """Reset the actual data view."""
-        self.w_plot2d.setChecked(False)
-        self.w_plot2d_comp.setChecked(False)
-        self.w_transpose.setChecked(False)
+        """Reset the data view to the default 1d state without selection."""
+        for widget in (self.w_plot2d, self.w_plot2d_comp, self.w_transpose):
+            widget.blockSignals(True)
+            widget.setChecked(False)
+            widget.blockSignals(False)
+        # synchronize visibility with the unchecked state
+        self.w_l[0].setText("y")
+        self.w_l[2].setVisible(False)
+        self.column_selector[1].setEnabled(False)
+        self.column_selector[2].setVisible(False)
+        self.w_plot2d_comp.setVisible(False)
+        self.w_transpose.setVisible(False)
         if self.iv is not None:
             self.grid.removeWidget(self.iv)
             del self.iv
             self.iv = None
+        self.spw.setVisible(True)
+        self.spw.reset()
 
     def fetch_data(self, check=False) -> int:
         """Handle the data operations."""
