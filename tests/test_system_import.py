@@ -24,7 +24,10 @@ as valid System objects.
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel
 
+import matr1x
+import matr1x.system as system_module
 from matr1x.error_handling import Error, Success
 from matr1x.system import System
 
@@ -63,6 +66,32 @@ def test_system_import(system_file):
     assert isinstance(system, Success)
 
 
+def test_invalid_config_preserves_supplied_values(monkeypatch):
+    """One invalid field does not discard valid values or model defaults."""
+
+    class IncompleteConfig(BaseModel):
+        address: str
+        sample_count: int
+        initial_value: float = 3.14
+
+    monkeypatch.setattr(
+        system_module,
+        "resolve_config_path",
+        lambda _config, _section: {
+            "address": "TCPIP::localhost::10034::SOCKET",
+            "sample_count": "invalid",
+        },
+    )
+    monkeypatch.setattr(matr1x, "validation_errors", [])
+    system = System()
+
+    system.load_config(IncompleteConfig, "test.system")
+
+    assert system.config.address == "TCPIP::localhost::10034::SOCKET"
+    assert system.config.initial_value == 3.14
+    assert matr1x.validation_errors
+
+
 def test_system_file_discovers_local_subclass(tmp_path):
     """Load the sole System subclass defined by the system file."""
     system_file = tmp_path / "system_compatibility.py"
@@ -90,9 +119,8 @@ def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export
     system_file.write_text(f"from matr1x.system import System\n\n{export_name} = System()\n")
 
     result = System.from_file(system_file)
-    warning = result.value.warnings[0]
-
     assert isinstance(result, Success)
+    warning = result.value.warnings[0]
     assert f"exported as '{export_name}' is deprecated" in warning[0]
 
 

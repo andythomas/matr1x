@@ -99,6 +99,13 @@ the following example from `system_dummy_feature.py`.
 
 Descriptions provided in `Field(description="...")` are automatically shown as **tooltips** in the GUI configuration editor.
 
+If an invalid device configuration prevents matrix-gui from queueing a sweep or matrix-script
+from starting a script, the device configuration editor is brought forward automatically. The
+validation details are also recorded as a warning, without automatically opening the separate log
+viewer. Missing required settings and settings with schema defaults remain available in the editor
+even when constructing the complete configuration fails. Matrix-script also preserves compatible
+unsaved values already entered in the editor when the selected system list changes.
+
 #### Supported GUI Hints and Types:
 
 The basic use is to provide a type hint and a Field definition. To simplify configuration definitions, `matr1x.models` provides several helper types and a `GuiField` wrapper:

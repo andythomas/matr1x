@@ -509,14 +509,14 @@ class System:
         # Dublin Core metadata default entries
         self.dcdata: DcDict = DcDict(
             self,
-            creator=None,  # measurement user
+            creator="",  # measurement user
             date=time.strftime(f"{matr1x.datetimefmt}", time.localtime()),
-            identifier=None,  # sample name
-            relation=None,  # parent sample
-            description=None,  # comment
-            source=None,  # measurement system
-            type=None,  # type of measurement data (e.g., transport)
-            publisher=None,  # published of data, e.g., university/institute
+            identifier="",  # sample name
+            relation="",  # parent sample
+            description="",  # comment
+            source="",  # measurement system
+            type="",  # type of measurement data (e.g., transport)
+            publisher="",  # published of data, e.g., university/institute
             format="text/plain; charset=UTF-8",
             language="en",
         )
@@ -668,18 +668,9 @@ class System:
 
             msg = format_validation_error(e, base=f"{section}.")
             validation_errors.append(msg)
-            # Use defaults from the model if validation fails
-            try:
-                validated_config = model_class()
-            except (ValidationError, TypeError, ValueError):
-                logger.debug(
-                    "Could not instantiate default config for %s after validation error",
-                    section,
-                    exc_info=True,
-                )
-                if not hasattr(model_class, "model_construct"):
-                    raise
-                validated_config = model_class.model_construct()
+            # Preserve supplied values and model defaults for the config editor.
+            # Execution applications block invalid configurations before running.
+            validated_config = model_class.model_construct(**config_data)
 
         if sensitive_keys:
             # Move sensitive keys to sensitive_config
@@ -1840,9 +1831,6 @@ class System:
                         # values that are not in the dc specifications are
                         # just added as attribute
                         data_file.attrs[f"{dckey}"] = dcvalue
-                    elif dcvalue is None:
-                        # mark non-existing value
-                        data_file.attrs[f"dcterms:{dckey}"] = "__None__"
                     else:
                         data_file.attrs[f"dcterms:{dckey}"] = dcvalue
 
@@ -1859,8 +1847,6 @@ class System:
                             dcentry = dcvalue.replace("\n", "\n## ")
                         dcentry = dcentry.replace('"', '"')
                         data_file.write(f'# {dckey} : "{dcentry}"\n')
-                    elif dcvalue is None:
-                        data_file.write(f"# dcterms:{dckey} : None\n")
                     else:
                         dcentry = dcvalue.replace("\n", "\n## ")
                         dcentry = dcentry.replace('"', '"')

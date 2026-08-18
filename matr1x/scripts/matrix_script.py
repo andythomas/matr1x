@@ -1078,6 +1078,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
         config_validation = self.ui.widgets.config_editor.validate_config()
         if isinstance(config_validation, Error):
+            self.ui.widgets.config_editor.show_for_validation_errors()
             self.ui.actions.start.setEnabled(False)
             self.ui.actions.start.setToolTip(
                 "Fix the invalid configuration entries before running:\n\n"
@@ -1568,6 +1569,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         """
         config_validation = self.ui.widgets.config_editor.validate_config()
         if isinstance(config_validation, Error):
+            self.ui.widgets.config_editor.show_for_validation_errors()
             self.update_start_action_state()
             return
         if (
@@ -1617,6 +1619,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         update_config: bool
             Whether to update the config editor.
         """
+        retained_config = self.ui.widgets.config_editor.get_config_dict()
         # only systems that are part of matrix or ifwlib can be configured via files
         configurable = [
             system for system in self.ui.widgets.system_list.systems if not Path(system).exists()
@@ -1627,6 +1630,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
             self.ui.widgets.config_editor.set_system_info(self.ui.widgets.system_list.system_info)
             self.ui.widgets.config_editor.update_data()
+            self.ui.widgets.config_editor.apply_config_dict(retained_config)
             self.update_start_action_state()
         # Update system commands with cached info
         self.update_system_commands()
