@@ -981,7 +981,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.setAcceptDrops(True)
         self.setValidExtensions([self.extension])
         self.create_connections()
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         check_desktop_integration()
 
         if filename is not None:

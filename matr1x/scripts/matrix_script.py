@@ -1010,7 +1010,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         sys.stdout = StreamToLogger(logger, logging.INFO)
         sys.stderr = StreamToLogger(logger, logging.ERROR)
         if filename is not None:

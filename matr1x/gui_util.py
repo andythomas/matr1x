@@ -156,7 +156,7 @@ from .eval import delta
 from .util import resolve_config_path
 
 if TYPE_CHECKING:
-    from matr1x.scripts.shared_classes import SaferQSettings
+    from matr1x.scripts.shared_classes import Notifier, SaferQSettings
 
 
 P = ParamSpec("P")
@@ -4079,7 +4079,7 @@ def _format_validation_error(e: ValidationError | TypeError | ValueError, base: 
     return html
 
 
-def check_config(config: BaseModel) -> None:
+def check_config(config: BaseModel, notifier: Notifier) -> None:
     """
     Validate the configuration tomls.
 
@@ -4087,8 +4087,11 @@ def check_config(config: BaseModel) -> None:
     ----------
     config: BaseModel
         The configuration model to validate.
+    notifier: Notifier
+        The notification widget to display the validation errors in.
     """
     from . import validation_errors
+    from .scripts.shared_classes import NotifierMessage
 
     html = "".join(validation_errors).replace("\n", "<br>")
     try:
@@ -4101,7 +4104,7 @@ def check_config(config: BaseModel) -> None:
             "Some settings will not work as intended. "
             "The following error(s) occured:<br><br>"
         ) + html
-        QMessageBox.critical(None, "Validation error!", html)
+        notifier.show_message(NotifierMessage(html, level=logging.WARNING))
 
 
 def create_matrix_settings_action() -> QAction:

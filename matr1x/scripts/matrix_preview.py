@@ -71,7 +71,7 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts.shared_classes import MMainWindow, MToolBar, SaferQSettings
+from matr1x.scripts.shared_classes import MMainWindow, MToolBar, Notifier, SaferQSettings
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +127,7 @@ class WidgetGroup:
     """Widgets to be used in the GUI."""
 
     about_box: AboutBox
+    notifier: Notifier
 
 
 @dataclass
@@ -168,7 +169,8 @@ class UIBuilder:
                 get_matrix_icon("matr1x-matrix-preview.png"),
                 matr1x,
                 matr1x.datetimefmt,
-            )
+            ),
+            notifier=Notifier(logger),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -457,14 +459,15 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.widget = QWidget()
         self.w_status = QLabel("")
         self.w_status.setStyleSheet("QLabel { color : red; }")
-        self.grid.addWidget(self.w_status, 6, 0, 1, -1)
+        self.grid.addWidget(self.w_status, 5, 0, 1, -1)
         self.widget.setLayout(self.grid)
         self.setCentralWidget(self.widget)
         self.ui = UIBuilder()
+        self.grid.addWidget(self.ui.widgets.notifier, 0, 0, 1, -1)
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
         self.show()
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         self._create_connections()
 
     def _create_connections(self):

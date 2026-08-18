@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -99,9 +100,9 @@ class NotifierMessage:
 
 
 @final
-class Notifier(QWidget):
+class Notifier(QGroupBox):
     """
-    An animated layout that shows a message with an icon.
+    An animated container titled "Notification" that shows a message with an icon.
 
     Parameters
     ----------
@@ -111,7 +112,7 @@ class Notifier(QWidget):
 
     def __init__(self, logger: logging.Logger):
         """Initialize the notification widget."""
-        super().__init__()
+        super().__init__("Notification")
         self._logger = logger
         self.setMaximumHeight(0)
         self.setVisible(False)
