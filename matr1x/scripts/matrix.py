@@ -62,7 +62,6 @@ from matr1x.util import (
     flatten,
     generate_col_index,
     log_multiline,
-    open_and_error,
 )
 
 from .. import VALID_META_KEYS
@@ -731,22 +730,22 @@ def read_inputfile_header(
     settable_names_file: list[str] | None = None
     settable_units_file: list[str] | None = None
 
-    with open_and_error(inputfile, "r") as f:
-        if isinstance(f, Error):
-            dispatcher.dispatch(ErrorMessage(str(f.error)))
-        for line in f.value:
-            system_pattern = r"^# [Ss]ystem filename : (.+)"
-            settable_names_pattern = r"^# [Ss]ettable columns : (.+)"
-            settable_units_pattern = r"^# [Ss]ettable units : (.+)"
-            if match := re.match(system_pattern, line.strip()):
-                systemfile = match.group(1).split(",")
-            elif match := re.match(settable_names_pattern, line.strip()):
-                settable_names_file = match.group(1).split(",")
-            elif match := re.match(settable_units_pattern, line.strip()):
-                settable_units_file = match.group(1).split(",")
-            if line[0] != "#":
-                break
-
+    try:
+        with Path(inputfile).open("r") as f:
+            for line in f:
+                system_pattern = r"^# [Ss]ystem filename : (.+)"
+                settable_names_pattern = r"^# [Ss]ettable columns : (.+)"
+                settable_units_pattern = r"^# [Ss]ettable units : (.+)"
+                if match := re.match(system_pattern, line.strip()):
+                    systemfile = match.group(1).split(",")
+                elif match := re.match(settable_names_pattern, line.strip()):
+                    settable_names_file = match.group(1).split(",")
+                elif match := re.match(settable_units_pattern, line.strip()):
+                    settable_units_file = match.group(1).split(",")
+                if line[0] != "#":
+                    break
+    except OSError as e:
+        dispatcher.dispatch(ErrorMessage(str(e)))
     return systemfile, settable_names_file, settable_units_file
 
 
