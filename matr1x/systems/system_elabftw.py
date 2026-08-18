@@ -246,7 +246,11 @@ class Elab(System):
             try:
                 self.add_resource(samplename)
             except Exception:
-                pass
+                logger.debug(
+                    "Could not look up ElabFTW resource %s; attempting creation",
+                    samplename,
+                    exc_info=True,
+                )
             if self.config.create_resource and samplename not in self._resources:
                 # need to create the resource
                 resource_id = self._create_resource(samplename)

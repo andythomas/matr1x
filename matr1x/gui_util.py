@@ -1644,7 +1644,11 @@ class ConfigEditWidget(MetaViewerWidget):
                     syst_dict[system_name]["_schema"] = system_config.model_json_schema()
             except Exception:
                 # If type information is unavailable, retain the values alone.
-                continue
+                logger.debug(
+                    "Could not load the local schema for runtime system %s",
+                    system_name,
+                    exc_info=True,
+                )
 
     @staticmethod
     def _split_config_values_and_types(

@@ -1583,7 +1583,7 @@ class System:
                 try:
                     dev.adapter.flush_read_buffer()
                 except Exception:
-                    pass
+                    logger.debug("Could not flush device read buffer during reset", exc_info=True)
             elif hasattr(dev, "read_very_eager"):  # VisaDevice
                 # read all bytes available and ignore them
                 dev.read_very_eager()
