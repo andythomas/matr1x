@@ -358,10 +358,9 @@ class FileLineEdit(QLineEdit):
             dialog.setFileMode(QFileDialog.FileMode.Directory)
             dialog.setOption(QFileDialog.Option.ShowDirsOnly)
 
-        if dialog.exec():
+        if dialog.exec() and len(dialog.selectedFiles()) > 0:
             # pass value to callback
-            if len(dialog.selectedFiles()) > 0:
-                self.callback(dialog.selectedFiles()[0])
+            self.callback(dialog.selectedFiles()[0])
 
 
 class MetaViewerWidget(QDockWidget):
@@ -1594,7 +1593,7 @@ class ConfigEditWidget(MetaViewerWidget):
     def _has_merged_system_config(self) -> bool:
         """Return whether runtime configuration represents a merged system."""
         return self.system_info is not None and any(
-            "," in system_name for system_name in self.system_info.config.keys()
+            "," in system_name for system_name in self.system_info.config
         )
 
     def _config_from_systemfile(self) -> dict[str, Any]:

@@ -691,14 +691,17 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def transpose_toggled(self, check_state):
         """Transpose has been toggled, reload data."""
-        if self.w_plot2d.isChecked() is True and self.w_plot2d_comp.isChecked() is False:
-            if len(self.shapes[self.column_selector[0].currentIndex() - 1]) < 3:
-                # toggle index for 2d data, since x and y invert role
-                dummy = self.column_selector[2].currentIndex()
-                self.column_selector[2].blockSignals(True)
-                self.column_selector[2].setCurrentIndex(self.column_selector[1].currentIndex())
-                self.column_selector[1].setCurrentIndex(dummy)
-                self.column_selector[2].blockSignals(False)
+        if (
+            self.w_plot2d.isChecked() is True
+            and self.w_plot2d_comp.isChecked() is False
+            and len(self.shapes[self.column_selector[0].currentIndex() - 1]) < 3
+        ):
+            # toggle index for 2d data, since x and y invert role
+            dummy = self.column_selector[2].currentIndex()
+            self.column_selector[2].blockSignals(True)
+            self.column_selector[2].setCurrentIndex(self.column_selector[1].currentIndex())
+            self.column_selector[1].setCurrentIndex(dummy)
+            self.column_selector[2].blockSignals(False)
         self.reload_data()
 
     def plotting_toggled(self, check_state):
