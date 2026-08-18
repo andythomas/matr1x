@@ -38,7 +38,7 @@ import os
 import sys
 import warnings
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -405,10 +405,8 @@ if not usersfolder.exists():
 # set up logging to configure, e.g., the log-windows
 logfolder = config.matr1x.logging_directory.expanduser()
 if logfolder.exists():
-    today = date.today().isocalendar()
-    handlers = [
-        logging.FileHandler(logfolder / f"matr1x_{today.year}{today.week:02d}.log", mode="a")
-    ]
+    iso_year, iso_week, _ = datetime.now(tz=timezone.utc).astimezone().isocalendar()
+    handlers = [logging.FileHandler(logfolder / f"matr1x_{iso_year}{iso_week:02d}.log", mode="a")]
     logging.basicConfig(
         level=logging.INFO,
         format=config.matr1x.logging_format,
