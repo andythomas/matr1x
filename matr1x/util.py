@@ -32,7 +32,7 @@ import sysconfig
 import textwrap
 import threading
 from collections.abc import Callable, Sequence
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
@@ -76,15 +76,13 @@ def open_and_error(filename: str, mode: str = "r"):
     Result
         Either Success(file object) or Error(exception).
     """
-    try:
-        f = Path(filename).open(mode)
-    except Exception as error:
-        yield Error(error)
-    else:
+    with ExitStack() as stack:
         try:
-            yield Success(f)
-        finally:
-            f.close()
+            file = stack.enter_context(Path(filename).open(mode))
+        except Exception as error:
+            yield Error(error)
+        else:
+            yield Success(file)
 
 
 # default separator
