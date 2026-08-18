@@ -1309,7 +1309,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         result = self.generate_datafile()
         if isinstance(result, Error):
             self.ui.widgets.notifier.show_message(
-                NotifierMessage("No data generated, no file saved.")
+                NotifierMessage("No data generated, no file saved.", logging.WARNING)
             )
             return False
         if filename.suffix != self.extension:
