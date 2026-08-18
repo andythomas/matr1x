@@ -28,7 +28,7 @@ import time
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError
@@ -49,6 +49,18 @@ from matr1x.util import log_multiline
 
 __all__ = ["ExecThread"]
 
+_RELATIVE_TIME_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def _local_now() -> datetime:
+    """Return the current time in the host's local timezone."""
+    return datetime.now(timezone.utc).astimezone()
+
+
+def _parse_local_time(value: str, fmt: str) -> datetime:
+    """Parse local civil time as a timezone-aware datetime."""
+    return datetime.strptime(value, fmt).astimezone()
+
 
 def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime:
     """
@@ -58,13 +70,14 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
     ----------
     until : str or datetime
         A target time or relative time string, or datetime object.
+        Strings and naive datetime objects are interpreted in the local timezone.
     current_time : datetime
         The current time to use as reference for relative time parsing.
 
     Returns
     -------
     datetime
-        The parsed end time.
+        The parsed end time in the local timezone.
 
     Raises
     ------
@@ -72,23 +85,15 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
         If the until format is not recognized.
     """
     if isinstance(until, datetime):
-        return until
+        return until.astimezone()
 
     if isinstance(until, str) and until.startswith("+"):
         # Parse relative time
         match = re.match(r"\+(\d+\.?\d*)([smhd])", until)
-        if match:
-            value, unit = float(match.group(1)), match.group(2)
-            if unit == "s":
-                return current_time + timedelta(seconds=value)
-            elif unit == "m":
-                return current_time + timedelta(minutes=value)
-            elif unit == "h":
-                return current_time + timedelta(hours=value)
-            elif unit == "d":
-                return current_time + timedelta(days=value)
-        else:
+        if match is None:
             raise ValueError("Invalid relative time format.")
+        value, unit = float(match.group(1)), match.group(2)
+        return current_time + timedelta(seconds=value * _RELATIVE_TIME_SECONDS[unit])
 
     # Parse absolute time with multiple date formats
     formats = [
@@ -108,14 +113,16 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
 
     for fmt in formats:
         try:
-            parsed_time = datetime.strptime(until, fmt)
             if fmt in ["%H:%M:%S", "%H:%M"]:
-                parsed_time = parsed_time.replace(
-                    year=current_time.year, month=current_time.month, day=current_time.day
+                current_date = current_time.date()
+                parsed_time = _parse_local_time(
+                    f"{current_date:%Y-%m-%d} {until}", f"%Y-%m-%d {fmt}"
                 )
                 if parsed_time < current_time:
-                    parsed_time += timedelta(days=1)
-            return parsed_time
+                    next_date = current_date + timedelta(days=1)
+                    return _parse_local_time(f"{next_date:%Y-%m-%d} {until}", f"%Y-%m-%d {fmt}")
+                return parsed_time
+            return _parse_local_time(until, fmt)
         except ValueError:
             continue
 
@@ -279,7 +286,7 @@ class ExecThread(threading.Thread):
             If neither `duration` nor `until` is provided,
             or if the `until` format is not recognized.
         """
-        now = datetime.now()
+        now = _local_now()
         msg = "" if not message else f" ({message})"
 
         if duration is not None:
@@ -350,12 +357,12 @@ class ExecThread(threading.Thread):
         while sleep_time > 0:
             # Calculate remaining time based on the end time for "until" waits
             if not is_duration and end_time:
-                sleep_time = (end_time - datetime.now()).total_seconds()
+                sleep_time = (end_time - _local_now()).total_seconds()
 
             # Check for interruption or pause
             pause_start = time.time()  # Record when the pause starts
             if self.check_for_interrupt_and_pause():
-                if not is_duration and end_time and datetime.now() >= end_time:
+                if not is_duration and end_time and _local_now() >= end_time:
                     text = "\nThe target time passed during pause. Continuing immediately."
                     self.report(Message(text))
                     return
@@ -363,17 +370,17 @@ class ExecThread(threading.Thread):
                     # Calculate pause duration and extend end_time accordingly
                     pause_end = time.time()
                     pause_duration += pause_end - pause_start
-                    end_time = datetime.now() + timedelta(
+                    end_time = _local_now() + timedelta(
                         seconds=(initial_sleep_time - (time.time() - start_time - pause_duration))
                     )
 
                     # Recalculate sleep_time after adjusting for pause
-                    sleep_time = (end_time - datetime.now()).total_seconds()
+                    sleep_time = (end_time - _local_now()).total_seconds()
                     text = f"\nResuming wait for {sleep_time:.0f} seconds{message}."
                     self.report(Message(text))
                 else:
                     # For "until" wait, recalculate based on the current end_time
-                    sleep_time = max(0, (end_time - datetime.now()).total_seconds())
+                    sleep_time = max(0, (end_time - _local_now()).total_seconds())
                     text = (
                         f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                         f"({sleep_time:.0f} seconds remaining)."

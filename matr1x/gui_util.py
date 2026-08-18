@@ -2008,6 +2008,11 @@ class ConfigEditWidget(MetaViewerWidget):
         return temp_file
 
 
+def _format_local_timestamp(value: float, fmt: str, *, trim_trailing_zeros: bool = False) -> str:
+    text = datetime.datetime.fromtimestamp(value, datetime.timezone.utc).astimezone().strftime(fmt)
+    return text.rstrip("0") if trim_trailing_zeros else text
+
+
 class SimplePlotWidget(QGroupBox):
     """
     Plot widget for multiple vertically stacked curve or 2d plots.
@@ -2111,7 +2116,7 @@ class SimplePlotWidget(QGroupBox):
             *args
                 Variable length argument list passed to the parent class.
             **kwargs
-                Arbitrary keyword arguments passed to the parent class.
+            Arbitrary keyword arguments passed to the parent class.
             """
 
             def tickValues(self, minVal, maxVal, size):
@@ -2224,11 +2229,9 @@ class SimplePlotWidget(QGroupBox):
 
                 # Convert timestamps to formatted date strings
                 if spacing >= 5:
-                    return [
-                        datetime.datetime.fromtimestamp(value).strftime(fmt) for value in values
-                    ]
+                    return [_format_local_timestamp(value, fmt) for value in values]
                 return [
-                    datetime.datetime.fromtimestamp(value).strftime(fmt).rstrip("0")
+                    _format_local_timestamp(value, fmt, trim_trailing_zeros=True)
                     for value in values
                 ]
 
@@ -3475,7 +3478,7 @@ class AboutBox(QMessageBox):
         # Get package and git information
         (version, branch, sha, time) = get_install_info(package)
         if time != "not available":
-            date = datetime.datetime.fromtimestamp(time).strftime(date_format)
+            date = _format_local_timestamp(time, date_format)
         else:
             date = time
         # Get Python interpreter information

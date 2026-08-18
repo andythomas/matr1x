@@ -160,10 +160,6 @@
       {
         "name": "ExecThread::_execute_sleep",
         "complexity": 19
-      },
-      {
-        "name": "_parse_until_time",
-        "complexity": 20
       }
     ]
   },
