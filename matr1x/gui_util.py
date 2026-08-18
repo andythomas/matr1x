@@ -1514,6 +1514,16 @@ class ConfigEditWidget(MetaViewerWidget):
         else:
             self.hide()
 
+    def show_for_validation_errors(self) -> None:
+        """Open the configuration editor once after validation fails."""
+        if self.isVisible():
+            return
+        with blocked_signals(self.action):
+            self.action.setChecked(True)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
     def _sync_metadata_view(self) -> None:
         """Match view action state to the restored widget visibility."""
         with blocked_signals(self.action):
@@ -1581,80 +1591,91 @@ class ConfigEditWidget(MetaViewerWidget):
                 self.system_info = system_info.value
         self.update_data()  # Call the original update_data method
 
-    def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
-        """Update the configuration data in the widget."""
-        syst_dict = {}
-        reload_config()
-
-        # Check if we have a merged system by looking for comma-separated system names
-        is_merged_system = self.system_info is not None and any(
-            "," in system_name for system_name in self.system_info.config
+    def _has_merged_system_config(self) -> bool:
+        """Return whether runtime configuration represents a merged system."""
+        return self.system_info is not None and any(
+            "," in system_name for system_name in self.system_info.config.keys()
         )
 
-        # parse config of systems specified in self.systemfile
-        # Skip individual system configs if we have a merged system to avoid duplicates
-        if self.systemfile is not None and not is_merged_system:
-            for syst in self.systemfile:
-                syst_dict[syst.strip()] = resolve_config_path(matr1x.config, syst.strip())
+    def _config_from_systemfile(self) -> dict[str, Any]:
+        """Load file-backed configuration unless runtime data is already merged."""
+        if self.systemfile is None or self._has_merged_system_config():
+            return {}
+        return {
+            system.strip(): resolve_config_path(matr1x.config, system.strip())
+            for system in self.systemfile
+        }
+
+    @staticmethod
+    def _pydantic_config_value(config_info: dict[str, Any]) -> dict[str, Any]:
+        """Copy a Pydantic config value and retain its schema."""
+        config = copy.deepcopy(config_info["value"])
+        schema = config_info["schema"]
+        # The tree model adds absent required fields as editable, explicitly
+        # missing items using this schema.
+        config["_schema"] = schema
+        return config
+
+    def _add_system_config(
+        self, syst_dict: dict[str, Any], system_name: str, config_info: Any
+    ) -> None:
+        """Add one runtime system configuration to the editor data."""
+        if isinstance(config_info, dict) and {"value", "schema"} <= config_info.keys():
+            syst_dict[system_name] = self._pydantic_config_value(config_info)
+            return
+
+        system_config = syst_dict.setdefault(system_name, {})
+        for key, value_info in config_info.items():
+            if isinstance(value_info, dict):
+                if "value" in value_info:
+                    system_config[key] = value_info["value"]
+                continue
+            system_config[key] = value_info
+
+    def _add_missing_system_schemas(self, syst_dict: dict[str, Any]) -> None:
+        """Supplement runtime configuration with locally available JSON schemas."""
+        if self.system_info is None:
+            return
+        for system_name in self.system_info.config:
+            if system_name not in syst_dict or "_schema" in syst_dict[system_name]:
+                continue
+            try:
+                system_config = resolve_config_path(matr1x.config, system_name)
+                if hasattr(system_config, "model_json_schema"):
+                    syst_dict[system_name]["_schema"] = system_config.model_json_schema()
+            except Exception:
+                # If type information is unavailable, retain the values alone.
+                continue
+
+    @staticmethod
+    def _split_config_values_and_types(
+        source: dict[str, Any], values: dict[str, Any], types: dict[str, Any]
+    ) -> None:
+        """Separate configuration values from the schema tree used by the model."""
+        for key, item in source.items():
+            if key == "_schema":
+                types[key] = item
+            elif isinstance(item, dict):
+                values[key] = {}
+                types[key] = {}
+                ConfigEditWidget._split_config_values_and_types(item, values[key], types[key])
+            else:
+                values[key] = item
+
+    def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
+        """Update the configuration data in the widget."""
+        reload_config()
+        syst_dict = self._config_from_systemfile()
 
         # parse config from system info (from subprocess)
         if self.system_info is not None:
             for system_name, config_info in self.system_info.config.items():
-                if system_name not in syst_dict:
-                    syst_dict[system_name] = {}
-
-                # Check for Pydantic-based config (contains 'value' and 'schema' keys)
-                if (
-                    isinstance(config_info, dict)
-                    and "value" in config_info
-                    and "schema" in config_info
-                ):
-                    syst_dict[system_name] = copy.deepcopy(config_info["value"])
-                    syst_dict[system_name]["_schema"] = config_info["schema"]
-                    continue
-
-                # Add runtime config from system info
-                for key, value_info in config_info.items():
-                    if isinstance(value_info, dict):
-                        if "value" in value_info:
-                            # Extract just the value from the nested structure
-                            syst_dict[system_name][key] = value_info["value"]
-                        else:
-                            # If it's a dict but doesn't have 'value' key,
-                            # it might be the nested structure itself, skip it
-                            continue
-                    else:
-                        syst_dict[system_name][key] = value_info
-
-            # Try to get type information from config system for all systems with config
-            for system_name, config_info in self.system_info.config.items():
-                if system_name in syst_dict:
-                    try:
-                        system_config = resolve_config_path(matr1x.config, system_name)
-                        if "_schema" not in syst_dict[system_name] and hasattr(
-                            system_config, "model_json_schema"
-                        ):
-                            syst_dict[system_name]["_schema"] = system_config.model_json_schema()
-                    except Exception:
-                        # If we can't get type info, continue without it
-                        pass
-
-        def parse_dict_and_types(d, dv, dt):
-            for key, item in d.items():
-                if key == "_schema":
-                    dt["_schema"] = item
-                    continue
-                elif isinstance(item, dict):
-                    dv[key] = {}
-                    dt[key] = {}
-                    parse_dict_and_types(item, dv[key], dt[key])
-                else:
-                    dv[key] = item
+                self._add_system_config(syst_dict, system_name, config_info)
+            self._add_missing_system_schemas(syst_dict)
 
         self.value_dict = {}
         self.types_dict = {}
-
-        parse_dict_and_types(syst_dict, self.value_dict, self.types_dict)
+        self._split_config_values_and_types(syst_dict, self.value_dict, self.types_dict)
 
         super().update_data(self.value_dict, self.types_dict)
         self._apply_system_config_validation_errors()
@@ -1846,18 +1867,33 @@ class ConfigEditWidget(MetaViewerWidget):
         return items
 
     def apply_config_dict(self, config: dict) -> None:
-        """Apply values from a nested config dict to the tree items."""
+        """Apply values for configuration sections present in the current tree."""
+        self._apply_config_value(config)
 
-        def _merge(base: dict, update: dict) -> None:
-            """Deep-merge update into base."""
-            for key, val in update.items():
-                if key in base and isinstance(base[key], dict) and isinstance(val, dict):
-                    _merge(base[key], val)
-                else:
-                    base[key] = val
+    def _apply_config_value(self, value: Any, path: str = "") -> None:
+        """Apply a configuration value or recursively apply its child values."""
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f"{path}.{key}" if path else key
+                self._apply_config_value(child, child_path)
+            return
 
-        _merge(self.value_dict, self.flatten_dict(config))
-        super().update_data(self.value_dict, self.types_dict)
+        # Do not turn a missing required field into a literal null value.
+        if value is None:
+            return
+        index = self._index_for_config_path(path)
+        if not index.isValid():
+            return
+
+        validation_error = None
+        if self.model.type(index).get("ui_type") == "visa_resource":
+            try:
+                value = validate_visa_resource(str(value))
+            except ValueError as exc:
+                validation_error = str(exc)
+        self.model.setData(index, value, Qt.ItemDataRole.EditRole)
+        self.model.set_validation_error(index, validation_error)
+        self.model.dataChanged.emit(index, index)
 
     @classmethod
     def _parse_leaf_item(cls, item: MetaViewerWidget.TreeItem) -> Any:

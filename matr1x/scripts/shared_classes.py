@@ -291,7 +291,7 @@ class SystemListWidget(QListWidget):
                 "you can correct the configuration; fix these entries before execution:\n\n"
                 + "".join(system_info.value.config_validation_errors)
             )
-            self.message.emit(NotifierMessage(warning_text, level=logging.ERROR))
+            self.message.emit(NotifierMessage(warning_text, level=logging.WARNING))
         for warning in system_info.value.warnings:
             self.message.emit(NotifierMessage(warning, level=logging.WARNING))
         self._cached_system_info = system_info.value
