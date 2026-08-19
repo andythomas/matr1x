@@ -460,7 +460,9 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.setWindowTitle(f"Matrix Preview: {self.file_dir}")
         self.file_list_refresh()
         self.file_index = self.data_files.index(self.filename.name)
-        self.update_thread = None
+        if self.update_thread is not None:
+            self.update_thread.terminate()
+            self.update_thread = None
         self.lu_time = time.time()
         self.fetch_data()
         self.multidim = False
@@ -482,10 +484,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.widgets.file_selector.blockSignals(True)
         self.ui.widgets.file_selector.clear()
         self.ui.widgets.file_selector.addItems(self.data_files)
-        index = self.data_files.index(ctext)
-        self.ui.widgets.file_selector.setCurrentIndex(index)  # current index can differ from
-        # self.file_index, problem?
+        if ctext in self.data_files:
+            self.ui.widgets.file_selector.setCurrentIndex(self.data_files.index(ctext))
         self.ui.widgets.file_selector.blockSignals(False)
+        # keep the file index in sync with the displayed selection
+        self.file_index = self.ui.widgets.file_selector.currentIndex()
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Store toolbar position on close."""
@@ -679,8 +682,10 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 # file has different columns
                 # reload interface
                 for i in range(3):
+                    self.ui.widgets.column_selector[i].blockSignals(True)
                     self.ui.widgets.column_selector[i].clear()
                     self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
+                    self.ui.widgets.column_selector[i].blockSignals(False)
                 self.reset()
         else:
             self.spw.refresh_all_plots()
