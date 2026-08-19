@@ -86,6 +86,19 @@ if sys.platform == "win32":
 # A sentinel value for when there is no data
 NO_DATA = None
 
+# Error messages for the dimension errors returned by the reload_data functions
+PLOT_ERROR_MESSAGES = {
+    -1: "data axis cannot be reshaped, lengths not multiples",
+    -2: "data has too high dimension for 1d slicing",
+    -3: "no data selected",
+    -4: "data shapes complicated, do not know what to do",
+    -5: "data has too low or too high dimension for 2d plot",
+    -6: "data has too high dimension for 2d slicing",
+    -7: "data in x does not have correct dimension",
+    -8: "data in y does not have correct dimension",
+    -9: "data array with zero length dimension is present",
+}
+
 
 class PlotData(TypedDict):
     """Data structure for plotting with type information."""
@@ -419,10 +432,12 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def eventFilter(self, a0, a1):
         """Update the file view if required."""
-        if a0 == self.ui.widgets.file_selector:
-            if a1 is not None and a1.type() == QEvent.Type.MouseButtonPress:
-                self.update_file_combo()
-            return False
+        if (
+            a0 == self.ui.widgets.file_selector
+            and a1 is not None
+            and a1.type() == QEvent.Type.MouseButtonPress
+        ):
+            self.update_file_combo()
         return False
 
     def load_button_pressed(self):
@@ -453,12 +468,10 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def file_list_refresh(self):
         """Refresh all files with the correct extension in the selected directory."""
-        files = self.file_dir.iterdir()
-        self.data_files = [file.name for file in files if file.suffix in self.allowed_extensions]
-        self.data_files = sorted(
-            self.data_files,
-            key=lambda t: (self.file_dir / t).stat().st_mtime,
-        )
+        names = [
+            file.name for file in self.file_dir.iterdir() if file.suffix in self.allowed_extensions
+        ]
+        self.data_files = sorted(names, key=lambda t: (self.file_dir / t).stat().st_mtime)
 
     def update_file_combo(self):
         """Update the combo box that displays the file names."""
@@ -675,11 +688,9 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
     def index_changed(self, newIndex):
         """If index changed, reload the new data and handle the gui interaction."""
         if self.ui.widgets.column_selector[0] == self.sender():
+            self.ui.widgets.column_selector[1].setEnabled(newIndex != 0)
             if newIndex == 0:
-                self.ui.widgets.column_selector[1].setEnabled(False)
                 self.ui.widgets.column_selector[1].setCurrentIndex(0)
-            else:
-                self.ui.widgets.column_selector[1].setEnabled(True)
         self.reload_data()
 
     def transpose_toggled(self, check_state):
@@ -791,19 +802,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         from the updatethread, therefore make it update all windows.
         """
         filename = expect_not_none(self.filename, "Trying to fetch data, but filename is None!")
+        # skip updates if delta is below 20s and filesize is > 300kB
+        # to avoid overloading the system with read queries
+        skip_update = filename.stat().st_size > 300000 and time.time() - self.lu_time < 20
         ret = 0
-        if force is True:
-            # file has changed after last update,
-            # reload the data into the file structure
-            ret = self.fetch_data(check=check)
-            self.reload_data()
-            self.spw.refresh_all_plots()
-            self.refresh_columns_size()
-        elif filename.stat().st_size > 300000 and time.time() - self.lu_time < 20:
-            # skip updates if delta is below 20s and filesize is > 300kB
-            # to avoid overloading the system with read queries
-            pass
-        elif self.lu_time < filename.stat().st_mtime:
+        if force is True or (not skip_update and self.lu_time < filename.stat().st_mtime):
             # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
@@ -855,7 +858,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             names = self.header["columns"]
             units = self.header["units"]
             shapes = [self.data[col].shape for col in names]
-            if check is True:
+            if check:
                 if self.names != names:
                     ret = -1
                 elif shapes != self.shapes:
@@ -869,15 +872,14 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.shapes = shapes
             # update meta data info
             self.meta_viewer.update_data(self.header)
-        except Exception:
+        except Exception as exc:
             # file could not be opened
-            _exc_type, exc_value, _exc_traceback = sys.exc_info()
-            _ = QMessageBox.critical(
+            QMessageBox.critical(
                 self,
                 "Error when opening file",
                 f"""
 The following error was raised when opening the file:
-{exc_value!r}
+{exc!r}
 Please investigate the error and eventually restart matrix-preview""",
             )
             sys.exit(-1)
@@ -907,25 +909,9 @@ Please investigate the error and eventually restart matrix-preview""",
 
     def handle_error(self, ret):
         """Handle a possible dimension error of the reload_data function."""
-        if ret == -1:
-            self.raise_error("data axis cannot be reshaped, lengths not multiples")
-        elif ret == -2:
-            self.raise_error("data has too high dimension for 1d slicing")
-        elif ret == -3:
-            self.raise_error("no data selected")
-        elif ret == -4:
-            self.raise_error("data shapes complicated, do not know what to do")
-        elif ret == -5:
-            self.raise_error("data has too low or too high dimension for 2d plot")
-        elif ret == -6:
-            self.raise_error("data has too high dimension for 2d slicing")
-        elif ret == -7:
-            self.raise_error("data in x does not have correct dimension")
-        elif ret == -8:
-            self.raise_error("data in y does not have correct dimension")
-        elif ret == -9:
-            self.raise_error("data array with zero length dimension is present")
-        if ret > 0 and self.error is True:
+        if (message := PLOT_ERROR_MESSAGES.get(ret)) is not None:
+            self.raise_error(message)
+        elif ret > 0 and self.error:
             self.error = False
             self.ui.widgets.status.setVisible(False)
 
