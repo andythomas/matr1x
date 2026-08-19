@@ -153,7 +153,7 @@ input_bool(query, timeout, default_value)
 input_numerical(query, timeout, default_value, min_value, max_value, step, decimals)
 end_script(finished)
 print(*args, sep, end, file, flush)
-init_datafile(filename, comment, append, print_header, ntot,
+init_datafile(filename, comment, append, print_header, ntot (deprecated),
               reset_meta_data, reset_date)
 measure_system(print_setpoint, print_data, print_telemetry)
 

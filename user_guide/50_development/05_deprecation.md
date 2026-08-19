@@ -34,6 +34,7 @@ Please note that the notiications overwrite each other and inform the correspond
 | :-------------------- | :---------: | :-----: |
 | initialized `system`  |    8.5.0    | >=8.7.0 |
 | `root_path` in config |    8.5.0    | >=8.7.0 |
+| `ntot` in `init_datafile` | 8.6.0   | >=8.8.0 |
 
 ## Removed in the current `development` version
 

@@ -45,6 +45,7 @@ from matr1x.models import MeasuredValues as _MeasuredValues
 from matr1x.models import Message as _Message
 from matr1x.models import SetValues as _SetValues
 from matr1x.models import Telemetry as _Telemetry
+from matr1x.script_analysis import infer_point_counts as _infer_point_counts
 from matr1x.system import MergedSystem as _MergedSystem
 
 if _typing.TYPE_CHECKING:
@@ -80,6 +81,10 @@ _starttime = _time.time()
 _preset = _starttime
 _reset_kwargs = {}
 _user_script_start_line, _user_script_end_line = _matrix_util.get_user_script_line_range(_script)
+_user_script = _textwrap.dedent(
+    "\n".join(_script.splitlines()[_user_script_start_line - 1 : _user_script_end_line])
+)
+_inferred_point_counts = _infer_point_counts(_user_script)
 
 
 def _configure_execution_path(scriptname: str | _Path) -> None:
@@ -538,8 +543,8 @@ def init_datafile(
         Flag to decide if the header information with column names and
         units should be printed.
     ntot : int, optional
-        Total number of expected datapoints for estimation of remaining
-        measurement time.
+        Deprecated manual total number of expected datapoints. When omitted,
+        matrix-script infers the total from statically analyzable source.
     reset_meta_data : bool, optional
         If True, reset metadata to the values captured at script start
         before creating a new file.
@@ -556,7 +561,18 @@ def init_datafile(
     if reset_date:
         _system.dcdata["date"] = _time.strftime(f"{_matr1x.datetimefmt}", _time.localtime())
 
-    _ntot = ntot
+    if ntot is None:
+        caller_lines = [line - _user_script_start_line + 1 for line in _find_caller_lines()]
+        _ntot = _inferred_point_counts.for_call_lines(caller_lines)
+    else:
+        _ntot = ntot
+        _report(
+            _Message(
+                "[MATR1X_DEPRECATED] init_datafile(ntot=...) is deprecated; "
+                "the point total is inferred automatically.",
+                to_comment=False,
+            )
+        )
     _npoints = 0  # reset the number of measurement points
     _starttime = _time.time()
 
@@ -605,10 +621,10 @@ def measure_system(
     _interrupt(duration=0)  # equivalent to @_breakpoint with transparent signature
     _show_lineno()
     global _preset, _npoints
-    _npoints += 1
-    preread = _time.time()
     if not _system.filename:
         init_datafile("")
+    _npoints += 1
+    preread = _time.time()
     _report(_SetValues(_setvalues, to_stdout=print_setpoint))
     _reset_setvalues()
     _system.trigger()
