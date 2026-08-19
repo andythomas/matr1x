@@ -565,7 +565,8 @@ def init_datafile(
     )
     if not append or not safe_filename.exists():
         # write header to file
-        _system.dcdata["description"] = comment
+        if comment is not None:
+            _system.dcdata["description"] = comment
         msg, outputfile = _system.init_datafile(_scriptname or "matrix script generated")
         _report(_Message(f"{msg}: {outputfile}"))
         _report(_Message("acquired configuration, and initialized file"))
