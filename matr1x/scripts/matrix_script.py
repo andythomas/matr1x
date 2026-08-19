@@ -48,7 +48,6 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QDialog,
-    QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
     QGroupBox,
@@ -78,7 +77,6 @@ from matr1x.gui_util import (
     LoggingWindow,
     LogWindowMixin,
     MApplication,
-    blocked_signals,
     check_config,
     create_matr1x_quit_action,
     create_matrix_settings_action,
@@ -108,11 +106,12 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.scripts.shared_classes import (
+    ContentDockWidget,
     MeasurementItem,
+    MeasurementTable,
     MeasurementThread,
     MeasurementUI,
     MetaDataDialog,
-    MetadataDockWidget,
     MMainWindow,
     MToolBar,
     Notifier,
@@ -585,37 +584,6 @@ class TerminalOutput(QPlainTextEdit):
             self.moveCursor(QTextCursor.MoveOperation.End)
 
 
-class TerminalDockWidget(QDockWidget):
-    """Dock widget for the terminal output."""
-
-    def __init__(self, widget: QWidget) -> None:
-        """Initialize the terminal dock widget."""
-        super().__init__("Terminal")
-        self.setObjectName("terminal_dock")
-        self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
-        self.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetMovable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
-        self.setWidget(widget)
-        self.action = QAction(get_matrix_icon("CHAR_T"), "Terminal", self)
-        self.action.setShortcut(QKeySequence("Ctrl+4"))
-        self.action.setCheckable(True)
-        self.action.setChecked(True)
-        self.action.triggered.connect(self.toggle_terminal_view)
-        self.visibilityChanged.connect(self._sync_terminal_view)
-
-    def toggle_terminal_view(self, checked: bool) -> None:
-        """Toggle the visibility of the terminal."""
-        self.setVisible(checked)
-
-    def _sync_terminal_view(self) -> None:
-        """Match view action state to the restored widget visibility."""
-        with blocked_signals(self.action):
-            self.action.setChecked(not self.isHidden())
-
-
 if sys.platform == "win32":
     try:
         from ctypes import windll
@@ -669,7 +637,7 @@ class ActionGroup:
 class WidgetGroup:
     """Widgets to be used in the GUI."""
 
-    dockable_metadata: MetadataDockWidget
+    dockable_metadata: ContentDockWidget
     meta_view: MetaDataDialog
     system_list: SystemListWidget
     status_preview: TerminalOutput
@@ -679,7 +647,9 @@ class WidgetGroup:
     config_editor: ConfigEditWidget
     save_button: QToolButton
     stop_button: QToolButton
-    terminal_dock: TerminalDockWidget
+    terminal_dock: ContentDockWidget
+    table: MeasurementTable
+    table_dock: ContentDockWidget
     central_widget: CentralWidget
     python_info: QLabel
     lsp_info: QLabel
@@ -762,7 +732,15 @@ class UIBuilder:
         WidgetGroup
             The dataclass with all the widgets.
         """
-        dockable_metadata = MetadataDockWidget()
+        meta_view = MetaDataDialog()
+        dockable_metadata = ContentDockWidget(
+            "Metadata",
+            "dockable_metadata",
+            "SP_FileDialogListView",
+            "Ctrl+2",
+            meta_view,
+            areas=(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea),
+        )
         system_list = SystemListWidget()
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
@@ -785,7 +763,11 @@ class UIBuilder:
         stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         stop_button.setIcon(get_matrix_icon("CUSTOM_Stop"))
         stop_button.setText("Abort")
-        terminal_dock = TerminalDockWidget(status_preview)
+        terminal_dock = ContentDockWidget(
+            "Terminal", "terminal_dock", "CHAR_T", "Ctrl+4", status_preview
+        )
+        table = MeasurementTable()
+        table_dock = ContentDockWidget("Table", "table_dock", "CHAR_M", "Ctrl+5", table)
         central_widget = CentralWidget()
         python_info = QLabel(f"Python {platform.python_version()}")
         python_info.setToolTip(f"Python: {sys.version}")
@@ -796,7 +778,7 @@ class UIBuilder:
 
         return WidgetGroup(
             dockable_metadata=dockable_metadata,
-            meta_view=dockable_metadata.meta_view,
+            meta_view=meta_view,
             system_list=system_list,
             status_preview=status_preview,
             script_edit=script_edit,
@@ -806,6 +788,8 @@ class UIBuilder:
             save_button=save_button,
             stop_button=stop_button,
             terminal_dock=terminal_dock,
+            table=table,
+            table_dock=table_dock,
             central_widget=central_widget,
             python_info=python_info,
             lsp_info=lsp_info,
@@ -977,6 +961,7 @@ class UIBuilder:
         view.addAction(self.widgets.dockable_metadata.action)
         view.addAction(self.actions.config)
         view.addAction(self.widgets.terminal_dock.action)
+        view.addAction(self.widgets.table_dock.action)
         view.addSeparator()
         view.addAction(self.actions.matrix_settings)
         help_menu = menu.addMenu("&Help")
@@ -1042,6 +1027,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor,
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.table_dock)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.terminal_dock)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
@@ -1134,8 +1120,10 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.progressbar.setValue(data.point)
             if data.to_stdout:
                 self.write_output(str(data) + "\n")
-        elif isinstance(data, (Header, SetValues, MeasuredValues)) and data.to_stdout:
-            self.write_output(str(data) + "\n")
+        elif isinstance(data, (Header, SetValues, MeasuredValues)):
+            self.ui.widgets.table.apply(data)
+            if data.to_stdout:
+                self.write_output(str(data) + "\n")
         elif isinstance(data, ExecutionLines):
             self.ui.widgets.script_edit.highlight([line - self.line_offset for line in data.lines])
         elif isinstance(data, Datafile):
@@ -1574,6 +1562,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.enable_buttons(False)
         self._flush_output_buffer()
         self.ui.widgets.progressbar.setValue(0)
+        self.ui.widgets.table.reset()
         if self.measurement_failed:
             self.ui.widgets.status_preview.print_colored("\nExecution failed")
         else:
@@ -1621,6 +1610,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 return
         self.measurement_failed = False
         self.ui.widgets.progressbar.setValue(0)
+        self.ui.widgets.table.reset()
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
