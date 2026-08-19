@@ -399,105 +399,137 @@ class SystemListWidget(QListWidget):
         """Add static systems once and stateful systems once per free group."""
         existing_sources = {self.item(i).data(self.SOURCE_ROLE) for i in range(self.count())}
         for filename in filenames:
-            try:
-                requested_reference = SystemReference.from_value(filename)
-            except ValidationError as error:
-                self.message.emit(NotifierMessage(str(error), level=logging.WARNING))
+            candidate_result = self._system_candidate(filename)
+            if candidate_result is None:
                 continue
-            requested_source = requested_reference.source
-            try:
-                module = importlib.util.find_spec(requested_source)
-            except ModuleNotFoundError:
-                module = None
-            if module is None:
-                resolved_source = Path(requested_source).resolve()
-                module_name = self.get_importable_module_name(resolved_source)
-            else:
-                module_name = module.name
-                resolved_source = Path(requested_source)
-            candidate = str(module_name if module_name is not None else resolved_source)
-            import_check = self.test_import(candidate)
-            if isinstance(import_check, Error):
-                msg = NotifierMessage(
-                    f"{candidate} could not import and was omitted: {import_check.error}",
+            candidate, requested_reference, capability = candidate_result
+            if not self._accept_static_candidate(
+                candidate, requested_reference, capability, existing_sources
+            ):
+                continue
+            state = self._state_for_candidate(candidate, requested_reference, capability)
+            if capability.stateful and state is None:
+                continue
+            self._add_system_item(candidate, capability, state)
+            self.systems_changed()
+            existing_sources.add(candidate)
+            self._base_directory = Path(requested_reference.source)
+
+    def _system_candidate(
+        self, filename: str
+    ) -> tuple[str, SystemReference, SystemCapability] | None:
+        """Normalize, import, and inspect one requested system source."""
+        try:
+            reference = SystemReference.from_value(filename)
+        except ValidationError as error:
+            self.message.emit(NotifierMessage(str(error), level=logging.WARNING))
+            return None
+        source = reference.source
+        try:
+            module = importlib.util.find_spec(source)
+        except ModuleNotFoundError:
+            module = None
+        resolved = Path(source).resolve()
+        candidate = str(
+            module.name
+            if module is not None
+            else self.get_importable_module_name(resolved) or resolved
+        )
+        capability_result = self.test_import(candidate)
+        if isinstance(capability_result, Error):
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} could not import and was omitted: {capability_result.error}",
                     level=logging.WARNING,
                 )
-                self.message.emit(msg)
-                continue
-            capability = import_check.value
-            if requested_reference.state is not None and not capability.stateful:
-                self.message.emit(
-                    NotifierMessage(
-                        f"{candidate} is static and does not accept a state.",
-                        level=logging.WARNING,
-                    )
-                )
-                continue
-            if not capability.stateful and candidate in existing_sources:
-                msg = NotifierMessage(f"{candidate} is already present and was omitted.")
-                self.message.emit(msg)
-                continue
+            )
+            return None
+        return candidate, reference, capability_result.value
 
-            if not capability.stateful and any(
-                self.item(i).data(self.CLASS_ROLE) == capability.class_name
-                for i in range(self.count())
-            ):
-                msg = NotifierMessage(
+    def _accept_static_candidate(
+        self,
+        candidate: str,
+        reference: SystemReference,
+        capability: SystemCapability,
+        existing_sources: set[Any],
+    ) -> bool:
+        """Reject duplicate or state-qualified static systems."""
+        if capability.stateful:
+            return True
+        if reference.state is not None:
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} is static and does not accept a state.",
+                    level=logging.WARNING,
+                )
+            )
+            return False
+        if candidate in existing_sources:
+            self.message.emit(NotifierMessage(f"{candidate} is already present and was omitted."))
+            return False
+        if any(
+            self.item(index).data(self.CLASS_ROLE) == capability.class_name
+            for index in range(self.count())
+        ):
+            self.message.emit(
+                NotifierMessage(
                     f"{candidate} was omitted: duplicate system class name "
                     f"'{capability.class_name}'.",
                     level=logging.WARNING,
                 )
-                self.message.emit(msg)
-                continue
+            )
+            return False
+        return True
 
-            state = None
-            if capability.stateful:
-                state = requested_reference.state or self._first_state_in_free_group(
-                    candidate, capability
+    def _state_for_candidate(
+        self,
+        candidate: str,
+        reference: SystemReference,
+        capability: SystemCapability,
+    ) -> str | None:
+        """Return the allowed selected state, reporting validation failures."""
+        if not capability.stateful:
+            return None
+        state = reference.state or self._first_state_in_free_group(candidate, capability)
+        if state is None:
+            self.message.emit(
+                NotifierMessage(f"{candidate} already uses every available state group.")
+            )
+        elif state not in capability.states:
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} does not define state {state!r}.", level=logging.WARNING
                 )
-                if state is None:
-                    self.message.emit(
-                        NotifierMessage(f"{candidate} already uses every available state group.")
-                    )
-                    continue
-                if state not in capability.states:
-                    self.message.emit(
-                        NotifierMessage(
-                            f"{candidate} does not define state {state!r}.",
-                            level=logging.WARNING,
-                        )
-                    )
-                    continue
-                if self._group_is_used(
-                    candidate,
-                    capability.state_exclusion_groups[state],
-                ):
-                    self.message.emit(
-                        NotifierMessage(
-                            f"{candidate} state {state!r} conflicts with an already "
-                            "selected state.",
-                            level=logging.WARNING,
-                        )
-                    )
-                    continue
+            )
+        elif self._group_is_used(candidate, capability.state_exclusion_groups[state]):
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} state {state!r} conflicts with an already selected state.",
+                    level=logging.WARNING,
+                )
+            )
+        else:
+            return state
+        return None
 
-            item = QListWidgetItem()
-            item.setData(self.SOURCE_ROLE, candidate)
-            item.setData(self.STATE_ROLE, state)
-            item.setData(self.STATEFUL_ROLE, capability.stateful)
-            item.setData(self.CLASS_ROLE, capability.class_name)
-            item.setData(self.STATES_ROLE, capability.states)
-            item.setData(self.GROUPS_ROLE, capability.state_exclusion_groups)
-            self._update_item_token(item)
-            if capability.stateful:
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-            super().addItem(item)
-            if capability.stateful:
-                self.openPersistentEditor(item)
-                self._sync_selection_highlights()
-            self.systems_changed()
-            existing_sources.add(candidate)
-            self._base_directory = Path(requested_source)
+    def _add_system_item(
+        self, candidate: str, capability: SystemCapability, state: str | None
+    ) -> None:
+        """Create and insert one fully described system-list item."""
+        item = QListWidgetItem()
+        item.setData(self.SOURCE_ROLE, candidate)
+        item.setData(self.STATE_ROLE, state)
+        item.setData(self.STATEFUL_ROLE, capability.stateful)
+        item.setData(self.CLASS_ROLE, capability.class_name)
+        item.setData(self.STATES_ROLE, capability.states)
+        item.setData(self.GROUPS_ROLE, capability.state_exclusion_groups)
+        self._update_item_token(item)
+        if capability.stateful:
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+        super().addItem(item)
+        if capability.stateful:
+            self.openPersistentEditor(item)
+            self._sync_selection_highlights()
 
     def _group_is_used(
         self,
