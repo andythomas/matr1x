@@ -127,6 +127,7 @@ class WidgetGroup:
 
     about_box: AboutBox
     central_widget: QWidget
+    file_selector: QComboBox
     axes_list: list[QLabel]
     column_selector: list[QComboBox]
     plot2d: QCheckBox
@@ -164,33 +165,29 @@ class UIBuilder:
         self.widgets: WidgetGroup = self._create_widgets()
         self.toolbar: MToolBar = self._create_toolbar()
         self.grid: QGridLayout = self._create_gui()
-        # gui
-        self.file_selector: QComboBox
         self.menubar: QMenuBar = self._create_menu()
 
     def _create_widgets(self) -> WidgetGroup:
         """Create all required widgets."""
-        axel_list = [QLabel("y"), QLabel("x"), QLabel("y")]
-        axel_list[2].setVisible(False)
-
+        axes_list = [QLabel("y"), QLabel("x"), QLabel("y")]
+        axes_list[2].setVisible(False)
         column_selector = [QComboBox(), QComboBox(), QComboBox()]
         for i in range(3):
             column_selector[i].setEnabled(False)
         column_selector[2].setVisible(False)
-
         plot2d = QCheckBox("2d plotting")
         plot2d_comp = QCheckBox("2d complex")
         plot2d_comp.setVisible(False)
         transpose = QCheckBox("transpose")
         transpose.setVisible(False)
-
         placeholder = QLabel("")
         placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         placeholder.setMinimumHeight(350)
-
         status = QLabel("")
         status.setStyleSheet("QLabel { color : red; }")
-
+        file_selector = QComboBox()
+        file_selector.setEnabled(False)
+        file_selector.setMinimumContentsLength(50)
         return WidgetGroup(
             about_box=AboutBox(
                 "Matrix Preview",
@@ -199,7 +196,8 @@ class UIBuilder:
                 matr1x.datetimefmt,
             ),
             central_widget=QWidget(),
-            axes_list=axel_list,
+            file_selector=file_selector,
+            axes_list=axes_list,
             column_selector=column_selector,
             plot2d=plot2d,
             plot2d_comp=plot2d_comp,
@@ -288,10 +286,7 @@ class UIBuilder:
         toolbar.addWidget(toolbar.spacer)
         toolbar.addSeparator()
         toolbar.addAction(self.actions.previous)
-        self.file_selector = QComboBox()
-        self.file_selector.setEnabled(False)
-        self.file_selector.setMinimumContentsLength(50)
-        toolbar.addWidget(self.file_selector)
+        toolbar.addWidget(self.widgets.file_selector)
         toolbar.addAction(self.actions.next)
         toolbar.addSeparator()
         toolbar.addAction(self.actions.meta)
@@ -359,7 +354,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.error = False
         self.lu_time = 0.0
 
-        # Thread and update properties
         self.update_thread: UpdateThread | None = None
 
         # UI components that are not part of the UIBuilder
@@ -381,14 +375,18 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         # although this seems counter intuitive. setting the minimum width
         # limits the maximum window size in case long filenames are used.
-        # see #328
         self.setMinimumWidth(800)
-        self.setMaximumWidth(self._get_maximum_screen_width())
+        self.setMaximumWidth(
+            max(screen.geometry().width() for screen in MApplication.instance().screens())
+        )
         self.ui = UIBuilder()
         self.ui.widgets.placeholder.setText(
             f"No file loaded.\n\nOpen a matrix file ({', '.join(self.allowed_extensions)}) "
             "or drag & drop it onto this window."
         )
+        # the plot widget is created here instead of in the UIBuilder, since it
+        # requires callbacks to this window; it is replaced by a placeholder
+        # until a file is loaded
         self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
         # minimum height of plot widget, could be removed but then
         # window always needs to be resized
@@ -400,17 +398,17 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.show()
         check_config(matr1x.config)
-        self._create_connections()
         # allow to store the settings
         self.settings = SaferQSettings("matr1x", "preview")
         self.meta_viewer = MetaViewerWidget(self.header)
         self.setup_meta_viewer()
+        self._create_connections()
         # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # Only connect for root windows (parent=None) to avoid duplicate connections
         application = MApplication.instance()
         if parent is None:
-            application.connect_file_handler(self._open_file_from_signal)
+            application.connect_file_handler(lambda filename: self.open_file(Path(filename)))
         # initialize filename if available
         if filename:
             self.open_file(filename)
@@ -419,16 +417,9 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
         check_desktop_integration()
 
-    def _get_maximum_screen_width(self):
-        """Determine width of the biggest available screen."""
-        width = 0
-        for screen in MApplication.instance().screens():
-            width = max(width, screen.geometry().width())
-        return width
-
     def eventFilter(self, a0, a1):
         """Update the file view if required."""
-        if a0 == self.ui.file_selector:
+        if a0 == self.ui.widgets.file_selector:
             if a1 is not None and a1.type() == QEvent.Type.MouseButtonPress:
                 self.update_file_combo()
             return False
@@ -443,13 +434,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.closing_allowed = True
         if filename:
             self.open_file(Path(filename))
-
-    def _open_file_from_signal(self, filename: str):
-        """Convert string to Path for opening file.
-
-        This method is needed to handle file opening from signals on MacOS.
-        """
-        self.open_file(Path(filename))
 
     def open_file(self, filename: Path):
         """Read the data from the file."""
@@ -479,26 +463,26 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
     def update_file_combo(self):
         """Update the combo box that displays the file names."""
         self.file_list_refresh()
-        ctext = self.ui.file_selector.currentText()
-        self.ui.file_selector.setToolTip(str(self.file_dir))
-        self.ui.file_selector.blockSignals(True)
-        self.ui.file_selector.clear()
-        self.ui.file_selector.addItems(self.data_files)
+        ctext = self.ui.widgets.file_selector.currentText()
+        self.ui.widgets.file_selector.setToolTip(str(self.file_dir))
+        self.ui.widgets.file_selector.blockSignals(True)
+        self.ui.widgets.file_selector.clear()
+        self.ui.widgets.file_selector.addItems(self.data_files)
         index = self.data_files.index(ctext)
-        self.ui.file_selector.setCurrentIndex(index)  # current index can differ from
+        self.ui.widgets.file_selector.setCurrentIndex(index)  # current index can differ from
         # self.file_index, problem?
-        self.ui.file_selector.blockSignals(False)
+        self.ui.widgets.file_selector.blockSignals(False)
 
     def closeEvent(self, a0):
         """Store toolbar position on close."""
-        if self.closing_allowed:
-            if self.update_thread is not None:
-                self.update_thread.terminate()
-            self.save_window_state()
-            self.cleanup_log_window()
-            a0.accept()
-        else:
+        if not self.closing_allowed:
             a0.ignore()
+            return
+        if self.update_thread is not None:
+            self.update_thread.terminate()
+        self.save_window_state()
+        self.cleanup_log_window()
+        a0.accept()
 
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
@@ -531,7 +515,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.update.triggered.connect(lambda: self.conditional_fetch_data(True))
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
-        self.ui.actions.meta.triggered.connect(self.toggle_meta)
+        self.ui.actions.meta.triggered.connect(self.meta_viewer.setVisible)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
@@ -544,8 +528,8 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.widgets.plot2d.toggled.connect(self.plotting_toggled)
         self.ui.widgets.plot2d_comp.toggled.connect(self.plotting_complex)
         self.ui.widgets.transpose.toggled.connect(self.transpose_toggled)
-        self.ui.file_selector.currentIndexChanged.connect(self.file_index_changed)
-        self.ui.file_selector.installEventFilter(self)
+        self.ui.widgets.file_selector.currentIndexChanged.connect(self.file_index_changed)
+        self.ui.widgets.file_selector.installEventFilter(self)
 
     def setup_meta_viewer(self) -> None:
         """Configure the metadata view dock widget."""
@@ -575,11 +559,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.auto_update.blockSignals(False)
 
         # file list
-        self.ui.file_selector.blockSignals(True)
-        self.ui.file_selector.clear()
-        self.ui.file_selector.addItems(self.data_files)
-        self.ui.file_selector.setCurrentIndex(self.file_index)
-        self.ui.file_selector.blockSignals(False)
+        self.ui.widgets.file_selector.blockSignals(True)
+        self.ui.widgets.file_selector.clear()
+        self.ui.widgets.file_selector.addItems(self.data_files)
+        self.ui.widgets.file_selector.setCurrentIndex(self.file_index)
+        self.ui.widgets.file_selector.blockSignals(False)
 
         # column selectors
         self.column_items = [
@@ -602,16 +586,9 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.update.setEnabled(True)
         self.ui.actions.auto_update.setEnabled(True)
         self.ui.actions.previous.setEnabled(True)
-        self.ui.file_selector.setEnabled(True)
+        self.ui.widgets.file_selector.setEnabled(True)
         self.ui.actions.next.setEnabled(True)
         self.ui.actions.meta.setEnabled(True)
-
-    def toggle_meta(self, state):
-        """Toggle the meta data view."""
-        if state is True:
-            self.meta_viewer.setVisible(True)
-        else:
-            self.meta_viewer.setVisible(False)
 
     def get_filename_without_extension(self) -> str:
         """Return the actual filename without extension."""
@@ -629,45 +606,44 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.get_filename_without_extension() + ".png",
             "png files (*.png)",
         )[0]
-        if filename:
-            filename_path = Path(filename)
-            if filename_path.suffix.lower() != ".png":
-                filename_path = filename_path.with_suffix(".png")
-            if self.iv is not None:
-                exporter = pyqtgraph.exporters.ImageExporter(self.iv.view)
-                exporter.export(str(filename_path))
-            else:
-                self.spw.save_plot(str(filename_path))
+        if not filename:
+            return
+        filename_path = Path(filename)
+        if filename_path.suffix.lower() != ".png":
+            filename_path = filename_path.with_suffix(".png")
+        if self.iv is not None:
+            pyqtgraph.exporters.ImageExporter(self.iv.view).export(str(filename_path))
+        else:
+            self.spw.save_plot(str(filename_path))
 
     def save_data(self) -> None:
         """Ask for filename and save the displayed data in an text file."""
         columns = self.spw.get_columns()
-        suggested_filename = (
-            self.get_filename_without_extension() + "_" + columns[1] + "_" + columns[0]
-        )
+        suggested_filename = f"{self.get_filename_without_extension()}_{columns[1]}_{columns[0]}"
         filename = QFileDialog.getSaveFileName(
             self,
             "Select output text file",
             suggested_filename,
             "text files (*.txt)",
         )[0]
-        if filename:
-            filename_path = Path(filename)
-            if filename_path.suffix.lower() != ".txt":
-                filename_path = filename_path.with_suffix(".txt")
-            self.spw.save_data(str(filename_path))
+        if not filename:
+            return
+        filename_path = Path(filename)
+        if filename_path.suffix.lower() != ".txt":
+            filename_path = filename_path.with_suffix(".txt")
+        self.spw.save_data(str(filename_path))
 
     def previous_file(self):
         """Determine the previous file."""
         self.update_file_combo()
         if self.file_index > 0:
-            self.ui.file_selector.setCurrentIndex(self.file_index - 1)
+            self.ui.widgets.file_selector.setCurrentIndex(self.file_index - 1)
 
     def next_file(self):
         """Determine the next file."""
         self.update_file_combo()
         if self.file_index < len(self.data_files) - 1:
-            self.ui.file_selector.setCurrentIndex(self.file_index + 1)
+            self.ui.widgets.file_selector.setCurrentIndex(self.file_index + 1)
 
     def file_index_changed(self, index):
         """Update info when index changes."""
@@ -766,11 +742,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         This can be used as callback function to set
         errors from the SimplePlotWidget.
         """
-        if error != "":
-            self.ui.widgets.status.setVisible(True)
-            self.ui.widgets.status.setText(error)
+        if error:
             self.error = True
-        elif error == "" and self.error is True:
+            self.ui.widgets.status.setText(error)
+            self.ui.widgets.status.setVisible(True)
+        elif self.error:
             self.error = False
             self.ui.widgets.status.setVisible(False)
 
@@ -794,14 +770,14 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         """
         Run and terminate a thread that reloads the data from the file.
 
-        RUn if the filename has changed.
+        Run if the filename has changed.
         """
-        if state is True:
+        if state:
             # start updatethread with 2s refresh time
             self.update_thread = UpdateThread(2)
             self.update_thread.update_now.connect(self.conditional_fetch_data)
             self.update_thread.start()
-        if state is False and self.update_thread is not None:
+        elif self.update_thread is not None:
             self.update_thread.terminate()
             self.update_thread = None
 
@@ -1249,7 +1225,6 @@ def main(file: str | None = None):
         ex = SweepPreview(None, None)
     else:
         ex = SweepPreview(None, Path(sys.argv[1]))
-    ex.show()
     ex.restore_window_state()
     ret = app.exec()
     sys.exit(ret)
