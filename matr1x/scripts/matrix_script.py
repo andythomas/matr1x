@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
     QMenuBar,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QSplitter,
     QTextEdit,
@@ -656,6 +657,7 @@ class WidgetGroup:
     measurement_thread: MeasurementThread
     measurement_ui: MeasurementUI
     notifier: Notifier
+    progressbar: QProgressBar
 
 
 class UIBuilder:
@@ -732,6 +734,7 @@ class UIBuilder:
         system_list = SystemListWidget()
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
+        progressbar = QProgressBar()
         script_edit = CodeEditor()
         system_command_help = QDialog()
         box_layout = QVBoxLayout()
@@ -785,6 +788,7 @@ class UIBuilder:
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
             notifier=Notifier(logger),
+            progressbar=progressbar,
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -959,7 +963,7 @@ class UIBuilder:
         self.widgets.splitter.setChildrenCollapsible(False)
         layout.addWidget(self.widgets.splitter, 1)
         infobar = QHBoxLayout()
-        infobar.addStretch()
+        infobar.addWidget(self.widgets.progressbar, 1)
         infobar.addWidget(self.widgets.python_info)
         infobar.addWidget(QLabel("  |  "))
         infobar.addWidget(self.widgets.lsp_info)
@@ -1094,7 +1098,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def process_data(self, env: Envelope) -> None:
         """Process the data from the measurement thread."""
         data = env.payload
-        if isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)) and data.to_stdout:
+        if isinstance(data, Telemetry):
+            self.ui.widgets.progressbar.setMaximum(data.points)
+            self.ui.widgets.progressbar.setValue(data.point)
+            if data.to_stdout:
+                self.write_output(str(data) + "\n")
+        elif isinstance(data, (Header, SetValues, MeasuredValues)) and data.to_stdout:
             self.write_output(str(data) + "\n")
         elif isinstance(data, ExecutionLines):
             self.ui.widgets.script_edit.highlight([line - self.line_offset for line in data.lines])
@@ -1558,6 +1567,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.widgets.script_edit.removeHighlight()
         self.enable_buttons(False)
         self._flush_output_buffer()
+        self.ui.widgets.progressbar.setValue(0)
         if self.measurement_failed:
             self.ui.widgets.status_preview.print_colored("\nExecution failed")
         else:
@@ -1604,6 +1614,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             if ret == QMessageBox.StandardButton.Cancel:
                 return
         self.measurement_failed = False
+        self.ui.widgets.progressbar.setValue(0)
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
