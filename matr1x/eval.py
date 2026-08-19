@@ -22,7 +22,6 @@ package as well as functions for processing data in the preview.
 
 import ast
 import re
-import warnings
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
@@ -55,10 +54,10 @@ OptionalFields = TypedDict(
         "dcterms:creator": str,
         "dcterms:date": str,
         "dcterms:identifier": str,
-        "dcterms:relation": str | None,
+        "dcterms:relation": str,
         "dcterms:description": str,
         "dcterms:source": str,
-        "dcterms:type": str | None,
+        "dcterms:type": str,
         "dcterms:publisher": str,
         "dcterms:format": str,
         "dcterms:language": str,
@@ -106,9 +105,7 @@ def _is_hdf5(filename: Path) -> bool:
     filename = Path(filename)
     with filename.open("rb") as file:
         first_bytes = file.read(4)
-    if first_bytes == b"\x89HDF":
-        return True
-    return False
+    return first_bytes == b"\x89HDF"
 
 
 def _get_nested_dict(data: dict, path: list) -> dict:
@@ -545,7 +542,7 @@ def _load_hdf5_file(
 
         # parse additional attributes
         for key, val in h5f.attrs.items():
-            header[key.lower()] = val if val != "__None__" else None
+            header[key.lower()] = "" if val == "__None__" else val
 
         # parse System query entry into hierarchical dictionary
         if filename.suffix == ".ma8":
@@ -556,7 +553,7 @@ def _load_hdf5_file(
         # the following line relies on the fact that the first item has
         # the correct length, the code fails later if there are unequal
         # length
-        npoints = len(list(h5g.values())[0])
+        npoints = len(next(iter(h5g.values())))
         for name, v in h5g.items():
             if len(v.shape) == 1:
                 dtypeslist.append((name, v.dtype))
@@ -603,7 +600,7 @@ def _process_header_lines(
         key, val = strippedline.split(" :", maxsplit=1)
         key = key.strip()
         if val.strip() == "None":
-            val = None
+            val = ""
         else:
             val = val[1:]  # remove initial space
 
@@ -623,9 +620,7 @@ def _process_column_unit_lines(
 
     # Check if we should break based on file type
     should_break = False
-    if headerlines == 3:  # for ma6, ma7 files
-        should_break = True
-    elif extension == ".ma8" and headerlines == 2:  # ma8 files have only two header lines
+    if headerlines == 3 or extension == ".ma8" and headerlines == 2:  # for ma6, ma7 files
         should_break = True
 
     return headerlines, should_break
@@ -838,32 +833,6 @@ def loadmatrix(
         print(list(enumerate(header["columns"])))  # noqa: T201
 
     return header, data
-
-
-def loadh5matrix(filename: str | Path, filehandle=False):
-    """
-    Load matrix data is hdf5 format.
-
-    Note: This utility function is deprecated and is replaced by loadmatrix(filename)!
-
-    Parameters
-    ----------
-    filename : str or pathlib.Path
-        path to file
-    filehandle : bool, optional
-        not implemented, raises NotImplementedError if True
-    """
-    if filehandle:
-        raise NotImplementedError(
-            """
-            use h5py.File(filename, 'r', swmr=True, libver='latest') to open
-            the datafile for reading if loadmatrix is not sufficient.
-            """
-        )
-    msg = "loadh5matrix will be removed soon. use loadmatrix instead"
-    warnings.warn(msg, FutureWarning)
-    print(msg)  # noqa: T201
-    return loadmatrix(filename)
 
 
 ######################

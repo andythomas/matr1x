@@ -36,9 +36,9 @@ from matr1x.gui_util import (
 from matr1x.scripts.shared_classes import SaferQSettings
 
 __all__ = [
+    "check_desktop_integration",
     "post_installation",
     "remove_desktop_integration",
-    "check_desktop_integration",
 ]
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ DISTRIBUTION_NAME = "matr1x-measurements"
 
 project_root = Path(__file__).parent
 icns_path = project_root / "scripts" / "icons"
-mime_path = project_root.parent
+mime_path = project_root / "resources" / "desktop"
 suite_settings = SaferQSettings("matr1x", "common")
 start_menu_path = (
     Path.home()
@@ -303,9 +303,8 @@ def check_system_specifics() -> bool:
         result = all(check_command(cmd, desc) for cmd, desc in commands_to_check)
         return result
     elif "windows" in os_type:
-        # Set the PYTHONUTF8 environment variable for the current user
         os.environ["PYTHONUTF8"] = "1"
-        os.system("setx PYTHONUTF8 1")
+        subprocess.run(["setx", "PYTHONUTF8", "1"], check=True, capture_output=True)
         return True
     return True
 
@@ -349,7 +348,7 @@ def unix_integration() -> None:
                     "desktop-file-install",
                     "--mode=755",
                     f"--dir={Path.home() / '.local/share/applications'}",
-                    f"{str(mime_path)}/{desktop_file}",
+                    f"{mime_path!s}/{desktop_file}",
                     "--set-key=Exec",
                     f"--set-value={executable}",
                 ],
@@ -699,7 +698,7 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
                     xdg_install_basic_icon(str(icon), size="128"),
                     check=True,
                 )
-                desktop_file_name = Path(f"{str(mime_path)}/python.{pkgname}.{gui}.desktop")
+                desktop_file_name = Path(f"{mime_path!s}/python.{pkgname}.{gui}.desktop")
                 shutil.copy(mime_path / "matrix-controlGUI.desktop", desktop_file_name)
 
                 subprocess.run(
@@ -1050,8 +1049,10 @@ def remove_desktop_integration():
     remove = [
         sys.executable,
         "-c",
-        "from matr1x.post_install import uninstall_core_desktopintegration;"
-        "uninstall_core_desktopintegration()",
+        (
+            "from matr1x.post_install import uninstall_core_desktopintegration;"
+            "uninstall_core_desktopintegration()"
+        ),
     ]
     subprocess.run(remove)
     for pkg_name, section in config:

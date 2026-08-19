@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for controlling the Rohde & Schwarz FSW8 spectrum analyzer."""
 
-import time
 from struct import unpack
 from typing import Literal
 
@@ -180,6 +179,19 @@ class FSW8(VisaDevice):
         numpy.ndarray or None
             The sweep data if getData is True, otherwise None.
         """
+        if sweType == "fft":  # selects the sweep type
+            self.write("SWE:TYPE FFT")
+            # Set optimization parameters in FFT mode
+            # options: dynamic/speed/auto
+            self.write("SWE:OPT DYN")  # DYNamic
+        elif sweType == "sweep":
+            self.write("SWE:TYPE SWE")
+        elif sweType == "auto":
+            self.write("SWE:TYPE AUTO")
+        else:
+            print(f"Please choose a valid sweep type! Your input was:{sweType}")  # noqa: T201
+        self.query("*OPC?")
+
         if average:
             if avgType == "linear":
                 self.write("AVER:TYPE LIN")
@@ -198,71 +210,57 @@ class FSW8(VisaDevice):
                 # power averaging mode for correct power measurements in FFT
                 # sweep mode
             else:
-                print(f"Please choose a valid average type! Your input was:{avgType}")
-            time.sleep(0.5)
+                print(f"Please choose a valid average type! Your input was:{avgType}")  # noqa: T201
+            self.query("*OPC?")
+
+            if detector == "rms":
+                # Calculates the root mean square of all samples contained in a sweep point.
+                self.write("DETector RMS")
+            elif detector == "ape":
+                self.write("DETector APE")
+            elif detector == "average":
+                # Calculates the linear average of all samples contained in a sweep point
+                self.write("DETector AVER")
+            else:
+                print(f"Please choose a valid detector type! Your input was:{detector}")  # noqa: T201
 
             self.write("AVER:STAT ON")
             self.write(f"AVER:COUN {average}")
             self.maxAverage = max(average, self.maxAverage)
         else:
             self.write("AVER:STAT OFF")
-        time.sleep(0.5)
+        self.query("*OPC?")
 
         if intpreamp:  # internal preamplifier
             self.write("INP:GAIN:STAT ON")
             self.write(f"INP:GAIN:VAL {intpreamp}")
         else:
             self.write("INP:GAIN:STAT OFF")
-        time.sleep(0.5)
+        self.query("*OPC?")
 
         if attAuto is True:  # automatic internal attenuator
             self.write("INP:ATT:AUTO ON")
         else:
             self.write("INP:ATT:AUTO OFF")
             self.write(f"INP:ATT {attVal}dB")
-        time.sleep(0.5)
+        self.query("*OPC?")
 
-        self.write(f"SWE:POIN {str(swePoints)}")
-        self.write(f"BWID:RES {str(resBW)} Hz")
+        self.write(f"SWE:POIN {swePoints!s}")
+        self.write(f"BWID:RES {resBW!s} Hz")
         if vidBW:
-            self.write(f"BWID:VID {str(vidBW)} Hz")
+            self.write(f"BWID:VID {vidBW!s} Hz")
         else:
             # automatic video bandwidth selection
             self.write("BAND:VID:AUTO ON")
-        self.write(f"DISP:TRAC:Y:RLEV {str(refLev)}dbm")
-        time.sleep(0.5)
-
-        if sweType == "fft":  # selects the sweep type
-            self.write("SWE:TYPE FFT")
-        elif sweType == "sweep":
-            self.write("SWE:TYPE SWE")
-        elif sweType == "auto":
-            self.write("SWE:TYPE AUTO")
-        else:
-            print(f"Please choose a valid sweep type! Your input was:{avgType}")
-        time.sleep(0.5)
-
-        if detector == "rms":
-            # Calculates the root mean square of all samples contained in a sweep point.
-            self.write("DETector RMS")
-        elif detector == "ape":
-            # use auto peak as detector
-            self.write("DETector APE")
-        elif detector == "average":
-            # Calculates the linear average of all samples contained in a sweep point
-            self.write("DETector AVER")
-        else:
-            print(f"Please choose a valid detector type! Your input was:{detector}")
-
-        # Set optimization parameters in FFT mode
-        # options: dynamic/speed/auto
-        self.write("SWE:OPT DYN")  # DYNamic
+        self.write(f"DISP:TRAC:Y:RLEV {refLev!s}dbm")
+        self.query("*OPC?")
 
         # activates automatic sweep time.
         self.write("SWE:TIME:AUTO ON")
 
         # selects the coupling type AC of the RF input
         self.write("INP:COUP AC")  # options : AC / DC
+        self.query("*OPC?")
 
         if getData:
             return self.getSweepData()
@@ -300,8 +298,8 @@ class FSW8(VisaDevice):
         fSpan : float
             The frequency span in Hz.
         """
-        self.write(f"FREQ:CENT {str(fCent)} HZ")
-        self.write(f"FREQ:SPAN {str(fSpan)} HZ")
+        self.write(f"FREQ:CENT {fCent!s} HZ")
+        self.write(f"FREQ:SPAN {fSpan!s} HZ")
 
     @synchronized
     def setStartStopFreq(self, fStart, fStop):

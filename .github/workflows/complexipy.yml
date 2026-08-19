@@ -1,0 +1,72 @@
+name: Complexity check
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - main
+      - development
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  changes:
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    outputs:
+      related_code_changed: ${{ steps.filter.outputs.related_code_changed }}
+    steps:
+      - id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            related_code_changed:
+              - '**/*.py'
+              - '.github/workflows/**'
+
+  complexipy:
+    needs: changes
+    if: needs.changes.outputs.related_code_changed == 'true'
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Set up uv
+        uses: ./.github/actions/setup-uv
+        with:
+          activate-environment: true
+
+      - name: Install dependencies
+        run: |
+          uv export --locked --only-group dev --no-header --no-annotate --no-hashes --no-emit-project > "$RUNNER_TEMP/requirements.txt"
+          complexipy_requirement="$(grep -E '^complexipy==' "$RUNNER_TEMP/requirements.txt")"
+          uv tool install "$complexipy_requirement" --constraints "$RUNNER_TEMP/requirements.txt"
+        shell: bash
+
+      - name: Run complexipy
+        id: complexipy
+        run: complexipy .
+
+      - name: Create pull request on reduced complexity
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          commit-message: "chore: update complexipy baseline"
+          title: "Update complexipy baseline"
+          body: "Auto-generated PR lowering complexity baseline after improvements."
+          labels: complexipy, automated pr
+          branch: "complexipy-patches/${{ github.head_ref }}"
+          base: ${{ github.head_ref }}

@@ -22,6 +22,7 @@ This module contains tests for the matrix data acquisition software.
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
@@ -30,6 +31,8 @@ import pytest
 import matr1x.eval
 import matr1x.util
 from matr1x import output_extension
+from matr1x.execthread import ExecThread
+from matr1x.models import ExecutionLines, MeasurementData
 
 path = Path(__file__).resolve().parent
 
@@ -195,7 +198,7 @@ def test_matrix_script_dummy_merged():
         script = (
             "import matr1x.util as mu\n"
             "mu.matrix_script_process(\n"
-            f"{repr(tf.name)}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
+            f"{tf.name!r}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
             ")"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
@@ -220,8 +223,49 @@ def test_empty_script():
     """
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         script = (
-            "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, [])"
+            f"import matr1x.util as mu\nmu.matrix_script_process({tf.name!r}, {{}}, '', None, [])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0
+
+
+@pytest.mark.parametrize(
+    ("user_script", "expected_lines"),
+    [
+        (
+            'for i in range(2):\n    set_value("timeUTC", 0.001)\n    wait(0.001)\n',
+            [2, 3, 2, 3],
+        ),
+        (
+            'def set_time():\n    set_value("timeUTC", 0.001)\n\nset_time()\n',
+            [2],
+        ),
+    ],
+)
+def test_matrix_script_reports_only_user_line_numbers(user_script, expected_lines, monkeypatch):
+    """Line reporting keeps the nearest user line highlighted during external work."""
+    script = matr1x.util.generate_script(user_script)
+    thread = ExecThread(script, {}, "", None, [])
+    generated_lines: list[int] = []
+
+    def collect_line_numbers(data: MeasurementData) -> None:
+        if isinstance(data, ExecutionLines):
+            generated_lines.append(data.lines[0])
+
+    with monkeypatch.context() as patch:
+        patch.setattr(thread, "report", collect_line_numbers)
+        # Record the original process-wide function so the context restores it
+        # after the generated script decorates time.sleep.
+        patch.setattr(time, "sleep", time.sleep)
+        thread.run()
+
+    offset = matr1x.util.get_script_prefix_offset()
+    reported_lines = [line - offset for line in generated_lines]
+    distinct_lines = [
+        line
+        for index, line in enumerate(reported_lines)
+        if index == 0 or line != reported_lines[index - 1]
+    ]
+
+    assert distinct_lines == expected_lines
+    assert all(1 <= line <= len(user_script.splitlines()) for line in reported_lines)

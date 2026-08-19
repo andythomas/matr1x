@@ -691,14 +691,17 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def transpose_toggled(self, check_state):
         """Transpose has been toggled, reload data."""
-        if self.w_plot2d.isChecked() is True and self.w_plot2d_comp.isChecked() is False:
-            if len(self.shapes[self.column_selector[0].currentIndex() - 1]) < 3:
-                # toggle index for 2d data, since x and y invert role
-                dummy = self.column_selector[2].currentIndex()
-                self.column_selector[2].blockSignals(True)
-                self.column_selector[2].setCurrentIndex(self.column_selector[1].currentIndex())
-                self.column_selector[1].setCurrentIndex(dummy)
-                self.column_selector[2].blockSignals(False)
+        if (
+            self.w_plot2d.isChecked() is True
+            and self.w_plot2d_comp.isChecked() is False
+            and len(self.shapes[self.column_selector[0].currentIndex() - 1]) < 3
+        ):
+            # toggle index for 2d data, since x and y invert role
+            dummy = self.column_selector[2].currentIndex()
+            self.column_selector[2].blockSignals(True)
+            self.column_selector[2].setCurrentIndex(self.column_selector[1].currentIndex())
+            self.column_selector[1].setCurrentIndex(dummy)
+            self.column_selector[2].blockSignals(False)
         self.reload_data()
 
     def plotting_toggled(self, check_state):
@@ -849,7 +852,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 elif shapes != self.shapes:
                     ret = -2
                 elif units != self.units:
-                    # TODO: Discuss whether this should reset
+                    # TODO: Discuss whether this should reset # noqa: FIX002
                     # or just regenerate names
                     ret = -2
             self.names = names
@@ -859,13 +862,13 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.meta_viewer.update_data(self.header)
         except Exception:
             # file could not be opened
-            exc_type, exc_value, exc_traceback = sys.exc_info()
+            _exc_type, exc_value, _exc_traceback = sys.exc_info()
             _ = QMessageBox.critical(
                 self,
                 "Error when opening file",
                 f"""
 The following error was raised when opening the file:
-{repr(exc_value)}
+{exc_value!r}
 Please investigate the error and eventually restart matrix-preview""",
             )
             sys.exit(-1)

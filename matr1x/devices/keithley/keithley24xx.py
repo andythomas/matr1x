@@ -161,10 +161,10 @@ class Keithley2400(VisaDevice):
 
         # check vs manual
         if delayAuto is True:
-            cmdlist.append(":SOUR:" + sourceMode + ":DEL:AUTO ON")
+            cmdlist.append(":SOUR:DEL:AUTO ON")
         elif delay is not None:
-            cmdlist.append(":SOUR:" + sourceMode + ":DEL:AUTO OFF")
-            cmdlist.append(":SOUR:" + sourceMode + ":DEL " + str(float(delay)))
+            cmdlist.append(":SOUR:DEL:AUTO OFF")
+            cmdlist.append(":SOUR:DEL " + str(float(delay)))
 
         if fourWire is True:
             cmdlist.append(":SYST:RSEN ON")  # Model 2400: SYST:RSEN ON/OFF

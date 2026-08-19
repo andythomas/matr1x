@@ -105,11 +105,11 @@ class PicoVNA(VisaDevice):
             self.query("CALC:AVER OFF")
 
         # SENSe<cnum>:FREQuency:STARt <num>
-        self.query(f"SENS:FREQ:STAR {str(fStart)} Hz")
+        self.query(f"SENS:FREQ:STAR {fStart!s} Hz")
         # SENSe<cnum>:FREQuency:STOP <num>
-        self.query(f"SENS:FREQ:STOP {str(fEnd)} Hz")
+        self.query(f"SENS:FREQ:STOP {fEnd!s} Hz")
         # SENSe<cnum>:SWEep:POINts <num>
-        self.query(f"SENS:SWE:POIN {str(fPoints)}")
+        self.query(f"SENS:SWE:POIN {fPoints!s}")
         # SENSe<cnum>:BWIDth
         possible_bandwidths = array(
             [10, 50, 100, 500, 1000, 5000, 10000, 15000, 35000, 70000, 140000]

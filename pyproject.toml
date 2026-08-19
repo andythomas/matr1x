@@ -1,12 +1,12 @@
 [project]
 name = "matr1x-measurements"
-version = "8.4.1"
-description = "Python package for data acquisition and measurement control"
+version = "8.5.0"
+description = "Python package for data acquisition and instrument control"
 requires-python = ">=3.10"
-license = { text = "GPL-3.0-or-later" }
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE.txt"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
@@ -18,28 +18,28 @@ dependencies = [
     "tomli ; python_version < '3.11'",               # imported in matr1x
     "tomli-w",                                       # imported in matr1x
     "pydantic >= 2.0",                               # imported in matr1x
-    "h5py >= 2.7.0",                                 # imported via util,
-    "numpy",                                         # imported via util
-    "pyobjc ; platform_system == 'Darwin'",          # imported via util
+    "h5py >= 3.6.0",                                 # imported via util,
+    "numpy >= 1.21.2",                               # imported via util
+    "pyobjc >= 8.0 ; platform_system == 'Darwin'",   # imported via util
     "decorator >= 5.2.1",                            # imported via util
-    "pandas >= 1.0.0",                               # imported via eval,
-    "psutil",                                        # imported via control/util
-    "pyqtgraph >= 0.11.0",                           # needed for GUI apps
-    "PySide6",                                       # needed for GUI apps
+    "pandas >= 1.3.4",                               # imported via eval,
+    "psutil >= 5.9.0",                               # imported via control/util
+    "pyqtgraph >= 0.12.3",                           # needed for GUI apps
+    "PySide6 >= 6.2.0",                              # needed for GUI apps
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'", # needed for GUI apps
     "pygit2 >= 1.16",                                # needed for GUI apps
     "pygit2 >= 1.19; python_version >= '3.14'",      # needed for GUI apps Py 3.14+
-    "wrapt>2.0",                                     # needed for GUI apps
-    "urwid>2.0",                                     # needed for GUI apps
+    "wrapt > 2.0",                                   # needed for GUI apps
+    "urwid > 2.0",                                   # needed for TUI matrix
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
     "monaco-assets >= 0.5.1",                        # needed for matrix script
-    "ruff >= 0.15.22",                               # needed for matrix script
-    "ty == 0.0.30",                                  # needed for matrix script
+    "ruff == 0.15.22",                               # needed for matrix script
+    "ty == 0.0.63",                                  # needed for matrix script
     "pymeasure >= 0.16.0",                           # shared by several device drivers
     "pyserial",                                      # shared by several device drivers
-    "pyvisa",                                        # shared by several device drivers
-    "pyvisa-py",                                     # shared by several device drivers
-    "zeroconf",                                      # needed by pyvisa-py resource discovery
+    "pyvisa >= 1.12.0",                              # shared by several device drivers
+    "pyvisa-py >= 0.5.3",                            # shared by several device drivers
+    "zeroconf >= 0.36.8",                            # needed by pyvisa-py resource discovery
     "minimalmodbus",                                 # shared by several device drivers
 ]
 
@@ -48,7 +48,6 @@ elab = ["elabapi_python >= 5.3.0", "jinja2"] # for the electronic notebook
 ppms = [
     "MultiPyVu >= 3.6.1", # for matr1x/devices/quantumdesign/ppms,
 ]
-smbus = ["smbus3 >= 0.5.5"]
 
 [project.scripts]
 matrix = "matr1x.scripts.matrix:main"
@@ -66,12 +65,13 @@ Homepage = "https://github.com/andythomas/matr1x"
 Documentation = "https://andythomas.github.io/matr1x/"
 
 [build-system]
-# use flit since setuptools does currently not support PEP660
-requires = ["flit_core >=3.6,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["uv_build>=0.12.0,<0.13"]
+build-backend = "uv_build"
 
-[tool.flit.module]
-name = "matr1x"
+[tool.uv.build-backend]
+module-name = "matr1x"
+module-root = ""
+source-exclude = [".gitignore"]
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
@@ -83,14 +83,11 @@ env = [
     "QT_QUICK_BACKEND=software",
 ]
 
-[tool.pyrefly]
-project-includes = [
-    "matr1x"
-]
-
 [tool.ty.src]
-include = ["matr1x"]
-
+include = [
+    "matr1x",
+    "tests"
+]
 
 [tool.ruff]
 line-length = 99       # max per pep8
@@ -111,18 +108,16 @@ extend-select = [
     'PIE',      # use flake8-pie rules (unnecessary code pieces)
     'PYI',      # use flake8-pyi rules (type hinting helpers)
     'SIM300',   # use human readable comparisons (yoda condition)
-    # disable to mark required prints and reenable after cleanup finished
-    #'RUF100',   # no not allow unused noqa
-    'T201'      # do not use print statements
+    'RUF100',   # no not allow unused noqa
+    'T201',     # do not use print statements
+    'NPY',      # find numpy legace code
+    'ISC',      # concatenate strings consistently
+    'FIX',      # catch unfinished code parts
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
-"tests/**" = ["INP001", "T201"]
-"docs/conf.py" = ["PTH"]
-"docs/**" = ["INP001"]
-"matr1x/devices/**" = ["T201"]
-"matr1x/systems/system_elabftw.py" = ["T201"]
+"__init__.py" = ["F401"] # 'unsused import' has to be suppressed here
+"tests/**" = ["INP001", "T201"] # tests do not need '__init__', print is fine
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 100
@@ -136,7 +131,7 @@ version_toml = [
     "pyproject.toml:project.version"
 ]
 branch = "main"
-build_command = "pip install flit && flit build --no-use-vcs"
+build_command = "pip install uv && uv lock --offline && git add -- uv.lock && uv build --no-sources"
 
 [tool.semantic_release.changelog]
 exclude_commit_patterns = [
@@ -150,20 +145,27 @@ exclude_commit_patterns = [
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
 
-
 [dependency-groups]
 dev = [
-    "pre-commit>=4.3.0",
     "pytest>=8.4.1",
     "pytest-env>=1.1.5",
-    "sphinx>=7.4.7",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
+    "complexipy>=6.2.0",
 ]
 
 docs = [
-    "great-docs[svg]==0.15.0"
+    "great-docs[svg]==0.16.0"
 ]
+
+[tool.uv]
+override-dependencies = []
 
 [tool.uv.dependency-groups]
 docs = { requires-python = ">=3.11" }
+
+[tool.complexipy]
+paths = ["matr1x"]
+max-complexity-allowed = 15
+snapshot-create = false
+snapshot-ignore = false

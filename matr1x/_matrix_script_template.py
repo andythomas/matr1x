@@ -24,7 +24,6 @@ and markers that must be replaced before execution.
 import builtins as _builtins
 import datetime as _datetime
 import inspect as _inspect
-import math as _math
 import os as _os
 import re as _re
 import sys as _sys
@@ -40,8 +39,8 @@ import wrapt as _wrapt
 import matr1x as _matr1x
 import matr1x.util as _matrix_util
 from matr1x.models import Datafile as _Datafile
+from matr1x.models import ExecutionLines as _ExecutionLines
 from matr1x.models import Header as _Header
-from matr1x.models import LineNumber as _LineNumber
 from matr1x.models import MeasuredValues as _MeasuredValues
 from matr1x.models import Message as _Message
 from matr1x.models import SetValues as _SetValues
@@ -72,15 +71,15 @@ _validated_config = _matr1x.config.matr1x.scripts.matrix_script
 
 # pass meta information
 for _key, _value in _meta_data.items():
-    if _key in _matr1x.VALID_META_KEYS.keys():
-        if _matr1x.VALID_META_KEYS[_key]:
-            _system.dcdata[_key] = _value
+    if _matr1x.VALID_META_KEYS.get(_key):
+        _system.dcdata[_key] = _value
 _setvalues = []  # buffer for set values for printing
 _npoints = 0  # internal measurement point counter
 _ntot = None  # total number of measurement points for telemetry
 _starttime = _time.time()
 _preset = _starttime
 _reset_kwargs = {}
+_user_script_start_line, _user_script_end_line = _matrix_util.get_user_script_line_range(_script)
 
 
 def _configure_execution_path(scriptname: str | _Path) -> None:
@@ -113,31 +112,28 @@ def _configure_script_storing(system: _MergedSystem, script: str) -> None:
             )
 
 
-def _find_caller_frame() -> _types.FrameType | None:
-    """Find the frame of the actual caller, skip decorator frames."""
-    # stepping twice back on frame, since the inner most frame is from
-    # this and the second one is from the _lineno decorator/function.
+def _find_caller_lines() -> list[int]:
+    """Find the active user-script lines, from innermost to outermost."""
     frame = _inspect.currentframe()
-    frame = frame.f_back.f_back if (frame and frame.f_back) else None
-    # Try to find the first frame called in script environment
-    # in Python 3.13+
-    while frame:
-        if frame.f_code.co_filename == "<string>":
-            if frame.f_code.co_name.startswith("_") or frame.f_code.co_name in ["wait", "print"]:
-                frame = frame.f_back
-                continue
-            else:
-                return frame
+    lines: list[int] = []
+    seen_lines: set[int] = set()
 
-        frame = frame.f_back
+    try:
+        while frame is not None:
+            line = frame.f_lineno
+            if (
+                frame.f_code.co_filename == "<string>"
+                and _user_script_start_line <= line <= _user_script_end_line
+                and line not in seen_lines
+            ):
+                lines.append(line)
+                seen_lines.add(line)
+            frame = frame.f_back
+    finally:
+        # Explicitly break the frame reference cycle created by currentframe().
+        del frame
 
-    # Fallback for Python <=3.12: step back a fixed number of frames
-    frame = _inspect.currentframe()
-    steps_back = 3 if _sys.version_info >= (3, 13) else 2
-    for _ in range(steps_back):
-        frame = frame.f_back if frame else None
-
-    return frame  # Returns the frame that we believe to be the caller
+    return lines
 
 
 @_wrapt.decorator
@@ -149,12 +145,9 @@ def _lineno_decorator(wrapped, instance, args, kwargs):
 
 
 def _show_lineno() -> None:
-    """Report the executing line number back to the GUI."""
-    if frame := _find_caller_frame():
-        caller_filename = frame.f_code.co_filename
-        if caller_filename == "<string>":
-            # report line only if called directly from script
-            _report(_LineNumber(frame.f_lineno))
+    """Report the active user-script call chain back to the GUI."""
+    if lines := _find_caller_lines():
+        _report(_ExecutionLines(lines=lines))
 
 
 @_wrapt.decorator
@@ -220,7 +213,7 @@ def _reset_setvalues() -> None:
 
 
 # inject line number decorator to time.sleep
-_time.sleep = _lineno_decorator(_time.sleep)  # type: ignore time shadowing is intended!
+_time.sleep = _lineno_decorator(_time.sleep)  # ty: ignore[invalid-assignment]
 # inject breakpoint and line number decorators to system methods
 _inject_decorator(_system, _breakpoint)
 for subsys in _system.subsys:
@@ -260,7 +253,7 @@ def set_value(parameter, value):
             None,
         ] * len(_system.columns[i])
     else:
-        _setvalues[i] = setv
+        _setvalues[i] = setv  # ty: ignore[invalid-assignment]
     return setv
 
 
@@ -349,7 +342,7 @@ def wait(
     _interrupt(duration=duration, until=until, message=message, silent=silent)
 
 
-def input(query: str, timeout: float = float("inf"), default_value: str = "") -> str:  # noqa: A001
+def input(query: str, timeout: float | None = None, default_value: str = "") -> str:  # noqa: A001
     """
     Ask user to provide some free text input.
 
@@ -357,8 +350,8 @@ def input(query: str, timeout: float = float("inf"), default_value: str = "") ->
     ----------
     query : str
         Query string presented to the user so they know what to enter.
-    timeout : float, optional
-        Max. time in seconds to wait for user input (default=infinity).
+    timeout : float or None, optional
+        Max. time in seconds to wait for user input (default=None, no timeout).
     default_value : str, optional
         Value to return if timeout occurs. Default is empty string.
 
@@ -371,7 +364,7 @@ def input(query: str, timeout: float = float("inf"), default_value: str = "") ->
     return _input(message=query, timeout=timeout, default_value=default_value)
 
 
-def input_bool(query: str, timeout: float = float("inf"), default_value: str = "yes") -> bool:
+def input_bool(query: str, timeout: float | None = None, default_value: str = "yes") -> bool:
     """
     Ask user to answer a yes/no question.
 
@@ -379,8 +372,8 @@ def input_bool(query: str, timeout: float = float("inf"), default_value: str = "
     ----------
     query : str
         Question to ask the user.
-    timeout : float, optional
-        Max. time in seconds to wait for user input (default=infinity).
+    timeout : float or None, optional
+        Max. time in seconds to wait for user input (default=None, no timeout).
     default_value : str, optional
         Value to return if timeout occurs. Default is yes.
 
@@ -391,14 +384,12 @@ def input_bool(query: str, timeout: float = float("inf"), default_value: str = "
     """
     _show_lineno()
     ret = _input(message=query, input_type="bool", timeout=timeout, default_value=default_value)
-    if ret == "yes":
-        return True
-    return False
+    return ret == "yes"
 
 
 def input_numerical(
     query: str,
-    timeout=float("inf"),
+    timeout: float | None = None,
     default_value: float = 0.0,
     min_value: float = -100e9,
     max_value: float = 100e9,
@@ -412,8 +403,8 @@ def input_numerical(
     ----------
     query : str
         Question to ask the user.
-    timeout : float, optional
-        Max. time in seconds to wait for user input (default=infinity).
+    timeout : float or None, optional
+        Max. time in seconds to wait for user input (default=None, no timeout).
     default_value : float, optional
         Value to return if timeout occurs. Default is 0.0.
     min_value : float, optional
@@ -623,7 +614,7 @@ def measure_system(
     return_list = _system.take_measurement_point()
     _report(_MeasuredValues(return_list, to_stdout=print_data))
     elapsed = _time.time() - _starttime
-    remaining = (elapsed / _npoints * _ntot - elapsed) / 60 if _ntot else _math.nan
+    remaining = (elapsed / _npoints * _ntot - elapsed) / 60 if _ntot else None
     _report(
         _Telemetry(
             point=_npoints,
@@ -639,11 +630,11 @@ def measure_system(
     return return_list
 
 
-# ==== BEGIN USER SCRIPT AREA ====
 try:
     # the pass statement is needed to handle "empty" scripts
     # an empty script is one without code, but only comments
     pass
+    # ==== BEGIN USER SCRIPT AREA ====
     # USER_SCRIPT_INSERTION_POINT
 # ==== END USER SCRIPT AREA ====
 except KeyboardInterrupt:
@@ -654,9 +645,6 @@ except KeyboardInterrupt:
     elif _status.finished is False:
         # supposed to be marked as aborted
         _reset_kwargs["status"] = "aborted"
-    else:
-        # finished is None, so ask what is supposed to happen
-        _reset_kwargs["status"] = _input(message="", input_type="__end_script__")
 except Exception as e:
     _report(_Message("script exited with error:", to_comment=False))
     # get traceback information and format accordingly
@@ -711,7 +699,7 @@ except Exception as e:
     else:
         _system.add_comment(f"Script errored: {exc_type.__name__}: {e}")
 # mark last open file as finished, if not labeled elsewhere
-if "status" not in _reset_kwargs.keys():
+if "status" not in _reset_kwargs:
     _reset_kwargs["status"] = "finished"
 # the reset function is called at the script end only, but we
 # nevertheless specify the last datafile name to be as close as possible

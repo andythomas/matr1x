@@ -379,7 +379,7 @@ class exampleDict2(GuiDict):
                 if self.extended_visible:
                     # Update hidden info only while the extended controls are visible.
                     self["Info"].value = self._info_base + f"\n\nSlope: {slope / 60:.3f} mbar/min"
-        self.v5 = round(30 * numpy.random.random(), 3)
+        self.v5 = round(30 * numpy.random.random(), 3)  # noqa: NPY002
 
 
 # define clientdevice to be used by measurement systems interfacing with this

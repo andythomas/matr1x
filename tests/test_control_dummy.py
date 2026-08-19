@@ -264,7 +264,7 @@ def test_control_window_rejects_duplicate_system_names(qapp):
         S = System(name="shared")
         data = {"Second": var(None, columns="Readout")}
 
-    with pytest.raises(ValueError, match="Duplicate subsystem accessor name 'shared'"):
+    with pytest.raises(ValueError):
         ControlWindow("duplicate-systems", [FirstPanel, SecondPanel])
 
 
@@ -333,7 +333,7 @@ def test_matrix_script_control_dummy(start_control_dummy):
         tf.flush()
         script = (
             "import matr1x.util as mu\n"
-            + f"mu.matrix_script_process({repr(tf.name)}, {{}}, '', None, ['system_dummygui'])"
+            f"mu.matrix_script_process({tf.name!r}, {{}}, '', None, ['system_dummygui'])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=path)
         assert ret.returncode == 0

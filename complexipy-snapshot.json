@@ -1,0 +1,330 @@
+[
+  {
+    "path": "matr1x/control/util.py",
+    "file_name": "util.py",
+    "functions": [
+      {
+        "name": "guiObject::getWidget",
+        "complexity": 17
+      },
+      {
+        "name": "var::_generate_widgets",
+        "complexity": 18
+      },
+      {
+        "name": "catchEmitError",
+        "complexity": 19
+      },
+      {
+        "name": "GuiDict::toggle_hidden",
+        "complexity": 38
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/keithley/keithley2182A.py",
+    "file_name": "keithley2182A.py",
+    "functions": [
+      {
+        "name": "Keithley2182A::configure",
+        "complexity": 17
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/keithley/keithley24xx.py",
+    "file_name": "keithley24xx.py",
+    "functions": [
+      {
+        "name": "Keithley2400::configure",
+        "complexity": 17
+      },
+      {
+        "name": "Keithley2450::configure",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/keithley/keithley2611A.py",
+    "file_name": "keithley2611A.py",
+    "functions": [
+      {
+        "name": "Keithley2611A::configure",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/keithley/keithley6221.py",
+    "file_name": "keithley6221.py",
+    "functions": [
+      {
+        "name": "Keithley6221::generateWave",
+        "complexity": 21
+      },
+      {
+        "name": "Keithley6221::generateArbWave",
+        "complexity": 24
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/oxford/mercury.py",
+    "file_name": "mercury.py",
+    "functions": [
+      {
+        "name": "MercurySingleAxisIPS::setMagnetStatus",
+        "complexity": 16
+      },
+      {
+        "name": "MercuryIPS::setMagnetStatus",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/rohdeschwarz/fsw8.py",
+    "file_name": "fsw8.py",
+    "functions": [
+      {
+        "name": "FSW8::configureSweep",
+        "complexity": 23
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/scpi_dev.py",
+    "file_name": "scpi_dev.py",
+    "functions": [
+      {
+        "name": "makeSCPIdevice",
+        "complexity": 34
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/visadevice.py",
+    "file_name": "visadevice.py",
+    "functions": [
+      {
+        "name": "VisaDevice::open",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "matr1x/editor.py",
+    "file_name": "editor.py",
+    "functions": [
+      {
+        "name": "CodeEditor::_process_lsp_completions",
+        "complexity": 25
+      }
+    ]
+  },
+  {
+    "path": "matr1x/eval.py",
+    "file_name": "eval.py",
+    "functions": [
+      {
+        "name": "_process_special_lines",
+        "complexity": 16
+      },
+      {
+        "name": "_load_hdf5_file",
+        "complexity": 18
+      },
+      {
+        "name": "_process_header_lines",
+        "complexity": 18
+      },
+      {
+        "name": "_load_text_file",
+        "complexity": 19
+      },
+      {
+        "name": "_parse_query_string",
+        "complexity": 26
+      }
+    ]
+  },
+  {
+    "path": "matr1x/execthread.py",
+    "file_name": "execthread.py",
+    "functions": [
+      {
+        "name": "ExecThread::interrupt",
+        "complexity": 16
+      },
+      {
+        "name": "ExecThread::_execute_sleep",
+        "complexity": 19
+      }
+    ]
+  },
+  {
+    "path": "matr1x/gui_util.py",
+    "file_name": "gui_util.py",
+    "functions": [
+      {
+        "name": "SimplePlotWidget::_update_linesetting",
+        "complexity": 20
+      },
+      {
+        "name": "get_matrix_icon",
+        "complexity": 28
+      }
+    ]
+  },
+  {
+    "path": "matr1x/post_install.py",
+    "file_name": "post_install.py",
+    "functions": [
+      {
+        "name": "control_gui_integration",
+        "complexity": 17
+      },
+      {
+        "name": "uninstall_control_gui_desktop_integration",
+        "complexity": 19
+      },
+      {
+        "name": "uninstall_core_desktopintegration",
+        "complexity": 19
+      }
+    ]
+  },
+  {
+    "path": "matr1x/scpi_tcpserver.py",
+    "file_name": "scpi_tcpserver.py",
+    "functions": [
+      {
+        "name": "ThreadedTCPRequestHandler::_handle_set_cmd",
+        "complexity": 22
+      }
+    ]
+  },
+  {
+    "path": "matr1x/scripts/matrix.py",
+    "file_name": "matrix.py",
+    "functions": [
+      {
+        "name": "parse_inputfile",
+        "complexity": 21
+      },
+      {
+        "name": "UrwidMeasurement::inputcb",
+        "complexity": 25
+      },
+      {
+        "name": "main",
+        "complexity": 28
+      }
+    ]
+  },
+  {
+    "path": "matr1x/scripts/matrix_gui.py",
+    "file_name": "matrix_gui.py",
+    "functions": [
+      {
+        "name": "MainWindow::_process_tabledata",
+        "complexity": 19
+      }
+    ]
+  },
+  {
+    "path": "matr1x/scripts/matrix_preview.py",
+    "file_name": "matrix_preview.py",
+    "functions": [
+      {
+        "name": "SweepPreview::file_index_changed",
+        "complexity": 17
+      },
+      {
+        "name": "SweepPreview::reload_data_curve",
+        "complexity": 38
+      },
+      {
+        "name": "SweepPreview::reload_data_2d",
+        "complexity": 66
+      }
+    ]
+  },
+  {
+    "path": "matr1x/scripts/matrix_script.py",
+    "file_name": "matrix_script.py",
+    "functions": [
+      {
+        "name": "MainWindow::update_system_commands",
+        "complexity": 16
+      },
+      {
+        "name": "MainWindow::load_from_filename",
+        "complexity": 30
+      }
+    ]
+  },
+  {
+    "path": "matr1x/scripts/sweep_generator.py",
+    "file_name": "sweep_generator.py",
+    "functions": [
+      {
+        "name": "ColumnData::calculate_sweep",
+        "complexity": 32
+      }
+    ]
+  },
+  {
+    "path": "matr1x/system.py",
+    "file_name": "system.py",
+    "functions": [
+      {
+        "name": "System::set",
+        "complexity": 18
+      },
+      {
+        "name": "System::init_datafile",
+        "complexity": 22
+      },
+      {
+        "name": "System::query",
+        "complexity": 23
+      },
+      {
+        "name": "System::_device_query",
+        "complexity": 24
+      },
+      {
+        "name": "System::methods_and_variables",
+        "complexity": 25
+      },
+      {
+        "name": "System::take_measurement_point",
+        "complexity": 25
+      },
+      {
+        "name": "System::grab_information",
+        "complexity": 26
+      },
+      {
+        "name": "System::from_file",
+        "complexity": 38
+      },
+      {
+        "name": "Parameter::__init__",
+        "complexity": 51
+      }
+    ]
+  },
+  {
+    "path": "matr1x/util.py",
+    "file_name": "util.py",
+    "functions": [
+      {
+        "name": "matrix_script_process",
+        "complexity": 37
+      }
+    ]
+  }
+]

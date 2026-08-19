@@ -60,6 +60,8 @@ _COMMUNICATION_METHODS = {
     "wait_for_srq",
 }
 
+_PATCHED_NAME_PREFIX = "_matr1x_threading_patched_"
+
 
 def _create_thread_safe_property_accessor(
     original_accessor: Callable[..., Any], accessor_type: str
@@ -219,9 +221,7 @@ def _create_thread_safe_property_creator(original_method, method_name):
             fget=thread_safe_getter, fset=thread_safe_setter, fdel=prop.fdel, doc=prop.__doc__
         )
 
-    # Mark as patched
-    thread_safe_property_creator._threading_patched: bool = True
-    thread_safe_property_creator.__name__ = f"thread_safe_{method_name}"
+    thread_safe_property_creator.__name__ = f"{_PATCHED_NAME_PREFIX}{method_name}"
 
     return thread_safe_property_creator
 
@@ -243,15 +243,12 @@ def _patch_pymeasure_property_creators():
 
     for method_name in property_methods:
         if hasattr(Instrument, method_name):
-            original_method = getattr(Instrument, method_name)
-
-            # Check if already patched to avoid recursion
-            if hasattr(original_method, "_threading_patched") or getattr(
-                original_method, "__name__", ""
-            ).startswith("thread_safe_"):
+            descriptor = vars(Instrument).get(method_name)
+            if getattr(descriptor, "__name__", "").startswith(_PATCHED_NAME_PREFIX):
                 continue
 
             # Create and apply the thread-safe wrapper
+            original_method = getattr(Instrument, method_name)
             thread_safe_method = _create_thread_safe_property_creator(original_method, method_name)
             setattr(Instrument, method_name, thread_safe_method)
 
@@ -268,7 +265,7 @@ def _patch_pymeasure_instrument_init():
     This is called automatically when this module is imported.
     """
     # Check if already patched to avoid recursion
-    if hasattr(Instrument.__init__, "_threading_patched"):
+    if getattr(Instrument.__init__, "__name__", "").startswith(_PATCHED_NAME_PREFIX):
         return
 
     # Store reference to original __init__ method
@@ -287,9 +284,8 @@ def _patch_pymeasure_instrument_init():
 
         return result
 
-    # Mark as patched and replace the class method
-    thread_safe_init._threading_patched: bool = True
-    setattr(Instrument, "__init__", thread_safe_init)
+    thread_safe_init.__name__ = f"{_PATCHED_NAME_PREFIX}init"
+    Instrument.__init__ = thread_safe_init
 
 
 # Apply the monkey patches automatically when this module is imported

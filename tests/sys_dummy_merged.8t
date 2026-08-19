@@ -5,18 +5,17 @@
 # settable column label : a,a,b,d,d,e,g,h
 # params : [[], [], [], [], [], [], [['0', '10', '11']], []]
 # loop_over : [-1, -1, -1, -1, -1, -1, -1, -1]
-# functions : ['None', 'None', 'None', 'None', 'None', 'None', 'None', 'None']
 # up_down : [0, 0, 0, 0, 0, 0, 0, 0]
 # repeat : [1, 1, 1, 1, 1, 1, 1, 1]
-# time stamp : 2024-09-23T10:24:10 
-      -g 0.0  
-      -g 1.0  
-      -g 2.0  
-      -g 3.0  
-      -g 4.0  
-      -g 5.0  
-      -g 6.0  
-      -g 7.0  
-      -g 8.0  
-      -g 9.0  
-      -g 10.0  
+# time stamp : 2024-09-23T10:24:10
+      -g 0.0
+      -g 1.0
+      -g 2.0
+      -g 3.0
+      -g 4.0
+      -g 5.0
+      -g 6.0
+      -g 7.0
+      -g 8.0
+      -g 9.0
+      -g 10.0

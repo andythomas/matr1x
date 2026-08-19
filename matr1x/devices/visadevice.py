@@ -49,7 +49,7 @@ def output_name_on_error(func):
             ret = func(self, *args, **kwargs)
         except Exception:
             if hasattr(self, "name"):
-                print(f"Exception occured inside {self.name}")
+                print(f"Exception occured inside {self.name}")  # noqa: T201
             raise
         return ret
 
@@ -177,7 +177,7 @@ class VisaDevice:
                 else:
                     raise ValueError("Invalid resource type")
                 if self.pts:
-                    print(f"C: {self.name}")
+                    print(f"C: {self.name}")  # noqa: T201
                 logger.info("Connection to %s opened", self.name)
                 # apply kwargs to visadevice (say baudrate)
                 # should only modify available properties, so should be immune
@@ -185,13 +185,13 @@ class VisaDevice:
                 for key, val in kwargs.items():
                     if hasattr(self.connection, key):
                         setattr(self.connection, key, val)
-            except Exception as e:
+            except Exception:
                 logger.info("Exception during opening of %s", self.name)
                 try:
                     self.connection.close()
                 except AttributeError:
                     pass
-                raise e
+                raise
             self._opened = True
 
     def close(self):
@@ -263,7 +263,7 @@ class VisaDevice:
             else:
                 message = readout
 
-            print(f"R: {message}")
+            print(f"R: {message}")  # noqa: T201
         return readout
 
     def _write_delay(self):
@@ -294,7 +294,7 @@ class VisaDevice:
         """
         logger.debug("%s: Write: %s", self.name, command)
         if self.pts:
-            print(f"W: {command}")
+            print(f"W: {command}")  # noqa: T201
         self._write_delay()
         if isinstance(command, bytes):
             self.connection.write_raw(command)
@@ -321,11 +321,11 @@ class VisaDevice:
 
         self._write_delay()
         if self.pts:
-            print(f"W: {command}")
+            print(f"W: {command}")  # noqa: T201
         resp = self.connection.query(command)
         logger.debug("Answer: %s", str(resp))
         if self.pts:
-            print(f"R: {resp}")
+            print(f"R: {resp}")  # noqa: T201
         return resp
 
     def id(self):

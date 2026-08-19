@@ -25,6 +25,10 @@ Then, two more steps are required for the installation:
 1. Sychronize uv in the cloned directory
 2. Activate the virtual environment
 
+::: {.details .open summary="Always keep uv updated." type="tip"}
+In case of errors during the installation or unexpected behavior at the first run, always keep `uv` [updated](https://docs.astral.sh/uv/getting-started/installation/#upgrading-uv).
+:::
+
 ::: {.panel-tabset}
 
 ## Windows

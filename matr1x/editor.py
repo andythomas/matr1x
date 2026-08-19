@@ -22,6 +22,7 @@ JavaScript should be used outside of this module!
 
 import ast
 import hashlib
+import html
 import json
 import re
 import socket
@@ -354,10 +355,7 @@ class LSPClient(QObject, LoggerMixin):
                     self._handle_notification(message)
         except Exception as e:
             for response_queue in self.pending_requests.values():
-                try:
-                    response_queue.put_nowait(None)  # Signal error
-                except Exception:
-                    pass
+                response_queue.put_nowait(None)  # Signal error
             raise RuntimeError("Message reader crashed!") from e
 
     def _read_one_message(self) -> str | None:
@@ -464,7 +462,7 @@ class Matr1xFunctionChecker(ast.NodeVisitor):
         self.settables = []
         self.columns = []
         self.system_info = system_info
-        for key, data in system_info.parameters.items():
+        for data in system_info.parameters.values():
             self.indexes.append(str(data.index))
             self.settables.append(data.settable)
             self.columns.append(data.name)
@@ -918,12 +916,30 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         editor_url.setQuery(f"port={self.port}")
         self.load(editor_url)
         loop = QEventLoop()
-        self.loadFinished.connect(lambda success: loop.quit() if success else None)
+        success = False
+
+        def _load_finished(ok: bool) -> None:
+            nonlocal success
+            success = ok
+            loop.quit()
+
+        self.loadFinished.connect(_load_finished)
+        QTimer.singleShot(30_000, loop.quit)  # safety net: never hang forever
         loop.exec()
+        self.loadFinished.disconnect(_load_finished)
+        if not success:
+            message = (
+                f"Editor page failed to load from {html_path}. The renderer "
+                "process may have died; check the QtWebEngine installation "
+                "and environment (e.g. set QTWEBENGINE_CHROMIUM_FLAGS="
+                "--no-sandbox when running inside a restrictive sandbox)."
+            )
+            self.logger.error(message)
+            raise RuntimeError(message)
         self.setAcceptDrops(True)
         self._highlight_timer = QTimer(self)
         self._highlight_timer.setSingleShot(True)
-        self._pending_highlight_line: int | None = None
+        self._pending_highlight_lines: list[int] | None = None
         self._current_theme: str
         self._system_info: SystemInfo
         self.create_connections()
@@ -1081,31 +1097,32 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
             f"window.editor.updateOptions({{ readOnly: {str(read_only).lower()} }})"
         )
 
-    def highlight(self, line_number: int) -> None:
+    def highlight(self, line_numbers: list[int]) -> None:
         """
-        Highlight this line number.
+        Highlight active user-script lines.
 
         Parameters
         ----------
-        line_number: int
-            The line number to highlight.
+        line_numbers: list[int]
+            Line numbers ordered from the innermost execution point to its
+            outermost user-script caller.
         """
-        self._pending_highlight_line = line_number
+        self._pending_highlight_lines = list(dict.fromkeys(line_numbers))
         self._highlight_timer.start(HIGHLIGHT_INTERVAL_MS)
 
     def removeHighlight(self) -> None:
         """Remove line highlighting."""
         self._highlight_timer.stop()
-        self._pending_highlight_line = None
+        self._pending_highlight_lines = None
         self._run_javascript("window.clearLineHighlight()")
 
     def _apply_pending_highlight(self) -> None:
         """Apply the most recently requested line highlight."""
-        if self._pending_highlight_line is None:
+        if self._pending_highlight_lines is None:
             return
-        line_number = self._pending_highlight_line
-        self._pending_highlight_line = None
-        self._run_javascript(f"window.highlightLine({line_number})")
+        line_numbers = self._pending_highlight_lines
+        self._pending_highlight_lines = None
+        self._run_javascript(f"window.highlightLines({json.dumps(line_numbers)})")
 
     def lsp_initialize(self) -> None:
         """Initialize the server/client communication."""
@@ -1141,7 +1158,11 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         """Handle notifications from the LSP server."""
         if notification.method == "textDocument/publishDiagnostics":
             params = cast(dict, notification.params)
-            diagnostics = [TyDiagnostic.model_validate(d) for d in params.get("diagnostics", [])]
+            diagnostics = [
+                TyDiagnostic.model_validate(d)
+                for d in params.get("diagnostics", [])
+                if d.get("severity", 1) < 4
+            ]
             tc_diagnostics = [
                 d.to_monaco(SCRIPT_OFFSET + self._system_info.stub_length, COLUMN_OFFSET)
                 for d in diagnostics
@@ -1178,7 +1199,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         if isinstance(contents, list):
             popup = [{"value": "Unknown"}]
         else:
-            text = contents.value.rsplit("Go to", 1)[0]
+            text = html.unescape(contents.value.rsplit("Go to", 1)[0])
             popup = [{"value": text}]
         js_command = f"window.showHover({hover.requestId}, {json.dumps(popup)})"
         self._run_javascript_async(js_command)
@@ -1207,19 +1228,26 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         )
         self._run_javascript_async(js_command)
 
-    def _process_lsp_completions(self, lsp_completions: list[dict[str, str]]):
+    def _process_lsp_completions(
+        self, lsp_completions: list[dict[str, Any]] | dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Convert LSP completion results to Monaco format."""
         monaco_completions = []
         if isinstance(lsp_completions, list):
-            for i, item in enumerate(lsp_completions):
+            for item in lsp_completions:
                 if isinstance(item, dict):
                     doc_field = item.get("documentation", "")
                     monaco_documentation = None
                     if doc_field:
                         if isinstance(doc_field, dict):
+                            if "value" in doc_field:
+                                doc_field["value"] = html.unescape(doc_field["value"])
                             monaco_documentation = doc_field
                         elif isinstance(doc_field, str) and doc_field.strip():
-                            monaco_documentation = {"kind": "markdown", "value": doc_field}
+                            monaco_documentation = {
+                                "kind": "markdown",
+                                "value": html.unescape(doc_field),
+                            }
                     monaco_completion = {
                         "label": item.get("label", ""),
                         "insertText": item.get("insertText", item.get("label", "")),
@@ -1227,9 +1255,8 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                         "documentation": monaco_documentation,
                     }
                     monaco_completions.append(monaco_completion)
-        elif isinstance(lsp_completions, dict):
-            if "items" in lsp_completions:
-                return self._process_lsp_completions(lsp_completions["items"])
+        elif isinstance(lsp_completions, dict) and "items" in lsp_completions:
+            return self._process_lsp_completions(lsp_completions["items"])
         return monaco_completions
 
     def _convert_completion_kind(self, lsp_kind):
@@ -1285,7 +1312,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         theme_selection: str
             Theme name.
         """
-        monaco_theme = list(CodeEditor.THEMES["Standard"].values())[0]
+        monaco_theme = next(iter(CodeEditor.THEMES["Standard"].values()))
         for name, theme_pair in CodeEditor.THEMES.items():
             if name == theme_selection:
                 dark = MApplication.instance().isDark

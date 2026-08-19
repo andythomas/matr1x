@@ -38,7 +38,7 @@ import os
 import sys
 import warnings
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -75,42 +75,42 @@ warnings.formatwarning = _clean_formatwarning  # ty: ignore[invalid-assignment]
 deprecation_marker = "[MATR1X_DEPRECATED]"
 
 __all__ = [
-    # Config management
-    "load_config",
-    "merge_dicts",
-    "write_config",
-    "reload_config",
+    "APP_META_KEY",
     # Config data
     "MIGRATIONS",
-    "validation_errors",
-    "config",
-    "datetimefmt",
-    # System dirs / globals
-    "usersfolder",
-    "logfolder",
-    "system_names",
-    "system_directories",
-    "resolved_directory",
-    # Version / constants
-    "__version__",
-    "output_extension",
     # Re-exports
     "VALID_META_KEYS",
-    "APP_META_KEY",
     "MainConfig",
     "UserlibConfig",
-    "format_validation_error",
+    # Version / constants
+    "__version__",
+    "config",
     "create_temp_dir_with_symlinks",
+    "datetimefmt",
+    "deprecation_marker",
+    "format_validation_error",
     "get_package_path",
+    # Config management
+    "load_config",
+    "logfolder",
+    "merge_dicts",
+    "output_extension",
+    "reload_config",
     "resolve_config_path",
     "resolve_pkgroot_path",
-    "deprecation_marker",
+    "resolved_directory",
+    "system_directories",
+    "system_names",
+    # System dirs / globals
+    "usersfolder",
+    "validation_errors",
+    "write_config",
 ]
 
 if sys.version_info >= (3, 11):
     import tomllib
 else:
-    import tomli as tomllib  # ty: ignore [unresolved-import]
+    import tomli as tomllib
 
 try:
     __version__ = version("matr1x-measurements")
@@ -228,6 +228,13 @@ def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
         else:
             print(f"Warning: Optional config file not found: {optional_config_path}")  # noqa: T201
     config_data = _migrate_config(config_data)
+    try:
+        if config_data["matr1x"]["install"]["root_path"]:
+            validation_errors.append(
+                "The config entry 'matr1x.install.root_path' will be ignored."
+            )
+    except (KeyError, TypeError):
+        pass
     return config_data
 
 
@@ -398,10 +405,8 @@ if not usersfolder.exists():
 # set up logging to configure, e.g., the log-windows
 logfolder = config.matr1x.logging_directory.expanduser()
 if logfolder.exists():
-    today = date.today().isocalendar()
-    handlers = [
-        logging.FileHandler(logfolder / f"matr1x_{today.year}{today.week:02d}.log", mode="a")
-    ]
+    iso_year, iso_week, _ = datetime.now(tz=timezone.utc).astimezone().isocalendar()
+    handlers = [logging.FileHandler(logfolder / f"matr1x_{iso_year}{iso_week:02d}.log", mode="a")]
     logging.basicConfig(
         level=logging.INFO,
         format=config.matr1x.logging_format,

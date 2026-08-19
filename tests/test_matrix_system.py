@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from contextlib import suppress
 from pathlib import Path
 from pprint import pformat
 
@@ -92,12 +93,9 @@ class TapCollector:
             except Exception as e:
                 self._error = e
             finally:
-                try:
+                with suppress(OSError):
                     if self._conn:
                         self._conn.close()
-                except Exception:
-                    # Ignore exceptions during close
-                    pass
 
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
@@ -164,10 +162,8 @@ def tap_server():
     try:
         yield env, collector
     finally:
-        try:
+        with suppress(OSError):
             srv.close()
-        except Exception:
-            pass
         collector.join()
 
 
@@ -225,7 +221,7 @@ def _launch_tapin_script(
         execscript = (
             "import matr1x.util as mu\n"
             "mu.matrix_script_process(\n"
-            f"{repr(tf.name)}, {{}}, '', None, [{repr(str(system_tapin_abs_path))}]\n"
+            f"{tf.name!r}, {{}}, '', None, [{str(system_tapin_abs_path)!r}]\n"
             ")"
         )
         ret = subprocess.run([sys.executable, "-c", execscript], cwd=path, env=env)

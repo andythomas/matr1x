@@ -141,7 +141,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         except ValueError:
             # no value was given or space was ommitted, split failed,
             # will not do anything for that command
-            if not cmd[0] == "*":
+            if cmd[0] != "*":
                 # if what was sent was a * cmd (requires no value),
                 # then go on with parsing
                 return
@@ -371,6 +371,7 @@ class SCPI_TCP_Server:
             self.server.shutdown()
             self.server.socket.close()
             self.server.server_close()
-            self.server.RequestHandlerClass.terminate: bool = True
+            # the next line apparently does not do anything and was commented 20260725
+            # self.server.RequestHandlerClass.terminate: bool = True
             self.running = False
             logger.info("server stopped on %s", self.server.server_address)

@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Literal, TypedDict, final, overload
@@ -59,6 +60,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMenu,
+    QPushButton,
     QSizePolicy,
     QStyledItemDelegate,
     QStyleOptionViewItem,
@@ -83,14 +85,14 @@ from matr1x.models import Envelope, SystemCapability, SystemInfo, SystemReferenc
 from matr1x.util import get_matrix_binary
 
 __all__ = [
+    "MMainWindow",
+    "MToolBar",
     "MeasurementItem",
     "MeasurementThread",
     "MeasurementUI",
     "MetaData",
     "MetaDataDialog",
     "MetadataDockWidget",
-    "MMainWindow",
-    "MToolBar",
     "Notifier",
     "NotifierMessage",
     "SaferQSettings",
@@ -127,9 +129,16 @@ class Notifier(QWidget):
         self._content.setContentsMargins(0, 0, 0, 0)
         self._icon = QLabel()
         self._text = QLabel()
+        self._close_button = QPushButton("✕")
+        self._close_button.setFixedSize(20, 20)
+        self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._close_button.clicked.connect(self.hide_animated)
+        self._dismiss_timer = QTimer()
+        self._dismiss_timer.setSingleShot(True)
+        self._dismiss_timer.timeout.connect(self.hide_animated)
         self._content.addWidget(self._icon)
-        self._content.addWidget(self._text)
-        self._content.addStretch()
+        self._content.addWidget(self._text, 1)
+        self._content.addWidget(self._close_button)
         self.setLayout(self._content)
 
     def show_message(self, message: NotifierMessage):
@@ -144,17 +153,24 @@ class Notifier(QWidget):
         self._icon.setPixmap(get_matrix_icon(icon_name).pixmap(size, size))
         self._text.setText(message.text)
         self._logger.log(message.level, message.text)
+        self._dismiss_timer.stop()
+        if message.level < logging.ERROR:
+            self._dismiss_timer.start(3000)
         self.show_animated()
 
     def show_animated(self):
-        """Show the notification and hide after 3s."""
+        """Show the notification. Auto-dismiss for warnings and below."""
         self.setVisible(True)
+        # Already visible — just update content, no need to re-animate
+        if self.maximumHeight() > 0:
+            return
+        if hasattr(self, "anim") and self.anim.state() == QPropertyAnimation.State.Running:
+            self.anim.stop()
         self.anim = QPropertyAnimation(self, b"maximumHeight")
         self.anim.setDuration(250)
         self.anim.setStartValue(0)
         self.anim.setEndValue(int(self.sizeHint().height()))
         self.anim.start()
-        QTimer.singleShot(3000, self.hide_animated)
 
     def hide_animated(self):
         """Hide the notification."""
@@ -979,7 +995,6 @@ class MeasurementThread(QThread, LoggerMixin):
         char : str
             ``a`` sets state to aborted,
             ``f`` sets state to finished.
-            ``q`` query the user
         """
         if self.proc is None or self.conn is None:
             return
@@ -1050,11 +1065,11 @@ class MeasurementThread(QThread, LoggerMixin):
             cmd = (
                 f"import matr1x\n"
                 f"import matr1x.util as mu\n"
-                f"matr1x.reload_config({repr(str(temp_config_file))})\n"
-                f"mu.matrix_script_process({repr(script_tempfile.name)}, "
-                f"{repr(self.parameters.metadata)}, "
-                f"{repr(self.parameters.output_file)}, {repr(port)}, "
-                f"{repr(self.parameters.systems)})"
+                f"matr1x.reload_config({str(temp_config_file)!r})\n"
+                f"mu.matrix_script_process({script_tempfile.name!r}, "
+                f"{self.parameters.metadata!r}, "
+                f"{self.parameters.output_file!r}, {port!r}, "
+                f"{self.parameters.systems!r})"
             )
             return [sys.executable, "-c", cmd]
         result = [
@@ -1082,51 +1097,53 @@ class MeasurementThread(QThread, LoggerMixin):
         to ``process_received_data`` until the process exits.
         """
         tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
-        tmp_scriptfile: IO[bytes] | None = None
-        if self.parameters.kind == "script":
-            tmp_scriptfile = tempfile.NamedTemporaryFile(mode="w+b")
-            tmp_scriptfile.write(self.parameters.input_file.encode())
-            tmp_scriptfile.flush()
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(("127.0.0.1", 0))
-            port = s.getsockname()[1]
-            s.listen(1)
-            cmd = self._generate_processfile(port, tmp_scriptfile, tmp_config_file)
-            self.proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=0,
-            )
-            self.conn, _ = s.accept()
-            s.close()
-            threading.Thread(
-                target=self.relay_subprocess_output, args=(self.proc.stdout, False), daemon=True
-            ).start()
-            threading.Thread(
-                target=self.relay_subprocess_output, args=(self.proc.stderr, True), daemon=True
-            ).start()
-            buffer = ""
-            while self.proc.poll() is None:
-                try:
-                    chunk = self.conn.recv(8192)
-                    if not chunk:
+            with ExitStack() as stack:
+                tmp_scriptfile: IO[bytes] | None = None
+                if self.parameters.kind == "script":
+                    tmp_scriptfile = stack.enter_context(tempfile.NamedTemporaryFile(mode="w+b"))
+                    tmp_scriptfile.write(self.parameters.input_file.encode())
+                    tmp_scriptfile.flush()
+
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("127.0.0.1", 0))
+                port = s.getsockname()[1]
+                s.listen(1)
+                cmd = self._generate_processfile(port, tmp_scriptfile, tmp_config_file)
+                self.proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    bufsize=0,
+                )
+                self.conn, _ = s.accept()
+                s.close()
+                threading.Thread(
+                    target=self.relay_subprocess_output,
+                    args=(self.proc.stdout, False),
+                    daemon=True,
+                ).start()
+                threading.Thread(
+                    target=self.relay_subprocess_output, args=(self.proc.stderr, True), daemon=True
+                ).start()
+                buffer = ""
+                while self.proc.poll() is None:
+                    try:
+                        chunk = self.conn.recv(8192)
+                        if not chunk:
+                            break
+                        buffer += chunk.decode()
+                        while "\0" in buffer:
+                            msg, buffer = buffer.split("\0", 1)
+                            if msg:
+                                self.process_received_data(msg)
+                    except OSError:
+                        self.process_received_data("OS error in thread communication.\n")
                         break
-                    buffer += chunk.decode()
-                    while "\0" in buffer:
-                        msg, buffer = buffer.split("\0", 1)
-                        if msg:
-                            self.process_received_data(msg)
-                except OSError:
-                    self.process_received_data("OS error in thread communication.\n")
-                    break
-            self.conn.close()
+                self.conn.close()
         finally:
-            if tmp_scriptfile is not None:
-                tmp_scriptfile.close()
             if tmp_config_file.exists():
                 tmp_config_file.unlink()
 

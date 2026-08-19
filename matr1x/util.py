@@ -32,7 +32,6 @@ import sysconfig
 import textwrap
 import threading
 from collections.abc import Callable, Sequence
-from contextlib import contextmanager
 from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
@@ -48,9 +47,9 @@ if TYPE_CHECKING:
 
     from _typeshed import SupportsWrite
 
-    _T = TypeVar("_T", contravariant=True)
+    _T_contra = TypeVar("_T_contra", contravariant=True)
 
-    class SupportsWriteAndFlush(SupportsWrite[_T], Protocol[_T]):
+    class SupportsWriteAndFlush(SupportsWrite[_T_contra], Protocol[_T_contra]):
         """Provide a type for a stream that have write and flush methods."""
 
         def flush(self) -> None:
@@ -58,37 +57,12 @@ if TYPE_CHECKING:
             ...
 
 
-# allow error handling while using with
-@contextmanager
-def open_and_error(filename: str, mode: str = "r"):
-    """
-    Context manager to handle file opening with error handling.
-
-    Parameters
-    ----------
-    filename : str
-        Name of the file to open.
-    mode : str, optional
-        Mode in which to open the file. Default is "r" (read mode).
-
-    Yields
-    ------
-    Result
-        Either Success(file object) or Error(exception).
-    """
-    try:
-        f = Path(filename).open(mode)
-    except Exception as error:
-        yield Error(error)
-    else:
-        try:
-            yield Success(f)
-        finally:
-            f.close()
-
-
 # default separator
 default_separator = "\t"
+
+_USER_SCRIPT_START_MARKER = "# ==== BEGIN USER SCRIPT AREA ===="
+_USER_SCRIPT_END_MARKER = "# ==== END USER SCRIPT AREA ===="
+_USER_SCRIPT_INSERTION_POINT = "    # USER_SCRIPT_INSERTION_POINT"
 
 
 def resolve_config_path(config: Any, path: str) -> Any:
@@ -310,10 +284,6 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
         - suffix : str
             Corresponding suffix of the script, finishes the try statement.
     """
-    # Marker constants
-    USER_SCRIPT_START_MARKER = "# ==== BEGIN USER SCRIPT AREA ===="
-    USER_SCRIPT_END_MARKER = "# ==== END USER SCRIPT AREA ===="
-    USER_SCRIPT_INSERTION_POINT = "    # USER_SCRIPT_INSERTION_POINT"
     template_path = Path(__file__).parent / "_matrix_script_template.py"
 
     if not template_path.exists():
@@ -323,22 +293,68 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
         template_content = f.read()
 
     # Find the markers
-    start_marker_pos = template_content.find(USER_SCRIPT_START_MARKER)
-    end_marker_pos = template_content.find(USER_SCRIPT_END_MARKER)
-    insertion_point_pos = template_content.find(USER_SCRIPT_INSERTION_POINT)
+    start_marker_pos = template_content.find(_USER_SCRIPT_START_MARKER)
+    end_marker_pos = template_content.find(_USER_SCRIPT_END_MARKER)
+    insertion_point_pos = template_content.find(_USER_SCRIPT_INSERTION_POINT)
 
     if start_marker_pos == -1:
-        raise ValueError(f"Start marker '{USER_SCRIPT_START_MARKER}' not found in template")
+        raise ValueError(f"Start marker '{_USER_SCRIPT_START_MARKER}' not found in template")
     if end_marker_pos == -1:
-        raise ValueError(f"End marker '{USER_SCRIPT_END_MARKER}' not found in template")
+        raise ValueError(f"End marker '{_USER_SCRIPT_END_MARKER}' not found in template")
     if insertion_point_pos == -1:
-        raise ValueError(f"Insertion point '{USER_SCRIPT_INSERTION_POINT}' not found in template")
+        raise ValueError(f"Insertion point '{_USER_SCRIPT_INSERTION_POINT}' not found in template")
 
     # Split the template at the insertion point
     prefix = template_content[:insertion_point_pos]
-    suffix = template_content[insertion_point_pos + len(USER_SCRIPT_INSERTION_POINT) :]
+    suffix = template_content[insertion_point_pos + len(_USER_SCRIPT_INSERTION_POINT) :]
 
     return prefix, suffix
+
+
+def get_user_script_line_range(script: str) -> tuple[int, int]:
+    """
+    Return the inclusive generated-source line range containing user code.
+
+    Parameters
+    ----------
+    script : str
+        Script produced by :func:`generate_script`.
+
+    Returns
+    -------
+    tuple[int, int]
+        First and last line belonging to the user-script insertion area.
+
+    Raises
+    ------
+    ValueError
+        If the generated-script boundary markers are missing or out of order.
+    """
+    lines = script.splitlines()
+    start_lines = [
+        line_number
+        for line_number, line in enumerate(lines, start=1)
+        if line.strip() == _USER_SCRIPT_START_MARKER
+    ]
+    end_lines = [
+        line_number
+        for line_number, line in enumerate(lines, start=1)
+        if line.strip() == _USER_SCRIPT_END_MARKER
+    ]
+
+    if not start_lines:
+        raise ValueError(
+            f"Start marker '{_USER_SCRIPT_START_MARKER}' not found in generated script"
+        )
+    if not end_lines:
+        raise ValueError(f"End marker '{_USER_SCRIPT_END_MARKER}' not found in generated script")
+
+    first_line = start_lines[0] + 1
+    last_line = end_lines[-1] - 1
+    if first_line > last_line:
+        raise ValueError("User-script boundary markers are out of order")
+
+    return first_line, last_line
 
 
 def get_script_prefix_offset() -> int:

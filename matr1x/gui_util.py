@@ -363,10 +363,9 @@ class FileLineEdit(QLineEdit):
             dialog.setFileMode(QFileDialog.FileMode.Directory)
             dialog.setOption(QFileDialog.Option.ShowDirsOnly)
 
-        if dialog.exec():
+        if dialog.exec() and len(dialog.selectedFiles()) > 0:
             # pass value to callback
-            if len(dialog.selectedFiles()) > 0:
-                self.callback(dialog.selectedFiles()[0])
+            self.callback(dialog.selectedFiles()[0])
 
 
 class MetaViewerWidget(QDockWidget):
@@ -998,11 +997,11 @@ class MetaViewerWidget(QDockWidget):
                 The role of the data being set (default is EditRole).
             """
             if not index.isValid():
-                return None
+                return
             if index.column() == 1:
                 if self.child_count() > 0:
                     # prevent writing into the header lines
-                    return None
+                    return
                 if role == Qt.ItemDataRole.EditRole:
                     self.value = value
                     self.hidden = False
@@ -1396,7 +1395,7 @@ class MetaViewerWidget(QDockWidget):
         #     }
         # """)
 
-    def update_data(self, meta, types: dict = {}) -> None:
+    def update_data(self, meta, types: dict | None = None) -> None:
         """
         Update data stored in the model and resize table to fit contents.
 
@@ -1408,6 +1407,8 @@ class MetaViewerWidget(QDockWidget):
             Type definition for editable meta data
         """
         # get position of scroll bar before resetting the data
+        if types is None:
+            types = {}
         if self.schema_contains_visa_resource(types):
             self.prefetch_visa_resource_names()
         current_pos = self.tree_view.verticalScrollBar().value()
@@ -1449,7 +1450,7 @@ class MetaViewerWidget(QDockWidget):
         dict
             Copied header data.
         """
-        # TODO: Implement sorting?
+        # TODO: Implement sorting?  # noqa: FIX002
         return hdr.copy()
 
 
@@ -1548,7 +1549,7 @@ class ConfigEditWidget(MetaViewerWidget):
         dict
             Parsed header data.
         """
-        # TODO: Implement sorting?
+        # TODO: Implement sorting?  # noqa: FIX002
         return {key: val for key, val in hdr.items() if key not in {"columns", "units"}}
 
     def set_systemfile(self, systemfile: list) -> None:
@@ -1599,7 +1600,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
     def reload_system_config(self, system_name: str) -> None:
         """Reload one system while preserving unsaved values in all other systems."""
-        retained_config = {
+        retained_config: dict[str, Any] = {
             item.key: self.parse_item(item)
             for item in self.model.root_item.child_items
             if item.key != system_name and item.child_count() > 0
@@ -1657,86 +1658,95 @@ class ConfigEditWidget(MetaViewerWidget):
 
         restore()
 
-    def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
-        """Update the configuration data in the widget."""
-        syst_dict = {}
-        reload_config()
-
-        # Check if we have a merged system by looking for comma-separated system names
-        is_merged_system = self.system_info is not None and any(
-            "," in system_name for system_name in self.system_info.config.keys()
+    def _has_merged_system_config(self) -> bool:
+        """Return whether runtime configuration represents a merged system."""
+        return self.system_info is not None and any(
+            "," in system_name for system_name in self.system_info.config
         )
 
-        # parse config of systems specified in self.systemfile
-        # Skip individual system configs if we have a merged system to avoid duplicates
-        if self.systemfile is not None and not is_merged_system:
-            for syst in self.systemfile:
-                syst_dict[syst.strip()] = resolve_config_path(matr1x.config, syst.strip())
+    def _config_from_systemfile(self) -> dict[str, Any]:
+        """Load file-backed configuration unless runtime data is already merged."""
+        if self.systemfile is None or self._has_merged_system_config():
+            return {}
+        return {
+            system.strip(): resolve_config_path(matr1x.config, system.strip())
+            for system in self.systemfile
+        }
+
+    @staticmethod
+    def _pydantic_config_value(config_info: dict[str, Any]) -> dict[str, Any]:
+        """Copy a Pydantic config value and retain its schema."""
+        config = copy.deepcopy(config_info["value"])
+        schema = config_info["schema"]
+        # The tree model adds absent required fields as editable, explicitly
+        # missing items using this schema.
+        config["_schema"] = schema
+        return config
+
+    def _add_system_config(
+        self, syst_dict: dict[str, Any], system_name: str, config_info: Any
+    ) -> None:
+        """Add one runtime system configuration to the editor data."""
+        if isinstance(config_info, dict) and {"value", "schema"} <= config_info.keys():
+            syst_dict[system_name] = self._pydantic_config_value(config_info)
+            return
+
+        system_config = syst_dict.setdefault(system_name, {})
+        for key, value_info in config_info.items():
+            if isinstance(value_info, dict):
+                if "value" in value_info:
+                    system_config[key] = value_info["value"]
+                continue
+            system_config[key] = value_info
+
+    def _add_missing_system_schemas(self, syst_dict: dict[str, Any]) -> None:
+        """Supplement runtime configuration with locally available JSON schemas."""
+        if self.system_info is None:
+            return
+        for system_name in self.system_info.config:
+            if system_name not in syst_dict or "_schema" in syst_dict[system_name]:
+                continue
+            try:
+                system_config = resolve_config_path(matr1x.config, system_name)
+                if hasattr(system_config, "model_json_schema"):
+                    syst_dict[system_name]["_schema"] = system_config.model_json_schema()
+            except Exception:
+                # If type information is unavailable, retain the values alone.
+                logger.debug(
+                    "Could not load the local schema for runtime system %s",
+                    system_name,
+                    exc_info=True,
+                )
+
+    @staticmethod
+    def _split_config_values_and_types(
+        source: dict[str, Any], values: dict[str, Any], types: dict[str, Any]
+    ) -> None:
+        """Separate configuration values from the schema tree used by the model."""
+        for key, item in source.items():
+            if key == "_schema":
+                types[key] = item
+            elif isinstance(item, dict):
+                values[key] = {}
+                types[key] = {}
+                ConfigEditWidget._split_config_values_and_types(item, values[key], types[key])
+            else:
+                values[key] = item
+
+    def update_data(self, meta: Any = None, types: dict[Any, Any] | None = None) -> None:
+        """Update the configuration data in the widget."""
+        reload_config()
+        syst_dict = self._config_from_systemfile()
 
         # parse config from system info (from subprocess)
         if self.system_info is not None:
             for system_name, config_info in self.system_info.config.items():
-                if system_name not in syst_dict:
-                    syst_dict[system_name] = {}
-
-                # Check for Pydantic-based config (contains 'value' and 'schema' keys)
-                if (
-                    isinstance(config_info, dict)
-                    and "value" in config_info
-                    and "schema" in config_info
-                ):
-                    syst_dict[system_name] = copy.deepcopy(config_info["value"])
-                    schema = config_info["schema"]
-                    for field_name, field_schema in schema.get("properties", {}).items():
-                        if field_name not in syst_dict[system_name] and "default" in field_schema:
-                            syst_dict[system_name][field_name] = field_schema["default"]
-                    # The tree model adds absent required fields as editable,
-                    # explicitly missing items using this schema.
-                    syst_dict[system_name]["_schema"] = schema
-                    continue
-
-                # Add runtime config from system info
-                for key, value_info in config_info.items():
-                    if isinstance(value_info, dict):
-                        if "value" in value_info:
-                            # Extract just the value from the nested structure
-                            syst_dict[system_name][key] = value_info["value"]
-                        else:
-                            # If it's a dict but doesn't have 'value' key,
-                            # it might be the nested structure itself, skip it
-                            continue
-                    else:
-                        syst_dict[system_name][key] = value_info
-
-            # Try to get type information from config system for all systems with config
-            for system_name, config_info in self.system_info.config.items():
-                if system_name in syst_dict:
-                    try:
-                        system_config = resolve_config_path(matr1x.config, system_name)
-                        if "_schema" not in syst_dict[system_name] and hasattr(
-                            system_config, "model_json_schema"
-                        ):
-                            syst_dict[system_name]["_schema"] = system_config.model_json_schema()
-                    except Exception:
-                        # If we can't get type info, continue without it
-                        pass
-
-        def parse_dict_and_types(d, dv, dt):
-            for key, item in d.items():
-                if key == "_schema":
-                    dt["_schema"] = d[key]
-                    continue
-                elif isinstance(item, dict):
-                    dv[key] = {}
-                    dt[key] = {}
-                    parse_dict_and_types(item, dv[key], dt[key])
-                else:
-                    dv[key] = d[key]
+                self._add_system_config(syst_dict, system_name, config_info)
+            self._add_missing_system_schemas(syst_dict)
 
         self.value_dict = {}
         self.types_dict = {}
-
-        parse_dict_and_types(syst_dict, self.value_dict, self.types_dict)
+        self._split_config_values_and_types(syst_dict, self.value_dict, self.types_dict)
 
         super().update_data(self.value_dict, self.types_dict)
         self._install_system_reload_buttons()
@@ -1819,20 +1829,8 @@ class ConfigEditWidget(MetaViewerWidget):
         return value
 
     @classmethod
-    def _schema_validation_error(cls, item) -> str | None:
-        """Validate one leaf value against constraints represented in JSON schema."""
-        if item.missing:
-            return "Field required"
-
-        schema = item.type(1)
-        if not isinstance(schema, dict):
-            return None
-
-        try:
-            value = cls._coerce_schema_value(item.value, schema)
-        except (TypeError, ValueError):
-            return f"Input should be a valid {schema.get('type', 'value')}"
-
+    def _validate_enum_or_const(cls, value: Any, schema: dict[str, Any]) -> str | None:
+        """Validate enum choices and const values."""
         if "enum" in schema:
             try:
                 enum = [
@@ -1847,32 +1845,64 @@ class ConfigEditWidget(MetaViewerWidget):
         if "const" in schema and value != schema["const"]:
             return f"Input should be {schema['const']!r}"
 
-        if schema.get("type") in {"integer", "number"}:
-            if "minimum" in schema and value < schema["minimum"]:
-                return f"Input should be greater than or equal to {schema['minimum']}"
-            if "maximum" in schema and value > schema["maximum"]:
-                return f"Input should be less than or equal to {schema['maximum']}"
-            if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
-                return f"Input should be greater than {schema['exclusiveMinimum']}"
-            if "exclusiveMaximum" in schema and value >= schema["exclusiveMaximum"]:
-                return f"Input should be less than {schema['exclusiveMaximum']}"
-            if multiple_of := schema.get("multipleOf"):
-                quotient = value / multiple_of
-                if not math.isclose(quotient, round(quotient), abs_tol=1e-12):
-                    return f"Input should be a multiple of {multiple_of}"
+        return None
 
-        if schema.get("type") == "string":
-            if "minLength" in schema and len(value) < schema["minLength"]:
-                return f"Input should have at least {schema['minLength']} characters"
-            if "maxLength" in schema and len(value) > schema["maxLength"]:
-                return f"Input should have at most {schema['maxLength']} characters"
-            if "pattern" in schema and re.search(schema["pattern"], value) is None:
-                return f"Input should match pattern {schema['pattern']!r}"
-            if schema.get("ui_type") == "visa_resource":
-                try:
-                    validate_visa_resource(value)
-                except ValueError as exc:
-                    return str(exc)
+    @classmethod
+    def _validate_numeric_constraints(cls, value: Any, schema: dict[str, Any]) -> str | None:
+        """Validate numeric range and multipleOf constraints."""
+        if "minimum" in schema and value < schema["minimum"]:
+            return f"Input should be greater than or equal to {schema['minimum']}"
+        if "maximum" in schema and value > schema["maximum"]:
+            return f"Input should be less than or equal to {schema['maximum']}"
+        if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
+            return f"Input should be greater than {schema['exclusiveMinimum']}"
+        if "exclusiveMaximum" in schema and value >= schema["exclusiveMaximum"]:
+            return f"Input should be less than {schema['exclusiveMaximum']}"
+        if multiple_of := schema.get("multipleOf"):
+            quotient = value / multiple_of
+            if not math.isclose(quotient, round(quotient), abs_tol=1e-12):
+                return f"Input should be a multiple of {multiple_of}"
+        return None
+
+    @classmethod
+    def _validate_string_constraints(cls, value: Any, schema: dict[str, Any]) -> str | None:
+        """Validate string length, regex patterns, and specialized UI types like visa_resource."""
+        if "minLength" in schema and len(value) < schema["minLength"]:
+            return f"Input should have at least {schema['minLength']} characters"
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            return f"Input should have at most {schema['maxLength']} characters"
+        if "pattern" in schema and re.search(schema["pattern"], value) is None:
+            return f"Input should match pattern {schema['pattern']!r}"
+        if schema.get("ui_type") == "visa_resource":
+            try:
+                validate_visa_resource(value)
+            except ValueError as exc:
+                return str(exc)
+        return None
+
+    @classmethod
+    def _schema_validation_error(cls, item) -> str | None:
+        """Validate one leaf value against constraints represented in JSON schema."""
+        if item.missing:
+            return "Field required"
+
+        schema = item.type(1)
+        if not isinstance(schema, dict):
+            return None
+
+        try:
+            value = cls._coerce_schema_value(item.value, schema)
+        except (TypeError, ValueError):
+            return f"Input should be a valid {schema.get('type', 'value')}"
+
+        if err := cls._validate_enum_or_const(value, schema):
+            return err
+
+        json_type = schema.get("type")
+        if json_type in {"integer", "number"}:
+            return cls._validate_numeric_constraints(value, schema)
+        if json_type == "string":
+            return cls._validate_string_constraints(value, schema)
 
         return None
 
@@ -1908,36 +1938,83 @@ class ConfigEditWidget(MetaViewerWidget):
                 items[new_key] = value
         return items
 
-    def apply_config_dict(self, config: dict) -> None:
+    def apply_config_dict(self, config: dict[str, Any]) -> None:
         """Apply values for configuration sections present in the current tree."""
+        self._apply_config_value(config)
 
-        def apply_values(value: Any, path: str = "") -> None:
-            if isinstance(value, dict):
-                for key, child in value.items():
-                    child_path = f"{path}.{key}" if path else key
-                    apply_values(child, child_path)
-                return
+    def _apply_config_value(self, value: Any, path: str = "") -> None:
+        """Apply a configuration value or recursively apply its child values."""
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f"{path}.{key}" if path else key
+                self._apply_config_value(child, child_path)
+            return
 
-            # Do not turn a missing required field into a literal null value.
-            if value is None:
-                return
-            index = self._index_for_config_path(path)
-            if not index.isValid():
-                return
+        # Do not turn a missing required field into a literal null value.
+        if value is None:
+            return
+        index = self._index_for_config_path(path)
+        if not index.isValid():
+            return
 
-            validation_error = None
-            if self.model.type(index).get("ui_type") == "visa_resource":
-                try:
-                    value = validate_visa_resource(str(value))
-                except ValueError as exc:
-                    validation_error = str(exc)
-            self.model.setData(index, value, Qt.ItemDataRole.EditRole)
-            self.model.set_validation_error(index, validation_error)
-            self.model.dataChanged.emit(index, index)
+        validation_error = None
+        if self.model.type(index).get("ui_type") == "visa_resource":
+            try:
+                value = validate_visa_resource(str(value))
+            except ValueError as exc:
+                validation_error = str(exc)
+        self.model.setData(index, value, Qt.ItemDataRole.EditRole)
+        self.model.set_validation_error(index, validation_error)
+        self.model.dataChanged.emit(index, index)
 
-        apply_values(config)
+    @classmethod
+    def _parse_leaf_item(cls, item: MetaViewerWidget.TreeItem) -> Any:
+        """Parse and type-coerce a leaf TreeItem value."""
+        raw_value = item.data(1, Qt.ItemDataRole.EditRole)
+        if raw_value is None:
+            return None
 
-    def parse_item(self, item) -> Any:
+        schema = item.type(1)
+        if not isinstance(schema, dict):
+            return raw_value
+
+        json_type = schema.get("type")
+        if json_type == "boolean":
+            return raw_value.lower() == "true"
+
+        if json_type == "integer":
+            try:
+                return int(raw_value)
+            except (ValueError, TypeError):
+                return raw_value
+
+        if json_type == "number":
+            try:
+                return float(raw_value)
+            except (ValueError, TypeError):
+                return raw_value
+
+        return raw_value
+
+    def _parse_container_item(self, item: MetaViewerWidget.TreeItem) -> dict | Any:
+        """Parse child TreeItems into a dictionary and validate Pydantic models."""
+        config = {
+            child_item.data(0, Qt.ItemDataRole.EditRole): self.parse_item(child_item)
+            for child_item in item.child_items
+            if not child_item.missing
+        }
+
+        if isinstance(item.value, BaseModel):
+            try:
+                validated = item.value.__class__.model_validate(config)
+                return validated.model_dump(mode="json", by_alias=True, exclude_none=True)
+            except ValidationError as e:
+                logger.warning("Validation error during config extraction for %s: %s", item.key, e)
+                return config
+
+        return config
+
+    def parse_item(self, item: MetaViewerWidget.TreeItem) -> Any:
         """
         Parse a TreeItem and its children into a configuration dictionary.
 
@@ -1953,44 +2030,8 @@ class ConfigEditWidget(MetaViewerWidget):
             if the item has no children.
         """
         if item.child_count() > 0:
-            config = {}
-            for child_item in item.child_items:
-                if child_item.missing:
-                    continue
-                config[child_item.data(0, Qt.ItemDataRole.EditRole)] = self.parse_item(child_item)
-
-            # If the item itself represents a Pydantic model, validate the config
-            if isinstance(item.value, BaseModel):
-                try:
-                    # Validate and convert back to a plain dict for the writing process
-                    # Use model_validate to check types and apply default values
-                    validated = item.value.__class__.model_validate(config)
-                    return validated.model_dump(mode="json", by_alias=True, exclude_none=True)
-                except ValidationError as e:
-                    logger.warning(
-                        "Validation error during config extraction for %s: %s", item.key, e
-                    )
-                    return config  # Fallback to raw config on error
-            return config
-
-        # Handle leaf nodes
-        schema = item.type(1)
-        if schema:
-            json_type = schema.get("type")
-            raw_value = item.data(1, Qt.ItemDataRole.EditRole)
-            if json_type == "boolean":
-                return str(raw_value).lower() == "true"
-            elif json_type == "integer":
-                try:
-                    return int(raw_value)
-                except (ValueError, TypeError):
-                    return raw_value
-            elif json_type == "number":
-                try:
-                    return float(raw_value)
-                except (ValueError, TypeError):
-                    return raw_value
-        return item.data(1, Qt.ItemDataRole.EditRole)
+            return self._parse_container_item(item)
+        return self._parse_leaf_item(item)
 
     def get_config_dict(self) -> dict:
         """
@@ -2037,6 +2078,11 @@ class ConfigEditWidget(MetaViewerWidget):
             write_config(config_dict, temp_file)  # Use matr1x's write_config
 
         return temp_file
+
+
+def _format_local_timestamp(value: float, fmt: str, *, trim_trailing_zeros: bool = False) -> str:
+    text = datetime.datetime.fromtimestamp(value, datetime.timezone.utc).astimezone().strftime(fmt)
+    return text.rstrip("0") if trim_trailing_zeros else text
 
 
 class SimplePlotWidget(QGroupBox):
@@ -2142,7 +2188,7 @@ class SimplePlotWidget(QGroupBox):
             *args
                 Variable length argument list passed to the parent class.
             **kwargs
-                Arbitrary keyword arguments passed to the parent class.
+            Arbitrary keyword arguments passed to the parent class.
             """
 
             def tickValues(self, minVal, maxVal, size):
@@ -2255,11 +2301,9 @@ class SimplePlotWidget(QGroupBox):
 
                 # Convert timestamps to formatted date strings
                 if spacing >= 5:
-                    return [
-                        datetime.datetime.fromtimestamp(value).strftime(fmt) for value in values
-                    ]
+                    return [_format_local_timestamp(value, fmt) for value in values]
                 return [
-                    datetime.datetime.fromtimestamp(value).strftime(fmt).rstrip("0")
+                    _format_local_timestamp(value, fmt, trim_trailing_zeros=True)
                     for value in values
                 ]
 
@@ -2525,7 +2569,7 @@ class SimplePlotWidget(QGroupBox):
             if self.x_is_categorical or self.z_is_categorical:
                 return y, x
 
-            if self.math_mode in self.default_math.keys():
+            if self.math_mode in self.default_math:
                 # some of our default math is supposed to be used
                 x = self.default_math[self.math_mode][0](x)
                 y = self.default_math[self.math_mode][1](y)
@@ -2562,9 +2606,12 @@ class SimplePlotWidget(QGroupBox):
                 if yc is not None and xc is not None:
                     if len(yc) != len(xc):
                         self._raise_error("error in math: arrays have different length")
-                    elif len(yc.shape) > 1 and all(np.array(yc.shape) > 1):
-                        self._raise_error("error in math: y array has too high dimension")
-                    elif len(xc.shape) > 1 and all(np.array(xc.shape) > 1):
+                    elif (
+                        len(yc.shape) > 1
+                        and all(np.array(yc.shape) > 1)
+                        or len(xc.shape) > 1
+                        and all(np.array(xc.shape) > 1)
+                    ):
                         self._raise_error("error in math: y array has too high dimension")
                     else:
                         y, x = yc, xc
@@ -2820,7 +2867,7 @@ class SimplePlotWidget(QGroupBox):
                     self.plt.setData(x=x, y=z, *args, **kwargs)
                 except ValueError as e:
                     # Handle shape mismatch errors
-                    self._raise_error(f"Plot error: {str(e)}")
+                    self._raise_error(f"Plot error: {e!s}")
 
             # After plotting, if autorange is enabled on any axis, recompute now.
             auto_range = self.vb.state["autoRange"]
@@ -3212,7 +3259,7 @@ class SimplePlotWidget(QGroupBox):
         if hasattr(new_plot, "vb") and new_plot.vb is not None:
             new_plot.vb.sigRangeChanged.connect(self._on_range_changed)
         # reset global plot2d flag
-        if any([plot.plot2d for plot in self.plots]) is True:
+        if any(plot.plot2d for plot in self.plots) is True:
             self._toggle_plot2d(True)
         else:
             self._toggle_plot2d(False)
@@ -3503,7 +3550,7 @@ class AboutBox(QMessageBox):
         # Get package and git information
         (version, branch, sha, time) = get_install_info(package)
         if time != "not available":
-            date = datetime.datetime.fromtimestamp(time).strftime(date_format)
+            date = _format_local_timestamp(time, date_format)
         else:
             date = time
         # Get Python interpreter information
@@ -3790,10 +3837,7 @@ def detect_shortcut(event, shortcut):
         keys = shortcut[0]
     else:
         raise ValueError("Shortcut has to be of type(str) or type(QKeySequence).")
-    if key == keys.key() and modifiers == keys.keyboardModifiers():
-        return True
-    else:
-        return False
+    return bool(key == keys.key() and modifiers == keys.keyboardModifiers())
 
 
 def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
@@ -3823,10 +3867,7 @@ def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
     ret = msg.exec()
     if ret == QMessageBox.StandardButton.Cancel:
         return False
-    if ret == QMessageBox.StandardButton.Save:
-        if not save_cb():
-            return False
-    return True
+    return not (ret == QMessageBox.StandardButton.Save and not save_cb())
 
 
 class ThemeDetector(QWidget):
@@ -4418,7 +4459,6 @@ class ReadOnlyTable(QTableWidget):
         index = self.currentIndex()
         if index.isValid():
             QApplication.clipboard().setText(str(index.data()))
-        return
 
 
 class LoggingWindow(QMainWindow):
@@ -4526,9 +4566,17 @@ class LoggingWindow(QMainWindow):
 class hasLogActions(Protocol):
     """The actions needed by the LogWindowMixin."""
 
-    show_log: QAction
-    post_install: QAction
-    remove_desktop_integration: QAction
+    @property
+    def show_log(self) -> QAction:
+        """The action to show the log window."""
+
+    @property
+    def post_install(self) -> QAction:
+        """The action to post-install the application."""
+
+    @property
+    def remove_desktop_integration(self) -> QAction:
+        """The action to remove desktop integration."""
 
 
 class LogWindowMixin:

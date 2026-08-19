@@ -152,10 +152,7 @@ class Danfysik9100(VisaDevice):
             True if ramping, False if stopped
         """
         q = self.query("RR")
-        if q == "S":
-            return False
-        else:
-            return True
+        return q != "S"
 
     def setOutput(self, output=None):
         """
@@ -264,13 +261,11 @@ class Danfysik9100(VisaDevice):
             "MPS not ready": True,
             "NU#24": "",
         }
-        count = 0
-        for i in status:
-            if a[count] == "!":
-                status[i] = True
-            elif a[count] == ".":
-                status[i] = False
-            count += 1
+        for cnt, label in enumerate(status):
+            if a[cnt] == "!":
+                status[label] = True
+            elif a[cnt] == ".":
+                status[label] = False
         return status
 
     def getPolarityStatus(self):

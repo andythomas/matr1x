@@ -22,6 +22,7 @@ These can be used for data acquisition and instrument control.
 import builtins
 import importlib
 import inspect
+import keyword
 import logging
 import os
 import re
@@ -100,99 +101,6 @@ ConfigParameter = dict[str, ConfigValue]
 T = TypeVar("T")
 
 
-def is_config_scheme(value: object) -> TypeGuard[ConfigScheme]:
-    """Return True if the value is a valid ConfigScheme tuple."""
-    return (
-        type(value) is tuple
-        and len(value) == 3
-        and isinstance(value[0], str)
-        and isinstance(value[1], tuple)
-        and isinstance(value[2], dict)
-    )
-
-
-def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
-    """Query a device config string via ``query`` or ``ask``."""
-    query_method = getattr(device_handle, "query", None)
-    if callable(query_method):
-        return str(query_method(query))
-
-    ask_method = getattr(device_handle, "ask", None)
-    if callable(ask_method):
-        return str(ask_method(query))
-
-    raise AttributeError(
-        f"config_params entry {query!r} needs a device query method, "
-        "but neither query() nor ask() is available"
-    )
-
-
-def device_query(
-    device_handle: VisaDevice | Instrument, config_params: ConfigParameter
-) -> dict[str, Any]:
-    """
-    Query the current configuration of the device.
-
-    Parameters
-    ----------
-    device_handle : VisaDevice or pymeasure device
-        Must be an open device that implements the query function.
-    config_params : dict
-        Dictionary must adhere to the following format. Key is
-        descriptor which is used to identify the parameter. The
-        corresponding values must be one of:
-
-        * An attribute or method name (if callable without arguments of
-          the device object)
-        * A callable function (without arguments)
-        * A query string for the device
-        * A list of the following scheme
-        [method_name : str, args : tuple, kwargs : dict]
-
-    Returns
-    -------
-    dict
-        A dictionary of dictionaries containing the configuration. The
-        keys of are the parameters that were queried.
-    """
-    if hasattr(device_handle, "name"):
-        device_id = device_handle.name
-    else:
-        device_id = device_handle.__class__.__name__
-    adapter = getattr(device_handle, "adapter", None)
-    connection = getattr(adapter, "connection", None)
-    resource_name = getattr(connection, "resource_name", None)
-    if resource_name:
-        device_id += f" {resource_name}"
-    retquery: dict[str, Any] = {}
-    for k, q in config_params.items():
-        try:
-            if isinstance(q, str) and not callable(q):
-                try:
-                    attr = getattr(device_handle, q)
-                except AttributeError:
-                    line = _query_device_config(device_handle, q)
-                else:
-                    if callable(attr):
-                        line = attr()
-                    else:
-                        line = attr
-            elif callable(q) and not isinstance(q, tuple) and not isinstance(q, str):
-                line = q()
-            elif is_config_scheme(q) and not callable(q):
-                method = getattr(device_handle, q[0])
-                if not callable(method):
-                    raise ValueError(f"config_params: method '{q[0]}' is not callable")
-                line = str(method(*q[1], **q[2]))
-            else:
-                raise ValueError(f"config_params: Ambiguous class of {q!r}")
-        except Exception:
-            logger.exception("exception during config query of %s", device_id)
-            raise
-        retquery[k] = line
-    return retquery
-
-
 class DcDict(dict):
     """
     Custom dictionary class that only allows append if key already exists.
@@ -249,18 +157,16 @@ class DcDict(dict):
             return
         if ref:
             # reference system is defined, write meta_data to that system
-            if key in ref.keys():
-                if ref[key]:
-                    # only append to available value if it exists (not None)
-                    ref[key] = sep.join([ref[key], value])
-                    return
+            if ref.get(key):
+                # only append to available value if it exists (not None)
+                ref[key] = sep.join([ref[key], value])
+                return
             ref[key] = sep[1:] + value
         else:
             # append meta data to current current array
-            if key in self.keys():
-                if self[key]:
-                    super().__setitem__(key, sep.join([self[key], value]))
-                    return
+            if key in self.keys() and self[key]:
+                super().__setitem__(key, sep.join([self[key], value]))
+                return
             super().__setitem__(key, sep[1:] + value)
 
 
@@ -372,9 +278,8 @@ class Parameter:
                 )
             if len(name) != len(unit):
                 raise ValueError("Name and unit have unequal length")
-            if dtypes is not None:
-                if len(name) != len(dtypes):
-                    raise ValueError("Name and dtypes have unequal length")
+            if dtypes is not None and len(name) != len(dtypes):
+                raise ValueError("Name and dtypes have unequal length")
             for val, key in zip([chunks, default], ["chunks", "default"]):
                 if val is not None:
                     if not isinstance(val, (list, tuple)):
@@ -435,23 +340,21 @@ class Parameter:
                     for chunk in chunks:
                         self.chunks.append(self.verify(chunk, int))
                 else:
-                    ValueError(f"Invalid type, expected list for chunks, but received {chunks}.")
+                    raise ValueError(
+                        f"Invalid type, expected list for chunks, but received {chunks}."
+                    )
             else:
                 self.chunks = self.verify(chunks, int)
 
     def __lt__(self, other: object) -> bool:
         """Define comparison function for sorting."""
-        if isinstance(other, Parameter):
-            if "timeUTC" in other.name:
-                return True
-        return False
+        return bool(isinstance(other, Parameter) and "timeUTC" in other.name)
 
     def __eq__(self, other: object) -> bool:
         """Define equivalence of parameters."""
-        if isinstance(other, Parameter):
-            if self.name == other.name and self.unit == other.unit:
-                return True
-        return False
+        return bool(
+            isinstance(other, Parameter) and self.name == other.name and self.unit == other.unit
+        )
 
     @staticmethod
     def make_command_line_compatible(s: str | list[str]) -> str:
@@ -555,8 +458,8 @@ class System:
         Contains the definition for custom device queries to read the
         configuration. Keys match the device names in .devs.
     name : str or None
-        Optional system name used by control GUIs and as the subsystem accessor
-        for ordinary systems.
+        Optional instance name used by control GUIs and as the subsystem
+        accessor for ordinary systems.
     """
 
     stateful: ClassVar[bool] = False
@@ -586,6 +489,7 @@ class System:
         self._config = matr1x.config.matr1x.scripts.matrix_script
         # define merged system reference
         self.merged_system: MergedSystem | None = None
+        self._reporter: Callable[[MeasurementData], None] | None = None
         # initialize lists for later use
         self.parameters: list[Parameter] = []
 
@@ -619,17 +523,110 @@ class System:
         # Dublin Core metadata default entries
         self.dcdata: DcDict = DcDict(
             self,
-            creator=None,  # measurement user
+            creator="",  # measurement user
             date=time.strftime(f"{matr1x.datetimefmt}", time.localtime()),
-            identifier=None,  # sample name
-            relation=None,  # parent sample
-            description=None,  # comment
-            source=None,  # measurement system
-            type=None,  # type of measurement data (e.g., transport)
-            publisher=None,  # published of data, e.g., university/institute
+            identifier="",  # sample name
+            relation="",  # parent sample
+            description="",  # comment
+            source="",  # measurement system
+            type="",  # type of measurement data (e.g., transport)
+            publisher="",  # published of data, e.g., university/institute
             format="text/plain; charset=UTF-8",
             language="en",
         )
+
+    @staticmethod
+    def _is_config_scheme(value: object) -> TypeGuard[ConfigScheme]:
+        """Return True if the value is a valid ConfigScheme tuple."""
+        return (
+            type(value) is tuple
+            and len(value) == 3
+            and isinstance(value[0], str)
+            and isinstance(value[1], tuple)
+            and isinstance(value[2], dict)
+        )
+
+    @staticmethod
+    def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
+        """Query a device config string via ``query`` or ``ask``."""
+        query_method = getattr(device_handle, "query", None)
+        if callable(query_method):
+            return str(query_method(query))
+
+        ask_method = getattr(device_handle, "ask", None)
+        if callable(ask_method):
+            return str(ask_method(query))
+
+        raise AttributeError(
+            f"config_params entry {query!r} needs a device query method, "
+            "but neither query() nor ask() is available"
+        )
+
+    @staticmethod
+    def _device_query(
+        device_handle: VisaDevice | Instrument, config_params: ConfigParameter
+    ) -> dict[str, Any]:
+        """
+        Query the current configuration of the device.
+
+        Parameters
+        ----------
+        device_handle : VisaDevice or pymeasure device
+            Must be an open device that implements the query function.
+        config_params : dict
+            Dictionary must adhere to the following format. Key is
+            descriptor which is used to identify the parameter. The
+            corresponding values must be one of:
+
+            * An attribute or method name (if callable without arguments of
+              the device object)
+            * A callable function (without arguments)
+            * A query string for the device
+            * A list of the following scheme
+            [method_name : str, args : tuple, kwargs : dict]
+
+        Returns
+        -------
+        dict
+            A dictionary of dictionaries containing the configuration. The
+            keys of are the parameters that were queried.
+        """
+        if hasattr(device_handle, "name"):
+            device_id = device_handle.name
+        else:
+            device_id = device_handle.__class__.__name__
+        adapter = getattr(device_handle, "adapter", None)
+        connection = getattr(adapter, "connection", None)
+        resource_name = getattr(connection, "resource_name", None)
+        if resource_name:
+            device_id += f" {resource_name}"
+        retquery: dict[str, Any] = {}
+        for k, q in config_params.items():
+            try:
+                if isinstance(q, str) and not callable(q):
+                    try:
+                        attr = getattr(device_handle, q)
+                    except AttributeError:
+                        line = System._query_device_config(device_handle, q)
+                    else:
+                        if callable(attr):
+                            line = attr()
+                        else:
+                            line = attr
+                elif callable(q) and not isinstance(q, tuple) and not isinstance(q, str):
+                    line = q()
+                elif System._is_config_scheme(q) and not callable(q):
+                    method = getattr(device_handle, q[0])
+                    if not callable(method):
+                        raise ValueError(f"config_params: method '{q[0]}' is not callable")
+                    line = str(method(*q[1], **q[2]))
+                else:
+                    raise ValueError(f"config_params: Ambiguous class of {q!r}")
+            except Exception:
+                logger.exception("exception during config query of %s", device_id)
+                raise
+            retquery[k] = line
+        return retquery
 
     @property
     def name(self) -> str | None:
@@ -647,7 +644,7 @@ class System:
         """Return the attribute name used to expose this subsystem after merging."""
         if self.stateful and self.state is not None:
             return f"{self.__class__.__name__}_{self.state}"
-        if self.name is not None and self.name.isidentifier():
+        if self.name is not None and self.name.isidentifier() and not keyword.iskeyword(self.name):
             return self.name
         return self.__class__.__name__
 
@@ -781,9 +778,6 @@ class System:
 
         legacy_name = "system"
         system = getattr(mod, legacy_name, None)
-        if not isinstance(system, System):
-            legacy_name = "sys"
-            system = getattr(mod, legacy_name, None)
 
         if isinstance(system, System):
             legacy_warning = (
@@ -840,7 +834,7 @@ class System:
         groups: dict[str, str] = {}
         if stateful:
             try:
-                states, groups = cast(type[StatefulSystem], system_class).state_declaration()
+                states, groups = system_class.state_declaration()
             except ValueError as error:
                 return Error(f"Stateful system '{reference.source}' is invalid: {error}")
         return Success(
@@ -925,11 +919,11 @@ class System:
         # check if hdf5 format has to be used
         for parm in self.parameters:
             if isinstance(parm.chunks, (list, tuple)):
-                if not isinstance(parm.name, (list, tuple)):
-                    self.hdf5 = True
-                elif any([isinstance(p, (tuple,)) for p in parm.chunks]):
-                    self.hdf5 = True
-                elif any([p > 1 for p in parm.chunks]):
+                if (
+                    not isinstance(parm.name, (list, tuple))
+                    or any(isinstance(p, (tuple,)) for p in parm.chunks)
+                    or any(p > 1 for p in parm.chunks)
+                ):
                     self.hdf5 = True
             elif parm.chunks > 1:
                 self.hdf5 = True
@@ -1010,12 +1004,12 @@ class System:
         if args is not None and kwargs is not None:
             entry = [descriptor, args, kwargs]
         elif kwargs is not None:
-            entry = [descriptor, tuple(), kwargs]
+            entry = [descriptor, (), kwargs]
         elif args is not None:
             entry = [descriptor, args]
         else:
             # device instance can be initialized without arguments
-            entry = [descriptor, tuple()]
+            entry = [descriptor, ()]
         self.devs[name] = entry
         self._devs_init[name] = entry
         if config_params is not None:
@@ -1097,16 +1091,23 @@ class System:
         """
         Report data through the communication layer.
 
-        For this to function the method needs to be injected into the MergedSystem.
+        A runner can install a callback with :meth:`set_reporter` to receive
+        measurement data directly.
 
         Parameters
         ----------
         data : MeasurementData
             The data to report.
         """
+        if self._reporter is not None:
+            self._reporter(data)
         # Defer to merged_system if it is present
-        if self.merged_system:
+        elif self.merged_system:
             self.merged_system.report(data)
+
+    def set_reporter(self, reporter: Callable[[MeasurementData], None]) -> None:
+        """Set the callback that forwards measurement data to the runner."""
+        self._reporter = reporter
 
     def generate_datafilename(
         self, outputfile: str | Path = "", inputfile: str | Path = "", append=False
@@ -1226,7 +1227,7 @@ class System:
             if len(func) >= 2:
                 info += f" related to device {func[0]}, parameter {func[1]}."
             else:
-                info += f" with list-like property: {str(func)}."
+                info += f" with list-like property: {func!s}."
         print(info)  # noqa: T201
 
     def set_value(
@@ -1635,17 +1636,17 @@ class System:
         for key, dev in self.devs.items():
             # get device
             try:
-                if key in self.system_config_params.keys() and hasattr(dev, "config_params"):
+                if key in self.system_config_params and hasattr(dev, "config_params"):
                     # device config_params are specified in system and device
-                    retquery[key] = device_query(
+                    retquery[key] = System._device_query(
                         dev, {**self.system_config_params[key], **dev.config_params}
                     )
-                elif key in self.system_config_params.keys():
+                elif key in self.system_config_params:
                     # device config query is specified in system
-                    retquery[key] = device_query(dev, self.system_config_params[key])
+                    retquery[key] = System._device_query(dev, self.system_config_params[key])
                 elif hasattr(dev, "config_params"):
                     # device has config query specified, should return dictionary
-                    retquery[key] = device_query(dev, dev.config_params)
+                    retquery[key] = System._device_query(dev, dev.config_params)
                 else:
                     # no query details available
                     retquery[key] = {}
@@ -1695,7 +1696,7 @@ class System:
                 try:
                     dev.adapter.flush_read_buffer()
                 except Exception:
-                    pass
+                    logger.debug("Could not flush device read buffer during reset", exc_info=True)
             elif hasattr(dev, "read_very_eager"):  # VisaDevice
                 # read all bytes available and ignore them
                 dev.read_very_eager()
@@ -1709,9 +1710,10 @@ class System:
         by calling System.set().
         """
         for dev in self.devs.values():
-            if hasattr(dev, "close"):  # VisaDevice and other custom devices
-                if callable(dev.close):
-                    dev.close()
+            if hasattr(dev, "close") and callable(
+                dev.close
+            ):  # VisaDevice and other custom devices
+                dev.close()
             if isinstance(dev, Instrument):  # pymeasure Instrument
                 dev.adapter.close()
         # reset devs dictionary to allow reopening
@@ -1847,13 +1849,13 @@ class System:
             if len(device_entry) > 1:
                 args = device_entry[1]
                 if args and len(args) > 0:
-                    args_str = f", args={str(args)}"
+                    args_str = f", args={args!s}"
 
             kwargs_str = ""
             if len(device_entry) > 2:
                 kwargs = device_entry[2]
                 if kwargs and len(kwargs) > 0:
-                    kwargs_str = f", kwargs={str(kwargs)}"
+                    kwargs_str = f", kwargs={kwargs!s}"
 
             # Format the device information
             info["devices"][dev] = {
@@ -1949,13 +1951,10 @@ class System:
                 save_dict_to_hdf5(self.query_dict, data_file, "system query")
 
                 for dckey, dcvalue in self.dcdata.items():
-                    if dckey not in VALID_META_KEYS.keys():
+                    if dckey not in VALID_META_KEYS:
                         # values that are not in the dc specifications are
                         # just added as attribute
                         data_file.attrs[f"{dckey}"] = dcvalue
-                    elif dcvalue is None:
-                        # mark non-existing value
-                        data_file.attrs[f"dcterms:{dckey}"] = "__None__"
                     else:
                         data_file.attrs[f"dcterms:{dckey}"] = dcvalue
 
@@ -1965,15 +1964,13 @@ class System:
             telemetry += [default_separator]  # ty: ignore[unsupported-operator]
             with Path(self.filename).open("w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
-                    if dckey not in VALID_META_KEYS.keys():
+                    if dckey not in VALID_META_KEYS:
                         # values that are not in the dc specifications are
                         # just added as attribute
                         if dcvalue is not None:
                             dcentry = dcvalue.replace("\n", "\n## ")
                         dcentry = dcentry.replace('"', '"')
                         data_file.write(f'# {dckey} : "{dcentry}"\n')
-                    elif dcvalue is None:
-                        data_file.write(f"# dcterms:{dckey} : None\n")
                     else:
                         dcentry = dcvalue.replace("\n", "\n## ")
                         dcentry = dcentry.replace('"', '"')

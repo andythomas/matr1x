@@ -28,7 +28,7 @@ import time
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError
@@ -36,6 +36,7 @@ from matr1x.models import (
     ErrorMessage,
     Header,
     InputParameters,
+    LogEntry,
     MeasuredValues,
     MeasurementData,
     Message,
@@ -48,7 +49,17 @@ from matr1x.util import log_multiline
 
 __all__ = ["ExecThread"]
 
-logger = logging.getLogger(__name__)
+_RELATIVE_TIME_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def _local_now() -> datetime:
+    """Return the current time in the host's local timezone."""
+    return datetime.now(timezone.utc).astimezone()
+
+
+def _parse_local_time(value: str, fmt: str) -> datetime:
+    """Parse local civil time as a timezone-aware datetime."""
+    return datetime.strptime(value, fmt).astimezone()
 
 
 def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime:
@@ -59,13 +70,14 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
     ----------
     until : str or datetime
         A target time or relative time string, or datetime object.
+        Strings and naive datetime objects are interpreted in the local timezone.
     current_time : datetime
         The current time to use as reference for relative time parsing.
 
     Returns
     -------
     datetime
-        The parsed end time.
+        The parsed end time in the local timezone.
 
     Raises
     ------
@@ -73,23 +85,15 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
         If the until format is not recognized.
     """
     if isinstance(until, datetime):
-        return until
+        return until.astimezone()
 
     if isinstance(until, str) and until.startswith("+"):
         # Parse relative time
         match = re.match(r"\+(\d+\.?\d*)([smhd])", until)
-        if match:
-            value, unit = float(match.group(1)), match.group(2)
-            if unit == "s":
-                return current_time + timedelta(seconds=value)
-            elif unit == "m":
-                return current_time + timedelta(minutes=value)
-            elif unit == "h":
-                return current_time + timedelta(hours=value)
-            elif unit == "d":
-                return current_time + timedelta(days=value)
-        else:
+        if match is None:
             raise ValueError("Invalid relative time format.")
+        value, unit = float(match.group(1)), match.group(2)
+        return current_time + timedelta(seconds=value * _RELATIVE_TIME_SECONDS[unit])
 
     # Parse absolute time with multiple date formats
     formats = [
@@ -109,14 +113,16 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
 
     for fmt in formats:
         try:
-            parsed_time = datetime.strptime(until, fmt)
             if fmt in ["%H:%M:%S", "%H:%M"]:
-                parsed_time = parsed_time.replace(
-                    year=current_time.year, month=current_time.month, day=current_time.day
+                current_date = current_time.date()
+                parsed_time = _parse_local_time(
+                    f"{current_date:%Y-%m-%d} {until}", f"%Y-%m-%d {fmt}"
                 )
                 if parsed_time < current_time:
-                    parsed_time += timedelta(days=1)
-            return parsed_time
+                    next_date = current_date + timedelta(days=1)
+                    return _parse_local_time(f"{next_date:%Y-%m-%d} {until}", f"%Y-%m-%d {fmt}")
+                return parsed_time
+            return _parse_local_time(until, fmt)
         except ValueError:
             continue
 
@@ -126,6 +132,25 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
 @dataclass
 class Status:
     finished: bool | None = None
+
+
+class _CaptureHandler(logging.Handler):
+    """Logging handler that captures log records and feeds a callback."""
+
+    def __init__(self, cb: Callable[[LogEntry], None]):
+        """Initialize the handler with a callback function."""
+        super().__init__()
+        self.send: Callable[[LogEntry], None] = cb
+
+    def emit(self, record: logging.LogRecord):
+        log = LogEntry(
+            name=record.name,
+            level=record.levelno,
+            getMessage=record.getMessage(),
+            created=record.created,
+            lineno=record.lineno,
+        )
+        self.send(log)
 
 
 class ExecThread(threading.Thread):
@@ -175,6 +200,11 @@ class ExecThread(threading.Thread):
             List of system files to load.
         """
         super().__init__()
+        self.logger = logging.getLogger(f"{self.__module__}")
+        self.logger.propagate = False
+        capture_handler = _CaptureHandler(self._send2socket)
+        self.logger.addHandler(capture_handler)
+
         self.script = script
         self.meta_data = meta_data
         self.scriptname = scriptname
@@ -256,7 +286,7 @@ class ExecThread(threading.Thread):
             If neither `duration` nor `until` is provided,
             or if the `until` format is not recognized.
         """
-        now = datetime.now()
+        now = _local_now()
         msg = "" if not message else f" ({message})"
 
         if duration is not None:
@@ -327,12 +357,12 @@ class ExecThread(threading.Thread):
         while sleep_time > 0:
             # Calculate remaining time based on the end time for "until" waits
             if not is_duration and end_time:
-                sleep_time = (end_time - datetime.now()).total_seconds()
+                sleep_time = (end_time - _local_now()).total_seconds()
 
             # Check for interruption or pause
             pause_start = time.time()  # Record when the pause starts
             if self.check_for_interrupt_and_pause():
-                if not is_duration and end_time and datetime.now() >= end_time:
+                if not is_duration and end_time and _local_now() >= end_time:
                     text = "\nThe target time passed during pause. Continuing immediately."
                     self.report(Message(text))
                     return
@@ -340,17 +370,17 @@ class ExecThread(threading.Thread):
                     # Calculate pause duration and extend end_time accordingly
                     pause_end = time.time()
                     pause_duration += pause_end - pause_start
-                    end_time = datetime.now() + timedelta(
+                    end_time = _local_now() + timedelta(
                         seconds=(initial_sleep_time - (time.time() - start_time - pause_duration))
                     )
 
                     # Recalculate sleep_time after adjusting for pause
-                    sleep_time = (end_time - datetime.now()).total_seconds()
+                    sleep_time = (end_time - _local_now()).total_seconds()
                     text = f"\nResuming wait for {sleep_time:.0f} seconds{message}."
                     self.report(Message(text))
                 else:
                     # For "until" wait, recalculate based on the current end_time
-                    sleep_time = max(0, (end_time - datetime.now()).total_seconds())
+                    sleep_time = max(0, (end_time - _local_now()).total_seconds())
                     text = (
                         f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
                         f"({sleep_time:.0f} seconds remaining)."
@@ -411,9 +441,9 @@ class ExecThread(threading.Thread):
     def input(
         self,
         *,
+        timeout: float | None,
         message: str = "",
         input_type: str = "string",
-        timeout: float = float("inf"),
         default_value: str | float = "",
         min_value: float | None = None,  # Optional: minimum value for numerical input
         max_value: float | None = None,  # Optional: maximum value for numerical input
@@ -475,8 +505,7 @@ class ExecThread(threading.Thread):
             self.check_for_interrupt_and_pause()
         # remove trailling line feed
         ret = self.recv.strip()
-        # print output
-        logger.info("User input received: %s", ret)
+        self.logger.info("User input received: %s", ret)
         self.recv = ""
         return ret
 
@@ -490,16 +519,18 @@ class ExecThread(threading.Thread):
         inp : str
             The input string to be handled.
         """
+        # Control characters always take priority over pending input
+        if inp == "p":
+            self.pause(not self.pause_flag)
+            return
+        elif inp == "f":
+            self.stop(True)
+            return
+        elif inp == "a":
+            self.stop(False)
+            return
         if self.recv_flag is False:
-            if inp == "p":
-                self.pause(not self.pause_flag)
-            elif inp == "q":
-                self.stop()
-            elif inp == "f":
-                self.stop(True)
-            elif inp == "a":
-                self.stop(False)
-            elif inp == "i":
+            if inp == "i":
                 # reset input if already available
                 self.recv = ""
                 self.recv_flag = True
@@ -517,23 +548,28 @@ class ExecThread(threading.Thread):
         data : ScriptData
             The data to report.
         """
-        if self.socket is None:
-            return
         conf = matr1x.config.matr1x
         if isinstance(data, Message):
             if data.should_comment:
                 self.system.add_comment(data.message)
             if data.should_log:
-                log_multiline(logger, data.message.lstrip("\n"))
+                log_multiline(self.logger, data.message.lstrip("\n"))
         elif isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)):
             if data.to_stdout and conf.duplicate_output_to_logfile:
-                log_multiline(logger, str(data))
+                log_multiline(self.logger, str(data))
         elif isinstance(data, InputParameters):
-            logger.info(data)
+            self.logger.info(data)
+        self._send2socket(data)
+
+    def _send2socket(self, data: MeasurementData) -> None:
+        """Send data via the socket across the air-gap."""
+        if self.socket is None:
+            return
         try:
             self.socket.sendall(data.model_dump_json().encode("utf-8") + b"\0")
         except OSError:
-            logger.exception("Could not report matrix script data to GUI")
+            self.logger.propagate = True
+            self.logger.exception("Could not report matrix script data to GUI")
 
     def run(self):
         """Run the script and allow to cancel at the start."""
@@ -548,7 +584,7 @@ class ExecThread(threading.Thread):
                 "_script": self.script,
                 "_system": self.system,
             }
-            self.system.report: Callable[[MeasurementData], None] = self.report
+            self.system.set_reporter(self.report)
             exec(self.script, _vars)
         except KeyboardInterrupt:
             self.report(Message("Script interrupted during initialization", to_comment=False))
@@ -556,9 +592,11 @@ class ExecThread(threading.Thread):
             error_message = "script exited with error:\n" + "".join(
                 traceback.format_exception(type(e), e, e.__traceback__)
             )
-            logger.exception("Unhandled exception in matrix script")
+            self.logger.propagate = True
+            self.logger.exception("Unhandled exception in matrix script")
             self.report(ErrorMessage(error_message))
             try:
                 self.system.reset(status="errored")
             except Exception:
-                logger.exception("Failed to reset system after matrix script exception")
+                self.logger.propagate = True
+                self.logger.exception("Failed to reset system after matrix script exception")
