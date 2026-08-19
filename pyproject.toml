@@ -83,11 +83,6 @@ env = [
     "QT_QUICK_BACKEND=software",
 ]
 
-[tool.pyrefly]
-project-includes = [
-    "matr1x"
-]
-
 [tool.ty.src]
 include = [
     "matr1x",
