@@ -32,7 +32,6 @@ import sysconfig
 import textwrap
 import threading
 from collections.abc import Callable, Sequence
-from contextlib import ExitStack, contextmanager
 from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
@@ -56,33 +55,6 @@ if TYPE_CHECKING:
         def flush(self) -> None:
             """Add flush to the existing write."""
             ...
-
-
-# allow error handling while using with
-@contextmanager
-def open_and_error(filename: str, mode: str = "r"):
-    """
-    Context manager to handle file opening with error handling.
-
-    Parameters
-    ----------
-    filename : str
-        Name of the file to open.
-    mode : str, optional
-        Mode in which to open the file. Default is "r" (read mode).
-
-    Yields
-    ------
-    Result
-        Either Success(file object) or Error(exception).
-    """
-    with ExitStack() as stack:
-        try:
-            file = stack.enter_context(Path(filename).open(mode))
-        except Exception as error:
-            yield Error(error)
-        else:
-            yield Success(file)
 
 
 # default separator
