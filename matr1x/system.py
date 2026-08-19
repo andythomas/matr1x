@@ -19,6 +19,8 @@ Module containing the System class definition and utility functions.
 These can be used for data acquisition and instrument control.
 """
 
+from __future__ import annotations
+
 import builtins
 import importlib
 import inspect
@@ -734,7 +736,7 @@ class System:
     def from_file(
         cls,
         filename: str | Path | SystemReference,
-    ) -> Result["System", str]:
+    ) -> Result[System, str]:
         """Load and construct a static or stateful system."""
         return cls._from_file(filename)
 
@@ -742,7 +744,7 @@ class System:
     def _load_definition(
         cls,
         source: str,
-    ) -> Result[tuple[type["System"] | "System", Path | str, str | None], str]:
+    ) -> Result[tuple[type[System] | System, Path | str, str | None], str]:
         """Import a system source and return its class or legacy instance."""
         module_result = cls._import_system_module(source)
         if isinstance(module_result, Error):
@@ -790,7 +792,7 @@ class System:
     @staticmethod
     def _system_definition_from_module(
         module: Any, normfilename: Path | str
-    ) -> Result[tuple[type["System"] | "System", Path | str, str | None], str]:
+    ) -> Result[tuple[type[System] | System, Path | str, str | None], str]:
         """Find the single supported system definition in an imported module."""
         legacy_name = "system"
         system = getattr(module, legacy_name, None)
@@ -867,7 +869,7 @@ class System:
     def _from_file(
         cls,
         filename: str | Path | SystemReference,
-    ) -> Result["System", str]:
+    ) -> Result[System, str]:
         """
         Load and construct a system from a file or importable module.
 
@@ -898,8 +900,8 @@ class System:
 
     @staticmethod
     def _instantiate_definition(
-        definition: type["System"] | "System", reference: SystemReference
-    ) -> Result["System", str]:
+        definition: type[System] | System, reference: SystemReference
+    ) -> Result[System, str]:
         """Construct a static or stateful system from an imported definition."""
         if isinstance(definition, System):
             if definition.stateful:
@@ -2272,7 +2274,7 @@ class MergedSystem(System):
     @staticmethod
     def _validate_subsystem(
         subsystem: System,
-        seen_accessors: set[str],
+        seen_accessors: builtins.set[str],
         selected_groups: dict[tuple[str, str, str], str],
     ) -> None:
         """Ensure the subsystem has a unique accessor and compatible state."""
@@ -2364,7 +2366,7 @@ class MergedSystem(System):
     def from_references(
         cls,
         references: Iterable[str | Path | SystemReference],
-    ) -> Result["MergedSystem", str]:
+    ) -> Result[MergedSystem, str]:
         """Load, bind, and merge static or stateful system references."""
         normalized: list[SystemReference] = []
         try:
@@ -2386,7 +2388,7 @@ class MergedSystem(System):
             return Error(str(error))
 
     @classmethod
-    def from_files(cls, system_filenames: Iterable[str | Path]) -> Result["MergedSystem", str]:
+    def from_files(cls, system_filenames: Iterable[str | Path]) -> Result[MergedSystem, str]:
         """
         Merge multiple systems and return a MergedSystem instance.
 
