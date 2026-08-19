@@ -585,7 +585,6 @@ class MMainWindow(QMainWindow):
         settings.beginGroup(self.layout_settings_group)
         settings.setValue("geometry", self.saveGeometry())
         settings.setValue("window_state", self.saveState())
-        self._save_additional_layout_state(settings)
         settings.endGroup()
 
     def restore_layout_state(self, settings: SaferQSettings) -> None:
@@ -601,28 +600,7 @@ class MMainWindow(QMainWindow):
         settings.beginGroup(self.layout_settings_group)
         self.restoreGeometry(settings.safer_value("geometry", QByteArray(), type=QByteArray))
         self.restoreState(settings.safer_value("window_state", QByteArray(), type=QByteArray))
-        self._restore_additional_layout_state(settings)
         settings.endGroup()
-
-    def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
-        """
-        Save application-specific layout state.
-
-        Parameters
-        ----------
-        settings : SaferQSettings
-            The application settings object opened in the layout group.
-        """
-
-    def _restore_additional_layout_state(self, settings: SaferQSettings) -> None:
-        """
-        Restore application-specific layout state.
-
-        Parameters
-        ----------
-        settings : SaferQSettings
-            The application settings object opened in the layout group.
-        """
 
 
 @final

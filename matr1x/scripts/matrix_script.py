@@ -48,6 +48,7 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QDialog,
+    QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
     QGroupBox,
@@ -60,7 +61,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
-    QSplitter,
     QTextEdit,
     QToolButton,
     QVBoxLayout,
@@ -78,6 +78,7 @@ from matr1x.gui_util import (
     LoggingWindow,
     LogWindowMixin,
     MApplication,
+    blocked_signals,
     check_config,
     create_matr1x_quit_action,
     create_matrix_settings_action,
@@ -584,6 +585,37 @@ class TerminalOutput(QPlainTextEdit):
             self.moveCursor(QTextCursor.MoveOperation.End)
 
 
+class TerminalDockWidget(QDockWidget):
+    """Dock widget for the terminal output."""
+
+    def __init__(self, widget: QWidget) -> None:
+        """Initialize the terminal dock widget."""
+        super().__init__("Terminal")
+        self.setObjectName("terminal_dock")
+        self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.setWidget(widget)
+        self.action = QAction(get_matrix_icon("CHAR_T"), "Terminal", self)
+        self.action.setShortcut(QKeySequence("Ctrl+4"))
+        self.action.setCheckable(True)
+        self.action.setChecked(True)
+        self.action.triggered.connect(self.toggle_terminal_view)
+        self.visibilityChanged.connect(self._sync_terminal_view)
+
+    def toggle_terminal_view(self, checked: bool) -> None:
+        """Toggle the visibility of the terminal."""
+        self.setVisible(checked)
+
+    def _sync_terminal_view(self) -> None:
+        """Match view action state to the restored widget visibility."""
+        with blocked_signals(self.action):
+            self.action.setChecked(not self.isHidden())
+
+
 if sys.platform == "win32":
     try:
         from ctypes import windll
@@ -647,7 +679,7 @@ class WidgetGroup:
     config_editor: ConfigEditWidget
     save_button: QToolButton
     stop_button: QToolButton
-    splitter: QSplitter
+    terminal_dock: TerminalDockWidget
     central_widget: CentralWidget
     python_info: QLabel
     lsp_info: QLabel
@@ -753,7 +785,7 @@ class UIBuilder:
         stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         stop_button.setIcon(get_matrix_icon("CUSTOM_Stop"))
         stop_button.setText("Abort")
-        splitter = QSplitter()
+        terminal_dock = TerminalDockWidget(status_preview)
         central_widget = CentralWidget()
         python_info = QLabel(f"Python {platform.python_version()}")
         python_info.setToolTip(f"Python: {sys.version}")
@@ -773,7 +805,7 @@ class UIBuilder:
             config_editor=ConfigEditWidget(),
             save_button=save_button,
             stop_button=stop_button,
-            splitter=splitter,
+            terminal_dock=terminal_dock,
             central_widget=central_widget,
             python_info=python_info,
             lsp_info=lsp_info,
@@ -944,6 +976,7 @@ class UIBuilder:
         view.addAction(self.toolbar.action)
         view.addAction(self.widgets.dockable_metadata.action)
         view.addAction(self.actions.config)
+        view.addAction(self.widgets.terminal_dock.action)
         view.addSeparator()
         view.addAction(self.actions.matrix_settings)
         help_menu = menu.addMenu("&Help")
@@ -958,10 +991,7 @@ class UIBuilder:
         layout.addWidget(self.widgets.notifier)
         layout.setSpacing(6)
         layout.setContentsMargins(11, 4, 11, 11)
-        self.widgets.splitter.addWidget(self.widgets.script_edit)
-        self.widgets.splitter.addWidget(self.widgets.status_preview)
-        self.widgets.splitter.setChildrenCollapsible(False)
-        layout.addWidget(self.widgets.splitter, 1)
+        layout.addWidget(self.widgets.script_edit, 1)
         infobar = QHBoxLayout()
         infobar.addWidget(self.widgets.progressbar, 1)
         infobar.addWidget(self.widgets.python_info)
@@ -1012,6 +1042,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor,
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.terminal_dock)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
@@ -1161,31 +1192,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.settings.setValue("size", self.ui.widgets.system_command_help.size())
             self.settings.setValue("position", self.ui.widgets.system_command_help.pos())
             self.settings.endGroup()
-
-    def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
-        """Save matrix-script specific layout state."""
-        settings.setValue("splitter", self.ui.widgets.splitter.sizes())
-
-    def _restored_splitter_sizes(self, settings: SaferQSettings) -> list[int] | None:
-        """Return saved splitter sizes unless a pane would be collapsed."""
-        if not settings.contains("splitter"):
-            return None
-        sizes = settings.safer_value("splitter", [], type=list)
-        if len(sizes) != self.ui.widgets.splitter.count():
-            return None
-        try:
-            restored_sizes = [int(size) for size in sizes]
-        except (TypeError, ValueError):
-            return None
-        if any(size <= 0 for size in restored_sizes):
-            return None
-        return restored_sizes
-
-    def _restore_additional_layout_state(self, settings: SaferQSettings) -> None:
-        """Restore matrix-script specific layout state."""
-        splitter_sizes = self._restored_splitter_sizes(settings)
-        if splitter_sizes is not None:
-            self.ui.widgets.splitter.setSizes(splitter_sizes)
 
     def restore_window_state(self) -> None:
         """Restore app configuration from the previous use."""
