@@ -30,10 +30,12 @@ Please note that the notiications overwrite each other and inform the correspond
 
 ## Deprecated items
 
-| Item                  | Deprecation | Removal |
-| :-------------------- | :---------: | :-----: |
-| initialized `system`  |    8.5.0    | >=8.7.0 |
-| `root_path` in config |    8.5.0    | >=8.7.0 |
+| Item                                    | Deprecation | Removal |
+| :-------------------------------------- | :---------: | :-----: |
+| `duplicate_output_to_logfile` migration |    8.4.0    | >=8.6.0 |
+| `print_to_comment` migration            |    8.4.0    | >=8.6.0 |
+| initialized `system`                    |    8.5.0    | >=8.7.0 |
+| `root_path` in config                   |    8.5.0    | >=8.7.0 |
 
 ## Removed in the current `development` version
 

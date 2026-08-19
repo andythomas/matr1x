@@ -113,7 +113,7 @@ from matr1x.scripts.shared_classes import (
     MetadataDockWidget,
     MMainWindow,
     MToolBar,
-    NotifierMessage,
+    Notifier,
     SaferQSettings,
     SystemListWidget,
 )
@@ -654,6 +654,7 @@ class WidgetGroup:
     about_box: AboutBox
     measurement_thread: MeasurementThread
     measurement_ui: MeasurementUI
+    notifier: Notifier
 
 
 class UIBuilder:
@@ -782,6 +783,7 @@ class UIBuilder:
             ),
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
+            notifier=Notifier(logger),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -948,6 +950,7 @@ class UIBuilder:
     def _create_gui(self) -> None:
         """Create and set up the main GUI."""
         layout = QVBoxLayout(self.widgets.central_widget)
+        layout.addWidget(self.widgets.notifier)
         layout.setSpacing(6)
         layout.setContentsMargins(11, 4, 11, 11)
         self.widgets.splitter.addWidget(self.widgets.script_edit)
@@ -1007,7 +1010,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         sys.stdout = StreamToLogger(logger, logging.INFO)
         sys.stderr = StreamToLogger(logger, logging.ERROR)
         if filename is not None:
@@ -1060,7 +1063,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
         self.ui.widgets.script_edit.contentModified.connect(self.update_window_title)
         self.ui.widgets.script_edit.file_dropped.connect(self._load_file_from_signal)
-        self.ui.widgets.system_list.message.connect(self.show_message)
+        self.ui.widgets.system_list.message.connect(self.ui.widgets.notifier.show_message)
         self.ui.widgets.system_list.changed.connect(
             lambda: self.ui.widgets.script_edit.setModified(True)
         )
@@ -1108,12 +1111,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.measurement_failed = True
         elif isinstance(data, LogEntry):
             data.log_record(logger)
-
-    def show_message(self, message: NotifierMessage):
-        """Show a message text and log."""
-        if message.level < logging.ERROR:
-            self.ui.widgets.status_preview.print_colored(message.text)
-        logger.log(message.level, message.text)
 
     def print_document(self) -> None:
         """Print the script."""

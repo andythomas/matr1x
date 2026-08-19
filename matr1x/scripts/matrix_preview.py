@@ -71,7 +71,7 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts.shared_classes import MMainWindow, MToolBar, SaferQSettings
+from matr1x.scripts.shared_classes import MMainWindow, MToolBar, Notifier, SaferQSettings
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +140,7 @@ class WidgetGroup:
     """Widgets to be used in the GUI."""
 
     about_box: AboutBox
+    notifier: Notifier
     central_widget: QWidget
     file_selector: QComboBox
     axes_list: list[QLabel]
@@ -209,6 +210,7 @@ class UIBuilder:
                 matr1x,
                 matr1x.datetimefmt,
             ),
+            notifier=Notifier(logger),
             central_widget=QWidget(),
             file_selector=file_selector,
             axes_list=axes_list,
@@ -230,11 +232,13 @@ class UIBuilder:
         grid.addWidget(self.widgets.plot2d_comp, 2, 4, 1, 1)
         grid.addWidget(self.widgets.transpose, 2, 2, 1, 1)
         grid.addWidget(self.widgets.placeholder, 4, 0, 1, -1)
-        grid.addWidget(self.widgets.status, 6, 0, 1, -1)
+        grid.addWidget(self.widgets.status, 5, 0, 1, -1)
+        grid.addWidget(self.widgets.notifier, 0, 0, 1, -1)
         # set rescaling behavior
         grid.setColumnStretch(1, 1)
         grid.setRowStretch(4, 1)
         grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+
         self.widgets.central_widget.setLayout(grid)
         return grid
 
@@ -411,7 +415,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.addToolBar(self.ui.toolbar)
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.show()
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         # allow to store the settings
         self.settings = SaferQSettings("matr1x", "preview")
         self.meta_viewer = MetaViewerWidget(self.header)

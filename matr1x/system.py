@@ -33,7 +33,7 @@ from collections.abc import Callable, Iterable
 from functools import cached_property
 from operator import attrgetter
 from pathlib import Path
-from typing import Any, TypeGuard, TypeVar
+from typing import Any, TypeGuard, TypeVar, cast
 
 import h5py
 import numpy as np
@@ -484,7 +484,7 @@ class System:
         self.query_dict = {}  # store device information query
 
         # Allow warnings
-        self.warnings: list[str] = []
+        self.warnings: list[tuple[str, int]] = []
 
         # initialize flag to check whether system has been set
         self.opened = False
@@ -720,7 +720,7 @@ class System:
             System as defined in the file or an error string.
         """
         normfilename = filename.expanduser()
-        legacy_warning: str | None = None
+        legacy_warning: tuple[str, int] | None = None
         if normfilename.is_file():
             try:
                 mod = module_from_path(normfilename)
@@ -757,7 +757,8 @@ class System:
         if isinstance(system, System):
             legacy_warning = (
                 f"Using an initialized System instance exported as '{legacy_name}' is deprecated; "
-                "define exactly one local System subclass instead."
+                "define exactly one local System subclass instead.",
+                logging.WARNING,
             )
         else:
             # Imported base classes do not qualify: the system file itself
@@ -782,6 +783,7 @@ class System:
                 )
             system = system_classes.pop()()
         # set the name of the system to reflect the filename
+        system = cast(System, system)
         system.__name__ = str(normfilename)
         if legacy_warning:
             system.warnings.append(legacy_warning)
