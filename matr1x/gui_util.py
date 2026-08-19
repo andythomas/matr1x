@@ -1596,7 +1596,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
     def reload_system_config(self, system_name: str) -> None:
         """Reload one system while preserving unsaved values in all other systems."""
-        retained_config = {
+        retained_config: dict[str, Any] = {
             item.key: self.parse_item(item)
             for item in self.model.root_item.child_items
             if item.key != system_name and item.child_count() > 0
@@ -1930,7 +1930,7 @@ class ConfigEditWidget(MetaViewerWidget):
                 items[new_key] = value
         return items
 
-    def apply_config_dict(self, config: dict) -> None:
+    def apply_config_dict(self, config: dict[str, Any]) -> None:
         """Apply values for configuration sections present in the current tree."""
         self._apply_config_value(config)
 
