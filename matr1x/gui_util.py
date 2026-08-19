@@ -1489,7 +1489,9 @@ class ConfigEditWidget(MetaViewerWidget):
         button_layout = QHBoxLayout()
 
         # Dublin Core Elements
-        self.w_update_config: QPushButton = QPushButton("Reload config")
+        self.w_update_config: QPushButton = QPushButton("Reload all")
+        self.w_update_config.setIcon(get_matrix_icon("SP_BrowserReload"))
+        self.w_update_config.setToolTip("Reload all system configurations from disk.")
         self.w_update_config.setEnabled(False)
         self.w_update_config.clicked.connect(self.reload_and_update_data)
         button_layout.addWidget(self.w_update_config)
@@ -1579,16 +1581,77 @@ class ConfigEditWidget(MetaViewerWidget):
         self.full_system_list = full_system_list
 
     def reload_and_update_data(self) -> None:
-        """Reload system information and update data - wrapper for button action."""
-        # Reload system information if full system list is available
-        if hasattr(self, "full_system_list") and self.full_system_list:
+        """Reload all system configuration information and rebuild the editor."""
+        expansion_state = self._config_expansion_state()
+        if self.full_system_list:
             system_info = get_system_info(self.full_system_list)
             if isinstance(system_info, Error):
                 print(system_info.error)  # noqa: T201
                 self.system_info = None
             else:
                 self.system_info = system_info.value
-        self.update_data()  # Call the original update_data method
+        self.update_data()
+        self._restore_config_expansion_state(expansion_state)
+
+    def reload_system_config(self, system_name: str) -> None:
+        """Reload one system while preserving unsaved values in all other systems."""
+        retained_config: dict[str, Any] = {
+            item.key: self.parse_item(item)
+            for item in self.model.root_item.child_items
+            if item.key != system_name and item.child_count() > 0
+        }
+        self.reload_and_update_data()
+        self.apply_config_dict(retained_config)
+
+    def _install_system_reload_buttons(self) -> None:
+        """Place a reload button in the value cell of every system header."""
+        for row, item in enumerate(self.model.root_item.child_items):
+            index = self.model.index(row, 1, QModelIndex())
+            container = QWidget(self.tree_view)
+            layout = QHBoxLayout(container)
+            layout.setContentsMargins(0, 0, 2, 0)
+            layout.addStretch()
+            button = QToolButton(container)
+            button.setIcon(get_matrix_icon("SP_BrowserReload"))
+            button.setAutoRaise(True)
+            button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            button.setToolTip(f"Reload the configuration for {item.key} from disk.")
+            button.clicked.connect(
+                lambda checked=False, system_name=item.key: self.reload_system_config(system_name)
+            )
+            layout.addWidget(button)
+            self.tree_view.setIndexWidget(index, container)
+
+    def _config_expansion_state(self) -> dict[tuple[str, ...], bool]:
+        """Return the expanded state of every existing configuration section."""
+        state: dict[tuple[str, ...], bool] = {}
+
+        def collect(parent: QModelIndex = QModelIndex(), path: tuple[str, ...] = ()) -> None:
+            for row in range(self.model.rowCount(parent)):
+                index = self.model.index(row, 0, parent)
+                item_path = (*path, str(index.data(Qt.ItemDataRole.EditRole)))
+                if self.model.rowCount(index) > 0:
+                    state[item_path] = self.tree_view.isExpanded(index)
+                    collect(index, item_path)
+
+        collect()
+        return state
+
+    def _restore_config_expansion_state(
+        self, expansion_state: dict[tuple[str, ...], bool]
+    ) -> None:
+        """Restore expansion states for sections that still exist after a reload."""
+
+        def restore(parent: QModelIndex = QModelIndex(), path: tuple[str, ...] = ()) -> None:
+            for row in range(self.model.rowCount(parent)):
+                index = self.model.index(row, 0, parent)
+                item_path = (*path, str(index.data(Qt.ItemDataRole.EditRole)))
+                if item_path in expansion_state:
+                    self.tree_view.setExpanded(index, expansion_state[item_path])
+                if self.model.rowCount(index) > 0:
+                    restore(index, item_path)
+
+        restore()
 
     def _has_merged_system_config(self) -> bool:
         """Return whether runtime configuration represents a merged system."""
@@ -1681,6 +1744,7 @@ class ConfigEditWidget(MetaViewerWidget):
         self._split_config_values_and_types(syst_dict, self.value_dict, self.types_dict)
 
         super().update_data(self.value_dict, self.types_dict)
+        self._install_system_reload_buttons()
         self._apply_system_config_validation_errors()
         self.w_update_config.setEnabled(True)
 
@@ -1869,7 +1933,7 @@ class ConfigEditWidget(MetaViewerWidget):
                 items[new_key] = value
         return items
 
-    def apply_config_dict(self, config: dict) -> None:
+    def apply_config_dict(self, config: dict[str, Any]) -> None:
         """Apply values for configuration sections present in the current tree."""
         self._apply_config_value(config)
 
