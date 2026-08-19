@@ -15,6 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for controlling the Keysight PSG 8257D-521 microwave signal generator."""
 
+from typing import ClassVar
+
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
@@ -23,7 +25,7 @@ from matr1x.devices.visadevice import VisaDevice
 class PSG8257D(VisaDevice):
     """The device class for the Keysight PSG 8257D-521, a microwave signal generator."""
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "npoints": ":SOUR:SWE:POIN?",
         "modulation_output_status": ":OUTPUT:MOD?",
         "LFO_output_status": ":lfo:stat?",

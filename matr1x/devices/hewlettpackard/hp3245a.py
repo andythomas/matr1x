@@ -46,8 +46,6 @@ class HP3245A(VisaDevice):
         Configuration parameters for the device.
     """
 
-    config_params = {}
-
     def __init__(self, interface, **kwargs):
         """
         Initialize the HP3245A function generator.

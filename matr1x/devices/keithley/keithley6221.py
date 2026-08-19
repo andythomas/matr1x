@@ -16,6 +16,7 @@
 """Module for controlling the Keithley 6221 Current Source."""
 
 import time
+from typing import ClassVar
 
 from numpy import asarray, ceil
 from wrapt import synchronized
@@ -32,7 +33,7 @@ class Keithley6221(VisaDevice):
     currents, and performing delta and pulse delta measurements.
     """
 
-    config_params = {"Model-identifing": "*IDN?"}
+    config_params: ClassVar[dict[str, str]] = {"Model-identifing": "*IDN?"}
 
     def __init__(self, interface, **kwargs):
         """

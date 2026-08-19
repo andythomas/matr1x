@@ -16,6 +16,7 @@
 """Module for controlling Keysight VNA 5225b device."""
 
 from struct import unpack
+from typing import ClassVar
 
 import numpy as np
 from wrapt import synchronized
@@ -31,7 +32,7 @@ class PNA5225b(VisaDevice):
     little changes.
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "n_points": "SENS1:SWE:POIN?",
         "ifbw": "SENS1:BWID?",
         "average": "SENS1:AVER?",

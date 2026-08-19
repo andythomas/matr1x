@@ -16,6 +16,7 @@
 """Interface module for the Keithley DMM6500 digital multimeter."""
 
 import time
+from typing import ClassVar
 
 from wrapt import synchronized
 
@@ -38,7 +39,7 @@ class KeithleyDMM6500(VisaDevice):
         Flag indicating if a measurement has been triggered.
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "Mode": ":SENS:FUNC?",
         "VOLT:RANGE": "VOLT:RANG?",
         "VOLT:NPLC": ":SENS:VOLT:NPLC?",

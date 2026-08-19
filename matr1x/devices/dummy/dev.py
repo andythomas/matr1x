@@ -16,6 +16,7 @@
 """Module implementing a dummy device used for automatic testing of the code base."""
 
 import copy
+from typing import ClassVar
 
 from matr1x import scpi_tcpserver
 from matr1x.devices.scpi_dev import makeSCPIdevice
@@ -57,7 +58,7 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
             Parameters with types matching command list definitions
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "name": "*idn?",
         "conf": "_p1",
     }

@@ -16,6 +16,7 @@
 """Module for interfacing with Oxford ILM200 level meter instruments."""
 
 import logging
+from typing import ClassVar
 
 from pyvisa import constants
 
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 class ILM200(IsobusDevice):
     """Driver for Oxford ILM200 series level meter."""
 
-    config_params = {"LHe": "getLHe", "LN2": "getLN2"}
+    config_params: ClassVar[dict[str, str]] = {"LHe": "getLHe", "LN2": "getLN2"}
 
     def __init__(self, interface, isobus_addr=None, **kwargs):
         """
