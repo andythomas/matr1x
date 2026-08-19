@@ -164,7 +164,7 @@ jobs:
 
       - name: Install dependencies
         run: >
-          uv sync --locked --all-packages --all-extras
+          uv sync --locked --all-extras
         shell: bash
 
       - name: Run type checker
