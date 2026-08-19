@@ -373,8 +373,34 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.shapes: list[tuple[int, ...]] = []
         self.header: HeaderDict = _create_empty_header()
         self.data: np.ndarray | dict[str, np.ndarray] = np.array([])
-        # initialize basic GUI
-        self.init_basic_ui()
+
+        self.setWindowTitle("Matrix Preview")
+        self.setWindowIcon(get_matrix_icon("matr1x-matrix-preview.png"))
+        pyqtgraph.setConfigOption("background", "w")
+        pyqtgraph.setConfigOption("foreground", "k")
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        # although this seems counter intuitive. setting the minimum width
+        # limits the maximum window size in case long filenames are used.
+        # see #328
+        self.setMinimumWidth(800)
+        self.setMaximumWidth(self._get_maximum_screen_width())
+        self.ui = UIBuilder()
+        self.ui.widgets.placeholder.setText(
+            f"No file loaded.\n\nOpen a matrix file ({', '.join(self.allowed_extensions)}) "
+            "or drag & drop it onto this window."
+        )
+        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
+        # minimum height of plot widget, could be removed but then
+        # window always needs to be resized
+        self.spw.setMinimumHeight(350)
+        self.spw.setVisible(False)
+        self.ui.grid.addWidget(self.spw, 4, 0, 1, -1)
+        self.setMenuBar(self.ui.menubar)
+        self.addToolBar(self.ui.toolbar)
+        self.setCentralWidget(self.ui.widgets.central_widget)
+        self.show()
+        check_config(matr1x.config)
+        self._create_connections()
         # allow to store the settings
         self.settings = SaferQSettings("matr1x", "preview")
         self.meta_viewer = MetaViewerWidget(self.header)
@@ -492,45 +518,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             "from matr1x.scripts import matrix_preview; matrix_preview.main()",
         ]
         subprocess.Popen(preview)
-
-    def init_basic_ui(self):
-        """Initialize the complete GUI layout.
-
-        The full layout is built at startup via the UIBuilder. File-dependent
-        widgets (file selector, column selectors) start out empty and disabled
-        until a file is loaded via populate_file_data(). The plot widget
-        is hidden and replaced by a placeholder until then.
-        """
-        self.setWindowTitle("Matrix Preview")
-        self.setWindowIcon(get_matrix_icon("matr1x-matrix-preview.png"))
-        pyqtgraph.setConfigOption("background", "w")
-        pyqtgraph.setConfigOption("foreground", "k")
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        # although this seems counter intuitive. setting the minimum width
-        # limits the maximum window size in case long filenames are used.
-        # see #328
-        self.setMinimumWidth(800)
-        self.setMaximumWidth(self._get_maximum_screen_width())
-        self.ui = UIBuilder()
-        self.ui.widgets.placeholder.setText(
-            f"No file loaded.\n\nOpen a matrix file ({', '.join(self.allowed_extensions)}) "
-            "or drag & drop it onto this window."
-        )
-        # the plot widget is created here instead of in the UIBuilder, since it
-        # requires callbacks to this window; it is replaced by a placeholder
-        # until a file is loaded
-        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
-        # minimum height of plot widget, could be removed but then
-        # window always needs to be resized
-        self.spw.setMinimumHeight(350)
-        self.spw.setVisible(False)
-        self.ui.grid.addWidget(self.spw, 4, 0, 1, -1)
-        self.setMenuBar(self.ui.menubar)
-        self.addToolBar(self.ui.toolbar)
-        self.setCentralWidget(self.ui.widgets.central_widget)
-        self.show()
-        check_config(matr1x.config)
-        self._create_connections()
 
     def _create_connections(self):
         """Connect actions with application logic."""
