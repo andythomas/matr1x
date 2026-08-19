@@ -355,10 +355,7 @@ class LSPClient(QObject, LoggerMixin):
                     self._handle_notification(message)
         except Exception as e:
             for response_queue in self.pending_requests.values():
-                try:
-                    response_queue.put_nowait(None)  # Signal error
-                except Exception:
-                    pass
+                response_queue.put_nowait(None)  # Signal error
             raise RuntimeError("Message reader crashed!") from e
 
     def _read_one_message(self) -> str | None:

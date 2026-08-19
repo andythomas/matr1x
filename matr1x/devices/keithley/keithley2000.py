@@ -15,11 +15,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for Keithley 2000 multimeter control."""
 
+import logging
 import time
 
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
+
+logger = logging.getLogger(__name__)
 
 
 class Keithley2000(VisaDevice):
@@ -75,7 +78,9 @@ class Keithley2000(VisaDevice):
                 # some leftover of old communication messed up things.
                 self.read_very_eager()
             except Exception:
-                pass
+                logger.debug(
+                    "Could not drain input buffer after failed initial query", exc_info=True
+                )
 
     @synchronized
     def configure4WireOhm(

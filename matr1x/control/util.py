@@ -862,9 +862,12 @@ class var(QObject):
         """Keep toggle buttons synchronized with checkbox readouts."""
         if len(self.widgets) <= 2:
             return
-        if isinstance(self.widgets[1], QCheckBox) and isinstance(self.widgets[2], ToggleButton):
-            if self.widgets[2].isCheckable():
-                self.widgets[2].setChecked(bool(value))
+        if (
+            isinstance(self.widgets[1], QCheckBox)
+            and isinstance(self.widgets[2], ToggleButton)
+            and self.widgets[2].isCheckable()
+        ):
+            self.widgets[2].setChecked(bool(value))
 
     @AutoSlot
     def _update_label_slot(self, newunit: str) -> None:

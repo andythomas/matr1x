@@ -358,10 +358,9 @@ class FileLineEdit(QLineEdit):
             dialog.setFileMode(QFileDialog.FileMode.Directory)
             dialog.setOption(QFileDialog.Option.ShowDirsOnly)
 
-        if dialog.exec():
+        if dialog.exec() and len(dialog.selectedFiles()) > 0:
             # pass value to callback
-            if len(dialog.selectedFiles()) > 0:
-                self.callback(dialog.selectedFiles()[0])
+            self.callback(dialog.selectedFiles()[0])
 
 
 class MetaViewerWidget(QDockWidget):
@@ -1594,7 +1593,7 @@ class ConfigEditWidget(MetaViewerWidget):
     def _has_merged_system_config(self) -> bool:
         """Return whether runtime configuration represents a merged system."""
         return self.system_info is not None and any(
-            "," in system_name for system_name in self.system_info.config.keys()
+            "," in system_name for system_name in self.system_info.config
         )
 
     def _config_from_systemfile(self) -> dict[str, Any]:
@@ -1645,7 +1644,11 @@ class ConfigEditWidget(MetaViewerWidget):
                     syst_dict[system_name]["_schema"] = system_config.model_json_schema()
             except Exception:
                 # If type information is unavailable, retain the values alone.
-                continue
+                logger.debug(
+                    "Could not load the local schema for runtime system %s",
+                    system_name,
+                    exc_info=True,
+                )
 
     @staticmethod
     def _split_config_values_and_types(
