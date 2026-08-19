@@ -126,6 +126,14 @@ class WidgetGroup:
     """Widgets to be used in the GUI."""
 
     about_box: AboutBox
+    central_widget: QWidget
+    axes_list: list[QLabel]
+    column_selector: list[QComboBox]
+    plot2d: QCheckBox
+    plot2d_comp: QCheckBox
+    transpose: QCheckBox
+    placeholder: QLabel
+    status: QLabel
 
 
 @dataclass
@@ -155,20 +163,68 @@ class UIBuilder:
         self.actions: ActionGroup = self._create_actions()
         self.widgets: WidgetGroup = self._create_widgets()
         self.toolbar: MToolBar = self._create_toolbar()
+        self.grid: QGridLayout = self._create_gui()
         # gui
         self.file_selector: QComboBox
         self.menubar: QMenuBar = self._create_menu()
 
     def _create_widgets(self) -> WidgetGroup:
         """Create all required widgets."""
+        axel_list = [QLabel("y"), QLabel("x"), QLabel("y")]
+        axel_list[2].setVisible(False)
+
+        column_selector = [QComboBox(), QComboBox(), QComboBox()]
+        for i in range(3):
+            column_selector[i].setEnabled(False)
+        column_selector[2].setVisible(False)
+
+        plot2d = QCheckBox("2d plotting")
+        plot2d_comp = QCheckBox("2d complex")
+        plot2d_comp.setVisible(False)
+        transpose = QCheckBox("transpose")
+        transpose.setVisible(False)
+
+        placeholder = QLabel("")
+        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setMinimumHeight(350)
+
+        status = QLabel("")
+        status.setStyleSheet("QLabel { color : red; }")
+
         return WidgetGroup(
             about_box=AboutBox(
                 "Matrix Preview",
                 get_matrix_icon("matr1x-matrix-preview.png"),
                 matr1x,
                 matr1x.datetimefmt,
-            )
+            ),
+            central_widget=QWidget(),
+            axes_list=axel_list,
+            column_selector=column_selector,
+            plot2d=plot2d,
+            plot2d_comp=plot2d_comp,
+            transpose=transpose,
+            placeholder=placeholder,
+            status=status,
         )
+
+    def _create_gui(self) -> QGridLayout:
+        """Create and set up the central layout."""
+        grid = QGridLayout()
+        grid.addWidget(self.widgets.plot2d, 2, 3, 1, 1)
+        for i in range(3):
+            grid.addWidget(self.widgets.axes_list[i], i + 1, 0)
+            grid.addWidget(self.widgets.column_selector[i], i + 1, 1)
+        grid.addWidget(self.widgets.plot2d_comp, 2, 4, 1, 1)
+        grid.addWidget(self.widgets.transpose, 2, 2, 1, 1)
+        grid.addWidget(self.widgets.placeholder, 4, 0, 1, -1)
+        grid.addWidget(self.widgets.status, 6, 0, 1, -1)
+        # set rescaling behavior
+        grid.setColumnStretch(1, 1)
+        grid.setRowStretch(4, 1)
+        grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        self.widgets.central_widget.setLayout(grid)
+        return grid
 
     def _create_actions(self) -> ActionGroup:
         """Create all required actions."""
@@ -306,14 +362,8 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         # Thread and update properties
         self.update_thread: UpdateThread | None = None
 
-        # UI components that are created once in init_basic_ui()
-        self.w_l: list = []  # Labels for axes
-        self.column_selector: list[QComboBox]
-        self.w_plot2d: QCheckBox  # 2D plotting checkbox
-        self.w_plot2d_comp: QCheckBox  # 2D complex plotting checkbox
-        self.w_transpose: QCheckBox  # Transpose checkbox
-        self.spw: SimplePlotWidget
-        self.w_placeholder: QLabel  # Shown instead of the plot before a file is loaded
+        # UI components that are not part of the UIBuilder
+        self.spw: SimplePlotWidget  # Plot widget, needs window callbacks at creation
         self.iv: pyqtgraph.ImageView | None = None  # Image view widget
         self.column_items: list[str] = []  # Column descriptions for current file
 
@@ -446,8 +496,8 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
     def init_basic_ui(self):
         """Initialize the complete GUI layout.
 
-        The full layout is built at startup. File-dependent widgets
-        (file selector, column selectors) start out empty and disabled
+        The full layout is built at startup via the UIBuilder. File-dependent
+        widgets (file selector, column selectors) start out empty and disabled
         until a file is loaded via populate_file_data(). The plot widget
         is hidden and replaced by a placeholder until then.
         """
@@ -456,69 +506,28 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         pyqtgraph.setConfigOption("background", "w")
         pyqtgraph.setConfigOption("foreground", "k")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.grid: QGridLayout = QGridLayout()
-        self.widget = QWidget()
-        self.w_status = QLabel("")
-        self.w_status.setStyleSheet("QLabel { color : red; }")
-
-        self.w_l = [QLabel("y"), QLabel("x"), QLabel("y")]
-        self.w_l[2].setVisible(False)
-
-        self.column_selector = [QComboBox(), QComboBox(), QComboBox()]
-        for i in range(3):
-            self.column_selector[i].setEnabled(False)
-            self.column_selector[i].currentIndexChanged.connect(self.index_changed)
-        self.column_selector[2].setVisible(False)
-
-        self.w_plot2d = QCheckBox("2d plotting")
-        self.w_plot2d.toggled.connect(self.plotting_toggled)
-
-        self.w_plot2d_comp = QCheckBox("2d complex")
-        self.w_plot2d_comp.toggled.connect(self.plotting_complex)
-        self.w_plot2d_comp.setVisible(False)
-
-        self.w_transpose = QCheckBox("transpose")
-        self.w_transpose.setVisible(False)
-        self.w_transpose.toggled.connect(self.transpose_toggled)
-
-        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
-        # minimum height of plot widget, could be removed but then
-        # window always needs to be resized
-        self.spw.setMinimumHeight(350)
-        # the plot widget is replaced by a placeholder until a file is loaded
-        self.spw.setVisible(False)
-        self.iv = None
-        self.w_placeholder = QLabel(
-            f"No file loaded.\n\nOpen a matrix file ({', '.join(self.allowed_extensions)}) "
-            "or drag & drop it onto this window."
-        )
-        self.w_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.w_placeholder.setMinimumHeight(350)
-
-        self.grid.addWidget(self.w_plot2d, 2, 3, 1, 1)
-        for i in range(3):
-            self.grid.addWidget(self.w_l[i], i + 1, 0)
-            self.grid.addWidget(self.column_selector[i], i + 1, 1)
-        self.grid.addWidget(self.w_plot2d_comp, 2, 4, 1, 1)
-        self.grid.addWidget(self.w_transpose, 2, 2, 1, 1)
-        self.grid.addWidget(self.spw, 4, 0, 1, -1)
-        self.grid.addWidget(self.w_placeholder, 4, 0, 1, -1)
-        self.grid.addWidget(self.w_status, 6, 0, 1, -1)
-        # set rescaling behavior
-        self.grid.setColumnStretch(1, 1)
-        self.grid.setRowStretch(4, 1)
-        self.grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         # although this seems counter intuitive. setting the minimum width
         # limits the maximum window size in case long filenames are used.
         # see #328
         self.setMinimumWidth(800)
         self.setMaximumWidth(self._get_maximum_screen_width())
-
-        self.widget.setLayout(self.grid)
-        self.setCentralWidget(self.widget)
         self.ui = UIBuilder()
+        self.ui.widgets.placeholder.setText(
+            f"No file loaded.\n\nOpen a matrix file ({', '.join(self.allowed_extensions)}) "
+            "or drag & drop it onto this window."
+        )
+        # the plot widget is created here instead of in the UIBuilder, since it
+        # requires callbacks to this window; it is replaced by a placeholder
+        # until a file is loaded
+        self.spw = SimplePlotWidget(self.raise_error, self.index_callback)
+        # minimum height of plot widget, could be removed but then
+        # window always needs to be resized
+        self.spw.setMinimumHeight(350)
+        self.spw.setVisible(False)
+        self.ui.grid.addWidget(self.spw, 4, 0, 1, -1)
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
+        self.setCentralWidget(self.ui.widgets.central_widget)
         self.show()
         check_config(matr1x.config)
         self._create_connections()
@@ -543,6 +552,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
         )
         self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
+        for i in range(3):
+            self.ui.widgets.column_selector[i].currentIndexChanged.connect(self.index_changed)
+        self.ui.widgets.plot2d.toggled.connect(self.plotting_toggled)
+        self.ui.widgets.plot2d_comp.toggled.connect(self.plotting_complex)
+        self.ui.widgets.transpose.toggled.connect(self.transpose_toggled)
         self.ui.file_selector.currentIndexChanged.connect(self.file_index_changed)
         self.ui.file_selector.installEventFilter(self)
 
@@ -564,8 +578,8 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
     def populate_file_data(self):
         """Populate the file-dependent GUI elements after loading a file."""
         # replace the placeholder with the plot widget on first file load
-        if self.w_placeholder.isVisible():
-            self.w_placeholder.hide()
+        if self.ui.widgets.placeholder.isVisible():
+            self.ui.widgets.placeholder.hide()
             self.spw.show()
 
         # stop a possibly running auto update from the previous file
@@ -586,12 +600,12 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             for name, unit, shape in zip(self.names, self.units, self.shapes)
         ]
         for i in range(3):
-            self.column_selector[i].blockSignals(True)
-            self.column_selector[i].clear()
-            self.column_selector[i].addItems([""] + self.column_items)
-            self.column_selector[i].blockSignals(False)
-        self.column_selector[0].setEnabled(True)
-        self.column_selector[2].setEnabled(True)
+            self.ui.widgets.column_selector[i].blockSignals(True)
+            self.ui.widgets.column_selector[i].clear()
+            self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
+            self.ui.widgets.column_selector[i].blockSignals(False)
+        self.ui.widgets.column_selector[0].setEnabled(True)
+        self.ui.widgets.column_selector[2].setEnabled(True)
 
         self.reset()
 
@@ -683,13 +697,13 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 # names to reflect the dimensions
                 for i in range(3):
                     for j, item in enumerate(self.column_items):
-                        self.column_selector[i].setItemText(j + 1, item)
+                        self.ui.widgets.column_selector[i].setItemText(j + 1, item)
             elif check == -1:
                 # file has different columns
                 # reload interface
                 for i in range(3):
-                    self.column_selector[i].clear()
-                    self.column_selector[i].addItems([""] + self.column_items)
+                    self.ui.widgets.column_selector[i].clear()
+                    self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
                 self.reset()
         else:
             self.spw.refresh_all_plots()
@@ -697,36 +711,41 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def index_changed(self, newIndex):
         """If index changed, reload the new data and handle the gui interaction."""
-        if self.column_selector[0] == self.sender():
+        if self.ui.widgets.column_selector[0] == self.sender():
             if newIndex == 0:
-                self.column_selector[1].setEnabled(False)
-                self.column_selector[1].setCurrentIndex(0)
+                self.ui.widgets.column_selector[1].setEnabled(False)
+                self.ui.widgets.column_selector[1].setCurrentIndex(0)
             else:
-                self.column_selector[1].setEnabled(True)
+                self.ui.widgets.column_selector[1].setEnabled(True)
         self.reload_data()
 
     def transpose_toggled(self, check_state):
         """Transpose has been toggled, reload data."""
-        if self.w_plot2d.isChecked() is True and self.w_plot2d_comp.isChecked() is False:
-            if len(self.shapes[self.column_selector[0].currentIndex() - 1]) < 3:
+        if (
+            self.ui.widgets.plot2d.isChecked() is True
+            and self.ui.widgets.plot2d_comp.isChecked() is False
+        ):
+            if len(self.shapes[self.ui.widgets.column_selector[0].currentIndex() - 1]) < 3:
                 # toggle index for 2d data, since x and y invert role
-                dummy = self.column_selector[2].currentIndex()
-                self.column_selector[2].blockSignals(True)
-                self.column_selector[2].setCurrentIndex(self.column_selector[1].currentIndex())
-                self.column_selector[1].setCurrentIndex(dummy)
-                self.column_selector[2].blockSignals(False)
+                dummy = self.ui.widgets.column_selector[2].currentIndex()
+                self.ui.widgets.column_selector[2].blockSignals(True)
+                self.ui.widgets.column_selector[2].setCurrentIndex(
+                    self.ui.widgets.column_selector[1].currentIndex()
+                )
+                self.ui.widgets.column_selector[1].setCurrentIndex(dummy)
+                self.ui.widgets.column_selector[2].blockSignals(False)
         self.reload_data()
 
     def plotting_toggled(self, check_state):
         """Switch the currently selected plotting view to 2D."""
-        self.w_l[0].setText("z" if check_state is True else "y")
-        self.w_plot2d_comp.setVisible(check_state)
-        if self.w_plot2d_comp.isChecked() is True and not check_state:
-            self.w_plot2d_comp.setChecked(False)
-        if self.w_plot2d_comp.isChecked() is True:
+        self.ui.widgets.axes_list[0].setText("z" if check_state is True else "y")
+        self.ui.widgets.plot2d_comp.setVisible(check_state)
+        if self.ui.widgets.plot2d_comp.isChecked() is True and not check_state:
+            self.ui.widgets.plot2d_comp.setChecked(False)
+        if self.ui.widgets.plot2d_comp.isChecked() is True:
             check_state = not check_state
-        self.w_l[2].setVisible(check_state)
-        self.column_selector[2].setVisible(check_state)
+        self.ui.widgets.axes_list[2].setVisible(check_state)
+        self.ui.widgets.column_selector[2].setVisible(check_state)
         self.ui.actions.export_data.setEnabled(not check_state)
         self.reload_data()
 
@@ -742,16 +761,16 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             if self.iv is None:
                 # set up image view on first initialization
                 self.iv = pyqtgraph.ImageView()
-                self.grid.addWidget(self.iv, 4, 0, 1, -1)
+                self.ui.grid.addWidget(self.iv, 4, 0, 1, -1)
             else:
                 self.iv.setVisible(True)
         elif check_state is False and self.iv is not None:
-            self.grid.removeWidget(self.iv)
+            self.ui.grid.removeWidget(self.iv)
             del self.iv
             self.iv = None
             self.spw.setVisible(True)
         # reload data and set widget labels
-        self.plotting_toggled(check_state or self.w_plot2d.isChecked())
+        self.plotting_toggled(check_state or self.ui.widgets.plot2d.isChecked())
 
     def raise_error(self, error):
         """
@@ -761,12 +780,12 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         errors from the SimplePlotWidget.
         """
         if error != "":
-            self.w_status.setVisible(True)
-            self.w_status.setText(error)
+            self.ui.widgets.status.setVisible(True)
+            self.ui.widgets.status.setText(error)
             self.error = True
         elif error == "" and self.error is True:
             self.error = False
-            self.w_status.setVisible(False)
+            self.ui.widgets.status.setVisible(False)
 
     def index_callback(self, plot_object):
         """
@@ -775,13 +794,13 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         This is acieved via the plot selector of the
         SimplePlotWidget (callback).
         """
-        self.w_plot2d.blockSignals(True)
-        self.w_plot2d.setChecked(plot_object.plot2d)
-        self.w_plot2d.blockSignals(False)
+        self.ui.widgets.plot2d.blockSignals(True)
+        self.ui.widgets.plot2d.setChecked(plot_object.plot2d)
+        self.ui.widgets.plot2d.blockSignals(False)
         for i in range(3):
-            self.column_selector[i].blockSignals(True)
-            self.column_selector[i].setCurrentIndex(plot_object.desig[i])
-            self.column_selector[i].blockSignals(False)
+            self.ui.widgets.column_selector[i].blockSignals(True)
+            self.ui.widgets.column_selector[i].setCurrentIndex(plot_object.desig[i])
+            self.ui.widgets.column_selector[i].blockSignals(False)
         self.reload_data()
 
     def updatethread(self, state):
@@ -839,23 +858,27 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         # change names to reflect the dimensions
         for i in range(3):
             for j, item in enumerate(self.column_items):
-                self.column_selector[i].setItemText(j + 1, item)
+                self.ui.widgets.column_selector[i].setItemText(j + 1, item)
 
     def reset(self):
         """Reset the data view to the default 1d state without selection."""
-        for widget in (self.w_plot2d, self.w_plot2d_comp, self.w_transpose):
+        for widget in (
+            self.ui.widgets.plot2d,
+            self.ui.widgets.plot2d_comp,
+            self.ui.widgets.transpose,
+        ):
             widget.blockSignals(True)
             widget.setChecked(False)
             widget.blockSignals(False)
         # synchronize visibility with the unchecked state
-        self.w_l[0].setText("y")
-        self.w_l[2].setVisible(False)
-        self.column_selector[1].setEnabled(False)
-        self.column_selector[2].setVisible(False)
-        self.w_plot2d_comp.setVisible(False)
-        self.w_transpose.setVisible(False)
+        self.ui.widgets.axes_list[0].setText("y")
+        self.ui.widgets.axes_list[2].setVisible(False)
+        self.ui.widgets.column_selector[1].setEnabled(False)
+        self.ui.widgets.column_selector[2].setVisible(False)
+        self.ui.widgets.plot2d_comp.setVisible(False)
+        self.ui.widgets.transpose.setVisible(False)
         if self.iv is not None:
-            self.grid.removeWidget(self.iv)
+            self.ui.grid.removeWidget(self.iv)
             del self.iv
             self.iv = None
         self.spw.setVisible(True)
@@ -909,7 +932,10 @@ Please investigate the error and eventually restart matrix-preview""",
         if not self.names:
             # no file loaded yet, nothing to plot
             return 0
-        if self.w_plot2d.isChecked() is True or self.w_plot2d_comp.isChecked() is True:
+        if (
+            self.ui.widgets.plot2d.isChecked() is True
+            or self.ui.widgets.plot2d_comp.isChecked() is True
+        ):
             ret = self.reload_data_2d()
         else:
             ret = self.reload_data_curve()
@@ -938,11 +964,13 @@ Please investigate the error and eventually restart matrix-preview""",
             self.raise_error("data array with zero length dimension is present")
         if ret > 0 and self.error is True:
             self.error = False
-            self.w_status.setVisible(False)
+            self.ui.widgets.status.setVisible(False)
 
     def reload_data_2d(self):
         """Reload the data in the 2d case."""
-        indexZ, indexX, indexY = [self.column_selector[i].currentIndex() - 1 for i in range(3)]
+        indexZ, indexX, indexY = [
+            self.ui.widgets.column_selector[i].currentIndex() - 1 for i in range(3)
+        ]
 
         # Declare the dictionaries as Optional[PlotData]
         x: PlotData | None = None
@@ -983,23 +1011,23 @@ Please investigate the error and eventually restart matrix-preview""",
                     "shape": data.shape,
                     "dim": dim,
                 }
-            if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is True:
-                self.column_selector[1].setEnabled(True)
-            elif i == 0 and self.w_plot2d_comp.isChecked() is True:
-                self.column_selector[1].setEnabled(False)
-                self.column_selector[1].setCurrentIndex(0)
-            elif i == 0 and self.column_selector[1].isEnabled() is False:
+            if dim > 2 and i == 0 and self.ui.widgets.plot2d_comp.isChecked() is True:
+                self.ui.widgets.column_selector[1].setEnabled(True)
+            elif i == 0 and self.ui.widgets.plot2d_comp.isChecked() is True:
+                self.ui.widgets.column_selector[1].setEnabled(False)
+                self.ui.widgets.column_selector[1].setCurrentIndex(0)
+            elif i == 0 and self.ui.widgets.column_selector[1].isEnabled() is False:
                 # if coming from complex view and x was disabled, enable now
-                self.column_selector[1].setEnabled(True)
-            if dim > 2 and i == 0 and self.w_plot2d_comp.isChecked() is False:
+                self.ui.widgets.column_selector[1].setEnabled(True)
+            if dim > 2 and i == 0 and self.ui.widgets.plot2d_comp.isChecked() is False:
                 # 3D plotting, disable y since it is not meaningful here
                 # x gives the plotting axis (i.e. value corresponding to index)
-                self.w_l[2].setVisible(False)
-                self.column_selector[2].setVisible(False)
-                self.column_selector[2].setCurrentIndex(0)
-            elif i == 0 and self.w_plot2d_comp.isChecked() is False:
-                self.w_l[2].setVisible(True)
-                self.column_selector[2].setVisible(True)
+                self.ui.widgets.axes_list[2].setVisible(False)
+                self.ui.widgets.column_selector[2].setVisible(False)
+                self.ui.widgets.column_selector[2].setCurrentIndex(0)
+            elif i == 0 and self.ui.widgets.plot2d_comp.isChecked() is False:
+                self.ui.widgets.axes_list[2].setVisible(True)
+                self.ui.widgets.column_selector[2].setVisible(True)
             if (dim < 2 and i == 0) or dim > 3:
                 # dimensions not compatible
                 # <1D or >3D data cannot be 2d plotted.
@@ -1011,12 +1039,12 @@ Please investigate the error and eventually restart matrix-preview""",
         if x is None or y is None or z is None or z["data"] is NO_DATA:
             return -9
         # data in a 2d plot can always be transposed
-        self.w_transpose.setVisible(True)
+        self.ui.widgets.transpose.setVisible(True)
 
         # data is loaded, now try to combine the data so that it becomes
         # plottable in a 2d plot
         transpose = False
-        if self.w_transpose.isChecked() is True:
+        if self.ui.widgets.transpose.isChecked() is True:
             transpose = True
             if z["dim"] == 3:
                 z["data"] = z["data"].transpose(0, 2, 1)
@@ -1071,7 +1099,7 @@ Please investigate the error and eventually restart matrix-preview""",
             y["shape"] = (leny,)
             y["dim"] = 1
 
-        if self.w_plot2d_comp.isChecked() is True:
+        if self.ui.widgets.plot2d_comp.isChecked() is True:
             if z["dim"] > 2:
                 axes = {"t": 0, "x": 1, "y": 2}
             else:
@@ -1082,7 +1110,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 self.iv.getView().setAspectLocked(False)
                 self.iv.getHistogramWidget().axis.setLabel(z["label"])
         else:
-            self.spw.plot(z, x, y, plot2d=self.w_plot2d.isChecked())
+            self.spw.plot(z, x, y, plot2d=self.ui.widgets.plot2d.isChecked())
         return 0
 
     @no_type_check
@@ -1093,10 +1121,10 @@ Please investigate the error and eventually restart matrix-preview""",
         Try to make the dimensions suitable for a 1D curve plot by smart
         guessing from the data dimension.
         """
-        indexY, indexX = [self.column_selector[i].currentIndex() - 1 for i in range(2)]
+        indexY, indexX = [self.ui.widgets.column_selector[i].currentIndex() - 1 for i in range(2)]
 
         # disable transpose widget
-        self.w_transpose.setVisible(False)
+        self.ui.widgets.transpose.setVisible(False)
 
         y: PlotData | None = None
         x: PlotData | None = None
@@ -1110,12 +1138,12 @@ Please investigate the error and eventually restart matrix-preview""",
             if dim >= 3:
                 return -2
             if dim == 2:
-                self.w_transpose.setVisible(True)
+                self.ui.widgets.transpose.setVisible(True)
 
             yname = self.names[indexY]
 
             y_data = self.data[yname]
-            if self.w_transpose.isChecked() is True and dim == 2:
+            if self.ui.widgets.transpose.isChecked() is True and dim == 2:
                 y_data = y_data.T
 
             y = {
@@ -1203,8 +1231,8 @@ Please investigate the error and eventually restart matrix-preview""",
                 if x["dim"] == 2:
                     # identidcal 2D data on both axes,
                     # allow and handle transposition
-                    self.w_transpose.setVisible(True)
-                    if self.w_transpose.isChecked() is True:
+                    self.ui.widgets.transpose.setVisible(True)
+                    if self.ui.widgets.transpose.isChecked() is True:
                         x["data"] = x["data"].T
                         y["data"] = y["data"].T
             else:
@@ -1215,7 +1243,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 return -2
 
         # update meta information and data
-        self.spw.plot(y, x, plot2d=self.w_plot2d.isChecked())
+        self.spw.plot(y, x, plot2d=self.ui.widgets.plot2d.isChecked())
         return 0
 
 

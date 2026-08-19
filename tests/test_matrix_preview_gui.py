@@ -43,22 +43,21 @@ def test_matrix_preview_run(qtbot, qapp):
     assert main_window.isVisible()
     # a placeholder is shown before any file is loaded
     assert main_window.spw.isVisible() is False
-    assert main_window.w_placeholder.isVisible()
+    assert main_window.ui.widgets.placeholder.isVisible()
     assert main_window.ui.file_selector.isEnabled() is False
     assert main_window.ui.actions.export_png.isEnabled() is False
 
     main_window.open_file(test_ma8_file)
     qtbot.waitUntil(
-        lambda: main_window.filename is not None
-        and main_window.ui.file_selector.count() > 0,
+        lambda: main_window.filename is not None and main_window.ui.file_selector.count() > 0,
         timeout=2000,
     )
     assert main_window.filename is not None
     assert main_window.filename.name == test_ma8_file.name
     assert main_window.spw.isVisible()
-    assert main_window.w_placeholder.isVisible() is False
+    assert main_window.ui.widgets.placeholder.isVisible() is False
     assert main_window.ui.file_selector.currentText() == test_ma8_file.name
-    assert main_window.column_selector[0].count() > 1
+    assert main_window.ui.widgets.column_selector[0].count() > 1
     assert main_window.ui.actions.export_png.isEnabled() is True
 
 
@@ -76,6 +75,6 @@ def test_matrix_preview_interactions_before_file_load(qtbot, qapp):
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     # toggle 2d plotting without loaded data
-    main_window.w_plot2d.setChecked(True)
+    main_window.ui.widgets.plot2d.setChecked(True)
     qapp.processEvents()
     assert main_window.error is False
