@@ -30,11 +30,12 @@ import pyqtgraph.exporters
 from PySide6.QtCore import (
     QEvent,
     QKeyCombination,
+    QObject,
     Qt,
     QThread,
     Signal,
 )
-from PySide6.QtGui import QAction, QColor, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -116,19 +117,19 @@ class UpdateThread(QThread):
 
     update_now = Signal()
 
-    def __init__(self, interval):
+    def __init__(self, interval: int) -> None:
         """Init thread and set sleep interval."""
         QThread.__init__(self)
         self.stopFlag = False
         self.interval = interval
 
-    def run(self):
+    def run(self) -> None:
         """Run thread and sleep in intervals."""
         while not self.stopFlag:
             time.sleep(self.interval)
             self.update_now.emit()
 
-    def terminate(self):
+    def terminate(self) -> None:
         """Terminate the thread."""
         self.stopFlag = True
         self.wait()
@@ -173,7 +174,7 @@ class ActionGroup:
 class UIBuilder:
     """Create the GUI elements."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.actions: ActionGroup = self._create_actions()
         self.widgets: WidgetGroup = self._create_widgets()
         self.toolbar: MToolBar = self._create_toolbar()
@@ -430,7 +431,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.file_dropped.connect(lambda file: self.open_file(Path(file)))
         check_desktop_integration()
 
-    def eventFilter(self, a0, a1):
+    def eventFilter(self, a0: QObject, a1: QEvent | None) -> bool:
         """Update the file view if required."""
         if (
             a0 == self.ui.widgets.file_selector
@@ -440,7 +441,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.update_file_combo()
         return False
 
-    def load_button_pressed(self):
+    def load_button_pressed(self) -> None:
         """Open file dialog to chose the input file."""
         self.closing_allowed = False
         filename = QFileDialog.getOpenFileName(
@@ -450,7 +451,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         if filename:
             self.open_file(Path(filename))
 
-    def open_file(self, filename: Path):
+    def open_file(self, filename: Path) -> None:
         """Read the data from the file."""
         logger.info("opening %s", filename)
         self.filename = filename
@@ -466,14 +467,14 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.error = False
         self.populate_file_data()
 
-    def file_list_refresh(self):
+    def file_list_refresh(self) -> None:
         """Refresh all files with the correct extension in the selected directory."""
         names = [
             file.name for file in self.file_dir.iterdir() if file.suffix in self.allowed_extensions
         ]
         self.data_files = sorted(names, key=lambda t: (self.file_dir / t).stat().st_mtime)
 
-    def update_file_combo(self):
+    def update_file_combo(self) -> None:
         """Update the combo box that displays the file names."""
         self.file_list_refresh()
         ctext = self.ui.widgets.file_selector.currentText()
@@ -486,7 +487,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         # self.file_index, problem?
         self.ui.widgets.file_selector.blockSignals(False)
 
-    def closeEvent(self, a0):
+    def closeEvent(self, a0: QCloseEvent) -> None:
         """Store toolbar position on close."""
         if not self.closing_allowed:
             a0.ignore()
@@ -516,7 +517,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         ]
         subprocess.Popen(preview)
 
-    def _create_connections(self):
+    def _create_connections(self) -> None:
         """Connect actions with application logic."""
         self.ui.actions.new.triggered.connect(self.create_new_preview)
         self.ui.actions.load.triggered.connect(self.load_button_pressed)
@@ -559,7 +560,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.meta_viewer)
         self.meta_viewer.visibilityChanged.connect(self.ui.actions.meta.setChecked)
 
-    def populate_file_data(self):
+    def populate_file_data(self) -> None:
         """Populate the file-dependent GUI elements after loading a file."""
         # replace the placeholder with the plot widget on first file load
         if self.ui.widgets.placeholder.isVisible():
@@ -646,19 +647,19 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             filename_path = filename_path.with_suffix(".txt")
         self.spw.save_data(str(filename_path))
 
-    def previous_file(self):
+    def previous_file(self) -> None:
         """Determine the previous file."""
         self.update_file_combo()
         if self.file_index > 0:
             self.ui.widgets.file_selector.setCurrentIndex(self.file_index - 1)
 
-    def next_file(self):
+    def next_file(self) -> None:
         """Determine the next file."""
         self.update_file_combo()
         if self.file_index < len(self.data_files) - 1:
             self.ui.widgets.file_selector.setCurrentIndex(self.file_index + 1)
 
-    def file_index_changed(self, index):
+    def file_index_changed(self, index: int) -> None:
         """Update info when index changes."""
         self.file_index = index
         self.filename = self.file_dir / self.data_files[self.file_index]
@@ -685,7 +686,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.spw.refresh_all_plots()
         self.meta_viewer.update_data(self.header)
 
-    def index_changed(self, newIndex):
+    def index_changed(self, newIndex: int) -> None:
         """If index changed, reload the new data and handle the gui interaction."""
         if self.ui.widgets.column_selector[0] == self.sender():
             self.ui.widgets.column_selector[1].setEnabled(newIndex != 0)
@@ -693,7 +694,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 self.ui.widgets.column_selector[1].setCurrentIndex(0)
         self.reload_data()
 
-    def transpose_toggled(self, check_state):
+    def transpose_toggled(self, check_state: bool) -> None:
         """Transpose has been toggled, reload data."""
         if (
             self.ui.widgets.plot2d.isChecked() is True
@@ -710,7 +711,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 self.ui.widgets.column_selector[2].blockSignals(False)
         self.reload_data()
 
-    def plotting_toggled(self, check_state):
+    def plotting_toggled(self, check_state: bool) -> None:
         """Switch the currently selected plotting view to 2D."""
         self.ui.widgets.axes_list[0].setText("z" if check_state is True else "y")
         self.ui.widgets.plot2d_comp.setVisible(check_state)
@@ -723,7 +724,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.export_data.setEnabled(not check_state)
         self.reload_data()
 
-    def plotting_complex(self, check_state):
+    def plotting_complex(self, check_state: bool) -> None:
         """
         Turn on the more complex 2D plotting widget.
 
@@ -746,7 +747,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         # reload data and set widget labels
         self.plotting_toggled(check_state or self.ui.widgets.plot2d.isChecked())
 
-    def raise_error(self, error):
+    def raise_error(self, error: str) -> None:
         """
         Raise the error flag.
 
@@ -761,7 +762,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.error = False
             self.ui.widgets.status.setVisible(False)
 
-    def index_callback(self, plot_object):
+    def index_callback(self, plot_object: SimplePlotWidget.PlotObject) -> None:
         """
         Handle a change of the ploted index.
 
@@ -777,7 +778,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.column_selector[i].blockSignals(False)
         self.reload_data()
 
-    def updatethread(self, state):
+    def updatethread(self, state: bool) -> None:
         """
         Run and terminate a thread that reloads the data from the file.
 
@@ -792,7 +793,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.update_thread.terminate()
             self.update_thread = None
 
-    def conditional_fetch_data(self, force=False, check=False) -> int:
+    def conditional_fetch_data(self, force: bool = False, check: bool = False) -> int:
         """
         Fetch data from the file.
 
@@ -815,7 +816,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.refresh_columns_size()
         return ret
 
-    def refresh_columns_size(self):
+    def refresh_columns_size(self) -> None:
         """Refresh size of all columns."""
         self.column_items = [
             f"{name} ({unit}), shape: {shape}"
@@ -826,7 +827,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             for j, item in enumerate(self.column_items):
                 self.ui.widgets.column_selector[i].setItemText(j + 1, item)
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the data view to the default 1d state without selection."""
         for widget in (
             self.ui.widgets.plot2d,
@@ -850,7 +851,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.spw.setVisible(True)
         self.spw.reset()
 
-    def fetch_data(self, check=False) -> int:
+    def fetch_data(self, check: bool = False) -> int:
         """Handle the data operations."""
         try:
             ret = 0
@@ -888,7 +889,7 @@ Please investigate the error and eventually restart matrix-preview""",
         self.lu_time = time.time()
         return ret
 
-    def reload_data(self):
+    def reload_data(self) -> None:
         """
         Wrap the 1d and 2d plotting functions.
 
@@ -896,7 +897,7 @@ Please investigate the error and eventually restart matrix-preview""",
         """
         if not self.names:
             # no file loaded yet, nothing to plot
-            return 0
+            return
         if (
             self.ui.widgets.plot2d.isChecked() is True
             or self.ui.widgets.plot2d_comp.isChecked() is True
@@ -907,7 +908,7 @@ Please investigate the error and eventually restart matrix-preview""",
         # handle the error if there is any
         self.handle_error(ret)
 
-    def handle_error(self, ret):
+    def handle_error(self, ret: int) -> None:
         """Handle a possible dimension error of the reload_data function."""
         if (message := PLOT_ERROR_MESSAGES.get(ret)) is not None:
             self.raise_error(message)
@@ -915,7 +916,7 @@ Please investigate the error and eventually restart matrix-preview""",
             self.error = False
             self.ui.widgets.status.setVisible(False)
 
-    def reload_data_2d(self):
+    def reload_data_2d(self) -> int:
         """Reload the data in the 2d case."""
         indexZ, indexX, indexY = [
             self.ui.widgets.column_selector[i].currentIndex() - 1 for i in range(3)
@@ -1063,7 +1064,7 @@ Please investigate the error and eventually restart matrix-preview""",
         return 0
 
     @no_type_check
-    def reload_data_curve(self):
+    def reload_data_curve(self) -> int:
         """
         Reload the data.
 
@@ -1196,7 +1197,7 @@ Please investigate the error and eventually restart matrix-preview""",
         return 0
 
 
-def main(file: str | None = None):
+def main(file: str | None = None) -> None:
     """Set the basic GUI parameters and run."""
     install_error_handler()
     app = MApplication(sys.argv)
