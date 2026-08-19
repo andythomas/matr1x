@@ -160,10 +160,6 @@
       {
         "name": "ExecThread::_execute_sleep",
         "complexity": 19
-      },
-      {
-        "name": "_parse_until_time",
-        "complexity": 20
       }
     ]
   },
@@ -178,10 +174,6 @@
       {
         "name": "get_matrix_icon",
         "complexity": 28
-      },
-      {
-        "name": "ConfigEditWidget::update_data",
-        "complexity": 50
       }
     ]
   },
@@ -235,10 +227,6 @@
     "path": "matr1x/scripts/matrix_gui.py",
     "file_name": "matrix_gui.py",
     "functions": [
-      {
-        "name": "MainWindow::parse_system_from_inputfile",
-        "complexity": 16
-      },
       {
         "name": "MainWindow::_process_tabledata",
         "complexity": 19
