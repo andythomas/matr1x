@@ -394,7 +394,7 @@ class SystemInfo(BaseModel):
     variables: dict[str, SystemVariable]
     config: dict[str, Any]
     selections: list[SystemSelectionInfo] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
+    warnings: list[tuple[str, int]] = Field(default_factory=list)
     config_validation_errors: list[str] = Field(default_factory=list)
 
     @property

@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -109,9 +110,9 @@ class NotifierMessage:
 
 
 @final
-class Notifier(QWidget):
+class Notifier(QGroupBox):
     """
-    An animated layout that shows a message with an icon.
+    An animated container titled "Notification" that shows a message with an icon.
 
     Parameters
     ----------
@@ -121,7 +122,7 @@ class Notifier(QWidget):
 
     def __init__(self, logger: logging.Logger):
         """Initialize the notification widget."""
-        super().__init__()
+        super().__init__("Notification")
         self._logger = logger
         self.setMaximumHeight(0)
         self.setVisible(False)
@@ -154,8 +155,8 @@ class Notifier(QWidget):
         self._text.setText(message.text)
         self._logger.log(message.level, message.text)
         self._dismiss_timer.stop()
-        if message.level < logging.ERROR:
-            self._dismiss_timer.start(3000)
+        if message.level < logging.WARNING:
+            self._dismiss_timer.start(5000)
         self.show_animated()
 
     def show_animated(self):
@@ -652,7 +653,7 @@ class SystemListWidget(QListWidget):
             # log without automatically opening the separate log window.
             self.message.emit(NotifierMessage(warning_text, level=logging.WARNING))
         for warning in system_info.value.warnings:
-            self.message.emit(NotifierMessage(warning, level=logging.WARNING))
+            self.message.emit(NotifierMessage(warning[0], warning[1]))
         self._cached_system_info = system_info.value
         self._sync_action_state()
         self.changed.emit()

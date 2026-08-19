@@ -94,6 +94,7 @@ from matr1x.scripts.shared_classes import (
     MetadataDockWidget,
     MMainWindow,
     MToolBar,
+    Notifier,
     SaferQSettings,
 )
 from matr1x.system import MergedSystem
@@ -333,6 +334,7 @@ class WidgetGroup:
     about_box: AboutBox
     measurement_thread: MeasurementThread
     measurement_ui: MeasurementUI
+    notifier: Notifier
 
 
 class UIBuilder:
@@ -380,6 +382,7 @@ class UIBuilder:
             ),
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
+            notifier=Notifier(logger),
         )
 
     def _create_gui(self) -> None:
@@ -398,6 +401,7 @@ class UIBuilder:
         measurements_container = QWidget()
         measurements_container.setLayout(queue_n_measurement)
         central_layout = QVBoxLayout()
+        central_layout.addWidget(self.widgets.notifier)
         input_line = QHBoxLayout()
         input_line.addWidget(QLabel("Input: "))
         input_line.addWidget(self.widgets.input_file)
@@ -504,7 +508,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor,
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         self.sg: QMainWindow | None = None
         self.running = False
         self.sys_meta_data = {}

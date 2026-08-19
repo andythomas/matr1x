@@ -501,7 +501,7 @@ class System:
         self.query_dict = {}  # store device information query
 
         # Allow warnings
-        self.warnings: list[str] = []
+        self.warnings: list[tuple[str, int]] = []
 
         # initialize flag to check whether system has been set
         self.opened = False
@@ -744,7 +744,7 @@ class System:
     def _load_definition(
         cls,
         source: str,
-    ) -> Result[tuple[type[System] | System, Path | str, str | None], str]:
+    ) -> Result[tuple[type[System] | System, Path | str, tuple[str, int] | None], str]:
         """Import a system source and return its class or legacy instance."""
         module_result = cls._import_system_module(source)
         if isinstance(module_result, Error):
@@ -792,7 +792,7 @@ class System:
     @staticmethod
     def _system_definition_from_module(
         module: Any, normfilename: Path | str
-    ) -> Result[tuple[type[System] | System, Path | str, str | None], str]:
+    ) -> Result[tuple[type[System] | System, Path | str, tuple[str, int] | None], str]:
         """Find the single supported system definition in an imported module."""
         legacy_name = "system"
         system = getattr(module, legacy_name, None)
@@ -800,7 +800,8 @@ class System:
         if isinstance(system, System):
             legacy_warning = (
                 f"Using an initialized System instance exported as '{legacy_name}' is deprecated; "
-                "define exactly one local System subclass instead."
+                "define exactly one local System subclass instead.",
+                logging.WARNING,
             )
         else:
             # Imported base classes do not qualify: the system file itself
