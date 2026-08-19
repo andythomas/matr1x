@@ -15,10 +15,41 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Helpers for VISA resource discovery and address validation."""
 
+import ipaddress
 import threading
-from typing import Any
+from typing import Any, TypedDict
+
+from pyvisa import rname
 
 _resource_managers: dict[int, tuple[Any, Any]] = {}
+
+
+class VisaResourceRequirements(TypedDict, total=False):
+    """Constraints for a VISA resource field."""
+
+    interface_types: list[str]
+    resource_classes: list[str]
+    loopback_host: bool
+    valid_port: bool
+
+
+SERIAL_VISA_RESOURCE_REQUIREMENTS: VisaResourceRequirements = {
+    "interface_types": ["ASRL"],
+    "resource_classes": ["INSTR"],
+}
+GPIB_VISA_RESOURCE_REQUIREMENTS: VisaResourceRequirements = {
+    "interface_types": ["GPIB"],
+    "resource_classes": ["INSTR"],
+}
+TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS: VisaResourceRequirements = {
+    "interface_types": ["TCPIP"],
+    "resource_classes": ["SOCKET"],
+    "valid_port": True,
+}
+LOCAL_TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS: VisaResourceRequirements = {
+    **TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS,
+    "loopback_host": True,
+}
 
 
 def get_visa_resource_manager() -> Any:
@@ -37,7 +68,10 @@ def get_visa_resource_manager() -> Any:
     return cached_resource_manager[1]
 
 
-def validate_visa_resource(value: str) -> str:
+def validate_visa_resource(
+    value: str,
+    requirements: VisaResourceRequirements | None = None,
+) -> str:
     """
     Validate a VISA resource string without opening the instrument.
 
@@ -67,4 +101,83 @@ def validate_visa_resource(value: str) -> str:
         raise ValueError(f"Invalid VISA resource address {value!r}: {exc}") from exc
     if resource_info.resource_name is None:
         raise ValueError(f"Invalid VISA resource address {value!r}")
+    if requirements:
+        _validate_visa_resource_requirements(value, requirements)
     return value
+
+
+def _validate_visa_resource_requirements(
+    value: str,
+    requirements: VisaResourceRequirements,
+) -> None:
+    """Validate that a parsed VISA resource meets field constraints."""
+    try:
+        resource = rname.parse_resource_name(value)
+    except rname.InvalidResourceName as exc:
+        raise ValueError(f"Invalid VISA resource address {value!r}: {exc}") from exc
+
+    interface_types = requirements.get("interface_types", [])
+    resource_classes = requirements.get("resource_classes", [])
+    if (
+        interface_types
+        and resource.interface_type not in interface_types
+        or resource_classes
+        and resource.resource_class not in resource_classes
+    ):
+        expected = " or ".join(
+            f"{interface} {resource_class}"
+            for interface in interface_types or ["VISA"]
+            for resource_class in resource_classes or ["resource"]
+        )
+        raise ValueError(f"VISA resource address {value!r} must use resource type {expected}")
+
+    if requirements.get("loopback_host"):
+        if not isinstance(resource, rname.TCPIPSocket) or not _is_loopback_host(
+            resource.host_address
+        ):
+            raise ValueError(
+                f"VISA resource address {value!r} must use 'localhost' or an IPv4 loopback address"
+            )
+
+    if requirements.get("valid_port"):
+        try:
+            port = int(getattr(resource, "port", ""))
+        except ValueError as exc:
+            raise ValueError(
+                f"VISA resource address {value!r} must specify a TCP port from 1 to 65535"
+            ) from exc
+        if not 1 <= port <= 65535:
+            raise ValueError(
+                f"VISA resource address {value!r} must specify a TCP port from 1 to 65535"
+            )
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Return whether a TCP/IP host is localhost or an IPv4 loopback address."""
+    if host == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.version == 4 and address.is_loopback
+
+
+def validate_serial_visa_resource(value: str) -> str:
+    """Validate a serial VISA instrument resource."""
+    return validate_visa_resource(value, SERIAL_VISA_RESOURCE_REQUIREMENTS)
+
+
+def validate_gpib_visa_resource(value: str) -> str:
+    """Validate a GPIB VISA instrument resource."""
+    return validate_visa_resource(value, GPIB_VISA_RESOURCE_REQUIREMENTS)
+
+
+def validate_tcpip_socket_visa_resource(value: str) -> str:
+    """Validate a TCP/IP VISA socket resource."""
+    return validate_visa_resource(value, TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS)
+
+
+def validate_local_tcpip_socket_visa_resource(value: str) -> str:
+    """Validate a local TCP/IP VISA socket resource."""
+    return validate_visa_resource(value, LOCAL_TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS)

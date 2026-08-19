@@ -28,7 +28,13 @@ from typing import Literal
 from pydantic import Field
 
 from matr1x.devices.dummy import dummy
-from matr1x.models import FilePath, GuiField, SciFloat, SystemConfigModel, VisaResource
+from matr1x.models import (
+    FilePath,
+    GuiField,
+    LocalTCPIPSocketVisaResource,
+    SciFloat,
+    SystemConfigModel,
+)
 from matr1x.system import System
 
 
@@ -61,9 +67,13 @@ class FeatureConfig(SystemConfigModel):
         decimals=1,
         description="Settling time in seconds",
     )
-    visa_address: VisaResource = Field(
-        "GPIB::2",
-        description="VISA resource address for manual GUI testing",
+    dev1_address: LocalTCPIPSocketVisaResource = Field(
+        "TCPIP::localhost::10008::SOCKET",
+        description="Local TCP/IP socket used by dummy device dev1",
+    )
+    dev2_address: LocalTCPIPSocketVisaResource = Field(
+        "TCPIP::localhost::10009::SOCKET",
+        description="Local TCP/IP socket used by dummy device dev2",
     )
 
 
@@ -114,14 +124,14 @@ class Feature(System):
         self.add_dev(
             "dev1",
             dummy,
-            args=("TCPIP::localhost::10008::SOCKET",),
+            args=(self.config.dev1_address,),
             kwargs={"p1": 5, "p4": [5, 3, 2, 1]},
             config_params={"p4": "p4"},
         )
         self.add_dev(
             "dev2",
             dummy,
-            args=("TCPIP::localhost::10009::SOCKET",),
+            args=(self.config.dev2_address,),
             config_params={"p2": "p2"},
         )
         # ============================

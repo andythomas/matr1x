@@ -42,7 +42,17 @@ from pydantic import (
 
 import matr1x
 from matr1x.util import flatten, get_formatted_line
-from matr1x.visa_helpers import validate_visa_resource
+from matr1x.visa_helpers import (
+    GPIB_VISA_RESOURCE_REQUIREMENTS,
+    LOCAL_TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS,
+    SERIAL_VISA_RESOURCE_REQUIREMENTS,
+    TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS,
+    validate_gpib_visa_resource,
+    validate_local_tcpip_socket_visa_resource,
+    validate_serial_visa_resource,
+    validate_tcpip_socket_visa_resource,
+    validate_visa_resource,
+)
 
 
 def GuiField(
@@ -81,6 +91,44 @@ VisaResource = Annotated[
     str,
     AfterValidator(validate_visa_resource),
     GuiField(ui_type="visa_resource", validate_default=True),
+]
+SerialVisaResource = Annotated[
+    str,
+    AfterValidator(validate_serial_visa_resource),
+    GuiField(
+        ui_type="visa_resource",
+        validate_default=True,
+        json_schema_extra={"visa_resource_requirements": SERIAL_VISA_RESOURCE_REQUIREMENTS},
+    ),
+]
+GPIBVisaResource = Annotated[
+    str,
+    AfterValidator(validate_gpib_visa_resource),
+    GuiField(
+        ui_type="visa_resource",
+        validate_default=True,
+        json_schema_extra={"visa_resource_requirements": GPIB_VISA_RESOURCE_REQUIREMENTS},
+    ),
+]
+TCPIPSocketVisaResource = Annotated[
+    str,
+    AfterValidator(validate_tcpip_socket_visa_resource),
+    GuiField(
+        ui_type="visa_resource",
+        validate_default=True,
+        json_schema_extra={"visa_resource_requirements": TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS},
+    ),
+]
+LocalTCPIPSocketVisaResource = Annotated[
+    str,
+    AfterValidator(validate_local_tcpip_socket_visa_resource),
+    GuiField(
+        ui_type="visa_resource",
+        validate_default=True,
+        json_schema_extra={
+            "visa_resource_requirements": LOCAL_TCPIP_SOCKET_VISA_RESOURCE_REQUIREMENTS
+        },
+    ),
 ]
 
 

@@ -17,9 +17,12 @@
 
 import copy
 
+from pyvisa import rname
+
 from matr1x import scpi_tcpserver
 from matr1x.devices.scpi_dev import makeSCPIdevice
 from matr1x.util import Command, Get, Set
+from matr1x.visa_helpers import validate_local_tcpip_socket_visa_resource
 
 cmd_list: dict[str, Command] = {
     "*idn": Get(str, lambda: "dummy_device name\nwith newline"),
@@ -36,18 +39,28 @@ cmd_list: dict[str, Command] = {
 dummy_dev = makeSCPIdevice(cmd_list)
 
 
+def _get_dummy_server_address(adapter: str) -> tuple[str, int]:
+    """Return the host and port from a supported dummy-device address."""
+    validate_local_tcpip_socket_visa_resource(adapter)
+    resource = rname.parse_resource_name(adapter)
+    if not isinstance(resource, rname.TCPIPSocket):
+        raise RuntimeError("Validated dummy adapter is not a TCP/IP socket")
+    return resource.host_address, int(resource.port)
+
+
 class dummy(dummy_dev):  # ty: ignore[unsupported-base]
     """
     Dummy device for testing.
 
     Upon initialization the device starts a socket server which processes
-    queries received via this network socket. Typically this will be done
-    via the loopback interface (localhost) and on a high TCP/IP port number.
+    queries received via this network socket. The server is hosted on the
+    loopback interface (localhost) and uses a high TCP/IP port number.
 
     Parameters
     ----------
     adapter : str
-        VISA TCPIP socket address. e.g. "TCPIP::localhost::10007::SOCKET".
+        Local VISA TCPIP socket address, e.g.
+        "TCPIP::localhost::10007::SOCKET".
     **kwargs : dict, optional
         Optionally starting values for the fake measurement parameters
         can be given as entries to the keyword arguments dictionary.
@@ -62,7 +75,8 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
         "conf": "_p1",
     }
 
-    def __init__(self, adapter, **kwargs):
+    def __init__(self, adapter: str, **kwargs):
+        host, port = _get_dummy_server_address(adapter)
         self.localServer = None
 
         self._p1 = kwargs.pop("p1", "0")
@@ -90,9 +104,7 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
                 else:
                     cmd.setfunc = lambda v, a=cmd.setfunc: setattr(self, a, v)
 
-        self.localServer = scpi_tcpserver.SCPI_TCP_Server(
-            self.cmd_list, port=int(adapter.split("::")[2])
-        )
+        self.localServer = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list, host=host, port=port)
         self.localServer.start()
         super().__init__(adapter, name="Dummy device")
 
