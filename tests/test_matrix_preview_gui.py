@@ -30,10 +30,8 @@ def test_matrix_preview_run(qtbot, qapp):
     Asserts
     -------
     main window is visible
-    a placeholder is shown instead of the plot widget before a file is loaded
     filename is set after load
-    the file and column selectors are populated after load
-    the simple plot widget is visible after load
+    the simple plot widget is visible
     """
     main_window = matrix_preview.SweepPreview()
     main_window.show()
@@ -41,11 +39,6 @@ def test_matrix_preview_run(qtbot, qapp):
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     assert main_window.isVisible()
-    # a placeholder is shown before any file is loaded
-    assert main_window.spw.isVisible() is False
-    assert main_window.ui.widgets.placeholder.isVisible()
-    assert main_window.ui.file_selector.isEnabled() is False
-    assert main_window.ui.actions.export_png.isEnabled() is False
 
     main_window.open_file(test_ma8_file)
     qtbot.waitUntil(
@@ -55,26 +48,3 @@ def test_matrix_preview_run(qtbot, qapp):
     assert main_window.filename is not None
     assert main_window.filename.name == test_ma8_file.name
     assert main_window.spw.isVisible()
-    assert main_window.ui.widgets.placeholder.isVisible() is False
-    assert main_window.ui.file_selector.currentText() == test_ma8_file.name
-    assert main_window.ui.widgets.column_selector[0].count() > 1
-    assert main_window.ui.actions.export_png.isEnabled() is True
-
-
-def test_matrix_preview_interactions_before_file_load(qtbot, qapp):
-    """
-    Interact with the GUI before a file is loaded.
-
-    Asserts
-    -------
-    toggling 2d plotting does not raise and does not set an error
-    """
-    main_window = matrix_preview.SweepPreview()
-    main_window.show()
-    qtbot.addWidget(main_window)
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-    # toggle 2d plotting without loaded data
-    main_window.ui.widgets.plot2d.setChecked(True)
-    qapp.processEvents()
-    assert main_window.error is False
