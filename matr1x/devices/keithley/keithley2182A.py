@@ -15,9 +15,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module providing the Keithley2182A nanovoltmeter interface."""
 
+import logging
+
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
+
+logger = logging.getLogger(__name__)
 
 
 class Keithley2182A(VisaDevice):
@@ -64,7 +68,7 @@ class Keithley2182A(VisaDevice):
         try:  # will fail if pyvisa connection does not support clear()
             self.connection.clear()
         except Exception:
-            pass
+            logger.debug("Could not clear the instrument connection", exc_info=True)
 
     def query(self, *args, **kwargs):
         """

@@ -349,10 +349,9 @@ class Parameter:
 
     def __eq__(self, other: object) -> bool:
         """Define equivalence of parameters."""
-        if isinstance(other, Parameter):
-            if self.name == other.name and self.unit == other.unit:
-                return True
-        return False
+        return bool(
+            isinstance(other, Parameter) and self.name == other.name and self.unit == other.unit
+        )
 
     @staticmethod
     def make_command_line_compatible(s: str | list[str]) -> str:
@@ -1586,7 +1585,7 @@ class System:
                 try:
                     dev.adapter.flush_read_buffer()
                 except Exception:
-                    pass
+                    logger.debug("Could not flush device read buffer during reset", exc_info=True)
             elif hasattr(dev, "read_very_eager"):  # VisaDevice
                 # read all bytes available and ignore them
                 dev.read_very_eager()
@@ -1600,9 +1599,10 @@ class System:
         by calling System.set().
         """
         for dev in self.devs.values():
-            if hasattr(dev, "close"):  # VisaDevice and other custom devices
-                if callable(dev.close):
-                    dev.close()
+            if hasattr(dev, "close") and callable(
+                dev.close
+            ):  # VisaDevice and other custom devices
+                dev.close()
             if isinstance(dev, Instrument):  # pymeasure Instrument
                 dev.adapter.close()
         # reset devs dictionary to allow reopening

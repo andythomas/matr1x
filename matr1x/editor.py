@@ -355,10 +355,7 @@ class LSPClient(QObject, LoggerMixin):
                     self._handle_notification(message)
         except Exception as e:
             for response_queue in self.pending_requests.values():
-                try:
-                    response_queue.put_nowait(None)  # Signal error
-                except Exception:
-                    pass
+                response_queue.put_nowait(None)  # Signal error
             raise RuntimeError("Message reader crashed!") from e
 
     def _read_one_message(self) -> str | None:
@@ -919,8 +916,26 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         editor_url.setQuery(f"port={self.port}")
         self.load(editor_url)
         loop = QEventLoop()
-        self.loadFinished.connect(lambda success: loop.quit() if success else None)
+        success = False
+
+        def _load_finished(ok: bool) -> None:
+            nonlocal success
+            success = ok
+            loop.quit()
+
+        self.loadFinished.connect(_load_finished)
+        QTimer.singleShot(30_000, loop.quit)  # safety net: never hang forever
         loop.exec()
+        self.loadFinished.disconnect(_load_finished)
+        if not success:
+            message = (
+                f"Editor page failed to load from {html_path}. The renderer "
+                "process may have died; check the QtWebEngine installation "
+                "and environment (e.g. set QTWEBENGINE_CHROMIUM_FLAGS="
+                "--no-sandbox when running inside a restrictive sandbox)."
+            )
+            self.logger.error(message)
+            raise RuntimeError(message)
         self.setAcceptDrops(True)
         self._highlight_timer = QTimer(self)
         self._highlight_timer.setSingleShot(True)

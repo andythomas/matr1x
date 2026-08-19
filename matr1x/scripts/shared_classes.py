@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Literal, TypedDict, final, overload
@@ -776,51 +777,53 @@ class MeasurementThread(QThread, LoggerMixin):
         to ``process_received_data`` until the process exits.
         """
         tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
-        tmp_scriptfile: IO[bytes] | None = None
-        if self.parameters.kind == "script":
-            tmp_scriptfile = tempfile.NamedTemporaryFile(mode="w+b")
-            tmp_scriptfile.write(self.parameters.input_file.encode())
-            tmp_scriptfile.flush()
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(("127.0.0.1", 0))
-            port = s.getsockname()[1]
-            s.listen(1)
-            cmd = self._generate_processfile(port, tmp_scriptfile, tmp_config_file)
-            self.proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=0,
-            )
-            self.conn, _ = s.accept()
-            s.close()
-            threading.Thread(
-                target=self.relay_subprocess_output, args=(self.proc.stdout, False), daemon=True
-            ).start()
-            threading.Thread(
-                target=self.relay_subprocess_output, args=(self.proc.stderr, True), daemon=True
-            ).start()
-            buffer = ""
-            while self.proc.poll() is None:
-                try:
-                    chunk = self.conn.recv(8192)
-                    if not chunk:
+            with ExitStack() as stack:
+                tmp_scriptfile: IO[bytes] | None = None
+                if self.parameters.kind == "script":
+                    tmp_scriptfile = stack.enter_context(tempfile.NamedTemporaryFile(mode="w+b"))
+                    tmp_scriptfile.write(self.parameters.input_file.encode())
+                    tmp_scriptfile.flush()
+
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("127.0.0.1", 0))
+                port = s.getsockname()[1]
+                s.listen(1)
+                cmd = self._generate_processfile(port, tmp_scriptfile, tmp_config_file)
+                self.proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    bufsize=0,
+                )
+                self.conn, _ = s.accept()
+                s.close()
+                threading.Thread(
+                    target=self.relay_subprocess_output,
+                    args=(self.proc.stdout, False),
+                    daemon=True,
+                ).start()
+                threading.Thread(
+                    target=self.relay_subprocess_output, args=(self.proc.stderr, True), daemon=True
+                ).start()
+                buffer = ""
+                while self.proc.poll() is None:
+                    try:
+                        chunk = self.conn.recv(8192)
+                        if not chunk:
+                            break
+                        buffer += chunk.decode()
+                        while "\0" in buffer:
+                            msg, buffer = buffer.split("\0", 1)
+                            if msg:
+                                self.process_received_data(msg)
+                    except OSError:
+                        self.process_received_data("OS error in thread communication.\n")
                         break
-                    buffer += chunk.decode()
-                    while "\0" in buffer:
-                        msg, buffer = buffer.split("\0", 1)
-                        if msg:
-                            self.process_received_data(msg)
-                except OSError:
-                    self.process_received_data("OS error in thread communication.\n")
-                    break
-            self.conn.close()
+                self.conn.close()
         finally:
-            if tmp_scriptfile is not None:
-                tmp_scriptfile.close()
             if tmp_config_file.exists():
                 tmp_config_file.unlink()
 

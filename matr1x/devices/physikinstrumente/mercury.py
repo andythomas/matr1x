@@ -15,9 +15,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module with device drivers for a PI stepper motor controller."""
 
+import logging
+
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
+
+logger = logging.getLogger(__name__)
 
 
 class MercuryC663(VisaDevice):
@@ -51,7 +55,7 @@ class MercuryC663(VisaDevice):
         try:  # first read attempt after opening usually fails
             self.getMotorState()
         except Exception:  # catch all possible Errors here
-            pass
+            logger.debug("Initial motor-state query failed", exc_info=True)
 
     @synchronized
     def getMotorState(self):

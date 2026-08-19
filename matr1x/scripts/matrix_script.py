@@ -1832,9 +1832,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""
         # First, check if unsaved changes exist
-        if self.ui.widgets.script_edit.isModified() and not self.in_pytest:
-            if not save_messagebox(self, self.save_file):
-                return
+        if (
+            self.ui.widgets.script_edit.isModified()
+            and not self.in_pytest
+            and not save_messagebox(self, self.save_file)
+        ):
+            return
         filename = QFileDialog.getOpenFileName(
             self,
             "Select filename to open",
@@ -1847,9 +1850,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
     def new_file(self) -> None:
         """Start over with a blank script."""
-        if self.ui.widgets.script_edit.isModified() and not self.in_pytest:
-            if not save_messagebox(self, self.save_file):
-                return
+        if (
+            self.ui.widgets.script_edit.isModified()
+            and not self.in_pytest
+            and not save_messagebox(self, self.save_file)
+        ):
+            return
         self.last_filename = None
         self.scriptname = None
         self.ui.widgets.script_edit.setPlainText("")

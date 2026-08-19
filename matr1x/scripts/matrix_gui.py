@@ -98,7 +98,6 @@ from matr1x.scripts.shared_classes import (
     SaferQSettings,
 )
 from matr1x.system import MergedSystem
-from matr1x.util import open_and_error
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -698,21 +697,20 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         input_path = Path(input_file_path)
         if not input_path.exists():
             return None
-        with open_and_error(input_file_path, "r") as f:
-            if isinstance(f, Error):
-                QMessageBox.warning(
-                    self, "Input file error!", f"Input file cannot be parsed: {f.error}."
-                )
-                return None
-            for line in f.value:
-                system_pattern = r"^# [Ss]ystem filename : (.+)"
-                if match := re.match(system_pattern, line.strip()):
-                    return match.group(1).split(",")
-                if line.strip() and not line.strip().startswith("#"):
-                    QMessageBox.warning(
-                        self, "System file error!", "No system specified in input file."
-                    )
-                    return None
+        try:
+            with Path(input_file_path).open("r") as f:
+                for line in f:
+                    system_pattern = r"^# [Ss]ystem filename : (.+)"
+                    if match := re.match(system_pattern, line.strip()):
+                        return match.group(1).split(",")
+                    if line.strip() and not line.strip().startswith("#"):
+                        QMessageBox.warning(
+                            self, "System file error!", "No system specified in input file."
+                        )
+                        return None
+        except OSError as e:
+            QMessageBox.warning(self, "Input file error!", f"Input file cannot be parsed: {e}.")
+            return None
         QMessageBox.warning(self, "System file error!", "No system specified in input file.")
         return None
 
