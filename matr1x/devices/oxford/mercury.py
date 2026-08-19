@@ -814,15 +814,16 @@ class MercuryIPS(VisaDevice):
             valid = False
             zval = math.copysign(6, yval)
         # check if "ip" field is greater than 1.5T and limit magnitude to 2T
-        if 1.5 + tolerance < math.sqrt(xval**2 + yval**2):
+        if 1.5 + tolerance < math.sqrt(xval**2 + yval**2) and 2.0 + tolerance < math.sqrt(
+            xval**2 + yval**2 + zval**2
+        ):
             # check if 3D field is greater than 2T and limit all axis
             # conserving the direction (really necessary?)
-            if 2.0 + tolerance < math.sqrt(xval**2 + yval**2 + zval**2):
-                valid = False
-                factor = 2.0 / math.sqrt(xval**2 + yval**2 + zval**2)
-                xval = xval * factor
-                yval = yval * factor
-                zval = zval * factor
+            valid = False
+            factor = 2.0 / math.sqrt(xval**2 + yval**2 + zval**2)
+            xval = xval * factor
+            yval = yval * factor
+            zval = zval * factor
         return valid, (xval, yval, zval)
 
     # status functions

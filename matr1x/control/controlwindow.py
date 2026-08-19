@@ -924,13 +924,14 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             for key in guidict:
                 variable = guidict[key]
                 # make sure it is a loggable widget
-                if len(variable.widgets) > 2 and variable.log is not None:
-                    if variable.widgets[-1].checkState() == Qt.CheckState.Checked:
-                        # make sure check state is True and if so add to
-                        # logged parameters
-                        self.S_log.add_param(
-                            f"dict{i}/{key}", "", getter=lambda v=variable: v.value
-                        )
+                if (
+                    len(variable.widgets) > 2
+                    and variable.log is not None
+                    and variable.widgets[-1].checkState() == Qt.CheckState.Checked
+                ):
+                    # make sure check state is True and if so add to
+                    # logged parameters
+                    self.S_log.add_param(f"dict{i}/{key}", "", getter=lambda v=variable: v.value)
         if len(self.S_log.parameters) == 1:
             QMessageBox.warning(
                 None,
