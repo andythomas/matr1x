@@ -116,40 +116,66 @@ def _validate_visa_resource_requirements(
     except rname.InvalidResourceName as exc:
         raise ValueError(f"Invalid VISA resource address {value!r}: {exc}") from exc
 
+    _validate_resource_type(value, resource, requirements)
+    if requirements.get("loopback_host"):
+        _validate_loopback_host(value, resource)
+    if requirements.get("valid_port"):
+        _validate_tcp_port(value, resource)
+
+
+def _validate_resource_type(
+    value: str,
+    resource: rname.ResourceName,
+    requirements: VisaResourceRequirements,
+) -> None:
+    """Validate the VISA interface and resource class."""
     interface_types = requirements.get("interface_types", [])
     resource_classes = requirements.get("resource_classes", [])
-    if (
-        interface_types
-        and resource.interface_type not in interface_types
-        or resource_classes
-        and resource.resource_class not in resource_classes
-    ):
-        expected = " or ".join(
-            f"{interface} {resource_class}"
-            for interface in interface_types or ["VISA"]
-            for resource_class in resource_classes or ["resource"]
+    if _resource_type_matches(resource, interface_types, resource_classes):
+        return
+
+    expected = " or ".join(
+        f"{interface} {resource_class}"
+        for interface in interface_types or ["VISA"]
+        for resource_class in resource_classes or ["resource"]
+    )
+    raise ValueError(f"VISA resource address {value!r} must use resource type {expected}")
+
+
+def _resource_type_matches(
+    resource: rname.ResourceName,
+    interface_types: list[str],
+    resource_classes: list[str],
+) -> bool:
+    """Return whether a resource meets its interface and class constraints."""
+    if interface_types and resource.interface_type not in interface_types:
+        return False
+    if resource_classes and resource.resource_class not in resource_classes:
+        return False
+    return True
+
+
+def _validate_loopback_host(value: str, resource: rname.ResourceName) -> None:
+    """Validate that a TCP/IP socket uses a supported loopback address."""
+    if isinstance(resource, rname.TCPIPSocket) and _is_loopback_host(resource.host_address):
+        return
+    raise ValueError(
+        f"VISA resource address {value!r} must use 'localhost' or an IPv4 loopback address"
+    )
+
+
+def _validate_tcp_port(value: str, resource: rname.ResourceName) -> None:
+    """Validate that a TCP/IP socket specifies a usable TCP port."""
+    try:
+        port = int(getattr(resource, "port", ""))
+    except ValueError as exc:
+        raise ValueError(
+            f"VISA resource address {value!r} must specify a TCP port from 1 to 65535"
+        ) from exc
+    if not 1 <= port <= 65535:
+        raise ValueError(
+            f"VISA resource address {value!r} must specify a TCP port from 1 to 65535"
         )
-        raise ValueError(f"VISA resource address {value!r} must use resource type {expected}")
-
-    if requirements.get("loopback_host"):
-        if not isinstance(resource, rname.TCPIPSocket) or not _is_loopback_host(
-            resource.host_address
-        ):
-            raise ValueError(
-                f"VISA resource address {value!r} must use 'localhost' or an IPv4 loopback address"
-            )
-
-    if requirements.get("valid_port"):
-        try:
-            port = int(getattr(resource, "port", ""))
-        except ValueError as exc:
-            raise ValueError(
-                f"VISA resource address {value!r} must specify a TCP port from 1 to 65535"
-            ) from exc
-        if not 1 <= port <= 65535:
-            raise ValueError(
-                f"VISA resource address {value!r} must specify a TCP port from 1 to 65535"
-            )
 
 
 def _is_loopback_host(host: str) -> bool:
