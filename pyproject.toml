@@ -18,7 +18,7 @@ dependencies = [
     "tomli ; python_version < '3.11'",               # imported in matr1x
     "tomli-w",                                       # imported in matr1x
     "pydantic >= 2.0",                               # imported in matr1x
-    "h5py >= 2.7.0",                                 # imported via util,
+    "h5py",                                          # imported via util,
     "numpy",                                         # imported via util
     "pyobjc ; platform_system == 'Darwin'",          # imported via util
     "decorator >= 5.2.1",                            # imported via util
@@ -29,8 +29,8 @@ dependencies = [
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'", # needed for GUI apps
     "pygit2 >= 1.16",                                # needed for GUI apps
     "pygit2 >= 1.19; python_version >= '3.14'",      # needed for GUI apps Py 3.14+
-    "wrapt>2.0",                                     # needed for GUI apps
-    "urwid>2.0",                                     # needed for GUI apps
+    "wrapt > 2.0",                                   # needed for GUI apps
+    "urwid > 2.0",                                   # needed for TUI matrix
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
     "monaco-assets >= 0.5.1",                        # needed for matrix script
     "ruff == 0.15.22",                               # needed for matrix script
