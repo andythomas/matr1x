@@ -114,6 +114,7 @@ from matr1x.scripts.shared_classes import (
     MMainWindow,
     MToolBar,
     Notifier,
+    NotifierMessage,
     SaferQSettings,
     SystemListWidget,
 )
@@ -1107,10 +1108,22 @@ class MainWindow(LogWindowMixin, MMainWindow):
             else:
                 self.write_output(data.message + data.end)
         elif isinstance(data, ErrorMessage):
-            logger.error(data.error)
+            self.show_message(NotifierMessage(data.error, level=logging.ERROR))
             self.measurement_failed = True
         elif isinstance(data, LogEntry):
             data.log_record(logger)
+
+    def show_message(self, message: NotifierMessage) -> None:
+        """
+        Show a problem in the notifier and in the terminal output.
+
+        Parameters
+        ----------
+        message : NotifierMessage
+            The problem to report.
+        """
+        self.ui.widgets.notifier.show_message(message)
+        self.ui.widgets.status_preview.print_colored(message.text)
 
     def print_document(self) -> None:
         """Print the script."""
@@ -1356,8 +1369,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def kill_thread(self) -> None:
         """Kill the thread."""
         self.ui.widgets.measurement_thread.kill()
-        self.ui.widgets.status_preview.print_colored(
-            "Script terminated by user - file integrity might be compromised"
+        self.show_message(
+            NotifierMessage(
+                "Script terminated by user - file integrity might be compromised",
+                level=logging.WARNING,
+            )
         )
 
     def update_system_commands(self) -> None:
@@ -1689,7 +1705,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         try:
             output_file = filename.open("w")
         except OSError:
-            self.ui.widgets.status_preview.print_colored("File cannot be written.")
+            self.show_message(NotifierMessage("File cannot be written.", level=logging.ERROR))
             return False
         self.scriptname = filename
         self.update_systems(update_config=False)
@@ -1743,7 +1759,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         try:
             input_file = filename.open()
         except OSError:
-            self.ui.widgets.status_preview.print_colored("File cannot be opened")
+            self.show_message(NotifierMessage("File cannot be opened", level=logging.WARNING))
             return
         self.scriptname = filename
         code = ""
@@ -1762,8 +1778,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
             column_names = [p.name for p in flat_parameters]
             units = [p.unit for p in flat_parameters]
         else:
-            self.ui.widgets.status_preview.print_colored(
-                "No system defined in script, please choose system(s)"
+            self.show_message(
+                NotifierMessage(
+                    "No system defined in script, please choose system(s)",
+                    level=logging.WARNING,
+                )
             )
         code += line
         #
