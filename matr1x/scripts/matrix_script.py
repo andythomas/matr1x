@@ -659,6 +659,7 @@ class WidgetGroup:
     measurement_thread: MeasurementThread
     measurement_ui: MeasurementUI
     notifier: Notifier
+    progress: QLabel
     progressbar: QProgressBar
 
 
@@ -744,6 +745,7 @@ class UIBuilder:
         system_list = SystemListWidget()
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
+        progress = QLabel("Measurement idle.")
         progressbar = QProgressBar()
         script_edit = CodeEditor()
         system_command_help = QDialog()
@@ -804,6 +806,7 @@ class UIBuilder:
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
             notifier=Notifier(logger),
+            progress=progress,
             progressbar=progressbar,
         )
 
@@ -977,11 +980,14 @@ class UIBuilder:
         layout.setSpacing(6)
         layout.setContentsMargins(11, 4, 11, 11)
         layout.addWidget(self.widgets.script_edit, 1)
-        infobar = QHBoxLayout()
-        infobar.addWidget(self.widgets.progressbar, 1)
-        infobar.addWidget(self.widgets.python_info)
-        infobar.addWidget(QLabel("  |  "))
-        infobar.addWidget(self.widgets.lsp_info)
+        infobar = QVBoxLayout()
+        info_row = QHBoxLayout()
+        info_row.addWidget(self.widgets.progress, 1)
+        info_row.addWidget(self.widgets.python_info)
+        info_row.addWidget(QLabel("  |  "))
+        info_row.addWidget(self.widgets.lsp_info)
+        infobar.addLayout(info_row)
+        infobar.addWidget(self.widgets.progressbar)
         layout.addLayout(infobar, 0)
 
 
@@ -1118,6 +1124,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
         if isinstance(data, Telemetry):
             self.ui.widgets.progressbar.setMaximum(data.points)
             self.ui.widgets.progressbar.setValue(data.point)
+            if data.remaining is not None:
+                self.ui.widgets.progress.setText(str(data))
             if data.to_stdout:
                 self.write_output(str(data) + "\n")
         elif isinstance(data, (Header, SetValues, MeasuredValues)):
@@ -1562,6 +1570,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.enable_buttons(False)
         self._flush_output_buffer()
         self.ui.widgets.progressbar.setValue(0)
+        self.ui.widgets.progress.setText("Measurement idle.")
         self.ui.widgets.table.reset()
         if self.measurement_failed:
             self.ui.widgets.status_preview.print_colored("\nExecution failed")
@@ -1610,6 +1619,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 return
         self.measurement_failed = False
         self.ui.widgets.progressbar.setValue(0)
+        self.ui.widgets.progress.setText("Measurement started.")
         self.ui.widgets.table.reset()
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
