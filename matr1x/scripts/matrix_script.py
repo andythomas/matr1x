@@ -1166,9 +1166,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.write_output(str(data) + "\n")
 
     def _process_message(self, data: Message) -> None:
-        """Write a message to the terminal output."""
-        if data.modifier == Modifier.DELETE_CURRENT_LINE:
-            self.write_output("\r" + data.message + data.end)
+        """Write a message to the terminal output or the progress label."""
+        if data.modifier & Modifier.TO_PROGRESS_LABEL:
+            self.ui.widgets.progress.setText(data.message)
         else:
             self.write_output(data.message + data.end)
 
