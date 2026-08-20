@@ -42,7 +42,9 @@ def test_matrix_preview_run(qtbot, qapp):
 
     main_window.open_file(test_ma8_file)
     qtbot.waitUntil(
-        lambda: main_window.filename is not None and main_window.spw.isVisible(),
+        lambda: (
+            main_window.filename is not None and main_window.ui.widgets.file_selector.count() > 0
+        ),
         timeout=2000,
     )
     assert main_window.filename is not None
