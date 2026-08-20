@@ -1133,16 +1133,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
         """Process the data from the measurement thread."""
         data = env.payload
         if isinstance(data, Telemetry):
-            self.ui.widgets.progressbar.setMaximum(data.points)
-            self.ui.widgets.progressbar.setValue(data.point)
-            if data.remaining is not None:
-                self.ui.widgets.progress.setText(str(data))
-            if data.to_stdout:
-                self.write_output(str(data) + "\n")
+            self._process_telemetry(data)
         elif isinstance(data, (Header, SetValues, MeasuredValues)):
-            self.ui.widgets.table.apply(data)
-            if data.to_stdout:
-                self.write_output(str(data) + "\n")
+            self._process_table_data(data)
         elif isinstance(data, ExecutionLines):
             self.ui.widgets.script_edit.highlight([line - self.line_offset for line in data.lines])
         elif isinstance(data, Datafile):
@@ -1150,15 +1143,34 @@ class MainWindow(LogWindowMixin, MMainWindow):
         elif isinstance(data, InputParameters):
             self._get_script_input(data)
         elif isinstance(data, Message):
-            if data.modifier == Modifier.DELETE_CURRENT_LINE:
-                self.write_output("\r" + data.message + data.end)
-            else:
-                self.write_output(data.message + data.end)
+            self._process_message(data)
         elif isinstance(data, ErrorMessage):
             self.show_message(NotifierMessage(data.error, level=logging.ERROR))
             self.measurement_failed = True
         elif isinstance(data, LogEntry):
             data.log_record(logger)
+
+    def _process_telemetry(self, data: Telemetry) -> None:
+        """Update the progress bar and label from telemetry data."""
+        self.ui.widgets.progressbar.setMaximum(data.points)
+        self.ui.widgets.progressbar.setValue(data.point)
+        if data.remaining is not None:
+            self.ui.widgets.progress.setText(str(data))
+        if data.to_stdout:
+            self.write_output(str(data) + "\n")
+
+    def _process_table_data(self, data: Header | SetValues | MeasuredValues) -> None:
+        """Apply table data to the measurement table."""
+        self.ui.widgets.table.apply(data)
+        if data.to_stdout:
+            self.write_output(str(data) + "\n")
+
+    def _process_message(self, data: Message) -> None:
+        """Write a message to the terminal output."""
+        if data.modifier == Modifier.DELETE_CURRENT_LINE:
+            self.write_output("\r" + data.message + data.end)
+        else:
+            self.write_output(data.message + data.end)
 
     def show_message(self, message: NotifierMessage) -> None:
         """
