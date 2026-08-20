@@ -1028,13 +1028,24 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.widgets.script_edit.setValidExtensions([self.extension])
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
+        self.setCentralWidget(self.ui.widgets.central_widget)
         self.install_metadata_config_docks(
             self.ui.widgets.dockable_metadata,
             self.ui.widgets.config_editor,
         )
-        self.setCentralWidget(self.ui.widgets.central_widget)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.table_dock)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.terminal_dock)
+        if not self.settings.contains("created"):
+            # Default layout: table and terminal as tabs in the middle,
+            # metadata on the right. Tabifying the docks has to be
+            # deferred until the event loop starts, because it destroys
+            # existing horizontal splits otherwise.
+            self.splitDockWidget(
+                self.ui.widgets.table_dock,
+                self.ui.widgets.dockable_metadata,
+                Qt.Orientation.Horizontal,
+            )
+            QTimer.singleShot(0, self._tabify_default_docks)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
@@ -1188,6 +1199,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.settings.setValue("size", self.ui.widgets.system_command_help.size())
             self.settings.setValue("position", self.ui.widgets.system_command_help.pos())
             self.settings.endGroup()
+
+    def _tabify_default_docks(self) -> None:
+        """Tab the table and terminal docks of the default layout."""
+        self.tabifyDockWidget(self.ui.widgets.table_dock, self.ui.widgets.terminal_dock)
+        self.ui.widgets.terminal_dock.raise_()
 
     def restore_window_state(self) -> None:
         """Restore app configuration from the previous use."""
