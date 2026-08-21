@@ -38,7 +38,6 @@ import os
 import sys
 import warnings
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -49,6 +48,7 @@ from pydantic import BaseModel, ValidationError
 # Import pymeasure threading fix to apply monkey patch automatically
 # This must be imported early to ensure all pymeasure instruments are thread-safe
 from . import pymeasure_threading_fix
+from .logging_util import WeekRotatingFileHandler
 from .models import MainConfig, UserlibConfig, format_validation_error
 from .system import APP_META_KEY, VALID_META_KEYS
 from .util import (
@@ -404,14 +404,20 @@ if not usersfolder.exists():
 
 # set up logging to configure, e.g., the log-windows
 logfolder = config.matr1x.logging_directory.expanduser()
+file_handler: WeekRotatingFileHandler | None = None
 if logfolder.exists():
-    iso_year, iso_week, _ = datetime.now(tz=timezone.utc).astimezone().isocalendar()
-    handlers = [logging.FileHandler(logfolder / f"matr1x_{iso_year}{iso_week:02d}.log", mode="a")]
+    try:
+        file_handler = WeekRotatingFileHandler(logfolder)
+    except OSError:
+        # e.g. the log folder is not writable; fall back to console logging
+        print(f"matrix.conf: log folder {logfolder} is not writable, logging to console only")  # noqa: T201
+        file_handler = None
+if file_handler is not None:
     logging.basicConfig(
         level=logging.INFO,
         format=config.matr1x.logging_format,
         datefmt=datetimefmt,
-        handlers=handlers,
+        handlers=[file_handler],
     )
 else:
     logging.basicConfig(format=config.matr1x.logging_format, datefmt=datetimefmt)
