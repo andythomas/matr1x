@@ -30,8 +30,6 @@ class Agilent8114A(VisaDevice):
     https://www.keysight.com/us/en/assets/9018-05116/user-manuals/9018-05116.pdf
     """
 
-    config_params = {}
-
     def __init__(self, interface, **kwargs):
         """
         Initialize the Agilent 8114A High Power Pulse Generator.

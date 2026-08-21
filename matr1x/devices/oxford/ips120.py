@@ -17,6 +17,7 @@
 
 import math
 import time
+from typing import ClassVar
 
 from pyvisa import constants
 from wrapt import synchronized
@@ -27,7 +28,7 @@ from .isobus import IsobusDevice
 class IPS120_switchheater(IsobusDevice):
     """Driver for IPS120 with switch heater control for persistent mode operations."""
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "Rate": "getMagneticFieldRate",
         "MagnetStatus": "getMagnetStatus",
         "SwitchHeater": "getSwitchHeater",

@@ -26,6 +26,7 @@ import logging
 import threading
 import time
 from functools import wraps
+from typing import ClassVar
 
 import pyvisa
 from pyvisa import errors, resources
@@ -111,7 +112,7 @@ class VisaDevice:
         Please refer to the pyVISA documentation for more information.
     """
 
-    config_params = {}
+    config_params: ClassVar[dict[str, str]] = {}
     """
     Parameters provided in dictionary need to be one of:
 

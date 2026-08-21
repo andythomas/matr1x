@@ -19,6 +19,7 @@ import collections
 import logging
 import threading
 import time
+from typing import ClassVar
 
 import numpy
 from PySide6.QtGui import QAction
@@ -96,7 +97,7 @@ class exampleDict(GuiDict):
             }}
         """)
 
-    cmds = {
+    cmds: ClassVar[dict[str, Command]] = {
         ":v1": Command(str, "setV1", "V1"),
         ":v2": Command(float, ("dummy", "p2"), "V2", polling_cmd=":v2rd"),
         ":v3": Command(float, ("dummy", "p5"), "V3"),
@@ -319,7 +320,7 @@ class exampleDict2(GuiDict):
     and a fake pressure gauge.
     """
 
-    cmds = {
+    cmds: ClassVar[dict[str, Command]] = {
         ":v5": Command(float, "v5", "V5"),
     }
     data = {

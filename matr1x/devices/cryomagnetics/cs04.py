@@ -42,8 +42,6 @@ class CS04(VisaDevice):
         Additional arguments passed to VisaDevice
     """
 
-    config_params = {}
-
     def __init__(self, interface, **kwargs):
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\r\n"

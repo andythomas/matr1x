@@ -23,6 +23,7 @@ temperature controllers of the 3xx series.
 import logging
 import math
 import time
+from typing import ClassVar
 
 from pyvisa import constants
 from wrapt import synchronized
@@ -50,7 +51,7 @@ class Lakeshore3xx(VisaDevice):
         Upper temperature limit for setpoints.
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "CurveName": "getActiveCurveName",
         "PID": "getPID",
         "Ramp mode and rate": "getRamp",

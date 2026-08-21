@@ -47,6 +47,7 @@ from types import ModuleType
 from typing import (
     TYPE_CHECKING,
     Any,
+    ClassVar,
     Literal,
     ParamSpec,
     Protocol,
@@ -2124,7 +2125,7 @@ class SimplePlotWidget(QGroupBox):
 
         # exposed functions that can be used by the custom math eval
         # expression stored in math_texts.
-        exposed_functions = {
+        exposed_functions: ClassVar[dict[str, Any]] = {
             "np": np,
             "sqrt": np.sqrt,
             "e": np.e,
@@ -2145,7 +2146,7 @@ class SimplePlotWidget(QGroupBox):
         # the key should correspond to the value of math_mode for this to
         # be selected, has to provide a pair of fucntions for the x and y
         # value, respectively
-        default_math = {
+        default_math: ClassVar[dict[str, list[Callable[[Any], Any]]]] = {
             "no math": [lambda xf: xf, lambda yf: yf],
             "delta-": [lambda xf: delta(xf)[0], lambda yf: delta(yf)[1]],
             "delta+": [lambda xf: delta(xf)[0], lambda yf: delta(yf)[0]],
@@ -4427,7 +4428,7 @@ class ReadOnlyTable(QTableWidget):
 class LoggingWindow(QMainWindow):
     """Detached window to display logging messages."""
 
-    LOG_FIELDS = ["asctime", "name", "levelname", "message"]
+    LOG_FIELDS: ClassVar[list[str]] = ["asctime", "name", "levelname", "message"]
     LOG_SEPARATOR = "\x1f"
 
     visibility_changed = Signal(bool)
