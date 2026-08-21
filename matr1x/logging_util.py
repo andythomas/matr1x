@@ -64,7 +64,7 @@ class WeekRotatingFileHandler(logging.FileHandler):
         so logging never interrupts the caller.
         """
         with self.lock:
-            iso_year, iso_week, _ = datetime.now().isocalendar()
+            iso_year, iso_week, _ = datetime.now(tz=timezone.utc).astimezone().isocalendar()
             week = (iso_year, iso_week)
             if week != self._week:
                 try:
