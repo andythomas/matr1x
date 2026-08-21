@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import ast
 import operator
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Final, TypeGuard
+from typing import Final, TypeGuard
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,25 @@ class _Unknown:
 _UNKNOWN: Final = _Unknown()
 _MAX_REPEATED_INITIALIZATIONS: Final = 10_000
 _SymbolicValue = int | float | bool | _Sequence | _Unknown
+_Numeric = int | float
+_NumericOperation = Callable[[_Numeric, _Numeric], _Numeric]
+_ComparisonOperation = Callable[[_Numeric, _Numeric], bool]
+_NUMERIC_OPERATIONS: Final[dict[type[ast.operator], _NumericOperation]] = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+_COMPARISON_OPERATIONS: Final[dict[type[ast.cmpop], _ComparisonOperation]] = {
+    ast.Eq: operator.eq,
+    ast.NotEq: operator.ne,
+    ast.Lt: operator.lt,
+    ast.LtE: operator.le,
+    ast.Gt: operator.gt,
+    ast.GtE: operator.ge,
+}
 
 
 @dataclass
@@ -154,6 +174,8 @@ class _Analyzer:
         elif isinstance(statement, ast.FunctionDef):
             if statement.name in {"measure_system", "init_datafile"}:
                 self.redefined_api.add(statement.name)
+        elif isinstance(statement, ast.Raise):
+            self.state.mark_unknown()
         elif self._contains_effect([statement]):
             self.state.mark_unknown()
 
@@ -186,7 +208,9 @@ class _Analyzer:
         condition = self._evaluate(statement.test, env)
         if isinstance(condition, bool):
             self._execute_block(statement.body if condition else statement.orelse, env)
-        elif self._contains_effect(statement.body + statement.orelse):
+        elif self._contains_effect(statement.body + statement.orelse) or self._contains_raise(
+            statement.body + statement.orelse
+        ):
             self.state.mark_unknown()
 
     def _execute_for(self, statement: ast.For, env: dict[str, _SymbolicValue]) -> None:
@@ -199,7 +223,9 @@ class _Analyzer:
             self._execute_block(statement.orelse, env)
             return
         has_initialization = self._contains_initialization(statement.body)
-        if has_initialization:
+        if self._contains_loop_exit(statement.body) and self._contains_effect(statement.body):
+            self.state.mark_unknown()
+        elif has_initialization:
             self._execute_repeated_initialization_loop(statement, iterable.length, env)
         elif self._has_assignment(statement.body) and self._contains_effect(statement.body):
             self.state.mark_unknown()
@@ -287,17 +313,9 @@ class _Analyzer:
     ) -> _SymbolicValue:
         left = self._evaluate(expression.left, env)
         right = self._evaluate(expression.right, env)
-        if not isinstance(left, (int, float, bool)) or not isinstance(right, (int, float, bool)):
+        if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
             return _UNKNOWN
-        operations: dict[type[ast.operator], Any] = {
-            ast.Add: operator.add,
-            ast.Sub: operator.sub,
-            ast.Mult: operator.mul,
-            ast.FloorDiv: operator.floordiv,
-            ast.Mod: operator.mod,
-            ast.Pow: operator.pow,
-        }
-        operation = operations.get(type(expression.op))
+        operation = _NUMERIC_OPERATIONS.get(type(expression.op))
         if operation is None:
             return _UNKNOWN
         try:
@@ -312,17 +330,9 @@ class _Analyzer:
             return _UNKNOWN
         left = self._evaluate(expression.left, env)
         right = self._evaluate(expression.comparators[0], env)
-        if not isinstance(left, (int, float, bool)) or not isinstance(right, (int, float, bool)):
+        if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
             return _UNKNOWN
-        operations: dict[type[ast.cmpop], Any] = {
-            ast.Eq: operator.eq,
-            ast.NotEq: operator.ne,
-            ast.Lt: operator.lt,
-            ast.LtE: operator.le,
-            ast.Gt: operator.gt,
-            ast.GtE: operator.ge,
-        }
-        operation = operations.get(type(expression.ops[0]))
+        operation = _COMPARISON_OPERATIONS.get(type(expression.ops[0]))
         return operation(left, right) if operation is not None else _UNKNOWN
 
     def _evaluate_bool_op(
@@ -411,6 +421,11 @@ class _Analyzer:
             self.state.mark_unknown()
             return _UNKNOWN
         function = self.functions[name]
+        if self._contains_raise(function.body) or (
+            self._contains_return(function.body) and self._contains_effect(function.body)
+        ):
+            self.state.mark_unknown()
+            return _UNKNOWN
         if expression.keywords or len(expression.args) > len(function.args.args):
             self.state.mark_unknown()
             return _UNKNOWN
@@ -438,6 +453,18 @@ class _Analyzer:
     def _contains_initialization(self, statements: list[ast.stmt]) -> bool:
         return self._contains_call(statements, {"init_datafile"}, set())
 
+    def _contains_loop_exit(self, statements: list[ast.stmt]) -> bool:
+        """Return whether a loop body can break or skip an iteration."""
+        return self._contains_node(statements, (ast.Break, ast.Continue))
+
+    def _contains_return(self, statements: list[ast.stmt]) -> bool:
+        """Return whether a function body can return early."""
+        return self._contains_node(statements, (ast.Return,))
+
+    def _contains_raise(self, statements: list[ast.stmt]) -> bool:
+        """Return whether a statement block can raise an exception."""
+        return self._contains_node(statements, (ast.Raise,))
+
     def _has_assignment(self, statements: list[ast.stmt]) -> bool:
         """Return whether *statements* can carry state between iterations."""
         return any(
@@ -452,6 +479,16 @@ class _Analyzer:
             _call_name(node.func) in {"measure_system", "init_datafile"}
             for node in ast.walk(expression)
             if isinstance(node, ast.Call)
+        )
+
+    def _contains_node(
+        self, statements: list[ast.stmt], node_types: tuple[type[ast.stmt], ...]
+    ) -> bool:
+        """Return whether a statement block contains one of *node_types*."""
+        return any(
+            isinstance(node, node_types)
+            for statement in statements
+            for node in ast.walk(statement)
         )
 
     def _contains_call(
