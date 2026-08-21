@@ -17,7 +17,7 @@
 
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 __all__ = ["WeekRotatingFileHandler"]
