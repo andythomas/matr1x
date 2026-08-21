@@ -22,8 +22,10 @@ import pytest
 from PySide6.QtCore import Qt
 
 import matr1x.eval
-from matr1x.models import Envelope, Message, Modifier
+from matr1x.error_handling import Success
+from matr1x.models import Envelope, Message, Modifier, SystemCapability, SystemReference
 from matr1x.scripts import matrix_script
+from matr1x.scripts.shared_classes import SystemListWidget
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
 
@@ -172,6 +174,29 @@ def test_adding_system_preserves_unsaved_config(
         "matr1x.systems.system_dummy_feature.reference_value"
     )
     assert retained_index.data(Qt.ItemDataRole.EditRole) == "42.5"
+
+
+def test_stateful_system_list_swaps_conflicting_states(qapp, monkeypatch):
+    """Selecting an occupied state swaps both system-reference tokens."""
+    system_list = SystemListWidget(report_config_errors=False)
+    capability = SystemCapability(
+        source="example",
+        stateful=True,
+        states=("primary", "secondary"),
+        state_exclusion_groups={"primary": "first", "secondary": "second"},
+        class_name="ExampleSystem",
+    )
+    monkeypatch.setattr(system_list, "test_import", lambda _source: Success(capability))
+    monkeypatch.setattr(system_list, "systems_changed", lambda: None)
+
+    system_list.add_systems(["example::primary", "example::secondary"])
+    first = system_list.item(0)
+    second = system_list.item(1)
+
+    system_list._select_state(first, "secondary")
+
+    assert SystemReference.from_value(first.text()).state == "secondary"
+    assert SystemReference.from_value(second.text()).state == "primary"
 
 
 def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):

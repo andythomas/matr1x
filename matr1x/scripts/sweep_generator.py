@@ -678,7 +678,9 @@ class UIBuilder:
         table_width = sweep_preview.viewport().width()
         sweep_preview.setColumnWidth(0, table_width)
 
-        system_list = SystemListWidget()
+        # A sweep describes parameter ranges and system identity only. Device
+        # configuration is supplied and validated later by the execution UI.
+        system_list = SystemListWidget(report_config_errors=False)
 
         notifier = Notifier(logger)
 

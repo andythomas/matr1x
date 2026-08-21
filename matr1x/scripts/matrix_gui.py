@@ -111,6 +111,15 @@ if sys.platform == "win32":
         pass
 
 
+def _configurable_system_sections(system_info: SystemInfo) -> list[str]:
+    """Return resolved configuration sections for importable systems."""
+    return [
+        selection.config_section or selection.source
+        for selection in system_info.selections
+        if not Path(selection.source).exists()
+    ]
+
+
 class LabelWithSignal(QLabel):
     """A QLabel that emits a signal if the text changes."""
 
@@ -171,11 +180,14 @@ class QueueListWidget(QListWidget):
     def change_config(self, row: int) -> None:
         """Change the config of the item."""
         parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        if parameters.system_info is None:
+            raise InternalInvariantError("Queued measurement should include system information.")
         dialog = QDialog(self)
         dialog.setWindowTitle("Edit Device Config")
         editor = ConfigEditWidget(popup=True)
-        editor.set_systemfile(self.parameters(row).systems)
-        editor.set_system_info(self.parameters(row).system_info)
+        editor.set_systemfile(_configurable_system_sections(parameters.system_info))
+        editor.set_full_system_list(parameters.systems)
+        editor.set_system_info(parameters.system_info)
         editor.update_data()
         editor.apply_config_dict(parameters.config)
         layout = QVBoxLayout(dialog)
@@ -733,7 +745,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
     def _update_config_editor(self, systemfile: list[str], system_info: SystemInfo | None) -> None:
         """Refresh the configuration editor when its systems have changed."""
         config_editor = self.ui.widgets.config_editor
-        configurable = [system for system in systemfile if not Path(system.strip()).exists()]
+        configurable = _configurable_system_sections(system_info) if system_info else []
         config_editor.set_systemfile(configurable)
         if systemfile == config_editor.full_system_list:
             return

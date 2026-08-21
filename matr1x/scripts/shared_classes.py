@@ -32,6 +32,8 @@ from pydantic import ValidationError
 from pyqtgraph.Qt.QtGui import QColor
 from PySide6.QtCore import (
     QByteArray,
+    QModelIndex,
+    QPersistentModelIndex,
     QPoint,
     QPropertyAnimation,
     QSettings,
@@ -41,8 +43,11 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QAction, QDropEvent, QKeySequence
+from PySide6.QtGui import QAction, QDropEvent, QFocusEvent, QKeySequence, QMouseEvent, QPalette
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDockWidget,
@@ -53,10 +58,13 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QPushButton,
     QSizePolicy,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -64,16 +72,17 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x import VALID_META_KEYS, resolved_directory
-from matr1x.error_handling import Error, InternalInvariantError, Result, Success
+from matr1x.error_handling import Error, InternalInvariantError, Result
 from matr1x.gui_util import (
     ConfigEditWidget,
     LoggerMixin,
     MApplication,
     blocked_signals,
     get_matrix_icon,
+    get_system_capability,
     get_system_info,
 )
-from matr1x.models import Envelope, SystemInfo
+from matr1x.models import Envelope, SystemCapability, SystemInfo, SystemReference
 from matr1x.util import get_matrix_binary
 
 __all__ = [
@@ -175,15 +184,143 @@ class Notifier(QGroupBox):
 
 
 @final
+class _SystemReferenceEditor(QWidget):
+    """Forward source-area mouse gestures to the owning system list."""
+
+    def __init__(self, system_list: "SystemListWidget", parent: QWidget) -> None:
+        super().__init__(parent)
+        self._system_list = system_list
+
+    def _forward_mouse_event(self, event: QMouseEvent) -> None:
+        viewport = self._system_list.viewport()
+        position = viewport.mapFromGlobal(event.globalPosition().toPoint())
+        forwarded_event = QMouseEvent(
+            event.type(),
+            position,
+            event.globalPosition(),
+            event.button(),
+            event.buttons(),
+            event.modifiers(),
+            event.pointingDevice(),
+        )
+        QApplication.sendEvent(viewport, forwarded_event)
+        event.accept()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Forward selection and drag initialization."""
+        self._forward_mouse_event(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """Forward an active row drag."""
+        self._forward_mouse_event(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        """Forward completion of selection or dragging."""
+        self._forward_mouse_event(event)
+
+
+@final
+class _SystemStateSelector(QComboBox):
+    """Select the owning system-list row when interacting with its state."""
+
+    def __init__(
+        self,
+        system_list: "SystemListWidget",
+        item: QListWidgetItem,
+        parent: QWidget,
+    ) -> None:
+        super().__init__(parent)
+        self._system_list = system_list
+        self._item = item
+
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        """Keep keyboard focus and list selection synchronized."""
+        self._system_list.setCurrentItem(self._item)
+        super().focusInEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Select the row before opening the state menu."""
+        self._system_list.setCurrentItem(self._item)
+        super().mousePressEvent(event)
+
+
+@final
+class _SystemReferenceDelegate(QStyledItemDelegate):
+    """Provide a persistent state combobox for stateful system rows."""
+
+    def __init__(self, system_list: "SystemListWidget") -> None:
+        super().__init__(system_list)
+        self.system_list = system_list
+
+    def createEditor(
+        self,
+        parent: QWidget,
+        _option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> QWidget:
+        """Create a source label followed by an always-visible state selector."""
+        item = self.system_list.item(index.row())
+        if not item.data(SystemListWidget.STATEFUL_ROLE):
+            return QWidget(parent)
+
+        editor = _SystemReferenceEditor(self.system_list, parent)
+        editor.setObjectName("system_reference_editor")
+        editor.setAutoFillBackground(True)
+        layout = QHBoxLayout(editor)
+        layout.setContentsMargins(2, 0, 2, 0)
+        layout.setSpacing(4)
+
+        source_label = QLabel(f"{item.data(SystemListWidget.SOURCE_ROLE)}::", editor)
+        source_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(source_label)
+
+        state_selector = _SystemStateSelector(self.system_list, item, editor)
+        state_selector.setObjectName("system_state")
+        state_selector.setEditable(False)
+        state_selector.setToolTip(str(item.data(SystemListWidget.SOURCE_ROLE)))
+        state_selector.addItems(item.data(SystemListWidget.STATES_ROLE))
+        state_selector.setCurrentText(str(item.data(SystemListWidget.STATE_ROLE)))
+        state_selector.currentTextChanged.connect(
+            lambda state, current=item: self.system_list._select_state(current, state)
+        )
+        layout.addWidget(state_selector)
+        layout.addStretch()
+        editor.setFocusProxy(state_selector)
+        return editor
+
+    def setEditorData(
+        self,
+        editor: QWidget,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        """Synchronize the persistent combobox with row data."""
+        state_selector = editor.findChild(QComboBox, "system_state")
+        if state_selector is None:
+            return
+        item = self.system_list.item(index.row())
+        blocked = state_selector.blockSignals(True)
+        state_selector.setCurrentText(str(item.data(SystemListWidget.STATE_ROLE)))
+        state_selector.blockSignals(blocked)
+
+
+@final
 class SystemListWidget(QListWidget):
     """A custom QListWidget that contains the systems."""
 
     changed = Signal()
     message = Signal(NotifierMessage)
 
-    def __init__(self) -> None:
-        """Initialize the class with sorting enabled."""
+    SOURCE_ROLE = int(Qt.ItemDataRole.UserRole)
+    STATE_ROLE = SOURCE_ROLE + 1
+    STATEFUL_ROLE = SOURCE_ROLE + 2
+    CLASS_ROLE = SOURCE_ROLE + 3
+    STATES_ROLE = SOURCE_ROLE + 4
+    GROUPS_ROLE = SOURCE_ROLE + 5
+
+    def __init__(self, *, report_config_errors: bool = True) -> None:
+        """Initialize the system list and its configuration-error policy."""
         super().__init__()
+        self._report_config_errors = report_config_errors
         self._base_directory: Path = resolved_directory
         self.add_action = QAction(get_matrix_icon("CHAR_+"), "Add System", self)
         self.add_action.setToolTip("Add a matrix system file.")
@@ -196,6 +333,9 @@ class SystemListWidget(QListWidget):
             raise InternalInvariantError("System list should work for an empty list.")
         self._cached_system_info: SystemInfo = system_info.value
         self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self.setItemDelegate(_SystemReferenceDelegate(self))
+        self.itemSelectionChanged.connect(self._sync_selection_highlights)
+        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.setMinimumHeight(50)
         self.setMaximumHeight(50)
         self._sync_action_state()
@@ -224,8 +364,13 @@ class SystemListWidget(QListWidget):
 
     @property
     def systems(self) -> list[str]:
-        """Return the list of systems."""
+        """Return compact static or named system tokens."""
         return [self.item(i).text() for i in range(self.count())]
+
+    @property
+    def references(self) -> list[SystemReference]:
+        """Return validated structured system references."""
+        return [SystemReference.from_value(system) for system in self.systems]
 
     def clear(self) -> None:
         """Clear the list of systems."""
@@ -252,47 +397,260 @@ class SystemListWidget(QListWidget):
             self._sync_action_state()
 
     def add_systems(self, filenames: list[str]) -> None:
-        """Add files but avoid duplicates."""
-        existing = {self.item(i).text() for i in range(self.count())}
+        """Add static systems once and stateful systems once per free group."""
+        existing_sources = {self.item(i).data(self.SOURCE_ROLE) for i in range(self.count())}
         for filename in filenames:
-            try:
-                module = importlib.util.find_spec(filename)
-            except ModuleNotFoundError:
-                module = None
-            if module is None:
-                filename = Path(filename).resolve()
-                module_name = self.get_importable_module_name(filename)
-            else:
-                module_name = module.name
-            candidate = str(module_name if module_name is not None else filename)
-            if candidate in existing:
-                msg = NotifierMessage(f"{candidate} is already present and was omitted.")
-                self.message.emit(msg)
+            candidate_result = self._system_candidate(filename)
+            if candidate_result is None:
                 continue
-            import_check = self.test_import(candidate)
-            if isinstance(import_check, Error):
-                msg = NotifierMessage(
-                    f"{candidate} could not import and was omitted: {import_check.error}",
+            candidate, requested_reference, capability = candidate_result
+            if not self._accept_static_candidate(
+                candidate, requested_reference, capability, existing_sources
+            ):
+                continue
+            state = self._state_for_candidate(candidate, requested_reference, capability)
+            if capability.stateful and state is None:
+                continue
+            self._add_system_item(candidate, capability, state)
+            self.systems_changed()
+            existing_sources.add(candidate)
+            self._base_directory = Path(requested_reference.source)
+
+    def _system_candidate(
+        self, filename: str
+    ) -> tuple[str, SystemReference, SystemCapability] | None:
+        """Normalize, import, and inspect one requested system source."""
+        try:
+            reference = SystemReference.from_value(filename)
+        except ValidationError as error:
+            self.message.emit(NotifierMessage(str(error), level=logging.WARNING))
+            return None
+        source = reference.source
+        try:
+            module = importlib.util.find_spec(source)
+        except ModuleNotFoundError:
+            module = None
+        resolved = Path(source).resolve()
+        candidate = str(
+            module.name
+            if module is not None
+            else self.get_importable_module_name(resolved) or resolved
+        )
+        capability_result = self.test_import(candidate)
+        if isinstance(capability_result, Error):
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} could not import and was omitted: {capability_result.error}",
                     level=logging.WARNING,
                 )
-                self.message.emit(msg)
+            )
+            return None
+        return candidate, reference, capability_result.value
+
+    def _accept_static_candidate(
+        self,
+        candidate: str,
+        reference: SystemReference,
+        capability: SystemCapability,
+        existing_sources: set[Any],
+    ) -> bool:
+        """Reject duplicate or state-qualified static systems."""
+        if capability.stateful:
+            return True
+        if reference.state is not None:
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} is static and does not accept a state.",
+                    level=logging.WARNING,
+                )
+            )
+            return False
+        if candidate in existing_sources:
+            self.message.emit(NotifierMessage(f"{candidate} is already present and was omitted."))
+            return False
+        if any(
+            self.item(index).data(self.CLASS_ROLE) == capability.class_name
+            for index in range(self.count())
+        ):
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} was omitted: duplicate system class name "
+                    f"'{capability.class_name}'.",
+                    level=logging.WARNING,
+                )
+            )
+            return False
+        return True
+
+    def _state_for_candidate(
+        self,
+        candidate: str,
+        reference: SystemReference,
+        capability: SystemCapability,
+    ) -> str | None:
+        """Return the allowed selected state, reporting validation failures."""
+        if not capability.stateful:
+            return None
+        state = reference.state or self._first_state_in_free_group(candidate, capability)
+        if state is None:
+            self.message.emit(
+                NotifierMessage(f"{candidate} already uses every available state group.")
+            )
+        elif state not in capability.states:
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} does not define state {state!r}.", level=logging.WARNING
+                )
+            )
+        elif self._group_is_used(candidate, capability.state_exclusion_groups[state]):
+            self.message.emit(
+                NotifierMessage(
+                    f"{candidate} state {state!r} conflicts with an already selected state.",
+                    level=logging.WARNING,
+                )
+            )
+        else:
+            return state
+        return None
+
+    def _add_system_item(
+        self, candidate: str, capability: SystemCapability, state: str | None
+    ) -> None:
+        """Create and insert one fully described system-list item."""
+        item = QListWidgetItem()
+        item.setData(self.SOURCE_ROLE, candidate)
+        item.setData(self.STATE_ROLE, state)
+        item.setData(self.STATEFUL_ROLE, capability.stateful)
+        item.setData(self.CLASS_ROLE, capability.class_name)
+        item.setData(self.STATES_ROLE, capability.states)
+        item.setData(self.GROUPS_ROLE, capability.state_exclusion_groups)
+        self._update_item_token(item)
+        if capability.stateful:
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+        super().addItem(item)
+        if capability.stateful:
+            self.openPersistentEditor(item)
+            self._sync_selection_highlights()
+
+    def _group_is_used(
+        self,
+        source: str,
+        group: str,
+        *,
+        except_item: QListWidgetItem | None = None,
+    ) -> bool:
+        """Return whether another row for the source occupies an exclusion group."""
+        for index in range(self.count()):
+            item = self.item(index)
+            if item is except_item or item.data(self.SOURCE_ROLE) != source:
                 continue
-            super().addItem(candidate)
-            self.systems_changed()
-            existing.add(candidate)
-            self._base_directory = Path(filename)
+            state = item.data(self.STATE_ROLE)
+            groups = item.data(self.GROUPS_ROLE) or {}
+            if state is not None and groups.get(state) == group:
+                return True
+        return False
+
+    def _first_state_in_free_group(
+        self,
+        source: str,
+        capability: SystemCapability,
+    ) -> str | None:
+        """Return the first state whose exclusion group is not occupied."""
+        for state in capability.states:
+            group = capability.state_exclusion_groups[state]
+            if not self._group_is_used(source, group):
+                return state
+        return None
+
+    def _update_item_token(self, item: QListWidgetItem) -> None:
+        """Synchronize the item's serialized token with its row data."""
+        source = str(item.data(self.SOURCE_ROLE))
+        state = item.data(self.STATE_ROLE)
+        item.setText(
+            SystemReference(
+                source=source,
+                state=state if item.data(self.STATEFUL_ROLE) else None,
+            ).to_token()
+        )
+
+    def _sync_state_editor(self, item: QListWidgetItem) -> None:
+        """Update one persistent combobox after an atomic state assignment."""
+        editor = self.indexWidget(self.indexFromItem(item))
+        if editor is None:
+            return
+        state_selector = editor.findChild(QComboBox, "system_state")
+        if state_selector is None:
+            return
+        blocked = state_selector.blockSignals(True)
+        state_selector.setCurrentText(str(item.data(self.STATE_ROLE)))
+        state_selector.blockSignals(blocked)
+
+    def _sync_selection_highlights(self) -> None:
+        """Show list selection behind persistent state editors."""
+        list_palette = self.palette()
+        for index in range(self.count()):
+            item = self.item(index)
+            editor = self.indexWidget(self.indexFromItem(item))
+            if editor is None:
+                continue
+            selected = item.isSelected()
+            editor_palette = editor.palette()
+            background = list_palette.color(
+                QPalette.ColorRole.Highlight if selected else QPalette.ColorRole.Base
+            )
+            foreground = list_palette.color(
+                QPalette.ColorRole.HighlightedText if selected else QPalette.ColorRole.Text
+            )
+            editor_palette.setColor(QPalette.ColorRole.Base, background)
+            editor_palette.setColor(QPalette.ColorRole.Window, background)
+            editor_palette.setColor(QPalette.ColorRole.Text, foreground)
+            editor_palette.setColor(QPalette.ColorRole.WindowText, foreground)
+            editor.setPalette(editor_palette)
+            source_label = editor.findChild(QLabel)
+            if source_label is not None:
+                source_label.setPalette(editor_palette)
+
+    def _select_state(self, item: QListWidgetItem, state: str) -> None:
+        """Assign a state and atomically swap with a conflicting row."""
+        previous_state = item.data(self.STATE_ROLE)
+        if state == previous_state:
+            return
+
+        groups = item.data(self.GROUPS_ROLE)
+        source = item.data(self.SOURCE_ROLE)
+        target_group = groups[state]
+        conflicting_item = None
+        for index in range(self.count()):
+            candidate = self.item(index)
+            if candidate is item or candidate.data(self.SOURCE_ROLE) != source:
+                continue
+            candidate_state = candidate.data(self.STATE_ROLE)
+            candidate_groups = candidate.data(self.GROUPS_ROLE)
+            if candidate_groups[candidate_state] == target_group:
+                conflicting_item = candidate
+                break
+
+        item.setData(self.STATE_ROLE, state)
+        self._update_item_token(item)
+        if conflicting_item is not None:
+            conflicting_item.setData(self.STATE_ROLE, previous_state)
+            self._update_item_token(conflicting_item)
+            self._sync_state_editor(conflicting_item)
+        self.systems_changed()
 
     def systems_changed(self) -> None:
         """Load system info and emit changed signal."""
         system_info = get_system_info(self.systems)
         if isinstance(system_info, Error):
             raise InternalInvariantError("System list should work if systems work individually.")
-        if system_info.value.config_validation_errors:
+        if self._report_config_errors and system_info.value.config_validation_errors:
             warning_text = (
                 "System configuration validation failed. Default values are shown only so "
                 "you can correct the configuration; fix these entries before execution:\n\n"
                 + "".join(system_info.value.config_validation_errors)
             )
+            # This is actionable in the config editor and should remain in the
+            # log without automatically opening the separate log window.
             self.message.emit(NotifierMessage(warning_text, level=logging.WARNING))
         for warning in system_info.value.warnings:
             self.message.emit(NotifierMessage(warning[0], warning[1]))
@@ -305,14 +663,9 @@ class SystemListWidget(QListWidget):
         """Return the (cached) system info."""
         return self._cached_system_info
 
-    def test_import(self, filename: str) -> Result[bool, str]:
-        """Test if a filename can be imported."""
-        ret = get_system_info([filename])
-        if not isinstance(ret, Success):
-            return Error(error=ret.error)
-        if ret.value.classes[0] in self.system_info.classes:
-            return Error(error="Duplicate system class name, please rename.")
-        return Success(value=True)
+    def test_import(self, filename: str) -> Result[SystemCapability, str]:
+        """Inspect whether a source imports and which states it exposes."""
+        return get_system_capability(filename)
 
     def query_systems(self) -> None:
         """Select and add system files(s)."""
