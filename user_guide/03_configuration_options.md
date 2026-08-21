@@ -82,7 +82,8 @@ reference_value = 36.232
 config_file = "~/.matr1x.toml"
 averaging_count = 10
 settling_time = 0.5
-visa_address = "GPIB::2"
+dev1_address = "TCPIP::localhost::10008::SOCKET"
+dev2_address = "TCPIP::localhost::10009::SOCKET"
 ```
 
 ### Configuring systems via Pydantic models
@@ -95,7 +96,7 @@ experience.
 The definition of default values for the options and the access to them is performed as shown in
 the following example from `system_dummy_feature.py`.
 
-{{< include "matr1x/systems/system_dummy_feature.py" lines="16-76" >}}
+{{< include "matr1x/systems/system_dummy_feature.py" lines="16-78" >}}
 
 Descriptions provided in `Field(description="...")` are automatically shown as **tooltips** in the GUI configuration editor.
 
@@ -120,6 +121,13 @@ The basic use is to provide a type hint and a Field definition. To simplify conf
 | `SciFloat`=`Field`      | Alias for `float` with scientific notation enabled in the GUI. | LineEdit                                             |
 | `FilePath`=`Field`      | Alias for `str` that triggers a file selection dialog.         | Read-only LineEdit + Button with file dialog popup   |
 | `FolderPath`=`Field`    | Alias for `str` that triggers a folder selection dialog.       | Read-only LineEdit + Button with folder dialog popup |
+| `VisaResource`=`Field`  | Alias for any valid VISA resource.                             | Editable ComboBox                                    |
+| `SerialVisaResource`=`Field` | Alias for an `ASRL ... INSTR` VISA resource.              | Editable ComboBox                                    |
+| `GPIBVisaResource`=`Field` | Alias for a `GPIB ... INSTR` VISA resource.                 | Editable ComboBox                                    |
+| `TCPIPSocketVisaResource`=`Field` | Alias for a `TCPIP ... SOCKET` VISA resource with a valid port. | Editable ComboBox                         |
+| `LocalTCPIPSocketVisaResource`=`Field` | Alias for a local TCP/IP socket resource.       | Editable ComboBox                                    |
+
+The VISA resource editors show discovered PyVISA resources that match the declared type. The fields remain editable, and incompatible addresses are rejected immediately. `LocalTCPIPSocketVisaResource` accepts `localhost` and IPv4 loopback addresses such as `127.0.0.1`; it is used by the dummy feature system.
 
 If a config setting contains sensitive information (e.g., a password or API key) that should not be stored in measurement data files, it should be specified in the `sensitive_keys` argument of `load_config`. This automatically moves these keys to `self.sensitive_config` and excludes them from metadata.
 

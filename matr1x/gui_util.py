@@ -150,7 +150,11 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.models import MainConfig, SystemInfo
-from matr1x.visa_helpers import get_visa_resource_manager, validate_visa_resource
+from matr1x.visa_helpers import (
+    VisaResourceRequirements,
+    get_visa_resource_manager,
+    validate_visa_resource,
+)
 
 from . import merge_dicts, reload_config, write_config
 from .eval import delta
@@ -427,6 +431,10 @@ class MetaViewerWidget(QDockWidget):
             json_type = cast(str, schema.get("type"))
             ui_type = cast(str | None, schema.get("ui_type"))
             decimals = cast(int | None, schema.get("decimals"))
+            visa_requirements = cast(
+                VisaResourceRequirements | None,
+                schema.get("visa_resource_requirements"),
+            )
 
             if "enum" in schema:
                 # strict, use combobox
@@ -436,7 +444,7 @@ class MetaViewerWidget(QDockWidget):
             elif json_type == "string" and ui_type == "visa_resource":
                 editor = QComboBox(parent)
                 editor.setEditable(True)
-                editor.insertItems(0, MetaViewerWidget.visa_resource_names())
+                editor.insertItems(0, MetaViewerWidget.visa_resource_names(visa_requirements))
                 editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
                 editor.currentTextChanged.connect(
                     lambda value, tree_model=model, model_index=index: (
@@ -445,6 +453,7 @@ class MetaViewerWidget(QDockWidget):
                             value,
                             tree_model,
                             model_index,
+                            visa_requirements,
                             refresh_view=False,
                         )
                     )
@@ -593,13 +602,24 @@ class MetaViewerWidget(QDockWidget):
             schema = cast(MetaViewerWidget.TreeModel, model).type(cast(QModelIndex, index))
             if schema.get("ui_type") == "visa_resource":
                 try:
-                    value = validate_visa_resource(str(value))
+                    value = validate_visa_resource(
+                        str(value),
+                        cast(
+                            VisaResourceRequirements | None,
+                            schema.get("visa_resource_requirements"),
+                        ),
+                    )
                 except ValueError as exc:
                     tree_model = cast(MetaViewerWidget.TreeModel, model)
                     tree_model.setData(index, value, Qt.ItemDataRole.EditRole)
                     tree_model.set_validation_error(index, str(exc))
                     MetaViewerWidget._update_visa_editor_validation(
-                        cast(QComboBox, editor), str(value)
+                        cast(QComboBox, editor),
+                        str(value),
+                        requirements=cast(
+                            VisaResourceRequirements | None,
+                            schema.get("visa_resource_requirements"),
+                        ),
                     )
                     return
             tree_model = cast(MetaViewerWidget.TreeModel, model)
@@ -612,13 +632,14 @@ class MetaViewerWidget(QDockWidget):
         value: str,
         model: TreeModel | None = None,
         index: QModelIndex | QPersistentModelIndex | None = None,
+        requirements: VisaResourceRequirements | None = None,
         *,
         refresh_view: bool = True,
     ) -> None:
         """Show VISA validation feedback on an editable resource combo box."""
         validation_error = None
         try:
-            validate_visa_resource(value)
+            validate_visa_resource(value, requirements)
         except ValueError as exc:
             validation_error = str(exc)
             editor.setStyleSheet(
@@ -638,9 +659,22 @@ class MetaViewerWidget(QDockWidget):
             model.set_validation_error(index, validation_error, refresh_view=refresh_view)
 
     @staticmethod
-    def visa_resource_names() -> list[str]:
-        """Return cached VISA resource suggestions without starting discovery."""
-        return (MetaViewerWidget._visa_resource_cache or []).copy()
+    def visa_resource_names(
+        requirements: VisaResourceRequirements | None = None,
+    ) -> list[str]:
+        """Return cached VISA resource suggestions matching field requirements."""
+        resources = MetaViewerWidget._visa_resource_cache or []
+        if requirements is None:
+            return resources.copy()
+
+        matching_resources = []
+        for resource in resources:
+            try:
+                validate_visa_resource(resource, requirements)
+            except ValueError:
+                continue
+            matching_resources.append(resource)
+        return matching_resources
 
     @staticmethod
     def _query_visa_resource_names() -> list[str] | None:
@@ -1871,7 +1905,13 @@ class ConfigEditWidget(MetaViewerWidget):
             return f"Input should match pattern {schema['pattern']!r}"
         if schema.get("ui_type") == "visa_resource":
             try:
-                validate_visa_resource(value)
+                validate_visa_resource(
+                    value,
+                    cast(
+                        VisaResourceRequirements | None,
+                        schema.get("visa_resource_requirements"),
+                    ),
+                )
             except ValueError as exc:
                 return str(exc)
         return None
@@ -1956,7 +1996,13 @@ class ConfigEditWidget(MetaViewerWidget):
         validation_error = None
         if self.model.type(index).get("ui_type") == "visa_resource":
             try:
-                value = validate_visa_resource(str(value))
+                value = validate_visa_resource(
+                    str(value),
+                    cast(
+                        VisaResourceRequirements | None,
+                        self.model.type(index).get("visa_resource_requirements"),
+                    ),
+                )
             except ValueError as exc:
                 validation_error = str(exc)
         self.model.setData(index, value, Qt.ItemDataRole.EditRole)
