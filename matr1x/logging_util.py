@@ -43,12 +43,17 @@ class WeekRotatingFileHandler(logging.FileHandler):
     # Handler.__init__ always replaces the default None with an RLock.
     lock: threading.RLock
 
+    @staticmethod
+    def _current_iso_week() -> tuple[int, int]:
+        """Return the current ISO year and week in the local timezone."""
+        iso_year, iso_week, _ = datetime.now(tz=timezone.utc).astimezone().isocalendar()
+        return iso_year, iso_week
+
     def __init__(self, logfolder: str | Path, prefix: str = "matr1x") -> None:
         """Create the handler and open the log file of the current week."""
         self.logfolder = Path(logfolder)
         self.prefix = prefix
-        iso_year, iso_week, _ = datetime.now().isocalendar()
-        self._week: tuple[int, int] = (iso_year, iso_week)
+        self._week = self._current_iso_week()
         super().__init__(self._filename_for(self._week), mode="a", encoding="utf-8")
 
     def _filename_for(self, week: tuple[int, int]) -> Path:
@@ -64,8 +69,7 @@ class WeekRotatingFileHandler(logging.FileHandler):
         so logging never interrupts the caller.
         """
         with self.lock:
-            iso_year, iso_week, _ = datetime.now(tz=timezone.utc).astimezone().isocalendar()
-            week = (iso_year, iso_week)
+            week = self._current_iso_week()
             if week != self._week:
                 try:
                     self._rotate(week)
