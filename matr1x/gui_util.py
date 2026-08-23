@@ -163,6 +163,8 @@ if TYPE_CHECKING:
 P = ParamSpec("P")
 R = TypeVar("R")
 
+_DEFAULT_PARENT_INDEX = QModelIndex()
+
 
 logger = logging.getLogger(__name__)
 
@@ -1227,7 +1229,12 @@ class MetaViewerWidget(QDockWidget):
                     return "Value"
             return None
 
-        def index(self, row: int, column: int, parent=QModelIndex()) -> QModelIndex:
+        def index(
+            self,
+            row: int,
+            column: int,
+            parent: QModelIndex | QPersistentModelIndex = _DEFAULT_PARENT_INDEX,
+        ) -> QModelIndex:
             """
             Create and return a model index for the given row, column, and parent.
 
@@ -1299,7 +1306,9 @@ class MetaViewerWidget(QDockWidget):
             self.root_item = MetaViewerWidget.TreeItem("Root", data, types)
             self.endResetModel()
 
-        def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+        def rowCount(
+            self, parent: QModelIndex | QPersistentModelIndex = _DEFAULT_PARENT_INDEX
+        ) -> int:
             """
             Return the number of rows under the given parent.
 
@@ -1319,7 +1328,7 @@ class MetaViewerWidget(QDockWidget):
             return parent_item.child_count()
 
         def columnCount(
-            self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()
+            self, parent: QModelIndex | QPersistentModelIndex = _DEFAULT_PARENT_INDEX
         ) -> Literal[2]:
             """
             Return the number of columns for the children of the given parent.
@@ -1627,7 +1636,7 @@ class ConfigEditWidget(MetaViewerWidget):
         """Return the expanded state of every existing configuration section."""
         state: dict[tuple[str, ...], bool] = {}
 
-        def collect(parent: QModelIndex = QModelIndex(), path: tuple[str, ...] = ()) -> None:
+        def collect(parent: QModelIndex, path: tuple[str, ...] = ()) -> None:
             for row in range(self.model.rowCount(parent)):
                 index = self.model.index(row, 0, parent)
                 item_path = (*path, str(index.data(Qt.ItemDataRole.EditRole)))
@@ -1635,7 +1644,7 @@ class ConfigEditWidget(MetaViewerWidget):
                     state[item_path] = self.tree_view.isExpanded(index)
                     collect(index, item_path)
 
-        collect()
+        collect(QModelIndex())
         return state
 
     def _restore_config_expansion_state(
@@ -1643,7 +1652,7 @@ class ConfigEditWidget(MetaViewerWidget):
     ) -> None:
         """Restore expansion states for sections that still exist after a reload."""
 
-        def restore(parent: QModelIndex = QModelIndex(), path: tuple[str, ...] = ()) -> None:
+        def restore(parent: QModelIndex, path: tuple[str, ...] = ()) -> None:
             for row in range(self.model.rowCount(parent)):
                 index = self.model.index(row, 0, parent)
                 item_path = (*path, str(index.data(Qt.ItemDataRole.EditRole)))
@@ -1652,7 +1661,7 @@ class ConfigEditWidget(MetaViewerWidget):
                 if self.model.rowCount(index) > 0:
                     restore(index, item_path)
 
-        restore()
+        restore(QModelIndex())
 
     def _has_merged_system_config(self) -> bool:
         """Return whether runtime configuration represents a merged system."""
@@ -3680,7 +3689,7 @@ class AboutBox(QMessageBox):
 
 
 def get_matrix_icon(
-    name: str, color: QColor | None = None, pencolor: QColor = QColor("white")
+    name: str, color: QColor | None = None, pencolor: QColor | None = None
 ) -> QIcon:
     """
     Look up 'name' and get corresponding QIcon back.
@@ -3732,6 +3741,8 @@ def get_matrix_icon(
     # Draw to shared circle part
     if color is None:
         color = QColor("RoyalBlue")
+    if pencolor is None:
+        pencolor = QColor("white")
     size = 256
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.GlobalColor.transparent)
