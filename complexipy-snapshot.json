@@ -170,10 +170,6 @@
       {
         "name": "SimplePlotWidget::_update_linesetting",
         "complexity": 20
-      },
-      {
-        "name": "get_matrix_icon",
-        "complexity": 28
       }
     ]
   },
