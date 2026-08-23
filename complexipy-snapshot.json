@@ -22,8 +22,8 @@
     ]
   },
   {
-    "path": "matr1x/devices/keithley/keithley2182A.py",
-    "file_name": "keithley2182A.py",
+    "path": "matr1x/devices/keithley/keithley2182a.py",
+    "file_name": "keithley2182a.py",
     "functions": [
       {
         "name": "Keithley2182A::configure",
@@ -46,8 +46,8 @@
     ]
   },
   {
-    "path": "matr1x/devices/keithley/keithley2611A.py",
-    "file_name": "keithley2611A.py",
+    "path": "matr1x/devices/keithley/keithley2611a.py",
+    "file_name": "keithley2611a.py",
     "functions": [
       {
         "name": "Keithley2611A::configure",
