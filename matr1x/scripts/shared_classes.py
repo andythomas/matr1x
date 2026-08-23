@@ -677,7 +677,7 @@ class MToolBar(QToolBar):
 class MMainWindow(QMainWindow):
     """Main window with shared metadata and config dock layout handling."""
 
-    layout_settings_group = "MainWindowLayoutV2"
+    layout_settings_group = "MainWindowLayoutV3"
 
     def install_metadata_config_docks(self, metadata: QDockWidget, config: QDockWidget) -> None:
         """Install metadata and device config docks."""
