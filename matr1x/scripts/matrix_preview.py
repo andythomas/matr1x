@@ -708,16 +708,16 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         if (
             self.ui.widgets.plot2d.isChecked() is True
             and self.ui.widgets.plot2d_comp.isChecked() is False
+            and len(self.shapes[self.ui.widgets.column_selector[0].currentIndex() - 1]) < 3
         ):
-            if len(self.shapes[self.ui.widgets.column_selector[0].currentIndex() - 1]) < 3:
-                # toggle index for 2d data, since x and y invert role
-                dummy = self.ui.widgets.column_selector[2].currentIndex()
-                self.ui.widgets.column_selector[2].blockSignals(True)
-                self.ui.widgets.column_selector[2].setCurrentIndex(
-                    self.ui.widgets.column_selector[1].currentIndex()
-                )
-                self.ui.widgets.column_selector[1].setCurrentIndex(dummy)
-                self.ui.widgets.column_selector[2].blockSignals(False)
+            # toggle index for 2d data, since x and y invert role
+            dummy = self.ui.widgets.column_selector[2].currentIndex()
+            self.ui.widgets.column_selector[2].blockSignals(True)
+            self.ui.widgets.column_selector[2].setCurrentIndex(
+                self.ui.widgets.column_selector[1].currentIndex()
+            )
+            self.ui.widgets.column_selector[1].setCurrentIndex(dummy)
+            self.ui.widgets.column_selector[2].blockSignals(False)
         self.reload_data()
 
     def plotting_toggled(self, check_state: bool) -> None:

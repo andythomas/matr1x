@@ -174,9 +174,7 @@ class _Analyzer:
         elif isinstance(statement, ast.FunctionDef):
             if statement.name in {"measure_system", "init_datafile"}:
                 self.redefined_api.add(statement.name)
-        elif isinstance(statement, ast.Raise):
-            self.state.mark_unknown()
-        elif self._contains_effect([statement]):
+        elif isinstance(statement, ast.Raise) or self._contains_effect([statement]):
             self.state.mark_unknown()
 
     def _record_import(self, statement: ast.Import | ast.ImportFrom) -> None:

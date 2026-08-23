@@ -756,8 +756,10 @@ class System:
 
         if isinstance(system, System):
             legacy_warning = (
-                f"Using an initialized System instance exported as '{legacy_name}' is deprecated; "
-                "define exactly one local System subclass instead.",
+                (
+                    f"Using an initialized System instance exported as '{legacy_name}' is "
+                    "deprecated; define exactly one local System subclass instead."
+                ),
                 logging.WARNING,
             )
         else:
