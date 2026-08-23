@@ -2860,7 +2860,7 @@ class SimplePlotWidget(QGroupBox):
                 if not isinstance(self.plt, pyqtgraph.PlotDataItem):
                     raise InternalInvariantError("Plotting requires an PlotDataItem widget!")
                 try:
-                    self.plt.setData(x=x, y=z, *args, **kwargs)
+                    self.plt.setData(*args, x=x, y=z, **kwargs)
                 except ValueError as e:
                     # Handle shape mismatch errors
                     self._raise_error(f"Plot error: {e!s}")
