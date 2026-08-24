@@ -68,10 +68,20 @@ from importlib.metadata import PackageNotFoundError, version
 
 import numpy as np
 import pygit2
-import pyqtgraph
 import PySide6
 import shiboken6
 from pydantic import BaseModel, ValidationError
+from pyqtgraph import (
+    AxisItem,
+    DateAxisItem,
+    GraphicsLayoutWidget,
+    GraphicsScene,
+    ImageView,
+    PlotDataItem,
+    PlotItem,
+    SignalProxy,
+    ViewBox,
+)
 from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
     QAbstractItemModel,
@@ -2161,7 +2171,7 @@ class SimplePlotWidget(QGroupBox):
             "delta+": [lambda xf: delta(xf)[0], lambda yf: delta(yf)[0]],
         }
 
-        class CustomDateAxisItem(pyqtgraph.DateAxisItem):
+        class CustomDateAxisItem(DateAxisItem):
             # This text is included pursuant to the obligations of this upstream licence
             # and must be retained in any derivatives of this class.
             # This specific class may be used under the terms of the MIT-license:
@@ -2312,7 +2322,7 @@ class SimplePlotWidget(QGroupBox):
                     for value in values
                 ]
 
-        class CategoricalAxis(pyqtgraph.AxisItem):
+        class CategoricalAxis(AxisItem):
             """
             Custom axis item for displaying categorical data.
 
@@ -2400,7 +2410,7 @@ class SimplePlotWidget(QGroupBox):
 
         def __init__(
             self,
-            l_plot: pyqtgraph.GraphicsLayoutWidget,
+            l_plot: GraphicsLayoutWidget,
             error,
             l_slider,
             plot2d: bool,
@@ -2410,13 +2420,13 @@ class SimplePlotWidget(QGroupBox):
         ):
             self.index = index
             self.desig = desig
-            self.l_plot: pyqtgraph.GraphicsLayoutWidget = l_plot
+            self.l_plot: GraphicsLayoutWidget = l_plot
             self.l_slider = l_slider
             self.plot2d: bool = plot2d
             self.error = error
 
-            self.pw: pyqtgraph.PlotItem
-            self.plt: pyqtgraph.PlotDataItem | pyqtgraph.ImageView
+            self.pw: PlotItem
+            self.plt: PlotDataItem | ImageView
             self.vb: CustomViewBox
 
             # Store mappings for categorical data
@@ -2432,7 +2442,7 @@ class SimplePlotWidget(QGroupBox):
             # initialize the pyqtgraph display widgets
             self.vb = CustomViewBox()
             if self.plot2d is True:
-                self.plt = pyqtgraph.ImageView(view=self.vb)
+                self.plt = ImageView(view=self.vb)
                 # please note https://github.com/pyqtgraph/pyqtgraph/issues/3023
                 self.pw = self.l_plot.ci.addPlot(
                     row=self.index, col=0, viewBox=self.vb, title=f"p{index}"
@@ -2688,7 +2698,7 @@ class SimplePlotWidget(QGroupBox):
             if self.plot2d is True:
                 # for 2d plot, select index of current data element
                 self._handle_multidim_data()
-                if not isinstance(self.plt, pyqtgraph.ImageView):
+                if not isinstance(self.plt, ImageView):
                     raise InternalInvariantError("Plotting 3D data requires an ImageView widget!")
                 self.plt.setCurrentIndex(val)
                 self.pw.setTitle(
@@ -2809,7 +2819,7 @@ class SimplePlotWidget(QGroupBox):
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
                     # 3d plotting
-                    if not isinstance(self.plt, pyqtgraph.ImageView):
+                    if not isinstance(self.plt, ImageView):
                         raise InternalInvariantError(
                             "Plotting 3D data requires an ImageView widget!"
                         )
@@ -2828,7 +2838,7 @@ class SimplePlotWidget(QGroupBox):
                     self.vb.setAspectLocked(False)
                     self.vb.invertY(False)
                 else:
-                    if not isinstance(self.plt, pyqtgraph.ImageView):
+                    if not isinstance(self.plt, ImageView):
                         raise InternalInvariantError(
                             "Plotting 3D data requires an ImageView widget!"
                         )
@@ -2866,7 +2876,7 @@ class SimplePlotWidget(QGroupBox):
                 # Set labels for axes
                 for i, ax in zip(range(2), ["left", "bottom"]):
                     self.pw.setLabel(ax, self.labels[i], self.units[i])
-                if not isinstance(self.plt, pyqtgraph.PlotDataItem):
+                if not isinstance(self.plt, PlotDataItem):
                     raise InternalInvariantError("Plotting requires an PlotDataItem widget!")
                 try:
                     self.plt.setData(*args, x=x, y=z, **kwargs)
@@ -2934,20 +2944,16 @@ class SimplePlotWidget(QGroupBox):
             l_math.addWidget(self.w_math[i], stretch=1)
 
         # Add GraphicsLayout and make most prominent widget
-        self.gl = pyqtgraph.GraphicsLayoutWidget()
+        self.gl = GraphicsLayoutWidget()
         self.gl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # have proxy that connects the position of the mouse on the
         # GraphicsLayout to display the x/y position on the current
         # plot, additionally introduce proxy to select active plot by
         # just clicking into the plot
-        scene = cast(pyqtgraph.GraphicsScene, self.gl.scene())
-        self.proxy = pyqtgraph.SignalProxy(
-            scene.sigMouseMoved, rateLimit=30, slot=self._mouse_moved
-        )
-        self.proxy2 = pyqtgraph.SignalProxy(
-            scene.sigMouseClicked, rateLimit=2, slot=self._mouse_clicked
-        )
+        scene = cast(GraphicsScene, self.gl.scene())
+        self.proxy = SignalProxy(scene.sigMouseMoved, rateLimit=30, slot=self._mouse_moved)
+        self.proxy2 = SignalProxy(scene.sigMouseClicked, rateLimit=2, slot=self._mouse_clicked)
 
         # add the first empty plot with
         initial_plot = self.PlotObject(self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0])
@@ -3184,13 +3190,13 @@ class SimplePlotWidget(QGroupBox):
         if state is True:
             for plot in self.plots:
                 if plot.plot2d is False:
-                    if not isinstance(plot.plt, pyqtgraph.PlotDataItem):
+                    if not isinstance(plot.plt, PlotDataItem):
                         raise InternalInvariantError("Plotting requires an PlotDataItem widget!")
                     plot.plt.setPen((0, 0, 153), width=3)
         if state is False:
             for plot in self.plots:
                 if plot.plot2d is False:
-                    if not isinstance(plot.plt, pyqtgraph.PlotDataItem):
+                    if not isinstance(plot.plt, PlotDataItem):
                         raise InternalInvariantError("Plotting requires an PlotDataItem widget!")
                     plot.plt.setPen(None)
 
@@ -3225,10 +3231,10 @@ class SimplePlotWidget(QGroupBox):
 
             plot.vb.sigRangeChanged.disconnect(self._on_range_changed)
             if x_auto:
-                plot.vb.enableAutoRange(axis=pyqtgraph.ViewBox.XAxis, enable=True)
+                plot.vb.enableAutoRange(axis=ViewBox.XAxis, enable=True)
                 plot.vb.updateAutoRange()
             else:
-                plot.vb.enableAutoRange(axis=pyqtgraph.ViewBox.XAxis, enable=False)
+                plot.vb.enableAutoRange(axis=ViewBox.XAxis, enable=False)
                 plot.vb.setXRange(*x_range, padding=0)
             plot.vb.sigRangeChanged.connect(self._on_range_changed)
 
@@ -3390,7 +3396,7 @@ class SimplePlotWidget(QGroupBox):
         self._calc_or_data_changed()
 
 
-class CustomViewBox(pyqtgraph.ViewBox):
+class CustomViewBox(ViewBox):
     """
     Reimplements the pyqthgraph ViewBox and improves its usability with the mouse.
 
@@ -3418,7 +3424,7 @@ class CustomViewBox(pyqtgraph.ViewBox):
         **kwds
             Arbitrary keyword arguments.
         """
-        pyqtgraph.ViewBox.__init__(self, *args, **kwds)
+        ViewBox.__init__(self, *args, **kwds)
         self.setMouseMode(self.RectMode)
 
     def mouseClickEvent(self, ev: QMouseEvent):
@@ -3447,15 +3453,15 @@ class CustomViewBox(pyqtgraph.ViewBox):
         """
         if ev.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
             self.setMouseMode(self.PanMode)
-            pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
+            ViewBox.mouseDragEvent(self, ev, axis)
             self.setMouseMode(self.RectMode)
         elif ev.button() == Qt.MouseButton.LeftButton and axis is not None:
             # enable pan mode on individual axis
             self.setMouseMode(self.PanMode)
-            pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
+            ViewBox.mouseDragEvent(self, ev, axis)
             self.setMouseMode(self.RectMode)
         else:
-            pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
+            ViewBox.mouseDragEvent(self, ev, axis)
 
 
 class LoggerMixin:
