@@ -749,9 +749,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.guidict_view[i].setCheckable(True)
             self.guidict_view[i].setChecked(True)
             self.guidict_view[i].triggered.connect(
-                lambda checked=self.guidict_view[i].isChecked(), index=i: self.toggle_visible(
-                    checked, index
-                )
+                lambda checked, index=i: self.toggle_visible(checked, index)
             )
             self.ui.menus.view.addAction(self.guidict_view[i])
 

@@ -315,9 +315,9 @@ def _find_differences(
             differences[key] = current_value
 
     # Add keys that are in current_dict but not in default_dict
-    for key in current_dict:
+    for key, value in current_dict.items():
         if key not in default_dict:
-            differences[key] = current_dict[key]
+            differences[key] = value
 
     return differences
 

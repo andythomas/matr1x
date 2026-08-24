@@ -919,8 +919,8 @@ class BSC103(VisaDevice):
             if axis[i]:
                 status[hex(self.drives[i])] = self.home(self.drives[i], noResp=True)
 
-        for drive in status:
-            if status[drive] == "homing":
+        for state in status.values():
+            if state == "homing":
                 resp = self.readPacket()
                 status[hex(resp.src)] = "homed" if resp.msgID == 0x0444 else "not homed"
         return status
