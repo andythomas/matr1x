@@ -349,6 +349,7 @@ class exampleDict2(GuiDict):
         N = 40  # length of all FIFO queues
         self.dataseries = collections.deque(maxlen=N)
         self.timestamps = collections.deque(maxlen=N)
+        self._random_generator: numpy.random.Generator = numpy.random.default_rng()
 
     def create_GUI(self):
         """Build the actual GUI."""
@@ -380,7 +381,7 @@ class exampleDict2(GuiDict):
                 if self.extended_visible:
                     # Update hidden info only while the extended controls are visible.
                     self["Info"].value = self._info_base + f"\n\nSlope: {slope / 60:.3f} mbar/min"
-        self.v5 = round(30 * numpy.random.random(), 3)  # noqa: NPY002
+        self.v5 = round(30 * self._random_generator.random(), 3)
 
 
 # define clientdevice to be used by measurement systems interfacing with this
