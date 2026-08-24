@@ -80,6 +80,7 @@ _ntot = None  # total number of measurement points for telemetry
 _starttime = _time.time()
 _preset = _starttime
 _reset_kwargs = {}
+_measurement_atomic_depth = 0
 _user_script_start_line, _user_script_end_line = _matrix_util.get_user_script_line_range(_script)
 _user_script = _textwrap.dedent(
     "\n".join(_script.splitlines()[_user_script_start_line - 1 : _user_script_end_line])
@@ -155,6 +156,12 @@ def _show_lineno() -> None:
         _report(_ExecutionLines(lines=lines))
 
 
+def _checkpoint() -> None:
+    """Handle a breakpoint unless a measurement point is in progress."""
+    if _measurement_atomic_depth == 0:
+        _interrupt(duration=0)
+
+
 @_wrapt.decorator
 def _breakpoint(wrapped, instance, args, kwargs):
     """Add a breakpoint check."""
@@ -170,7 +177,7 @@ def _breakpoint(wrapped, instance, args, kwargs):
 
         instance._calling = True
         try:
-            _interrupt(duration=0)
+            _checkpoint()
             result = wrapped(*args, **kwargs)
         finally:
             instance._calling = False
@@ -186,7 +193,7 @@ def _breakpoint(wrapped, instance, args, kwargs):
 
         wrapped._calling = True
         try:
-            _interrupt(duration=0)
+            _checkpoint()
             result = wrapped(*args, **kwargs)
         finally:
             wrapped._calling = False
@@ -552,7 +559,7 @@ def init_datafile(
         If True, refresh ``meta_data["date"]`` to the current time
         before creating a new file.
     """
-    _interrupt(duration=0)  # equivalent to @_breakpoint with transparent signature
+    _checkpoint()  # equivalent to @_breakpoint with transparent signature
     _show_lineno()
     global _ntot, _npoints, _starttime
 
@@ -618,32 +625,37 @@ def measure_system(
     list
         List of measured values.
     """
-    _interrupt(duration=0)  # equivalent to @_breakpoint with transparent signature
+    _checkpoint()  # equivalent to @_breakpoint with transparent signature
     _show_lineno()
-    global _preset, _npoints
-    if not _system.filename:
-        init_datafile("")
-    _npoints += 1
-    preread = _time.time()
-    _report(_SetValues(_setvalues, to_stdout=print_setpoint))
-    _reset_setvalues()
-    _system.trigger()
-    return_list = _system.take_measurement_point()
-    _report(_MeasuredValues(return_list, to_stdout=print_data))
-    elapsed = _time.time() - _starttime
-    remaining = (elapsed / _npoints * _ntot - elapsed) / 60 if _ntot else None
-    _report(
-        _Telemetry(
-            point=_npoints,
-            points=_ntot or -1,
-            elapsed=elapsed / 60,
-            remaining=remaining,
-            settime=preread - _preset,
-            readtime=_time.time() - preread,
-            to_stdout=print_telemetry,
+    global _measurement_atomic_depth, _preset, _npoints
+    _measurement_atomic_depth += 1
+    try:
+        if not _system.filename:
+            init_datafile("")
+        _npoints += 1
+        preread = _time.time()
+        _report(_SetValues(_setvalues, to_stdout=print_setpoint))
+        _reset_setvalues()
+        _system.trigger()
+        return_list = _system.take_measurement_point()
+        _report(_MeasuredValues(return_list, to_stdout=print_data))
+        elapsed = _time.time() - _starttime
+        remaining = (elapsed / _npoints * _ntot - elapsed) / 60 if _ntot else None
+        _report(
+            _Telemetry(
+                point=_npoints,
+                points=_ntot or -1,
+                elapsed=elapsed / 60,
+                remaining=remaining,
+                settime=preread - _preset,
+                readtime=_time.time() - preread,
+                to_stdout=print_telemetry,
+            )
         )
-    )
-    _preset = _time.time()
+        _preset = _time.time()
+    finally:
+        _measurement_atomic_depth -= 1
+    _checkpoint()
     return return_list
 
 
