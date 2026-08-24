@@ -234,6 +234,7 @@ def run_powershell(command: str) -> str:
         creationflags=subprocess.CREATE_NO_WINDOW
         if hasattr(subprocess, "CREATE_NO_WINDOW")
         else 0,
+        check=False,
     )
     if completed.returncode != 0:
         logger.warning(
@@ -1054,7 +1055,7 @@ def remove_desktop_integration():
             "uninstall_core_desktopintegration()"
         ),
     ]
-    subprocess.run(remove)
+    subprocess.run(remove, check=False)
     for pkg_name, section in config:
         if section.install:
             dist_name = DISTRIBUTION_NAME if pkg_name == "matr1x" else pkg_name
