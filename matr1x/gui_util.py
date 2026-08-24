@@ -3855,7 +3855,7 @@ def detect_shortcut(event, shortcut):
     elif isinstance(shortcut, QKeySequence):
         keys = shortcut[0]
     else:
-        raise ValueError("Shortcut has to be of type(str) or type(QKeySequence).")
+        raise TypeError("Shortcut has to be of type(str) or type(QKeySequence).")
     return bool(key == keys.key() and modifiers == keys.keyboardModifiers())
 
 
