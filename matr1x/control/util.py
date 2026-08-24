@@ -960,7 +960,7 @@ class var(QObject):
                 if modify is None:
                     continue
                 if not isinstance(self.widgets[column], QWidget):
-                    raise RuntimeError(
+                    raise TypeError(
                         f"MethodBundle change handlers require a widget in column {column}."
                     )
                 modify.connect_value_changed(self, self.widgets[column])

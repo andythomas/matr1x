@@ -3567,6 +3567,7 @@ class AboutBox(QMessageBox):
             shell=True,
             text=True,
             capture_output=True,
+            check=False,
         )
         if result.returncode == 0:
             qmake_qt6_version = result.stdout.strip()
@@ -3855,7 +3856,7 @@ def detect_shortcut(event, shortcut):
     elif isinstance(shortcut, QKeySequence):
         keys = shortcut[0]
     else:
-        raise ValueError("Shortcut has to be of type(str) or type(QKeySequence).")
+        raise TypeError("Shortcut has to be of type(str) or type(QKeySequence).")
     return bool(key == keys.key() and modifiers == keys.keyboardModifiers())
 
 
@@ -4144,6 +4145,7 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
             ],
             capture_output=True,
             timeout=30,
+            check=False,
         )
     except Exception as e:
         return Error(f"Could not run system info subprocess: {e}")
@@ -4266,11 +4268,11 @@ def open_matrix_toml() -> None:
         )
         return
     if os.name == "nt":
-        subprocess.run(["explorer", f"/select,{toml_home.resolve(strict=False)}"])
+        subprocess.run(["explorer", f"/select,{toml_home.resolve(strict=False)}"], check=False)
     elif sys.platform == "darwin":
-        subprocess.run(["open", "-R", toml_home])
+        subprocess.run(["open", "-R", toml_home], check=False)
     else:
-        subprocess.run(["xdg-open", toml_home])
+        subprocess.run(["xdg-open", toml_home], check=False)
 
 
 class FileDropMixin:

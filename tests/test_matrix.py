@@ -78,7 +78,7 @@ def test_matrix_dummy():
     existingfiles = set(basename_path.parent.glob(basename_path.name + "*"))
     cmd = [matr1x.util.get_matrix_binary(), "-i", str(inputfile)]
     print(subprocess.list2cmdline(cmd))
-    ret = subprocess.run(cmd)
+    ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
     # find newly created datafile
     files = set(basename_path.parent.glob(basename_path.name + "*"))
@@ -118,7 +118,7 @@ def test_matrix_dummy_merged():
         "--plain",
     ]
     print(subprocess.list2cmdline(cmd))
-    ret = subprocess.run(cmd)
+    ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
     # open latest datafile and check data shape
     files = sorted(path.glob(f"test_merged*{output_extension}"), key=lambda p: p.stat().st_mtime)
@@ -155,7 +155,7 @@ def test_matrix_dummy_hdf5():
         "--plain",
     ]
     print(subprocess.list2cmdline(cmd))
-    ret = subprocess.run(cmd)
+    ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
     # open latest datafile and check data shape
     files = sorted(path.glob(f"test_hdf5*{output_extension}"), key=lambda p: p.stat().st_mtime)
@@ -201,7 +201,7 @@ def test_matrix_script_dummy_merged():
             f"{tf.name!r}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
             ")"
         )
-        ret = subprocess.run([sys.executable, "-c", script], cwd=path)
+        ret = subprocess.run([sys.executable, "-c", script], cwd=path, check=False)
         assert ret.returncode == 0
         files = list(path.glob(f"epische_messdatei*{output_extension}"))
         assert len(files) >= 1
@@ -225,7 +225,7 @@ def test_empty_script():
         script = (
             f"import matr1x.util as mu\nmu.matrix_script_process({tf.name!r}, {{}}, '', None, [])"
         )
-        ret = subprocess.run([sys.executable, "-c", script], cwd=path)
+        ret = subprocess.run([sys.executable, "-c", script], cwd=path, check=False)
         assert ret.returncode == 0
 
 

@@ -176,7 +176,7 @@ class VisaDevice:
                 if isinstance(connection, resources.MessageBasedResource):
                     self.connection = connection
                 else:
-                    raise ValueError("Invalid resource type")
+                    raise TypeError("Invalid resource type")
                 if self.pts:
                     print(f"C: {self.name}")  # noqa: T201
                 logger.info("Connection to %s opened", self.name)
