@@ -1017,13 +1017,13 @@ def uninstall_control_gui_desktop_integration(pkgname: str, extra_guis: list[str
                 attempt_remove(
                     Path.home() / ".local/share/applications" / f"python.{pkgname}.{gui}.desktop"
                 )
-            except Exception as e:
+            except (OSError, subprocess.CalledProcessError) as e:
                 logger.error("Error removing %s: %s", gui, e)
         elif system_type == "darwin":
             try:
                 attempt_remove(Path.home() / "Applications" / f"{gui}.app")
                 logger.info("Deleted %s", gui)
-            except Exception as e:
+            except OSError as e:
                 logger.error("Error removing %s: %s", gui, e)
         elif system_type == "windows":
             pass
@@ -1036,7 +1036,7 @@ def uninstall_control_gui_desktop_integration(pkgname: str, extra_guis: list[str
             try:
                 file.unlink()
                 logger.info("Removed desktop file: %s", file)
-            except Exception as e:
+            except OSError as e:
                 logger.error("Error removing %s: %s", file, e)
 
 

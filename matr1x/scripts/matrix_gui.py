@@ -635,7 +635,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 )
                 value.setToolTip("Converted to local time.")
                 self.ui.widgets.table.setItem(index, 2, value)
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 logger.debug("Could not convert timestamp to local time.")
 
     def closeEvent(self, a0: QCloseEvent) -> None:

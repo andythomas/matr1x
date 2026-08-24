@@ -191,7 +191,7 @@ class CryogenicPS(VisaDevice):
             rate = self._as2tmin(float(up[up.find("RAMP RATE:") :].split()[2]))
             voltage = float(match[1])
             status = up[up.find("RAMP STATUS:") :].split()[2]
-        except Exception as e:
+        except (IndexError, TypeError, ValueError) as e:
             # log incident and retry
             logger.info("getStatus: '%s: %s'", type(e).__name__, e)
             logger.info("getStatus: retrying to analyze update (%d)", depth)
@@ -541,7 +541,7 @@ class CryogenicBipolarPS(VisaDevice):
             rate = self._as2tmin(float(up[up.find("RAMP RATE:") :].split()[2]))
             voltage = float(match[1])
             status = up[up.find("RAMP STATUS:") :].split()[2]
-        except Exception as e:
+        except (IndexError, TypeError, ValueError) as e:
             # log incident and retry
             logger.info("getStatus: '%s: %s'", type(e).__name__, e)
             logger.info("getStatus: retrying to analyze update (%d)", depth)

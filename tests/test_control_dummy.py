@@ -178,8 +178,10 @@ def start_control_dummy():
     try:
         gui_proc.send_signal(signal.SIGTERM)
         gui_proc.wait(timeout=5)
-    except Exception:
+    except subprocess.TimeoutExpired:
         gui_proc.kill()
+    except ProcessLookupError:
+        pass
 
 
 def test_environment_variable_is_set():
