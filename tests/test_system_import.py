@@ -21,6 +21,7 @@ matr1x/systems directory and runs tests to ensure they can be imported
 as valid System objects.
 """
 
+import importlib
 from pathlib import Path
 
 import pytest
@@ -39,8 +40,7 @@ system_files = list(system_folder.glob("system_*"))
 # Check if elab dependency is available
 elab_available = False
 try:
-    import elabapi_python  # noqa: F401
-
+    importlib.import_module("elabapi_python")
     elab_available = True
 except ImportError:
     pass  # elab dependency is not installed
