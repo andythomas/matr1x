@@ -125,6 +125,7 @@ logger = logging.getLogger(__name__)
 script_config = matr1x.config.matr1x.scripts.matrix_script
 
 
+GUI_VERSION = "created_v2"
 MAX_LINES_STATUS = 10000
 # to test what a good limiting value is, use the following:
 # ```
@@ -1035,7 +1036,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.table_dock)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.terminal_dock)
-        if not self.settings.contains("created"):
+        if not self.settings.contains(GUI_VERSION):
             # Default layout: table and terminal as tabs in the middle,
             # metadata on the right. Tabifying the docks has to be
             # deferred until the event loop starts, because it destroys
@@ -1194,7 +1195,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
-        self.settings.setValue("created", 1)
+        self.settings.setValue(GUI_VERSION, 1)
         self.save_layout_state(self.settings)
 
         self.settings.beginGroup("script_edit")
