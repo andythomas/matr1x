@@ -24,6 +24,7 @@ system configuration.
 import codecs
 import importlib.util
 import logging
+import math
 import os
 import site
 import subprocess
@@ -36,7 +37,6 @@ from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
-import h5py
 import numpy as np
 
 from matr1x.error_handling import Error, Result, Success
@@ -45,6 +45,7 @@ from matr1x.error_handling import Error, Result, Success
 if TYPE_CHECKING:
     import types
 
+    import h5py
     from _typeshed import SupportsWrite
 
     _T_contra = TypeVar("_T_contra", contravariant=True)
@@ -605,7 +606,7 @@ def construct_query_string(query_dict: dict, depth: int = 2) -> str:
     return ret
 
 
-def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) -> None:
+def save_dict_to_hdf5(data_dict: dict, hdf5_file: "h5py.File", root_group: str) -> None:
     """
     Save a dictionary to an HDF5 file in a hierachical data group.
 
@@ -625,7 +626,7 @@ def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) ->
     attributes.
     """
 
-    def write_dict(group: h5py.Group, d: dict) -> None:
+    def write_dict(group: "h5py.Group", d: dict) -> None:
         """Recursively write a dictionary to an HDF5 group."""
         for key, value in d.items():
             if isinstance(value, dict):
@@ -726,7 +727,7 @@ def flatten(iterable, types=(tuple, list, np.ndarray)):
     iterable : iterable
         The iterable to be flattened.
     types : tuple, optional
-        Types to be considered for flattening, by default (tuple, list, np.ndarray).
+        Types to be considered for flattening, by default (tuple, list, ndarray).
 
     Yields
     ------
@@ -758,7 +759,7 @@ def get_pt100_temp(res: float) -> float:
     a = 3.9083e-3
     b = -5.775e-7
     r0 = 100
-    return (-a * r0 + np.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
+    return (-a * r0 + math.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
 
 
 class Command:

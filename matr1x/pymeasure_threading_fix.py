@@ -36,8 +36,9 @@ Implementation details:
 This can be removed when PyMeasure upstream implements proper thread safety
 (pymeasure/pymeasure#506, pymeasure/pymeasure#952)
 
-Usage is automatic - all pymeasure instruments become thread-safe when matr1x
-is imported.
+Usage is automatic before matr1x loads a system module or creates a dynamic
+SCPI device. Standalone PyMeasure users can call
+``apply_pymeasure_threading_fix()`` before defining instrument classes.
 """
 
 import threading
@@ -46,6 +47,8 @@ from functools import wraps
 from typing import Any
 
 from pymeasure.instruments import Instrument
+
+__all__ = ["apply_pymeasure_threading_fix"]
 
 # Methods that need thread-safe protection for communication
 # These methods perform actual I/O operations that can interfere with each other
@@ -262,7 +265,7 @@ def _patch_pymeasure_instrument_init():
     __init__ method is preserved and called normally, with thread safety
     applied afterward.
 
-    This is called automatically when this module is imported.
+    This is called by ``apply_pymeasure_threading_fix``.
     """
     # Check if already patched to avoid recursion
     if getattr(Instrument.__init__, "__name__", "").startswith(_PATCHED_NAME_PREFIX):
@@ -288,17 +291,11 @@ def _patch_pymeasure_instrument_init():
     Instrument.__init__ = thread_safe_init
 
 
-# Apply the monkey patches automatically when this module is imported
-# This ensures all pymeasure instruments are thread-safe by default
+def apply_pymeasure_threading_fix() -> None:
+    """Apply the PyMeasure thread-safety patch once per Python process."""
+    if getattr(Instrument.__init__, "__name__", "").startswith(_PATCHED_NAME_PREFIX):
+        return
 
-# First, patch the communication methods at class level
-# This provides basic thread safety for individual method calls
-_patch_pymeasure_instrument_methods()
-
-# Then, patch all property creation methods (control, setting, measurement)
-# This ensures property getters/setters that make multiple method calls
-# are executed atomically without interference from other threads
-_patch_pymeasure_property_creators()
-
-# Finally, patch the __init__ method to ensure proper setup
-_patch_pymeasure_instrument_init()
+    _patch_pymeasure_instrument_methods()
+    _patch_pymeasure_property_creators()
+    _patch_pymeasure_instrument_init()

@@ -25,7 +25,7 @@ Key features:
 - Configuration loading from default, user, and local sources
 - Recursive dictionary merging for configuration overrides
 - Logging setup with configurable output locations
-- Re-export of metadata constants from the system module
+- Re-export of metadata constants
 - Management of system directories for various matr1x modules
 
 The module also sets up important global variables and constants used throughout
@@ -45,12 +45,9 @@ from typing import Any
 import tomli_w
 from pydantic import BaseModel, ValidationError
 
-# Import pymeasure threading fix to apply monkey patch automatically
-# This must be imported early to ensure all pymeasure instruments are thread-safe
-from . import pymeasure_threading_fix
 from .logging_util import WeekRotatingFileHandler
+from .metadata import APP_META_KEY, VALID_META_KEYS
 from .models import MainConfig, UserlibConfig, format_validation_error
-from .system import APP_META_KEY, VALID_META_KEYS
 from .util import (
     create_temp_dir_with_symlinks,
     get_package_path,
