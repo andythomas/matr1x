@@ -220,16 +220,6 @@
     ]
   },
   {
-    "path": "matr1x/scripts/matrix_gui.py",
-    "file_name": "matrix_gui.py",
-    "functions": [
-      {
-        "name": "MainWindow::_process_tabledata",
-        "complexity": 19
-      }
-    ]
-  },
-  {
     "path": "matr1x/scripts/matrix_preview.py",
     "file_name": "matrix_preview.py",
     "functions": [
