@@ -33,16 +33,16 @@ from collections.abc import Callable, Iterable
 from functools import cached_property
 from operator import attrgetter
 from pathlib import Path
-from typing import Any, TypeGuard, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeGuard, TypeVar, cast
 
 import h5py
 import numpy as np
 from pydantic import BaseModel, ValidationError
-from pymeasure.instruments import Instrument
 
 import matr1x
 from matr1x.devices.visadevice import VisaDevice
 from matr1x.error_handling import Error, Result, Success
+from matr1x.metadata import APP_META_KEY, VALID_META_KEYS
 from matr1x.models import (
     MeasurementData,
     Message,
@@ -62,28 +62,9 @@ from .util import (
     save_dict_to_hdf5,
 )
 
-VALID_META_KEYS = {
-    "creator": True,
-    "date": False,
-    "identifier": True,
-    "relation": True,
-    "description": True,
-    "source": True,
-    "type": True,
-    "publisher": True,
-    "format": False,
-    "language": False,
-}
-"""
-Valid metadata keys for the dublin core metadata.
+if TYPE_CHECKING:
+    from pymeasure.instruments import Instrument
 
-The 'false' keys are auto-generated and cannot be set.
-"""
-
-APP_META_KEY = ["description"]
-"""
-The user can append to these dublin core keys.
-"""
 BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
 
 ALLOWED_SIGNATURE_TYPES = BUILTIN_TYPES | {None}
@@ -532,7 +513,7 @@ class System:
         )
 
     @staticmethod
-    def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
+    def _query_device_config(device_handle: "VisaDevice | Instrument", query: str) -> str:
         """Query a device config string via ``query`` or ``ask``."""
         query_method = getattr(device_handle, "query", None)
         if callable(query_method):
@@ -549,7 +530,7 @@ class System:
 
     @staticmethod
     def _device_query(
-        device_handle: VisaDevice | Instrument, config_params: ConfigParameter
+        device_handle: "VisaDevice | Instrument", config_params: ConfigParameter
     ) -> dict[str, Any]:
         """
         Query the current configuration of the device.
@@ -719,6 +700,13 @@ class System:
         System or ErrorMessage
             System as defined in the file or an error string.
         """
+        # System modules can define PyMeasure properties at import time. Apply
+        # the patch before loading them, but keep PyMeasure out of non-device
+        # applications that never load a system.
+        from .pymeasure_threading_fix import apply_pymeasure_threading_fix
+
+        apply_pymeasure_threading_fix()
+
         normfilename = filename.expanduser()
         legacy_warning: tuple[str, int] | None = None
         if normfilename.is_file():
@@ -1600,6 +1588,8 @@ class System:
         After this function is called, the System can be reinitialized
         by calling System.set().
         """
+        from pymeasure.instruments import Instrument
+
         for dev in self.devs.values():
             if hasattr(dev, "close") and callable(
                 dev.close
@@ -2223,6 +2213,7 @@ class MergedSystem(System):
             "methods": {},
             "variables": {},
             "config": {},
+            "dcdata": dict(self.dcdata),
             "warnings": [],
         }
         base_info = super().grab_information()

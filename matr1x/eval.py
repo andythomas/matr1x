@@ -27,7 +27,6 @@ from typing import Any, TypedDict, cast
 
 import h5py
 import numpy as np
-import pandas as pd
 
 __all__ = ["delta", "delta3p", "loadmatrix"]
 
@@ -716,6 +715,8 @@ def _load_text_file(
     tuple[HeaderDict, np.ndarray]
         Header information and data
     """
+    import pandas as pd
+
     extension = filename.suffix
     header = _create_empty_header()
 

@@ -464,3 +464,4 @@ def test_system_grab_information():
     dummy_system = str((path / "../matr1x/systems/system_dummy.py").resolve())
     info = get_system_info([dummy_system])
     assert isinstance(info, Success)
+    assert "source" in info.value.dcdata

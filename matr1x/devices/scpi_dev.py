@@ -28,14 +28,29 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol, runtime_checkable
 
-from pymeasure.instruments import Instrument
-from pymeasure.instruments.validators import strict_discrete_set
-
 from matr1x.util import Command, Get, normalize_cmds
 
 __all__ = ["makeSCPIdevice"]
 
 _typeplaceholder = {int: "%d", float: "%g", bool: "%d", str: "%s", None: ""}
+
+Instrument: Any
+strict_discrete_set: Callable[..., Any]
+
+
+def _load_pymeasure() -> None:
+    """Load the patched PyMeasure classes required by generated devices."""
+    global Instrument, strict_discrete_set
+
+    from matr1x.pymeasure_threading_fix import apply_pymeasure_threading_fix
+
+    apply_pymeasure_threading_fix()
+
+    from pymeasure.instruments import Instrument as pymeasure_instrument
+    from pymeasure.instruments.validators import strict_discrete_set as pymeasure_validator
+
+    Instrument = pymeasure_instrument
+    strict_discrete_set = pymeasure_validator
 
 
 def _make_identifier(s: str) -> str:
@@ -333,6 +348,7 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
     type
         A dynamically created class derived from pymeasure.Instrument
     """
+    _load_pymeasure()
     cmd_list = {}
     # merge commands in arguments
     for entry in cmds:

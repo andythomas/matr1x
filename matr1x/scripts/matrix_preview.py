@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import TypedDict, no_type_check
 
 import numpy as np
-import pyqtgraph
-import pyqtgraph.exporters
+from pyqtgraph import ImageView, setConfigOption
+from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
     QEvent,
     QKeyCombination,
@@ -376,7 +376,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
         # UI components that are not part of the UIBuilder
         self.spw: SimplePlotWidget  # Plot widget, needs window callbacks at creation
-        self.iv: pyqtgraph.ImageView | None = None  # Image view widget
+        self.iv: ImageView | None = None  # Image view widget
         self.column_items: list[str] = []  # Column descriptions for current file
 
         # Data properties
@@ -388,8 +388,8 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
         self.setWindowTitle("Matrix Preview")
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-preview.png"))
-        pyqtgraph.setConfigOption("background", "w")
-        pyqtgraph.setConfigOption("foreground", "k")
+        setConfigOption("background", "w")
+        setConfigOption("foreground", "k")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         # although this seems counter intuitive. setting the minimum width
         # limits the maximum window size in case long filenames are used.
@@ -633,7 +633,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         if filename_path.suffix.lower() != ".png":
             filename_path = filename_path.with_suffix(".png")
         if self.iv is not None:
-            pyqtgraph.exporters.ImageExporter(self.iv.view).export(str(filename_path))
+            ImageExporter(self.iv.view).export(str(filename_path))
         else:
             self.spw.save_plot(str(filename_path))
 
@@ -744,7 +744,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.spw.setVisible(False)
             if self.iv is None:
                 # set up image view on first initialization
-                self.iv = pyqtgraph.ImageView()
+                self.iv = ImageView()
                 self.ui.grid.addWidget(self.iv, 4, 0, 1, -1)
             else:
                 self.iv.setVisible(True)
