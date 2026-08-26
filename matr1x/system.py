@@ -737,8 +737,33 @@ class System:
         cls,
         filename: str | Path | SystemReference,
     ) -> Result[System, str]:
-        """Load and construct a static or stateful system."""
-        return cls._from_file(filename)
+        """
+        Load and construct a static or stateful system from a file or module.
+
+        A system module must define exactly one local ``System`` subclass.
+        Stateful subclasses receive their required state during construction.
+        Legacy initialized ``system`` exports remain supported for static
+        systems with a deprecation warning.
+        """
+        try:
+            reference = SystemReference.from_value(filename)
+        except ValidationError as error:
+            return Error(str(error))
+        definition_result = cls._load_definition(reference.source)
+        if isinstance(definition_result, Error):
+            return definition_result
+        definition, normfilename, legacy_warning = definition_result.value
+
+        system_result = cls._instantiate_definition(definition, reference)
+        if isinstance(system_result, Error):
+            return system_result
+        system = system_result.value
+
+        system.source = reference.source
+        system.__name__ = str(normfilename)
+        if legacy_warning:
+            system.warnings.append(legacy_warning)
+        return Success(system)
 
     @classmethod
     def _load_definition(
@@ -865,39 +890,6 @@ class System:
                 class_name=system_class.__name__,
             )
         )
-
-    @classmethod
-    def _from_file(
-        cls,
-        filename: str | Path | SystemReference,
-    ) -> Result[System, str]:
-        """
-        Load and construct a system from a file or importable module.
-
-        A system module must define exactly one local ``System`` subclass.
-        Stateful subclasses receive their required state during construction.
-        Legacy initialized ``system`` exports remain supported for static
-        systems with a deprecation warning.
-        """
-        try:
-            reference = SystemReference.from_value(filename)
-        except ValidationError as error:
-            return Error(str(error))
-        definition_result = cls._load_definition(reference.source)
-        if isinstance(definition_result, Error):
-            return definition_result
-        definition, normfilename, legacy_warning = definition_result.value
-
-        system_result = cls._instantiate_definition(definition, reference)
-        if isinstance(system_result, Error):
-            return system_result
-        system = system_result.value
-
-        system.source = reference.source
-        system.__name__ = str(normfilename)
-        if legacy_warning:
-            system.warnings.append(legacy_warning)
-        return Success(system)
 
     @staticmethod
     def _instantiate_definition(
