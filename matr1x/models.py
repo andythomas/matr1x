@@ -411,6 +411,19 @@ class SystemInfo(BaseModel):
                 )
         return result
 
+    @property
+    def configurable_sections(self) -> list[str]:
+        """Return config sections for selections without a system file on disk.
+
+        For each selection whose ``source`` does not exist as a file, the
+        ``config_section`` is returned if set, otherwise the ``source``.
+        """
+        return [
+            selection.config_section or selection.source
+            for selection in self.selections
+            if not Path(selection.source).exists()
+        ]
+
     @cached_property
     def stub(self) -> str:
         """Generate the type-checking lines."""

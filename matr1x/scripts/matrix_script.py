@@ -1621,11 +1621,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         """
         system_info = self.ui.widgets.system_list.system_info
         retained_config = self.ui.widgets.config_editor.get_config_dict()
-        configurable = [
-            selection.config_section or selection.source
-            for selection in system_info.selections
-            if not Path(selection.source).exists()
-        ]
+        configurable = system_info.configurable_sections
         matr1x.reload_config()
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
