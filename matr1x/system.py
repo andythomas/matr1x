@@ -1837,8 +1837,11 @@ class System:
                 )
                 if target_key in target:
                     info_dict["warnings"].append(
-                        f"'{item.name}' from '{cls_name}' would shadow a pre-existing entry "
-                        f"and will not accesible via 'system'."
+                        (
+                            f"'{item.name}' from '{cls_name}' would shadow a pre-existing entry "
+                            f"and will not accesible via 'system'.",
+                            logging.WARNING,
+                        )
                     )
                 else:
                     entry = item.model_dump(exclude={"callable"})
