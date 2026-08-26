@@ -681,7 +681,7 @@ class System:
 
     def _load_config_section(
         self,
-        model_class: type[Any],
+        model_class: type[BaseModel],
         section: str,
         sensitive_keys: list[str] | None = None,
     ) -> None:
@@ -2186,7 +2186,7 @@ class StatefulSystem(System):
 
     def load_config(
         self,
-        model_class: type[Any],
+        model_class: type[BaseModel],
         section: str,
         sensitive_keys: list[str] | None = None,
     ) -> None:
