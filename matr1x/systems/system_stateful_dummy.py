@@ -10,14 +10,17 @@
 from pydantic import Field
 
 from matr1x.devices.dummy import dummy
-from matr1x.models import SystemConfigModel, VisaResource
+from matr1x.models import LocalTCPIPSocketVisaResource, SystemConfigModel
 from matr1x.system import StatefulSystem
 
 
 class StatefulDummyConfig(SystemConfigModel):
     """Configuration for one selected dummy state."""
 
-    address: VisaResource = Field(..., description="VISA resource address")
+    address: LocalTCPIPSocketVisaResource = Field(
+        ...,
+        description="Local TCP/IP socket used by the dummy device",
+    )
     initial_p2: float = Field(3.14, description="Initial p2 value")
 
 
