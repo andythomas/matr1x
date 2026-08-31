@@ -51,7 +51,7 @@ import numpy
 import psutil
 from decorator import FunctionMaker
 from numpy.typing import ArrayLike
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 from PySide6.QtCore import (
     QObject,
@@ -515,7 +515,7 @@ class varData(BaseModel):
         value and alter it. The values are enumerations from guiObject.
     unit : str, optional
         Unit string used in the label and data logging.
-    log_default : bool, optional, default = False
+    log : bool, optional, default = False
         Boolean flag to set the default behavior in the logging config.
     init : list[object1, object2] or object
         Initialization values for column1 and column2. A single object
@@ -526,12 +526,12 @@ class varData(BaseModel):
         Modify the standard widget with stored methods.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = {"arbitrary_types_allowed": True, "extra": "forbid"}
 
     dtype: type | None
     columns: list[str | guiObject | None] = [None, None]
     unit: str = ""
-    log_default: bool = Field(alias="log", default=False)
+    log: bool = False
     init: list = [None, None]
     hide: bool = False
     modify: list[MethodBundle | None] = [None, None]
@@ -539,6 +539,11 @@ class varData(BaseModel):
     def __init__(self, *args, **kwargs):
         """Map positional arguments to field names."""
         field_names = list(type(self).model_fields.keys())
+        if len(args) > len(field_names):
+            raise TypeError(
+                f"{type(self).__name__} takes at most {len(field_names)} "
+                f"positional arguments but {len(args)} were given."
+            )
         for name, value in zip(field_names, args):
             if name in kwargs:
                 raise TypeError(f"Multiple values for argument '{name}'")
@@ -576,7 +581,7 @@ class varData(BaseModel):
     @model_validator(mode="after")
     def check_log_requires_dtype(self):
         """Validate that log=True is only allowed if dtype is not None."""
-        if self.log_default and self.dtype is None:
+        if self.log and self.dtype is None:
             raise PydanticCustomError(
                 "Invalid_configuration",
                 "Cannot enable logging without a defined parameter type.",
@@ -617,7 +622,7 @@ class var(QObject):
         """Initialize the variable storage."""
         super().__init__()
         self._data: varData = varData(*args, **kwargs)
-        self.log = None if self._data.dtype is None else self._data.log_default
+        self.log = None if self._data.dtype is None else self._data.log
         self.hide = self._data.hide
         self._value = None
         self.widgets: list[Any] = []
