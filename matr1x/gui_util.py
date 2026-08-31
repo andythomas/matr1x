@@ -4158,7 +4158,7 @@ def get_system_info(
             timeout=30,
             check=False,
         )
-    except Exception as e:
+    except (OSError, subprocess.TimeoutExpired) as e:
         return Error(f"Could not run system info subprocess: {e}")
 
     if result.returncode != 0:

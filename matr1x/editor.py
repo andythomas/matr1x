@@ -337,7 +337,7 @@ class LSPClient(QObject, LoggerMixin):
             while not self.stop_event.is_set():
                 if not self.process.stderr.read(1024):
                     break
-        except Exception:
+        except (OSError, ValueError):
             self.logger.warning("LSP008: Exception draining stderr.")
 
     def _message_reader(self) -> None:
@@ -380,7 +380,7 @@ class LSPClient(QObject, LoggerMixin):
                     content_length = int(line.split(":")[1].strip())
                 elif line == "":  # Empty line separates headers from content
                     break
-            except Exception:
+            except (OSError, ValueError):
                 self.logger.warning("LSP001: Exception reading message.")
                 return None
         if content_length <= 0:
@@ -391,7 +391,7 @@ class LSPClient(QObject, LoggerMixin):
                 return None
             result = content_bytes.decode()
             return result
-        except Exception:
+        except (OSError, ValueError):
             self.logger.warning("LSP002: Exception reading message content.")
             return None
 
