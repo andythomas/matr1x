@@ -1681,16 +1681,14 @@ class MainWindow(LogWindowMixin, MMainWindow):
         update_config: bool
             Whether to update the config editor.
         """
+        system_info = self.ui.widgets.system_list.system_info
         retained_config = self.ui.widgets.config_editor.get_config_dict()
-        # only systems that are part of matrix or ifwlib can be configured via files
-        configurable = [
-            system for system in self.ui.widgets.system_list.systems if not Path(system).exists()
-        ]
+        configurable = system_info.configurable_sections
         matr1x.reload_config()
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
-            self.ui.widgets.config_editor.set_system_info(self.ui.widgets.system_list.system_info)
+            self.ui.widgets.config_editor.set_system_info(system_info)
             self.ui.widgets.config_editor.update_data()
             self.ui.widgets.config_editor.apply_config_dict(retained_config)
             self.update_start_action_state()

@@ -19,6 +19,8 @@ Module containing the System class definition and utility functions.
 These can be used for data acquisition and instrument control.
 """
 
+from __future__ import annotations
+
 import builtins
 import importlib
 import inspect
@@ -33,7 +35,7 @@ from collections.abc import Callable, Iterable
 from functools import cached_property
 from operator import attrgetter
 from pathlib import Path
-from typing import Any, TypeGuard, TypeVar, cast
+from typing import Any, ClassVar, TypeGuard, TypeVar, cast
 
 import h5py
 import numpy as np
@@ -46,7 +48,10 @@ from matr1x.error_handling import Error, Result, Success
 from matr1x.models import (
     MeasurementData,
     Message,
+    SystemCapability,
     SystemMethod,
+    SystemReference,
+    SystemSelectionInfo,
     SystemVariable,
     UntypedConfigModel,
 )
@@ -455,9 +460,18 @@ class System:
         Contains the definition for custom device queries to read the
         configuration. Keys match the device names in .devs.
     name : str or None
-        Optional instance name. ControlWindow binds a valid name here as the
-        subsystem's accessor name after merging.
+        Optional instance name used by control GUIs and as the subsystem
+        accessor for ordinary systems.
     """
+
+    stateful: ClassVar[bool] = False
+    """Whether construction requires one predefined state."""
+
+    states: ClassVar[tuple[str, ...]] = ()
+    """Ordered states exposed by a stateful system."""
+
+    state_exclusion_groups: ClassVar[dict[str, str]] = {}
+    """Optional state-to-exclusion-group declarations."""
 
     def __init__(self, name=None):
         """
@@ -470,6 +484,9 @@ class System:
         """
         self._name: str | None = None
         self.name = name
+        self._state: str | None = None
+        self.source: str | None = None
+        self.config_section: str | None = None
 
         self._config = matr1x.config.matr1x.scripts.matrix_script
         # define merged system reference
@@ -627,9 +644,16 @@ class System:
     @property
     def accessor_name(self) -> str:
         """Return the attribute name used to expose this subsystem after merging."""
+        if self.stateful and self.state is not None:
+            return f"{self.__class__.__name__}_{self.state}"
         if self.name is not None and self.name.isidentifier() and not keyword.iskeyword(self.name):
             return self.name
         return self.__class__.__name__
+
+    @property
+    def state(self) -> str | None:
+        """Return the immutable construction state, if any."""
+        return self._state
 
     def load_config(
         self,
@@ -653,6 +677,16 @@ class System:
         sensitive_keys : list[str], optional
             A list of keys that should be moved to sensitive_config.
         """
+        self._load_config_section(model_class, section, sensitive_keys)
+
+    def _load_config_section(
+        self,
+        model_class: type[BaseModel],
+        section: str,
+        sensitive_keys: list[str] | None = None,
+    ) -> None:
+        """Load one already resolved static or instance-specific config section."""
+        self.config_section = section
         config_data = resolve_config_path(matr1x.config, section)
 
         # If it is a model (e.g. from MainConfig.model_extra), convert to dict
@@ -699,60 +733,94 @@ class System:
         self._filename = value
 
     @classmethod
-    def from_file(cls, filename: Path) -> Result["System", str]:
+    def from_file(
+        cls,
+        filename: str | Path | SystemReference,
+    ) -> Result[System, str]:
         """
-        Load a system from a file.
+        Load and construct a static or stateful system from a file or module.
 
-        If a file with the given name cannot be found the system
-        installed files are searched. A system module must define exactly one
-        local ``System`` subclass, which is instantiated after import. Legacy
-        initialized ``system`` exports remain supported with a
-        deprecation warning.
-
-        Parameters
-        ----------
-        filename : str or Path
-            Path to file (can include '.py' extension).
-
-        Returns
-        -------
-        System or ErrorMessage
-            System as defined in the file or an error string.
+        A system module must define exactly one local ``System`` subclass.
+        Stateful subclasses receive their required state during construction.
+        Legacy initialized ``system`` exports remain supported for static
+        systems with a deprecation warning.
         """
-        normfilename = filename.expanduser()
-        legacy_warning: tuple[str, int] | None = None
+        try:
+            reference = SystemReference.from_value(filename)
+        except ValidationError as error:
+            return Error(str(error))
+        definition_result = cls._load_definition(reference.source)
+        if isinstance(definition_result, Error):
+            return definition_result
+        definition, normfilename, legacy_warning = definition_result.value
+
+        system_result = cls._instantiate_definition(definition, reference)
+        if isinstance(system_result, Error):
+            return system_result
+        system = system_result.value
+
+        system.source = reference.source
+        system.__name__ = str(normfilename)
+        if legacy_warning:
+            system.warnings.append(legacy_warning)
+        return Success(system)
+
+    @classmethod
+    def _load_definition(
+        cls,
+        source: str,
+    ) -> Result[tuple[type[System] | System, Path | str, tuple[str, int] | None], str]:
+        """Import a system source and return its class or legacy instance."""
+        module_result = cls._import_system_module(source)
+        if isinstance(module_result, Error):
+            return module_result
+        module, normfilename = module_result.value
+        return cls._system_definition_from_module(module, normfilename)
+
+    @staticmethod
+    def _import_system_module(source: str) -> Result[tuple[Any, Path | str], str]:
+        """Import a system module from a path or an installed module name."""
+        normfilename = Path(source).expanduser()
         if normfilename.is_file():
             try:
-                mod = module_from_path(normfilename)
+                return Success((module_from_path(normfilename), normfilename))
             except PermissionError:
                 return Error("System file is not readable.")
             except ImportError as error:
                 return Error(f"{type(error).__name__}: {error}")
-        else:
-            if normfilename.suffix == ".py":
-                normfilename = normfilename.stem
-            normfilestr = str(normfilename)
-            candidates = [normfilestr, f"matr1x.systems.{normfilestr}"]
-            for name in candidates:
-                try:
-                    if name in sys.modules:
-                        mod = importlib.reload(sys.modules[name])
-                    else:
-                        mod = importlib.import_module(name)
-                    break
 
-                except ModuleNotFoundError as e:
-                    if e.name != name:
-                        return Error(f"{type(e).__name__}: {e}")
-                    continue
-                except ImportError as e:
-                    return Error(f"{type(e).__name__}: {e}")
-            else:
-                return Error(
-                    f"Could neither import '{normfilestr}' nor 'matr1x.systems.{normfilestr}'"
+        if normfilename.suffix == ".py":
+            normfilename = normfilename.stem
+        return System._import_module_by_name(str(normfilename), normfilename)
+
+    @staticmethod
+    def _import_module_by_name(
+        normfilestr: str, normfilename: Path | str
+    ) -> Result[tuple[Any, Path | str], str]:
+        """Import an installed system module, including bundled system modules."""
+        candidates = [normfilestr, f"matr1x.systems.{normfilestr}"]
+        for name in candidates:
+            try:
+                module = (
+                    importlib.reload(sys.modules[name])
+                    if name in sys.modules
+                    else importlib.import_module(name)
                 )
+                return Success((module, normfilename))
+            except ModuleNotFoundError as error:
+                if error.name != name:
+                    return Error(f"{type(error).__name__}: {error}")
+            except ImportError as error:
+                return Error(f"{type(error).__name__}: {error}")
+        return Error(f"Could neither import '{normfilestr}' nor 'matr1x.systems.{normfilestr}'")
+
+    @staticmethod
+    def _system_definition_from_module(
+        module: Any, normfilename: Path | str
+    ) -> Result[tuple[type[System] | System, Path | str, tuple[str, int] | None], str]:
+        """Find the single supported system definition in an imported module."""
         legacy_name = "system"
-        system = getattr(mod, legacy_name, None)
+        system = getattr(module, legacy_name, None)
 
         if isinstance(system, System):
             legacy_warning = (
@@ -767,11 +835,11 @@ class System:
             # must define the single concrete class that Matrix instantiates.
             system_classes = {
                 value
-                for value in vars(mod).values()
+                for value in vars(module).values()
                 if inspect.isclass(value)
                 and value is not System
                 and issubclass(value, System)
-                and value.__module__ == mod.__name__
+                and value.__module__ == module.__name__
             }
             if not system_classes:
                 return Error(
@@ -783,13 +851,76 @@ class System:
                     "The system file must define exactly one local System subclass; "
                     f"found: {names}."
                 )
-            system = system_classes.pop()()
-        # set the name of the system to reflect the filename
-        system = cast(System, system)
-        system.__name__ = str(normfilename)
-        if legacy_warning:
-            system.warnings.append(legacy_warning)
-        return Success(system)
+            system_class = cast(type[System], system_classes.pop())
+            return Success((system_class, normfilename, None))
+        return Success((system, normfilename, legacy_warning))
+
+    @classmethod
+    def inspect_file(
+        cls,
+        filename: str | Path | SystemReference,
+    ) -> Result[SystemCapability, str]:
+        """Inspect a system definition without constructing a system instance."""
+        try:
+            reference = SystemReference.from_value(filename)
+        except ValidationError as error:
+            return Error(str(error))
+        definition_result = cls._load_definition(reference.source)
+        if isinstance(definition_result, Error):
+            return definition_result
+
+        definition, _, _ = definition_result.value
+        system_class = definition if inspect.isclass(definition) else type(definition)
+        stateful = issubclass(system_class, StatefulSystem)
+        if not stateful and getattr(system_class, "stateful", False):
+            return Error(
+                f"Stateful system class '{system_class.__name__}' must inherit StatefulSystem"
+            )
+        states: tuple[str, ...] = ()
+        groups: dict[str, str] = {}
+        if stateful:
+            try:
+                states, groups = system_class.state_declaration()
+            except ValueError as error:
+                return Error(f"Stateful system '{reference.source}' is invalid: {error}")
+        return Success(
+            SystemCapability(
+                source=reference.source,
+                stateful=stateful,
+                states=states,
+                state_exclusion_groups=groups,
+                class_name=system_class.__name__,
+            )
+        )
+
+    @staticmethod
+    def _instantiate_definition(
+        definition: type[System] | System, reference: SystemReference
+    ) -> Result[System, str]:
+        """Construct a static or stateful system from an imported definition."""
+        if isinstance(definition, System):
+            if definition.stateful:
+                return Error(
+                    f"Stateful system '{reference.source}' must be defined as a "
+                    "StatefulSystem subclass, not an initialized module export"
+                )
+            if reference.state is not None:
+                return Error(f"Static system '{reference.source}' does not accept a state")
+            return Success(definition)
+        if issubclass(definition, StatefulSystem):
+            if reference.state is None:
+                return Error(f"Stateful system '{reference.source}' requires a state")
+            try:
+                return Success(definition(reference.state))
+            except ValueError as error:
+                return Error(str(error))
+        if definition.stateful:
+            return Error(
+                f"Stateful system class '{definition.__name__}' must inherit StatefulSystem"
+            )
+        if reference.state is not None:
+            return Error(f"Static system '{reference.source}' does not accept a state")
+        return Success(definition())
 
     @property
     def hdf5(self) -> bool:
@@ -1615,42 +1746,56 @@ class System:
         """Find additional system methods and variables."""
         methods: list[SystemMethod] = []
         variables: list[SystemVariable] = []
-        parameter_methods = set()
         cls_name = self.__class__.__name__
-        for param in self.parameters:
-            # Check if setter/getter is a string (method name) and add to exclusion list
-            if isinstance(param.setter, str):
-                parameter_methods.add(param.setter)
-            if isinstance(param.getter, str):
-                parameter_methods.add(param.getter)
+        parameter_methods = self._parameter_method_names()
         base_attrs = set(dir(System()))
+        if self.stateful:
+            base_attrs.update(dir(StatefulSystem))
         for key in dir(self):
-            if key not in base_attrs and not key.startswith("_") and key not in parameter_methods:
-                attribute = getattr(self, key)
-                if callable(attribute):
-                    signature = None
-                    docstring = None
-                    try:
-                        signature = str(self._buildins_signature(getattr(type(self), key)))
-                    except (TypeError, ValueError):
-                        pass
-                    if attribute.__doc__:
-                        docstring = attribute.__doc__.strip()
-                    method = SystemMethod(
-                        name=key,
-                        prefix=cls_name,
-                        signature=signature,
-                        docstring=docstring,
-                        callable=attribute,
-                    )
-                    methods.append(method)
-                else:
-                    type_var = type(attribute).__name__
-                    if type_var == "NoneType":
-                        type_var = None
-                    variable = SystemVariable(name=key, prefix=cls_name, signature=type_var)
-                    variables.append(variable)
+            if key in base_attrs or key.startswith("_") or key in parameter_methods:
+                continue
+            method, variable = self._member_information(key, cls_name)
+            if method is not None:
+                methods.append(method)
+            elif variable is not None:
+                variables.append(variable)
         return methods, variables
+
+    def _parameter_method_names(self) -> builtins.set[str]:
+        """Return string-based parameter handlers excluded from system metadata."""
+        return {
+            handler
+            for parameter in self.parameters
+            for handler in (parameter.setter, parameter.getter)
+            if isinstance(handler, str)
+        }
+
+    def _member_information(
+        self, key: str, prefix: str
+    ) -> tuple[SystemMethod | None, SystemVariable | None]:
+        """Build method or variable metadata for one public member."""
+        attribute = getattr(self, key)
+        if not callable(attribute):
+            signature = type(attribute).__name__
+            return None, SystemVariable(
+                name=key,
+                prefix=prefix,
+                signature=None if signature == "NoneType" else signature,
+            )
+        try:
+            signature = str(self._buildins_signature(getattr(type(self), key)))
+        except (TypeError, ValueError):
+            signature = None
+        return (
+            SystemMethod(
+                name=key,
+                prefix=prefix,
+                signature=signature,
+                docstring=attribute.__doc__.strip() if attribute.__doc__ else None,
+                callable=attribute,
+            ),
+            None,
+        )
 
     def _buildins_signature(self, function: Callable) -> inspect.Signature:
         """Return signature of the function with only built-ins."""
@@ -1666,7 +1811,9 @@ class System:
             return_annotation = inspect.Signature.empty
         return signature.replace(parameters=new_params, return_annotation=return_annotation)
 
-    def _add_attributes_to_dict(self, info_dict: dict[str, Any]) -> None:
+    def _add_attributes_to_dict(
+        self, info_dict: dict[str, Any], prefix: str | None = None
+    ) -> None:
         """
         Add methods and variables from this system to a dictionary.
 
@@ -1681,17 +1828,27 @@ class System:
             Updates the info_dict in place
         """
         methods, variables = self.methods_and_variables
-        cls_name = self.__class__.__name__
+        cls_name = prefix or self.__class__.__name__
         for items, category in ((methods, "methods"), (variables, "variables")):
             target = info_dict[category]
             for item in items:
-                if item.name in target:
+                target_key = (
+                    f"{cls_name}.{item.name}"
+                    if prefix is not None and self.stateful
+                    else item.name
+                )
+                if target_key in target:
                     info_dict["warnings"].append(
-                        f"'{item.name}' from '{cls_name}' would shadow a pre-existing entry "
-                        f"and will not accesible via 'system'."
+                        (
+                            f"'{item.name}' from '{cls_name}' would shadow a pre-existing entry "
+                            f"and will not accesible via 'system'.",
+                            logging.WARNING,
+                        )
                     )
                 else:
-                    target[item.name] = item.model_dump(exclude={"callable"})
+                    entry = item.model_dump(exclude={"callable"})
+                    entry["prefix"] = cls_name
+                    target[target_key] = entry
 
     def grab_information(self) -> dict[str, Any]:
         """
@@ -1714,74 +1871,62 @@ class System:
             "warnings": self.warnings,
         }
 
-        # Add devices
-        for dev, device_entry in self.devs.items():
-            # Extract device class name from the device entry
-            # Device class is the first element in the device_entry list
-            device_class = device_entry[0]
-            if hasattr(device_class, "__name__"):
-                class_name = device_class.__name__
-            else:
-                class_name = str(device_class).split()[0].strip("'<>")
-
-            # Extract arguments and keyword arguments
-            args_str = ""
-            if len(device_entry) > 1:
-                args = device_entry[1]
-                if args and len(args) > 0:
-                    args_str = f", args={args!s}"
-
-            kwargs_str = ""
-            if len(device_entry) > 2:
-                kwargs = device_entry[2]
-                if kwargs and len(kwargs) > 0:
-                    kwargs_str = f", kwargs={kwargs!s}"
-
-            # Format the device information
-            info["devices"][dev] = {
-                "name": dev,
-                "description": f"Device of class {class_name}{args_str}{kwargs_str}",
-            }
-
-        # Add parameters
-        for index, param in enumerate(self.parameters):
-            name = param.name
-            display_name = ", ".join(name) if isinstance(name, list) else name
-            unit = param.unit
-            display_unit = ", ".join(unit) if isinstance(unit, list) else unit
-            # Create an entry with the index as key
-            # (use string prefix to avoid numeric parsing issues)
-            param_key = f"param_{index}"
-            info["parameters"][param_key] = {
-                "name": display_name,
-                "unit": display_unit,
-                "index": index,
-                "settable": param.setter is not None,
-            }
+        self._add_devices_to_information(info)
+        self._add_parameters_to_information(info)
 
         # Add custom methods and variables
         if self.__class__ != MergedSystem:
             self._add_attributes_to_dict(info)
 
-        system_name = getattr(self, "__name__", str(self.__class__.__name__))
-
-        # Add config options organized by system name (excluding sensitive_config)
-        # Add configuration of this system
-        if self.config:
-            if hasattr(self.config, "model_dump"):
-                info["config"][system_name] = {
-                    "value": self.config.model_dump(
-                        by_alias=True, exclude=set(self._sensitive_keys)
-                    ),
-                    "schema": self.config.__class__.model_json_schema(),
-                }
-            else:
-                info["config"][system_name] = self.config
+        self._add_config_to_information(info)
 
         # Note: sensitive_config is intentionally NOT included in the query results
         # to prevent sensitive information from being stored in file headers
 
         return info
+
+    def _add_devices_to_information(self, info: dict[str, Any]) -> None:
+        """Serialize configured devices into system information."""
+        for name, entry in self.devs.items():
+            device_class = entry[0]
+            class_name = getattr(
+                device_class, "__name__", str(device_class).split()[0].strip("'<>")
+            )
+            args = f", args={entry[1]!s}" if len(entry) > 1 and entry[1] else ""
+            kwargs = f", kwargs={entry[2]!s}" if len(entry) > 2 and entry[2] else ""
+            info["devices"][name] = {
+                "name": name,
+                "description": f"Device of class {class_name}{args}{kwargs}",
+            }
+
+    def _add_parameters_to_information(self, info: dict[str, Any]) -> None:
+        """Serialize parameters into system information."""
+        for index, parameter in enumerate(self.parameters):
+            name = (
+                ", ".join(parameter.name) if isinstance(parameter.name, list) else parameter.name
+            )
+            unit = (
+                ", ".join(parameter.unit) if isinstance(parameter.unit, list) else parameter.unit
+            )
+            info["parameters"][f"param_{index}"] = {
+                "name": name,
+                "unit": unit,
+                "index": index,
+                "settable": parameter.setter is not None,
+            }
+
+    def _add_config_to_information(self, info: dict[str, Any]) -> None:
+        """Serialize non-sensitive configuration into system information."""
+        if not self.config:
+            return
+        name = self.config_section or getattr(self, "__name__", self.__class__.__name__)
+        if hasattr(self.config, "model_dump"):
+            info["config"][name] = {
+                "value": self.config.model_dump(by_alias=True, exclude=set(self._sensitive_keys)),
+                "schema": self.config.__class__.model_json_schema(),
+            }
+            return
+        info["config"][name] = self.config
 
     def init_datafile(self, inputfile: str) -> tuple[str, Path]:
         """
@@ -1994,6 +2139,63 @@ class System:
                 datafile.write(f"# status: {status}")
 
 
+class StatefulSystem(System):
+    """Base class for systems constructed in one predefined state."""
+
+    stateful: ClassVar[bool] = True
+    _DEFAULT_STATE_GROUP: ClassVar[str] = "__default__"
+
+    @classmethod
+    def state_declaration(cls) -> tuple[tuple[str, ...], dict[str, str]]:
+        """Validate and return states with a complete exclusion-group mapping."""
+        states = cls.states
+        if not isinstance(states, tuple) or not states:
+            raise ValueError("'states' must be a non-empty tuple")
+        if any(not isinstance(state, str) or not state.isidentifier() for state in states):
+            raise ValueError("every state must be a valid Python identifier")
+        if len(set(states)) != len(states):
+            raise ValueError("states must be unique")
+
+        declared_groups = cls.state_exclusion_groups
+        if not isinstance(declared_groups, dict):
+            raise ValueError("'state_exclusion_groups' must be a dictionary")
+        unknown_states = set(declared_groups) - set(states)
+        if unknown_states:
+            unknown = ", ".join(sorted(unknown_states))
+            raise ValueError(f"exclusion groups contain unknown states: {unknown}")
+        if any(not isinstance(group, str) or not group for group in declared_groups.values()):
+            raise ValueError("exclusion-group names must be non-empty strings")
+
+        groups = {state: declared_groups.get(state, cls._DEFAULT_STATE_GROUP) for state in states}
+        return states, groups
+
+    def __init__(self, state: str):
+        """Initialize a stateful system with its permanent state."""
+        states, _ = self.state_declaration()
+        if state not in states:
+            choices = ", ".join(states)
+            raise ValueError(
+                f"Stateful system '{self.__class__.__name__}' does not define state "
+                f"{state!r}; expected one of: {choices}"
+            )
+        super().__init__()
+        self._state = state
+
+    def load_config(
+        self,
+        model_class: type[BaseModel],
+        section: str,
+        sensitive_keys: list[str] | None = None,
+    ) -> None:
+        """Load the configuration subsection selected by this system's state."""
+        assert self.state is not None
+        self._load_config_section(
+            model_class,
+            f"{section}.{self.state}",
+            sensitive_keys,
+        )
+
+
 class MergedSystem(System):
     """
     Defines a measurement setup/system of multiple individual systems.
@@ -2030,49 +2232,161 @@ class MergedSystem(System):
         # filename, so this needs to come here
         super().__init__()
         self._filename: Path | None = None
-        self.__name__ = ",".join([subsys.__name__ for subsys in self.subsys])
-        seen_accessors: set[str] = set()
-        for subsys in self.subsys:
-            if subsys.accessor_name in seen_accessors:
-                raise ValueError(f"Duplicate subsystem accessor name '{subsys.accessor_name}'")
-            seen_accessors.add(subsys.accessor_name)
-        # merge devices, config_dicts, config and parameters
-        for subsys in self.subsys:
-            self.devs = {**self.devs, **subsys.devs}
-            self.system_config_params = {
-                **self.system_config_params,
-                **subsys.system_config_params,
-            }
-            if hasattr(subsys.config, "model_dump"):
-                subsys_config_dict = subsys.config.model_dump(
-                    by_alias=True, exclude=set(subsys._sensitive_keys)
-                )
-            else:
-                subsys_config_dict = subsys.config
-            self.config: dict[str, Any] = {**self.config, **subsys_config_dict}
-            self.sensitive_config = UntypedConfigModel(
-                **{**self.sensitive_config.model_dump(), **subsys.sensitive_config.model_dump()}
-            )
-            self.parameters += subsys.parameters
-            subsys.merged_system = self
+        self.__name__ = ",".join(
+            SystemReference(
+                source=subsys.source or subsys.__name__,
+                state=subsys.state,
+            ).to_token()
+            for subsys in self.subsys
+        )
+        self._parameter_owners: list[tuple[System, int] | None] = []
+        parameter_entries = self._merge_subsystems()
+        self._add_merged_parameters(parameter_entries)
+
         self._merge_dcdata()
         self._check_hdf5()
-        # sort parameters to have timeUTC as last column
-        self.parameters.sort()
-        # remove duplicated columns
-        self.parameters.reverse()
-        for param in self.parameters:
-            if self.parameters.count(param) > 1:
-                print(f"removing duplicated column {param.name} from merged system")  # noqa: T201
-                self.parameters.remove(param)
-        self.parameters.reverse()
 
         # add timeUTC if not in system yet
         if "timeUTC" not in self.columns:
             self.add_param("timeUTC", "s", default=None, setter=time.sleep, getter=time.time)
+            self._parameter_owners.append(None)
+
+    def _merge_subsystems(self) -> list[tuple[Parameter, System, int]]:
+        """Validate and merge all subsystem-owned values."""
+        parameter_entries: list[tuple[Parameter, System, int]] = []
+        seen_devices: dict[str, System] = {}
+        seen_accessors: set[str] = set()
+        selected_groups: dict[tuple[str, str, str], str] = {}
+        for subsystem in self.subsys:
+            self._validate_subsystem(subsystem, seen_accessors, selected_groups)
+            self._merge_subsystem_devices(subsystem, seen_devices)
+            self._merge_subsystem_config(subsystem)
+            parameter_entries.extend(
+                (parameter, subsystem, index)
+                for index, parameter in enumerate(subsystem.parameters)
+            )
+            subsystem.merged_system = self
+        self._validate_stateful_columns(parameter_entries)
+        return parameter_entries
+
+    @staticmethod
+    def _validate_subsystem(
+        subsystem: System,
+        seen_accessors: builtins.set[str],
+        selected_groups: dict[tuple[str, str, str], str],
+    ) -> None:
+        """Ensure the subsystem has a unique accessor and compatible state."""
+        if subsystem.accessor_name in seen_accessors:
+            raise ValueError(f"Duplicate subsystem accessor name '{subsystem.accessor_name}'")
+        seen_accessors.add(subsystem.accessor_name)
+        if not isinstance(subsystem, StatefulSystem):
+            return
+        assert subsystem.state is not None
+        _, groups = subsystem.state_declaration()
+        source = subsystem.source or subsystem.__class__.__module__
+        source_path = Path(source).expanduser()
+        identity = (
+            str(source_path.resolve()) if source_path.is_file() else subsystem.__class__.__module__
+        )
+        group = groups[subsystem.state]
+        group_key = (identity, subsystem.__class__.__qualname__, group)
+        if group_key in selected_groups:
+            other_state = selected_groups[group_key]
+            raise ValueError(
+                f"States '{other_state}' and '{subsystem.state}' from '{source}' "
+                f"share exclusion group '{group}'"
+            )
+        selected_groups[group_key] = subsystem.state
+
+    def _merge_subsystem_devices(self, subsystem: System, seen_devices: dict[str, System]) -> None:
+        """Add uniquely named devices and their configuration queries."""
+        for device_name, device in subsystem.devs.items():
+            if device_name in seen_devices:
+                other = seen_devices[device_name]
+                raise ValueError(
+                    f"Duplicate device name '{device_name}' in "
+                    f"'{other.accessor_name}' and '{subsystem.accessor_name}'"
+                )
+            seen_devices[device_name] = subsystem
+            self.devs[device_name] = device
+        for device_name, config_params in subsystem.system_config_params.items():
+            if device_name in self.system_config_params:
+                raise ValueError(f"Duplicate device configuration name '{device_name}'")
+            self.system_config_params[device_name] = config_params
+
+    def _merge_subsystem_config(self, subsystem: System) -> None:
+        """Merge public and sensitive configuration from one subsystem."""
+        config = subsystem.config
+        config_dict = (
+            config.model_dump(by_alias=True, exclude=set(subsystem._sensitive_keys))
+            if hasattr(config, "model_dump")
+            else config
+        )
+        self.config = {**self.config, **config_dict}
+        self.sensitive_config = UntypedConfigModel(
+            **{**self.sensitive_config.model_dump(), **subsystem.sensitive_config.model_dump()}
+        )
+
+    def _validate_stateful_columns(self, entries: list[tuple[Parameter, System, int]]) -> None:
+        """Reject ambiguous output columns when a stateful system is present."""
+        if not any(subsystem.stateful for subsystem in self.subsys):
+            return
+        seen_columns: dict[str, System] = {}
+        for parameter, subsystem, _ in entries:
+            names = (
+                parameter.name if isinstance(parameter.name, (list, tuple)) else [parameter.name]
+            )
+            for column_name in names:
+                if column_name in seen_columns:
+                    other = seen_columns[column_name]
+                    raise ValueError(
+                        f"Duplicate final column name '{column_name}' in "
+                        f"'{other.accessor_name}' and '{subsystem.accessor_name}'"
+                    )
+                seen_columns[column_name] = subsystem
+
+    def _add_merged_parameters(self, entries: list[tuple[Parameter, System, int]]) -> None:
+        """Append parameters in their legacy order while tracking owners."""
+        entries.sort(key=lambda entry: "timeUTC" in self._parameter_names(entry[0]))
+        for parameter, subsystem, local_index in entries:
+            if not subsystem.stateful and parameter in self.parameters:
+                print(f"removing duplicated column {parameter.name} from merged system")  # noqa: T201
+                continue
+            self.parameters.append(parameter)
+            self._parameter_owners.append((subsystem, local_index))
+
+    @staticmethod
+    def _parameter_names(parameter: Parameter) -> list[str]:
+        """Return all column names represented by one parameter."""
+        return parameter.name if isinstance(parameter.name, (list, tuple)) else [parameter.name]
 
     @classmethod
-    def from_files(cls, system_filenames: Iterable[str | Path]) -> Result["MergedSystem", str]:
+    def from_references(
+        cls,
+        references: Iterable[str | Path | SystemReference],
+    ) -> Result[MergedSystem, str]:
+        """Load, bind, and merge static or stateful system references."""
+        normalized: list[SystemReference] = []
+        try:
+            for value in references:
+                reference = SystemReference.from_value(value)
+                normalized.append(reference)
+        except (ValidationError, ValueError) as error:
+            return Error(str(error))
+
+        systems: list[System] = []
+        for reference in normalized:
+            system = System.from_file(reference)
+            if isinstance(system, Error):
+                return Error(system.error)
+            systems.append(system.value)
+        try:
+            return Success(cls(systems))
+        except ValueError as error:
+            return Error(str(error))
+
+    @classmethod
+    def from_files(cls, system_filenames: Iterable[str | Path]) -> Result[MergedSystem, str]:
         """
         Merge multiple systems and return a MergedSystem instance.
 
@@ -2091,13 +2405,7 @@ class MergedSystem(System):
             MergedSystem instance that contains the description of all
             subsystems or an error message.
         """
-        systems: list[System] = []
-        for filename in system_filenames:
-            system = System.from_file(Path(filename))
-            if isinstance(system, Error):
-                return Error(system.error)
-            systems.append(system.value)
-        return Success(cls(systems))
+        return cls.from_references(system_filenames)
 
     def __getattr__(self, attr: str) -> Any:
         """
@@ -2129,6 +2437,44 @@ class MergedSystem(System):
             if hasattr(subsys, attr):
                 return getattr(subsys, attr)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'")
+
+    def _parameter_index(self, value: int | str) -> int:
+        """Resolve a merged parameter name or index."""
+        if isinstance(value, str) and value in self.columns:
+            return self.columns.index(value)
+        if isinstance(value, int) and value < len(self.columns):
+            return value
+        raise ValueError(f"Invalid index or name: {value}")
+
+    def set_value(
+        self, i: int | str, values: float | list[float] | None
+    ) -> float | list[float] | None:
+        """Set a value through the subsystem that owns the merged parameter."""
+        index = self._parameter_index(i)
+        owner = self._parameter_owners[index]
+        if owner is None:
+            return super().set_value(index, values)
+        subsystem, local_index = owner
+        return subsystem.set_value(local_index, values)
+
+    def trigger_value(self, i: str | int) -> None:
+        """Trigger a value through the subsystem that owns the merged parameter."""
+        index = self._parameter_index(i)
+        owner = self._parameter_owners[index]
+        if owner is None:
+            super().trigger_value(index)
+            return
+        subsystem, local_index = owner
+        subsystem.trigger_value(local_index)
+
+    def read_value(self, i: str | int) -> Any:
+        """Read a value through the subsystem that owns the merged parameter."""
+        index = self._parameter_index(i)
+        owner = self._parameter_owners[index]
+        if owner is None:
+            return super().read_value(index)
+        subsystem, local_index = owner
+        return subsystem.read_value(local_index)
 
     @property
     def filename(self) -> Path | None:
@@ -2218,6 +2564,7 @@ class MergedSystem(System):
         """
         info = {
             "classes": [],
+            "selections": [],
             "devices": {},
             "parameters": {},
             "methods": {},
@@ -2226,36 +2573,44 @@ class MergedSystem(System):
             "warnings": [],
         }
         base_info = super().grab_information()
-        # Merge the categorized dictionaries
-        if "devices" in base_info:
-            info["devices"].update(base_info["devices"])
-        if "parameters" in base_info:
-            info["parameters"].update(base_info["parameters"])
-        if "methods" in base_info:
-            info["methods"].update(base_info["methods"])
-        # Skip config from base class to avoid duplication -
-        # we'll add individual subsystem configs below
-        for subsys in self.subsys:
-            info["classes"].append(subsys.__class__.__name__)
-            subsys._add_attributes_to_dict(info)
-
-            subsys_config = subsys.config
-            if subsys_config:
-                subsys_name = getattr(subsys, "__name__", str(subsys.__class__.__name__))
-                if hasattr(subsys_config, "model_dump"):
-                    info["config"][subsys_name] = {
-                        "value": subsys_config.model_dump(
-                            by_alias=True, exclude=set(subsys._sensitive_keys)
-                        ),
-                        "schema": subsys_config.__class__.model_json_schema(),
-                    }
-                else:
-                    info["config"][subsys_name] = subsys_config
-
-            if hasattr(subsys, "warnings") and subsys.warnings:
-                info["warnings"].extend(subsys.warnings)
+        self._merge_base_information(info, base_info)
+        for subsystem in self.subsys:
+            self._add_subsystem_information(info, subsystem)
 
         return info
+
+    @staticmethod
+    def _merge_base_information(info: dict[str, Any], base_info: dict[str, Any]) -> None:
+        """Copy merged devices, parameters, and methods from base metadata."""
+        for category in ("devices", "parameters", "methods"):
+            info[category].update(base_info.get(category, {}))
+
+    def _add_subsystem_information(self, info: dict[str, Any], subsystem: System) -> None:
+        """Add selection, attributes, configuration, and warnings for one subsystem."""
+        info["classes"].append(subsystem.accessor_name)
+        info["selections"].append(self._selection_information(subsystem).model_dump())
+        subsystem._add_attributes_to_dict(info, prefix=subsystem.accessor_name)
+        subsystem._add_config_to_information(info)
+        if subsystem.warnings:
+            info["warnings"].extend(subsystem.warnings)
+
+    @staticmethod
+    def _selection_information(subsystem: System) -> SystemSelectionInfo:
+        """Build the structured selection record for one subsystem."""
+        states: tuple[str, ...] = ()
+        groups: dict[str, str] = {}
+        if isinstance(subsystem, StatefulSystem):
+            states, groups = subsystem.state_declaration()
+        return SystemSelectionInfo(
+            source=subsystem.source or subsystem.__name__,
+            state=subsystem.state,
+            stateful=subsystem.stateful,
+            states=states,
+            state_exclusion_groups=groups,
+            class_name=subsystem.__class__.__name__,
+            accessor_name=subsystem.accessor_name,
+            config_section=subsystem.config_section,
+        )
 
     def set(self, *args, **kwargs):
         """
@@ -2275,6 +2630,24 @@ class MergedSystem(System):
         # remerge potentially changed dcdata
         self.opened = True
 
+    def query(self) -> dict[str, dict[str, Any]]:
+        """Query devices and keep stateful system configuration selection-scoped."""
+        if not any(subsystem.stateful for subsystem in self.subsys):
+            return super().query()
+
+        result: dict[str, Any] = {}
+        system_config: dict[str, Any] = {}
+        for subsystem in self.subsys:
+            subsystem_result = subsystem.query()
+            config = subsystem_result.pop("system_config", None)
+            result.update(subsystem_result)
+            if config is not None:
+                key = subsystem.config_section or subsystem.accessor_name
+                system_config[key] = config
+        if system_config:
+            result["system_config"] = system_config
+        return result
+
     def refresh_devs(self) -> None:
         """
         Refresh the merged device dictionary from all subsystems.
@@ -2285,7 +2658,10 @@ class MergedSystem(System):
         """
         self.devs = {}
         for subsys in self.subsys:
-            self.devs = {**self.devs, **subsys.devs}
+            for device_name, device in subsys.devs.items():
+                if device_name in self.devs:
+                    raise ValueError(f"Duplicate device name '{device_name}' after initialization")
+                self.devs[device_name] = device
 
     def reset(self, *args, **kwargs):
         """

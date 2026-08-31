@@ -281,6 +281,63 @@ class MainConfig(ConfigBaseModel):
 # --- merged system "air-gap" evaluations
 
 
+class SystemReference(BaseModel):
+    """Identify one static system or one selected state of a stateful system."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: str
+    state: str | None = None
+
+    @model_validator(mode="after")
+    def validate_reference(self):
+        """Validate the source and optional state."""
+        if not self.source.strip():
+            raise ValueError("System source must not be empty")
+        if "::" in self.source:
+            raise ValueError("'::' is reserved and cannot occur in a system source")
+        if self.state is not None and not self.state.isidentifier():
+            raise ValueError("System state must be a valid Python identifier")
+        return self
+
+    @classmethod
+    def from_value(cls, value: "SystemReference | str | Path") -> "SystemReference":
+        """Normalize a reference object, source path, or compact ``source::name`` token."""
+        if isinstance(value, cls):
+            return value
+        token = str(value).strip()
+        if "::" not in token:
+            return cls(source=token)
+        source, state = token.rsplit("::", 1)
+        return cls(source=source, state=state)
+
+    def to_token(self) -> str:
+        """Return the compact representation used in legacy-compatible headers."""
+        if self.state is None:
+            return self.source
+        return f"{self.source}::{self.state}"
+
+
+class SystemCapability(BaseModel):
+    """Describe a system class without constructing an instance."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str
+    stateful: bool = False
+    states: tuple[str, ...] = ()
+    state_exclusion_groups: dict[str, str] = Field(default_factory=dict)
+    class_name: str
+
+
+class SystemSelectionInfo(SystemCapability):
+    """Describe one selected and constructed system."""
+
+    state: str | None = None
+    accessor_name: str
+    config_section: str | None = None
+
+
 class SystemDevice(BaseModel):
     """Model for device entries."""
 
@@ -336,6 +393,7 @@ class SystemInfo(BaseModel):
     methods: dict[str, SystemMethod]
     variables: dict[str, SystemVariable]
     config: dict[str, Any]
+    selections: list[SystemSelectionInfo] = Field(default_factory=list)
     warnings: list[tuple[str, int]] = Field(default_factory=list)
     config_validation_errors: list[str] = Field(default_factory=list)
 
@@ -352,6 +410,19 @@ class SystemInfo(BaseModel):
                     SystemParameter(name=name, unit=unit, index=parameter.index, settable=settable)
                 )
         return result
+
+    @property
+    def configurable_sections(self) -> list[str]:
+        """Return config sections for selections without a system file on disk.
+
+        For each selection whose ``source`` does not exist as a file, the
+        ``config_section`` is returned if set, otherwise the ``source``.
+        """
+        return [
+            selection.config_section or selection.source
+            for selection in self.selections
+            if not Path(selection.source).exists()
+        ]
 
     @cached_property
     def stub(self) -> str:

@@ -282,20 +282,8 @@
         "complexity": 24
       },
       {
-        "name": "System::methods_and_variables",
-        "complexity": 25
-      },
-      {
         "name": "System::take_measurement_point",
         "complexity": 25
-      },
-      {
-        "name": "System::grab_information",
-        "complexity": 26
-      },
-      {
-        "name": "System::from_file",
-        "complexity": 38
       },
       {
         "name": "Parameter::__init__",
