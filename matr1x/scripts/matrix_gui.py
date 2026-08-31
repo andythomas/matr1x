@@ -111,15 +111,6 @@ if sys.platform == "win32":
         pass
 
 
-def _configurable_system_sections(system_info: SystemInfo) -> list[str]:
-    """Return resolved configuration sections for importable systems."""
-    return [
-        selection.config_section or selection.source
-        for selection in system_info.selections
-        if not Path(selection.source).exists()
-    ]
-
-
 class LabelWithSignal(QLabel):
     """A QLabel that emits a signal if the text changes."""
 
@@ -185,7 +176,7 @@ class QueueListWidget(QListWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Edit Device Config")
         editor = ConfigEditWidget(popup=True)
-        editor.set_systemfile(_configurable_system_sections(parameters.system_info))
+        editor.set_systemfile(parameters.system_info.configurable_sections)
         editor.set_full_system_list(parameters.systems)
         editor.set_system_info(parameters.system_info)
         editor.update_data()
@@ -745,7 +736,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
     def _update_config_editor(self, systemfile: list[str], system_info: SystemInfo | None) -> None:
         """Refresh the configuration editor when its systems have changed."""
         config_editor = self.ui.widgets.config_editor
-        configurable = _configurable_system_sections(system_info) if system_info else []
+        configurable = system_info.configurable_sections if system_info else []
         config_editor.set_systemfile(configurable)
         if systemfile == config_editor.full_system_list:
             return

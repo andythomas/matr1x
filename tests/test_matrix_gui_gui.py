@@ -143,4 +143,4 @@ def test_queue_config_uses_resolved_stateful_sections():
         ],
     )
 
-    assert matrix_gui._configurable_system_sections(system_info) == [section]
+    assert system_info.configurable_sections == [section]
