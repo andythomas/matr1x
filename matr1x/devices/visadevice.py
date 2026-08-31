@@ -26,6 +26,7 @@ import logging
 import threading
 import time
 from functools import wraps
+from typing import ClassVar
 
 import pyvisa
 from pyvisa import errors, resources
@@ -111,7 +112,7 @@ class VisaDevice:
         Please refer to the pyVISA documentation for more information.
     """
 
-    config_params = {}
+    config_params: ClassVar[dict[str, str]] = {}
     """
     Parameters provided in dictionary need to be one of:
 
@@ -175,7 +176,7 @@ class VisaDevice:
                 if isinstance(connection, resources.MessageBasedResource):
                     self.connection = connection
                 else:
-                    raise ValueError("Invalid resource type")
+                    raise TypeError("Invalid resource type")
                 if self.pts:
                     print(f"C: {self.name}")  # noqa: T201
                 logger.info("Connection to %s opened", self.name)

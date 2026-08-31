@@ -24,6 +24,7 @@ import logging
 import math
 import re
 import time
+from typing import ClassVar
 
 import pyvisa.errors
 from wrapt import synchronized
@@ -63,7 +64,7 @@ class CryogenicPS(VisaDevice):
         Tesla per Ampere conversion factor
     """
 
-    config_params = {"TeslePerAmpere": "tpa"}
+    config_params: ClassVar[dict[str, str]] = {"TeslePerAmpere": "tpa"}
     re_output = re.compile(r"OUTPUT: ([0-9\.\-]+) TESLA AT ([0-9\.\-]+) VOLTS")
     re_holding = re.compile(r"HOLDING ON [A-Z]+ AT ([0-9\.\-]+) TESLA")
     re_ramping = re.compile(r"RAMPING FROM [0-9\.\-]+ TO ([0-9\.\-]+) TESLA AT")
@@ -190,7 +191,7 @@ class CryogenicPS(VisaDevice):
             rate = self._as2tmin(float(up[up.find("RAMP RATE:") :].split()[2]))
             voltage = float(match[1])
             status = up[up.find("RAMP STATUS:") :].split()[2]
-        except Exception as e:
+        except (IndexError, TypeError, ValueError) as e:
             # log incident and retry
             logger.info("getStatus: '%s: %s'", type(e).__name__, e)
             logger.info("getStatus: retrying to analyze update (%d)", depth)
@@ -413,7 +414,7 @@ class CryogenicBipolarPS(VisaDevice):
         Tesla per Ampere conversion factor
     """
 
-    config_params = {"TeslePerAmpere": "tpa"}
+    config_params: ClassVar[dict[str, str]] = {"TeslePerAmpere": "tpa"}
     re_output = re.compile(r"OUTPUT: ([0-9\.\-]+) TESLA AT ([0-9\.\-]+) VOLTS")
     re_holding = re.compile(r"HOLDING ON [A-Z]+ AT ([0-9\.\-]+) TESLA")
     re_ramping = re.compile(r"RAMPING FROM [0-9\.\-]+ TO ([0-9\.\-]+) TESLA AT")
@@ -540,7 +541,7 @@ class CryogenicBipolarPS(VisaDevice):
             rate = self._as2tmin(float(up[up.find("RAMP RATE:") :].split()[2]))
             voltage = float(match[1])
             status = up[up.find("RAMP STATUS:") :].split()[2]
-        except Exception as e:
+        except (IndexError, TypeError, ValueError) as e:
             # log incident and retry
             logger.info("getStatus: '%s: %s'", type(e).__name__, e)
             logger.info("getStatus: retrying to analyze update (%d)", depth)

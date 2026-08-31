@@ -21,6 +21,7 @@ controllers.
 """
 
 import time
+from typing import ClassVar
 
 from matr1x.devices.visadevice import VisaDevice
 
@@ -72,7 +73,7 @@ class SMS(VisaDevice):
     to match your mechanical setup.
     """
 
-    _axes = {0: "X", 1: "Y", 2: "Z", 3: "R"}
+    _axes: ClassVar[dict[int, str]] = {0: "X", 1: "Y", 2: "Z", 3: "R"}
 
     def __init__(
         self,

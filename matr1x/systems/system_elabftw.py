@@ -196,7 +196,7 @@ class Elab(System):
                     to_comment=False,
                 )
             )
-            raise Exception(
+            raise ValueError(
                 "ElabFTW host or API key not found in the TOML config, make sure "
                 "host address and API key of the server are specified."
             )
@@ -218,7 +218,7 @@ class Elab(System):
             info_client = elabapi_python.InfoApi(self.api_client)
             info = info_client.get_info()
             self._warn_legacy_server_version(info)
-        except Exception:
+        except Exception as error:
             if self.config.require_server:
                 self.report(
                     Message(
@@ -227,7 +227,7 @@ class Elab(System):
                         to_comment=False,
                     )
                 )
-                raise Exception("ElabFTW connection could not be established")
+                raise ConnectionError("ElabFTW connection could not be established") from error
             else:
                 self.report(
                     Message(

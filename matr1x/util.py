@@ -981,11 +981,12 @@ def run_python_cmdline(
             timeout=timeout,
             input=stdin,
             creationflags=creationflags,
+            check=False,
         )
         if result.returncode != 0:
             return Error(result.stderr or result.stdout)
         return Success(result)
-    except Exception as e:
+    except (OSError, subprocess.TimeoutExpired) as e:
         return Error(e)
 
 

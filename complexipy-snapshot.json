@@ -22,8 +22,8 @@
     ]
   },
   {
-    "path": "matr1x/devices/keithley/keithley2182A.py",
-    "file_name": "keithley2182A.py",
+    "path": "matr1x/devices/keithley/keithley2182a.py",
+    "file_name": "keithley2182a.py",
     "functions": [
       {
         "name": "Keithley2182A::configure",
@@ -46,8 +46,8 @@
     ]
   },
   {
-    "path": "matr1x/devices/keithley/keithley2611A.py",
-    "file_name": "keithley2611A.py",
+    "path": "matr1x/devices/keithley/keithley2611a.py",
+    "file_name": "keithley2611a.py",
     "functions": [
       {
         "name": "Keithley2611A::configure",
@@ -170,10 +170,6 @@
       {
         "name": "SimplePlotWidget::_update_linesetting",
         "complexity": 20
-      },
-      {
-        "name": "get_matrix_icon",
-        "complexity": 28
       }
     ]
   },
@@ -220,16 +216,6 @@
       {
         "name": "main",
         "complexity": 28
-      }
-    ]
-  },
-  {
-    "path": "matr1x/scripts/matrix_gui.py",
-    "file_name": "matrix_gui.py",
-    "functions": [
-      {
-        "name": "MainWindow::_process_tabledata",
-        "complexity": 19
       }
     ]
   },
@@ -296,20 +282,8 @@
         "complexity": 24
       },
       {
-        "name": "System::methods_and_variables",
-        "complexity": 25
-      },
-      {
         "name": "System::take_measurement_point",
         "complexity": 25
-      },
-      {
-        "name": "System::grab_information",
-        "complexity": 26
-      },
-      {
-        "name": "System::from_file",
-        "complexity": 38
       },
       {
         "name": "Parameter::__init__",

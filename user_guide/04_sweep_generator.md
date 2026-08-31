@@ -31,6 +31,13 @@ The sweep can then be generated, previewed and manipulated until it suits the re
 We suggest to play with the interface to get familiar with the available options.
 Overall, it offers several possibilities to generate and customize a sweep used for device control.
 
+Stateful systems expose a predefined state selector directly in each system-list
+row. By default, only one state of a system can be selected. A system may declare
+independent exclusion groups when different states represent separate devices;
+in that case it can be added once for each group. Selecting a state occupied by
+another row swaps the two selections atomically. The saved reference uses the
+form `system_import_name::<state>`.
+
 1. Basic sweeps (similar to numpy linspace)
 2. Appending several basic sweeps.
 3. Up and down modifier 

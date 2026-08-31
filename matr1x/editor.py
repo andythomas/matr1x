@@ -33,7 +33,7 @@ import time
 from dataclasses import dataclass
 from importlib import resources
 from queue import Empty, Queue
-from typing import Any, Literal, cast
+from typing import Any, ClassVar, Literal, cast
 
 import monaco_assets
 from pydantic import BaseModel, Field, ValidationError
@@ -337,7 +337,7 @@ class LSPClient(QObject, LoggerMixin):
             while not self.stop_event.is_set():
                 if not self.process.stderr.read(1024):
                     break
-        except Exception:
+        except (OSError, ValueError):
             self.logger.warning("LSP008: Exception draining stderr.")
 
     def _message_reader(self) -> None:
@@ -380,7 +380,7 @@ class LSPClient(QObject, LoggerMixin):
                     content_length = int(line.split(":")[1].strip())
                 elif line == "":  # Empty line separates headers from content
                     break
-            except Exception:
+            except (OSError, ValueError):
                 self.logger.warning("LSP001: Exception reading message.")
                 return None
         if content_length <= 0:
@@ -391,7 +391,7 @@ class LSPClient(QObject, LoggerMixin):
                 return None
             result = content_bytes.decode()
             return result
-        except Exception:
+        except (OSError, ValueError):
             self.logger.warning("LSP002: Exception reading message content.")
             return None
 
@@ -859,7 +859,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
     MIN_ZOOM = 0.1
     MAX_ZOOM = 2.0
 
-    THEMES = {
+    THEMES: ClassVar[dict[str, dict[str, str]]] = {
         "Standard": {"Light": "vs", "Dark": "vs-dark"},
         "High contrast": {"Light high contrast": "hc-light", "Dark high contrast": "hc-black"},
     }

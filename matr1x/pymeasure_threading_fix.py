@@ -188,8 +188,8 @@ def _patch_pymeasure_instrument_methods():
                     return synchronized_method
 
                 # Replace the method with the synchronized version
-                synchronized_method = create_synchronized_method(original_method, method_name)
-                setattr(Instrument, method_name, synchronized_method)
+                wrapped_method = create_synchronized_method(original_method, method_name)
+                setattr(Instrument, method_name, wrapped_method)
 
 
 def _create_thread_safe_property_creator(original_method, method_name):

@@ -15,16 +15,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module with device drivers for Oxford Mercury devices."""
 
+import copy
 import logging
 import math
 import re
-from typing import cast
+from typing import ClassVar, TypeAlias, cast
 
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)
+
+WorkingValue: TypeAlias = float | bool | int
+WorkingDict: TypeAlias = dict[str, tuple[list[WorkingValue], str, str, bool]]
+QueryDict: TypeAlias = dict[str, str | int]
 
 
 class MercurySingleAxisIPS(VisaDevice):
@@ -48,9 +53,9 @@ class MercurySingleAxisIPS(VisaDevice):
     can be found in the workingDict.
     """
 
-    idIPS = {"*IDN?": ""}
+    _ID_IPS_TEMPLATE: ClassVar[QueryDict] = {"*IDN?": ""}
     addressSys = "SYS"
-    sysDict = {
+    _SYS_DICT_TEMPLATE: ClassVar[QueryDict] = {
         ":TIME": "",
         ":DATE": "",
         ":MAN:HVER": "",
@@ -64,7 +69,7 @@ class MercurySingleAxisIPS(VisaDevice):
         ":CAT": "",
     }
     addressX = "DEV:GRPZ:PSU"
-    confDictX = {
+    _CONF_DICT_X_TEMPLATE: ClassVar[QueryDict] = {
         ":NICK": "",
         ":BIPL": "",
         ":OCNF": "",
@@ -77,9 +82,14 @@ class MercurySingleAxisIPS(VisaDevice):
         ":VTRT": "",
         ":ACTN": "",
     }
-    dataDictX = {":FLD": 0, ":RFLD": 0, ":FSET": 0, ":RFST": 0}
+    _DATA_DICT_X_TEMPLATE: ClassVar[QueryDict] = {
+        ":FLD": 0,
+        ":RFLD": 0,
+        ":FSET": 0,
+        ":RFST": 0,
+    }
     addressLevel = "DEV:DB3.L1:LVL"
-    confDictLevel = {
+    _CONF_DICT_LEVEL_TEMPLATE: ClassVar[QueryDict] = {
         ":MAN:HVER": "",
         ":MAN:FVER": "",
         ":MAN:SERL": "",
@@ -96,9 +106,13 @@ class MercurySingleAxisIPS(VisaDevice):
         ":NIT:FREQ:FULL": "",
         ":NIT:PPS": "",
     }
-    dataDictLevel = {":HEL:LEV": 0, ":NIT:LEV": 0}
-    addressDict = {"sys": addressSys, "z": addressX, "level": addressLevel}
-    workingDict = {
+    _DATA_DICT_LEVEL_TEMPLATE: ClassVar[QueryDict] = {":HEL:LEV": 0, ":NIT:LEV": 0}
+    addressDict: ClassVar[dict[str, str]] = {
+        "sys": addressSys,
+        "z": addressX,
+        "level": addressLevel,
+    }
+    _WORKING_DICT_TEMPLATE: ClassVar[WorkingDict] = {
         "zActn": ([0], ":ACTN", addressX, False),
         "zField": ([0], ":FLD", addressX, True),
         "zRate": ([0], ":RFLD", addressX, True),
@@ -123,12 +137,23 @@ class MercurySingleAxisIPS(VisaDevice):
         maxrate : float, optional
             Maximum allowed rate, by default 0.5
         """
+        self._initialize_state()
         super().__init__(interface, write_termination="\n", read_termination="\n")
         self.maxfield = maxfield
         self.maxrate = maxrate
         # determine status now
         self.queryAllDicts()
         self.logAllDicts()
+
+    def _initialize_state(self) -> None:
+        """Create response storage that is private to this device instance."""
+        self.idIPS = self._ID_IPS_TEMPLATE.copy()
+        self.sysDict = self._SYS_DICT_TEMPLATE.copy()
+        self.confDictX = self._CONF_DICT_X_TEMPLATE.copy()
+        self.dataDictX = self._DATA_DICT_X_TEMPLATE.copy()
+        self.confDictLevel = self._CONF_DICT_LEVEL_TEMPLATE.copy()
+        self.dataDictLevel = self._DATA_DICT_LEVEL_TEMPLATE.copy()
+        self.workingDict: WorkingDict = copy.deepcopy(self._WORKING_DICT_TEMPLATE)
 
     # high level commands
     @synchronized
@@ -222,7 +247,7 @@ class MercurySingleAxisIPS(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )  # ty: ignore[invalid-assignment]
+                )
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
                 if dummy == "ON":
@@ -232,7 +257,7 @@ class MercurySingleAxisIPS(VisaDevice):
                 else:
                     # Must be action
                     try:
-                        self.workingDict[key][0][0] = status.index(dummy)  # ty: ignore[invalid-assignment]
+                        self.workingDict[key][0][0] = status.index(dummy)
                     except ValueError:
                         # what happened?
                         logger.info(
@@ -531,9 +556,9 @@ class MercuryIPS(VisaDevice):
     can be found in the workingDict.
     """
 
-    idIPS = {"*IDN?": ""}
+    _ID_IPS_TEMPLATE: ClassVar[QueryDict] = {"*IDN?": ""}
     addressSys = "SYS"
-    sysDict = {
+    _SYS_DICT_TEMPLATE: ClassVar[QueryDict] = {
         ":TIME": "",
         ":DATE": "",
         ":MAN:HVER": "",
@@ -547,7 +572,7 @@ class MercuryIPS(VisaDevice):
         ":CAT": "",
     }
     addressX = "DEV:GRPX:PSU"
-    confDictX = {
+    _CONF_DICT_X_TEMPLATE: ClassVar[QueryDict] = {
         ":NICK": "",
         ":BIPL": "",
         ":OCNF": "",
@@ -560,9 +585,14 @@ class MercuryIPS(VisaDevice):
         ":VTRT": "",
         ":ACTN": "",
     }
-    dataDictX = {":FLD": 0, ":RFLD": 0, ":FSET": 0, ":RFST": 0}
+    _DATA_DICT_X_TEMPLATE: ClassVar[QueryDict] = {
+        ":FLD": 0,
+        ":RFLD": 0,
+        ":FSET": 0,
+        ":RFST": 0,
+    }
     addressY = "DEV:GRPY:PSU"
-    confDictY = {
+    _CONF_DICT_Y_TEMPLATE: ClassVar[QueryDict] = {
         ":NICK": "",
         ":BIPL": "",
         ":OCNF": "",
@@ -575,9 +605,14 @@ class MercuryIPS(VisaDevice):
         ":VTRT": "",
         ":ACTN": "",
     }
-    dataDictY = {":FLD": 0, ":RFLD": 0, ":FSET": 0, ":RFST": 0}
+    _DATA_DICT_Y_TEMPLATE: ClassVar[QueryDict] = {
+        ":FLD": 0,
+        ":RFLD": 0,
+        ":FSET": 0,
+        ":RFST": 0,
+    }
     addressZ = "DEV:GRPZ:PSU"
-    confDictZ = {
+    _CONF_DICT_Z_TEMPLATE: ClassVar[QueryDict] = {
         ":NICK": "",
         ":BIPL": "",
         ":OCNF": "",
@@ -590,10 +625,15 @@ class MercuryIPS(VisaDevice):
         ":VTRT": "",
         ":ACTN": "",
     }
-    dataDictZ = {":FLD": 0, ":RFLD": 0, ":FSET": 0, ":RFST": 0}
+    _DATA_DICT_Z_TEMPLATE: ClassVar[QueryDict] = {
+        ":FLD": 0,
+        ":RFLD": 0,
+        ":FSET": 0,
+        ":RFST": 0,
+    }
     # requires manual interaction!
     addressLevel = "DEV:DB5.L1:LVL"
-    confDictLevel = {
+    _CONF_DICT_LEVEL_TEMPLATE: ClassVar[QueryDict] = {
         ":MAN:HVER": "",
         ":MAN:FVER": "",
         ":MAN:SERL": "",
@@ -610,15 +650,15 @@ class MercuryIPS(VisaDevice):
         ":NIT:FREQ:FULL": "",
         ":NIT:PPS": "",
     }
-    dataDictLevel = {":HEL:LEV": 0, ":NIT:LEV": 0}
-    addressDict = {
+    _DATA_DICT_LEVEL_TEMPLATE: ClassVar[QueryDict] = {":HEL:LEV": 0, ":NIT:LEV": 0}
+    addressDict: ClassVar[dict[str, str]] = {
         "sys": addressSys,
         "level": addressLevel,
         "x": addressX,
         "y": addressY,
         "z": addressZ,
     }
-    workingDict = {
+    _WORKING_DICT_TEMPLATE: ClassVar[WorkingDict] = {
         "LHe": ([0], ":HEL:LEV", addressLevel, True),
         "LN2": ([0], ":NIT:LEV", addressLevel, True),
         "Slow": ([True], ":HEL:PULS:SLOW", addressLevel, False),
@@ -650,10 +690,25 @@ class MercuryIPS(VisaDevice):
         **kwargs : dict
             Additional arguments passed to the parent class
         """
+        self._initialize_state()
         super().__init__(interface, write_termination="\n", read_termination="\n", **kwargs)
         # determine status now
         self.queryAllDicts()
         self.logAllDicts()
+
+    def _initialize_state(self) -> None:
+        """Create response storage that is private to this device instance."""
+        self.idIPS = self._ID_IPS_TEMPLATE.copy()
+        self.sysDict = self._SYS_DICT_TEMPLATE.copy()
+        self.confDictX = self._CONF_DICT_X_TEMPLATE.copy()
+        self.dataDictX = self._DATA_DICT_X_TEMPLATE.copy()
+        self.confDictY = self._CONF_DICT_Y_TEMPLATE.copy()
+        self.dataDictY = self._DATA_DICT_Y_TEMPLATE.copy()
+        self.confDictZ = self._CONF_DICT_Z_TEMPLATE.copy()
+        self.dataDictZ = self._DATA_DICT_Z_TEMPLATE.copy()
+        self.confDictLevel = self._CONF_DICT_LEVEL_TEMPLATE.copy()
+        self.dataDictLevel = self._DATA_DICT_LEVEL_TEMPLATE.copy()
+        self.workingDict: WorkingDict = copy.deepcopy(self._WORKING_DICT_TEMPLATE)
 
     # high level commands
     @synchronized
@@ -744,7 +799,7 @@ class MercuryIPS(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )  # ty: ignore[invalid-assignment]
+                )
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
                 if dummy == "ON":
@@ -754,7 +809,7 @@ class MercuryIPS(VisaDevice):
                 else:
                     # Must be action
                     try:
-                        self.workingDict[key][0][0] = status.index(dummy)  # ty: ignore[invalid-assignment]
+                        self.workingDict[key][0][0] = status.index(dummy)
                     except ValueError:
                         # what happened?
                         logger.info(
@@ -1132,9 +1187,9 @@ class MercuryITC(VisaDevice):
     ITC (values)
     """
 
-    idITC = {"*IDN?": ""}
+    _ID_ITC_TEMPLATE: ClassVar[QueryDict] = {"*IDN?": ""}
     addressSys = "SYS"
-    sysDict = {
+    _SYS_DICT_TEMPLATE: ClassVar[QueryDict] = {
         ":TIME": "",
         ":DATE": "",
         ":MAN:HVER": "",
@@ -1149,7 +1204,7 @@ class MercuryITC(VisaDevice):
     }
     # user interaction required
     addressTSens = "DEV:MB1.T1:TEMP"
-    confDictTSens = {
+    _CONF_DICT_TSENS_TEMPLATE: ClassVar[QueryDict] = {
         ":NICK": "",
         ":MAN:HVER": "",
         ":MAN:FVER": "",
@@ -1165,10 +1220,10 @@ class MercuryITC(VisaDevice):
         ":CAL:COLDL": "",
         ":CSMP": "",
     }
-    dataDictTSens = {":TEMP": 0}
+    _DATA_DICT_TSENS_TEMPLATE: ClassVar[QueryDict] = {":TEMP": 0}
     # user interaction required
     addressTSensLoop = "DEV:MB1.T1:TEMP:LOOP"
-    confDictTSensLoop = {
+    _CONF_DICT_TSENS_LOOP_TEMPLATE: ClassVar[QueryDict] = {
         ":HTR:UID": "",
         ":AUX:UID": "",
         ":P": "",
@@ -1189,7 +1244,7 @@ class MercuryITC(VisaDevice):
     }
     # requires manual interaction!
     addressHeater = "DEV:MB0.H1:HTR"
-    confDictHeater = {
+    _CONF_DICT_HEATER_TEMPLATE: ClassVar[QueryDict] = {
         ":MAN:HVER": "",
         ":MAN:FVER": "",
         ":MAN:SERL": "",
@@ -1199,7 +1254,7 @@ class MercuryITC(VisaDevice):
         ":RES": "",
         ":PMAX": "",
     }
-    workingDict = {
+    _WORKING_DICT_TEMPLATE: ClassVar[WorkingDict] = {
         "Heater": ([0], ":HSET", addressTSensLoop, False),
         "FSet": ([0], ":FSET", addressTSensLoop, False),
         "AHTR": ([0], ":ENAB", addressTSensLoop, False),
@@ -1212,9 +1267,20 @@ class MercuryITC(VisaDevice):
     }
 
     def __init__(self, interface, **kwargs):
+        self._initialize_state()
         super().__init__(interface, write_termination="\n", read_termination="\n", **kwargs)
         self.queryAllDicts()
         self.logAllDicts()
+
+    def _initialize_state(self) -> None:
+        """Create response storage that is private to this device instance."""
+        self.idITC = self._ID_ITC_TEMPLATE.copy()
+        self.sysDict = self._SYS_DICT_TEMPLATE.copy()
+        self.confDictTSens = self._CONF_DICT_TSENS_TEMPLATE.copy()
+        self.dataDictTSens = self._DATA_DICT_TSENS_TEMPLATE.copy()
+        self.confDictTSensLoop = self._CONF_DICT_TSENS_LOOP_TEMPLATE.copy()
+        self.confDictHeater = self._CONF_DICT_HEATER_TEMPLATE.copy()
+        self.workingDict: WorkingDict = copy.deepcopy(self._WORKING_DICT_TEMPLATE)
 
     # high level commands
     def query_merc(self, command, address="", signal=False):
@@ -1330,7 +1396,7 @@ class MercuryITC(VisaDevice):
             try:
                 self.workingDict[key][0][0] = float(
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
-                )  # ty: ignore[invalid-assignment]
+                )
             except (TypeError, IndexError):
                 # If float conversion fails, try bool conversion
                 if dummy == "ON":

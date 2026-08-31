@@ -15,6 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for interfacing with Oxford Instruments ITC503 temperature controller."""
 
+from typing import ClassVar
+
 from pyvisa import constants
 from wrapt import synchronized
 
@@ -24,7 +26,7 @@ from .isobus import IsobusDevice
 class ITC503(IsobusDevice):
     """Oxford Instruments ITC503 temperature controller interface."""
 
-    config_params = {"AutoHeater": "getAutoHeater", "PID": "getPID"}
+    config_params: ClassVar[dict[str, str]] = {"AutoHeater": "getAutoHeater", "PID": "getPID"}
 
     def __init__(self, interface, isobus_addr=None, **kwargs):
         """

@@ -23,11 +23,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import (
-    QDateTime,
     QPoint,
     Qt,
     QTimer,
-    QTimeZone,
     Signal,
 )
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
@@ -45,7 +43,6 @@ from PySide6.QtWidgets import (
     QMenuBar,
     QMessageBox,
     QProgressBar,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -60,7 +57,6 @@ from matr1x.gui_util import (
     LoggingWindow,
     LogWindowMixin,
     MApplication,
-    ReadOnlyTable,
     check_config,
     create_matr1x_quit_action,
     create_matrix_settings_action,
@@ -87,13 +83,15 @@ from matr1x.post_install import (
 )
 from matr1x.scripts import sweep_generator
 from matr1x.scripts.shared_classes import (
+    ContentDockWidget,
     MeasurementItem,
+    MeasurementTable,
     MeasurementThread,
     MeasurementUI,
     MetaDataDialog,
-    MetadataDockWidget,
     MMainWindow,
     MToolBar,
+    Notifier,
     SaferQSettings,
 )
 from matr1x.system import MergedSystem
@@ -170,11 +168,14 @@ class QueueListWidget(QListWidget):
     def change_config(self, row: int) -> None:
         """Change the config of the item."""
         parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        if parameters.system_info is None:
+            raise InternalInvariantError("Queued measurement should include system information.")
         dialog = QDialog(self)
         dialog.setWindowTitle("Edit Device Config")
         editor = ConfigEditWidget(popup=True)
-        editor.set_systemfile(self.parameters(row).systems)
-        editor.set_system_info(self.parameters(row).system_info)
+        editor.set_systemfile(parameters.system_info.configurable_sections)
+        editor.set_full_system_list(parameters.systems)
+        editor.set_system_info(parameters.system_info)
         editor.update_data()
         editor.apply_config_dict(parameters.config)
         layout = QVBoxLayout(dialog)
@@ -309,18 +310,19 @@ class WidgetGroup:
 
     meas_list: QueueListWidget
     config_editor: ConfigEditWidget
-    dockable_metadata: MetadataDockWidget
+    dockable_metadata: ContentDockWidget
     meta_view: MetaDataDialog
     input_file: LabelWithSignal
     current_file: QLabel
     progress: QLabel
     progressbar: QProgressBar
-    table: ReadOnlyTable
+    table: MeasurementTable
     central_widget: QWidget
     current_measurement: QLineEdit
     about_box: AboutBox
     measurement_thread: MeasurementThread
     measurement_ui: MeasurementUI
+    notifier: Notifier
 
 
 class UIBuilder:
@@ -338,14 +340,18 @@ class UIBuilder:
         meas_list = QueueListWidget()
         input_file = LabelWithSignal()
         current_file = QLabel()
-        dockable_metadata = MetadataDockWidget()
-        table = ReadOnlyTable()
-        table.setColumnCount(4)
-        table.setRowCount(1)
-        table.setHorizontalHeaderLabels(["Parameter", "Set value", "Readout value", "unit"])
+        meta_view = MetaDataDialog()
+        dockable_metadata = ContentDockWidget(
+            "Metadata",
+            "dockable_metadata",
+            "SP_FileDialogListView",
+            "Ctrl+2",
+            meta_view,
+            areas=(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea),
+        )
+        table = MeasurementTable()
         width = (table.verticalHeader().width() + table.horizontalHeader().length()) * 1.04
         table.setFixedWidth(int(width))
-        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         progress = QLabel("Measurement idle.")
         progressbar = QProgressBar()
         central_widget = QWidget()
@@ -355,7 +361,7 @@ class UIBuilder:
             meas_list=meas_list,
             config_editor=ConfigEditWidget(),
             dockable_metadata=dockable_metadata,
-            meta_view=dockable_metadata.meta_view,
+            meta_view=meta_view,
             input_file=input_file,
             current_file=current_file,
             progressbar=progressbar,
@@ -368,6 +374,7 @@ class UIBuilder:
             ),
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
+            notifier=Notifier(logger),
         )
 
     def _create_gui(self) -> None:
@@ -386,6 +393,7 @@ class UIBuilder:
         measurements_container = QWidget()
         measurements_container.setLayout(queue_n_measurement)
         central_layout = QVBoxLayout()
+        central_layout.addWidget(self.widgets.notifier)
         input_line = QHBoxLayout()
         input_line.addWidget(QLabel("Input: "))
         input_line.addWidget(self.widgets.input_file)
@@ -492,7 +500,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor,
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         self.sg: QMainWindow | None = None
         self.running = False
         self.sys_meta_data = {}
@@ -566,7 +574,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             if data.remaining is not None:
                 self.ui.widgets.progress.setText(str(data))
         elif isinstance(data, (SetValues, MeasuredValues, Header)):
-            self._process_tabledata(env)
+            self.ui.widgets.table.apply(data)
         elif isinstance(data, ErrorMessage):
             logger.error(data.error)
 
@@ -577,62 +585,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 self.ui.actions.start.setEnabled(True)
             else:
                 self.ui.actions.start.setEnabled(False)
-
-    def _process_tabledata(self, env: Envelope) -> None:
-        """
-        Show the data in the table view.
-
-        Parameters
-        ----------
-        env: Envelope
-            The table data received from the measurement thread.
-        """
-        data = env.payload
-        if isinstance(data, Header):
-            count = len(data.columns)
-            self.ui.widgets.table.setRowCount(count)
-            for index, item in enumerate(data.columns):
-                column = QTableWidgetItem(str(item))
-                unit = QTableWidgetItem(str(data.units[index]))
-                column.setTextAlignment(
-                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
-                )
-                unit.setTextAlignment(
-                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
-                )
-                self.ui.widgets.table.setItem(index, 0, column)
-                self.ui.widgets.table.setItem(index, 3, unit)
-        elif isinstance(data, SetValues):
-            for index, item in enumerate(data.set_values):
-                if item is not None:
-                    value = QTableWidgetItem(str(item))
-                else:
-                    value = QTableWidgetItem("")
-                value.setTextAlignment(
-                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
-                )
-                self.ui.widgets.table.setItem(index, 1, value)
-        elif isinstance(data, MeasuredValues):
-            for index, item in enumerate(data.measured_values):
-                if item is not None:
-                    value = QTableWidgetItem(str(item))
-                else:
-                    value = QTableWidgetItem("")
-                value.setTextAlignment(
-                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
-                )
-                self.ui.widgets.table.setItem(index, 2, value)
-            try:
-                utc = QDateTime.fromSecsSinceEpoch(int(item), QTimeZone.utc())
-                local = utc.toLocalTime()
-                value = QTableWidgetItem(local.toString("HH:mm:ss"))
-                value.setTextAlignment(
-                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
-                )
-                value.setToolTip("Converted to local time.")
-                self.ui.widgets.table.setItem(index, 2, value)
-            except Exception:
-                logger.debug("Could not convert timestamp to local time.")
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Close app properly."""
@@ -729,7 +681,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
     def _update_config_editor(self, systemfile: list[str], system_info: SystemInfo | None) -> None:
         """Refresh the configuration editor when its systems have changed."""
         config_editor = self.ui.widgets.config_editor
-        configurable = [system for system in systemfile if not Path(system.strip()).exists()]
+        configurable = system_info.configurable_sections if system_info else []
         config_editor.set_systemfile(configurable)
         if systemfile == config_editor.full_system_list:
             return
@@ -819,9 +771,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         """
         self.ui.widgets.progressbar.setValue(0)
         self.ui.widgets.progress.setText("Measurement idle.")
-        self.ui.widgets.table.setRowCount(1)
-        for i in range(self.ui.widgets.table.columnCount()):
-            self.ui.widgets.table.setItem(0, i, QTableWidgetItem(""))
+        self.ui.widgets.table.reset()
         self.ui.widgets.current_measurement.setText("")
         self.ui.actions.pause.setEnabled(False)
         self.ui.actions.pause.setChecked(False)

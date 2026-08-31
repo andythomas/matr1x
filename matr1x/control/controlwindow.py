@@ -72,7 +72,7 @@ from matr1x.gui_util import (
     get_matrix_icon,
     open_matrix_toml,
 )
-from matr1x.scripts.shared_classes import SaferQSettings
+from matr1x.scripts.shared_classes import Notifier, SaferQSettings
 from matr1x.util import Command, Get, StreamToLogger
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,7 @@ class WidgetGroup:
     recorder_file_label: QLabel
     recorder_led: QLabel
     central_widget: QWidget
+    notifier: Notifier
 
 
 class UIBuilder:
@@ -163,6 +164,7 @@ class UIBuilder:
             recorder_file_label=label,
             recorder_led=led,
             central_widget=central_widget,
+            notifier=Notifier(logger),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -255,6 +257,7 @@ class UIBuilder:
         line.addWidget(self.widgets.recorder_file_label)
         line.addStretch()
         layout.addLayout(line)
+        layout.addWidget(self.widgets.notifier)
         self.widgets.central_widget.setLayout(layout)
 
 
@@ -457,7 +460,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         self.create_connections()
         self.statusloggingUI()
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         self._restore_gui_settings()
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
         sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
@@ -746,9 +749,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.guidict_view[i].setCheckable(True)
             self.guidict_view[i].setChecked(True)
             self.guidict_view[i].triggered.connect(
-                lambda checked=self.guidict_view[i].isChecked(), index=i: self.toggle_visible(
-                    checked, index
-                )
+                lambda checked, index=i: self.toggle_visible(checked, index)
             )
             self.ui.menus.view.addAction(self.guidict_view[i])
 

@@ -392,11 +392,11 @@ class ExecThread(threading.Thread):
                 if initial_sleep_time > silent:
                     self.report(
                         Message(
-                            f"{int(sleep_time)} seconds remaining",
+                            f"Waiting: {int(sleep_time)} seconds remaining",
                             end="",
                             to_comment=False,
                             to_logfile=False,
-                            modifier=Modifier.DELETE_CURRENT_LINE,
+                            modifier=Modifier.TO_PROGRESS_LABEL,
                         )
                     )
                 time.sleep(min(1, sleep_time))  # Sleep in chunks
@@ -406,7 +406,10 @@ class ExecThread(threading.Thread):
                 break
 
         if initial_sleep_time > silent:
-            self.report(Message("Waiting done", modifier=Modifier.DELETE_CURRENT_LINE))
+            waited = int(round(time.time() - start_time))
+            text = f"Waited {waited} seconds"
+            self.report(Message(text))
+            self.report(Message(text, modifier=Modifier.TO_PROGRESS_LABEL))
 
     def check_for_interrupt_and_pause(self) -> bool:
         """

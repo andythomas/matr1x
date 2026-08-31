@@ -178,8 +178,10 @@ def start_control_dummy():
     try:
         gui_proc.send_signal(signal.SIGTERM)
         gui_proc.wait(timeout=5)
-    except Exception:
+    except subprocess.TimeoutExpired:
         gui_proc.kill()
+    except ProcessLookupError:
+        pass
 
 
 def test_environment_variable_is_set():
@@ -335,7 +337,7 @@ def test_matrix_script_control_dummy(start_control_dummy):
             "import matr1x.util as mu\n"
             f"mu.matrix_script_process({tf.name!r}, {{}}, '', None, ['system_dummygui'])"
         )
-        ret = subprocess.run([sys.executable, "-c", script], cwd=path)
+        ret = subprocess.run([sys.executable, "-c", script], cwd=path, check=False)
         assert ret.returncode == 0
         files = list(path.glob(f"epische_messdatei{output_extension}"))
         assert len(files) >= 1

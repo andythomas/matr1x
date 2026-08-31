@@ -17,8 +17,8 @@
 
 from .keithley24xx import Keithley2400, Keithley2450
 from .keithley2000 import Keithley2000
-from .keithley2182A import Keithley2182A
-from .keithley2611A import Keithley2611A
+from .keithley2182a import Keithley2182A
+from .keithley2611a import Keithley2611A
 from .keithley2701 import Keithley2701
 from .keithley6221 import Keithley6221
-from .keithleyDMM6500 import KeithleyDMM6500
+from .keithley_dmm6500 import KeithleyDMM6500

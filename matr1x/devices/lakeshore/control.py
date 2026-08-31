@@ -36,6 +36,8 @@ from PySide6.QtWidgets import (
 
 from matr1x import usersfolder
 
+_DEFAULT_PARENT_INDEX = QModelIndex()
+
 
 class SelectLakeshoreInput(QDialog):
     """
@@ -142,7 +144,7 @@ class TableModel(QAbstractTableModel):
             return str(value)
         return None
 
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex = _DEFAULT_PARENT_INDEX) -> int:
         """
         Return the number of rows in the model.
 
@@ -158,7 +160,9 @@ class TableModel(QAbstractTableModel):
         """
         return self._data.shape[0]
 
-    def columnCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+    def columnCount(
+        self, parent: QModelIndex | QPersistentModelIndex = _DEFAULT_PARENT_INDEX
+    ) -> int:
         """
         Return the number of columns in the model.
 

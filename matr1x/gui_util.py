@@ -47,6 +47,7 @@ from types import ModuleType
 from typing import (
     TYPE_CHECKING,
     Any,
+    ClassVar,
     Literal,
     ParamSpec,
     Protocol,
@@ -148,7 +149,12 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
-from matr1x.models import MainConfig, SystemInfo
+from matr1x.models import (
+    MainConfig,
+    SystemCapability,
+    SystemInfo,
+    SystemReference,
+)
 from matr1x.visa_helpers import (
     VisaResourceRequirements,
     get_visa_resource_manager,
@@ -160,11 +166,13 @@ from .eval import delta
 from .util import resolve_config_path
 
 if TYPE_CHECKING:
-    from matr1x.scripts.shared_classes import SaferQSettings
+    from matr1x.scripts.shared_classes import Notifier, SaferQSettings
 
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
+_DEFAULT_PARENT_INDEX = QModelIndex()
 
 
 logger = logging.getLogger(__name__)
@@ -1260,7 +1268,12 @@ class MetaViewerWidget(QDockWidget):
                     return "Value"
             return None
 
-        def index(self, row: int, column: int, parent=QModelIndex()) -> QModelIndex:
+        def index(
+            self,
+            row: int,
+            column: int,
+            parent: QModelIndex | QPersistentModelIndex = _DEFAULT_PARENT_INDEX,
+        ) -> QModelIndex:
             """
             Create and return a model index for the given row, column, and parent.
 
@@ -1332,7 +1345,9 @@ class MetaViewerWidget(QDockWidget):
             self.root_item = MetaViewerWidget.TreeItem("Root", data, types)
             self.endResetModel()
 
-        def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+        def rowCount(
+            self, parent: QModelIndex | QPersistentModelIndex = _DEFAULT_PARENT_INDEX
+        ) -> int:
             """
             Return the number of rows under the given parent.
 
@@ -1352,7 +1367,7 @@ class MetaViewerWidget(QDockWidget):
             return parent_item.child_count()
 
         def columnCount(
-            self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()
+            self, parent: QModelIndex | QPersistentModelIndex = _DEFAULT_PARENT_INDEX
         ) -> Literal[2]:
             """
             Return the number of columns for the children of the given parent.
@@ -1660,7 +1675,7 @@ class ConfigEditWidget(MetaViewerWidget):
         """Return the expanded state of every existing configuration section."""
         state: dict[tuple[str, ...], bool] = {}
 
-        def collect(parent: QModelIndex = QModelIndex(), path: tuple[str, ...] = ()) -> None:
+        def collect(parent: QModelIndex, path: tuple[str, ...] = ()) -> None:
             for row in range(self.model.rowCount(parent)):
                 index = self.model.index(row, 0, parent)
                 item_path = (*path, str(index.data(Qt.ItemDataRole.EditRole)))
@@ -1668,7 +1683,7 @@ class ConfigEditWidget(MetaViewerWidget):
                     state[item_path] = self.tree_view.isExpanded(index)
                     collect(index, item_path)
 
-        collect()
+        collect(QModelIndex())
         return state
 
     def _restore_config_expansion_state(
@@ -1676,7 +1691,7 @@ class ConfigEditWidget(MetaViewerWidget):
     ) -> None:
         """Restore expansion states for sections that still exist after a reload."""
 
-        def restore(parent: QModelIndex = QModelIndex(), path: tuple[str, ...] = ()) -> None:
+        def restore(parent: QModelIndex, path: tuple[str, ...] = ()) -> None:
             for row in range(self.model.rowCount(parent)):
                 index = self.model.index(row, 0, parent)
                 item_path = (*path, str(index.data(Qt.ItemDataRole.EditRole)))
@@ -1685,7 +1700,7 @@ class ConfigEditWidget(MetaViewerWidget):
                 if self.model.rowCount(index) > 0:
                     restore(index, item_path)
 
-        restore()
+        restore(QModelIndex())
 
     def _has_merged_system_config(self) -> bool:
         """Return whether runtime configuration represents a merged system."""
@@ -2170,7 +2185,7 @@ class SimplePlotWidget(QGroupBox):
 
         # exposed functions that can be used by the custom math eval
         # expression stored in math_texts.
-        exposed_functions = {
+        exposed_functions: ClassVar[dict[str, Any]] = {
             "np": np,
             "sqrt": np.sqrt,
             "e": np.e,
@@ -2191,7 +2206,7 @@ class SimplePlotWidget(QGroupBox):
         # the key should correspond to the value of math_mode for this to
         # be selected, has to provide a pair of fucntions for the x and y
         # value, respectively
-        default_math = {
+        default_math: ClassVar[dict[str, list[Callable[[Any], Any]]]] = {
             "no math": [lambda xf: xf, lambda yf: yf],
             "delta-": [lambda xf: delta(xf)[0], lambda yf: delta(yf)[1]],
             "delta+": [lambda xf: delta(xf)[0], lambda yf: delta(yf)[0]],
@@ -2905,7 +2920,7 @@ class SimplePlotWidget(QGroupBox):
                 if not isinstance(self.plt, pyqtgraph.PlotDataItem):
                     raise InternalInvariantError("Plotting requires an PlotDataItem widget!")
                 try:
-                    self.plt.setData(x=x, y=z, *args, **kwargs)
+                    self.plt.setData(*args, x=x, y=z, **kwargs)
                 except ValueError as e:
                     # Handle shape mismatch errors
                     self._raise_error(f"Plot error: {e!s}")
@@ -3603,6 +3618,7 @@ class AboutBox(QMessageBox):
             shell=True,
             text=True,
             capture_output=True,
+            check=False,
         )
         if result.returncode == 0:
             qmake_qt6_version = result.stdout.strip()
@@ -3724,8 +3740,98 @@ class AboutBox(QMessageBox):
         return {"description": env_description, "location": location}
 
 
+def _load_matr1x_icon(name: str, color: QColor | None) -> QIcon:
+    """Load an application icon and optionally replace its white pixels."""
+    icon_dir = Path(__file__).parent / "scripts" / "icons"
+    pixmap = QPixmap(str(icon_dir / name))
+    if color is not None:
+        image = pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+        for x in range(image.width()):
+            for y in range(image.height()):
+                if QColor(image.pixel(x, y)) == QColor("white"):
+                    image.setPixelColor(x, y, color)
+                else:
+                    image.setPixelColor(x, y, QColor(0, 0, 0, 0))
+        pixmap = QPixmap.fromImage(image)
+    return QIcon(pixmap.copy(15, 15, 226, 226))
+
+
+def _draw_character_icon(
+    painter: QPainter, pixmap: QPixmap, letter: str, size: int, pencolor: QColor
+) -> None:
+    """Draw a character in the center of an icon canvas."""
+    font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+    font.setPointSizeF(size * 0.8)
+    painter.setFont(font)
+    painter.setPen(pencolor)
+    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
+
+
+def _draw_custom_icon(painter: QPainter, name: str, size: int, pencolor: QColor) -> None:
+    """Draw one of the supported custom glyphs on an icon canvas."""
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setBrush(pencolor)
+    painter.setPen(pencolor)
+    if name == "Play":
+        triangle = QPolygon(
+            [
+                QPoint(int(size // 15 + size * 0.3), int(size * 0.2)),
+                QPoint(int(size // 15 + size * 0.3), int(size * 0.8)),
+                QPoint(int(size // 15 + size * 0.7), int(size * 0.5)),
+            ]
+        )
+        painter.drawPolygon(triangle)
+    elif name == "Updown":
+        up_arrow = QPolygon(
+            [
+                QPoint(int(size * 0.25), int(size * 0.2)),
+                QPoint(int(size * 0.05), int(size * 0.8)),
+                QPoint(int(size * 0.45), int(size * 0.8)),
+            ]
+        )
+        down_arrow = QPolygon(
+            [
+                QPoint(int(size * 0.55), int(size * 0.2)),
+                QPoint(int(size * 0.75), int(size * 0.8)),
+                QPoint(int(size * 0.95), int(size * 0.2)),
+            ]
+        )
+        painter.drawPolygon(up_arrow)
+        painter.drawPolygon(down_arrow)
+    elif name == "Power":
+        width = size // 8
+        height = size // 2
+        painter.drawRect(size // 2 - width // 2, size // 4, width, height)
+    elif name == "Stop":
+        painter.drawRect(int(size * 0.3), int(size * 0.3), int(size * 0.4), int(size * 0.4))
+    elif name == "Pause":
+        bar_width = size * 0.15
+        bar_height = size * 0.4
+        spacing = size * 0.1
+        x_offset = (size - 2 * bar_width - spacing) / 2
+        y_offset = (size - bar_height) / 2
+        painter.drawRect(int(x_offset), int(y_offset), int(bar_width), int(bar_height))
+        painter.drawRect(
+            int(x_offset + bar_width + spacing),
+            int(y_offset),
+            int(bar_width),
+            int(bar_height),
+        )
+    else:
+        raise ValueError(f"Unknown icon type CUSTOM_{name}.")
+
+
+def _resolve_icon_colors(color: QColor | None, pencolor: QColor | None) -> tuple[QColor, QColor]:
+    """Return icon colors, filling in the standard defaults when needed."""
+    if color is None:
+        color = QColor("RoyalBlue")
+    if pencolor is None:
+        pencolor = QColor("white")
+    return color, pencolor
+
+
 def get_matrix_icon(
-    name: str, color: QColor | None = None, pencolor: QColor = QColor("white")
+    name: str, color: QColor | None = None, pencolor: QColor | None = None
 ) -> QIcon:
     """
     Look up 'name' and get corresponding QIcon back.
@@ -3750,33 +3856,12 @@ def get_matrix_icon(
     -------
     QIcon
     """
-    # Get the included Qt icon
     if name.startswith("SP_"):
-        style = QApplication.style()
-        icon = style.standardIcon(getattr(QStyle.StandardPixmap, name))
-        return icon
-    # Use the original matrix icons
-    elif name.startswith("matr1x-"):
-        icondir = Path(__file__).parent / "scripts" / "icons"
-        pixmap = QPixmap(str(icondir / name))
-        # Change the color of the white icon if requested
-        # and remove the rest for better visibility in a GUI
-        if color is not None:
-            image = pixmap.toImage()
-            image = image.convertToFormat(QImage.Format.Format_ARGB32)
-            for x in range(image.width()):
-                for y in range(image.height()):
-                    pixel_color = QColor(image.pixel(x, y))
-                    if pixel_color != QColor("white"):
-                        image.setPixelColor(x, y, QColor(0, 0, 0, 0))
-                    else:
-                        image.setPixelColor(x, y, color)
-            pixmap = QPixmap.fromImage(image)
-        pixmap = pixmap.copy(15, 15, 226, 226)
-        return QIcon(pixmap)
-    # Draw to shared circle part
-    if color is None:
-        color = QColor("RoyalBlue")
+        return QApplication.style().standardIcon(getattr(QStyle.StandardPixmap, name))
+    if name.startswith("matr1x-"):
+        return _load_matr1x_icon(name, color)
+
+    color, pencolor = _resolve_icon_colors(color, pencolor)
     size = 256
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.GlobalColor.transparent)
@@ -3785,65 +3870,10 @@ def get_matrix_icon(
     painter.setBrush(color)
     painter.setPen(Qt.PenStyle.NoPen)
     painter.drawEllipse(5, 5, size - 10, size - 10)
-    if name.startswith("CHAR_"):  # Draw an icon with a letter in the center
-        letter = name[5]
-        font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-        font.setPointSizeF(size * 0.8)
-        painter.setFont(font)
-        painter.setPen(pencolor)
-        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, letter)
+    if name.startswith("CHAR_"):
+        _draw_character_icon(painter, pixmap, name[5], size, pencolor)
     elif name.startswith("CUSTOM_"):
-        custom_name = name[7:]
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(pencolor)
-        painter.setPen(pencolor)
-        if custom_name == "Play":
-            triangle = QPolygon(
-                [
-                    QPoint(int(size // 15 + size * 0.3), int(size * 0.2)),
-                    QPoint(int(size // 15 + size * 0.3), int(size * 0.8)),
-                    QPoint(int(size // 15 + size * 0.7), int(size * 0.5)),
-                ]
-            )
-            painter.drawPolygon(triangle)
-        elif custom_name == "Updown":
-            up_arrow = QPolygon(
-                [
-                    QPoint(int(size * 0.25), int(size * 0.2)),
-                    QPoint(int(size * 0.05), int(size * 0.8)),
-                    QPoint(int(size * 0.45), int(size * 0.8)),
-                ]
-            )
-            down_arrow = QPolygon(
-                [
-                    QPoint(int(size * 0.55), int(size * 0.2)),
-                    QPoint(int(size * 0.75), int(size * 0.8)),
-                    QPoint(int(size * 0.95), int(size * 0.2)),
-                ]
-            )
-            painter.drawPolygon(up_arrow)
-            painter.drawPolygon(down_arrow)
-        elif custom_name == "Power":
-            width = size // 8
-            height = size // 2
-            painter.drawRect(size // 2 - width // 2, size // 4, width, height)
-        elif custom_name == "Stop":
-            painter.drawRect(int(size * 0.3), int(size * 0.3), int(size * 0.4), int(size * 0.4))
-        elif custom_name == "Pause":
-            bar_width = size * 0.15
-            bar_height = size * 0.4
-            spacing = size * 0.1
-            x_offset = (size - 2 * bar_width - spacing) / 2
-            y_offset = (size - bar_height) / 2
-            painter.drawRect(int(x_offset), int(y_offset), int(bar_width), int(bar_height))
-            painter.drawRect(
-                int(x_offset + bar_width + spacing),
-                int(y_offset),
-                int(bar_width),
-                int(bar_height),
-            )
-        else:
-            raise ValueError(f"Unknown icon type {name}.")
+        _draw_custom_icon(painter, name[7:], size, pencolor)
     else:
         raise ValueError(f"Unknown icon type {name}.")
     painter.end()
@@ -3877,7 +3907,7 @@ def detect_shortcut(event, shortcut):
     elif isinstance(shortcut, QKeySequence):
         keys = shortcut[0]
     else:
-        raise ValueError("Shortcut has to be of type(str) or type(QKeySequence).")
+        raise TypeError("Shortcut has to be of type(str) or type(QKeySequence).")
     return bool(key == keys.key() and modifiers == keys.keyboardModifiers())
 
 
@@ -4140,8 +4170,14 @@ class MApplication(QApplication):
 
 
 # Common system information functions for matrix scripts
-def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
-    """Get system information using subprocess."""
+def get_system_info(
+    systems: Sequence[str | Path | SystemReference],
+) -> Result[SystemInfo, str]:
+    """Get system information using a subprocess."""
+    try:
+        tokens = [SystemReference.from_value(system).to_token() for system in systems]
+    except ValidationError as error:
+        return Error(str(error))
     script = (
         "import json\n"
         "import sys\n"
@@ -4149,7 +4185,7 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
         "from matr1x.error_handling import Error\n"
         "from matr1x.system import MergedSystem\n"
         "validation_error_count = len(validation_errors)\n"
-        f"result = MergedSystem.from_files({systems!r})\n"
+        f"result = MergedSystem.from_references({tokens!r})\n"
         "if isinstance(result, Error):\n"
         "    print(result.error, file=sys.stderr)\n"
         "    raise SystemExit(1)\n"
@@ -4166,8 +4202,9 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
             ],
             capture_output=True,
             timeout=30,
+            check=False,
         )
-    except Exception as e:
+    except (OSError, subprocess.TimeoutExpired) as e:
         return Error(f"Could not run system info subprocess: {e}")
 
     if result.returncode != 0:
@@ -4196,6 +4233,35 @@ def get_system_info(systems: list[str]) -> Result[SystemInfo, str]:
         return Success(validated_data)
     except ValidationError as e:
         return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
+
+
+def get_system_capability(source: str) -> Result[SystemCapability, str]:
+    """Inspect one system definition without constructing it."""
+    script = (
+        "import sys\n"
+        "from matr1x.error_handling import Error\n"
+        "from matr1x.system import System\n"
+        f"result = System.inspect_file({source!r})\n"
+        "if isinstance(result, Error):\n"
+        "    print(result.error, file=sys.stderr)\n"
+        "    raise SystemExit(1)\n"
+        "print(result.value.model_dump_json())\n"
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception as error:
+        return Error(f"Could not inspect system in subprocess: {error}")
+    if result.returncode != 0:
+        return Error(result.stderr.decode())
+    try:
+        output = result.stdout.decode().splitlines()[-1]
+        return Success(SystemCapability.model_validate_json(output))
+    except (IndexError, ValidationError) as error:
+        return Error(f"Could not parse system capability: {error}")
 
 
 def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
@@ -4231,7 +4297,7 @@ def _format_validation_error(e: ValidationError | TypeError | ValueError, base: 
     return html
 
 
-def check_config(config: BaseModel) -> None:
+def check_config(config: BaseModel, notifier: Notifier) -> None:
     """
     Validate the configuration tomls.
 
@@ -4239,8 +4305,11 @@ def check_config(config: BaseModel) -> None:
     ----------
     config: BaseModel
         The configuration model to validate.
+    notifier: Notifier
+        The notification widget to display the validation errors in.
     """
     from . import validation_errors
+    from .scripts.shared_classes import NotifierMessage
 
     html = "".join(validation_errors).replace("\n", "<br>")
     try:
@@ -4253,7 +4322,7 @@ def check_config(config: BaseModel) -> None:
             "Some settings will not work as intended. "
             "The following error(s) occured:<br><br>"
         ) + html
-        QMessageBox.critical(None, "Validation error!", html)
+        notifier.show_message(NotifierMessage(html, level=logging.WARNING))
 
 
 def create_matrix_settings_action() -> QAction:
@@ -4285,11 +4354,11 @@ def open_matrix_toml() -> None:
         )
         return
     if os.name == "nt":
-        subprocess.run(["explorer", f"/select,{toml_home.resolve(strict=False)}"])
+        subprocess.run(["explorer", f"/select,{toml_home.resolve(strict=False)}"], check=False)
     elif sys.platform == "darwin":
-        subprocess.run(["open", "-R", toml_home])
+        subprocess.run(["open", "-R", toml_home], check=False)
     else:
-        subprocess.run(["xdg-open", toml_home])
+        subprocess.run(["xdg-open", toml_home], check=False)
 
 
 class FileDropMixin:
@@ -4470,7 +4539,7 @@ class ReadOnlyTable(QTableWidget):
 class LoggingWindow(QMainWindow):
     """Detached window to display logging messages."""
 
-    LOG_FIELDS = ["asctime", "name", "levelname", "message"]
+    LOG_FIELDS: ClassVar[list[str]] = ["asctime", "name", "levelname", "message"]
     LOG_SEPARATOR = "\x1f"
 
     visibility_changed = Signal(bool)

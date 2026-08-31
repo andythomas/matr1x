@@ -45,7 +45,7 @@ from enum import IntEnum
 from operator import attrgetter
 from pathlib import Path
 from subprocess import PIPE, Popen
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeAlias, TypeVar, cast, overload
 
 import numpy
 import psutil
@@ -960,7 +960,7 @@ class var(QObject):
                 if modify is None:
                     continue
                 if not isinstance(self.widgets[column], QWidget):
-                    raise RuntimeError(
+                    raise TypeError(
                         f"MethodBundle change handlers require a widget in column {column}."
                     )
                 modify.connect_value_changed(self, self.widgets[column])
@@ -1217,13 +1217,13 @@ class GuiDict(UserDict[str, var]):
         valid, non-keyword Python identifier.
     """
 
-    data: dict[str, var] = {}
-    cmds: dict[str, Command] = {}
+    cmds: ClassVar[dict[str, Command]] = {}
     refresh_period: float = 1.0
     allow_disabling: bool = False
 
     def __init__(self) -> None:
-        super().__init__(self.data)
+        initial_data: dict[str, var] = getattr(type(self), "data", {})
+        super().__init__(initial_data)
         if not hasattr(self, "S"):
             self.S = System(name=self.__class__.__name__)
         self._refresh_thread: QThread = QThread()

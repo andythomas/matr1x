@@ -208,13 +208,13 @@ class HTMC11(ModbusDevice):
 
         Raises
         ------
-        ValueError
-            If an unknown mode is set.
+        TypeError
+            If mode is not a HorstManualMode.
         """
         if isinstance(mode, HorstManualMode):
             self.write_register(0x8B00, mode.value)
         else:
-            raise ValueError("unknown mode to set")
+            raise TypeError("mode must be a HorstManualMode")
 
     @property
     def proportional_band(self) -> float:

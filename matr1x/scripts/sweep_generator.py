@@ -678,7 +678,9 @@ class UIBuilder:
         table_width = sweep_preview.viewport().width()
         sweep_preview.setColumnWidth(0, table_width)
 
-        system_list = SystemListWidget()
+        # A sweep describes parameter ranges and system identity only. Device
+        # configuration is supplied and validated later by the execution UI.
+        system_list = SystemListWidget(report_config_errors=False)
 
         notifier = Notifier(logger)
 
@@ -981,7 +983,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.setAcceptDrops(True)
         self.setValidExtensions([self.extension])
         self.create_connections()
-        check_config(matr1x.config)
+        check_config(matr1x.config, self.ui.widgets.notifier)
         check_desktop_integration()
 
         if filename is not None:
@@ -1104,9 +1106,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         """
         if any(self.columns.parameter):
             self.ui.widgets.notifier.show_message(
-                NotifierMessage(
-                    "All previous sweep parameters have been cleared.", logging.WARNING
-                )
+                NotifierMessage("All previous sweep parameters have been cleared.", logging.INFO)
             )
         self.reset_layout()
         self._apply_system_info_to_columns(self.ui.widgets.system_list.system_info)
@@ -1311,7 +1311,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         result = self.generate_datafile()
         if isinstance(result, Error):
             self.ui.widgets.notifier.show_message(
-                NotifierMessage("No data generated, no file saved.")
+                NotifierMessage("No data generated, no file saved.", logging.WARNING)
             )
             return False
         if filename.suffix != self.extension:

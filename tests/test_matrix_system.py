@@ -224,7 +224,7 @@ def _launch_tapin_script(
             f"{tf.name!r}, {{}}, '', None, [{str(system_tapin_abs_path)!r}]\n"
             ")"
         )
-        ret = subprocess.run([sys.executable, "-c", execscript], cwd=path, env=env)
+        ret = subprocess.run([sys.executable, "-c", execscript], cwd=path, env=env, check=False)
     return ret
 
 
@@ -248,7 +248,7 @@ def _launch_tapin_matrix(
     env.update(env_overrides)
     cmd = [matr1x.util.get_matrix_binary(), "-i", str(inputfile)]
     print(subprocess.list2cmdline(cmd))
-    return subprocess.run(cmd, env=env)
+    return subprocess.run(cmd, env=env, check=False)
 
 
 def test_tapin_script_events(tap_server):
