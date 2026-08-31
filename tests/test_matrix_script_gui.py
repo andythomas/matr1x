@@ -22,8 +22,10 @@ import pytest
 from PySide6.QtCore import Qt
 
 import matr1x.eval
-from matr1x.models import Envelope, Message, Modifier
+from matr1x.error_handling import Success
+from matr1x.models import Envelope, Message, Modifier, SystemCapability, SystemReference
 from matr1x.scripts import matrix_script
+from matr1x.scripts.shared_classes import SystemListWidget
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
 
@@ -172,6 +174,29 @@ def test_adding_system_preserves_unsaved_config(
         "matr1x.systems.system_dummy_feature.reference_value"
     )
     assert retained_index.data(Qt.ItemDataRole.EditRole) == "42.5"
+
+
+def test_stateful_system_list_swaps_conflicting_states(qapp, monkeypatch):
+    """Selecting an occupied state swaps both system-reference tokens."""
+    system_list = SystemListWidget(report_config_errors=False)
+    capability = SystemCapability(
+        source="example",
+        stateful=True,
+        states=("primary", "secondary"),
+        state_exclusion_groups={"primary": "first", "secondary": "second"},
+        class_name="ExampleSystem",
+    )
+    monkeypatch.setattr(system_list, "test_import", lambda _source: Success(capability))
+    monkeypatch.setattr(system_list, "systems_changed", lambda: None)
+
+    system_list.add_systems(["example::primary", "example::secondary"])
+    first = system_list.item(0)
+    second = system_list.item(1)
+
+    system_list._select_state(first, "secondary")
+
+    assert SystemReference.from_value(first.text()).state == "secondary"
+    assert SystemReference.from_value(second.text()).state == "primary"
 
 
 def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
@@ -346,27 +371,28 @@ def test_status_preview_handles_carriage_return(
 
 
 @pytest.mark.timeout(timeout=30, method="thread")
-def test_delete_current_line(
+def test_message_to_progress_label(
     qtbot, qapp, tmp_path, capsys, matrix_script_window: matrix_script.MainWindow
 ):
     """
-    Test the delete_current_line modifier of message.
+    Test the to_progress_label modifier of message.
 
     Asserts
     -------
     The messages validate via the pydantic model.
-    The text is properly deleted/printed.
+    The flagged message is only shown in the progress label.
     """
     main_window = matrix_script_window
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     messages = []
     messages.append(Message("To print", end=""))
-    messages.append(Message("or not to print", modifier=Modifier.DELETE_CURRENT_LINE))
+    messages.append(Message("only in the label", modifier=Modifier.TO_PROGRESS_LABEL))
     messages.append(Message("that is the question"))
     for message in messages:
         env = Envelope.model_validate_json(message.model_dump_json())
         main_window.process_data(env)
     qtbot.wait(200)
     output_text = main_window.ui.widgets.status_preview.toPlainText()
-    assert output_text == "or not to print\nthat is the question\n"
+    assert output_text == "To printthat is the question\n"
+    assert main_window.ui.widgets.progress.text() == "only in the label"

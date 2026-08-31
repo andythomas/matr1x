@@ -58,8 +58,8 @@ from PySide6.QtWidgets import (
     QMenuBar,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
-    QSplitter,
     QTextEdit,
     QToolButton,
     QVBoxLayout,
@@ -106,14 +106,16 @@ from matr1x.post_install import (
     remove_desktop_integration,
 )
 from matr1x.scripts.shared_classes import (
+    ContentDockWidget,
     MeasurementItem,
+    MeasurementTable,
     MeasurementThread,
     MeasurementUI,
     MetaDataDialog,
-    MetadataDockWidget,
     MMainWindow,
     MToolBar,
     Notifier,
+    NotifierMessage,
     SaferQSettings,
     SystemListWidget,
 )
@@ -123,6 +125,7 @@ logger = logging.getLogger(__name__)
 script_config = matr1x.config.matr1x.scripts.matrix_script
 
 
+GUI_VERSION = "created_v2"
 MAX_LINES_STATUS = 10000
 # to test what a good limiting value is, use the following:
 # ```
@@ -635,7 +638,7 @@ class ActionGroup:
 class WidgetGroup:
     """Widgets to be used in the GUI."""
 
-    dockable_metadata: MetadataDockWidget
+    dockable_metadata: ContentDockWidget
     meta_view: MetaDataDialog
     system_list: SystemListWidget
     status_preview: TerminalOutput
@@ -645,7 +648,9 @@ class WidgetGroup:
     config_editor: ConfigEditWidget
     save_button: QToolButton
     stop_button: QToolButton
-    splitter: QSplitter
+    terminal_dock: ContentDockWidget
+    table: MeasurementTable
+    table_dock: ContentDockWidget
     central_widget: CentralWidget
     python_info: QLabel
     lsp_info: QLabel
@@ -655,6 +660,8 @@ class WidgetGroup:
     measurement_thread: MeasurementThread
     measurement_ui: MeasurementUI
     notifier: Notifier
+    progress: QLabel
+    progressbar: QProgressBar
 
 
 class UIBuilder:
@@ -727,10 +734,20 @@ class UIBuilder:
         WidgetGroup
             The dataclass with all the widgets.
         """
-        dockable_metadata = MetadataDockWidget()
+        meta_view = MetaDataDialog()
+        dockable_metadata = ContentDockWidget(
+            "Metadata",
+            "dockable_metadata",
+            "SP_FileDialogListView",
+            "Ctrl+2",
+            meta_view,
+            areas=(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea),
+        )
         system_list = SystemListWidget()
         status_preview = TerminalOutput()
         status_preview.document().setMaximumBlockCount(MAX_LINES_STATUS)
+        progress = QLabel("Measurement idle.")
+        progressbar = QProgressBar()
         script_edit = CodeEditor()
         system_command_help = QDialog()
         box_layout = QVBoxLayout()
@@ -749,7 +766,11 @@ class UIBuilder:
         stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         stop_button.setIcon(get_matrix_icon("CUSTOM_Stop"))
         stop_button.setText("Abort")
-        splitter = QSplitter()
+        terminal_dock = ContentDockWidget(
+            "Terminal", "terminal_dock", "CHAR_T", "Ctrl+4", status_preview
+        )
+        table = MeasurementTable()
+        table_dock = ContentDockWidget("Table", "table_dock", "CHAR_M", "Ctrl+5", table)
         central_widget = CentralWidget()
         python_info = QLabel(f"Python {platform.python_version()}")
         python_info.setToolTip(f"Python: {sys.version}")
@@ -760,7 +781,7 @@ class UIBuilder:
 
         return WidgetGroup(
             dockable_metadata=dockable_metadata,
-            meta_view=dockable_metadata.meta_view,
+            meta_view=meta_view,
             system_list=system_list,
             status_preview=status_preview,
             script_edit=script_edit,
@@ -769,7 +790,9 @@ class UIBuilder:
             config_editor=ConfigEditWidget(),
             save_button=save_button,
             stop_button=stop_button,
-            splitter=splitter,
+            terminal_dock=terminal_dock,
+            table=table,
+            table_dock=table_dock,
             central_widget=central_widget,
             python_info=python_info,
             lsp_info=lsp_info,
@@ -784,6 +807,8 @@ class UIBuilder:
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
             notifier=Notifier(logger),
+            progress=progress,
+            progressbar=progressbar,
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -939,6 +964,8 @@ class UIBuilder:
         view.addAction(self.toolbar.action)
         view.addAction(self.widgets.dockable_metadata.action)
         view.addAction(self.actions.config)
+        view.addAction(self.widgets.terminal_dock.action)
+        view.addAction(self.widgets.table_dock.action)
         view.addSeparator()
         view.addAction(self.actions.matrix_settings)
         help_menu = menu.addMenu("&Help")
@@ -953,15 +980,15 @@ class UIBuilder:
         layout.addWidget(self.widgets.notifier)
         layout.setSpacing(6)
         layout.setContentsMargins(11, 4, 11, 11)
-        self.widgets.splitter.addWidget(self.widgets.script_edit)
-        self.widgets.splitter.addWidget(self.widgets.status_preview)
-        self.widgets.splitter.setChildrenCollapsible(False)
-        layout.addWidget(self.widgets.splitter, 1)
-        infobar = QHBoxLayout()
-        infobar.addStretch()
-        infobar.addWidget(self.widgets.python_info)
-        infobar.addWidget(QLabel("  |  "))
-        infobar.addWidget(self.widgets.lsp_info)
+        layout.addWidget(self.widgets.script_edit, 1)
+        infobar = QVBoxLayout()
+        info_row = QHBoxLayout()
+        info_row.addWidget(self.widgets.progress, 1)
+        info_row.addWidget(self.widgets.python_info)
+        info_row.addWidget(QLabel("  |  "))
+        info_row.addWidget(self.widgets.lsp_info)
+        infobar.addLayout(info_row)
+        infobar.addWidget(self.widgets.progressbar)
         layout.addLayout(infobar, 0)
 
 
@@ -1002,11 +1029,24 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.widgets.script_edit.setValidExtensions([self.extension])
         self.setMenuBar(self.ui.menubar)
         self.addToolBar(self.ui.toolbar)
+        self.setCentralWidget(self.ui.widgets.central_widget)
         self.install_metadata_config_docks(
             self.ui.widgets.dockable_metadata,
             self.ui.widgets.config_editor,
         )
-        self.setCentralWidget(self.ui.widgets.central_widget)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.table_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.widgets.terminal_dock)
+        if not self.settings.contains(GUI_VERSION):
+            # Default layout: table and terminal as tabs in the middle,
+            # metadata on the right. Tabifying the docks has to be
+            # deferred until the event loop starts, because it destroys
+            # existing horizontal splits otherwise.
+            self.splitDockWidget(
+                self.ui.widgets.table_dock,
+                self.ui.widgets.dockable_metadata,
+                Qt.Orientation.Horizontal,
+            )
+            QTimer.singleShot(0, self._tabify_default_docks)
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
@@ -1093,8 +1133,10 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def process_data(self, env: Envelope) -> None:
         """Process the data from the measurement thread."""
         data = env.payload
-        if isinstance(data, (Telemetry, Header, SetValues, MeasuredValues)) and data.to_stdout:
-            self.write_output(str(data) + "\n")
+        if isinstance(data, Telemetry):
+            self._process_telemetry(data)
+        elif isinstance(data, (Header, SetValues, MeasuredValues)):
+            self._process_table_data(data)
         elif isinstance(data, ExecutionLines):
             self.ui.widgets.script_edit.highlight([line - self.line_offset for line in data.lines])
         elif isinstance(data, Datafile):
@@ -1102,15 +1144,46 @@ class MainWindow(LogWindowMixin, MMainWindow):
         elif isinstance(data, InputParameters):
             self._get_script_input(data)
         elif isinstance(data, Message):
-            if data.modifier == Modifier.DELETE_CURRENT_LINE:
-                self.write_output("\r" + data.message + data.end)
-            else:
-                self.write_output(data.message + data.end)
+            self._process_message(data)
         elif isinstance(data, ErrorMessage):
-            logger.error(data.error)
+            self.show_message(NotifierMessage(data.error, level=logging.ERROR))
             self.measurement_failed = True
         elif isinstance(data, LogEntry):
             data.log_record(logger)
+
+    def _process_telemetry(self, data: Telemetry) -> None:
+        """Update the progress bar and label from telemetry data."""
+        self.ui.widgets.progressbar.setMaximum(data.points)
+        self.ui.widgets.progressbar.setValue(data.point)
+        if data.remaining is not None:
+            self.ui.widgets.progress.setText(str(data))
+        if data.to_stdout:
+            self.write_output(str(data) + "\n")
+
+    def _process_table_data(self, data: Header | SetValues | MeasuredValues) -> None:
+        """Apply table data to the measurement table."""
+        self.ui.widgets.table.apply(data)
+        if data.to_stdout:
+            self.write_output(str(data) + "\n")
+
+    def _process_message(self, data: Message) -> None:
+        """Write a message to the terminal output or the progress label."""
+        if data.modifier & Modifier.TO_PROGRESS_LABEL:
+            self.ui.widgets.progress.setText(data.message)
+        else:
+            self.write_output(data.message + data.end)
+
+    def show_message(self, message: NotifierMessage) -> None:
+        """
+        Show a problem in the notifier and in the terminal output.
+
+        Parameters
+        ----------
+        message : NotifierMessage
+            The problem to report.
+        """
+        self.ui.widgets.notifier.show_message(message)
+        self.ui.widgets.status_preview.print_colored(message.text)
 
     def print_document(self) -> None:
         """Print the script."""
@@ -1122,7 +1195,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
-        self.settings.setValue("created", 1)
+        self.settings.setValue(GUI_VERSION, 1)
         self.save_layout_state(self.settings)
 
         self.settings.beginGroup("script_edit")
@@ -1140,30 +1213,10 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.settings.setValue("position", self.ui.widgets.system_command_help.pos())
             self.settings.endGroup()
 
-    def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
-        """Save matrix-script specific layout state."""
-        settings.setValue("splitter", self.ui.widgets.splitter.sizes())
-
-    def _restored_splitter_sizes(self, settings: SaferQSettings) -> list[int] | None:
-        """Return saved splitter sizes unless a pane would be collapsed."""
-        if not settings.contains("splitter"):
-            return None
-        sizes = settings.safer_value("splitter", [], type=list)
-        if len(sizes) != self.ui.widgets.splitter.count():
-            return None
-        try:
-            restored_sizes = [int(size) for size in sizes]
-        except (TypeError, ValueError):
-            return None
-        if any(size <= 0 for size in restored_sizes):
-            return None
-        return restored_sizes
-
-    def _restore_additional_layout_state(self, settings: SaferQSettings) -> None:
-        """Restore matrix-script specific layout state."""
-        splitter_sizes = self._restored_splitter_sizes(settings)
-        if splitter_sizes is not None:
-            self.ui.widgets.splitter.setSizes(splitter_sizes)
+    def _tabify_default_docks(self) -> None:
+        """Tab the table and terminal docks of the default layout."""
+        self.tabifyDockWidget(self.ui.widgets.table_dock, self.ui.widgets.terminal_dock)
+        self.ui.widgets.terminal_dock.raise_()
 
     def restore_window_state(self) -> None:
         """Restore app configuration from the previous use."""
@@ -1356,8 +1409,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def kill_thread(self) -> None:
         """Kill the thread."""
         self.ui.widgets.measurement_thread.kill()
-        self.ui.widgets.status_preview.print_colored(
-            "Script terminated by user - file integrity might be compromised"
+        self.show_message(
+            NotifierMessage(
+                "Script terminated by user - file integrity might be compromised",
+                level=logging.WARNING,
+            )
         )
 
     def update_system_commands(self) -> None:
@@ -1542,6 +1598,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.ui.widgets.script_edit.removeHighlight()
         self.enable_buttons(False)
         self._flush_output_buffer()
+        self.ui.widgets.progressbar.setValue(0)
+        self.ui.widgets.progress.setText("Measurement idle.")
+        self.ui.widgets.table.reset()
         if self.measurement_failed:
             self.ui.widgets.status_preview.print_colored("\nExecution failed")
         else:
@@ -1588,6 +1647,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
             if ret == QMessageBox.StandardButton.Cancel:
                 return
         self.measurement_failed = False
+        self.ui.widgets.progressbar.setValue(0)
+        self.ui.widgets.progress.setText("Measurement started.")
+        self.ui.widgets.table.reset()
         self.ui.widgets.status_preview.print_colored("### Running script now")
         user_script = self.ui.widgets.script_edit.toPlainText()
         script = generate_script(user_script)
@@ -1619,16 +1681,14 @@ class MainWindow(LogWindowMixin, MMainWindow):
         update_config: bool
             Whether to update the config editor.
         """
+        system_info = self.ui.widgets.system_list.system_info
         retained_config = self.ui.widgets.config_editor.get_config_dict()
-        # only systems that are part of matrix or ifwlib can be configured via files
-        configurable = [
-            system for system in self.ui.widgets.system_list.systems if not Path(system).exists()
-        ]
+        configurable = system_info.configurable_sections
         matr1x.reload_config()
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
-            self.ui.widgets.config_editor.set_system_info(self.ui.widgets.system_list.system_info)
+            self.ui.widgets.config_editor.set_system_info(system_info)
             self.ui.widgets.config_editor.update_data()
             self.ui.widgets.config_editor.apply_config_dict(retained_config)
             self.update_start_action_state()
@@ -1689,7 +1749,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         try:
             output_file = filename.open("w")
         except OSError:
-            self.ui.widgets.status_preview.print_colored("File cannot be written.")
+            self.show_message(NotifierMessage("File cannot be written.", level=logging.ERROR))
             return False
         self.scriptname = filename
         self.update_systems(update_config=False)
@@ -1743,7 +1803,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         try:
             input_file = filename.open()
         except OSError:
-            self.ui.widgets.status_preview.print_colored("File cannot be opened")
+            self.show_message(NotifierMessage("File cannot be opened", level=logging.WARNING))
             return
         self.scriptname = filename
         code = ""
@@ -1762,8 +1822,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
             column_names = [p.name for p in flat_parameters]
             units = [p.unit for p in flat_parameters]
         else:
-            self.ui.widgets.status_preview.print_colored(
-                "No system defined in script, please choose system(s)"
+            self.show_message(
+                NotifierMessage(
+                    "No system defined in script, please choose system(s)",
+                    level=logging.WARNING,
+                )
             )
         code += line
         #
