@@ -32,6 +32,7 @@ from pydantic import ValidationError
 from pyqtgraph.Qt.QtGui import QColor
 from PySide6.QtCore import (
     QByteArray,
+    QDateTime,
     QModelIndex,
     QPersistentModelIndex,
     QPoint,
@@ -41,6 +42,7 @@ from PySide6.QtCore import (
     Qt,
     QThread,
     QTimer,
+    QTimeZone,
     Signal,
 )
 from PySide6.QtGui import QAction, QDropEvent, QFocusEvent, QKeySequence, QMouseEvent, QPalette
@@ -65,6 +67,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QStyledItemDelegate,
     QStyleOptionViewItem,
+    QTableWidgetItem,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -77,23 +80,35 @@ from matr1x.gui_util import (
     ConfigEditWidget,
     LoggerMixin,
     MApplication,
+    ReadOnlyTable,
     blocked_signals,
     get_matrix_icon,
     get_system_capability,
     get_system_info,
 )
-from matr1x.models import Envelope, SystemCapability, SystemInfo, SystemReference
+from matr1x.models import (
+    Envelope,
+    Header,
+    MeasuredValues,
+    SetValues,
+    SystemCapability,
+    SystemInfo,
+    SystemReference,
+)
 from matr1x.util import get_matrix_binary
 
+logger = logging.getLogger(__name__)
+
 __all__ = [
+    "ContentDockWidget",
     "MMainWindow",
     "MToolBar",
     "MeasurementItem",
+    "MeasurementTable",
     "MeasurementThread",
     "MeasurementUI",
     "MetaData",
     "MetaDataDialog",
-    "MetadataDockWidget",
     "Notifier",
     "NotifierMessage",
     "SaferQSettings",
@@ -717,38 +732,149 @@ class MetaData(TypedDict):
 
 
 @final
-class MetadataDockWidget(QDockWidget):
-    """Dock widget for metadata editing."""
+@final
+class ContentDockWidget(QDockWidget):
+    """
+    A dock widget with a checkable action to toggle its content.
 
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the metadata dock widget."""
-        super().__init__("Metadata", parent=parent)
-        self.setObjectName("dockable_metadata")
-        self.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
-        )
+    The dock provides an action with icon and shortcut for the
+    view menu and may be restricted to certain dock areas.
+
+    Parameters
+    ----------
+    title : str
+        The window title and action text.
+    object_name : str
+        The object name used to persist the dock state.
+    icon : str
+        The name of the action icon as in get_matrix_icon.
+    shortcut : str
+        The keyboard shortcut of the action.
+    widget : QWidget
+        The content widget of the dock.
+    areas : Qt.DockWidgetArea, optional
+        The dock areas the dock may be moved to. The default is the
+        right dock area only.
+    """
+
+    def __init__(
+        self,
+        title: str,
+        object_name: str,
+        icon: str,
+        shortcut: str,
+        widget: QWidget,
+        areas: Qt.DockWidgetArea = Qt.DockWidgetArea.RightDockWidgetArea,
+    ) -> None:
+        """Initialize the dock with its content and view action."""
+        super().__init__(title)
+        self.setObjectName(object_name)
+        self.setAllowedAreas(areas)
         self.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetClosable
             | QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
-        self.meta_view = MetaDataDialog()
-        self.setWidget(self.meta_view)
-        self.action = QAction(get_matrix_icon("SP_FileDialogListView"), "Metadata", self)
-        self.action.setShortcut(QKeySequence("Ctrl+2"))
+        self.setWidget(widget)
+        self.action = QAction(get_matrix_icon(icon), title, self)
+        self.action.setShortcut(QKeySequence(shortcut))
         self.action.setCheckable(True)
         self.action.setChecked(True)
-        self.action.triggered.connect(self.toggle_metadata_view)
-        self.visibilityChanged.connect(self._sync_metadata_view)
+        self.action.triggered.connect(self.toggle_view)
+        self.visibilityChanged.connect(self._sync_view)
 
-    def toggle_metadata_view(self, checked: bool) -> None:
-        """Toggle the visibility of the metadata."""
+    def toggle_view(self, checked: bool) -> None:
+        """Toggle the visibility of the dock content."""
         self.setVisible(checked)
 
-    def _sync_metadata_view(self) -> None:
+    def _sync_view(self) -> None:
         """Match view action state to the restored widget visibility."""
         with blocked_signals(self.action):
             self.action.setChecked(not self.isHidden())
+
+
+@final
+class MeasurementTable(ReadOnlyTable):
+    """
+    A table showing the current set and readout values of a measurement.
+
+    The table is updated from Header, SetValues and MeasuredValues
+    payloads reported by the measurement thread.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the table with the standard measurement columns."""
+        super().__init__()
+        self.setColumnCount(4)
+        self.setRowCount(1)
+        self.setHorizontalHeaderLabels(["Parameter", "Set value", "Readout value", "unit"])
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+    def _set_value(self, row: int, column: int, value: Any) -> None:
+        """Set a centered cell value, using an empty string for None."""
+        if value is not None:
+            item = QTableWidgetItem(str(value))
+        else:
+            item = QTableWidgetItem("")
+        item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        self.setItem(row, column, item)
+
+    def apply(self, data: Header | SetValues | MeasuredValues) -> None:
+        """
+        Update the table from a measurement data payload.
+
+        Parameters
+        ----------
+        data : Header | SetValues | MeasuredValues
+            The table data received from the measurement thread.
+        """
+        if isinstance(data, Header):
+            self.apply_header(data)
+        elif isinstance(data, SetValues):
+            self.apply_set_values(data)
+        else:
+            self.apply_measured_values(data)
+
+    def apply_header(self, header: Header) -> None:
+        """Set the parameter names and units from a header payload."""
+        count = len(header.columns)
+        self.setRowCount(count)
+        for index, item in enumerate(header.columns):
+            column = QTableWidgetItem(str(item))
+            unit = QTableWidgetItem(str(header.units[index]))
+            column.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+            unit.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+            self.setItem(index, 0, column)
+            self.setItem(index, 3, unit)
+
+    def apply_set_values(self, values: SetValues) -> None:
+        """Set the set values from a payload."""
+        for index, item in enumerate(values.set_values):
+            self._set_value(index, 1, item)
+
+    def apply_measured_values(self, values: MeasuredValues) -> None:
+        """Set the readout values, converting a trailing timestamp."""
+        for index, item in enumerate(values.measured_values):
+            self._set_value(index, 2, item)
+        last_index = len(values.measured_values) - 1
+        last_value = values.measured_values[last_index] if last_index >= 0 else None
+        if last_value is None:
+            return
+        try:
+            utc = QDateTime.fromSecsSinceEpoch(int(last_value), QTimeZone.utc())
+            local = utc.toLocalTime()
+            value = QTableWidgetItem(local.toString("HH:mm:ss"))
+            value.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+            value.setToolTip("Converted to local time.")
+            self.setItem(last_index, 2, value)
+        except Exception:
+            logger.debug("Could not convert timestamp to local time.")
+
+    def reset(self) -> None:
+        """Reset the table to a single empty row."""
+        self.setRowCount(1)
+        for i in range(self.columnCount()):
+            self.setItem(0, i, QTableWidgetItem(""))
 
 
 @final
@@ -912,7 +1038,7 @@ class MToolBar(QToolBar):
 class MMainWindow(QMainWindow):
     """Main window with shared metadata and config dock layout handling."""
 
-    layout_settings_group = "MainWindowLayoutV2"
+    layout_settings_group = "MainWindowLayoutV3"
 
     def install_metadata_config_docks(self, metadata: QDockWidget, config: QDockWidget) -> None:
         """Install metadata and device config docks."""
@@ -938,7 +1064,6 @@ class MMainWindow(QMainWindow):
         settings.beginGroup(self.layout_settings_group)
         settings.setValue("geometry", self.saveGeometry())
         settings.setValue("window_state", self.saveState())
-        self._save_additional_layout_state(settings)
         settings.endGroup()
 
     def restore_layout_state(self, settings: SaferQSettings) -> None:
@@ -954,28 +1079,7 @@ class MMainWindow(QMainWindow):
         settings.beginGroup(self.layout_settings_group)
         self.restoreGeometry(settings.safer_value("geometry", QByteArray(), type=QByteArray))
         self.restoreState(settings.safer_value("window_state", QByteArray(), type=QByteArray))
-        self._restore_additional_layout_state(settings)
         settings.endGroup()
-
-    def _save_additional_layout_state(self, settings: SaferQSettings) -> None:
-        """
-        Save application-specific layout state.
-
-        Parameters
-        ----------
-        settings : SaferQSettings
-            The application settings object opened in the layout group.
-        """
-
-    def _restore_additional_layout_state(self, settings: SaferQSettings) -> None:
-        """
-        Restore application-specific layout state.
-
-        Parameters
-        ----------
-        settings : SaferQSettings
-            The application settings object opened in the layout group.
-        """
 
 
 @final

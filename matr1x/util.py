@@ -981,6 +981,7 @@ def run_python_cmdline(
             timeout=timeout,
             input=stdin,
             creationflags=creationflags,
+            check=False,
         )
         if result.returncode != 0:
             return Error(result.stderr or result.stdout)

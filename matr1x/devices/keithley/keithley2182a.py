@@ -16,6 +16,7 @@
 """Module providing the Keithley2182A nanovoltmeter interface."""
 
 import logging
+from typing import ClassVar
 
 from wrapt import synchronized
 
@@ -48,7 +49,7 @@ class Keithley2182A(VisaDevice):
         The VISA resource name used for this connection
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "Mode": ":SENS:FUNC?",
         "VOLT:RANGE": ":SENS:VOLT:RANG?",
         "VOLT:NPLC": ":SENS:VOLT:NPLC?",

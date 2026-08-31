@@ -24,6 +24,7 @@ import logging
 import math
 import re
 import time
+from typing import ClassVar
 
 import pyvisa.errors
 from wrapt import synchronized
@@ -63,7 +64,7 @@ class CryogenicPS(VisaDevice):
         Tesla per Ampere conversion factor
     """
 
-    config_params = {"TeslePerAmpere": "tpa"}
+    config_params: ClassVar[dict[str, str]] = {"TeslePerAmpere": "tpa"}
     re_output = re.compile(r"OUTPUT: ([0-9\.\-]+) TESLA AT ([0-9\.\-]+) VOLTS")
     re_holding = re.compile(r"HOLDING ON [A-Z]+ AT ([0-9\.\-]+) TESLA")
     re_ramping = re.compile(r"RAMPING FROM [0-9\.\-]+ TO ([0-9\.\-]+) TESLA AT")
@@ -413,7 +414,7 @@ class CryogenicBipolarPS(VisaDevice):
         Tesla per Ampere conversion factor
     """
 
-    config_params = {"TeslePerAmpere": "tpa"}
+    config_params: ClassVar[dict[str, str]] = {"TeslePerAmpere": "tpa"}
     re_output = re.compile(r"OUTPUT: ([0-9\.\-]+) TESLA AT ([0-9\.\-]+) VOLTS")
     re_holding = re.compile(r"HOLDING ON [A-Z]+ AT ([0-9\.\-]+) TESLA")
     re_ramping = re.compile(r"RAMPING FROM [0-9\.\-]+ TO ([0-9\.\-]+) TESLA AT")

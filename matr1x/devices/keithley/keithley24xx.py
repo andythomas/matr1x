@@ -15,6 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for controlling Keithley 2400 and 2450 source measurement units."""
 
+from typing import ClassVar
+
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
@@ -29,7 +31,10 @@ class Keithley2400(VisaDevice):
     operations.
     """
 
-    config_params = {"sourceMode": "sourceMode", "senseMode": "senseMode"}
+    config_params: ClassVar[dict[str, str]] = {
+        "sourceMode": "sourceMode",
+        "senseMode": "senseMode",
+    }
 
     def __init__(self, interface, **kwargs):
         """
@@ -254,7 +259,10 @@ class Keithley2450(VisaDevice):
     operations.
     """
 
-    config_params = {"sourceMode": "sourceMode", "senseMode": "senseMode"}
+    config_params: ClassVar[dict[str, str]] = {
+        "sourceMode": "sourceMode",
+        "senseMode": "senseMode",
+    }
 
     def __init__(self, interface, **kwargs):
         """

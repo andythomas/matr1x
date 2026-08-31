@@ -21,6 +21,8 @@ voltage/current sourcing and measurement, range control, and various
 sensing configurations.
 """
 
+from typing import ClassVar
+
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
@@ -44,15 +46,15 @@ class Keithley2611A(VisaDevice):
         Mapping of mode strings to character identifiers used in commands
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "sourceMode": "print(smua.source.func)",
         "senseMode": "print(smua.sense)",
         "voltageLimit": "print(smua.source.limitv)",
         "currentLimit": "print(smua.source.limiti)",
         "Model-identifing": "*IDN?",
     }
-    mode_int = {"VOLT": 1, "CURR": 0}
-    mode_char = {"VOLT": "v", "CURR": "i"}
+    mode_int: ClassVar[dict[str, int]] = {"VOLT": 1, "CURR": 0}
+    mode_char: ClassVar[dict[str, str]] = {"VOLT": "v", "CURR": "i"}
 
     def __init__(self, interface, **kwargs):
         """

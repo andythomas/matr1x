@@ -19,6 +19,8 @@ Git repository interface module for the matr1x data acquisition system.
 This module provides classes for interacting with Git repositories.
 """
 
+from typing import ClassVar
+
 import pygit2
 
 
@@ -44,7 +46,7 @@ class gitDevice:
         Dictionary mapping parameter names to method names.
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "remote": "get_remote_url",
         "branch": "get_branch_name",
         "hash": "get_commit_hash",

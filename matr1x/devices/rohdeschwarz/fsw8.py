@@ -16,7 +16,7 @@
 """Module for controlling the Rohde & Schwarz FSW8 spectrum analyzer."""
 
 from struct import unpack
-from typing import Literal
+from typing import ClassVar, Literal
 
 import numpy as np
 from wrapt import synchronized
@@ -31,7 +31,7 @@ class FSW8(VisaDevice):
     It can possibly be used with different models with little changes.
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "n_points": "SWE:POIN?",
         "resBW_Hz": "BWID:RES?",
         "vidBW_Hz": "BWID:VID?",

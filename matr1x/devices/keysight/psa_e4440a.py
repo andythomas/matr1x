@@ -16,6 +16,7 @@
 """Module for interfacing with the Agilent PSA E4440A spectrum analyzer."""
 
 from struct import unpack
+from typing import ClassVar
 
 import numpy as np
 from wrapt import synchronized
@@ -30,7 +31,7 @@ class PSA_E4440A(VisaDevice):
     It can possibly be used with different models with little changes.
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "vidBW": "BAND:VID?",
         "resBW": "BAND?",
         "average": "AVER:STAT?",

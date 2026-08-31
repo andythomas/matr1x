@@ -22,6 +22,7 @@ parameters through VISA communication.
 """
 
 import time
+from typing import ClassVar
 
 from wrapt import synchronized
 
@@ -43,7 +44,7 @@ class Keithley2701(VisaDevice):
         Flag indicating if a measurement has been triggered
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "Mode": ":SENS:FUNC?",
         "VOLT:RANGE": ":SENS:VOLT:RANG?",
         "VOLT:NPLC": ":SENS:VOLT:NPLC?",

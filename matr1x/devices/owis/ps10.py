@@ -17,6 +17,7 @@
 
 import logging
 import time
+from typing import ClassVar
 
 from wrapt import synchronized
 
@@ -63,7 +64,7 @@ class Ps10(VisaDevice):
     revolution, and a 180:1 gear ratio by default.
     """
 
-    config_params = {"Mode": "getMode"}
+    config_params: ClassVar[dict[str, str]] = {"Mode": "getMode"}
 
     def __init__(
         self,

@@ -558,10 +558,10 @@ class Telemetry(BaseModel):
 
 
 class Modifier(IntFlag):
-    """A set of modifiers for message handling."""
+    """A set of modifiers for message routing."""
 
     NONE = 0
-    DELETE_CURRENT_LINE = 1
+    TO_PROGRESS_LABEL = 1
 
 
 @final

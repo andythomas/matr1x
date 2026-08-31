@@ -21,8 +21,6 @@ from matr1x.devices.visadevice import VisaDevice
 class AMI1700(VisaDevice):
     """AMI 1700 Level Meter."""
 
-    config_params = {}
-
     def __init__(self, interface, **kwargs):
         """
         Initialize device.

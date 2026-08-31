@@ -15,6 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for controlling Keysight B2961 power supply devices."""
 
+from typing import ClassVar
+
 from matr1x.devices import strToList
 from matr1x.devices.visadevice import VisaDevice
 
@@ -26,7 +28,7 @@ class KeysightB2961(VisaDevice):
     Typically connected via TCPIP::<IP-address>:5025::SOCKET
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "sourceMode": "sourceMode",
         "senseMode": "senseMode",
         "VOLT:RANGE": "VOLT:RANG?",

@@ -342,7 +342,7 @@ class Parameter:
                     for chunk in chunks:
                         self.chunks.append(self.verify(chunk, int))
                 else:
-                    raise ValueError(
+                    raise TypeError(
                         f"Invalid type, expected list for chunks, but received {chunks}."
                     )
             else:
@@ -406,21 +406,21 @@ class Parameter:
 
         Raises
         ------
-        ValueError
+        TypeError
             If param is not of the correct type.
         """
         if isinstance(param, (list, tuple)):
             for val in param:
                 if isinstance(val, (list, tuple)):
-                    raise ValueError("Nested sequences are not allowed")
+                    raise TypeError("Nested sequences are not allowed")
                 if not isinstance(val, cast):
-                    raise ValueError(f"Invalid type, expected {cast}")
+                    raise TypeError(f"Invalid type, expected {cast}")
             return param
 
         if isinstance(param, cast):
             return param
 
-        raise ValueError(f"Invalid type, expected {cast}")
+        raise TypeError(f"Invalid type, expected {cast}")
 
 
 class System:
@@ -620,7 +620,7 @@ class System:
                 elif System._is_config_scheme(q) and not callable(q):
                     method = getattr(device_handle, q[0])
                     if not callable(method):
-                        raise ValueError(f"config_params: method '{q[0]}' is not callable")
+                        raise TypeError(f"config_params: method '{q[0]}' is not callable")
                     line = str(method(*q[1], **q[2]))
                 else:
                     raise ValueError(f"config_params: Ambiguous class of {q!r}")
@@ -824,8 +824,10 @@ class System:
 
         if isinstance(system, System):
             legacy_warning = (
-                f"Using an initialized System instance exported as '{legacy_name}' is deprecated; "
-                "define exactly one local System subclass instead.",
+                (
+                    f"Using an initialized System instance exported as '{legacy_name}' is "
+                    "deprecated; define exactly one local System subclass instead."
+                ),
                 logging.WARNING,
             )
         else:
