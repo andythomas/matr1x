@@ -13,24 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim. The implementation lives in :mod:`matr1x.core.error_handling`."""
+"""GUI subpackage of matr1x.
 
-from matr1x.core.error_handling import (
-    Error,
-    InternalInvariantError,
-    Result,
-    Success,
-    expect_not_none,
-    install_error_handler,
-    set_uncaught_exception_dialog,
-)
-
-__all__ = [
-    "Error",
-    "InternalInvariantError",
-    "Result",
-    "Success",
-    "expect_not_none",
-    "install_error_handler",
-    "set_uncaught_exception_dialog",
-]
+Contains the Qt-based user interface. This is the top layer of the
+architecture: it may depend on :mod:`matr1x.core` and other lower layers,
+but the reverse is not allowed. Keeping the Qt imports here (rather than in
+the Qt-free :mod:`matr1x.core`) is what lets the core stay GUI-agnostic.
+"""

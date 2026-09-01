@@ -13,74 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Logging helpers for the matr1x package."""
+"""Re-export shim. The implementation lives in :mod:`matr1x.core.logging_util`."""
 
-import logging
-import threading
-from datetime import datetime, timezone
-from pathlib import Path
+from matr1x.core.logging_util import WeekRotatingFileHandler
 
 __all__ = ["WeekRotatingFileHandler"]
-
-
-class WeekRotatingFileHandler(logging.FileHandler):
-    """A file handler that rotates log files at ISO week boundaries.
-
-    The log file name is derived from the current ISO year and week
-    number, e.g. ``matr1x_202634.log``. The target file is resolved
-    for every record, so long-running processes always write to the
-    file of the current week.
-
-    Parameters
-    ----------
-    logfolder:
-        Directory the log files are written to.
-    prefix:
-        File name prefix, the log file name is
-        ``{prefix}_{iso_year}{iso_week:02d}.log``.
-    """
-
-    # Handler.__init__ always replaces the default None with an RLock.
-    lock: threading.RLock
-
-    @staticmethod
-    def _current_iso_week() -> tuple[int, int]:
-        """Return the current ISO year and week in the local timezone."""
-        iso_year, iso_week, _ = datetime.now(tz=timezone.utc).astimezone().isocalendar()
-        return iso_year, iso_week
-
-    def __init__(self, logfolder: str | Path, prefix: str = "matr1x") -> None:
-        """Create the handler and open the log file of the current week."""
-        self.logfolder = Path(logfolder)
-        self.prefix = prefix
-        self._week = self._current_iso_week()
-        super().__init__(self._filename_for(self._week), mode="a", encoding="utf-8")
-
-    def _filename_for(self, week: tuple[int, int]) -> Path:
-        """Return the log file path for the given ISO year and week."""
-        iso_year, iso_week = week
-        return self.logfolder / f"{self.prefix}_{iso_year}{iso_week:02d}.log"
-
-    def emit(self, record: logging.LogRecord) -> None:
-        """Emit a record, rotating to the current week's file if needed.
-
-        Rotation is performed under the handler lock, so it is safe
-        from multiple threads. Errors are reported via `handleError`,
-        so logging never interrupts the caller.
-        """
-        with self.lock:
-            week = self._current_iso_week()
-            if week != self._week:
-                try:
-                    self._rotate(week)
-                except OSError:
-                    self.handleError(record)
-                    return
-            super().emit(record)
-
-    def _rotate(self, week: tuple[int, int]) -> None:
-        """Close the current file and open the file of the given week."""
-        self.close()
-        self.baseFilename = str(self._filename_for(week).resolve())
-        self.stream = self._open()
-        self._week = week
