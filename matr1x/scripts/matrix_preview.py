@@ -50,8 +50,8 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+from matr1x.core.eval import HeaderDict, _create_empty_header, loadmatrix
 from matr1x.error_handling import expect_not_none, install_error_handler
-from matr1x.eval import HeaderDict, _create_empty_header, loadmatrix
 from matr1x.gui_util import (
     AboutBox,
     FileDropMixin,
