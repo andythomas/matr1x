@@ -13,27 +13,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for :mod:`matr1x.core.models`.
+"""Pydantic data models for configuration, system info, and measurement data."""
 
-The models now live in :mod:`matr1x.core.models` (split into ``config``,
-``system``, ``data`` and ``socket``). This module re-exports the public names
-so that ``from matr1x.models import ...`` keeps working.
-"""
-
-from matr1x.core.models import (
+from matr1x.core.models.config import (
     ConfigBaseModel,
-    Datafile,
-    Envelope,
-    ErrorMessage,
-    ExecutionLines,
     FilePath,
     FolderPath,
     GPIBVisaResource,
     GuiField,
-    Header,
-    InputParameters,
     LocalTCPIPSocketVisaResource,
-    LogEntry,
     MainConfig,
     Matr1xConfig,
     Matr1xDevicesConfig,
@@ -43,15 +31,35 @@ from matr1x.core.models import (
     Matr1xScriptsConfig,
     Matr1xScriptsMatrix_ScriptConfig,
     Matr1xScriptsMatrix_ScriptShortcutsConfig,
+    SciFloat,
+    SerialVisaResource,
+    SystemConfigModel,
+    TCPIPSocketVisaResource,
+    UntypedConfigModel,
+    UserlibConfig,
+    UserlibInstallConfig,
+    VisaResource,
+    format_validation_error,
+)
+from matr1x.core.models.data import (
+    Datafile,
+    ExecutionLines,
+    Header,
+    InputParameters,
+    LogEntry,
     MeasuredValues,
+    SetValues,
+    Telemetry,
+)
+from matr1x.core.models.socket import (
+    Envelope,
+    ErrorMessage,
     MeasurementData,
     Message,
     Modifier,
-    SciFloat,
-    SerialVisaResource,
-    SetValues,
+)
+from matr1x.core.models.system import (
     SystemCapability,
-    SystemConfigModel,
     SystemDevice,
     SystemInfo,
     SystemMethod,
@@ -59,13 +67,6 @@ from matr1x.core.models import (
     SystemReference,
     SystemSelectionInfo,
     SystemVariable,
-    TCPIPSocketVisaResource,
-    Telemetry,
-    UntypedConfigModel,
-    UserlibConfig,
-    UserlibInstallConfig,
-    VisaResource,
-    format_validation_error,
 )
 
 __all__ = [

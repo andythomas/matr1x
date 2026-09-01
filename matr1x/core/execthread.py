@@ -32,8 +32,7 @@ from datetime import datetime, timedelta, timezone
 
 import matr1x.core.config as core_config
 from matr1x.core.error_handling import Error, InternalInvariantError
-from matr1x.core.util import log_multiline
-from matr1x.models import (
+from matr1x.core.models import (
     ErrorMessage,
     Header,
     InputParameters,
@@ -45,6 +44,7 @@ from matr1x.models import (
     SetValues,
     Telemetry,
 )
+from matr1x.core.util import log_multiline
 from matr1x.system import MergedSystem
 
 __all__ = ["ExecThread"]
