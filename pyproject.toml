@@ -165,6 +165,14 @@ forbidden_modules = [
     "matr1x",
 ]
 
+[[tool.importlinter.contracts]]
+name = "layering: devices may depend on core, not vice versa"
+type = "layers"
+layers = [
+    "matr1x.devices",
+    "matr1x.core",
+]
+
 [dependency-groups]
 dev = [
     "import-linter",
