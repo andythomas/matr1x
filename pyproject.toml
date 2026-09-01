@@ -147,6 +147,7 @@ upload_to_vcs_release = true
 
 [tool.importlinter]
 root_package = "matr1x"
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "matr1x is free of import cycles"
@@ -166,11 +167,32 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "layering: devices may depend on core, not vice versa"
+name = "layering: systems > control > gui > devices > core"
 type = "layers"
 layers = [
+    "matr1x.systems",
+    "matr1x.control",
+    "matr1x.gui",
     "matr1x.devices",
     "matr1x.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "core and devices must not import Qt"
+type = "forbidden"
+source_modules = [
+    "matr1x.core",
+    "matr1x.devices",
+]
+forbidden_modules = [
+    "PySide6",
+    "pyqtgraph",
+    "urwid",
+    "monaco_assets",
+]
+ignore_imports = [
+    # Lakeshore control GUI has external consumers; keep it in devices for now.
+    "matr1x.devices.lakeshore.control -> PySide6",
 ]
 
 [dependency-groups]
