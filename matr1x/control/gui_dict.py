@@ -31,14 +31,7 @@ from typing import Any, ClassVar, Protocol, TypeAlias, TypeVar, cast, overload
 from decorator import FunctionMaker
 from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from pydantic_core import PydanticCustomError
-from PySide6.QtCore import (
-    QObject,
-    QSize,
-    Qt,
-    QThread,
-    QTimer,
-    Signal,
-)
+from PySide6.QtCore import QObject, QSize, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -60,11 +53,12 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x.core.system import System
-from matr1x.gui_util import AutoSlot
+from matr1x.gui.app import MApplication
+from matr1x.gui.meta_viewer import validator
+from matr1x.gui.mixins import AutoSlot
 
-from ..error_handling import InternalInvariantError
-from ..gui_util import MApplication, validator
-from ..util import Command, normalize_cmds
+from ..core.error_handling import InternalInvariantError
+from ..core.util import Command, normalize_cmds
 from .widgets import MyQDockWidget, ToggleButton
 
 __all__ = [

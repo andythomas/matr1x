@@ -17,19 +17,12 @@
 
 import logging
 
-from PySide6.QtCore import (
-    QPoint,
-    QSize,
-    Signal,
-)
+from PySide6.QtCore import QPoint, QSize, Signal
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import (
-    QDockWidget,
-    QPushButton,
-)
+from PySide6.QtWidgets import QDockWidget, QPushButton
 
+from matr1x.gui.mixins import AutoSlot
 from matr1x.gui.shared import SaferQSettings
-from matr1x.gui_util import AutoSlot
 
 __all__ = [
     "MyQDockWidget",

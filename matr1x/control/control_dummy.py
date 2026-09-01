@@ -39,7 +39,7 @@ from matr1x.core.system import System
 from matr1x.core.util import Command, Get
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
-from matr1x.gui_util import get_matrix_icon
+from matr1x.gui.helpers import get_matrix_icon
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
 # type can be one of int, float, bool, tuple or list.

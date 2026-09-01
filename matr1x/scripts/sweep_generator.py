@@ -71,7 +71,20 @@ from matr1x.core.error_handling import (
 )
 from matr1x.core.models import SystemInfo
 from matr1x.core.util import generate_col_index
+from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
+from matr1x.gui.helpers import (
+    clear_layout,
+    create_matr1x_quit_action,
+    create_matrix_settings_action,
+    get_matrix_icon,
+    open_matrix_toml,
+    save_messagebox,
+)
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.meta_viewer import validator
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
+from matr1x.gui.plot import CustomViewBox
 from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
@@ -79,23 +92,7 @@ from matr1x.gui.shared import (
     NotifierMessage,
     SaferQSettings,
     SystemListWidget,
-)
-from matr1x.gui_util import (
-    AboutBox,
-    AutoSlot,
-    CustomViewBox,
-    FileDropMixin,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
     check_config,
-    clear_layout,
-    create_matr1x_quit_action,
-    create_matrix_settings_action,
-    get_matrix_icon,
-    open_matrix_toml,
-    save_messagebox,
-    validator,
 )
 from matr1x.post_install import (
     check_desktop_integration,

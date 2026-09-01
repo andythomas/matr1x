@@ -51,7 +51,7 @@ from .core.config import (
     write_config,
 )
 from .core.metadata import APP_META_KEY, VALID_META_KEYS
-from .util import (
+from .core.util import (
     create_temp_dir_with_symlinks,
     get_package_path,
     resolve_config_path,

@@ -36,7 +36,7 @@ import pytest
 import matr1x.core.util
 from matr1x import output_extension
 from matr1x.core.error_handling import Success
-from matr1x.gui_util import get_system_info
+from matr1x.gui.helpers import get_system_info
 
 path = Path(__file__).resolve().parent
 

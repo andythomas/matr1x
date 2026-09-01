@@ -22,12 +22,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import (
-    QPoint,
-    Qt,
-    QTimer,
-    Signal,
-)
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
@@ -61,7 +56,19 @@ from matr1x.core.models import (
     Telemetry,
 )
 from matr1x.core.system import MergedSystem
+from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
+from matr1x.gui.helpers import (
+    create_matr1x_quit_action,
+    create_matrix_settings_action,
+    detect_shortcut,
+    get_matrix_icon,
+    get_system_info,
+    open_matrix_toml,
+)
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.meta_viewer import ConfigEditWidget
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
 from matr1x.gui.shared import (
     ContentDockWidget,
     MeasurementItem,
@@ -73,22 +80,7 @@ from matr1x.gui.shared import (
     MToolBar,
     Notifier,
     SaferQSettings,
-)
-from matr1x.gui_util import (
-    AboutBox,
-    AutoSlot,
-    ConfigEditWidget,
-    FileDropMixin,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
     check_config,
-    create_matr1x_quit_action,
-    create_matrix_settings_action,
-    detect_shortcut,
-    get_matrix_icon,
-    get_system_info,
-    open_matrix_toml,
 )
 from matr1x.post_install import (
     check_desktop_integration,

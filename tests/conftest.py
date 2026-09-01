@@ -19,7 +19,7 @@ import sys
 
 import pytest
 
-from matr1x.gui_util import MApplication
+from matr1x.gui.app import MApplication
 
 
 @pytest.fixture(scope="session")

@@ -42,32 +42,21 @@ from typing import TYPE_CHECKING, Any
 import numpy
 import psutil
 from numpy.typing import ArrayLike
-from PySide6.QtCore import (
-    QStandardPaths,
-)
-from PySide6.QtWidgets import (
-    QMessageBox,
-    QWidget,
-)
+from PySide6.QtCore import QStandardPaths
+from PySide6.QtWidgets import QMessageBox, QWidget
 
 if TYPE_CHECKING:
     from matr1x.control.controlwindow import ControlWindow
 
 
 from .. import config
-from ..error_handling import install_error_handler
+from ..core.error_handling import install_error_handler
+from ..gui.app import MApplication
 from ..gui.error_dialog import install_qt_error_dialog
-from ..gui_util import MApplication
 
 # Re-exports for backwards compatibility (the code now lives in gui_dict /
 # widgets). Kept so existing `from matr1x.control.util import ...` works.
-from .gui_dict import (
-    GuiDict,
-    MethodBundle,
-    catchEmitError,
-    guiObject,
-    var,
-)
+from .gui_dict import GuiDict, MethodBundle, catchEmitError, guiObject, var
 from .widgets import MyQDockWidget
 
 __all__ = [

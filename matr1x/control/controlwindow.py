@@ -64,16 +64,11 @@ import matr1x
 from matr1x import logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.gui_dict import GuiDict, catchEmitError
 from matr1x.core.util import Command, Get, StreamToLogger
-from matr1x.gui.shared import Notifier, SaferQSettings
-from matr1x.gui_util import (
-    AutoSlot,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
-    check_config,
-    get_matrix_icon,
-    open_matrix_toml,
-)
+from matr1x.gui.app import MApplication
+from matr1x.gui.helpers import get_matrix_icon, open_matrix_toml
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.mixins import AutoSlot, LogWindowMixin
+from matr1x.gui.shared import Notifier, SaferQSettings, check_config
 
 logger = logging.getLogger(__name__)
 printlogger = logging.getLogger(__name__ + "_stdio")

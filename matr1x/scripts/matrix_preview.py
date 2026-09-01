@@ -27,14 +27,7 @@ from typing import TypedDict, no_type_check
 import numpy as np
 import pyqtgraph
 import pyqtgraph.exporters
-from PySide6.QtCore import (
-    QEvent,
-    QKeyCombination,
-    QObject,
-    Qt,
-    QThread,
-    Signal,
-)
+from PySide6.QtCore import QEvent, QKeyCombination, QObject, Qt, QThread, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -52,22 +45,19 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x.core.error_handling import expect_not_none, install_error_handler
 from matr1x.core.eval import HeaderDict, _create_empty_header, loadmatrix
+from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
-from matr1x.gui.shared import MMainWindow, MToolBar, Notifier, SaferQSettings
-from matr1x.gui_util import (
-    AboutBox,
-    FileDropMixin,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
-    MetaViewerWidget,
-    SimplePlotWidget,
-    check_config,
+from matr1x.gui.helpers import (
     create_matr1x_quit_action,
     create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
 )
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.meta_viewer import MetaViewerWidget
+from matr1x.gui.mixins import FileDropMixin, LogWindowMixin
+from matr1x.gui.plot import SimplePlotWidget
+from matr1x.gui.shared import MMainWindow, MToolBar, Notifier, SaferQSettings, check_config
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,

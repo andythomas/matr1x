@@ -28,10 +28,8 @@ from pathlib import Path
 
 import matr1x as matr1xpackage
 from matr1x import config
+from matr1x.gui.helpers import get_install_info
 from matr1x.gui.shared import SaferQSettings
-from matr1x.gui_util import (
-    get_install_info,
-)
 
 __all__ = [
     "check_desktop_integration",
