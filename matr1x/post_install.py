@@ -26,8 +26,6 @@ import sys
 from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 
-from PySide6.QtWidgets import QMessageBox
-
 import matr1x as matr1xpackage
 from matr1x import config
 from matr1x.gui.shared import SaferQSettings
@@ -1087,12 +1085,7 @@ def post_installation():
     enable_windows_virtual_terminal_processing()
     logger.info("Check and/or set platform specifics")
     if not check_system_specifics():
-        QMessageBox.warning(
-            None,
-            "Warning",
-            "PI001: Not all platform specifics found! Please refer to the documentation.",
-            QMessageBox.StandardButton.Ok,
-        )
+        logger.error("PI001: Not all platform specifics found! Please refer to the documentation.")
         return
     remove_desktop_integration()
     install_config = config.matr1x.install

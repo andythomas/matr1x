@@ -95,7 +95,8 @@ if TYPE_CHECKING:
 from matr1x.system import System
 
 from .. import config
-from ..error_handling import InternalInvariantError
+from ..error_handling import InternalInvariantError, install_error_handler
+from ..gui.error_dialog import install_qt_error_dialog
 from ..gui_util import MApplication, validator
 from ..util import Command, normalize_cmds
 
@@ -1875,6 +1876,8 @@ def control_main(
             pass
 
     app = MApplication(sys.argv)
+    install_error_handler()
+    install_qt_error_dialog()
     app.setDesktopFileName(f"python.{package}.{Path(sys.argv[0]).name}")
 
     if lockfile:

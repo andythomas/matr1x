@@ -49,6 +49,7 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.error_handling import Error, InternalInvariantError, install_error_handler
+from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.shared import (
     ContentDockWidget,
     MeasurementItem,
@@ -801,6 +802,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 def main() -> None:
     """Set the basic GUI parameters and run."""
     install_error_handler()
+    install_qt_error_dialog()
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-gui")
     ex = MainWindow()

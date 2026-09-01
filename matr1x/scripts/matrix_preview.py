@@ -52,6 +52,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x.core.eval import HeaderDict, _create_empty_header, loadmatrix
 from matr1x.error_handling import expect_not_none, install_error_handler
+from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.shared import MMainWindow, MToolBar, Notifier, SaferQSettings
 from matr1x.gui_util import (
     AboutBox,
@@ -1209,6 +1210,7 @@ Please investigate the error and eventually restart matrix-preview""",
 def main(file: str | None = None) -> None:
     """Set the basic GUI parameters and run."""
     install_error_handler()
+    install_qt_error_dialog()
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into

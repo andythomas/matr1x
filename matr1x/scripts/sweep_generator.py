@@ -69,6 +69,7 @@ from matr1x.error_handling import (
     Success,
     install_error_handler,
 )
+from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
@@ -1587,6 +1588,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 def main():
     """Set the basic GUI parameters and run."""
     install_error_handler()
+    install_qt_error_dialog()
     app = MApplication(sys.argv)
     app.setDesktopFileName("sweep-generator")
     main_window = MainWindow() if len(sys.argv) < 2 else MainWindow(filename=Path(sys.argv[1]))
