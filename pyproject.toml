@@ -213,6 +213,22 @@ ignore_imports = [
     "matr1x.devices.lakeshore.control -> PySide6",
 ]
 
+[[tool.importlinter.contracts]]
+name = "device packages are independent"
+type = "independence"
+modules = [
+    # The wildcard picks up all current and future vendor packages
+    # automatically; no list to keep in sync.
+    "matr1x.devices.*",
+]
+ignore_imports = [
+    # Shared device base modules (not vendor packages) may be imported
+    # from any device module.
+    "matr1x.devices.** -> matr1x.devices.visadevice",
+    "matr1x.devices.** -> matr1x.devices.modbusdevice",
+    "matr1x.devices.** -> matr1x.devices.scpi_dev",
+]
+
 [dependency-groups]
 dev = [
     "import-linter",
