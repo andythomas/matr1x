@@ -155,6 +155,16 @@ ancestors = [
     "matr1x",
 ]
 
+[[tool.importlinter.contracts]]
+name = "core must not import the matr1x root"
+type = "forbidden"
+source_modules = [
+    "matr1x.core",
+]
+forbidden_modules = [
+    "matr1x",
+]
+
 [dependency-groups]
 dev = [
     "import-linter",

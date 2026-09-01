@@ -42,7 +42,8 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 from pymeasure.instruments import Instrument
 
-import matr1x
+import matr1x.core.config as core_config
+from matr1x.core.metadata import APP_META_KEY, VALID_META_KEYS
 from matr1x.devices.visadevice import VisaDevice
 from matr1x.error_handling import Error, Result, Success
 from matr1x.models import (
@@ -67,28 +68,6 @@ from .util import (
     save_dict_to_hdf5,
 )
 
-VALID_META_KEYS = {
-    "creator": True,
-    "date": False,
-    "identifier": True,
-    "relation": True,
-    "description": True,
-    "source": True,
-    "type": True,
-    "publisher": True,
-    "format": False,
-    "language": False,
-}
-"""
-Valid metadata keys for the dublin core metadata.
-
-The 'false' keys are auto-generated and cannot be set.
-"""
-
-APP_META_KEY = ["description"]
-"""
-The user can append to these dublin core keys.
-"""
 BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
 
 ALLOWED_SIGNATURE_TYPES = BUILTIN_TYPES | {None}
@@ -488,7 +467,7 @@ class System:
         self.source: str | None = None
         self.config_section: str | None = None
 
-        self._config = matr1x.config.matr1x.scripts.matrix_script
+        self._config = core_config.config.matr1x.scripts.matrix_script
         # define merged system reference
         self.merged_system: MergedSystem | None = None
         self._reporter: Callable[[MeasurementData], None] | None = None
@@ -526,7 +505,7 @@ class System:
         self.dcdata: DcDict = DcDict(
             self,
             creator="",  # measurement user
-            date=time.strftime(f"{matr1x.datetimefmt}", time.localtime()),
+            date=time.strftime(f"{core_config.datetimefmt}", time.localtime()),
             identifier="",  # sample name
             relation="",  # parent sample
             description="",  # comment
@@ -687,7 +666,7 @@ class System:
     ) -> None:
         """Load one already resolved static or instance-specific config section."""
         self.config_section = section
-        config_data = resolve_config_path(matr1x.config, section)
+        config_data = resolve_config_path(core_config.config, section)
 
         # If it is a model (e.g. from MainConfig.model_extra), convert to dict
         if hasattr(config_data, "model_dump"):
@@ -697,7 +676,8 @@ class System:
             # Validate the config data
             validated_config = model_class.model_validate(config_data)
         except (ValidationError, TypeError, ValueError) as e:
-            from . import format_validation_error, validation_errors
+            from matr1x.core.config import validation_errors
+            from matr1x.models import format_validation_error
 
             msg = format_validation_error(e, base=f"{section}.")
             validation_errors.append(msg)
@@ -1162,9 +1142,9 @@ class System:
         # check whether hdf5 is required and change output extensions
         if self.hdf5 is True:
             # append h5 to filename to discern filetypes
-            file_extension = ".h5" + matr1x.output_extension
+            file_extension = ".h5" + core_config.output_extension
         else:
-            file_extension = matr1x.output_extension
+            file_extension = core_config.output_extension
         refileext = file_extension.replace(".", r"\.")
 
         if outputfile:
@@ -1173,7 +1153,7 @@ class System:
             datafile = Path(inputfile).expanduser().with_suffix("")
             # generate fallback option for the datafile name
         else:  # no output nor input file, generate from system names
-            timestamp = time.strftime(matr1x.datetimefmt, time.localtime())
+            timestamp = time.strftime(core_config.datetimefmt, time.localtime())
             filename = Path(self.__name__).stem
             datafile_name = f"{timestamp}_{filename}"
             if os.name == "nt":
@@ -2086,7 +2066,7 @@ class System:
             )
             return
 
-        timestamp = time.strftime(f"{matr1x.datetimefmt}", time.localtime())
+        timestamp = time.strftime(f"{core_config.datetimefmt}", time.localtime())
         if self.hdf5 is True:
             with h5py.File(dfilename, "a", libver="latest") as datafile:
                 datafile.swmr_mode = True
@@ -2545,7 +2525,7 @@ class MergedSystem(System):
         for key, vlist in tmpdcdata.items():
             self.dcdata[key] = ";".join(vlist)
         # set correct timestamp, overwrites value
-        self.dcdata["date"] = time.strftime(f"{matr1x.datetimefmt}", time.localtime())
+        self.dcdata["date"] = time.strftime(f"{core_config.datetimefmt}", time.localtime())
 
     def _check_hdf5(self) -> None:
         """Check whether one of the systems requires HDF5."""

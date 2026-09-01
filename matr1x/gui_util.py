@@ -147,7 +147,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import matr1x
+import matr1x.core.config as core_config
 from matr1x.error_handling import Error, InternalInvariantError, Result, Success
 from matr1x.models import (
     MainConfig,
@@ -161,7 +161,7 @@ from matr1x.visa_helpers import (
     validate_visa_resource,
 )
 
-from . import merge_dicts, reload_config, write_config
+from .core.config import merge_dicts, reload_config, write_config
 from .eval import delta
 from .util import resolve_config_path
 
@@ -1713,7 +1713,7 @@ class ConfigEditWidget(MetaViewerWidget):
         if self.systemfile is None or self._has_merged_system_config():
             return {}
         return {
-            system.strip(): resolve_config_path(matr1x.config, system.strip())
+            system.strip(): resolve_config_path(core_config.config, system.strip())
             for system in self.systemfile
         }
 
@@ -1751,7 +1751,7 @@ class ConfigEditWidget(MetaViewerWidget):
             if system_name not in syst_dict or "_schema" in syst_dict[system_name]:
                 continue
             try:
-                system_config = resolve_config_path(matr1x.config, system_name)
+                system_config = resolve_config_path(core_config.config, system_name)
                 if hasattr(system_config, "model_json_schema"):
                     syst_dict[system_name]["_schema"] = system_config.model_json_schema()
             except Exception:
@@ -4213,7 +4213,7 @@ def get_system_info(
     output_str = result.stdout.decode()
     error_output = result.stderr.decode().strip()
     if error_output != "":
-        marker = matr1x.deprecation_marker
+        marker = core_config.deprecation_marker
         if marker in error_output:
             logger.error(error_output)
         else:
@@ -4308,7 +4308,7 @@ def check_config(config: BaseModel, notifier: Notifier) -> None:
     notifier: Notifier
         The notification widget to display the validation errors in.
     """
-    from . import validation_errors
+    from .core.config import validation_errors
     from .scripts.shared_classes import NotifierMessage
 
     html = "".join(validation_errors).replace("\n", "<br>")

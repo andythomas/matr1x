@@ -30,7 +30,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-import matr1x
+import matr1x.core.config as core_config
 from matr1x.error_handling import Error, InternalInvariantError
 from matr1x.models import (
     ErrorMessage,
@@ -208,14 +208,14 @@ class ExecThread(threading.Thread):
         self.script = script
         self.meta_data = meta_data
         self.scriptname = scriptname
-        validation_error_count = len(matr1x.validation_errors)
+        validation_error_count = len(core_config.validation_errors)
         system = MergedSystem.from_files(systems)
         if isinstance(system, Error):
             raise InternalInvariantError(
                 "Systems should not contain errors at this point. "
                 f"Nevertheless this happened: {system.error}"
             )
-        if system_config_errors := matr1x.validation_errors[validation_error_count:]:
+        if system_config_errors := core_config.validation_errors[validation_error_count:]:
             raise ValueError("Invalid system configuration:\n" + "".join(system_config_errors))
         self.system: MergedSystem = system.value
         self.stop_status = Status()
@@ -551,7 +551,7 @@ class ExecThread(threading.Thread):
         data : ScriptData
             The data to report.
         """
-        conf = matr1x.config.matr1x
+        conf = core_config.config.matr1x
         if isinstance(data, Message):
             if data.should_comment:
                 self.system.add_comment(data.message)

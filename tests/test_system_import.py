@@ -27,7 +27,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-import matr1x
+import matr1x.core.config as core_config
 import matr1x.system as system_module
 from matr1x.error_handling import Error, Success
 from matr1x.models import SystemReference
@@ -89,14 +89,14 @@ def test_invalid_config_preserves_supplied_values(monkeypatch):
             "sample_count": "invalid",
         },
     )
-    monkeypatch.setattr(matr1x, "validation_errors", [])
+    monkeypatch.setattr(core_config, "validation_errors", [])
     system = System()
 
     system.load_config(IncompleteConfig, "test.system")
 
     assert system.config.address == "TCPIP::localhost::10034::SOCKET"
     assert system.config.initial_value == 3.14
-    assert matr1x.validation_errors
+    assert core_config.validation_errors
 
 
 def test_system_file_discovers_local_subclass(tmp_path):
