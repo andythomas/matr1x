@@ -167,14 +167,32 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "layering: systems > control > gui > devices > core"
+name = "layering: scripts > systems > control > gui > devices > core"
 type = "layers"
 layers = [
+    "matr1x.scripts",
     "matr1x.systems",
     "matr1x.control",
     "matr1x.gui",
     "matr1x.devices",
     "matr1x.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "entry points are independent"
+type = "independence"
+modules = [
+    "matr1x.scripts.matrix",
+    "matr1x.scripts.matrix_gui",
+    "matr1x.scripts.matrix_script",
+    "matr1x.scripts.matrix_preview",
+    "matr1x.scripts.matrix_di",
+    "matr1x.scripts.sweep_generator",
+]
+ignore_imports = [
+    # matrix_gui opens the sweep-generator window in-process; decoupling this
+    # (e.g. via subprocess) is deferred.
+    "matr1x.scripts.matrix_gui -> matr1x.scripts.sweep_generator",
 ]
 
 [[tool.importlinter.contracts]]
