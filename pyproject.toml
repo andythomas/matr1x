@@ -145,8 +145,19 @@ exclude_commit_patterns = [
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
 
+[tool.importlinter]
+root_package = "matr1x"
+
+[[tool.importlinter.contracts]]
+name = "matr1x is free of import cycles"
+type = "acyclic_siblings"
+ancestors = [
+    "matr1x",
+]
+
 [dependency-groups]
 dev = [
+    "import-linter",
     "pytest>=8.4.1",
     "pytest-env>=1.1.5",
     "pytest-qt>=4.5.0",
@@ -159,7 +170,12 @@ docs = [
 ]
 
 [tool.uv]
-override-dependencies = []
+override-dependencies = [
+    # grimp 3.16 has no cp314 macOS wheel (Rust build fails in CI-less envs); 3.15
+    # has cp314 wheels for all platforms. (A marker-tagged override would drop
+    # grimp from non-macOS installs entirely.)
+    "grimp<3.16",
+]
 
 [tool.uv.dependency-groups]
 docs = { requires-python = ">=3.11" }
