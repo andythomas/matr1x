@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Re-export shim. The implementation lives in :mod:`matr1x.core.util`."""
 
+from matr1x.core.execthread import matrix_script_process
 from matr1x.core.util import (
     Command,
     Get,
@@ -37,7 +38,6 @@ from matr1x.core.util import (
     init_ascii_header,
     init_hdf5_skel,
     log_multiline,
-    matrix_script_process,
     module_from_path,
     normalize_cmds,
     resolve_config_path,

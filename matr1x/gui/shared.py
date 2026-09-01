@@ -25,19 +25,17 @@ import threading
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, Any, BinaryIO, Literal, TypedDict, final, overload
+from typing import IO, Any, BinaryIO, Literal, TypedDict, final
 
 import tomli_w
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pyqtgraph.Qt.QtGui import QColor
 from PySide6.QtCore import (
     QByteArray,
     QDateTime,
     QModelIndex,
     QPersistentModelIndex,
-    QPoint,
     QPropertyAnimation,
-    QSettings,
     QSize,
     Qt,
     QThread,
@@ -74,12 +72,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from matr1x.core.config import resolved_directory
+from matr1x.core.config import resolved_directory, validation_errors
 from matr1x.core.error_handling import Error, InternalInvariantError, Result
 from matr1x.core.metadata import VALID_META_KEYS
 from matr1x.core.models import (
     Envelope,
     Header,
+    MainConfig,
     MeasuredValues,
     SetValues,
     SystemCapability,
@@ -87,7 +86,7 @@ from matr1x.core.models import (
     SystemReference,
 )
 from matr1x.core.util import get_matrix_binary
-from matr1x.gui.app import MApplication
+from matr1x.gui.app import MApplication, SaferQSettings
 from matr1x.gui.helpers import get_matrix_icon, get_system_capability, get_system_info
 from matr1x.gui.meta_viewer import ConfigEditWidget, blocked_signals
 from matr1x.gui.mixins import LoggerMixin
@@ -928,34 +927,6 @@ class MetaDataDialog(QDialog):
 
 
 @final
-class SaferQSettings(QSettings):
-    """Require default value and type hint for settings restore."""
-
-    @overload
-    def safer_value(self, key: str, defaultValue: QPoint, type: type[QPoint]) -> QPoint: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: QSize, type: type[QSize]) -> QSize: ...
-    @overload
-    def safer_value(
-        self, key: str, defaultValue: QByteArray, type: type[QByteArray]
-    ) -> QByteArray: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: bool, type: type[bool]) -> bool: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: int, type: type[int]) -> int: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: list, type: type[list]) -> list: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: float, type: type[float]) -> float: ...
-    @overload
-    def safer_value(self, key: str, defaultValue: str, *, type: type[str]) -> str: ...
-
-    def safer_value(self, key: str, defaultValue: Any, type: object):  # noqa: A002
-        """Call the original QSettings value method."""
-        return super().value(key, defaultValue, type)
-
-
-@final
 @dataclass
 class MeasurementItem:
     """The parameters of an item of the measurement queue."""
@@ -1331,3 +1302,61 @@ class MeasurementUI(QWidget):
         menu.addAction(self.abort)
         menu.addAction(self.finish)
         menu.addAction(self.kill)
+
+
+def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
+    """
+    Format the error output of the toml validation in html.
+
+    Parameters
+    ----------
+    e: ValidationError or TypeError or ValueError
+        The errors with all information.
+    base: str
+        The prefix of the error location, e.g., 'ifwlib'.
+
+    Returns
+    -------
+    str
+        The html with the human readable errors.
+    """
+    html = ""
+    if isinstance(e, ValidationError):
+        for err in e.errors():
+            location = base + ".".join(str(i) for i in err["loc"])
+            msg = err["msg"].replace(">", "&gt;").replace("<", "&lt;")
+            html += f"{location}: {msg}"
+            if "url" in err:
+                url = err["url"]
+                html += f' (<a href="{url}">More info</a>)'
+            html += "<br><br>"
+    else:
+        # Handle TypeError and ValueError which don't have errors() method
+        msg = str(e).replace(">", "&gt;").replace("<", "&lt;")
+        html += f"{base}: {msg}<br><br>"
+    return html
+
+
+def check_config(config: BaseModel, notifier: Notifier) -> None:
+    """
+    Validate the configuration tomls.
+
+    Parameters
+    ----------
+    config: BaseModel
+        The configuration model to validate.
+    notifier: Notifier
+        The notification widget to display the validation errors in.
+    """
+    html = "".join(validation_errors).replace("\n", "<br>")
+    try:
+        MainConfig.model_validate(config)
+    except (ValidationError, TypeError, ValueError) as e:
+        html += _format_validation_error(e)
+    if html != "":
+        html = (
+            f"Please check your configuration file ({Path.home() / '.matr1x.toml'})! "
+            "Some settings will not work as intended. "
+            "The following error(s) occured:<br><br>"
+        ) + html
+        notifier.show_message(NotifierMessage(html, level=logging.WARNING))

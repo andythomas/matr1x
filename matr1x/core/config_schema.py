@@ -13,7 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Pydantic models for the matr1x configuration."""
+"""Pydantic models (schema) for the matr1x configuration.
+
+This module is a leaf of the ``matr1x.core`` package: it must not import
+from ``matr1x.core.config`` or ``matr1x.core.models``.
+"""
 
 from pathlib import Path
 from typing import Annotated, Any

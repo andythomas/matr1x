@@ -29,10 +29,8 @@ from matr1x.gui.helpers import (
     _draw_character_icon,
     _draw_custom_icon,
     _format_local_timestamp,
-    _format_validation_error,
     _load_matr1x_icon,
     _resolve_icon_colors,
-    check_config,
     clear_layout,
     create_matr1x_quit_action,
     create_matrix_settings_action,
@@ -71,6 +69,7 @@ from matr1x.gui.mixins import (
     hasLogActions,
 )
 from matr1x.gui.plot import CustomViewBox, SimplePlotWidget
+from matr1x.gui.shared import _format_validation_error, check_config
 from matr1x.gui.widgets import FileLineEdit, QRangeWidget, ReadOnlyTable
 
 __all__ = [

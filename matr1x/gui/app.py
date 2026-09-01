@@ -29,12 +29,19 @@ from pathlib import Path
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
+    Any,
+    final,
+    overload,
 )
 
 import PySide6
 from PySide6.QtCore import (
+    QByteArray,
     QEvent,
     QLibraryInfo,
+    QPoint,
+    QSettings,
+    QSize,
     QTimer,
     Signal,
     qVersion,
@@ -45,13 +52,7 @@ from PySide6.QtGui import (
     QIcon,
     QPalette,
 )
-from PySide6.QtWidgets import (
-    QApplication,
-    QMessageBox,
-    QStyle,
-    QTextEdit,
-    QWidget,
-)
+from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QTextEdit, QWidget
 
 from matr1x.error_handling import InternalInvariantError
 
@@ -460,3 +461,31 @@ class MApplication(QApplication):
         if not isinstance(app, MApplication):
             raise InternalInvariantError("The application instance is None!")
         return app
+
+
+@final
+class SaferQSettings(QSettings):
+    """Require default value and type hint for settings restore."""
+
+    @overload
+    def safer_value(self, key: str, defaultValue: QPoint, type: type[QPoint]) -> QPoint: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: QSize, type: type[QSize]) -> QSize: ...
+    @overload
+    def safer_value(
+        self, key: str, defaultValue: QByteArray, type: type[QByteArray]
+    ) -> QByteArray: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: bool, type: type[bool]) -> bool: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: int, type: type[int]) -> int: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: list, type: type[list]) -> list: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: float, type: type[float]) -> float: ...
+    @overload
+    def safer_value(self, key: str, defaultValue: str, *, type: type[str]) -> str: ...
+
+    def safer_value(self, key: str, defaultValue: Any, type: object):  # noqa: A002
+        """Call the original QSettings value method."""
+        return super().value(key, defaultValue, type)

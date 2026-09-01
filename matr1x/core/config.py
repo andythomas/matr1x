@@ -37,8 +37,8 @@ from typing import Any
 import tomli_w
 from pydantic import BaseModel, ValidationError
 
+from matr1x.core.config_schema import MainConfig, format_validation_error
 from matr1x.core.logging_util import WeekRotatingFileHandler
-from matr1x.core.models import MainConfig, format_validation_error
 from matr1x.core.util import (
     create_temp_dir_with_symlinks,
     get_package_path,

@@ -30,7 +30,7 @@ from collections.abc import Callable, Iterable
 from functools import cached_property
 from operator import attrgetter
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, TypeGuard, TypeVar, cast
+from typing import Any, ClassVar, TypeGuard, TypeVar, cast
 
 import h5py
 import numpy as np
@@ -61,10 +61,6 @@ from matr1x.core.util import (
     save_dict_to_hdf5,
 )
 from matr1x.core.visadevice import VisaDevice
-
-if TYPE_CHECKING:
-    from matr1x.core.system.merged import MergedSystem
-
 
 BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
 
@@ -450,6 +446,10 @@ class System:
     state_exclusion_groups: ClassVar[dict[str, str]] = {}
     """Optional state-to-exclusion-group declarations."""
 
+    _exclude_custom_information: ClassVar[bool] = False
+    """Whether grab_information() skips the system's own custom
+    attributes (set by wrapper systems such as MergedSystem)."""
+
     def __init__(self, name=None):
         """
         Initialize the System.
@@ -467,7 +467,7 @@ class System:
 
         self._config = core_config.config.matr1x.scripts.matrix_script
         # define merged system reference
-        self.merged_system: MergedSystem | None = None
+        self.merged_system: System | None = None
         self._reporter: Callable[[MeasurementData], None] | None = None
         # initialize lists for later use
         self.parameters: list[Parameter] = []
@@ -1851,10 +1851,9 @@ class System:
         self._add_devices_to_information(info)
         self._add_parameters_to_information(info)
 
-        # Add custom methods and variables
-        from matr1x.core.system.merged import MergedSystem
-
-        if self.__class__ != MergedSystem:
+        # Add custom methods and variables (skipped by wrapper systems
+        # such as MergedSystem)
+        if not self._exclude_custom_information:
             self._add_attributes_to_dict(info)
 
         self._add_config_to_information(info)

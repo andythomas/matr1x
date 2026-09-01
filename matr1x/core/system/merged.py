@@ -22,7 +22,7 @@ import time
 from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ValidationError
 
@@ -64,6 +64,8 @@ class MergedSystem(System):
         Contains the individual System instances that go into the
         merged system.
     """
+
+    _exclude_custom_information: ClassVar[bool] = True
 
     def __init__(self, systems: list[System]):
         self.subsys: list[System] = systems

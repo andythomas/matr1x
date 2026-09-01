@@ -27,13 +27,10 @@ from collections.abc import Callable, Sequence
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from types import ModuleType
-from typing import (
-    TYPE_CHECKING,
-    Literal,
-)
+from typing import Literal
 
 import pygit2
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from PySide6.QtCore import (
     QPoint,
     Qt,
@@ -60,15 +57,10 @@ from PySide6.QtWidgets import (
 import matr1x.core.config as core_config
 from matr1x.error_handling import Error, Result, Success
 from matr1x.models import (
-    MainConfig,
     SystemCapability,
     SystemInfo,
     SystemReference,
 )
-
-if TYPE_CHECKING:
-    from matr1x.gui.shared import Notifier
-
 
 logger = logging.getLogger(__name__)
 
@@ -422,67 +414,6 @@ def get_system_capability(source: str) -> Result[SystemCapability, str]:
         return Success(SystemCapability.model_validate_json(output))
     except (IndexError, ValidationError) as error:
         return Error(f"Could not parse system capability: {error}")
-
-
-def _format_validation_error(e: ValidationError | TypeError | ValueError, base: str = "") -> str:
-    """
-    Format the error output of the toml validation in html.
-
-    Parameters
-    ----------
-    e: ValidationError or TypeError or ValueError
-        The errors with all information.
-    base: str
-        The prefix of the error location, e.g., 'ifwlib'.
-
-    Returns
-    -------
-    str
-        The html with the human readable errors.
-    """
-    html = ""
-    if isinstance(e, ValidationError):
-        for err in e.errors():
-            location = base + ".".join(str(i) for i in err["loc"])
-            msg = err["msg"].replace(">", "&gt;").replace("<", "&lt;")
-            html += f"{location}: {msg}"
-            if "url" in err:
-                url = err["url"]
-                html += f' (<a href="{url}">More info</a>)'
-            html += "<br><br>"
-    else:
-        # Handle TypeError and ValueError which don't have errors() method
-        msg = str(e).replace(">", "&gt;").replace("<", "&lt;")
-        html += f"{base}: {msg}<br><br>"
-    return html
-
-
-def check_config(config: BaseModel, notifier: Notifier) -> None:
-    """
-    Validate the configuration tomls.
-
-    Parameters
-    ----------
-    config: BaseModel
-        The configuration model to validate.
-    notifier: Notifier
-        The notification widget to display the validation errors in.
-    """
-    from matr1x.core.config import validation_errors
-    from matr1x.gui.shared import NotifierMessage
-
-    html = "".join(validation_errors).replace("\n", "<br>")
-    try:
-        MainConfig.model_validate(config)
-    except (ValidationError, TypeError, ValueError) as e:
-        html += _format_validation_error(e)
-    if html != "":
-        html = (
-            f"Please check your configuration file ({Path.home() / '.matr1x.toml'})! "
-            "Some settings will not work as intended. "
-            "The following error(s) occured:<br><br>"
-        ) + html
-        notifier.show_message(NotifierMessage(html, level=logging.WARNING))
 
 
 def create_matrix_settings_action() -> QAction:
