@@ -85,8 +85,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from matr1x.gui.shared import SaferQSettings
 from matr1x.gui_util import AutoSlot
-from matr1x.scripts.shared_classes import SaferQSettings
 
 if TYPE_CHECKING:
     from matr1x.control.controlwindow import ControlWindow

@@ -60,7 +60,7 @@ from PySide6.QtWidgets import (
 )
 
 if TYPE_CHECKING:
-    from matr1x.scripts.shared_classes import SaferQSettings
+    from matr1x.gui.shared import SaferQSettings
 
 from .logging import LoggingWindow
 

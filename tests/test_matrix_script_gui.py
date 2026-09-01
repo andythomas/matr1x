@@ -23,9 +23,9 @@ from PySide6.QtCore import Qt
 
 import matr1x.eval
 from matr1x.error_handling import Success
+from matr1x.gui.shared import SystemListWidget
 from matr1x.models import Envelope, Message, Modifier, SystemCapability, SystemReference
 from matr1x.scripts import matrix_script
-from matr1x.scripts.shared_classes import SystemListWidget
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
 

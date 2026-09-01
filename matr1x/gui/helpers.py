@@ -67,7 +67,7 @@ from matr1x.models import (
 )
 
 if TYPE_CHECKING:
-    from matr1x.scripts.shared_classes import Notifier
+    from matr1x.gui.shared import Notifier
 
 
 logger = logging.getLogger(__name__)
@@ -469,7 +469,7 @@ def check_config(config: BaseModel, notifier: Notifier) -> None:
         The notification widget to display the validation errors in.
     """
     from matr1x.core.config import validation_errors
-    from matr1x.scripts.shared_classes import NotifierMessage
+    from matr1x.gui.shared import NotifierMessage
 
     html = "".join(validation_errors).replace("\n", "<br>")
     try:

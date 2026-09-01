@@ -69,6 +69,14 @@ from matr1x.error_handling import (
     Success,
     install_error_handler,
 )
+from matr1x.gui.shared import (
+    MMainWindow,
+    MToolBar,
+    Notifier,
+    NotifierMessage,
+    SaferQSettings,
+    SystemListWidget,
+)
 from matr1x.gui_util import (
     AboutBox,
     AutoSlot,
@@ -91,14 +99,6 @@ from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
-)
-from matr1x.scripts.shared_classes import (
-    MMainWindow,
-    MToolBar,
-    Notifier,
-    NotifierMessage,
-    SaferQSettings,
-    SystemListWidget,
 )
 from matr1x.util import generate_col_index
 

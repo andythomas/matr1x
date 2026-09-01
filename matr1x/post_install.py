@@ -30,10 +30,10 @@ from PySide6.QtWidgets import QMessageBox
 
 import matr1x as matr1xpackage
 from matr1x import config
+from matr1x.gui.shared import SaferQSettings
 from matr1x.gui_util import (
     get_install_info,
 )
-from matr1x.scripts.shared_classes import SaferQSettings
 
 __all__ = [
     "check_desktop_integration",

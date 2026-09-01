@@ -63,6 +63,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x import logfolder, output_extension, scpi_tcpserver, system
 from matr1x.control.util import GuiDict, catchEmitError
+from matr1x.gui.shared import Notifier, SaferQSettings
 from matr1x.gui_util import (
     AutoSlot,
     LoggingWindow,
@@ -72,7 +73,6 @@ from matr1x.gui_util import (
     get_matrix_icon,
     open_matrix_toml,
 )
-from matr1x.scripts.shared_classes import Notifier, SaferQSettings
 from matr1x.util import Command, Get, StreamToLogger
 
 logger = logging.getLogger(__name__)

@@ -52,6 +52,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x.core.eval import HeaderDict, _create_empty_header, loadmatrix
 from matr1x.error_handling import expect_not_none, install_error_handler
+from matr1x.gui.shared import MMainWindow, MToolBar, Notifier, SaferQSettings
 from matr1x.gui_util import (
     AboutBox,
     FileDropMixin,
@@ -71,7 +72,6 @@ from matr1x.post_install import (
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts.shared_classes import MMainWindow, MToolBar, Notifier, SaferQSettings
 
 logger = logging.getLogger(__name__)
 

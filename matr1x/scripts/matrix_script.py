@@ -69,6 +69,20 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x.editor import CodeEditor
 from matr1x.error_handling import Error, install_error_handler
+from matr1x.gui.shared import (
+    ContentDockWidget,
+    MeasurementItem,
+    MeasurementTable,
+    MeasurementThread,
+    MeasurementUI,
+    MetaDataDialog,
+    MMainWindow,
+    MToolBar,
+    Notifier,
+    NotifierMessage,
+    SaferQSettings,
+    SystemListWidget,
+)
 from matr1x.gui_util import (
     AboutBox,
     AutoSlot,
@@ -104,20 +118,6 @@ from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
-)
-from matr1x.scripts.shared_classes import (
-    ContentDockWidget,
-    MeasurementItem,
-    MeasurementTable,
-    MeasurementThread,
-    MeasurementUI,
-    MetaDataDialog,
-    MMainWindow,
-    MToolBar,
-    Notifier,
-    NotifierMessage,
-    SaferQSettings,
-    SystemListWidget,
 )
 from matr1x.util import StreamToLogger, generate_script, get_script_prefix_offset
 
