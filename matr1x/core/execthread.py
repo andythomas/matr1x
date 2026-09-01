@@ -44,8 +44,8 @@ from matr1x.core.models import (
     SetValues,
     Telemetry,
 )
+from matr1x.core.system import MergedSystem
 from matr1x.core.util import log_multiline
-from matr1x.system import MergedSystem
 
 __all__ = ["ExecThread"]
 

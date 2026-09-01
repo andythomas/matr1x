@@ -28,7 +28,7 @@ import pytest
 from pydantic import BaseModel
 
 import matr1x.core.config as core_config
-import matr1x.system as system_module
+import matr1x.core.system.base as system_module
 from matr1x.error_handling import Error, Success
 from matr1x.models import SystemReference
 from matr1x.system import MergedSystem, StatefulSystem, System
