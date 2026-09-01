@@ -17,7 +17,7 @@
 
 import numpy as np
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class BOP5020mg(VisaDevice):

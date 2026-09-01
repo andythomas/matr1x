@@ -59,8 +59,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from matr1x.core.system import System
 from matr1x.gui_util import AutoSlot
-from matr1x.system import System
 
 from ..error_handling import InternalInvariantError
 from ..gui_util import MApplication, validator

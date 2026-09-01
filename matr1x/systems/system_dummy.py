@@ -16,8 +16,8 @@
 """Module defines a minimal system for testing and demonstration purposes."""
 
 # a dummy device is used to make it runable
+from matr1x.core.system import System
 from matr1x.devices.dummy import dummy
-from matr1x.system import System
 
 
 class Dummy(System):

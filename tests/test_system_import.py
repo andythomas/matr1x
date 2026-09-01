@@ -29,9 +29,9 @@ from pydantic import BaseModel
 
 import matr1x.core.config as core_config
 import matr1x.core.system.base as system_module
-from matr1x.error_handling import Error, Success
-from matr1x.models import SystemReference
-from matr1x.system import MergedSystem, StatefulSystem, System
+from matr1x.core.error_handling import Error, Success
+from matr1x.core.models import SystemReference
+from matr1x.core.system import MergedSystem, StatefulSystem, System
 
 # Collect all files in the system-folder
 path = Path(__file__).resolve().parent

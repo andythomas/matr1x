@@ -29,8 +29,8 @@ https://davis.lbl.gov/Manuals/HDF5-1.8.7/Advanced/Chunking/index.html
 # ============================
 import numpy
 
+from matr1x.core.system import System
 from matr1x.devices.dummy import dummy
-from matr1x.system import System
 
 
 # ============================

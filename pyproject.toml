@@ -224,7 +224,6 @@ modules = [
 ignore_imports = [
     # Shared device base modules (not vendor packages) may be imported
     # from any device module.
-    "matr1x.devices.** -> matr1x.devices.visadevice",
     "matr1x.devices.** -> matr1x.devices.modbusdevice",
     "matr1x.devices.** -> matr1x.devices.scpi_dev",
 ]

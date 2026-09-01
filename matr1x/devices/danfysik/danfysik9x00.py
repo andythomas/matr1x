@@ -22,7 +22,7 @@ supply models 9100 and 9700.
 
 import time
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class Danfysik9100(VisaDevice):

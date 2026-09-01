@@ -22,7 +22,7 @@ from numpy import clip, sign
 from pyvisa.errors import VisaIOError
 from wrapt import synchronized
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class NanotecPD4(VisaDevice):

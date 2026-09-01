@@ -33,9 +33,9 @@ from pprint import pformat
 
 import pytest
 
-import matr1x.util
+import matr1x.core.util
 from matr1x import output_extension
-from matr1x.error_handling import Success
+from matr1x.core.error_handling import Success
 from matr1x.gui_util import get_system_info
 
 path = Path(__file__).resolve().parent
@@ -213,7 +213,7 @@ def _launch_tapin_script(
     # Get the absolute path to system_tapin.py
     system_tapin_abs_path = path / "system_tapin.py"
     # Generate the script
-    script = matr1x.util.generate_script(user_script)
+    script = matr1x.core.util.generate_script(user_script)
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         for line in script:
             tf.write(line.encode())
@@ -246,7 +246,7 @@ def _launch_tapin_matrix(
     """
     env = os.environ.copy()
     env.update(env_overrides)
-    cmd = [matr1x.util.get_matrix_binary(), "-i", str(inputfile)]
+    cmd = [matr1x.core.util.get_matrix_binary(), "-i", str(inputfile)]
     print(subprocess.list2cmdline(cmd))
     return subprocess.run(cmd, env=env, check=False)
 

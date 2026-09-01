@@ -28,11 +28,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import matr1x.eval
-import matr1x.util
+import matr1x.core.eval
+import matr1x.core.util
 from matr1x import output_extension
-from matr1x.execthread import ExecThread
-from matr1x.models import ExecutionLines, MeasurementData
+from matr1x.core.execthread import ExecThread
+from matr1x.core.models import ExecutionLines, MeasurementData
 
 path = Path(__file__).resolve().parent
 
@@ -76,7 +76,7 @@ def test_matrix_dummy():
     inputfile = path / "sys_dummy_sweep_all.5t"
     basename_path = inputfile.with_suffix("")
     existingfiles = set(basename_path.parent.glob(basename_path.name + "*"))
-    cmd = [matr1x.util.get_matrix_binary(), "-i", str(inputfile)]
+    cmd = [matr1x.core.util.get_matrix_binary(), "-i", str(inputfile)]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
@@ -86,7 +86,7 @@ def test_matrix_dummy():
     assert len(newfiles) == 1
     # check file contains data
     datafile = newfiles.pop()
-    h, d = matr1x.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile)
     assert len(h["columns"]) == 6  # check number of data columns
     # Note that one point is not recorded in the datafile
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
@@ -110,7 +110,7 @@ def test_matrix_dummy_merged():
     inputfile = path / "sys_dummy_merged.8t"
     outputfile = path / f"test_merged{output_extension}"
     cmd = [
-        matr1x.util.get_matrix_binary(),
+        matr1x.core.util.get_matrix_binary(),
         "-i",
         str(inputfile),
         "-o",
@@ -123,7 +123,7 @@ def test_matrix_dummy_merged():
     # open latest datafile and check data shape
     files = sorted(path.glob(f"test_merged*{output_extension}"), key=lambda p: p.stat().st_mtime)
     assert len(files) >= 1
-    h, d = matr1x.eval.loadmatrix(files[-1], structured=True)
+    h, d = matr1x.core.eval.loadmatrix(files[-1], structured=True)
     assert len(h["columns"]) == 10  # check number of data columns
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert d.shape == (11,)  # check shape of dataset
@@ -147,7 +147,7 @@ def test_matrix_dummy_hdf5():
     inputfile = path / "sys_dummy_hdf5_sweep.3t"
     outputfile = path / f"test_hdf5.h5{output_extension}"
     cmd = [
-        matr1x.util.get_matrix_binary(),
+        matr1x.core.util.get_matrix_binary(),
         "-i",
         str(inputfile),
         "-o",
@@ -160,7 +160,7 @@ def test_matrix_dummy_hdf5():
     # open latest datafile and check data shape
     files = sorted(path.glob(f"test_hdf5*{output_extension}"), key=lambda p: p.stat().st_mtime)
     assert len(files) >= 1
-    h, d = matr1x.eval.loadmatrix(files[-1])
+    h, d = matr1x.core.eval.loadmatrix(files[-1])
     assert len(h["columns"]) == 8  # check number of data columns
     assert d["devhdfp4_flat"].shape == (10 * 4,)  # check shape of dataset
     assert d["devhdfp4_1d"].shape == (10, 4)  # check shape of dataset
@@ -190,7 +190,7 @@ def test_matrix_script_dummy_merged():
     inputfile = path / "test.matrix"
     with inputfile.open() as f:
         user_script = f.read()
-    script = matr1x.util.generate_script(user_script)
+    script = matr1x.core.util.generate_script(user_script)
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         for line in script:
             tf.write(line.encode())
@@ -205,7 +205,7 @@ def test_matrix_script_dummy_merged():
         assert ret.returncode == 0
         files = list(path.glob(f"epische_messdatei*{output_extension}"))
         assert len(files) >= 1
-        h, d = matr1x.eval.loadmatrix(files[-1], structured=False)
+        h, d = matr1x.core.eval.loadmatrix(files[-1], structured=False)
         assert len(h["columns"]) == 10
         assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
         assert d.shape == (22, 10)
@@ -244,7 +244,7 @@ def test_empty_script():
 )
 def test_matrix_script_reports_only_user_line_numbers(user_script, expected_lines, monkeypatch):
     """Line reporting keeps the nearest user line highlighted during external work."""
-    script = matr1x.util.generate_script(user_script)
+    script = matr1x.core.util.generate_script(user_script)
     thread = ExecThread(script, {}, "", None, [])
     generated_lines: list[int] = []
 
@@ -259,7 +259,7 @@ def test_matrix_script_reports_only_user_line_numbers(user_script, expected_line
         patch.setattr(time, "sleep", time.sleep)
         thread.run()
 
-    offset = matr1x.util.get_script_prefix_offset()
+    offset = matr1x.core.util.get_script_prefix_offset()
     reported_lines = [line - offset for line in generated_lines]
     distinct_lines = [
         line

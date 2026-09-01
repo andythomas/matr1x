@@ -19,7 +19,7 @@
 # ============================
 
 from matr1x.control import control_dummy
-from matr1x.system import System
+from matr1x.core.system import System
 
 # ============================
 

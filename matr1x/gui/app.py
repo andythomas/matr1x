@@ -54,7 +54,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QTextEdit, QWidget
 
-from matr1x.error_handling import InternalInvariantError
+from matr1x.core.error_handling import InternalInvariantError
 
 if TYPE_CHECKING:
     pass

@@ -55,8 +55,8 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x.core.config as core_config
-from matr1x.error_handling import Error, Result, Success
-from matr1x.models import (
+from matr1x.core.error_handling import Error, Result, Success
+from matr1x.core.models import (
     SystemCapability,
     SystemInfo,
     SystemReference,

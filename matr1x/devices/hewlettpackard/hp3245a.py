@@ -20,7 +20,7 @@ This module provides a class for controlling the HP3245A AC function
 generator.
 """
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class HP3245A(VisaDevice):

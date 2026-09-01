@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import matr1x.eval
+import matr1x.core.eval
 
 path = Path(__file__).resolve().parent
 
@@ -103,7 +103,7 @@ def test_loadmatrix_hdf5_ma8():
     data values.
     """
     datafile = path / "data" / "random_test.h5.ma8"
-    h, d = matr1x.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma8_header_keys == set(h.keys())
     assert h["dcterms:publisher"] == "matr1x measurement suite"
     assert h["dcterms:relation"] == ""
@@ -134,7 +134,7 @@ def test_loadmatrix_ma8():
     values.
     """
     datafile = path / "data" / "random_test.ma8"
-    h, d = matr1x.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma8_header_keys == set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert h["dcterms:type"] == ""
@@ -165,7 +165,7 @@ def test_loadmatrix_hdf5_ma7():
     data values.
     """
     datafile = path / "data" / "magic_sample.h5.ma7"
-    h, d = matr1x.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert h["dc.publisher"] == "matr1x;University of Konstanz"  # ty:ignore[invalid-key]
@@ -190,7 +190,7 @@ def test_loadmatrix_ma7():
     values.
     """
     datafile = path / "data" / "mgk240213.ma7"
-    h, d = matr1x.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert h["dc.type"] == "Transport data"  # ty:ignore[invalid-key]
@@ -217,7 +217,7 @@ def test_loadmatrix_hdf5_ma6():
     data values.
     """
     datafile = path / "data" / "polybox.h5.ma6"
-    h, d = matr1x.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma6_header_keys == set(h.keys())
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
@@ -239,7 +239,7 @@ def test_loadmatrix_ma6():
     values.
     """
     datafile = path / "data" / "ARMR.ma6"
-    h, d = matr1x.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma6_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
     assert (
@@ -266,11 +266,11 @@ def test_loadmatrix_pathlib_ma8():
     """
     # Test with pathlib.Path
     datafile_path = path / "data" / "random_test.ma8"
-    h_path, d_path = matr1x.eval.loadmatrix(datafile_path)
+    h_path, d_path = matr1x.core.eval.loadmatrix(datafile_path)
 
     # Test with string (for comparison)
     datafile_str = str(datafile_path)
-    h_str, d_str = matr1x.eval.loadmatrix(datafile_str)
+    h_str, d_str = matr1x.core.eval.loadmatrix(datafile_str)
 
     # Results should be identical
     assert h_path["dcterms:identifier"] == h_str["dcterms:identifier"]

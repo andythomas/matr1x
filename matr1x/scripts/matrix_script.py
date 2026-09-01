@@ -67,7 +67,22 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.error_handling import Error, install_error_handler
+from matr1x.core.error_handling import Error, install_error_handler
+from matr1x.core.models import (
+    Datafile,
+    Envelope,
+    ErrorMessage,
+    ExecutionLines,
+    Header,
+    InputParameters,
+    LogEntry,
+    MeasuredValues,
+    Message,
+    Modifier,
+    SetValues,
+    Telemetry,
+)
+from matr1x.core.util import StreamToLogger, generate_script, get_script_prefix_offset
 from matr1x.gui.editor import CodeEditor
 from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.shared import (
@@ -101,26 +116,11 @@ from matr1x.gui_util import (
     open_matrix_toml,
     save_messagebox,
 )
-from matr1x.models import (
-    Datafile,
-    Envelope,
-    ErrorMessage,
-    ExecutionLines,
-    Header,
-    InputParameters,
-    LogEntry,
-    MeasuredValues,
-    Message,
-    Modifier,
-    SetValues,
-    Telemetry,
-)
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.util import StreamToLogger, generate_script, get_script_prefix_offset
 
 logger = logging.getLogger(__name__)
 script_config = matr1x.config.matr1x.scripts.matrix_script

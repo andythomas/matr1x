@@ -85,7 +85,7 @@ def validate_visa_resource(
     ```python
     from pydantic import Field
 
-    from matr1x.models import SystemConfigModel, VisaResource
+    from matr1x.core.models import SystemConfigModel, VisaResource
 
 
     class DeviceConfig(SystemConfigModel):

@@ -39,14 +39,14 @@ import pytest
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QMessageBox
 
-import matr1x.eval
-import matr1x.util
+import matr1x.core.eval
+import matr1x.core.util
 from matr1x import output_extension
 from matr1x.control import ControlWindow, GuiDict, MethodBundle, var
 from matr1x.control import guiObject as go
 from matr1x.control.control_dummy import exampleDict
-from matr1x.scpi_tcpserver import SCPI_TCP_Server
-from matr1x.system import System
+from matr1x.core.scpi_tcpserver import SCPI_TCP_Server
+from matr1x.core.system import System
 
 path = Path(__file__).resolve().parent
 
@@ -328,7 +328,7 @@ def test_matrix_script_control_dummy(start_control_dummy):
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
 
-    script = matr1x.util.generate_script(user_script)
+    script = matr1x.core.util.generate_script(user_script)
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         for line in script:
             tf.write(line.encode())
@@ -341,7 +341,7 @@ def test_matrix_script_control_dummy(start_control_dummy):
         assert ret.returncode == 0
         files = list(path.glob(f"epische_messdatei{output_extension}"))
         assert len(files) >= 1
-        h, d = matr1x.eval.loadmatrix(files[-1], structured=False)
+        h, d = matr1x.core.eval.loadmatrix(files[-1], structured=False)
         assert len(h["columns"]) == 6
         assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
         assert d.shape == (11, 6)

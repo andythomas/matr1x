@@ -48,7 +48,19 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.error_handling import Error, InternalInvariantError, install_error_handler
+from matr1x.core.error_handling import Error, InternalInvariantError, install_error_handler
+from matr1x.core.models import (
+    Datafile,
+    Envelope,
+    ErrorMessage,
+    Header,
+    MeasuredValues,
+    Message,
+    SetValues,
+    SystemInfo,
+    Telemetry,
+)
+from matr1x.core.system import MergedSystem
 from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.shared import (
     ContentDockWidget,
@@ -78,24 +90,12 @@ from matr1x.gui_util import (
     get_system_info,
     open_matrix_toml,
 )
-from matr1x.models import (
-    Datafile,
-    Envelope,
-    ErrorMessage,
-    Header,
-    MeasuredValues,
-    Message,
-    SetValues,
-    SystemInfo,
-    Telemetry,
-)
 from matr1x.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
 from matr1x.scripts import sweep_generator
-from matr1x.system import MergedSystem
 
 logger = logging.getLogger(Path(__file__).name)
 

@@ -23,7 +23,7 @@ from typing import ClassVar, TypeAlias, cast
 
 from wrapt import synchronized
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)
 

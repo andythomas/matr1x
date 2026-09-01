@@ -22,7 +22,7 @@ superconducting magnet power supplies over VISA interface.
 
 import time
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class CS04(VisaDevice):

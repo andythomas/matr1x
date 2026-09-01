@@ -19,7 +19,7 @@ import logging
 
 from pyvisa import constants
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)
 

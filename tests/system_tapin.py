@@ -25,8 +25,8 @@ from contextlib import contextmanager
 from threading import Lock
 from typing import Any, TextIO
 
+from matr1x.core.system import System
 from matr1x.devices.dummy import dummy
-from matr1x.system import System
 
 # -----------------------------------------------------------------------------
 # Persistent tap connection state (singleton per process)

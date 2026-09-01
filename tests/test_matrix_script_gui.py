@@ -21,10 +21,10 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import Qt
 
-import matr1x.eval
-from matr1x.error_handling import Success
+import matr1x.core.eval
+from matr1x.core.error_handling import Success
+from matr1x.core.models import Envelope, Message, Modifier, SystemCapability, SystemReference
 from matr1x.gui.shared import SystemListWidget
-from matr1x.models import Envelope, Message, Modifier, SystemCapability, SystemReference
 from matr1x.scripts import matrix_script
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
@@ -116,7 +116,7 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainW
 
     assert main_window.measurement_file.name[:14] == "boring_testrun"
     assert main_window.measurement_file.exists()
-    header, data = matr1x.eval.loadmatrix(main_window.measurement_file)
+    header, data = matr1x.core.eval.loadmatrix(main_window.measurement_file)
     assert header["dcterms:creator"] == creator
     assert header["dcterms:identifier"] == identifier
     assert header["dcterms:relation"] == relation

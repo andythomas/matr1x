@@ -21,8 +21,8 @@ import pytest
 from PySide6.QtCore import Qt
 
 from matr1x import output_extension
-from matr1x.eval import loadmatrix
-from matr1x.models import SystemInfo, SystemSelectionInfo
+from matr1x.core.eval import loadmatrix
+from matr1x.core.models import SystemInfo, SystemSelectionInfo
 from matr1x.scripts import matrix_gui
 
 path = Path(__file__).resolve().parent

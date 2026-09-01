@@ -77,11 +77,11 @@ from PySide6.QtWidgets import (
 
 import matr1x.core.config as core_config
 from matr1x.core.config import merge_dicts, reload_config, write_config
-from matr1x.core.util import resolve_config_path
-from matr1x.error_handling import Error, Result, Success
-from matr1x.models import (
+from matr1x.core.error_handling import Error, Result, Success
+from matr1x.core.models import (
     SystemInfo,
 )
+from matr1x.core.util import resolve_config_path
 from matr1x.visa_helpers import (
     VisaResourceRequirements,
     get_visa_resource_manager,

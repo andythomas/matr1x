@@ -23,7 +23,7 @@ controllers.
 import time
 from typing import ClassVar
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class SMS(VisaDevice):
