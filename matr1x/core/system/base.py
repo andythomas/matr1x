@@ -48,6 +48,7 @@ from matr1x.core.models import (
     SystemReference,
     SystemVariable,
     UntypedConfigModel,
+    format_validation_error,
 )
 from matr1x.core.util import (
     construct_query_string,
@@ -674,7 +675,6 @@ class System:
             validated_config = model_class.model_validate(config_data)
         except (ValidationError, TypeError, ValueError) as e:
             from matr1x.core.config import validation_errors
-            from matr1x.models import format_validation_error
 
             msg = format_validation_error(e, base=f"{section}.")
             validation_errors.append(msg)
