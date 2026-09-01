@@ -54,7 +54,6 @@ if TYPE_CHECKING:
     from matr1x.control.controlwindow import ControlWindow
 
 
-
 from .. import config
 from ..error_handling import install_error_handler
 from ..gui.error_dialog import install_qt_error_dialog
