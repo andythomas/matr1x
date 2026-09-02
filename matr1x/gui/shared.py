@@ -29,7 +29,6 @@ from typing import IO, Any, BinaryIO, Literal, TypedDict, final
 
 import tomli_w
 from pydantic import BaseModel, ValidationError
-from pyqtgraph.Qt.QtGui import QColor
 from PySide6.QtCore import (
     QByteArray,
     QDateTime,
@@ -43,7 +42,15 @@ from PySide6.QtCore import (
     QTimeZone,
     Signal,
 )
-from PySide6.QtGui import QAction, QDropEvent, QFocusEvent, QKeySequence, QMouseEvent, QPalette
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QDropEvent,
+    QFocusEvent,
+    QKeySequence,
+    QMouseEvent,
+    QPalette,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
