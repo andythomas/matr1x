@@ -17,6 +17,6 @@
 
 Contains the Qt-based user interface. This is the top layer of the
 architecture: it may depend on `matr1x.core` and other lower layers,
-but the reverse is not allowed. Keeping the Qt imports here (rather than in
-the Qt-free `matr1x.core`) is what lets the core stay GUI-agnostic.
+but the reverse is not allowed. Keeping the Qt imports here (rather than
+in the Qt-free `matr1x.core`) is what lets the core stay GUI-agnostic.
 """
