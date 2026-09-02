@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim. The implementation lives in :mod:`matr1x.core.logging_util`."""
+"""Re-export shim. The implementation lives in `matr1x.core.logging_util`."""
 
 from matr1x.core.logging_util import WeekRotatingFileHandler
 

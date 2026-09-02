@@ -13,9 +13,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for :mod:`matr1x.gui.editor`.
+"""Re-export shim for `matr1x.gui.editor`.
 
-The editor now lives in the :mod:`matr1x.gui.editor` package (split into
+The editor now lives in the `matr1x.gui.editor` package (split into
 ``lsp_protocol``, ``lsp_types``, ``lsp_client`` and ``code_editor``). This
 module re-exports the public names so that ``from matr1x.editor import ...``
 keeps working.

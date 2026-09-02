@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim. The implementation lives in :mod:`matr1x.core.pymeasure_threading_fix`.
+"""Re-export shim. The implementation lives in `matr1x.core.pymeasure_threading_fix`.
 
 Importing this module applies the pymeasure thread-safety monkey patch as a
 side effect, exactly like importing the implementation module.

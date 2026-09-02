@@ -316,7 +316,7 @@ def get_user_script_line_range(script: str) -> tuple[int, int]:
     Parameters
     ----------
     script : str
-        Script produced by :func:`generate_script`.
+        Script produced by `generate_script`.
 
     Returns
     -------

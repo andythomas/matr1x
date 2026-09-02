@@ -21,7 +21,7 @@ These are used by sweep-generator, matrix-gui, matrix-preview, matrix-
 script and control-guis.
 
 This module is a re-export shim kept for backwards compatibility. Import
-from the specific :mod:`matr1x.gui` submodules instead.
+from the specific `matr1x.gui` submodules instead.
 """
 
 from matr1x.gui.app import AboutBox, MApplication, ThemeDetector

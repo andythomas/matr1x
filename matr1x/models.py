@@ -13,9 +13,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for :mod:`matr1x.core.models`.
+"""Re-export shim for `matr1x.core.models`.
 
-The models now live in :mod:`matr1x.core.models` (split into ``config``,
+The models now live in `matr1x.core.models` (split into ``config``,
 ``system``, ``data`` and ``socket``). This module re-exports the public names
 so that ``from matr1x.models import ...`` keeps working.
 """

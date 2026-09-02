@@ -13,9 +13,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for :mod:`matr1x.gui.shared`.
+"""Re-export shim for `matr1x.gui.shared`.
 
-The shared GUI classes now live in :mod:`matr1x.gui.shared`. This module
+The shared GUI classes now live in `matr1x.gui.shared`. This module
 re-exports the public names so that ``from matr1x.scripts.shared_classes
 import ...`` keeps working.
 """

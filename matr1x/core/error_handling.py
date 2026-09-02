@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # (1) General exception handler
 
 # Callback that displays an uncaught exception. GUI apps register a Qt
-# dialog via :func:`set_uncaught_exception_dialog`; without one, the
+# dialog via `set_uncaught_exception_dialog`; without one, the
 # formatted traceback is logged.
 UncaughtExceptionDialog: TypeAlias = Callable[
     [type[BaseException], BaseException | None, TracebackType | None], None

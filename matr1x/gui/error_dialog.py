@@ -17,13 +17,13 @@
 
 Qt sometimes "eats" exceptions: it prints them to the command line but does
 not quit the app, so the error becomes silent in a GUI that is not started
-from a terminal. :func:`install_qt_error_dialog` registers a ``QMessageBox``
-handler with :mod:`matr1x.core.error_handling` so that uncaught exceptions
+from a terminal. `install_qt_error_dialog` registers a ``QMessageBox``
+handler with `matr1x.core.error_handling` so that uncaught exceptions
 are shown to the user. Each GUI app calls it before
-:py:meth:`QApplication.exec`.
+`QApplication.exec`.
 
 Keeping the Qt dependency here (instead of in the Qt-free
-:mod:`matr1x.core.error_handling`) is what lets the core stay GUI-agnostic.
+`matr1x.core.error_handling`) is what lets the core stay GUI-agnostic.
 """
 
 import traceback

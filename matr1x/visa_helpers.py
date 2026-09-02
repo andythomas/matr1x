@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim. The implementation lives in :mod:`matr1x.core.visa_helpers`."""
+"""Re-export shim. The implementation lives in `matr1x.core.visa_helpers`."""
 
 from matr1x.core.visa_helpers import (
     GPIB_VISA_RESOURCE_REQUIREMENTS,

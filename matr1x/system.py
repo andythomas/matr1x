@@ -13,9 +13,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for :mod:`matr1x.core.system`.
+"""Re-export shim for `matr1x.core.system`.
 
-The system classes now live in :mod:`matr1x.core.system` (``base`` and
+The system classes now live in `matr1x.core.system` (``base`` and
 ``merged``). This module re-exports the public names so that
 ``from matr1x.system import ...`` keeps working.
 """

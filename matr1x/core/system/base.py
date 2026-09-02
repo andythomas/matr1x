@@ -1090,7 +1090,7 @@ class System:
         """
         Report data through the communication layer.
 
-        A runner can install a callback with :meth:`set_reporter` to receive
+        A runner can install a callback with `set_reporter` to receive
         measurement data directly.
 
         Parameters

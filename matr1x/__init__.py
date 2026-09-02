@@ -17,14 +17,14 @@
 Configuration and utility module for the matr1x data acquisition software.
 
 This module is a thin re-export shim. The actual configuration logic lives in
-:mod:`matr1x.core.config`; this module re-exports the public names so that the
+`matr1x.core.config`; this module re-exports the public names so that the
 historical ``import matr1x`` and ``matr1x.<name>`` access patterns keep working.
 
 The live configuration globals (``config``, ``datetimefmt``) are rebound by
-:func:`reload_config`, so they are exposed lazily via :func:`__getattr__` to
+`reload_config`, so they are exposed lazily via `__getattr__` to
 always reflect the current values. Model re-exports (``MainConfig`` and
 friends) are likewise resolved lazily so that this module does not import
-:mod:`matr1x.models` at module level.
+`matr1x.models` at module level.
 """
 
 import os
@@ -118,10 +118,10 @@ os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
 def __getattr__(name: str):
     """Lazily expose live config globals and model re-exports (PEP 562).
 
-    ``config`` and ``datetimefmt`` are rebound by :func:`reload_config`, so they
-    are proxied to :mod:`matr1x.core.config` on every access to stay current.
+    ``config`` and ``datetimefmt`` are rebound by `reload_config`, so they
+    are proxied to `matr1x.core.config` on every access to stay current.
     The model re-exports are resolved lazily to avoid importing
-    :mod:`matr1x.models` at module level.
+    `matr1x.models` at module level.
     """
     if name in ("config", "datetimefmt"):
         return getattr(_core_config, name)
