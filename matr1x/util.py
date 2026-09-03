@@ -201,7 +201,7 @@ def create_temp_dir_with_symlinks(
 
 def get_matrix_binary() -> str:
     """
-    Find matrix binary from PATH and otherwise try known Python binary folders.
+    Find matrix binary from the current environment, PATH, and known folders.
 
     This executes "matrix --help" to test if this works without error. If no
     executable is found an FileNotFoundError will be raised.
@@ -220,7 +220,8 @@ def get_matrix_binary() -> str:
     system_scripts_path = Path(sysconfig.get_path("scripts"))
 
     for matrix_str in (
-        "matrix",  # Check PATH first
+        str(Path(sys.executable).parent / "matrix"),  # Prefer own environment
+        "matrix",  # Check PATH
         str(user_scripts_path / "matrix"),
         str(system_scripts_path / "matrix"),
     ):

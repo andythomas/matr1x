@@ -24,6 +24,7 @@ import ast
 import hashlib
 import html
 import json
+import os
 import re
 import socket
 import subprocess
@@ -192,6 +193,10 @@ class LSPClient(QObject, LoggerMixin):
         creationflags = 0
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NO_WINDOW
+        # Pin the Python environment: the LSP document uses a dummy URI, so
+        # the type checker can only detect it via VIRTUAL_ENV (e.g. when
+        # launched from a desktop icon without an activated venv).
+        env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
         self.process = subprocess.Popen(
             self.cmd_line,
             stdin=subprocess.PIPE,
@@ -199,6 +204,7 @@ class LSPClient(QObject, LoggerMixin):
             stderr=subprocess.PIPE,
             text=False,
             creationflags=creationflags,
+            env=env,
         )
         time.sleep(0.1)
         self.reader_thread = threading.Thread(target=self._message_reader, daemon=True)
