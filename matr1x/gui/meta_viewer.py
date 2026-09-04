@@ -29,7 +29,6 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 from typing import (
-    TYPE_CHECKING,
     Any,
     Literal,
     cast,
@@ -87,9 +86,6 @@ from matr1x.visa_helpers import (
     get_visa_resource_manager,
     validate_visa_resource,
 )
-
-if TYPE_CHECKING:
-    pass
 
 from .helpers import get_matrix_icon, get_system_info
 from .widgets import FileLineEdit

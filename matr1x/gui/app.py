@@ -28,7 +28,6 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import (
-    TYPE_CHECKING,
     Any,
     final,
     overload,
@@ -55,9 +54,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QTextEdit, QWidget
 
 from matr1x.core.error_handling import InternalInvariantError
-
-if TYPE_CHECKING:
-    pass
 
 from .helpers import _format_local_timestamp, get_install_info
 

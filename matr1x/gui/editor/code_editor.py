@@ -16,8 +16,6 @@
 #
 """The Monaco-backed code editor and its backend."""
 
-from __future__ import annotations
-
 import ast
 import hashlib
 import html

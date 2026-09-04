@@ -7,8 +7,6 @@
 # (at your option) any later version.
 """Conservative static analysis for matrix-script measurement totals."""
 
-from __future__ import annotations
-
 import ast
 import operator
 from collections.abc import Callable

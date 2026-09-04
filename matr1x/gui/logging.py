@@ -16,14 +16,9 @@
 #
 """The logging window and its Qt logging handlers."""
 
-from __future__ import annotations
-
 import logging
 import re
-from typing import (
-    TYPE_CHECKING,
-    ClassVar,
-)
+from typing import ClassVar
 
 from PySide6.QtCore import (
     QObject,
@@ -50,9 +45,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-if TYPE_CHECKING:
-    pass
 
 from .widgets import ReadOnlyTable
 

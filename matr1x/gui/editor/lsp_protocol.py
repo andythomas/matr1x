@@ -16,8 +16,6 @@
 #
 """JSON-RPC protocol models and the LSP server descriptor."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 

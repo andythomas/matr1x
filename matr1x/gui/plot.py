@@ -19,13 +19,10 @@
 # licensed under MIT-license
 """Plotting widgets built on pyqtgraph."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import (
-    TYPE_CHECKING,
     Any,
     ClassVar,
     cast,
@@ -57,9 +54,6 @@ from PySide6.QtWidgets import (
 
 from matr1x.core.error_handling import InternalInvariantError
 from matr1x.core.eval import delta
-
-if TYPE_CHECKING:
-    pass
 
 from .helpers import _format_local_timestamp
 from .widgets import QRangeWidget

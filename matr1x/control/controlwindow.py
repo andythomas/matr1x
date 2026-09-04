@@ -256,109 +256,6 @@ class UIBuilder:
         self.widgets.central_widget.setLayout(layout)
 
 
-class EnableAction(QAction):
-    """
-    A QAction subclass that automatically updates its icon based on checked state.
-
-    This action is designed for enable/disable functionality and automatically
-    updates its icon color when the checked state changes.
-
-    Parameters
-    ----------
-    text: str
-        The text of the action.
-    parent: ControlWindow
-        The parent of the action.
-    """
-
-    def __init__(self, text: str, parent: "ControlWindow"):
-        super().__init__(text, parent)
-        self.setCheckable(True)
-        self.setIconText("Enable")
-        self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
-        self.controlwindow: ControlWindow = parent
-        self.toggled.connect(self._update_icon)
-
-    def _update_icon(self, checked: bool):
-        """
-        Update the icon based on checked state.
-
-        Parameters
-        ----------
-        checked: bool
-            The action is checked (True) or not (False).
-        """
-        if checked:
-            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")))
-        else:
-            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
-        self.controlwindow.check_enables()
-
-    def setChecked(self, a0: bool):
-        """
-        Override setChecked to ensure icon is updated.
-
-        Parameters
-        ----------
-        a0: bool
-            Set the checked (True) or unchecked (False).
-        """
-        super().setChecked(a0)
-        self._update_icon(a0)
-
-
-class FullInfoAction(QAction):
-    """
-    A QAction subclass that automatically updates its icon based on checked state.
-
-    This action is designed for full info/less info functionality and automatically
-    updates its icon (+ or -) when the checked state changes.
-
-
-    Parameters
-    ----------
-    text: str
-        The text of the action.
-    parent: ControlWindow
-        The parent of the action.
-    """
-
-    def __init__(self, text: str, parent: "ControlWindow"):
-        super().__init__(text, parent)
-        self.setCheckable(True)
-        self.setIconText("Full info")
-        self.setIcon(get_matrix_icon("CHAR_+"))
-        self.controlwindow: ControlWindow = parent
-        self.toggled.connect(self._update_icon)
-
-    def _update_icon(self, checked: bool):
-        """
-        Update the icon based on checked state.
-
-        Parameters
-        ----------
-        checked: bool
-            The action is checked (True) or not (False).
-        """
-        if checked:
-            self.setIcon(get_matrix_icon("CHAR_-"))
-        else:
-            self.setIcon(get_matrix_icon("CHAR_+"))
-        self.controlwindow.check_full_infos()
-
-    def setChecked(self, a0: bool):
-        """
-        Override setChecked to ensure icon is updated.
-
-        Parameters
-        ----------
-        a0: bool
-            Set the checked (True) or unchecked (False).
-        """
-        super().setChecked(a0)
-        self._update_icon(a0)
-
-
 class ControlWindow(LogWindowMixin, QMainWindow):
     """
     Base class for control GUIs.
@@ -1342,3 +1239,106 @@ Please investigate the error and eventually restart the graphical user interface
         ret = qApp.exec()
         if ret != -1:
             sys.exit(ret + 1)
+
+
+class EnableAction(QAction):
+    """
+    A QAction subclass that automatically updates its icon based on checked state.
+
+    This action is designed for enable/disable functionality and automatically
+    updates its icon color when the checked state changes.
+
+    Parameters
+    ----------
+    text: str
+        The text of the action.
+    parent: ControlWindow
+        The parent of the action.
+    """
+
+    def __init__(self, text: str, parent: ControlWindow):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Enable")
+        self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        self.controlwindow: ControlWindow = parent
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """
+        Update the icon based on checked state.
+
+        Parameters
+        ----------
+        checked: bool
+            The action is checked (True) or not (False).
+        """
+        if checked:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")))
+        else:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        self.controlwindow.check_enables()
+
+    def setChecked(self, a0: bool):
+        """
+        Override setChecked to ensure icon is updated.
+
+        Parameters
+        ----------
+        a0: bool
+            Set the checked (True) or unchecked (False).
+        """
+        super().setChecked(a0)
+        self._update_icon(a0)
+
+
+class FullInfoAction(QAction):
+    """
+    A QAction subclass that automatically updates its icon based on checked state.
+
+    This action is designed for full info/less info functionality and automatically
+    updates its icon (+ or -) when the checked state changes.
+
+
+    Parameters
+    ----------
+    text: str
+        The text of the action.
+    parent: ControlWindow
+        The parent of the action.
+    """
+
+    def __init__(self, text: str, parent: ControlWindow):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Full info")
+        self.setIcon(get_matrix_icon("CHAR_+"))
+        self.controlwindow: ControlWindow = parent
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """
+        Update the icon based on checked state.
+
+        Parameters
+        ----------
+        checked: bool
+            The action is checked (True) or not (False).
+        """
+        if checked:
+            self.setIcon(get_matrix_icon("CHAR_-"))
+        else:
+            self.setIcon(get_matrix_icon("CHAR_+"))
+        self.controlwindow.check_full_infos()
+
+    def setChecked(self, a0: bool):
+        """
+        Override setChecked to ensure icon is updated.
+
+        Parameters
+        ----------
+        a0: bool
+            Set the checked (True) or unchecked (False).
+        """
+        super().setChecked(a0)
+        self._update_icon(a0)

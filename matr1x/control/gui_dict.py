@@ -969,94 +969,6 @@ class var(QObject):
                     raise
 
 
-class _GuiDispatcher(QObject):
-    """Small QObject living on the GUI thread to run widget updates safely."""
-
-    copy_requested: Signal = Signal()
-    disable_requested: Signal = Signal()
-
-    def __init__(self, guidict: "GuiDict") -> None:
-        super().__init__()
-        self._guidict: GuiDict = guidict
-        self.copy_requested.connect(self.copy_values_slot)
-        self.disable_requested.connect(self.disable_guidict)
-
-    @AutoSlot
-    def copy_values_slot(self) -> None:
-        """Trigger a safe copy-values operation on the GUI thread."""
-        self._guidict.copy_values()
-
-    @AutoSlot
-    def disable_guidict(self) -> None:
-        """Disable the GuiDict safely on the GUI thread."""
-        self._guidict.enable_switch.setChecked(False)
-
-
-class _Worker(QObject):
-    """
-    Worker object for the refresh thread.
-
-    This is needed for the QTimer to work inside the QThread.
-
-    Attributes
-    ----------
-    activity : Signal
-        Signal to indicate an iteration of the refresh timer.
-    panic : Signal
-        Signal to indicate a panic state.
-    sig_error : Signal
-        Signal to report errors.
-    """
-
-    # activity signal to indicate an iteration of the refresh timer
-    activity = Signal(str)
-    panic = Signal(bool, str)
-    sig_error = Signal(type, Exception, str)
-
-    def __init__(self, target: Callable[[int], None], interval: int, parent: "GuiDict") -> None:
-        super().__init__()
-        self.target: Callable[[int], None] = target  # target function for the refresh loop
-        self.interval: int = interval  # in milliseconds
-        self.guidict: GuiDict = parent
-        self._timer: QTimer = QTimer()  # fake definition
-
-    @catchEmitError
-    @AutoSlot
-    def run(self) -> None:
-        """Start the worker's refresh loop and copy readout to set fields."""
-        self._timer = QTimer()
-        self._timer.setInterval(self.interval)
-        counter = itertools.count(1)
-        self._timer.timeout.connect(lambda: self._target(next(counter)))
-        # start refresh immediately and then again after the timer timeout
-        self.target(0)
-        # copy values from readout to set fields upon first run
-        self.guidict._dispatcher.copy_requested.emit()
-        self._timer.start()
-
-    @AutoSlot
-    def stop(self) -> None:
-        """Stop the worker's refresh loop."""
-        self._timer.stop()
-        self.activity.emit("lightgray")
-
-    @catchEmitError
-    def _target(self, count: int) -> None:
-        """
-        Encapsulate target function to emit the activity signal.
-
-        Parameters
-        ----------
-        count : int
-            The current iteration count.
-        """
-        if count % 2:
-            self.activity.emit("green")
-        else:
-            self.activity.emit("lightgreen")
-        self.target(count)
-
-
 class GuiDict(UserDict[str, var]):
     """
     Custom dictionary representing elements and commands of the control GUI.
@@ -1572,3 +1484,91 @@ class GuiDict(UserDict[str, var]):
         but use the variable value properties which trigger an update to
         the GUI correctly by emitting a signal.
         """
+
+
+class _GuiDispatcher(QObject):
+    """Small QObject living on the GUI thread to run widget updates safely."""
+
+    copy_requested: Signal = Signal()
+    disable_requested: Signal = Signal()
+
+    def __init__(self, guidict: GuiDict) -> None:
+        super().__init__()
+        self._guidict: GuiDict = guidict
+        self.copy_requested.connect(self.copy_values_slot)
+        self.disable_requested.connect(self.disable_guidict)
+
+    @AutoSlot
+    def copy_values_slot(self) -> None:
+        """Trigger a safe copy-values operation on the GUI thread."""
+        self._guidict.copy_values()
+
+    @AutoSlot
+    def disable_guidict(self) -> None:
+        """Disable the GuiDict safely on the GUI thread."""
+        self._guidict.enable_switch.setChecked(False)
+
+
+class _Worker(QObject):
+    """
+    Worker object for the refresh thread.
+
+    This is needed for the QTimer to work inside the QThread.
+
+    Attributes
+    ----------
+    activity : Signal
+        Signal to indicate an iteration of the refresh timer.
+    panic : Signal
+        Signal to indicate a panic state.
+    sig_error : Signal
+        Signal to report errors.
+    """
+
+    # activity signal to indicate an iteration of the refresh timer
+    activity = Signal(str)
+    panic = Signal(bool, str)
+    sig_error = Signal(type, Exception, str)
+
+    def __init__(self, target: Callable[[int], None], interval: int, parent: GuiDict) -> None:
+        super().__init__()
+        self.target: Callable[[int], None] = target  # target function for the refresh loop
+        self.interval: int = interval  # in milliseconds
+        self.guidict: GuiDict = parent
+        self._timer: QTimer = QTimer()  # fake definition
+
+    @catchEmitError
+    @AutoSlot
+    def run(self) -> None:
+        """Start the worker's refresh loop and copy readout to set fields."""
+        self._timer = QTimer()
+        self._timer.setInterval(self.interval)
+        counter = itertools.count(1)
+        self._timer.timeout.connect(lambda: self._target(next(counter)))
+        # start refresh immediately and then again after the timer timeout
+        self.target(0)
+        # copy values from readout to set fields upon first run
+        self.guidict._dispatcher.copy_requested.emit()
+        self._timer.start()
+
+    @AutoSlot
+    def stop(self) -> None:
+        """Stop the worker's refresh loop."""
+        self._timer.stop()
+        self.activity.emit("lightgray")
+
+    @catchEmitError
+    def _target(self, count: int) -> None:
+        """
+        Encapsulate target function to emit the activity signal.
+
+        Parameters
+        ----------
+        count : int
+            The current iteration count.
+        """
+        if count % 2:
+            self.activity.emit("green")
+        else:
+            self.activity.emit("lightgreen")
+        self.target(count)

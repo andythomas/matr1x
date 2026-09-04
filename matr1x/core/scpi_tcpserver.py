@@ -33,6 +33,19 @@ DEFAULT_PORT = 8898
 logger = logging.getLogger(__name__)
 
 
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """
+    Reimplemented TCP server to provide proper default behavior.
+
+    This class combines ThreadingMixIn and TCPServer to create a
+    threaded TCP server with specific default behaviors.
+    """
+
+    daemon_threads = True
+    allow_reuse_address = True
+    cmd_list: dict
+
+
 class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     """
     Handles the TCP connection and parses the commands specified in the server's cmd_list.
@@ -41,7 +54,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     and parse commands specified in the server's command list.
     """
 
-    server: "ThreadedTCPServer"
+    server: ThreadedTCPServer
 
     @staticmethod
     def _normalize_cmd(cmd):
@@ -255,19 +268,6 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 if not isinstance(response, bytes):
                     response = response.encode()
                 self.request.sendall(response + b"\n")
-
-
-class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    """
-    Reimplemented TCP server to provide proper default behavior.
-
-    This class combines ThreadingMixIn and TCPServer to create a
-    threaded TCP server with specific default behaviors.
-    """
-
-    daemon_threads = True
-    allow_reuse_address = True
-    cmd_list: dict
 
 
 class SCPI_TCP_Server:

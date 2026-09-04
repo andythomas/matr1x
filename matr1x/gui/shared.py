@@ -1150,7 +1150,7 @@ class MeasurementThread(QThread, LoggerMixin):
                 self.logger.info(line.decode().strip())
 
     def _generate_processfile(
-        self, port: int, script_tempfile: "IO[bytes] | None", temp_config_file: Path
+        self, port: int, script_tempfile: IO[bytes] | None, temp_config_file: Path
     ) -> list[str]:
         """
         Generate the subprocess command.

@@ -16,8 +16,6 @@
 #
 """General GUI helpers: icons, system info, config checks and Qt utilities."""
 
-from __future__ import annotations
-
 import datetime
 import logging
 import os

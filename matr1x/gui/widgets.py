@@ -16,12 +16,7 @@
 #
 """Qt input/display widgets: range widget, file line edit, read-only table."""
 
-from __future__ import annotations
-
 import logging
-from typing import (
-    TYPE_CHECKING,
-)
 
 from PySide6.QtCore import (
     Qt,
@@ -43,10 +38,6 @@ from PySide6.QtWidgets import (
 )
 
 from matr1x.core.error_handling import InternalInvariantError
-
-if TYPE_CHECKING:
-    pass
-
 
 logger = logging.getLogger(__name__)
 
