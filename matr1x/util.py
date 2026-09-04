@@ -28,7 +28,6 @@ import os
 import site
 import subprocess
 import sys
-import sysconfig
 import textwrap
 import threading
 from collections.abc import Callable, Sequence
@@ -197,42 +196,6 @@ def create_temp_dir_with_symlinks(
 
     # Return the temporary directory object
     return temp_dir
-
-
-def get_matrix_binary() -> str:
-    """
-    Find matrix binary from the current environment, PATH, and known folders.
-
-    This executes "matrix --help" to test if this works without error. If no
-    executable is found an FileNotFoundError will be raised.
-
-    Returns
-    -------
-    str
-        Name of the matrix binary.
-
-    Raises
-    ------
-    FileNotFoundError
-        If matrix executable could not be found.
-    """
-    user_scripts_path = Path(sysconfig.get_path("scripts", f"{os.name}_user"))
-    system_scripts_path = Path(sysconfig.get_path("scripts"))
-
-    for matrix_str in (
-        str(Path(sys.executable).parent / "matrix"),  # Prefer own environment
-        "matrix",  # Check PATH
-        str(user_scripts_path / "matrix"),
-        str(system_scripts_path / "matrix"),
-    ):
-        try:
-            subprocess.check_call(
-                [matrix_str, "--help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            return matrix_str
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            continue
-    raise FileNotFoundError("matrix executable could not be found")
 
 
 def module_from_path(filename: Path) -> "types.ModuleType":
