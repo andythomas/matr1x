@@ -798,14 +798,10 @@ class MeasurementThread(QThread, LoggerMixin):
             self.conn, _ = s.accept()
             s.close()
             threading.Thread(
-                target=self.relay_subprocess_output,
-                args=(self.proc.stdout, False),
-                daemon=True,
+                target=self.relay_subprocess_output, args=(self.proc.stdout, False), daemon=True
             ).start()
             threading.Thread(
-                target=self.relay_subprocess_output,
-                args=(self.proc.stderr, True),
-                daemon=True,
+                target=self.relay_subprocess_output, args=(self.proc.stderr, True), daemon=True
             ).start()
             buffer = ""
             while self.proc.poll() is None:
