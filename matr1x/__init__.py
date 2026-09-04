@@ -27,7 +27,6 @@ friends) are likewise resolved lazily so that this module does not import
 `matr1x.models` at module level.
 """
 
-import os
 import warnings
 from importlib.metadata import PackageNotFoundError, version
 
@@ -110,9 +109,6 @@ try:
     __version__ = version("matr1x-measurements")
 except PackageNotFoundError:
     __version__ = "unknown"
-
-# enforce PySide use in pyqtgraph
-os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
 
 
 def __getattr__(name: str):
