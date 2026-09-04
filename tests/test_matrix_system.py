@@ -246,7 +246,7 @@ def _launch_tapin_matrix(
     """
     env = os.environ.copy()
     env.update(env_overrides)
-    cmd = [matr1x.util.get_matrix_binary(), "-i", str(inputfile)]
+    cmd = [str(Path(sys.executable).parent / "matrix"), "-i", str(inputfile)]
     print(subprocess.list2cmdline(cmd))
     return subprocess.run(cmd, env=env, check=False)
 

@@ -76,7 +76,7 @@ def test_matrix_dummy():
     inputfile = path / "sys_dummy_sweep_all.5t"
     basename_path = inputfile.with_suffix("")
     existingfiles = set(basename_path.parent.glob(basename_path.name + "*"))
-    cmd = [matr1x.util.get_matrix_binary(), "-i", str(inputfile)]
+    cmd = [str(Path(sys.executable).parent / "matrix"), "-i", str(inputfile)]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
@@ -110,7 +110,7 @@ def test_matrix_dummy_merged():
     inputfile = path / "sys_dummy_merged.8t"
     outputfile = path / f"test_merged{output_extension}"
     cmd = [
-        matr1x.util.get_matrix_binary(),
+        str(Path(sys.executable).parent / "matrix"),
         "-i",
         str(inputfile),
         "-o",
@@ -147,7 +147,7 @@ def test_matrix_dummy_hdf5():
     inputfile = path / "sys_dummy_hdf5_sweep.3t"
     outputfile = path / f"test_hdf5.h5{output_extension}"
     cmd = [
-        matr1x.util.get_matrix_binary(),
+        str(Path(sys.executable).parent / "matrix"),
         "-i",
         str(inputfile),
         "-o",
