@@ -18,8 +18,22 @@
 import sys
 
 import pytest
+from PySide6.QtCore import QByteArray
+from PySide6.QtWebEngineCore import QWebEngineUrlScheme
 
 from matr1x.gui_util import MApplication
+
+
+def pytest_configure(config):
+    """Register the monaco:// URL scheme before QWebEngine is initialized."""
+    scheme = QWebEngineUrlScheme(QByteArray(b"monaco"))
+    scheme.setFlags(
+        QWebEngineUrlScheme.Flag.CorsEnabled
+        | QWebEngineUrlScheme.Flag.LocalAccessAllowed
+        | QWebEngineUrlScheme.Flag.SecureScheme
+        | QWebEngineUrlScheme.Flag.FetchApiAllowed
+    )
+    QWebEngineUrlScheme.registerScheme(scheme)
 
 
 @pytest.fixture(scope="session")
