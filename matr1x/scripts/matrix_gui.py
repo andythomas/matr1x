@@ -82,12 +82,12 @@ from matr1x.gui.shared import (
     SaferQSettings,
     check_config,
 )
-from matr1x.post_install import (
+from matr1x.scripts import sweep_generator
+from matr1x.scripts.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts import sweep_generator
 
 logger = logging.getLogger(Path(__file__).name)
 

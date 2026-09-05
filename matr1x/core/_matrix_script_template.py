@@ -45,8 +45,8 @@ from matr1x.core.models import MeasuredValues as _MeasuredValues
 from matr1x.core.models import Message as _Message
 from matr1x.core.models import SetValues as _SetValues
 from matr1x.core.models import Telemetry as _Telemetry
+from matr1x.core.script_analysis import infer_point_counts as _infer_point_counts
 from matr1x.core.system import MergedSystem as _MergedSystem
-from matr1x.script_analysis import infer_point_counts as _infer_point_counts
 
 if _typing.TYPE_CHECKING:
     from matr1x.core.execthread import ExecThread

@@ -107,7 +107,7 @@ from matr1x.gui.shared import (
     SystemListWidget,
     check_config,
 )
-from matr1x.post_install import (
+from matr1x.scripts.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,

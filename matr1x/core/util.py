@@ -282,7 +282,7 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
         - suffix : str
             Corresponding suffix of the script, finishes the try statement.
     """
-    template_path = Path(__file__).parent.parent / "_matrix_script_template.py"
+    template_path = Path(__file__).parent / "_matrix_script_template.py"
 
     if not template_path.exists():
         raise FileNotFoundError(f"Template file not found: {template_path}")

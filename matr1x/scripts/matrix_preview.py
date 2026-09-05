@@ -58,7 +58,7 @@ from matr1x.gui.meta_viewer import MetaViewerWidget
 from matr1x.gui.mixins import FileDropMixin, LogWindowMixin
 from matr1x.gui.plot import SimplePlotWidget
 from matr1x.gui.shared import MMainWindow, MToolBar, Notifier, SaferQSettings, check_config
-from matr1x.post_install import (
+from matr1x.scripts.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
