@@ -52,7 +52,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from matr1x.error_handling import Error, Result, Success
 from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
 from matr1x.models import SystemInfo
-from matr1x.util import find_binary, generate_script, get_script_prefix_offset, run_python_cmdline
+from matr1x.util import generate_script, get_script_prefix_offset, run_python_cmdline
 
 SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
@@ -892,11 +892,11 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.version = 2
         self.column = 1
         self.row = 1
-        tc_name = "ty"
-        tc_binary = find_binary(tc_name)
-        if isinstance(tc_binary, Error):
-            raise tc_binary.error
-        tc_server = LSPServer(name=tc_name, binary=str(tc_binary.value), parameters=["server"])
+        tc_server = LSPServer(
+            name="ty",
+            binary=sys.executable,
+            parameters=["-m", "ty", "server"],
+        )
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
         self.lsp_initialize()

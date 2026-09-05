@@ -25,7 +25,6 @@ import codecs
 import importlib.util
 import logging
 import os
-import site
 import subprocess
 import sys
 import textwrap
@@ -1004,51 +1003,6 @@ def matrix_cmdline(*args: str) -> list[str]:
     argv = ["matrix", *args]
     cmd = f"import sys\nsys.argv = {argv!r}\nfrom matr1x.scripts.matrix import main\nmain()"
     return [sys.executable, "-c", cmd]
-
-
-def find_binary(binary: str) -> Result[Path, FileNotFoundError]:
-    """
-    Find a binary.
-
-    Parameters
-    ----------
-    binary : str
-        The name of the binary to find.
-
-    Returns
-    -------
-    Result[str, Exception]
-        Either the path to the binary or an exception.
-    """
-    if sys.platform.startswith("win"):
-        possible_locations = [
-            Path(sys.prefix) / "Scripts" / f"{binary}.exe",
-            Path(sys.executable).parent / f"{binary}.exe",
-            Path(sys.executable).parent / "Scripts" / f"{binary}.exe",
-        ]
-        if site.USER_BASE is not None:
-            possible_locations += [
-                Path(site.USER_BASE)
-                / f"Python{sys.version_info[0]}{sys.version_info[1]}"
-                / "Scripts"
-                / f"{binary}.exe",
-                Path(site.USER_BASE) / "Scripts" / f"{binary}.exe",
-            ]
-
-        for location in possible_locations:
-            if location.exists():
-                return Success(location)
-        locations_str = "\n".join(f"  - {loc}" for loc in possible_locations)
-        return Error(
-            FileNotFoundError(
-                f"LSP binary '{binary}.exe' not found in any of these locations:\n{locations_str}"
-            )
-        )
-    else:
-        result = Path(sys.prefix) / "bin" / binary
-        if not result.exists():
-            return Error(FileNotFoundError(f"LSP binary not found: {result}"))
-        return Success(result)
 
 
 class StreamToLogger:
