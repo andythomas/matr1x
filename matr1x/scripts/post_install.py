@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 DISTRIBUTION_NAME = "matr1x-measurements"
 
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 icns_path = project_root / "scripts" / "icons"
 mime_path = project_root / "resources" / "desktop"
 suite_settings = SaferQSettings("matr1x", "common")

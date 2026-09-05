@@ -98,7 +98,7 @@ def test_basic_script_run(
         .read_text()
         .replace(
             'init_datafile("boring_testrun"',
-            f'init_datafile("{tmp_path / "boring_testrun"}"',
+            f'init_datafile("{(tmp_path / "boring_testrun").as_posix()}"',
         )
     )
     main_window.load_from_filename(script_file)
