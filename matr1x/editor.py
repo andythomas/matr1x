@@ -870,7 +870,7 @@ class CodeEditorPage(QWebEnginePage, LoggerMixin):
             self.logger.info("%s", message)
 
 
-class MonacoAssetHandler(QWebEngineUrlSchemeHandler):
+class MonacoAssetHandler(QWebEngineUrlSchemeHandler, LoggerMixin):
     """
     Serve the editor page and the Monaco assets from disk.
 
@@ -878,7 +878,7 @@ class MonacoAssetHandler(QWebEngineUrlSchemeHandler):
     the bundled editor resources (``editor.html``, ``editor.js``).
     """
 
-    def __init__(self, assets_dir: Path, parent=None):
+    def __init__(self, assets_dir: Path | None, parent=None):
         super().__init__(parent)
         self._assets_dir = assets_dir
         self._resources_dir = Path(str(resources.files("matr1x").joinpath("resources")))
@@ -888,6 +888,10 @@ class MonacoAssetHandler(QWebEngineUrlSchemeHandler):
         """Reply to a monaco:// request with the file content from disk."""
         rel = job.requestUrl().path().lstrip("/")
         if rel.startswith("min/"):
+            if self._assets_dir is None:
+                self.logger.error("Monaco assets are not available.")
+                job.fail(QWebEngineUrlRequestJob.Error.RequestFailed)
+                return
             file_path = self._assets_dir / rel
         else:
             file_path = self._resources_dir / rel
@@ -916,6 +920,8 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         "High contrast": {"Light high contrast": "hc-light", "Dark high contrast": "hc-black"},
     }
 
+    ASSET_TIMEOUT = 60  # seconds to wait for the initial asset download
+
     def __init__(self):
         super().__init__()
         self.version = 2
@@ -929,18 +935,14 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
         self.lsp_initialize()
-        # Locate (downloading if necessary) the Monaco assets without
-        # blocking the user interface.
+        # Download the Monaco assets in a background thread and wait for
+        # them. This runs before the main window is shown, so a simple
+        # blocking wait is fine. A failed download signals the event
+        # immediately, so this only blocks for the download duration.
         self._assets_ready = threading.Event()
         self._assets_dir: Path | None = None
         thread = threading.Thread(target=self._prepare_assets, daemon=True)
         thread.start()
-        timeout = 30  # seconds
-        start_time = time.time()
-        while not self._assets_ready.is_set() and (time.time() - start_time) < timeout:
-            time.sleep(0.1)
-        if not self._assets_ready.is_set():
-            self.logger.error("Warning: Monaco assets not ready within %d seconds", timeout)
         self.editor_page = CodeEditorPage()
         self.setPage(self.editor_page)
         settings = self.page().settings()
@@ -949,11 +951,21 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.backend = EditorBackend(self)
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
-        if self._assets_dir is not None:
-            # Note: a profile can only have one handler per scheme, so this
-            # assumes a single CodeEditor instance (as in matrix-script).
-            handler = MonacoAssetHandler(self._assets_dir, self)
-            self.page().profile().installUrlSchemeHandler(b"monaco", handler)
+        if not self._assets_ready.wait(timeout=self.ASSET_TIMEOUT):
+            self.logger.error(
+                "Monaco assets not available after %d seconds; the editor may not load.",
+                self.ASSET_TIMEOUT,
+            )
+        # A profile can only have one handler per scheme, so replace a
+        # handler left behind by a previous CodeEditor instance. The
+        # handler is parented to the profile (not the view) so the
+        # registration stays valid and replaceable.
+        profile = self.page().profile()
+        previous = profile.urlSchemeHandler(b"monaco")
+        if previous is not None:
+            profile.removeUrlSchemeHandler(previous)
+        handler = MonacoAssetHandler(self._assets_dir, profile)
+        profile.installUrlSchemeHandler(b"monaco", handler)
         editor_url = QUrl("monaco://localhost/editor.html")
         self.load(editor_url)
         loop = QEventLoop()
@@ -987,8 +999,12 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
 
     def _prepare_assets(self) -> None:
         """Locate the Monaco asset cache, downloading it if necessary."""
-        self._assets_dir = monaco_assets.get_path()
-        self._assets_ready.set()
+        try:
+            self._assets_dir = monaco_assets.get_path()
+        except Exception as e:
+            self.logger.error("Failed to prepare Monaco assets: %s", e)
+        finally:
+            self._assets_ready.set()
 
     def create_connections(self) -> None:
         """Create connections between signals and slots."""
