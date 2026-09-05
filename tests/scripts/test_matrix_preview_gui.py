@@ -19,11 +19,8 @@ from pathlib import Path
 
 from matr1x.scripts import matrix_preview
 
-path = Path(__file__).resolve().parent
-test_ma8_file = path / "data/random_test.ma8"
 
-
-def test_matrix_preview_run(qtbot, qapp):
+def test_matrix_preview_run(qtbot, qapp, data_dir: Path):
     """
     Start a basic matrix preview.
 
@@ -40,7 +37,8 @@ def test_matrix_preview_run(qtbot, qapp):
     qapp.processEvents()
     assert main_window.isVisible()
 
-    main_window.open_file(test_ma8_file)
+    ma8_file = data_dir / "random_test.ma8"
+    main_window.open_file(ma8_file)
     qtbot.waitUntil(
         lambda: (
             main_window.filename is not None and main_window.ui.widgets.file_selector.count() > 0
@@ -48,5 +46,5 @@ def test_matrix_preview_run(qtbot, qapp):
         timeout=2000,
     )
     assert main_window.filename is not None
-    assert main_window.filename.name == test_ma8_file.name
+    assert main_window.filename.name == ma8_file.name
     assert main_window.spw.isVisible()

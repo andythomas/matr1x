@@ -31,7 +31,6 @@ import tempfile
 import threading
 import time
 from importlib.metadata import entry_points
-from pathlib import Path
 from typing import cast
 
 import numpy as np
@@ -48,8 +47,6 @@ from matr1x.control.control_dummy import exampleDict
 from matr1x.core.scpi_tcpserver import SCPI_TCP_Server
 from matr1x.core.system import System
 
-path = Path(__file__).resolve().parent
-
 user_script = """
 import numpy as np
 fields = np.linspace(0, 200, 11)
@@ -60,29 +57,6 @@ for field in fields:
     measure_system()
     wait(until="+0.1s")  # wait one refresh cycle of control-dummy
 """
-
-
-@pytest.fixture(autouse=True)
-def clean_data_files():
-    """
-    Clean up data files created during tests.
-
-    This fixture runs automatically before and after each test. It keeps track
-    of existing data files before the test and removes any new files created
-    during the test execution.
-
-    Yields
-    ------
-    None
-        Control is yielded to the test function.
-    """
-    existingfiles = list(path.glob(f"*{output_extension}"))
-    # run test
-    yield
-    files = list(path.glob(f"*{output_extension}"))
-    newfiles = set(files) - set(existingfiles)
-    for f in newfiles:
-        f.unlink()
 
 
 def wait_for_tcp_port(
@@ -307,7 +281,7 @@ def test_methodbundle_guidict_method_runs_on_gui_thread(qapp, qtbot):
     assert guidict.callback_value == 42
 
 
-def test_matrix_script_control_dummy(start_control_dummy):
+def test_matrix_script_control_dummy(start_control_dummy, tmp_path):
     """
     Test the matrix script execution with the control dummy GUI.
 
@@ -337,9 +311,9 @@ def test_matrix_script_control_dummy(start_control_dummy):
             "import matr1x.util as mu\n"
             f"mu.matrix_script_process({tf.name!r}, {{}}, '', None, ['system_dummygui'])"
         )
-        ret = subprocess.run([sys.executable, "-c", script], cwd=path, check=False)
+        ret = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, check=False)
         assert ret.returncode == 0
-        files = list(path.glob(f"epische_messdatei{output_extension}"))
+        files = list(tmp_path.glob(f"epische_messdatei{output_extension}"))
         assert len(files) >= 1
         h, d = matr1x.core.eval.loadmatrix(files[-1], structured=False)
         assert len(h["columns"]) == 6

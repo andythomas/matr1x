@@ -60,7 +60,13 @@ def reset_matrix_script_window(matrix_script_window: matrix_script.MainWindow, q
 
 
 @pytest.mark.timeout(timeout=60)
-def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
+def test_basic_script_run(
+    qtbot,
+    qapp,
+    matrix_script_window: matrix_script.MainWindow,
+    input_dir: Path,
+    tmp_path: Path,
+):
     """
     Start a basic matrix script measurement.
 
@@ -83,10 +89,19 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainW
     qapp.processEvents()
 
     assert main_window.isVisible()
-    base = Path(__file__).parent
     script_filename = "matrix_script_gui.matrix"
-    inputfile = base / Path(script_filename)
-    main_window.load_from_filename(inputfile)
+    # Load a copy of the script whose init_datafile call writes the data file
+    # into the temporary test directory instead of the current working dir.
+    script_file = tmp_path / script_filename
+    script_file.write_text(
+        (input_dir / script_filename)
+        .read_text()
+        .replace(
+            'init_datafile("boring_testrun"',
+            f'init_datafile("{tmp_path / "boring_testrun"}"',
+        )
+    )
+    main_window.load_from_filename(script_file)
     assert main_window.windowTitle() == "Matrix Script: " + script_filename
 
     metadata = main_window.ui.widgets.meta_view
@@ -124,7 +139,6 @@ def test_basic_script_run(qtbot, qapp, matrix_script_window: matrix_script.MainW
     assert "This is a testrun!" in header["dcterms:description"]
     assert header["status"] == "finished"
     assert len(data) == 10
-    main_window.measurement_file.unlink()
 
     main_window.new_file()
     qtbot.waitUntil(lambda: main_window.windowTitle() == "Matrix Script", timeout=2000)
@@ -328,7 +342,7 @@ def test_CodeEditor(qtbot, qapp, matrix_script_window: matrix_script.MainWindow)
 
 
 def test_status_preview_handles_carriage_return(
-    qtbot, qapp, tmp_path, capsys, matrix_script_window: matrix_script.MainWindow
+    qtbot, qapp, tmp_path, capsys, matrix_script_window: matrix_script.MainWindow, input_dir: Path
 ):
     """
     Ensure carriage returns from a running script overwrite the current line.
@@ -340,9 +354,7 @@ def test_status_preview_handles_carriage_return(
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 
-    header_lines = (
-        (Path(__file__).resolve().parent / "matrix_script_gui.matrix").read_text().splitlines()[:4]
-    )
+    header_lines = (input_dir / "matrix_script_gui.matrix").read_text().splitlines()[:4]
     carriage_script = "\n".join(
         header_lines + ['print("test\\nnot sure what to say\\ragain")', ""]
     )

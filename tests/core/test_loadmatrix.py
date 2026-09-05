@@ -27,8 +27,6 @@ import pytest
 
 import matr1x.core.eval
 
-path = Path(__file__).resolve().parent
-
 ma6_header_keys = {
     "columns",
     "units",
@@ -94,7 +92,7 @@ def get_array_field_count(arr: np.ndarray) -> int:
         return 1
 
 
-def test_loadmatrix_hdf5_ma8():
+def test_loadmatrix_hdf5_ma8(data_dir: Path):
     """
     Test loading of HDF5 MA8 format files.
 
@@ -102,7 +100,7 @@ def test_loadmatrix_hdf5_ma8():
     file. Checks header information, data columns, units, and specific
     data values.
     """
-    datafile = path / "data" / "random_test.h5.ma8"
+    datafile = data_dir / "random_test.h5.ma8"
     h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma8_header_keys == set(h.keys())
     assert h["dcterms:publisher"] == "matr1x measurement suite"
@@ -125,7 +123,7 @@ def test_loadmatrix_hdf5_ma8():
     assert pytest.approx(d["timeUTC"][1], 1e-9) == 1726870220.4  # check specific data value
 
 
-def test_loadmatrix_ma8():
+def test_loadmatrix_ma8(data_dir: Path):
     """
     Test loading of MA8 format files.
 
@@ -133,7 +131,7 @@ def test_loadmatrix_ma8():
     Checks header information, data columns, units, and specific data
     values.
     """
-    datafile = path / "data" / "random_test.ma8"
+    datafile = data_dir / "random_test.ma8"
     h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma8_header_keys == set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
@@ -156,7 +154,7 @@ def test_loadmatrix_ma8():
     assert pytest.approx(d["timeUTC"][1], 1e-9) == 1726870139.20  # check specific data value
 
 
-def test_loadmatrix_hdf5_ma7():
+def test_loadmatrix_hdf5_ma7(data_dir: Path):
     """
     Test loading of HDF5 MA7 format files.
 
@@ -164,7 +162,7 @@ def test_loadmatrix_hdf5_ma7():
     file. Checks header information, data columns, units, and specific
     data values.
     """
-    datafile = path / "data" / "magic_sample.h5.ma7"
+    datafile = data_dir / "magic_sample.h5.ma7"
     h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
@@ -181,7 +179,7 @@ def test_loadmatrix_hdf5_ma7():
     assert pytest.approx(d["timeUTC"][0], 1e-9) == 1701194065  # check specific data value
 
 
-def test_loadmatrix_ma7():
+def test_loadmatrix_ma7(data_dir: Path):
     """
     Test loading of MA7 format files.
 
@@ -189,7 +187,7 @@ def test_loadmatrix_ma7():
     Checks header information, data columns, units, and specific data
     values.
     """
-    datafile = path / "data" / "mgk240213.ma7"
+    datafile = data_dir / "mgk240213.ma7"
     h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
@@ -208,7 +206,7 @@ def test_loadmatrix_ma7():
     assert pytest.approx(d["timeUTC"][0], 1e-10) == 1713015567.56  # check specific data value
 
 
-def test_loadmatrix_hdf5_ma6():
+def test_loadmatrix_hdf5_ma6(data_dir: Path):
     """
     Test loading of HDF5 MA6 format files.
 
@@ -216,7 +214,7 @@ def test_loadmatrix_hdf5_ma6():
     file. Checks header information, data columns, units, and specific
     data values.
     """
-    datafile = path / "data" / "polybox.h5.ma6"
+    datafile = data_dir / "polybox.h5.ma6"
     h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma6_header_keys == set(h.keys())
     assert len(h["columns"]) == 6  # check number of data columns
@@ -230,7 +228,7 @@ def test_loadmatrix_hdf5_ma6():
     assert pytest.approx(d["timeUTC"][45], 1e-9) == 1599555123.1  # check specific data value
 
 
-def test_loadmatrix_ma6():
+def test_loadmatrix_ma6(data_dir: Path):
     """
     Test loading of MA6 format files.
 
@@ -238,7 +236,7 @@ def test_loadmatrix_ma6():
     Checks header information, data columns, units, and specific data
     values.
     """
-    datafile = path / "data" / "ARMR.ma6"
+    datafile = data_dir / "ARMR.ma6"
     h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma6_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
@@ -257,7 +255,7 @@ def test_loadmatrix_ma6():
     assert pytest.approx(d["timeUTC"][-1], 1e-10) == 1557380107.327  # check specific data value
 
 
-def test_loadmatrix_pathlib_ma8():
+def test_loadmatrix_pathlib_ma8(data_dir: Path):
     """
     Test loading of MA8 format files using pathlib.Path objects.
 
@@ -265,7 +263,7 @@ def test_loadmatrix_pathlib_ma8():
     for MA8 format files.
     """
     # Test with pathlib.Path
-    datafile_path = path / "data" / "random_test.ma8"
+    datafile_path = data_dir / "random_test.ma8"
     h_path, d_path = matr1x.core.eval.loadmatrix(datafile_path)
 
     # Test with string (for comparison)

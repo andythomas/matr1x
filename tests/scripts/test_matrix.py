@@ -34,32 +34,8 @@ from matr1x import output_extension
 from matr1x.core.execthread import ExecThread
 from matr1x.core.models import ExecutionLines, MeasurementData
 
-path = Path(__file__).resolve().parent
 
-
-@pytest.fixture(autouse=True)
-def clean_data_files():
-    """
-    Clean up data files created during tests.
-
-    This fixture runs automatically before and after each test to clean up any
-    data files that were created. It tracks existing files before the test and
-    removes any new files created during test execution.
-
-    Yields
-    ------
-    None
-    """
-    existingfiles = set(path.glob(f"*{output_extension}"))
-    # run test
-    yield
-    files = set(path.glob(f"*{output_extension}"))
-    newfiles = files - existingfiles
-    for f in newfiles:
-        f.unlink()
-
-
-def test_matrix_dummy():
+def test_matrix_dummy(input_dir: Path, tmp_path: Path):
     """
     Test basic matrix functionality with dummy sweep data.
 
@@ -73,19 +49,17 @@ def test_matrix_dummy():
     output has 6 data columns
     dataset has shape (9,)
     """
-    inputfile = path / "sys_dummy_sweep_all.5t"
-    basename_path = inputfile.with_suffix("")
-    existingfiles = set(basename_path.parent.glob(basename_path.name + "*"))
-    cmd = [matr1x.core.util.get_matrix_binary(), "-i", str(inputfile)]
+    inputfile = input_dir / "sys_dummy_sweep_all.5t"
+    outputfile = tmp_path / f"{inputfile.stem}{output_extension}"
+    cmd = [matr1x.core.util.get_matrix_binary(), "-i", str(inputfile), "-o", str(outputfile)]
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
-    # find newly created datafile
-    files = set(basename_path.parent.glob(basename_path.name + "*"))
-    newfiles = files - existingfiles
-    assert len(newfiles) == 1
+    # find created datafile
+    files = list(tmp_path.glob(inputfile.stem + "*"))
+    assert len(files) == 1
     # check file contains data
-    datafile = newfiles.pop()
+    datafile = files.pop()
     h, d = matr1x.core.eval.loadmatrix(datafile)
     assert len(h["columns"]) == 6  # check number of data columns
     # Note that one point is not recorded in the datafile
@@ -93,7 +67,7 @@ def test_matrix_dummy():
     assert d.shape == (9,)  # check shape of dataset
 
 
-def test_matrix_dummy_merged():
+def test_matrix_dummy_merged(input_dir: Path, tmp_path: Path):
     """
     Test matrix functionality with merged dummy data.
 
@@ -107,8 +81,8 @@ def test_matrix_dummy_merged():
     output has 10 data columns
     dataset has shape (11,)
     """
-    inputfile = path / "sys_dummy_merged.8t"
-    outputfile = path / f"test_merged{output_extension}"
+    inputfile = input_dir / "sys_dummy_merged.8t"
+    outputfile = tmp_path / f"test_merged{output_extension}"
     cmd = [
         matr1x.core.util.get_matrix_binary(),
         "-i",
@@ -121,7 +95,9 @@ def test_matrix_dummy_merged():
     ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
     # open latest datafile and check data shape
-    files = sorted(path.glob(f"test_merged*{output_extension}"), key=lambda p: p.stat().st_mtime)
+    files = sorted(
+        tmp_path.glob(f"test_merged*{output_extension}"), key=lambda p: p.stat().st_mtime
+    )
     assert len(files) >= 1
     h, d = matr1x.core.eval.loadmatrix(files[-1], structured=True)
     assert len(h["columns"]) == 10  # check number of data columns
@@ -129,7 +105,7 @@ def test_matrix_dummy_merged():
     assert d.shape == (11,)  # check shape of dataset
 
 
-def test_matrix_dummy_hdf5():
+def test_matrix_dummy_hdf5(input_dir: Path, tmp_path: Path):
     """
     Test matrix functionality with HDF5 dummy data.
 
@@ -144,8 +120,8 @@ def test_matrix_dummy_hdf5():
     output has 8 data columns
     datasets have expected shapes for flat, 1D, 2D arrays
     """
-    inputfile = path / "sys_dummy_hdf5_sweep.3t"
-    outputfile = path / f"test_hdf5.h5{output_extension}"
+    inputfile = input_dir / "sys_dummy_hdf5_sweep.3t"
+    outputfile = tmp_path / f"test_hdf5.h5{output_extension}"
     cmd = [
         matr1x.core.util.get_matrix_binary(),
         "-i",
@@ -158,7 +134,7 @@ def test_matrix_dummy_hdf5():
     ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
     # open latest datafile and check data shape
-    files = sorted(path.glob(f"test_hdf5*{output_extension}"), key=lambda p: p.stat().st_mtime)
+    files = sorted(tmp_path.glob(f"test_hdf5*{output_extension}"), key=lambda p: p.stat().st_mtime)
     assert len(files) >= 1
     h, d = matr1x.core.eval.loadmatrix(files[-1])
     assert len(h["columns"]) == 8  # check number of data columns
@@ -170,7 +146,7 @@ def test_matrix_dummy_hdf5():
     assert d["timeUTC"].shape == (10,)  # check shape of dataset
 
 
-def test_matrix_script_dummy_merged():
+def test_matrix_script_dummy_merged(input_dir: Path, tmp_path: Path):
     """
     Test matrix script functionality with merged dummy data.
 
@@ -187,7 +163,7 @@ def test_matrix_script_dummy_merged():
     # prepares and runs a test script in the same fashion as done by
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
-    inputfile = path / "test.matrix"
+    inputfile = input_dir / "test.matrix"
     with inputfile.open() as f:
         user_script = f.read()
     script = matr1x.core.util.generate_script(user_script)
@@ -201,9 +177,9 @@ def test_matrix_script_dummy_merged():
             f"{tf.name!r}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
             ")"
         )
-        ret = subprocess.run([sys.executable, "-c", script], cwd=path, check=False)
+        ret = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, check=False)
         assert ret.returncode == 0
-        files = list(path.glob(f"epische_messdatei*{output_extension}"))
+        files = list(tmp_path.glob(f"epische_messdatei*{output_extension}"))
         assert len(files) >= 1
         h, d = matr1x.core.eval.loadmatrix(files[-1], structured=False)
         assert len(h["columns"]) == 10
@@ -211,7 +187,7 @@ def test_matrix_script_dummy_merged():
         assert d.shape == (22, 10)
 
 
-def test_empty_script():
+def test_empty_script(tmp_path: Path):
     """
     Test running an empty matrix script.
 
@@ -225,7 +201,7 @@ def test_empty_script():
         script = (
             f"import matr1x.util as mu\nmu.matrix_script_process({tf.name!r}, {{}}, '', None, [])"
         )
-        ret = subprocess.run([sys.executable, "-c", script], cwd=path, check=False)
+        ret = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, check=False)
         assert ret.returncode == 0
 
 

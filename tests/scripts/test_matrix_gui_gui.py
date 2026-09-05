@@ -15,43 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in matrix-gui."""
 
+import shutil
 from pathlib import Path
 
-import pytest
 from PySide6.QtCore import Qt
 
-from matr1x import output_extension
 from matr1x.core.eval import loadmatrix
 from matr1x.core.models import SystemInfo, SystemSelectionInfo
 from matr1x.scripts import matrix_gui
 
-path = Path(__file__).resolve().parent
-test_sweep_file = path / "sweep_for_matrix_gui.sw8"
 
-
-@pytest.fixture(autouse=True)
-def clean_data_files():
-    """
-    Clean up data files created during tests.
-
-    This fixture runs automatically before and after each test to clean up any
-    data files that were created. It tracks existing files before the test and
-    removes any new files created during test execution.
-
-    Yields
-    ------
-    None
-    """
-    existingfiles = set(path.glob(f"*{output_extension}"))
-    # run test
-    yield
-    files = set(path.glob(f"*{output_extension}"))
-    newfiles = files - existingfiles
-    for f in newfiles:
-        f.unlink()
-
-
-def test_matrix_gui_run(qtbot, qapp):
+def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
     """
     Test basic matrix-gui functionality.
 
@@ -67,6 +41,8 @@ def test_matrix_gui_run(qtbot, qapp):
     qapp.processEvents()
     assert main_window.isVisible()
 
+    test_sweep_file = tmp_path / "sweep_for_matrix_gui.sw8"
+    shutil.copy(input_dir / "sweep_for_matrix_gui.sw8", test_sweep_file)
     assert test_sweep_file.exists()
 
     main_window.ui.widgets.input_file.setText(str(test_sweep_file))
@@ -93,14 +69,14 @@ def test_matrix_gui_run(qtbot, qapp):
     assert header["system query"]["system_config"]["reference_value"] == reference_value
 
 
-def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch):
+def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch, input_dir: Path):
     """Invalid device config disables Queue and exposes the reason in the tooltip."""
     main_window = matrix_gui.MainWindow()
     main_window.show()
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 
-    main_window.ui.widgets.input_file.setText(str(test_sweep_file))
+    main_window.ui.widgets.input_file.setText(str(input_dir / "sweep_for_matrix_gui.sw8"))
     qtbot.waitUntil(lambda: main_window.ui.actions.queue.isEnabled(), timeout=2000)
     main_window.ui.actions.config.setChecked(False)
     monkeypatch.setattr(

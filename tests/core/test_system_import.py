@@ -21,9 +21,6 @@ matr1x/systems directory and runs tests to ensure they can be imported
 as valid System objects.
 """
 
-import importlib
-from pathlib import Path
-
 import pytest
 from pydantic import BaseModel
 
@@ -33,27 +30,7 @@ from matr1x.core.error_handling import Error, Success
 from matr1x.core.models import SystemReference
 from matr1x.core.system import MergedSystem, StatefulSystem, System
 
-# Collect all files in the system-folder
-path = Path(__file__).resolve().parent
-system_folder = path / ".." / "matr1x" / "systems"
-system_files = list(system_folder.glob("system_*"))
 
-# Check if elab dependency is available
-elab_available = False
-try:
-    importlib.import_module("elabapi_python")
-    elab_available = True
-except ImportError:
-    pass  # elab dependency is not installed
-
-# If elab dependency is not available, remove system_elabftw.py from the list
-if not elab_available:
-    elab_system_file = system_folder / "system_elabftw.py"
-    if elab_system_file in system_files:
-        system_files.remove(elab_system_file)
-
-
-@pytest.mark.parametrize("system_file", system_files, ids=lambda p: p.name)
 def test_system_import(system_file):
     """
     Test that a system file can be imported as a System object.

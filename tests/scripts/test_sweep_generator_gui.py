@@ -24,9 +24,6 @@ from PySide6.QtWidgets import QLineEdit
 
 from matr1x.scripts import sweep_generator
 
-path = Path(__file__).resolve().parent
-test_sweep_file = path / "sweep_for_test.sw8"
-
 _SWEEP_GENERATOR_WINDOW: sweep_generator.MainWindow | None = None
 
 
@@ -55,7 +52,9 @@ def reset_sweep_generator_window(sweep_generator_window: sweep_generator.MainWin
     qapp.processEvents()
 
 
-def test_sweep_generator_systems(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
+def test_sweep_generator_systems(
+    qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow, repo_root: Path
+):
     """
     Test if the removal of a system works properly.
 
@@ -67,8 +66,8 @@ def test_sweep_generator_systems(qtbot, qapp, sweep_generator_window: sweep_gene
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 
-    mod = str((path / "../matr1x/systems/system_dummy.py").resolve())
-    mod2 = str((path / "../matr1x/systems/system_dummy_meas.py").resolve())
+    mod = str(repo_root / "matr1x/systems/system_dummy.py")
+    mod2 = str(repo_root / "matr1x/systems/system_dummy_meas.py")
     main_window.ui.widgets.system_list.add_systems([mod, mod2])
     main_window.update_systems()
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 1, timeout=2000)
@@ -77,7 +76,14 @@ def test_sweep_generator_systems(qtbot, qapp, sweep_generator_window: sweep_gene
     assert main_window.columns.filenames == ["matr1x.systems.system_dummy"]
 
 
-def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
+def test_sweep_generator_run(
+    qtbot,
+    qapp,
+    sweep_generator_window: sweep_generator.MainWindow,
+    repo_root: Path,
+    input_dir: Path,
+    tmp_path: Path,
+):
     """
     Start a basic sweep generator run.
 
@@ -97,7 +103,7 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generato
     qapp.processEvents()
     assert main_window.isVisible()
 
-    module = str((path / "../matr1x/systems/system_dummy.py").resolve())
+    module = str(repo_root / "matr1x/systems/system_dummy.py")
     main_window.ui.widgets.system_list.add_systems([module])
     main_window.update_systems()
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 0, timeout=2000)
@@ -156,13 +162,14 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generato
     main_window.grid_widgets[0].repeat.setValue(2)
     main_window.grid_widgets[0].updown.setChecked(True)
     filename = "sweep_sweep"
-    save_file = path / filename
+    save_file = tmp_path / filename
     main_window._write_file_to_disk(save_file, False)
     assert main_window.last_filename is not None
     assert main_window.last_filename.name == str(filename) + ".sw8"
     assert main_window.last_filename.exists()
     with main_window.last_filename.open() as f:
         written_file = f.readlines()
+    test_sweep_file = input_dir / "sweep_for_test.sw8"
     assert test_sweep_file.exists()
     with test_sweep_file.open() as f:
         original_file = f.readlines()
@@ -172,7 +179,9 @@ def test_sweep_generator_run(qtbot, qapp, sweep_generator_window: sweep_generato
     main_window.last_filename.unlink()
 
 
-def test_sweep_generator_load(qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow):
+def test_sweep_generator_load(
+    qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow, input_dir: Path
+):
     """
     Start a basic sweep generator run.
 
@@ -187,6 +196,7 @@ def test_sweep_generator_load(qtbot, qapp, sweep_generator_window: sweep_generat
     qtbot.waitExposed(main_window)
     qapp.processEvents()
     assert main_window.isVisible()
+    test_sweep_file = input_dir / "sweep_for_test.sw8"
     assert test_sweep_file.exists()
 
     main_window.open_file(test_sweep_file)
@@ -203,7 +213,10 @@ def test_sweep_generator_load(qtbot, qapp, sweep_generator_window: sweep_generat
 
 
 def test_sweep_generator_sweep_table(
-    qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow
+    qtbot,
+    qapp,
+    sweep_generator_window: sweep_generator.MainWindow,
+    repo_root: Path,
 ):
     """
     Test changing points entry in sweep_table.
@@ -221,7 +234,7 @@ def test_sweep_generator_sweep_table(
     qapp.processEvents()
     assert main_window.isVisible()
 
-    module = str((path / "../matr1x/systems/system_dummy.py").resolve())
+    module = str(repo_root / "matr1x/systems/system_dummy.py")
     main_window.ui.widgets.system_list.add_systems([module])
     main_window.update_systems()
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() > 0, timeout=2000)
