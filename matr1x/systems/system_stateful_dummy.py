@@ -9,9 +9,9 @@
 
 from pydantic import Field
 
+from matr1x.core.models import LocalTCPIPSocketVisaResource, SystemConfigModel
+from matr1x.core.system import StatefulSystem
 from matr1x.devices.dummy import dummy
-from matr1x.models import LocalTCPIPSocketVisaResource, SystemConfigModel
-from matr1x.system import StatefulSystem
 
 
 class StatefulDummyConfig(SystemConfigModel):

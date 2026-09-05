@@ -21,7 +21,7 @@ from typing import ClassVar
 import numpy as np
 from wrapt import synchronized
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class PSA_E4440A(VisaDevice):

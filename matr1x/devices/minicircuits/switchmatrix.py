@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for interfacing with RF switch matrices."""
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class RC_2SPDT_A18(VisaDevice):

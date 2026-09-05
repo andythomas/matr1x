@@ -21,7 +21,7 @@ from typing import ClassVar
 from numpy import asarray, ceil
 from wrapt import synchronized
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class Keithley6221(VisaDevice):

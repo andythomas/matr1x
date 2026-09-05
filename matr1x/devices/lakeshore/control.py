@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QTableView,
 )
 
-from matr1x import usersfolder
+from matr1x.core.config import usersfolder
 
 _DEFAULT_PARENT_INDEX = QModelIndex()
 

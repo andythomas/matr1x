@@ -1,7 +1,7 @@
 [
   {
-    "path": "matr1x/control/util.py",
-    "file_name": "util.py",
+    "path": "matr1x/control/gui_dict.py",
+    "file_name": "gui_dict.py",
     "functions": [
       {
         "name": "guiObject::getWidget",
@@ -18,6 +18,100 @@
       {
         "name": "GuiDict::toggle_hidden",
         "complexity": 38
+      }
+    ]
+  },
+  {
+    "path": "matr1x/core/eval.py",
+    "file_name": "eval.py",
+    "functions": [
+      {
+        "name": "_process_special_lines",
+        "complexity": 16
+      },
+      {
+        "name": "_load_hdf5_file",
+        "complexity": 18
+      },
+      {
+        "name": "_process_header_lines",
+        "complexity": 18
+      },
+      {
+        "name": "_load_text_file",
+        "complexity": 19
+      },
+      {
+        "name": "_parse_query_string",
+        "complexity": 26
+      }
+    ]
+  },
+  {
+    "path": "matr1x/core/execthread.py",
+    "file_name": "execthread.py",
+    "functions": [
+      {
+        "name": "ExecThread::interrupt",
+        "complexity": 16
+      },
+      {
+        "name": "ExecThread::_execute_sleep",
+        "complexity": 19
+      },
+      {
+        "name": "matrix_script_process",
+        "complexity": 37
+      }
+    ]
+  },
+  {
+    "path": "matr1x/core/scpi_tcpserver.py",
+    "file_name": "scpi_tcpserver.py",
+    "functions": [
+      {
+        "name": "ThreadedTCPRequestHandler::_handle_set_cmd",
+        "complexity": 22
+      }
+    ]
+  },
+  {
+    "path": "matr1x/core/system/base.py",
+    "file_name": "base.py",
+    "functions": [
+      {
+        "name": "System::set",
+        "complexity": 18
+      },
+      {
+        "name": "System::init_datafile",
+        "complexity": 22
+      },
+      {
+        "name": "System::query",
+        "complexity": 23
+      },
+      {
+        "name": "System::_device_query",
+        "complexity": 24
+      },
+      {
+        "name": "System::take_measurement_point",
+        "complexity": 25
+      },
+      {
+        "name": "Parameter::__init__",
+        "complexity": 51
+      }
+    ]
+  },
+  {
+    "path": "matr1x/core/visadevice.py",
+    "file_name": "visadevice.py",
+    "functions": [
+      {
+        "name": "VisaDevice::open",
+        "complexity": 18
       }
     ]
   },
@@ -104,18 +198,8 @@
     ]
   },
   {
-    "path": "matr1x/devices/visadevice.py",
-    "file_name": "visadevice.py",
-    "functions": [
-      {
-        "name": "VisaDevice::open",
-        "complexity": 18
-      }
-    ]
-  },
-  {
-    "path": "matr1x/editor.py",
-    "file_name": "editor.py",
+    "path": "matr1x/gui/editor/code_editor.py",
+    "file_name": "code_editor.py",
     "functions": [
       {
         "name": "CodeEditor::_process_lsp_completions",
@@ -124,80 +208,12 @@
     ]
   },
   {
-    "path": "matr1x/eval.py",
-    "file_name": "eval.py",
-    "functions": [
-      {
-        "name": "_process_special_lines",
-        "complexity": 16
-      },
-      {
-        "name": "_load_hdf5_file",
-        "complexity": 18
-      },
-      {
-        "name": "_process_header_lines",
-        "complexity": 18
-      },
-      {
-        "name": "_load_text_file",
-        "complexity": 19
-      },
-      {
-        "name": "_parse_query_string",
-        "complexity": 26
-      }
-    ]
-  },
-  {
-    "path": "matr1x/execthread.py",
-    "file_name": "execthread.py",
-    "functions": [
-      {
-        "name": "ExecThread::interrupt",
-        "complexity": 16
-      },
-      {
-        "name": "ExecThread::_execute_sleep",
-        "complexity": 19
-      }
-    ]
-  },
-  {
-    "path": "matr1x/gui_util.py",
-    "file_name": "gui_util.py",
+    "path": "matr1x/gui/plot.py",
+    "file_name": "plot.py",
     "functions": [
       {
         "name": "SimplePlotWidget::_update_linesetting",
         "complexity": 20
-      }
-    ]
-  },
-  {
-    "path": "matr1x/post_install.py",
-    "file_name": "post_install.py",
-    "functions": [
-      {
-        "name": "control_gui_integration",
-        "complexity": 17
-      },
-      {
-        "name": "uninstall_control_gui_desktop_integration",
-        "complexity": 19
-      },
-      {
-        "name": "uninstall_core_desktopintegration",
-        "complexity": 19
-      }
-    ]
-  },
-  {
-    "path": "matr1x/scpi_tcpserver.py",
-    "file_name": "scpi_tcpserver.py",
-    "functions": [
-      {
-        "name": "ThreadedTCPRequestHandler::_handle_set_cmd",
-        "complexity": 22
       }
     ]
   },
@@ -252,52 +268,30 @@
     ]
   },
   {
+    "path": "matr1x/scripts/post_install.py",
+    "file_name": "post_install.py",
+    "functions": [
+      {
+        "name": "control_gui_integration",
+        "complexity": 17
+      },
+      {
+        "name": "uninstall_control_gui_desktop_integration",
+        "complexity": 19
+      },
+      {
+        "name": "uninstall_core_desktopintegration",
+        "complexity": 19
+      }
+    ]
+  },
+  {
     "path": "matr1x/scripts/sweep_generator.py",
     "file_name": "sweep_generator.py",
     "functions": [
       {
         "name": "ColumnData::calculate_sweep",
         "complexity": 32
-      }
-    ]
-  },
-  {
-    "path": "matr1x/system.py",
-    "file_name": "system.py",
-    "functions": [
-      {
-        "name": "System::set",
-        "complexity": 18
-      },
-      {
-        "name": "System::init_datafile",
-        "complexity": 22
-      },
-      {
-        "name": "System::query",
-        "complexity": 23
-      },
-      {
-        "name": "System::_device_query",
-        "complexity": 24
-      },
-      {
-        "name": "System::take_measurement_point",
-        "complexity": 25
-      },
-      {
-        "name": "Parameter::__init__",
-        "complexity": 51
-      }
-    ]
-  },
-  {
-    "path": "matr1x/util.py",
-    "file_name": "util.py",
-    "functions": [
-      {
-        "name": "matrix_script_process",
-        "complexity": 37
       }
     ]
   }

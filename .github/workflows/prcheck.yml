@@ -167,6 +167,11 @@ jobs:
           uv sync --locked --all-extras
         shell: bash
 
+      - name: Run import linter
+        run: >
+          lint-imports
+        shell: bash
+
       - name: Run type checker
         run: >
           ty check

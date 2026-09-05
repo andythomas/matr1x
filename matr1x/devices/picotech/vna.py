@@ -19,7 +19,7 @@ from struct import iter_unpack
 
 from numpy import argmin, array, fromstring
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class PicoVNA(VisaDevice):

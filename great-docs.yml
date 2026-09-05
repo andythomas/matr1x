@@ -79,24 +79,24 @@ reference:
   - title: Classes
     desc: Main classes provided by the package
     contents:
-      - name: system.Parameter
+      - name: core.system.base.Parameter
         members: false
-      - name: system.System
+      - name: core.system.base.System
         members: false # 19 methods listed below
 
   - title: system.System Methods
     desc: Methods for the system.System class
     contents:
-      - system.System.add_param
-      - system.System.add_dev
-      - system.System.set
-      - system.System.reset
+      - core.system.base.System.add_param
+      - core.system.base.System.add_dev
+      - core.system.base.System.set
+      - core.system.base.System.reset
 
   - title: Constants
     desc: Module-level constants and data
     contents:
-      - system.VALID_META_KEYS
-      - system.APP_META_KEY
+      - core.metadata.VALID_META_KEYS
+      - core.metadata.APP_META_KEY
 
 # Site URL
 # --------

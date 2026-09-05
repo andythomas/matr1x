@@ -27,7 +27,7 @@ import time
 
 from pyvisa import VisaIOError
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class FH55(VisaDevice):

@@ -1,5 +1,5 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# Copyright (C) 2024 matr1x developers
+# Copyright (C) 2006-2026 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """AMI level meter AMI1700 module."""
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class AMI1700(VisaDevice):

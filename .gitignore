@@ -4,6 +4,9 @@
 __pycache__/
 *.pyc
 
+# import-linter cache
+.import_linter_cache/
+
 # build files and tarball directory
 build/
 dist/

@@ -27,15 +27,15 @@ from typing import Literal
 
 from pydantic import Field
 
-from matr1x.devices.dummy import dummy
-from matr1x.models import (
+from matr1x.core.models import (
     FilePath,
     GuiField,
     LocalTCPIPSocketVisaResource,
     SciFloat,
     SystemConfigModel,
 )
-from matr1x.system import System
+from matr1x.core.system import System
+from matr1x.devices.dummy import dummy
 
 
 class FeatureConfig(SystemConfigModel):

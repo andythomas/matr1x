@@ -19,7 +19,7 @@ import time
 
 import numpy as np
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class Agilent8114A(VisaDevice):

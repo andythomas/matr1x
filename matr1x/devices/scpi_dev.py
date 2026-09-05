@@ -31,7 +31,7 @@ from typing import Any, Protocol, runtime_checkable
 from pymeasure.instruments import Instrument
 from pymeasure.instruments.validators import strict_discrete_set
 
-from matr1x.util import Command, Get, normalize_cmds
+from matr1x.core.util import Command, Get, normalize_cmds
 
 __all__ = ["makeSCPIdevice"]
 

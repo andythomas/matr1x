@@ -62,45 +62,43 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x import datetimefmt, usersfolder
-from matr1x.error_handling import (
+from matr1x.core.error_handling import (
     Error,
     InternalInvariantError,
     Result,
     Success,
     install_error_handler,
 )
-from matr1x.gui_util import (
-    AboutBox,
-    AutoSlot,
-    CustomViewBox,
-    FileDropMixin,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
-    check_config,
+from matr1x.core.models import SystemInfo
+from matr1x.core.util import generate_col_index
+from matr1x.gui.app import AboutBox, MApplication
+from matr1x.gui.error_dialog import install_qt_error_dialog
+from matr1x.gui.helpers import (
     clear_layout,
     create_matr1x_quit_action,
     create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
     save_messagebox,
-    validator,
 )
-from matr1x.models import SystemInfo
-from matr1x.post_install import (
-    check_desktop_integration,
-    post_installation,
-    remove_desktop_integration,
-)
-from matr1x.scripts.shared_classes import (
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.meta_viewer import validator
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
+from matr1x.gui.plot import CustomViewBox
+from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
     Notifier,
     NotifierMessage,
     SaferQSettings,
     SystemListWidget,
+    check_config,
 )
-from matr1x.util import generate_col_index
+from matr1x.scripts.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 
 __all__ = ["MainWindow"]
 
@@ -1587,6 +1585,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 def main():
     """Set the basic GUI parameters and run."""
     install_error_handler()
+    install_qt_error_dialog()
     app = MApplication(sys.argv)
     app.setDesktopFileName("sweep-generator")
     main_window = MainWindow() if len(sys.argv) < 2 else MainWindow(filename=Path(sys.argv[1]))

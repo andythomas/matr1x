@@ -17,8 +17,8 @@
 
 from typing import ClassVar
 
+from matr1x.core.visadevice import VisaDevice
 from matr1x.devices import strToList
-from matr1x.devices.visadevice import VisaDevice
 
 
 class KeysightB2961(VisaDevice):

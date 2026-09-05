@@ -27,14 +27,7 @@ from typing import TypedDict, no_type_check
 import numpy as np
 import pyqtgraph
 import pyqtgraph.exporters
-from PySide6.QtCore import (
-    QEvent,
-    QKeyCombination,
-    QObject,
-    Qt,
-    QThread,
-    Signal,
-)
+from PySide6.QtCore import QEvent, QKeyCombination, QObject, Qt, QThread, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -50,28 +43,26 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.error_handling import expect_not_none, install_error_handler
-from matr1x.eval import HeaderDict, _create_empty_header, loadmatrix
-from matr1x.gui_util import (
-    AboutBox,
-    FileDropMixin,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
-    MetaViewerWidget,
-    SimplePlotWidget,
-    check_config,
+from matr1x.core.error_handling import expect_not_none, install_error_handler
+from matr1x.core.eval import HeaderDict, _create_empty_header, loadmatrix
+from matr1x.gui.app import AboutBox, MApplication
+from matr1x.gui.error_dialog import install_qt_error_dialog
+from matr1x.gui.helpers import (
     create_matr1x_quit_action,
     create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
 )
-from matr1x.post_install import (
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.meta_viewer import MetaViewerWidget
+from matr1x.gui.mixins import FileDropMixin, LogWindowMixin
+from matr1x.gui.plot import SimplePlotWidget
+from matr1x.gui.shared import MMainWindow, MToolBar, Notifier, SaferQSettings, check_config
+from matr1x.scripts.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts.shared_classes import MMainWindow, MToolBar, Notifier, SaferQSettings
 
 logger = logging.getLogger(__name__)
 
@@ -1209,6 +1200,7 @@ Please investigate the error and eventually restart matrix-preview""",
 def main(file: str | None = None) -> None:
     """Set the basic GUI parameters and run."""
     install_error_handler()
+    install_qt_error_dialog()
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into

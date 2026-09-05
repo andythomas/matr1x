@@ -20,7 +20,7 @@ This module provides a class to interface with the Twickenham Helium
 Depth Indicator device through a VISA connection.
 """
 
-from matr1x.devices.visadevice import VisaDevice
+from matr1x.core.visadevice import VisaDevice
 
 
 class HDI(VisaDevice):
