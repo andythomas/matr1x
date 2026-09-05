@@ -218,24 +218,6 @@
     ]
   },
   {
-    "path": "matr1x/post_install.py",
-    "file_name": "post_install.py",
-    "functions": [
-      {
-        "name": "control_gui_integration",
-        "complexity": 17
-      },
-      {
-        "name": "uninstall_control_gui_desktop_integration",
-        "complexity": 19
-      },
-      {
-        "name": "uninstall_core_desktopintegration",
-        "complexity": 19
-      }
-    ]
-  },
-  {
     "path": "matr1x/scripts/matrix.py",
     "file_name": "matrix.py",
     "functions": [
@@ -282,6 +264,24 @@
       {
         "name": "MainWindow::load_from_filename",
         "complexity": 30
+      }
+    ]
+  },
+  {
+    "path": "matr1x/scripts/post_install.py",
+    "file_name": "post_install.py",
+    "functions": [
+      {
+        "name": "control_gui_integration",
+        "complexity": 17
+      },
+      {
+        "name": "uninstall_control_gui_desktop_integration",
+        "complexity": 19
+      },
+      {
+        "name": "uninstall_core_desktopintegration",
+        "complexity": 19
       }
     ]
   },
