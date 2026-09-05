@@ -217,6 +217,8 @@ class LSPClient(QObject, LoggerMixin):
         """Stop the LSP server."""
         self.stop_event.set()
         if self.process:
+            if self.process.stdin:
+                self.process.stdin.close()  # exit gracefully, also on Windows
             self.process.terminate()
             self.process.wait()
         if self.reader_thread:
