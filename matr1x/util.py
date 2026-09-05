@@ -983,6 +983,29 @@ def run_python_cmdline(
         return Error(e)
 
 
+def matrix_cmdline(*args: str) -> list[str]:
+    """
+    Generate a command line that runs matrix in a subprocess.
+
+    The matrix module is executed directly with the current Python
+    interpreter, so the subprocess is guaranteed to use the same
+    environment.
+
+    Parameters
+    ----------
+    *args : str
+        Command line arguments for matrix (without the binary name).
+
+    Returns
+    -------
+    list[str]
+        Command to pass to ``subprocess.Popen`` or ``subprocess.run``.
+    """
+    argv = ["matrix", *args]
+    cmd = f"import sys\nsys.argv = {argv!r}\nfrom matr1x.scripts.matrix import main\nmain()"
+    return [sys.executable, "-c", cmd]
+
+
 def find_binary(binary: str) -> Result[Path, FileNotFoundError]:
     """
     Find a binary.

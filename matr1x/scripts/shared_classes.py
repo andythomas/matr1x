@@ -72,6 +72,7 @@ from matr1x.gui_util import (
     get_system_info,
 )
 from matr1x.models import Envelope, SystemInfo
+from matr1x.util import matrix_cmdline
 
 __all__ = [
     "MeasurementItem",
@@ -751,7 +752,6 @@ class MeasurementThread(QThread, LoggerMixin):
             )
             return [sys.executable, "-c", cmd]
         argv = [
-            "matrix",
             "-i",
             self.parameters.input_file,
             "-p",
@@ -764,8 +764,7 @@ class MeasurementThread(QThread, LoggerMixin):
             if key in VALID_META_KEYS and val and VALID_META_KEYS[key]:
                 argv += [f"--dc_{key.lower()}", val]
         argv += ["--optional-config", str(temp_config_file)]
-        cmd = f"import sys\nsys.argv = {argv!r}\nfrom matr1x.scripts.matrix import main\nmain()"
-        return [sys.executable, "-c", cmd]
+        return matrix_cmdline(*argv)
 
     def run(self) -> None:
         """

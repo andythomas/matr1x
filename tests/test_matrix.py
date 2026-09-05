@@ -33,6 +33,7 @@ import matr1x.util
 from matr1x import output_extension
 from matr1x.execthread import ExecThread
 from matr1x.models import LineNumber, MeasurementData
+from matr1x.util import matrix_cmdline
 
 path = Path(__file__).resolve().parent
 
@@ -76,7 +77,7 @@ def test_matrix_dummy():
     inputfile = path / "sys_dummy_sweep_all.5t"
     basename_path = inputfile.with_suffix("")
     existingfiles = set(basename_path.parent.glob(basename_path.name + "*"))
-    cmd = [str(Path(sys.executable).parent / "matrix"), "-i", str(inputfile)]
+    cmd = matrix_cmdline("-i", str(inputfile))
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
@@ -109,14 +110,7 @@ def test_matrix_dummy_merged():
     """
     inputfile = path / "sys_dummy_merged.8t"
     outputfile = path / f"test_merged{output_extension}"
-    cmd = [
-        str(Path(sys.executable).parent / "matrix"),
-        "-i",
-        str(inputfile),
-        "-o",
-        str(outputfile),
-        "--plain",
-    ]
+    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile), "--plain")
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
@@ -146,14 +140,7 @@ def test_matrix_dummy_hdf5():
     """
     inputfile = path / "sys_dummy_hdf5_sweep.3t"
     outputfile = path / f"test_hdf5.h5{output_extension}"
-    cmd = [
-        str(Path(sys.executable).parent / "matrix"),
-        "-i",
-        str(inputfile),
-        "-o",
-        str(outputfile),
-        "--plain",
-    ]
+    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile), "--plain")
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd)
     assert ret.returncode == 0
