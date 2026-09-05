@@ -24,6 +24,7 @@ import ast
 import hashlib
 import html
 import json
+import os
 import re
 import socket
 import subprocess
@@ -51,7 +52,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from matr1x.error_handling import Error, Result, Success
 from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
 from matr1x.models import SystemInfo
-from matr1x.util import find_binary, generate_script, get_script_prefix_offset, run_python_cmdline
+from matr1x.util import generate_script, get_script_prefix_offset, run_python_cmdline
 
 SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
@@ -192,6 +193,10 @@ class LSPClient(QObject, LoggerMixin):
         creationflags = 0
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NO_WINDOW
+        # Pin the Python environment: the LSP document uses a dummy URI, so
+        # the type checker can only detect it via VIRTUAL_ENV (e.g. when
+        # launched from a desktop icon without an activated venv).
+        env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
         self.process = subprocess.Popen(
             self.cmd_line,
             stdin=subprocess.PIPE,
@@ -199,6 +204,7 @@ class LSPClient(QObject, LoggerMixin):
             stderr=subprocess.PIPE,
             text=False,
             creationflags=creationflags,
+            env=env,
         )
         time.sleep(0.1)
         self.reader_thread = threading.Thread(target=self._message_reader, daemon=True)
@@ -211,6 +217,8 @@ class LSPClient(QObject, LoggerMixin):
         """Stop the LSP server."""
         self.stop_event.set()
         if self.process:
+            if self.process.stdin:
+                self.process.stdin.close()  # exit gracefully, also on Windows
             self.process.terminate()
             self.process.wait()
         if self.reader_thread:
@@ -886,11 +894,11 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.version = 2
         self.column = 1
         self.row = 1
-        tc_name = "ty"
-        tc_binary = find_binary(tc_name)
-        if isinstance(tc_binary, Error):
-            raise tc_binary.error
-        tc_server = LSPServer(name=tc_name, binary=str(tc_binary.value), parameters=["server"])
+        tc_server = LSPServer(
+            name="ty",
+            binary=sys.executable,
+            parameters=["-m", "ty", "server"],
+        )
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
         self.lsp_initialize()

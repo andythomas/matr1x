@@ -36,6 +36,7 @@ import matr1x.util
 from matr1x import output_extension
 from matr1x.error_handling import Success
 from matr1x.gui_util import get_system_info
+from matr1x.util import matrix_cmdline
 
 path = Path(__file__).resolve().parent
 
@@ -250,7 +251,7 @@ def _launch_tapin_matrix(
     """
     env = os.environ.copy()
     env.update(env_overrides)
-    cmd = [matr1x.util.get_matrix_binary(), "-i", str(inputfile)]
+    cmd = matrix_cmdline("-i", str(inputfile))
     print(subprocess.list2cmdline(cmd))
     return subprocess.run(cmd, env=env)
 
