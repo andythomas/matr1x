@@ -61,8 +61,9 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x import logfolder, output_extension, scpi_tcpserver, system
+from matr1x import logfolder, output_extension
 from matr1x.control.gui_dict import GuiDict, catchEmitError
+from matr1x.core import scpi_tcpserver, system
 from matr1x.core.util import Command, Get, StreamToLogger
 from matr1x.gui.app import MApplication
 from matr1x.gui.helpers import get_matrix_icon, open_matrix_toml

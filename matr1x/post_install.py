@@ -27,7 +27,7 @@ from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 
 import matr1x as matr1xpackage
-from matr1x import config
+import matr1x.core.config as core_config
 from matr1x.gui.helpers import get_install_info
 from matr1x.gui.shared import SaferQSettings
 
@@ -309,9 +309,9 @@ def check_system_specifics() -> bool:
 def create_folders() -> None:
     """Create directories specified in the configuration."""
     logger.info("Creating common folders (users and log)")
-    users_folder = config.matr1x.users_directory.expanduser()
+    users_folder = core_config.config.matr1x.users_directory.expanduser()
     users_folder.mkdir(parents=True, exist_ok=True)
-    log_folder = config.matr1x.logging_directory.expanduser()
+    log_folder = core_config.config.matr1x.logging_directory.expanduser()
     log_folder.mkdir(parents=True, exist_ok=True)
 
 
@@ -1052,7 +1052,7 @@ def remove_desktop_integration():
         ),
     ]
     subprocess.run(remove, check=False)
-    for pkg_name, section in config:
+    for pkg_name, section in core_config.config:
         if section.install:
             dist_name = DISTRIBUTION_NAME if pkg_name == "matr1x" else pkg_name
             uninstall_control_gui_desktop_integration(dist_name, section.install.controlguis)
@@ -1086,13 +1086,13 @@ def post_installation():
         logger.error("PI001: Not all platform specifics found! Please refer to the documentation.")
         return
     remove_desktop_integration()
-    install_config = config.matr1x.install
+    install_config = core_config.config.matr1x.install
     if install_config.create_directories:
         create_folders()
     if install_config.desktopintegration:
         core_desktop_integration()
         # desktop integration for control guis
-        for pkg_name, section in config:
+        for pkg_name, section in core_config.config:
             if section.install:
                 # config keys use import names, but get_installed_file needs
                 # distribution names; map "matr1x" -> "matr1x-measurements"

@@ -37,19 +37,19 @@ from pathlib import Path as _Path
 import wrapt as _wrapt
 
 import matr1x as _matr1x
-import matr1x.util as _matrix_util
-from matr1x.models import Datafile as _Datafile
-from matr1x.models import ExecutionLines as _ExecutionLines
-from matr1x.models import Header as _Header
-from matr1x.models import MeasuredValues as _MeasuredValues
-from matr1x.models import Message as _Message
-from matr1x.models import SetValues as _SetValues
-from matr1x.models import Telemetry as _Telemetry
+import matr1x.core.util as _matrix_util
+from matr1x.core.models import Datafile as _Datafile
+from matr1x.core.models import ExecutionLines as _ExecutionLines
+from matr1x.core.models import Header as _Header
+from matr1x.core.models import MeasuredValues as _MeasuredValues
+from matr1x.core.models import Message as _Message
+from matr1x.core.models import SetValues as _SetValues
+from matr1x.core.models import Telemetry as _Telemetry
+from matr1x.core.system import MergedSystem as _MergedSystem
 from matr1x.script_analysis import infer_point_counts as _infer_point_counts
-from matr1x.system import MergedSystem as _MergedSystem
 
 if _typing.TYPE_CHECKING:
-    from matr1x.execthread import ExecThread
+    from matr1x.core.execthread import ExecThread
 
     class _ThreadAPI:
         def __init__(self, exec_thread: ExecThread):
