@@ -47,6 +47,7 @@ import pytest
 from PySide6.QtCore import QBuffer, QEventLoop, QIODevice, QTimer, QUrl
 from PySide6.QtWebEngineCore import (
     QWebEnginePage,
+    QWebEngineProfileBuilder,
     QWebEngineUrlRequestJob,
     QWebEngineUrlSchemeHandler,
 )
@@ -125,8 +126,8 @@ class MonacoAssetHandler(QWebEngineUrlSchemeHandler):
 class CollectingPage(QWebEnginePage):
     """Collect JavaScript console error messages."""
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, profile, parent=None):
+        super().__init__(profile, parent)
         self.errors: list[str] = []
 
     def javaScriptConsoleMessage(
@@ -169,10 +170,12 @@ def test_monaco_via_url_scheme(qtbot, qapp, tmp_path):
     (page_dir / "editor.html").write_text(EDITOR_HTML)
 
     view = QWebEngineView()
-    page = CollectingPage(view)
+    # A dedicated off-the-record profile keeps the test isolated from the
+    # default profile, which other tests may have a monaco:// handler on.
+    profile = QWebEngineProfileBuilder().createOffTheRecordProfile(view)
+    page = CollectingPage(profile, view)
     view.setPage(page)
     handler = MonacoAssetHandler(page_dir, view)
-    profile = view.page().profile()
     profile.installUrlSchemeHandler(b"monaco", handler)
     try:
         with qtbot.waitSignal(view.loadFinished, timeout=30_000):

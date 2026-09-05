@@ -24,28 +24,37 @@ import ast
 import hashlib
 import html
 import json
+import mimetypes
 import re
-import socket
 import subprocess
 import sys
 import threading
 import time
 from dataclasses import dataclass
 from importlib import resources
+from pathlib import Path
 from queue import Empty, Queue
 from typing import Any, ClassVar, Literal, cast
 
 import monaco_assets
 from pydantic import BaseModel, Field, ValidationError
 from PySide6.QtCore import (
+    QBuffer,
     QEventLoop,
+    QIODevice,
     QObject,
     QTimer,
     QUrl,
     Signal,
 )
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+from PySide6.QtWebEngineCore import (
+    QWebEnginePage,
+    QWebEngineSettings,
+    QWebEngineUrlRequestJob,
+    QWebEngineUrlScheme,
+    QWebEngineUrlSchemeHandler,
+)
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from matr1x.error_handling import Error, Result, Success
@@ -58,6 +67,17 @@ COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
 HIGHLIGHT_INTERVAL_MS = 15
 LINTING_DELAY_MS = 1000
 DUMMY_LSP_FILENAME = "untitled:///user_script.py"
+
+# The monaco:// scheme serves the editor page and the Monaco assets from
+# disk. It must be registered before QWebEngine is initialized.
+MONACO_SCHEME = QWebEngineUrlScheme(b"monaco")
+MONACO_SCHEME.setFlags(
+    QWebEngineUrlScheme.Flag.CorsEnabled
+    | QWebEngineUrlScheme.Flag.LocalAccessAllowed
+    | QWebEngineUrlScheme.Flag.SecureScheme
+    | QWebEngineUrlScheme.Flag.FetchApiAllowed
+)
+QWebEngineUrlScheme.registerScheme(MONACO_SCHEME)
 
 __all__ = ["CodeEditor"]
 
@@ -850,6 +870,38 @@ class CodeEditorPage(QWebEnginePage, LoggerMixin):
             self.logger.info("%s", message)
 
 
+class MonacoAssetHandler(QWebEngineUrlSchemeHandler):
+    """
+    Serve the editor page and the Monaco assets from disk.
+
+    ``min/*`` requests map to the Monaco asset cache, all other paths to
+    the bundled editor resources (``editor.html``, ``editor.js``).
+    """
+
+    def __init__(self, assets_dir: Path, parent=None):
+        super().__init__(parent)
+        self._assets_dir = assets_dir
+        self._resources_dir = Path(str(resources.files("matr1x").joinpath("resources")))
+        self._buffers: list[QBuffer] = []
+
+    def requestStarted(self, job: QWebEngineUrlRequestJob) -> None:
+        """Reply to a monaco:// request with the file content from disk."""
+        rel = job.requestUrl().path().lstrip("/")
+        if rel.startswith("min/"):
+            file_path = self._assets_dir / rel
+        else:
+            file_path = self._resources_dir / rel
+        if not file_path.is_file():
+            job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+            return
+        mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        buffer = QBuffer()
+        buffer.setData(file_path.read_bytes())
+        buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+        self._buffers.append(buffer)  # Keep alive until the reply is consumed.
+        job.reply(mime_type.encode(), buffer)
+
+
 class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
     """Code editor connected to Monaco."""
 
@@ -864,20 +916,6 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         "High contrast": {"Light high contrast": "hc-light", "Dark high contrast": "hc-black"},
     }
 
-    @staticmethod
-    def find_free_port(start_port=54529):
-        """Find an available port starting from start_port."""
-        port = start_port
-        while port < start_port + 100:  # Try 100 ports
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.bind(("localhost", port))
-                sock.close()
-                return port
-            except OSError:
-                port += 1
-        raise RuntimeError("No free ports available")
-
     def __init__(self):
         super().__init__()
         self.version = 2
@@ -891,29 +929,32 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
         self.lsp_initialize()
-        # Find free port and start Monaco server
-        self.port = self.find_free_port()
-        self.server = monaco_assets.MonacoServer(port=self.port)
+        # Locate (downloading if necessary) the Monaco assets without
+        # blocking the user interface.
+        self._assets_ready = threading.Event()
+        self._assets_dir: Path | None = None
+        thread = threading.Thread(target=self._prepare_assets, daemon=True)
+        thread.start()
         timeout = 30  # seconds
         start_time = time.time()
-        while not self.server.is_running() and (time.time() - start_time) < timeout:
+        while not self._assets_ready.is_set() and (time.time() - start_time) < timeout:
             time.sleep(0.1)
-        if not self.server.is_running():
-            self.logger.error("Warning: Monaco server did not start within %d seconds", timeout)
+        if not self._assets_ready.is_set():
+            self.logger.error("Warning: Monaco assets not ready within %d seconds", timeout)
         self.editor_page = CodeEditorPage()
         self.setPage(self.editor_page)
         settings = self.page().settings()
-        settings.setAttribute(
-            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
-        )
         settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
         self.channel = QWebChannel()
         self.backend = EditorBackend(self)
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
-        html_path = resources.files("matr1x") / "resources" / "editor.html"
-        editor_url = QUrl.fromLocalFile(str(html_path))
-        editor_url.setQuery(f"port={self.port}")
+        if self._assets_dir is not None:
+            # Note: a profile can only have one handler per scheme, so this
+            # assumes a single CodeEditor instance (as in matrix-script).
+            handler = MonacoAssetHandler(self._assets_dir, self)
+            self.page().profile().installUrlSchemeHandler(b"monaco", handler)
+        editor_url = QUrl("monaco://localhost/editor.html")
         self.load(editor_url)
         loop = QEventLoop()
         success = False
@@ -929,7 +970,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.loadFinished.disconnect(_load_finished)
         if not success:
             message = (
-                f"Editor page failed to load from {html_path}. The renderer "
+                f"Editor page failed to load from {editor_url}. The renderer "
                 "process may have died; check the QtWebEngine installation "
                 "and environment (e.g. set QTWEBENGINE_CHROMIUM_FLAGS="
                 "--no-sandbox when running inside a restrictive sandbox)."
@@ -943,6 +984,11 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self._current_theme: str
         self._system_info: SystemInfo
         self.create_connections()
+
+    def _prepare_assets(self) -> None:
+        """Locate the Monaco asset cache, downloading it if necessary."""
+        self._assets_dir = monaco_assets.get_path()
+        self._assets_ready.set()
 
     def create_connections(self) -> None:
         """Create connections between signals and slots."""
