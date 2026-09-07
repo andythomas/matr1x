@@ -106,16 +106,6 @@
     ]
   },
   {
-    "path": "matr1x/core/visadevice.py",
-    "file_name": "visadevice.py",
-    "functions": [
-      {
-        "name": "VisaDevice::open",
-        "complexity": 18
-      }
-    ]
-  },
-  {
     "path": "matr1x/devices/keithley/keithley2182a.py",
     "file_name": "keithley2182a.py",
     "functions": [
@@ -194,6 +184,16 @@
       {
         "name": "makeSCPIdevice",
         "complexity": 34
+      }
+    ]
+  },
+  {
+    "path": "matr1x/devices/visadevice.py",
+    "file_name": "visadevice.py",
+    "functions": [
+      {
+        "name": "VisaDevice::open",
+        "complexity": 18
       }
     ]
   },
