@@ -21,6 +21,8 @@ generated script template. They live in a leaf module so that both the
 creating an import cycle.
 """
 
+__all__ = ["APP_META_KEY", "VALID_META_KEYS"]
+
 VALID_META_KEYS = {
     "creator": True,
     "date": False,

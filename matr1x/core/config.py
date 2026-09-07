@@ -50,6 +50,19 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
+__all__ = [
+    "config",
+    "datetimefmt",
+    "logfolder",
+    "merge_dicts",
+    "output_extension",
+    "reload_config",
+    "resolved_directory",
+    "usersfolder",
+    "validation_errors",
+    "write_config",
+]
+
 deprecation_marker = "[MATR1X_DEPRECATED]"
 
 # default datafile extension

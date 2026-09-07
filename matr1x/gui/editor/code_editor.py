@@ -60,6 +60,8 @@ from .lsp_types import (
     TyDiagnostic,
 )
 
+__all__ = ["CodeEditor"]
+
 SCRIPT_OFFSET = get_script_prefix_offset()
 COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
 HIGHLIGHT_INTERVAL_MS = 15
