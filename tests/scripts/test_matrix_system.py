@@ -198,7 +198,7 @@ def _launch_tapin_script(
             tf.write(line.encode())
         tf.flush()
         execscript = (
-            "import matr1x.util as mu\n"
+            "import matr1x.core.execthread as mu\n"
             "mu.matrix_script_process(\n"
             f"{tf.name!r}, {{}}, '', None, [{str(system_tapin)!r}]\n"
             ")"

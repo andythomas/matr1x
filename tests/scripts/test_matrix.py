@@ -172,7 +172,7 @@ def test_matrix_script_dummy_merged(input_dir: Path, tmp_path: Path):
             tf.write(line.encode())
         tf.flush()
         script = (
-            "import matr1x.util as mu\n"
+            "import matr1x.core.execthread as mu\n"
             "mu.matrix_script_process(\n"
             f"{tf.name!r}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
             ")"
@@ -199,7 +199,8 @@ def test_empty_script(tmp_path: Path):
     """
     with tempfile.NamedTemporaryFile(mode="w+b") as tf:
         script = (
-            f"import matr1x.util as mu\nmu.matrix_script_process({tf.name!r}, {{}}, '', None, [])"
+            "import matr1x.core.execthread as mu\n"
+            f"mu.matrix_script_process({tf.name!r}, {{}}, '', None, [])"
         )
         ret = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, check=False)
         assert ret.returncode == 0

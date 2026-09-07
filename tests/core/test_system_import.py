@@ -81,7 +81,7 @@ def test_system_file_discovers_local_subclass(tmp_path):
     system_file = tmp_path / "system_compatibility.py"
     system_file.write_text(
         """\
-from matr1x.system import System
+from matr1x.core.system import System
 
 class ClassSystem(System):
     def __init__(self):
@@ -100,7 +100,7 @@ class ClassSystem(System):
 def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export_name):
     """Load initialized legacy exports while emitting a soft-deprecation warning."""
     system_file = tmp_path / "system_legacy.py"
-    system_file.write_text(f"from matr1x.system import System\n\n{export_name} = System()\n")
+    system_file.write_text(f"from matr1x.core.system import System\n\n{export_name} = System()\n")
 
     result = System.from_file(system_file)
     assert isinstance(result, Success)
@@ -113,7 +113,7 @@ def test_system_file_ignores_imported_system_base(tmp_path, monkeypatch):
     base_file = tmp_path / "imported_system_base.py"
     base_file.write_text(
         """\
-from matr1x.system import System
+from matr1x.core.system import System
 
 class ImportedBase(System):
     pass
@@ -139,10 +139,10 @@ class LocalSystem(ImportedBase):
 @pytest.mark.parametrize(
     ("contents", "error"),
     [
-        ("from matr1x.system import System\n", "none found"),
+        ("from matr1x.core.system import System\n", "none found"),
         (
             """\
-from matr1x.system import System
+from matr1x.core.system import System
 
 class First(System):
     pass
