@@ -24,7 +24,7 @@ The live configuration globals (``config``, ``datetimefmt``) are rebound by
 `reload_config`, so they are exposed lazily via `__getattr__` to
 always reflect the current values. Model re-exports (``MainConfig`` and
 friends) are likewise resolved lazily so that this module does not import
-`matr1x.models` at module level.
+`matr1x.core.models` at module level.
 """
 
 import warnings
@@ -117,12 +117,12 @@ def __getattr__(name: str):
     ``config`` and ``datetimefmt`` are rebound by `reload_config`, so they
     are proxied to `matr1x.core.config` on every access to stay current.
     The model re-exports are resolved lazily to avoid importing
-    `matr1x.models` at module level.
+    `matr1x.core.models` at module level.
     """
     if name in ("config", "datetimefmt"):
         return getattr(_core_config, name)
     if name in ("MainConfig", "UserlibConfig", "format_validation_error"):
-        from matr1x import models
+        from matr1x.core import models
 
         return getattr(models, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
