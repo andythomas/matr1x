@@ -48,6 +48,7 @@ from PySide6.QtCore import (
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
+from ty import find_ty_bin
 
 from matr1x.error_handling import Error, Result, Success
 from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
@@ -894,11 +895,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.version = 2
         self.column = 1
         self.row = 1
-        tc_server = LSPServer(
-            name="ty",
-            binary=sys.executable,
-            parameters=["-m", "ty", "server"],
-        )
+        tc_server = LSPServer(name="ty", binary=find_ty_bin(), parameters=["server"])
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
         self.lsp_initialize()

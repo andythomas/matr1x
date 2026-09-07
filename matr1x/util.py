@@ -962,8 +962,10 @@ def run_python_cmdline(
     creationflags = 0
     if sys.platform == "win32":
         creationflags = subprocess.CREATE_NO_WINDOW
-        if python_exec.name == "pythonw.exe":
-            python_exec = python_exec.parent / "python.exe"
+        if python_exec.name != "pythonw.exe":
+            pythonw = python_exec.with_name("pythonw.exe")
+            if pythonw.exists():
+                python_exec = pythonw
     cmd = [str(python_exec)] + cmd
 
     try:
