@@ -23,6 +23,7 @@ formats.
 from pathlib import Path
 
 import numpy as np
+import polars as pl
 import pytest
 
 import matr1x.core.eval
@@ -253,6 +254,46 @@ def test_loadmatrix_ma6(data_dir: Path):
     assert d["timeUTC"].shape == (2196,)  # check shape of dataset
     assert pytest.approx(d["Vnvm07"][14], 1e-12) == 1.80986751e-06  # check specific data value
     assert pytest.approx(d["timeUTC"][-1], 1e-10) == 1557380107.327  # check specific data value
+
+
+def test_loadmatrix_to_polars(data_dir: Path):
+    """
+    Test loading of text files with to_polars=True.
+
+    Verifies that a native polars DataFrame is returned with the same
+    shape and values as the default numpy return.
+    """
+    datafile = data_dir / "random_test.ma8"
+    h, d = matr1x.core.eval.loadmatrix(datafile, to_polars=True)
+    assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
+    assert d.shape == (100, 6)
+    assert list(d.columns) == h["columns"]
+    # compare a numeric column with the default numpy return
+    _, d_np = matr1x.core.eval.loadmatrix(datafile)
+    assert np.allclose(d["dev1 p2"].to_numpy(), d_np["dev1 p2"], equal_nan=True)
+
+
+def test_loadmatrix_to_polars_hdf5(data_dir: Path):
+    """Test that to_polars=True raises NotImplementedError for HDF5 files."""
+    datafile = data_dir / "random_test.h5.ma8"
+    with pytest.raises(NotImplementedError):
+        matr1x.core.eval.loadmatrix(datafile, to_polars=True)
+
+
+def test_loadmatrix_tristate_bool(tmp_path: Path):
+    """
+    Test that a bool column containing None becomes an object array.
+
+    The object dtype is what the plot's categorical detection relies on
+    to render the column as a tristate categorical axis.
+    """
+    datafile = tmp_path / "bool_none.ma7"
+    datafile.write_text("a\tb\nV\tV\na\tb\nTrue\tTrue\nNone\tTrue\nFalse\tFalse\n")
+    h, d = matr1x.core.eval.loadmatrix(datafile)
+    assert d["a"].dtype == np.dtype("O")
+    assert list(d["a"]) == [True, None, False]
+    # column without None stays a plain bool
+    assert d["b"].dtype == np.dtype("bool")
 
 
 def test_loadmatrix_pathlib_ma8(data_dir: Path):

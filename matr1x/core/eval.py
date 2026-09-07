@@ -22,12 +22,13 @@ package as well as functions for processing data in the preview.
 
 import ast
 import re
+from io import StringIO
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
 import h5py
 import numpy as np
-import pandas as pd
+import polars as pl
 
 __all__ = ["HeaderDict", "delta", "delta3p", "loadmatrix"]
 
@@ -696,26 +697,21 @@ def _process_text_file_content(filename: Path, extension: str, header: HeaderDic
     return nheader
 
 
-def _load_text_file(
-    filename: Path, structured: bool, replace_None: bool
-) -> tuple[HeaderDict, np.ndarray]:
+def _parse_text_polars(filename: str | Path) -> tuple[HeaderDict, pl.DataFrame]:
     """
-    Load data from text file format.
+    Parse a text matrix file into a polars DataFrame.
 
     Parameters
     ----------
-    filename : Path
-        Path to the text file
-    structured : bool
-        Whether to return structured array
-    replace_None : bool
-        Whether to replace None values
+    filename : str or pathlib.Path
+        Path to the text matrix file
 
     Returns
     -------
-    tuple[HeaderDict, np.ndarray]
-        Header information and data
+    tuple[HeaderDict, pl.DataFrame]
+        Header information and data as a polars DataFrame
     """
+    filename = Path(filename)
     extension = filename.suffix
     header = create_empty_header()
 
@@ -739,58 +735,84 @@ def _load_text_file(
             val = val.replace(r"\"", '"')
             header[key] = val  # ty: ignore[invalid-key]
 
-    # Process data from text file
-    kwargs: dict[str, Any] = {
-        "sep": "\t",
-        "low_memory": False,
-        "comment": "#",
-        "header": None,
-    }
-    if replace_None:
-        kwargs["na_values"] = "None"
-    if structured is True:
-        # generate a structured array with the column names as identifier
-        kwargs["names"] = header["columns"]
-    try:
-        data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)
-    except IndexError:
-        # IndexError is raised in case an incomplete header is present
-        print("loadmatrix: incomplete data file header")  # noqa: T201
-        return header, np.empty(0)
+    # Skip the header lines (comment lines plus the columns/units rows)
+    # and let polars parse only the data, skipping '#' comment lines
+    # within the data. The literal string "None" is treated as a
+    # missing value, as done by the previous pandas based parser.
+    with filename.open(errors="replace") as f:
+        for _ in range(nheader + 1):
+            f.readline()
+        data_text = f.read()
+    df = pl.read_csv(
+        StringIO(data_text),
+        separator="\t",
+        comment_prefix="#",
+        has_header=False,
+        new_columns=header["columns"],
+        null_values="None",
+    )
+    return header, df
 
-    if replace_None:
-        # Define replacement values based on data types
-        replacement_values = {
-            "bool": False,
-            "int": -1,
-            "float": np.nan,
-            "object": "NaN",  # 'object' dtype is often used for strings in Pandas
-        }
-        # Replace missing values
-        for column in data.columns:
-            if pd.api.types.is_bool_dtype(data[column]):
-                data[column] = data[column].fillna(replacement_values["bool"])
-            elif pd.api.types.is_integer_dtype(data[column]):
-                data[column] = data[column].fillna(replacement_values["int"])
-            elif pd.api.types.is_float_dtype(data[column]):
-                data[column] = data[column].fillna(replacement_values["float"])
-            elif pd.api.types.is_object_dtype(data[column]):
-                data[column] = data[column].fillna(replacement_values["object"])
 
-    if structured is True:
-        data = data.to_records(index=False)
-    else:
-        data = data.to_numpy()
+def _to_recarray(df: pl.DataFrame) -> np.ndarray:
+    """
+    Convert a polars DataFrame to a numpy recarray.
 
-    return header, data
+    String columns are converted to object dtype, matching the output
+    of the previous pandas based implementation.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        The DataFrame to convert
+
+    Returns
+    -------
+    np.ndarray
+        Structured numpy array with the column names as field names
+    """
+    arrays = [df[c].to_numpy() for c in df.columns]
+    return np.rec.fromarrays(
+        arrays,
+        formats=[arr.dtype for arr in arrays],
+        names=list(df.columns),
+    )
+
+
+def _load_text_file(
+    filename: Path, structured: bool, to_polars: bool
+) -> tuple[HeaderDict, np.ndarray | pl.DataFrame]:
+    """
+    Load data from text file format.
+
+    Parameters
+    ----------
+    filename : Path
+        Path to the text file
+    structured : bool
+        Whether to return structured array
+    to_polars : bool
+        Whether to return a polars DataFrame
+
+    Returns
+    -------
+    tuple[HeaderDict, np.ndarray | pl.DataFrame]
+        Header information and data
+    """
+    header, df = _parse_text_polars(filename)
+    if to_polars:
+        return header, df
+    if structured:
+        return header, _to_recarray(df)
+    return header, df.to_numpy()
 
 
 def loadmatrix(
     filename: str | Path,
     structured: bool = True,
     print_header: bool = False,
-    replace_None: bool = False,
-) -> tuple[HeaderDict, np.ndarray | dict[str, np.ndarray]]:
+    to_polars: bool = False,
+) -> tuple[HeaderDict, np.ndarray | pl.DataFrame | dict[str, np.ndarray]]:
     """
     Open matrix ascii data as well as hdf5 files generated by matrix.
 
@@ -807,26 +829,31 @@ def loadmatrix(
     print_header : bool, optional
         if true, prints the column names read from the file together with
         their index
-    replace_None : boolean, optional
-        set to True to replace None values by 0 to allow plotting
+    to_polars : bool, optional
+        if true, the data of text files is returned as a native polars
+        DataFrame instead of numpy. This option is not supported for
+        HDF5 files and raises NotImplementedError.
 
     Returns
     -------
     header : HeaderDict
         Dictionary containing the header information with core typed
         fields
-    data : np.ndarray | dict[str, np.ndarray]
-        Data array or dict for unequal length arrays
+    data : np.ndarray | pl.DataFrame | dict[str, np.ndarray]
+        Data array, polars DataFrame, or dict for unequal length arrays
     """
     filename = Path(filename)
 
-    if _is_hdf5(filename) and not structured:
-        raise NotImplementedError("The option structured=False is not supported for hdf5 files")
-
     if _is_hdf5(filename):
+        if to_polars:
+            raise NotImplementedError("The option to_polars=True is not supported for hdf5 files")
+        if not structured:
+            raise NotImplementedError(
+                "The option structured=False is not supported for hdf5 files"
+            )
         header, data = _load_hdf5_file(filename, structured)
     else:
-        header, data = _load_text_file(filename, structured, replace_None)
+        header, data = _load_text_file(filename, structured, to_polars)
 
     if print_header is True:
         # generate list of tuples with index and column name

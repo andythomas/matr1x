@@ -22,7 +22,7 @@ dependencies = [
     "numpy >= 1.21.2",                              # core
     "pyobjc-framework-Cocoa >= 8.0 ; platform_system == 'Darwin'",  # gui.app (macOS integration)
     "decorator >= 5.2.1",                           # control.gui_dict
-    "pandas >= 1.3.4",                              # core.eval
+    "polars >= 1.0",                                # core.eval
     "psutil >= 5.9.0",                              # control
     "pyqtgraph >= 0.12.3",                          # gui plotting
     "PySide6 >= 6.4.0",                             # gui
