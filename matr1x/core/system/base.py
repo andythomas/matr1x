@@ -60,7 +60,6 @@ from matr1x.core.util import (
     resolve_config_path,
     save_dict_to_hdf5,
 )
-from matr1x.core.visadevice import VisaDevice
 
 BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
 
@@ -526,7 +525,7 @@ class System:
         )
 
     @staticmethod
-    def _query_device_config(device_handle: VisaDevice | Instrument, query: str) -> str:
+    def _query_device_config(device_handle: object, query: str) -> str:
         """Query a device config string via ``query`` or ``ask``."""
         query_method = getattr(device_handle, "query", None)
         if callable(query_method):
@@ -542,16 +541,14 @@ class System:
         )
 
     @staticmethod
-    def _device_query(
-        device_handle: VisaDevice | Instrument, config_params: ConfigParameter
-    ) -> dict[str, Any]:
+    def _device_query(device_handle: object, config_params: ConfigParameter) -> dict[str, Any]:
         """
         Query the current configuration of the device.
 
         Parameters
         ----------
-        device_handle : VisaDevice or pymeasure device
-            Must be an open device that implements the query function.
+        device_handle : object
+            Must be an open device that implements a query or ask function.
         config_params : dict
             Dictionary must adhere to the following format. Key is
             descriptor which is used to identify the parameter. The
@@ -571,7 +568,7 @@ class System:
             keys of are the parameters that were queried.
         """
         if hasattr(device_handle, "name"):
-            device_id = device_handle.name
+            device_id = str(device_handle.name)
         else:
             device_id = device_handle.__class__.__name__
         adapter = getattr(device_handle, "adapter", None)

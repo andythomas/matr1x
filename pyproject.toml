@@ -29,7 +29,7 @@ dependencies = [
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'",  # gui
     "pygit2 >= 1.16",                               # gui.helpers, devices.git
     "pygit2 >= 1.19; python_version >= '3.14'",     # gui.helpers, devices.git (Py 3.14+)
-    "wrapt > 2.0",                                  # core.visadevice, devices
+    "wrapt > 2.0",                                  # devices
     "urwid > 2.0",                                  # TUI (scripts.matrix)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
     "monaco-assets >= 0.5.1",                       # gui.editor (matrix-script)
@@ -37,7 +37,7 @@ dependencies = [
     "ty == 0.0.63",                                 # gui.editor (run as subprocess)
     "pymeasure >= 0.16.0",                          # core and device drivers
     "pyserial",                                     # device drivers
-    "pyvisa >= 1.12.0",                             # core.visadevice and device drivers
+    "pyvisa >= 1.12.0",                             # devices (VisaDevice and drivers)
     "pyvisa-py >= 0.5.3",                           # pyvisa backend
     "zeroconf >= 0.36.8",                           # pyvisa-py resource discovery
     "minimalmodbus",                                # device drivers
@@ -226,6 +226,7 @@ ignore_imports = [
     # from any device module.
     "matr1x.devices.** -> matr1x.devices.modbusdevice",
     "matr1x.devices.** -> matr1x.devices.scpi_dev",
+    "matr1x.devices.** -> matr1x.devices.visadevice",
 ]
 
 [dependency-groups]
