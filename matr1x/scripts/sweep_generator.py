@@ -100,7 +100,7 @@ from matr1x.scripts.post_install import (
     remove_desktop_integration,
 )
 
-__all__ = ["MainWindow"]
+__all__ = ["ColumnData", "MainWindow"]
 
 if sys.platform == "win32":
     try:

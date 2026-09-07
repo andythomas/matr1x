@@ -15,6 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Re-export shim. The implementation lives in `matr1x.core.visadevice`."""
 
-from matr1x.core.visadevice import VisaDevice, output_name_on_error
+from matr1x.core.visadevice import VisaDevice
 
-__all__ = ["VisaDevice", "output_name_on_error"]
+__all__ = ["VisaDevice"]

@@ -36,16 +36,11 @@ from .core import config as _core_config
 # This must be imported early to ensure all pymeasure instruments are thread-safe
 from .core import pymeasure_threading_fix
 from .core.config import (
-    MIGRATIONS,
-    deprecation_marker,
-    load_config,
     logfolder,
     merge_dicts,
     output_extension,
     reload_config,
     resolved_directory,
-    system_directories,
-    system_names,
     usersfolder,
     validation_errors,
     write_config,
@@ -74,8 +69,6 @@ warnings.formatwarning = _clean_formatwarning  # ty: ignore[invalid-assignment]
 
 __all__ = [
     "APP_META_KEY",
-    # Config data
-    "MIGRATIONS",
     # Re-exports
     "VALID_META_KEYS",
     "MainConfig",
@@ -85,11 +78,9 @@ __all__ = [
     "config",
     "create_temp_dir_with_symlinks",
     "datetimefmt",
-    "deprecation_marker",
     "format_validation_error",
     "get_package_path",
     # Config management
-    "load_config",
     "logfolder",
     "merge_dicts",
     "output_extension",
@@ -97,8 +88,9 @@ __all__ = [
     "resolve_config_path",
     "resolve_pkgroot_path",
     "resolved_directory",
-    "system_directories",
-    "system_names",
+    # Submodules
+    "scpi_tcpserver",
+    "system",
     # System dirs / globals
     "usersfolder",
     "validation_errors",

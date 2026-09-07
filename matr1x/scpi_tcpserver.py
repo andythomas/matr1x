@@ -15,11 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Re-export shim. The implementation lives in `matr1x.core.scpi_tcpserver`."""
 
-from matr1x.core.scpi_tcpserver import (
-    DEFAULT_PORT,
-    SCPI_TCP_Server,
-    ThreadedTCPRequestHandler,
-    ThreadedTCPServer,
-)
+from matr1x.core.scpi_tcpserver import DEFAULT_PORT, SCPI_TCP_Server
 
-__all__ = ["DEFAULT_PORT", "SCPI_TCP_Server", "ThreadedTCPRequestHandler", "ThreadedTCPServer"]
+__all__ = ["DEFAULT_PORT", "SCPI_TCP_Server"]

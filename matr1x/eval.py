@@ -17,11 +17,9 @@
 
 from matr1x.core.eval import (
     HeaderDict,
-    OptionalFields,
-    RequiredHeader,
     delta,
     delta3p,
     loadmatrix,
 )
 
-__all__ = ["HeaderDict", "OptionalFields", "RequiredHeader", "delta", "delta3p", "loadmatrix"]
+__all__ = ["HeaderDict", "delta", "delta3p", "loadmatrix"]

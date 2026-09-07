@@ -115,6 +115,7 @@ __all__ = [
     "NotifierMessage",
     "SaferQSettings",
     "SystemListWidget",
+    "check_config",
 ]
 
 

@@ -29,7 +29,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
-__all__ = ["delta", "delta3p", "loadmatrix"]
+__all__ = ["HeaderDict", "delta", "delta3p", "loadmatrix"]
 
 ######################
 # File handling
@@ -70,7 +70,7 @@ class HeaderDict(RequiredHeader, OptionalFields):
     """Header dictionary with optional fields."""
 
 
-def _create_empty_header() -> HeaderDict:
+def create_empty_header() -> HeaderDict:
     """Create an empty HeaderDict with all required fields initialized."""
     return cast(
         HeaderDict,
@@ -519,7 +519,7 @@ def _load_hdf5_file(
     tuple[HeaderDict, np.ndarray | dict[str, np.ndarray]]
         Header information and data
     """
-    header = _create_empty_header()
+    header = create_empty_header()
 
     # use swmr read mode, to avoid corrupting the data during the
     # measurement (where it is written to by the matrix process)
@@ -717,7 +717,7 @@ def _load_text_file(
         Header information and data
     """
     extension = filename.suffix
-    header = _create_empty_header()
+    header = create_empty_header()
 
     # Process text file content
     nheader = _process_text_file_content(filename, extension, header)
