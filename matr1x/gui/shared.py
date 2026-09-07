@@ -92,7 +92,7 @@ from matr1x.core.models import (
     SystemInfo,
     SystemReference,
 )
-from matr1x.core.util import get_matrix_binary
+from matr1x.core.util import matrix_cmdline
 from matr1x.gui.app import MApplication, SaferQSettings
 from matr1x.gui.helpers import get_matrix_icon, get_system_capability, get_system_info
 from matr1x.gui.meta_viewer import ConfigEditWidget, blocked_signals
@@ -1184,8 +1184,7 @@ class MeasurementThread(QThread, LoggerMixin):
                 f"{self.parameters.systems!r})"
             )
             return [sys.executable, "-c", cmd]
-        result = [
-            get_matrix_binary(),
+        argv = [
             "-i",
             self.parameters.input_file,
             "-p",
@@ -1193,12 +1192,12 @@ class MeasurementThread(QThread, LoggerMixin):
             str(port),
         ]
         if self.parameters.output_file:
-            result += ["-o", self.parameters.output_file]
+            argv += ["-o", self.parameters.output_file]
         for key, val in self.parameters.metadata.items():
             if key in VALID_META_KEYS and val and VALID_META_KEYS[key]:
-                result += [f"--dc_{key.lower()}", val]
-        result += ["--optional-config", str(temp_config_file)]
-        return result
+                argv += [f"--dc_{key.lower()}", val]
+        argv += ["--optional-config", str(temp_config_file)]
+        return matrix_cmdline(*argv)
 
     def run(self) -> None:
         """

@@ -35,6 +35,7 @@ import pytest
 
 import matr1x.core.util
 from matr1x.core.error_handling import Success
+from matr1x.core.util import matrix_cmdline
 from matr1x.gui.helpers import get_system_info
 
 
@@ -230,7 +231,7 @@ def _launch_tapin_matrix(
     """
     env = os.environ.copy()
     env.update(env_overrides)
-    cmd = [matr1x.core.util.get_matrix_binary(), "-i", str(inputfile), "-o", str(outputfile)]
+    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile))
     print(subprocess.list2cmdline(cmd))
     return subprocess.run(cmd, env=env, check=False)
 

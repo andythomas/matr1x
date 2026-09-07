@@ -22,6 +22,7 @@ import html
 import json
 import re
 import socket
+import sys
 import time
 from importlib import resources
 from typing import Any, ClassVar, cast
@@ -42,7 +43,6 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from matr1x.core.error_handling import Error
 from matr1x.core.models import SystemInfo
 from matr1x.core.util import (
-    find_binary,
     generate_script,
     get_script_prefix_offset,
     run_python_cmdline,
@@ -498,11 +498,11 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.version = 2
         self.column = 1
         self.row = 1
-        tc_name = "ty"
-        tc_binary = find_binary(tc_name)
-        if isinstance(tc_binary, Error):
-            raise tc_binary.error
-        tc_server = LSPServer(name=tc_name, binary=str(tc_binary.value), parameters=["server"])
+        tc_server = LSPServer(
+            name="ty",
+            binary=sys.executable,
+            parameters=["-m", "ty", "server"],
+        )
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
         self.lsp_initialize()

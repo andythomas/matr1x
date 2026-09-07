@@ -17,6 +17,7 @@
 """Client for communicating with an LSP server subprocess."""
 
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -69,6 +70,10 @@ class LSPClient(QObject, LoggerMixin):
         creationflags = 0
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NO_WINDOW
+        # Pin the Python environment: the LSP document uses a dummy URI, so
+        # the type checker can only detect it via VIRTUAL_ENV (e.g. when
+        # launched from a desktop icon without an activated venv).
+        env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
         self.process = subprocess.Popen(
             self.cmd_line,
             stdin=subprocess.PIPE,
@@ -76,6 +81,7 @@ class LSPClient(QObject, LoggerMixin):
             stderr=subprocess.PIPE,
             text=False,
             creationflags=creationflags,
+            env=env,
         )
         time.sleep(0.1)
         self.reader_thread = threading.Thread(target=self._message_reader, daemon=True)
@@ -88,6 +94,8 @@ class LSPClient(QObject, LoggerMixin):
         """Stop the LSP server."""
         self.stop_event.set()
         if self.process:
+            if self.process.stdin:
+                self.process.stdin.close()  # exit gracefully, also on Windows
             self.process.terminate()
             self.process.wait()
         if self.reader_thread:
