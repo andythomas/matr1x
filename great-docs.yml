@@ -76,34 +76,6 @@ github_style: icon
 announcement: "We are happy to announce the first publicly available version and welcome new users."
 
 reference:
-  # ── Top level: what `import matr1x` gives you ──────────────────────
-  - title: Configuration
-    desc: Global configuration object and accessors
-    contents:
-      - core.config:config # live global, rebound by reload_config
-      - core.config:datetimefmt
-      - core.config:reload_config
-      - core.config:validation_errors
-      - core.config:load_config
-      - core.config:resolved_directory
-      - core.config:system_directories
-      - core.config:system_names
-      - core.config:logfolder
-      - core.config:usersfolder
-      - core.config:output_extension
-      # Config schema: every configuration item is a field of these models
-      - core.config_schema:MainConfig
-      - core.config_schema:Matr1xConfig
-      - core.config_schema:Matr1xInstallConfig
-      - core.config_schema:Matr1xDevicesConfig
-      - core.config_schema:Matr1xDevicesVisadeviceConfig
-      - core.config_schema:Matr1xScriptsConfig
-      - core.config_schema:Matr1xScriptsMatrix_ScriptConfig
-      - core.config_schema:Matr1xScriptsMatrix_ScriptShortcutsConfig
-      - core.config_schema:Matr1xEmailConfig
-      - core.config_schema:UserlibConfig
-      - core.config_schema:UserlibInstallConfig
-
   # ── System framework ────────────────────────────────────────────────
   - title: System
     desc: Base classes for measurement systems
@@ -132,7 +104,6 @@ reference:
       - control.util:control_main
       - control.util:linear_trend
       - control.util:sendNotificationEmail
-      - control.util:MyQDockWidget
 
   # ── Data models ─────────────────────────────────────────────────────
   - title: Models
@@ -140,7 +111,6 @@ reference:
     contents:
       - core.models:Message
       - core.models:Modifier
-      - core.models:format_validation_error
 
   # ── Data analysis ───────────────────────────────────────────────────
   - title: Eval
@@ -158,7 +128,6 @@ reference:
         members: false
       - core.util:Get
       - core.util:Set
-      - core.util:get_package_path
 
   # ── SCPI server ─────────────────────────────────────────────────────
   - title: SCPI Server
@@ -171,7 +140,6 @@ reference:
     desc: Shared GUI components (PySide6)
     contents:
       - gui.mixins:AutoSlot
-      - gui.meta_viewer:validator
 
   # ── Devices ─────────────────────────────────────────────────────────
   - title: Devices
