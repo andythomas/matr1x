@@ -249,6 +249,7 @@ override-dependencies = [
     # has cp314 wheels for all platforms. (A marker-tagged override would drop
     # grimp from non-macOS installs entirely.)
     "grimp<3.16",
+    "tornado>=6.5.8", # GHSA-8423-8fgw-73vq, GHSA-wwv5-g3v4-889x, CVE-2026-82397
 ]
 
 [tool.uv.dependency-groups]
