@@ -527,7 +527,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.update.triggered.connect(lambda: self.conditional_fetch_data(True))
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
-        self.ui.actions.meta.triggered.connect(self.meta_viewer.setVisible)
+        self.ui.actions.meta.toggled.connect(self.meta_viewer.setVisible)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
