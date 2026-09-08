@@ -23,8 +23,11 @@ Most parts are written in Python and the editor uses some JavaScript.
   - `matr1x/core`: The backend without GUI or entry points: config,
     system base classes, models, eval, execthread, SCPI server, VISA
     helpers. Must not import the `matr1x` root package or Qt.
-  - Package root: `__init__.py` (public config re-exports). Internal code
-    must import the canonical `matr1x.core.*` / `matr1x.gui.*` paths.
+  - Package root: `__init__.py` (public config re-exports) plus thin
+    backwards-compatibility shims for the historical module layout
+    (`matr1x.util`, `matr1x.system`, `matr1x.models`, ...). Internal code
+    must import the canonical `matr1x.core.*` / `matr1x.gui.*` paths,
+    not the shims.
 - `tests`: Pytest tests, mirroring the package layers (`tests/core`,
   `tests/control`, `tests/scripts`). `tests/input` holds input files for
   the entry points, `tests/data` holds data files under analysis. Shared
