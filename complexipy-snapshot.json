@@ -38,10 +38,6 @@
         "complexity": 18
       },
       {
-        "name": "_load_text_file",
-        "complexity": 19
-      },
-      {
         "name": "_parse_query_string",
         "complexity": 26
       }
