@@ -226,6 +226,7 @@ reference:
 # -------------
 site:
   theme: sandstone # Quarto theme
+  css: media/great-docs.css # Custom CSS overrides (copied into the build)
 #   toc: true                  # Show table of contents (default: true)
 #   toc-depth: 2               # TOC heading depth (default: 2)
 #   toc-title: On this page    # TOC title (default: "On this page")
