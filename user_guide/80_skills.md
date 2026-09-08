@@ -24,7 +24,8 @@ After the skill is installed, change into the directory where your installation 
 Now, instruct the model to utilize the `matr1x-migration` skill.
 We recommend assisting the skill by specifying the current version and the target version of matr1x you are using.
 
-## Skill: dependabot
+## Skill: security
 
-This skill is used by our package maintainers to automatically update the dependencies of our packages.
+This skill is used by our package maintainers to address security alerts in our packages.
+It reads the security alerts reported by `uv audit` and updates the affected dependencies accordingly.
 This addresses security vulnerabilities and outdated dependencies in our packages.
