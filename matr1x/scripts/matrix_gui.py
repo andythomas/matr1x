@@ -22,12 +22,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import (
-    QPoint,
-    Qt,
-    QTimer,
-    Signal,
-)
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
@@ -48,24 +43,8 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.error_handling import Error, InternalInvariantError, install_error_handler
-from matr1x.gui_util import (
-    AboutBox,
-    AutoSlot,
-    ConfigEditWidget,
-    FileDropMixin,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
-    check_config,
-    create_matr1x_quit_action,
-    create_matrix_settings_action,
-    detect_shortcut,
-    get_matrix_icon,
-    get_system_info,
-    open_matrix_toml,
-)
-from matr1x.models import (
+from matr1x.core.error_handling import Error, InternalInvariantError, install_error_handler
+from matr1x.core.models import (
     Datafile,
     Envelope,
     ErrorMessage,
@@ -76,13 +55,21 @@ from matr1x.models import (
     SystemInfo,
     Telemetry,
 )
-from matr1x.post_install import (
-    check_desktop_integration,
-    post_installation,
-    remove_desktop_integration,
+from matr1x.core.system import MergedSystem
+from matr1x.gui.app import AboutBox, MApplication
+from matr1x.gui.error_dialog import install_qt_error_dialog
+from matr1x.gui.helpers import (
+    create_matr1x_quit_action,
+    create_matrix_settings_action,
+    detect_shortcut,
+    get_matrix_icon,
+    get_system_info,
+    open_matrix_toml,
 )
-from matr1x.scripts import sweep_generator
-from matr1x.scripts.shared_classes import (
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.meta_viewer import ConfigEditWidget
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
+from matr1x.gui.shared import (
     ContentDockWidget,
     MeasurementItem,
     MeasurementTable,
@@ -93,8 +80,14 @@ from matr1x.scripts.shared_classes import (
     MToolBar,
     Notifier,
     SaferQSettings,
+    check_config,
 )
-from matr1x.system import MergedSystem
+from matr1x.scripts import sweep_generator
+from matr1x.scripts.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -801,6 +794,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 def main() -> None:
     """Set the basic GUI parameters and run."""
     install_error_handler()
+    install_qt_error_dialog()
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-gui")
     ex = MainWindow()

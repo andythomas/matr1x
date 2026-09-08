@@ -27,14 +27,7 @@ from typing import TypedDict, no_type_check
 import numpy as np
 import pyqtgraph
 import pyqtgraph.exporters
-from PySide6.QtCore import (
-    QEvent,
-    QKeyCombination,
-    QObject,
-    Qt,
-    QThread,
-    Signal,
-)
+from PySide6.QtCore import QEvent, QKeyCombination, QObject, Qt, QThread, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -50,28 +43,26 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
-from matr1x.error_handling import expect_not_none, install_error_handler
-from matr1x.eval import HeaderDict, _create_empty_header, loadmatrix
-from matr1x.gui_util import (
-    AboutBox,
-    FileDropMixin,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
-    MetaViewerWidget,
-    SimplePlotWidget,
-    check_config,
+from matr1x.core.error_handling import expect_not_none, install_error_handler
+from matr1x.core.eval import HeaderDict, create_empty_header, loadmatrix
+from matr1x.gui.app import AboutBox, MApplication
+from matr1x.gui.error_dialog import install_qt_error_dialog
+from matr1x.gui.helpers import (
     create_matr1x_quit_action,
     create_matrix_settings_action,
     get_matrix_icon,
     open_matrix_toml,
 )
-from matr1x.post_install import (
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.meta_viewer import MetaViewerWidget
+from matr1x.gui.mixins import FileDropMixin, LogWindowMixin
+from matr1x.gui.plot import SimplePlotWidget
+from matr1x.gui.shared import MMainWindow, MToolBar, Notifier, SaferQSettings, check_config
+from matr1x.scripts.post_install import (
     check_desktop_integration,
     post_installation,
     remove_desktop_integration,
 )
-from matr1x.scripts.shared_classes import MMainWindow, MToolBar, Notifier, SaferQSettings
 
 logger = logging.getLogger(__name__)
 
@@ -383,7 +374,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.names: list[str] = []
         self.units: list[str] = []
         self.shapes: list[tuple[int, ...]] = []
-        self.header: HeaderDict = _create_empty_header()
+        self.header: HeaderDict = create_empty_header()
         self.data: np.ndarray | dict[str, np.ndarray] = np.array([])
 
         self.setWindowTitle("Matrix Preview")
@@ -536,7 +527,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.update.triggered.connect(lambda: self.conditional_fetch_data(True))
         self.ui.actions.quit.triggered.connect(self.close)
         self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
-        self.ui.actions.meta.triggered.connect(self.meta_viewer.setVisible)
+        self.ui.actions.meta.toggled.connect(self.meta_viewer.setVisible)
         self.ui.actions.post_install.triggered.connect(post_installation)
         self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
         self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
@@ -1209,6 +1200,7 @@ Please investigate the error and eventually restart matrix-preview""",
 def main(file: str | None = None) -> None:
     """Set the basic GUI parameters and run."""
     install_error_handler()
+    install_qt_error_dialog()
     app = MApplication(sys.argv)
     app.setDesktopFileName("matrix-preview")
     # we need to ignore this signal here otherwise we are kicked into
