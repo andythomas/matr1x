@@ -45,13 +45,19 @@ Most parts are written in Python and the editor uses some JavaScript.
 - On a fresh checkout or is something is missing run `uv sync --all-extras` once.
 - To build the user guide as well, sync with
   `uv sync --all-extras --all-groups` (adds the `docs` group, Python 3.11+).
-- Run the test suite with `uv run pytest tests`. The `matrix` CLI tests
-  need a terminal: in headless environments (CI, sandboxes) wrap the run
-  in a pseudo-terminal, e.g. `script -q /dev/null sh -c 'uv run pytest tests'`.
+- Run the test suite with this single command (it works on local
+  machines, CI, and inside sandboxes):
+
+  ```sh
+  QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox script -q /dev/null sh -c 'uv run pytest tests'
+  ```
+
+  The pseudo-terminal (`script`) is needed because the `matrix` CLI tests
+  require a terminal, and `QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox` is
+  needed because the QtWebEngine renderer used by the
+  `matrix-script`/`CodeEditor` tests cannot apply its own sandbox in
+  restricted environments. Both are harmless outside sandboxes, so always
+  use the command as-is instead of plain `uv run pytest tests`.
 - GUI tests run offscreen (`QT_QPA_PLATFORM=offscreen` is set by pytest).
-- The `matrix-script`/`CodeEditor` tests need a working QtWebEngine
-  renderer. Inside restrictive sandboxes set
-  `QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox`, because the renderer cannot
-  apply its own sandbox there.
 - The package version and `CHANGELOG.md` are managed by semantic-release;
   do not edit them manually.
