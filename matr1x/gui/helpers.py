@@ -59,6 +59,7 @@ from matr1x.core.models import (
     SystemInfo,
     SystemReference,
 )
+from matr1x.core.util import get_package_path
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,10 @@ def get_install_info(
 
 def _load_matr1x_icon(name: str, color: QColor | None) -> QIcon:
     """Load an application icon and optionally replace its white pixels."""
-    icon_dir = Path(__file__).parent / "scripts" / "icons"
+    package_path = get_package_path("matr1x")
+    if package_path is None:
+        return QIcon()
+    icon_dir = package_path / "scripts" / "icons"
     pixmap = QPixmap(str(icon_dir / name))
     if color is not None:
         image = pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
