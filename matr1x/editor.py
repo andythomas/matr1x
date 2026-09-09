@@ -56,6 +56,7 @@ from PySide6.QtWebEngineCore import (
     QWebEngineUrlSchemeHandler,
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QDialog, QLabel, QProgressBar, QVBoxLayout
 
 from matr1x.error_handling import Error, Result, Success
 from matr1x.gui_util import AutoSlot, FileDropMixin, LoggerMixin, MApplication
@@ -906,6 +907,13 @@ class MonacoAssetHandler(QWebEngineUrlSchemeHandler, LoggerMixin):
         job.reply(mime_type.encode(), buffer)
 
 
+class _AssetDownloadSignals(QObject):
+    """Signals bridging the Monaco asset download thread to the GUI thread."""
+
+    progress = Signal(int, int)
+    finished = Signal()
+
+
 class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
     """Code editor connected to Monaco."""
 
@@ -935,13 +943,18 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
         self.lsp_initialize()
-        # Download the Monaco assets in a background thread and wait for
-        # them. This runs before the main window is shown, so a simple
-        # blocking wait is fine. A failed download signals the event
-        # immediately, so this only blocks for the download duration.
-        self._assets_ready = threading.Event()
         self._assets_dir: Path | None = None
-        thread = threading.Thread(target=self._prepare_assets, daemon=True)
+        self._asset_signals = _AssetDownloadSignals()
+        self._asset_window: QDialog | None = None
+        self._asset_progress_bar: QProgressBar | None = None
+        if not monaco_assets.has_cached_assets():
+            self._asset_window, self._asset_progress_bar = self._create_download_window()
+            self._asset_window.show()
+            self._asset_window.raise_()
+            self._asset_window.activateWindow()
+        thread = threading.Thread(
+            target=self._prepare_assets, args=(self._asset_signals,), daemon=True
+        )
         thread.start()
         self.editor_page = CodeEditorPage()
         self.setPage(self.editor_page)
@@ -951,15 +964,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.backend = EditorBackend(self)
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
-        if not self._assets_ready.wait(timeout=self.ASSET_TIMEOUT):
-            self.logger.error(
-                "Monaco assets not available after %d seconds; the editor may not load.",
-                self.ASSET_TIMEOUT,
-            )
-        # A profile can only have one handler per scheme, so replace a
-        # handler left behind by a previous CodeEditor instance. The
-        # handler is parented to the profile (not the view) so the
-        # registration stays valid and replaceable.
+        self._wait_for_assets()
         profile = self.page().profile()
         previous = profile.urlSchemeHandler(b"monaco")
         if previous is not None:
@@ -997,14 +1002,62 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self._system_info: SystemInfo
         self.create_connections()
 
-    def _prepare_assets(self) -> None:
+    def _prepare_assets(self, signals: _AssetDownloadSignals) -> None:
         """Locate the Monaco asset cache, downloading it if necessary."""
         try:
-            self._assets_dir = monaco_assets.get_path()
+            self._assets_dir = monaco_assets.get_path(
+                progress_callback=lambda done, total: signals.progress.emit(
+                    done, -1 if total is None else total
+                )
+            )
         except Exception as e:
             self.logger.error("Failed to prepare Monaco assets: %s", e)
         finally:
-            self._assets_ready.set()
+            signals.finished.emit()
+
+    def _wait_for_assets(self) -> None:
+        """Spin the event loop until the assets are ready or the timeout hits."""
+        loop = QEventLoop()
+        self._asset_signals.progress.connect(self._update_download_progress)
+        self._asset_signals.finished.connect(loop.quit)
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(loop.quit)
+        timer.start(self.ASSET_TIMEOUT * 1000)
+        loop.exec()
+        timer.stop()
+        if self._asset_window is not None:
+            self._asset_window.close()
+        if self._assets_dir is None:
+            self.logger.error(
+                "Monaco assets not available after %d seconds; the editor may not load.",
+                self.ASSET_TIMEOUT,
+            )
+
+    def _update_download_progress(self, done: int, total: int) -> None:
+        """Update the download progress bar; total is -1 if unknown."""
+        bar = self._asset_progress_bar
+        if bar is None:
+            return
+        if total > 0:
+            bar.setRange(0, total)
+            bar.setValue(done)
+        else:
+            bar.setRange(0, 0)
+
+    @staticmethod
+    def _create_download_window() -> tuple[QDialog, QProgressBar]:
+        """Create the window shown while the assets are downloaded."""
+        window = QDialog()
+        window.setWindowTitle("matr1x")
+        layout = QVBoxLayout(window)
+        label = QLabel("Downloading editor assets…")
+        bar = QProgressBar()
+        bar.setRange(0, 0)
+        layout.addWidget(label)
+        layout.addWidget(bar)
+        window.resize(360, 100)
+        return window, bar
 
     def create_connections(self) -> None:
         """Create connections between signals and slots."""
