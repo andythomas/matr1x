@@ -23,16 +23,15 @@ system configuration.
 
 import importlib.util
 import logging
+import math
 import os
 import subprocess
 import sys
 import textwrap
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
-
-import numpy as np
 
 from matr1x.core.error_handling import Error, Result, Success
 
@@ -193,14 +192,14 @@ def module_from_path(filename: Path) -> "types.ModuleType":
 
 
 def get_formatted_line(
-    vlist: list, prefix: str = "", appendix: str = "", column_width: int = 10
+    vlist: Iterable[Any], prefix: str = "", appendix: str = "", column_width: int = 10
 ) -> str:
     """
     Output a formatted line with data values.
 
     Parameters
     ----------
-    vlist : list
+    vlist : iterable
         List of values to format.
     prefix : str, optional
         Prefix for the line. Default is "".
@@ -511,9 +510,10 @@ def init_hdf5_skel(
     """
     # lazy import of h5py to only load it when it is required
     import h5py
+    import numpy
 
     data_grp = file_handle.create_group("data")
-    dt = np.dtype(
+    dt = numpy.dtype(
         [
             ("message", h5py.string_dtype(encoding="utf-8")),
             ("timestamp", h5py.string_dtype(encoding="utf-8")),
@@ -543,7 +543,7 @@ def init_hdf5_skel(
         data_grp[col].attrs["unit"] = uni
 
 
-def flatten(iterable, types=(tuple, list, np.ndarray)):
+def flatten(iterable: Iterable[Any], types: tuple[type[Any], ...] | None = None) -> Iterator[Any]:
     """
     Recursively flatten an iterable to have only one dimension.
 
@@ -552,13 +552,18 @@ def flatten(iterable, types=(tuple, list, np.ndarray)):
     iterable : iterable
         The iterable to be flattened.
     types : tuple, optional
-        Types to be considered for flattening, by default (tuple, list, np.ndarray).
+        Types to be considered for flattening, by default (tuple, list, ndarray).
 
     Yields
     ------
     Any
         Elements from the flattened iterable.
     """
+    if types is None:
+        from numpy import ndarray
+
+        types = (tuple, list, ndarray)
+
     for el in iterable:
         if isinstance(el, types) and not isinstance(el, (str, bytes)):
             yield from flatten(el, types=types)
@@ -584,7 +589,7 @@ def get_pt100_temp(res: float) -> float:
     a = 3.9083e-3
     b = -5.775e-7
     r0 = 100
-    return (-a * r0 + np.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
+    return (-a * r0 + math.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
 
 
 class Command:

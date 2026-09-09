@@ -96,10 +96,6 @@
         "complexity": 24
       },
       {
-        "name": "System::take_measurement_point",
-        "complexity": 25
-      },
-      {
         "name": "Parameter::__init__",
         "complexity": 51
       }
