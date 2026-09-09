@@ -36,7 +36,6 @@ from typing import Any, ClassVar, TypeGuard, TypeVar, cast
 import h5py
 import numpy as np
 from pydantic import BaseModel, ValidationError
-from pymeasure.instruments import Instrument
 
 import matr1x.core.config as core_config
 from matr1x.core.error_handling import Error, Result, Success
@@ -746,6 +745,9 @@ class System:
         source: str,
     ) -> Result[tuple[type[System] | System, Path | str, tuple[str, int] | None], str]:
         """Import a system source and return its class or legacy instance."""
+        from matr1x.core.pymeasure_threading_fix import apply_pymeasure_threading_fix
+
+        apply_pymeasure_threading_fix()
         module_result = cls._import_system_module(source)
         if isinstance(module_result, Error):
             return module_result
@@ -1706,6 +1708,8 @@ class System:
         After this function is called, the System can be reinitialized
         by calling System.set().
         """
+        from pymeasure.instruments import Instrument
+
         for dev in self.devs.values():
             if hasattr(dev, "close") and callable(
                 dev.close
