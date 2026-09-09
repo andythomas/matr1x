@@ -7,6 +7,8 @@
 # (at your option) any later version.
 """Define a stateful dummy system for testing and demonstration."""
 
+from types import MappingProxyType
+
 from pydantic import Field
 
 from matr1x.core.models import LocalTCPIPSocketVisaResource, SystemConfigModel
@@ -28,11 +30,13 @@ class StatefulDummy(StatefulSystem):
     """Dummy system with exclusive and independently usable states."""
 
     states = ("primary", "primary_fast", "secondary")
-    state_exclusion_groups = {
-        "primary": "primary_device",
-        "primary_fast": "primary_device",
-        "secondary": "secondary_device",
-    }
+    state_exclusion_groups = MappingProxyType(
+        {
+            "primary": "primary_device",
+            "primary_fast": "primary_device",
+            "secondary": "secondary_device",
+        }
+    )
 
     def __init__(self, state: str):
         """Initialize the dummy system in one predefined state."""

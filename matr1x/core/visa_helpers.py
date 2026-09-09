@@ -150,9 +150,7 @@ def _resource_type_matches(
     """Return whether a resource meets its interface and class constraints."""
     if interface_types and resource.interface_type not in interface_types:
         return False
-    if resource_classes and resource.resource_class not in resource_classes:
-        return False
-    return True
+    return not resource_classes or resource.resource_class in resource_classes
 
 
 def _validate_loopback_host(value: str, resource: rname.ResourceName) -> None:

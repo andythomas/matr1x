@@ -45,7 +45,7 @@ def _get_dummy_server_address(adapter: str) -> tuple[str, int]:
     validate_local_tcpip_socket_visa_resource(adapter)
     resource = rname.parse_resource_name(adapter)
     if not isinstance(resource, rname.TCPIPSocket):
-        raise RuntimeError("Validated dummy adapter is not a TCP/IP socket")
+        raise TypeError("Validated dummy adapter is not a TCP/IP socket")
     return resource.host_address, int(resource.port)
 
 

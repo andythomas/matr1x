@@ -409,7 +409,7 @@ class ExecThread(threading.Thread):
                 break
 
         if initial_sleep_time > silent:
-            waited = int(round(time.time() - start_time))
+            waited = round(time.time() - start_time)
             text = f"Waited {waited} seconds"
             self.report(Message(text))
             self.report(Message(text, modifier=Modifier.TO_PROGRESS_LABEL))
