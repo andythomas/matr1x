@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v8.5.1 (2026-09-09)
+
+### Bug fixes
+
+* fix(GuiDict): MergedSystem now refreshes device identifiers upon restart of GuiDict (#159) *by Dominik Kriegner* ([`5dfdb8d`](https://github.com/andythomas/matr1x/commit/5dfdb8ddccba01fb83bc9ad0f58be6e86baf130c))
+
+* fix: find ty and matrix binary in all cases (#147) *by Andy Thomas* ([`3698806`](https://github.com/andythomas/matr1x/commit/369880661f3c922bd8dc0e91b3f52bb85673efc9))
+
+* fix: prefer the venv for binary searches *by Andy Thomas* ([`3698806`](https://github.com/andythomas/matr1x/commit/369880661f3c922bd8dc0e91b3f52bb85673efc9))
+
+* fix(windows): never spawn console-python children *by Andy Thomas* ([`3698806`](https://github.com/andythomas/matr1x/commit/369880661f3c922bd8dc0e91b3f52bb85673efc9))
+
+* fix(windows): never spawn console-python children *by Andy Thomas* ([`3698806`](https://github.com/andythomas/matr1x/commit/369880661f3c922bd8dc0e91b3f52bb85673efc9))
+
 ## v8.5.0 (2026-08-14)
 
 ### Bug fixes
