@@ -21,6 +21,8 @@ matr1x/systems directory and runs tests to ensure they can be imported
 as valid System objects.
 """
 
+from types import MappingProxyType
+
 import pytest
 from pydantic import BaseModel
 
@@ -211,7 +213,7 @@ def test_state_exclusion_groups_control_coexistence():
 
     class IndependentSystem(StatefulSystem):
         states = ("primary", "secondary")
-        state_exclusion_groups = {"primary": "first", "secondary": "second"}
+        state_exclusion_groups = MappingProxyType({"primary": "first", "secondary": "second"})
 
     primary = IndependentSystem("primary")
     primary.source = "example"

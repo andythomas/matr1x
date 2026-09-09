@@ -26,10 +26,11 @@ import os
 import re
 import sys
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from functools import cached_property
 from operator import attrgetter
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, ClassVar, TypeGuard, TypeVar, cast
 
 import h5py
@@ -442,7 +443,7 @@ class System:
     states: ClassVar[tuple[str, ...]] = ()
     """Ordered states exposed by a stateful system."""
 
-    state_exclusion_groups: ClassVar[dict[str, str]] = {}
+    state_exclusion_groups: ClassVar[Mapping[str, str]] = MappingProxyType({})
     """Optional state-to-exclusion-group declarations."""
 
     _exclude_custom_information: ClassVar[bool] = False
@@ -2134,8 +2135,8 @@ class StatefulSystem(System):
             raise ValueError("states must be unique")
 
         declared_groups = cls.state_exclusion_groups
-        if not isinstance(declared_groups, dict):
-            raise TypeError("'state_exclusion_groups' must be a dictionary")
+        if not isinstance(declared_groups, Mapping):
+            raise TypeError("'state_exclusion_groups' must be a dictionary-like Mapping")
         unknown_states = set(declared_groups) - set(states)
         if unknown_states:
             unknown = ", ".join(sorted(unknown_states))
