@@ -32,7 +32,6 @@ from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
-import h5py
 import numpy as np
 
 from matr1x.core.error_handling import Error, Result, Success
@@ -41,6 +40,7 @@ from matr1x.core.error_handling import Error, Result, Success
 if TYPE_CHECKING:
     import types
 
+    import h5py
     from _typeshed import SupportsWrite
 
     _T_contra = TypeVar("_T_contra", contravariant=True)
@@ -431,7 +431,7 @@ def construct_query_string(query_dict: dict, depth: int = 2) -> str:
     return ret
 
 
-def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) -> None:
+def save_dict_to_hdf5(data_dict: dict, hdf5_file: "h5py.File", root_group: str) -> None:
     """
     Save a dictionary to an HDF5 file in a hierachical data group.
 
@@ -451,7 +451,7 @@ def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) ->
     attributes.
     """
 
-    def write_dict(group: h5py.Group, d: dict) -> None:
+    def write_dict(group: "h5py.Group", d: dict) -> None:
         """Recursively write a dictionary to an HDF5 group."""
         for key, value in d.items():
             if isinstance(value, dict):
