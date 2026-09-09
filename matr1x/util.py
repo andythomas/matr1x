@@ -25,10 +25,8 @@ import codecs
 import importlib.util
 import logging
 import os
-import site
 import subprocess
 import sys
-import sysconfig
 import textwrap
 import threading
 from collections.abc import Callable, Sequence
@@ -197,41 +195,6 @@ def create_temp_dir_with_symlinks(
 
     # Return the temporary directory object
     return temp_dir
-
-
-def get_matrix_binary() -> str:
-    """
-    Find matrix binary from PATH and otherwise try known Python binary folders.
-
-    This executes "matrix --help" to test if this works without error. If no
-    executable is found an FileNotFoundError will be raised.
-
-    Returns
-    -------
-    str
-        Name of the matrix binary.
-
-    Raises
-    ------
-    FileNotFoundError
-        If matrix executable could not be found.
-    """
-    user_scripts_path = Path(sysconfig.get_path("scripts", f"{os.name}_user"))
-    system_scripts_path = Path(sysconfig.get_path("scripts"))
-
-    for matrix_str in (
-        "matrix",  # Check PATH first
-        str(user_scripts_path / "matrix"),
-        str(system_scripts_path / "matrix"),
-    ):
-        try:
-            subprocess.check_call(
-                [matrix_str, "--help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            return matrix_str
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            continue
-    raise FileNotFoundError("matrix executable could not be found")
 
 
 def module_from_path(filename: Path) -> "types.ModuleType":
@@ -1019,49 +982,27 @@ def run_python_cmdline(
         return Error(e)
 
 
-def find_binary(binary: str) -> Result[Path, FileNotFoundError]:
+def matrix_cmdline(*args: str) -> list[str]:
     """
-    Find a binary.
+    Generate a command line that runs matrix in a subprocess.
+
+    The matrix module is executed directly with the current Python
+    interpreter, so the subprocess is guaranteed to use the same
+    environment.
 
     Parameters
     ----------
-    binary : str
-        The name of the binary to find.
+    *args : str
+        Command line arguments for matrix (without the binary name).
 
     Returns
     -------
-    Result[str, Exception]
-        Either the path to the binary or an exception.
+    list[str]
+        Command to pass to ``subprocess.Popen`` or ``subprocess.run``.
     """
-    if sys.platform.startswith("win"):
-        possible_locations = [
-            Path(sys.prefix) / "Scripts" / f"{binary}.exe",
-            Path(sys.executable).parent / f"{binary}.exe",
-            Path(sys.executable).parent / "Scripts" / f"{binary}.exe",
-        ]
-        if site.USER_BASE is not None:
-            possible_locations += [
-                Path(site.USER_BASE)
-                / f"Python{sys.version_info[0]}{sys.version_info[1]}"
-                / "Scripts"
-                / f"{binary}.exe",
-                Path(site.USER_BASE) / "Scripts" / f"{binary}.exe",
-            ]
-
-        for location in possible_locations:
-            if location.exists():
-                return Success(location)
-        locations_str = "\n".join(f"  - {loc}" for loc in possible_locations)
-        return Error(
-            FileNotFoundError(
-                f"LSP binary '{binary}.exe' not found in any of these locations:\n{locations_str}"
-            )
-        )
-    else:
-        result = Path(sys.prefix) / "bin" / binary
-        if not result.exists():
-            return Error(FileNotFoundError(f"LSP binary not found: {result}"))
-        return Success(result)
+    argv = ["matrix", *args]
+    cmd = f"import sys\nsys.argv = {argv!r}\nfrom matr1x.scripts.matrix import main\nmain()"
+    return [sys.executable, "-c", cmd]
 
 
 class StreamToLogger:
