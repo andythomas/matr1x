@@ -1467,6 +1467,10 @@ class GuiDict(UserDict[str, var]):
             self.S.set()
             # convert command function names to executables
             self.set_cmd_funcs(window_obj=self.parent, system=self.S)
+            merged = self.S.merged_system
+            if merged is not None:
+                merged.refresh_devs()
+                merged.opened = any(subsystem.opened for subsystem in merged.subsys)
             self.restoreFeatures()
             self.running = True
             self._refresh_thread.start()
