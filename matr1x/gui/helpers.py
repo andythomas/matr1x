@@ -406,6 +406,7 @@ def get_system_capability(source: str) -> Result[SystemCapability, str]:
             [sys.executable, "-c", script],
             capture_output=True,
             timeout=30,
+            check=False,
         )
     except Exception as error:
         return Error(f"Could not inspect system in subprocess: {error}")

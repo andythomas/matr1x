@@ -855,7 +855,7 @@ class System:
         if stateful:
             try:
                 states, groups = system_class.state_declaration()
-            except ValueError as error:
+            except (TypeError, ValueError) as error:
                 return Error(f"Stateful system '{reference.source}' is invalid: {error}")
         return Success(
             SystemCapability(
@@ -886,7 +886,7 @@ class System:
                 return Error(f"Stateful system '{reference.source}' requires a state")
             try:
                 return Success(definition(reference.state))
-            except ValueError as error:
+            except (TypeError, ValueError) as error:
                 return Error(str(error))
         if definition.stateful:
             return Error(
@@ -1814,8 +1814,10 @@ class System:
                 if target_key in target:
                     info_dict["warnings"].append(
                         (
-                            f"'{item.name}' from '{cls_name}' would shadow a pre-existing entry "
-                            f"and will not accesible via 'system'.",
+                            (
+                                f"'{item.name}' from '{cls_name}' would shadow a pre-existing "
+                                "entry and will not accesible via 'system'."
+                            ),
                             logging.WARNING,
                         )
                     )
@@ -2133,7 +2135,7 @@ class StatefulSystem(System):
 
         declared_groups = cls.state_exclusion_groups
         if not isinstance(declared_groups, dict):
-            raise ValueError("'state_exclusion_groups' must be a dictionary")
+            raise TypeError("'state_exclusion_groups' must be a dictionary")
         unknown_states = set(declared_groups) - set(states)
         if unknown_states:
             unknown = ", ".join(sorted(unknown_states))
