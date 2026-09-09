@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from matr1x.core.system import System
+from matr1x.core.system import MergedSystem, System
 from matr1x.gui.app import MApplication
 from matr1x.gui.meta_viewer import validator
 from matr1x.gui.mixins import AutoSlot
@@ -1277,6 +1277,10 @@ class GuiDict(UserDict[str, var]):
             self.S.set()
             # convert command function names to executables
             self.set_cmd_funcs(window_obj=self.parent, system=self.S)
+            merged = self.S.merged_system
+            if isinstance(merged, MergedSystem):
+                merged.refresh_devs()
+                merged.opened = any(subsystem.opened for subsystem in merged.subsys)
             self.restoreFeatures()
             self.running = True
             self._refresh_thread.start()
