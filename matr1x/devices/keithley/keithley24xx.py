@@ -22,7 +22,50 @@ from wrapt import synchronized
 from matr1x.devices.visadevice import VisaDevice
 
 
-class Keithley2400(VisaDevice):
+class Keithley24xx(VisaDevice):
+    """Shared functionality for Keithley 24xx source measurement units."""
+
+    sourceMode: str
+    outputState: bool
+    _output_command: ClassVar[str] = ":OUTP"
+
+    def output(self, state: bool = False) -> None:
+        """
+        Set the output state of the instrument.
+
+        Parameters
+        ----------
+        state : bool, optional
+            Turn output on (True) or off (False). Default: False.
+
+        Raises
+        ------
+        TypeError
+            If state is not a bool.
+        """
+        if not isinstance(state, bool):
+            raise TypeError("state must be a bool")
+        self.write(f"{self._output_command} {'ON' if state else 'OFF'}")
+        self.outputState = state
+
+    def _apply_output_setting(self, state: bool | None) -> None:
+        """Apply an optional output setting after configuration."""
+        if state is not None:
+            self.output(state)
+
+    def getSetpoint(self) -> float:
+        """
+        Get the current source setpoint value from the instrument.
+
+        Returns
+        -------
+        float
+            The current source setpoint
+        """
+        return float(self.query(":SOUR:" + self.sourceMode + ":LEV:IMM:AMPL?"))
+
+
+class Keithley2400(Keithley24xx):
     """
     Class for controlling Keithley 2400 SourceMeter.
 
@@ -30,6 +73,8 @@ class Keithley2400(VisaDevice):
     2400 source measurement unit for various sourcing and measurement
     operations.
     """
+
+    _output_command: ClassVar[str] = ":OUTP:STAT"
 
     config_params: ClassVar[dict[str, str]] = {
         "sourceMode": "sourceMode",
@@ -88,7 +133,7 @@ class Keithley2400(VisaDevice):
         sourceAutoRange=None,
         sourceRange=None,
         senseLimit=None,
-        output=None,
+        output: bool | None = None,
         delayAuto=None,
         delay=None,
         reset=False,
@@ -194,23 +239,7 @@ class Keithley2400(VisaDevice):
         for cmd in cmdlist:
             self.write(cmd)
         # if self.outputState != bool(output):
-        self.output(output)
-
-    def output(self, state=False):
-        """
-        Set the output state of the instrument.
-
-        Parameters
-        ----------
-        state : bool, optional
-            Turn output on (True) or off (False). Default: False
-        """
-        if bool(state) is True:
-            self.write(":OUTP:STAT ON")
-            self.outputState = True
-        elif bool(state) is False:
-            self.write(":OUTP:STAT OFF")
-            self.outputState = False
+        self._apply_output_setting(output)
 
     def setSource(self, current):
         """
@@ -250,7 +279,7 @@ class Keithley2400(VisaDevice):
         return float(res)
 
 
-class Keithley2450(VisaDevice):
+class Keithley2450(Keithley24xx):
     """
     Class for controlling Keithley 2450 SourceMeter.
 
@@ -300,7 +329,7 @@ class Keithley2450(VisaDevice):
         sourceAutoRange=None,
         sourceRange=None,
         senseLimit=None,
-        output=None,
+        output: bool | None = None,
         delayAuto=None,
         delay=None,
         resetUnits=True,
@@ -415,23 +444,7 @@ class Keithley2450(VisaDevice):
 
         for cmd in cmdlist:
             self.write(cmd)
-        self.output(output)
-
-    def output(self, state=False):
-        """
-        Set the output state of the instrument.
-
-        Parameters
-        ----------
-        state : bool, optional
-            Turn output on (True) or off (False). Default: False
-        """
-        if state is True:
-            self.write(":OUTP ON")
-            self.outputState = True
-        elif state is False:
-            self.write(":OUTP OFF")
-            self.outputState = False
+        self._apply_output_setting(output)
 
     def setSource(self, current):
         """
