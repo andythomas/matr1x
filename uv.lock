@@ -41,7 +41,6 @@ name = "anyio"
 version = "4.14.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
     { name = "idna" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
@@ -636,22 +635,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cc/28/c14e053b6762b1044f34a13aab6859bbf40456d37d23aa286ac24cfd9a5d/executing-2.2.1.tar.gz", hash = "sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4", size = 1129488, upload-time = "2025-09-01T09:48:10.866Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/ea/53f2148663b321f21b5a606bd5f191517cf40b7072c0497d3c92c4a13b1e/executing-2.2.1-py2.py3-none-any.whl", hash = "sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017", size = 28317, upload-time = "2025-09-01T09:48:08.5Z" },
-]
-
-[[package]]
-name = "fastapi"
-version = "0.139.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "annotated-doc" },
-    { name = "pydantic" },
-    { name = "starlette" },
-    { name = "typing-extensions" },
-    { name = "typing-inspection" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/cd/95/d3f0ae10836324a2eab98a52b61210ac609f08200bf4bb0dc8132d32f78a/fastapi-0.139.2.tar.gz", hash = "sha256:333145a6891e9b5b3cfceb69baf817e8240cde4d4588ae5a10bf56ffacb6255e", size = 423428, upload-time = "2026-07-16T15:06:17.912Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/c7/cb03251d9dfb177246a9809a76f189d21df32dbd4a845951881d11323b7f/fastapi-0.139.2-py3-none-any.whl", hash = "sha256:b9ad015a835173d59865e2f5d8296fbc2b317bf56a2ba1a5bfbdd03de2fd4b1c", size = 130234, upload-time = "2026-07-16T15:06:19.557Z" },
 ]
 
 [[package]]
@@ -1571,7 +1554,7 @@ requires-dist = [
     { name = "h5py", specifier = ">=3.6.0" },
     { name = "jinja2", marker = "extra == 'elab'" },
     { name = "minimalmodbus" },
-    { name = "monaco-assets", specifier = ">=0.5.1" },
+    { name = "monaco-assets", specifier = ">=0.7.0" },
     { name = "multipyvu", marker = "extra == 'ppms'", specifier = ">=3.6.1" },
     { name = "numpy", specifier = ">=1.21.2" },
     { name = "pandas", specifier = ">=1.3.4" },
@@ -1641,17 +1624,15 @@ wheels = [
 
 [[package]]
 name = "monaco-assets"
-version = "0.5.1"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
-    { name = "fastapi" },
     { name = "platformdirs" },
-    { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/24/e01637c1a641d30d63bf1f823bded53eb428815810028b6a51b7ec680049/monaco_assets-0.5.1.tar.gz", hash = "sha256:52e7b19b00c6f1c2e20818f1ca47719de0d6a0b48b0a3395ac054f19d828ff5e", size = 4711, upload-time = "2025-11-11T13:10:44.635Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/6e/89469d45cab4f34286ed225912b7044df87ef73d6e48b81898d133d63393/monaco_assets-0.7.0.tar.gz", hash = "sha256:e1f38a6bfd6e2d529c8640afc25054616a82cc9fb4b3adaee608c131c23ba094", size = 6528, upload-time = "2026-09-09T20:03:35.902Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/04/c3d18fb0d2ca3b95319e20079c7ded29e2accc45a28eca5a3043078bec6e/monaco_assets-0.5.1-py3-none-any.whl", hash = "sha256:46d4849fa64ee2b7377ec8f5ac14e435871e950fe7ba8a6312efb48bf48d2708", size = 4743, upload-time = "2025-11-11T13:10:43.163Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/2c/9ba020336bdade4e854fde46f4096c04df51c57b181cbdc8fb5ef9260cad/monaco_assets-0.7.0-py3-none-any.whl", hash = "sha256:b9b8e2f5e8909510289a2693a237bbed0a47a94da1dd2578616a4816c5d4f769", size = 6731, upload-time = "2026-09-09T20:03:34.469Z" },
 ]
 
 [[package]]
@@ -3418,19 +3399,6 @@ wheels = [
 ]
 
 [[package]]
-name = "starlette"
-version = "1.3.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
-]
-
-[[package]]
 name = "terminado"
 version = "0.18.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3644,20 +3612,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6b/ed/d653f63229b61e00de821d133407553228f481ec08beb1029d6b555c9b46/urwid-4.0.4.tar.gz", hash = "sha256:4f28d32a7b8af725bcda07a8c8b7591ff97ed045970713535becd5b7fa099ae5", size = 872046, upload-time = "2026-07-13T15:01:23.231Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/99/461845547a482978aa90ecc70ed6ed739b510b1dbaeff7bb21d12b4dacf3/urwid-4.0.4-py3-none-any.whl", hash = "sha256:46d49d4a1dd2ae26eb50635fda5f30bea7047accd0feb9b56e4e567e6c41816e", size = 304498, upload-time = "2026-07-13T15:01:21.129Z" },
-]
-
-[[package]]
-name = "uvicorn"
-version = "0.51.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "click" },
-    { name = "h11" },
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a2/65/b7c6c443ccc58678c91e1e973bbe2a878591538655d6e1d47f24ba1c51f3/uvicorn-0.51.0.tar.gz", hash = "sha256:f6f4b69b657c312f516dd2d268ab9ae6f254b11e4bac504f37b2ab58b24dd0b0", size = 94412, upload-time = "2026-07-08T10:59:05.962Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/ec/dbb7e5a6b91f86bfb9eb7d2988a2730907b6a729875b949c7f022e8b88fa/uvicorn-0.51.0-py3-none-any.whl", hash = "sha256:5d38af6cd620f2ae3849fb44fd4879e0890aa1febe8d47eb355fb45d93fe6a5b", size = 73219, upload-time = "2026-07-08T10:59:04.44Z" },
 ]
 
 [[package]]
