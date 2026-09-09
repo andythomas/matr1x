@@ -2,6 +2,7 @@
 name = "matr1x-measurements"
 version = "8.5.0"
 description = "Python package for data acquisition and instrument control"
+readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE.txt"]
