@@ -412,6 +412,7 @@ class MergedSystem(System):
             "methods": {},
             "variables": {},
             "config": {},
+            "dcdata": dict(self.dcdata),
             "warnings": [],
         }
         base_info = super().grab_information()
