@@ -44,8 +44,8 @@ import urwid
 from pydantic import ValidationError
 
 from matr1x import reload_config, validation_errors
-from matr1x.error_handling import Error
-from matr1x.models import (
+from matr1x.core.error_handling import Error
+from matr1x.core.models import (
     Datafile,
     Envelope,
     ErrorMessage,
@@ -57,8 +57,8 @@ from matr1x.models import (
     SystemInfo,
     Telemetry,
 )
-from matr1x.system import MergedSystem
-from matr1x.util import (
+from matr1x.core.system import MergedSystem
+from matr1x.core.util import (
     flatten,
     generate_col_index,
     log_multiline,

@@ -103,6 +103,7 @@ class Keithley2182A(VisaDevice):
         voltage_range=None,
         rangeAuto=None,
         trigBus=None,
+        delay: float | None = None,
         repeatingFilter=None,
         reset=False,
     ):
@@ -127,6 +128,9 @@ class Keithley2182A(VisaDevice):
             Automatic detection of the measurement range. Takes additional time during measurements
         trigBus : bool, optional
             Sets trigger source to BUS if True
+        delay : float, optional
+            Delay between trigger and measurement when trigBus is True.
+            If None, AUTO mode is used.
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving
         reset : bool, optional
@@ -168,15 +172,26 @@ class Keithley2182A(VisaDevice):
         elif dFil is False:
             cmdList.append(":SENS:VOLT:DFIL:STATE OFF")
         if trigBus is True:
-            cmdList.append(":ABOR")
-            # Only triggered reading
-            cmdList.append(":INIT:CONT OFF")
-            cmdList.append(":TRIG:SOUR BUS")
-            cmdList.append(":TRIG:COUN INF")
-            cmdList.append(":INIT")
+            cmdList.extend(self._bus_trigger_commands(delay))
         for cmd in cmdList:
             self.query("*OPC?")
             self.write(cmd)
+
+    @staticmethod
+    def _bus_trigger_commands(delay: float | None) -> list[str]:
+        """Build commands for BUS triggering with the requested delay."""
+        if delay is None:
+            delay_command = ":TRIG:DEL:AUTO"
+        else:
+            delay_command = f":TRIG:DEL {float(delay):f}"
+        return [
+            ":ABOR",
+            ":INIT:CONT OFF",  # Only triggered reading
+            ":TRIG:SOUR BUS",
+            ":TRIG:COUN INF",
+            delay_command,
+            ":INIT",
+        ]
 
     def triggerReading(self):
         """

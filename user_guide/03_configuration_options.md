@@ -109,7 +109,7 @@ unsaved values already entered in the editor when the selected system list chang
 
 #### Supported GUI Hints and Types:
 
-The basic use is to provide a type hint and a Field definition. To simplify configuration definitions, `matr1x.models` provides several helper types and a `GuiField` wrapper:
+The basic use is to provide a type hint and a Field definition. To simplify configuration definitions, `matr1x.core.models` provides several helper types and a `GuiField` wrapper:
 
 | Hint/Type               | Description                                                    | Editor element                                       |
 | ----------------------- | -------------------------------------------------------------- | ---------------------------------------------------- |

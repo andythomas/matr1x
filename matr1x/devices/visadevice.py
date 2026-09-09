@@ -32,7 +32,7 @@ import pyvisa
 from pyvisa import errors, resources
 from wrapt import synchronized
 
-import matr1x
+import matr1x.core.config as core_config
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ class VisaDevice:
         self.interface: resources.MessageBasedResource | str = interface
         self.connection: resources.MessageBasedResource
         self.name = f"{type(self).__name__}@{self.interface}"
-        self._config = matr1x.config.matr1x.devices.visadevice
+        self._config = core_config.config.matr1x.devices.visadevice
         # have never tested these myself
         self.pts = kwargs.pop("pts", self._config.pts)
         if kwargs.pop("visadebug", self._config.visadebug):

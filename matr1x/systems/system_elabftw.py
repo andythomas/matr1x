@@ -30,8 +30,8 @@ from elabapi_python.rest import ApiException
 from jinja2 import Template
 from pydantic import Field
 
-from matr1x.models import Message, SystemConfigModel
-from matr1x.system import MergedSystem, System
+from matr1x.core.models import Message, SystemConfigModel
+from matr1x.core.system import MergedSystem, System
 
 logger = logging.getLogger(__name__)
 
