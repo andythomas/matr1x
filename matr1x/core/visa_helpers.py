@@ -15,11 +15,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Helpers for VISA resource discovery and address validation."""
 
+from __future__ import annotations
+
 import ipaddress
 import threading
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
-from pyvisa import rname
+if TYPE_CHECKING:
+    from pyvisa import rname
 
 _resource_managers: dict[int, tuple[Any, Any]] = {}
 
@@ -111,6 +114,8 @@ def _validate_visa_resource_requirements(
     requirements: VisaResourceRequirements,
 ) -> None:
     """Validate that a parsed VISA resource meets field constraints."""
+    from pyvisa import rname
+
     try:
         resource = rname.parse_resource_name(value)
     except rname.InvalidResourceName as exc:
@@ -155,6 +160,8 @@ def _resource_type_matches(
 
 def _validate_loopback_host(value: str, resource: rname.ResourceName) -> None:
     """Validate that a TCP/IP socket uses a supported loopback address."""
+    from pyvisa import rname
+
     if isinstance(resource, rname.TCPIPSocket) and _is_loopback_host(resource.host_address):
         return
     raise ValueError(
