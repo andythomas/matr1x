@@ -188,6 +188,58 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
     return read_group(group)
 
 
+def _parse_comments(h5f: h5py.File, header: HeaderDict) -> None:
+    """
+    Parse the comments dataset of an HDF5 file into the header.
+
+    Parameters
+    ----------
+    h5f : h5py.File
+        File handle of the HDF5 file to read the comments from.
+    header : HeaderDict
+        Header dictionary to append the comments to.
+    """
+    if (h5com := h5f.get("comments")) and isinstance(h5com, h5py.Dataset):
+        for entry in h5com:
+            message = entry[0].decode("utf-8")
+            timestamp = entry[1].decode("utf-8")
+            header["comments"].append(f"{timestamp}: {message}")
+
+
+def _read_data(h5g: h5py.Group) -> np.ndarray | dict[str, np.ndarray]:
+    """
+    Read the datasets of a data group into a structured array.
+
+    Parameters
+    ----------
+    h5g : h5py.Group
+        The data group to read the datasets from.
+
+    Returns
+    -------
+    np.ndarray | dict[str, np.ndarray]
+        The data as a structured array, or a dictionary of arrays if the
+        datasets have unequal lengths.
+    """
+    dtypeslist = []
+    # the following line relies on the fact that the first item has
+    # the correct length, the code fails later if there are unequal
+    # length
+    npoints = len(next(iter(h5g.values())))
+    for name, v in h5g.items():
+        if len(v.shape) == 1:
+            dtypeslist.append((name, v.dtype))
+        else:
+            dtypeslist.append((name, v.dtype, v.shape[1:]))
+    try:
+        data = np.empty(npoints, dtype=np.dtype(dtypeslist))
+        for name, v in h5g.items():
+            data[name] = v[...]
+    except ValueError:  # occurs for unequal data length in 1D arrays
+        data = {name: v[...] for name, v in h5g.items()}
+    return data
+
+
 def load_hdf5_file(
     filename: Path, structured: bool
 ) -> tuple[HeaderDict, np.ndarray | dict[str, np.ndarray]]:
@@ -221,11 +273,7 @@ def load_hdf5_file(
         header["units"] = [it.attrs["unit"] for it in h5g.values()]
 
         # check whether comments exist in file
-        if (h5com := h5f.get("comments")) and isinstance(h5com, h5py.Dataset):
-            for entry in h5com:
-                message = entry[0].decode("utf-8")
-                timestamp = entry[1].decode("utf-8")
-                header["comments"].append(f"{timestamp}: {message}")
+        _parse_comments(h5f, header)
 
         # parse additional attributes
         for key, val in h5f.attrs.items():
@@ -236,21 +284,6 @@ def load_hdf5_file(
             header["system query"] = _load_dict_from_hdf5(h5f, "system query")
 
         # generate data object as structured array
-        dtypeslist = []
-        # the following line relies on the fact that the first item has
-        # the correct length, the code fails later if there are unequal
-        # length
-        npoints = len(next(iter(h5g.values())))
-        for name, v in h5g.items():
-            if len(v.shape) == 1:
-                dtypeslist.append((name, v.dtype))
-            else:
-                dtypeslist.append((name, v.dtype, v.shape[1:]))
-        try:
-            data = np.empty(npoints, dtype=np.dtype(dtypeslist))
-            for name, v in h5g.items():
-                data[name] = v[...]
-        except ValueError:  # occurs for unequal data length in 1D arrays
-            data = {name: v[...] for name, v in h5g.items()}
+        data = _read_data(h5g)
 
     return header, data
