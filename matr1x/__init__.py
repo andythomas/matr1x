@@ -31,10 +31,6 @@ import warnings
 from importlib.metadata import PackageNotFoundError, version
 
 from .core import config as _core_config
-
-# Import pymeasure threading fix to apply monkey patch automatically
-# This must be imported early to ensure all pymeasure instruments are thread-safe
-from .core import pymeasure_threading_fix
 from .core.config import (
     logfolder,
     merge_dicts,
