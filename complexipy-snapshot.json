@@ -280,15 +280,5 @@
         "complexity": 19
       }
     ]
-  },
-  {
-    "path": "matr1x/scripts/sweep_generator.py",
-    "file_name": "sweep_generator.py",
-    "functions": [
-      {
-        "name": "ColumnData::calculate_sweep",
-        "complexity": 32
-      }
-    ]
   }
 ]
