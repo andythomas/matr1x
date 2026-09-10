@@ -131,7 +131,7 @@ def test_basic_script_run(
 
     assert main_window.measurement_file.name[:14] == "boring_testrun"
     assert main_window.measurement_file.exists()
-    header, data = matr1x.core.eval.loadmatrix(main_window.measurement_file)
+    header, data = matr1x.core.eval.loadmatrix(main_window.measurement_file, to_polars=True)
     assert header["dcterms:creator"] == creator
     assert header["dcterms:identifier"] == identifier
     assert header["dcterms:relation"] == relation

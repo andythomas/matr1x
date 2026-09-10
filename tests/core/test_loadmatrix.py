@@ -133,15 +133,15 @@ def test_loadmatrix_ma8(data_dir: Path):
     values.
     """
     datafile = data_dir / "random_test.ma8"
-    h, d = matr1x.core.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile, to_polars=True)
     assert ma8_header_keys == set(h.keys())
-    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
+    assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
     assert h["dcterms:type"] == ""
     assert h["dcterms:identifier"] == "random numpy"
-    assert d["timeUTC"].shape == (100,)  # check shape of dataset
+    assert d["timeUTC"].len() == 100  # check length of dataset
     assert len(h["columns"]) == 6  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
-    assert get_array_field_count(d) == len(h["columns"])
+    assert len(d.columns) == len(h["columns"])
     assert h["columns"][3] == "dev1 p1"  # check specific column name
     assert h["units"][3] == "cnt"  # check specific unit entry
     assert h["status"] == "finished"
@@ -149,8 +149,8 @@ def test_loadmatrix_ma8(data_dir: Path):
     assert len(h["system query"]) == 3
     assert h["system query"]["dev1"]["p4"] == [5.0, 3.0, 2.0, 1.0]
     assert len(h["system query"]["user script"]) == 381
-    assert d["dev1 p3a"].shape == (100,)  # check shape of dataset
-    assert d["timeUTC"].shape == (100,)  # check shape of dataset
+    assert d["dev1 p3a"].len() == 100  # check length of dataset
+    assert d["timeUTC"].len() == 100  # check length of dataset
     assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.393633  # check specific data value
     assert pytest.approx(d["timeUTC"][1], 1e-9) == 1726870139.20  # check specific data value
 
@@ -189,18 +189,18 @@ def test_loadmatrix_ma7(data_dir: Path):
     values.
     """
     datafile = data_dir / "mgk240213.ma7"
-    h, d = matr1x.core.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile, to_polars=True)
     assert ma7_header_keys <= set(h.keys())
-    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
+    assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
     assert h["dc.type"] == "Transport data"  # ty:ignore[invalid-key]
     assert len(h["columns"]) == 7  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
-    assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
+    assert len(d.columns) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "Ismu02"  # check specific column name
     assert h["units"][3] == "A"  # check specific unit entry
     assert len(h["device query"]) == 167  # ty:ignore[invalid-key]
-    assert d["y field"].shape == (1460,)  # check shape of dataset
-    assert d["timeUTC"].shape == (1460,)  # check shape of dataset
+    assert d["y field"].len() == 1460  # check length of dataset
+    assert d["timeUTC"].len() == 1460  # check length of dataset
     assert (
         pytest.approx(d["y field"][17], 1e-6) == -0.6770565868263473
     )  # check specific data value
@@ -238,20 +238,20 @@ def test_loadmatrix_ma6(data_dir: Path):
     values.
     """
     datafile = data_dir / "ARMR.ma6"
-    h, d = matr1x.core.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile, to_polars=True)
     assert ma6_header_keys <= set(h.keys())
-    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
+    assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
     assert (
         h["input filename"]
         == "/home/sisyphos/users/rs25/rs25180808a/ARMR_350Kto420K_10Ksteps_100uA_70mT_ip.4t"
     )
     assert len(h["columns"]) == 9  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
-    assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
+    assert len(d.columns) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "timeUTC"  # check specific column name
     assert h["units"][3] == "s"  # check specific unit entry
-    assert d["Vnvm07"].shape == (2196,)  # check shape of dataset
-    assert d["timeUTC"].shape == (2196,)  # check shape of dataset
+    assert d["Vnvm07"].len() == 2196  # check length of dataset
+    assert d["timeUTC"].len() == 2196  # check length of dataset
     assert pytest.approx(d["Vnvm07"][14], 1e-12) == 1.80986751e-06  # check specific data value
     assert pytest.approx(d["timeUTC"][-1], 1e-10) == 1557380107.327  # check specific data value
 
@@ -260,17 +260,31 @@ def test_loadmatrix_to_polars(data_dir: Path):
     """
     Test loading of text files with to_polars=True.
 
-    Verifies that a native polars DataFrame is returned with the same
-    shape and values as the default numpy return.
+    Verifies that a native polars DataFrame is returned with the
+    expected shape and columns.
     """
     datafile = data_dir / "random_test.ma8"
     h, d = matr1x.core.eval.loadmatrix(datafile, to_polars=True)
     assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
     assert d.shape == (100, 6)
     assert list(d.columns) == h["columns"]
-    # compare a numeric column with the default numpy return
-    _, d_np = matr1x.core.eval.loadmatrix(datafile)
-    assert np.allclose(d["dev1 p2"].to_numpy(), d_np["dev1 p2"], equal_nan=True)
+
+
+def test_loadmatrix_numpy_deprecated(data_dir: Path):
+    """
+    Test that the legacy numpy return for text files is deprecated.
+
+    Loading a text file without to_polars=True raises a FutureWarning.
+    The returned structured array still holds the correct data until
+    the numpy return is removed.
+    """
+    datafile = data_dir / "random_test.ma8"
+    with pytest.warns(FutureWarning, match="to_polars=True"):
+        h, d = matr1x.core.eval.loadmatrix(datafile)
+    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
+    assert get_array_field_count(d) == len(h["columns"])
+    assert d["timeUTC"].shape == (100,)
+    assert pytest.approx(d["dev1 p2"][3], 1e-5) == 0.393633  # check specific data value
 
 
 def test_loadmatrix_to_polars_hdf5(data_dir: Path):
@@ -289,7 +303,8 @@ def test_loadmatrix_tristate_bool(tmp_path: Path):
     """
     datafile = tmp_path / "bool_none.ma7"
     datafile.write_text("a\tb\nV\tV\na\tb\nTrue\tTrue\nNone\tTrue\nFalse\tFalse\n")
-    h, d = matr1x.core.eval.loadmatrix(datafile)
+    with pytest.warns(FutureWarning, match="to_polars=True"):
+        h, d = matr1x.core.eval.loadmatrix(datafile)
     assert d["a"].dtype == np.dtype("O")
     assert list(d["a"]) == [True, None, False]
     # column without None stays a plain bool
@@ -305,16 +320,19 @@ def test_loadmatrix_pathlib_ma8(data_dir: Path):
     """
     # Test with pathlib.Path
     datafile_path = data_dir / "random_test.ma8"
-    h_path, d_path = matr1x.core.eval.loadmatrix(datafile_path)
+    h_path, d_path = matr1x.core.eval.loadmatrix(datafile_path, to_polars=True)
 
     # Test with string (for comparison)
     datafile_str = str(datafile_path)
-    h_str, d_str = matr1x.core.eval.loadmatrix(datafile_str)
+    h_str, d_str = matr1x.core.eval.loadmatrix(datafile_str, to_polars=True)
+
+    assert isinstance(d_path, pl.DataFrame)
+    assert isinstance(d_str, pl.DataFrame)
 
     # Results should be identical
     assert h_path["dcterms:identifier"] == h_str["dcterms:identifier"]
     assert h_path["columns"] == h_str["columns"]
     assert h_path["units"] == h_str["units"]
     assert len(d_path) == len(d_str)
-    assert d_path["timeUTC"].shape == d_str["timeUTC"].shape
+    assert d_path["timeUTC"].len() == d_str["timeUTC"].len()
     assert pytest.approx(d_path["dev1 p2"][3], 1e-5) == pytest.approx(d_str["dev1 p2"][3], 1e-5)

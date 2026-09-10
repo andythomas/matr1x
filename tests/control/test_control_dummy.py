@@ -33,7 +33,7 @@ import time
 from importlib.metadata import entry_points
 from typing import cast
 
-import numpy as np
+import polars as pl
 import pytest
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QMessageBox
@@ -315,7 +315,7 @@ def test_matrix_script_control_dummy(start_control_dummy, tmp_path):
         assert ret.returncode == 0
         files = list(tmp_path.glob(f"epische_messdatei{output_extension}"))
         assert len(files) >= 1
-        h, d = matr1x.core.eval.loadmatrix(files[-1], structured=False)
+        h, d = matr1x.core.eval.loadmatrix(files[-1], to_polars=True)
         assert len(h["columns"]) == 6
-        assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
+        assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
         assert d.shape == (11, 6)
