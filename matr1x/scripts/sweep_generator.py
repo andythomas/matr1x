@@ -24,10 +24,10 @@ import re
 import sys
 import time
 from ast import literal_eval
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import cached_property
-from math import floor, isinf, isnan
+from math import floor, isfinite
 from pathlib import Path
 from typing import Any
 
@@ -138,6 +138,11 @@ def _linspace(start: float, stop: float, num: int) -> list[float]:
     values = [start + i * step for i in range(num)]
     values[-1] = stop
     return values
+
+
+def has_non_finite(values: Sequence[float]) -> bool:
+    """Return True if any value is NaN or infinite."""
+    return any(not isfinite(v) for v in values)
 
 
 @dataclass(frozen=True)
@@ -287,42 +292,97 @@ class ColumnData(BaseModel):
             List of sweeps that contains all parameters that are to be
             set.
         """
-        loop_over = self.loop_over.copy()
         lenA = len(self.parameter)
         if lenA == 0:
             return Success([])
-        if len(loop_over) != lenA or len(self.up_down) != lenA or len(self.repeat) != lenA:
+        if not len(self.loop_over) == len(self.up_down) == len(self.repeat) == lenA:
             return Error("The length of the arrays is not equal.")
+        loop_over = self.loop_over.copy()
         sweeps: list[list[float]] = []
-        for indexS, parmSets in zip(range(lenA), self.parameter):
-            i = 0
-            sweeps.append([])
-            while i < self.repeat[indexS]:
-                tempSweep = []
-                for parm in parmSets:
-                    # generate the sweepRange as a list so += works
-                    sweepRange = _linspace(float(parm[0]), float(parm[1]), int(parm[2]))
-                    if any(isnan(v) or isinf(v) for v in sweepRange):
-                        return Error("Inf or Nan in sweep, check parameters")
-                    tempSweep += sweepRange
-                if self.up_down[indexS]:
-                    # if up down is true, add the reversed sweep to the sweep
-                    tempSweep += list(reversed(tempSweep))
-                sweeps[indexS] += tempSweep
-                i += 1
+        for indexS, parmSets in enumerate(self.parameter):
+            segment = self._calculate_segment_sweeps(indexS, parmSets)
+            if isinstance(segment, Error):
+                return segment
+            sweeps.append(segment.value)
         # check if there are loops of loops and detect hirarchy so we
         # can properly generate the sweep
-        hirarchy = []
-        for i in range(lenA):
+        hirarchy = self._calculate_hirarchy()
+        if isinstance(hirarchy, Error):
+            return hirarchy
+        self._expand_sweeps(sweeps, loop_over, hirarchy.value)
+        return Success(sweeps)
+
+    def _calculate_segment_sweeps(
+        self, indexS: int, parmSets: list[list[float | int | str]]
+    ) -> Result[list[float], str]:
+        """
+        Generate the repeated sweep segments for one parameter set.
+
+        Parameters
+        ----------
+        indexS
+            Index of the parameter set within the sweep.
+        parmSets
+            Parameter triples (start, stop, points) of one sweep column.
+
+        Returns
+        -------
+        Result
+            The generated values, or an Error if a segment contains
+            non-finite values.
+        """
+        tempSweep: list[float] = []
+        for _ in range(self.repeat[indexS]):
+            segment: list[float] = []
+            for parm in parmSets:
+                # generate the sweepRange as a list so += works
+                sweepRange = _linspace(float(parm[0]), float(parm[1]), int(parm[2]))
+                if has_non_finite(sweepRange):
+                    return Error("Inf or Nan in sweep, check parameters")
+                segment += sweepRange
+            if self.up_down[indexS]:
+                # if up down is true, add the reversed sweep to the sweep
+                segment += list(reversed(segment))
+            tempSweep += segment
+        return Success(tempSweep)
+
+    def _calculate_hirarchy(self) -> Result[list[int], str]:
+        """
+        Determine the loop hirarchy of all sweep columns.
+
+        Returns
+        -------
+        Result
+            The hirarchy depth of each column, or an Error if a
+            recursive loop is detected.
+        """
+        hirarchy: list[int] = []
+        for i in range(len(self.parameter)):
             result = self.check_depth(i)
             if isinstance(result, Error):
                 # Recursive loop, you should really not do that!
                 # (i.e. don't loop col(a) over col(b) over col(a)!)
                 return Error("Recursive loop, please check loop over")
             hirarchy.append(result.value)
-        hCnt = max(hirarchy)
-        while hCnt >= 0:
-            for indexS in range(lenA):
+        return Success(hirarchy)
+
+    def _expand_sweeps(
+        self, sweeps: list[list[float]], loop_over: list[int], hirarchy: list[int]
+    ) -> None:
+        """
+        Expand the sweeps into loops of loops, in place.
+
+        Parameters
+        ----------
+        sweeps
+            Sweep values per column, expanded in place.
+        loop_over
+            Loop definition per column, modified in place.
+        hirarchy
+            Hirarchy depth of each column.
+        """
+        for hCnt in range(max(hirarchy), -1, -1):
+            for indexS in range(len(sweeps)):
                 if indexS == loop_over[indexS]:
                     # looping a column over itself is not how it's done!
                     loop_over[indexS] = -1
@@ -332,13 +392,11 @@ class ColumnData(BaseModel):
                     col = loop_over[indexS]
                     tempSweep = sweeps[indexS].copy()
                     # copy the initial sweep to be looped
-                    for j in range(len(sweeps[col]) - 1):
+                    for _ in range(len(sweeps[col]) - 1):
                         # for each element in the looped over column append the
                         # initial sweep
                         sweeps[indexS] += tempSweep
                     loop_over[indexS] = -1
-            hCnt -= 1
-        return Success(sweeps)
 
     def check_depth(self, index: int, depth: int = 0) -> Result[int, int]:
         """
