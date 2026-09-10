@@ -40,7 +40,6 @@ from matr1x.core.error_handling import Error, Result, Success
 if TYPE_CHECKING:
     import types
 
-    import h5py
     from _typeshed import SupportsWrite
 
     _T_contra = TypeVar("_T_contra", contravariant=True)
