@@ -34,7 +34,6 @@ from typing import (
     cast,
 )
 
-import numpy as np
 from pydantic import BaseModel, ValidationError
 from PySide6.QtCore import (
     QAbstractItemModel,
@@ -100,13 +99,21 @@ _DEFAULT_PARENT_INDEX = QModelIndex()
 validator: dict[type, QDoubleValidator | QIntValidator] = {
     float: QDoubleValidator(),
     int: QIntValidator(),
-    np.uint: QIntValidator(),
 }
 # for a double validator that disallows comma
 _lo = QLocale("C")
 _lo.setNumberOptions(QLocale.NumberOption.RejectGroupSeparator)
 validator[float].setLocale(_lo)
-validator[np.uint].setBottom(0)
+# integer validator for unsigned values (e.g. number of points)
+uint_validator = QIntValidator()
+uint_validator.setBottom(0)
+
+
+def _is_ndarray(value: Any) -> bool:
+    """Check whether a value is a numpy array (numpy imported lazily)."""
+    import numpy
+
+    return isinstance(value, numpy.ndarray)
 
 
 MIN_INT64 = -(2**63)
@@ -649,7 +656,7 @@ class MetaViewerWidget(QDockWidget):
                             missing=child_missing,
                         )
                     )
-            elif isinstance(self.value, (tuple, list, np.ndarray)):
+            elif isinstance(self.value, (tuple, list)) or _is_ndarray(self.value):
                 # for lists with finite length also use nest view
                 # key is list index
                 cast_type = self._type.get("items", {}) if isinstance(self._type, dict) else {}
@@ -723,7 +730,7 @@ class MetaViewerWidget(QDockWidget):
             if column == 0:
                 return {"type": "string"}
             elif column == 1:
-                if isinstance(self.value, (tuple, list, dict, np.ndarray)):
+                if isinstance(self.value, (tuple, list, dict)) or _is_ndarray(self.value):
                     return {"type": "string"}
                 return self._type if isinstance(self._type, dict) else {"type": "string"}
             return None
@@ -749,7 +756,7 @@ class MetaViewerWidget(QDockWidget):
             elif column == 1:
                 if self.missing:
                     return ""
-                if isinstance(self.value, (tuple, list, dict, np.ndarray)):
+                if isinstance(self.value, (tuple, list, dict)) or _is_ndarray(self.value):
                     # Display an empty value if it's a nested iterable
                     return ""
                 if self.hidden and role == Qt.ItemDataRole.DisplayRole:

@@ -16,8 +16,7 @@
 """
 Generate sweeps for matrix via a straightforward GUI.
 
-It heavily relies on numpy.linspace for the creation of the sweep
-segments.
+Sweep segments are generated with a small linear-spacing helper.
 """
 
 import logging
@@ -28,11 +27,10 @@ from ast import literal_eval
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cached_property
-from math import floor
+from math import floor, isinf, isnan
 from pathlib import Path
 from typing import Any
 
-import numpy
 import pyqtgraph as pg
 from pydantic import BaseModel, Field
 from PySide6.QtCore import QObject, QPointF, Qt, Signal
@@ -82,7 +80,7 @@ from matr1x.gui.helpers import (
     save_messagebox,
 )
 from matr1x.gui.logging import LoggingWindow
-from matr1x.gui.meta_viewer import validator
+from matr1x.gui.meta_viewer import uint_validator, validator
 from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
 from matr1x.gui.plot import CustomViewBox
 from matr1x.gui.shared import (
@@ -112,6 +110,34 @@ if sys.platform == "win32":
         pass
 
 logger = logging.getLogger(__name__)
+
+
+def _linspace(start: float, stop: float, num: int) -> list[float]:
+    """
+    Return `num` evenly spaced points from start to stop (inclusive).
+
+    Parameters
+    ----------
+    start
+        First value of the sequence.
+    stop
+        Last value of the sequence.
+    num
+        Number of points to generate.
+
+    Returns
+    -------
+    list[float]
+        The evenly spaced values, empty if num is not positive.
+    """
+    if num <= 0:
+        return []
+    if num == 1:
+        return [start]
+    step = (stop - start) / (num - 1)
+    values = [start + i * step for i in range(num)]
+    values[-1] = stop
+    return values
 
 
 @dataclass(frozen=True)
@@ -274,13 +300,11 @@ class ColumnData(BaseModel):
             while i < self.repeat[indexS]:
                 tempSweep = []
                 for parm in parmSets:
-                    # generate the sweepRange using np.linspace, has to be list
-                    # so += works
-
-                    sweepRange = numpy.linspace(float(parm[0]), float(parm[1]), int(parm[2]))
-                    if any(numpy.isnan(sweepRange)) or any(numpy.isinf(sweepRange)):
+                    # generate the sweepRange as a list so += works
+                    sweepRange = _linspace(float(parm[0]), float(parm[1]), int(parm[2]))
+                    if any(isnan(v) or isinf(v) for v in sweepRange):
                         return Error("Inf or Nan in sweep, check parameters")
-                    tempSweep += list(sweepRange)
+                    tempSweep += sweepRange
                 if self.up_down[indexS]:
                     # if up down is true, add the reversed sweep to the sweep
                     tempSweep += list(reversed(tempSweep))
@@ -556,7 +580,7 @@ class ColumnGenerator(QObject):
 
         points_widget = LineEditFocus()
         points_widget.setAlignment(Qt.AlignmentFlag.AlignRight)
-        points_widget.setValidator(validator[numpy.uint])
+        points_widget.setValidator(uint_validator)
         points_widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
 
         append_widget = QPushButton("+")
@@ -922,7 +946,7 @@ class SweepPreviewPopup(QDialog):
         """Update the plot to show sweep[index] against its range."""
         self.pw.getAxis("left").textWidth = 0
         length = len(self.sweep[index])
-        self.plt.setData(x=numpy.linspace(0, length, length), y=self.sweep[index], symbol="o")
+        self.plt.setData(x=list(range(length)), y=self.sweep[index], symbol="o")
         self.pw.setLabel("bottom", "index")
         self.pw.setLabel(
             "left",
@@ -1422,7 +1446,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 line_edit = QLineEdit(self)
                 line_edit.setText(str(param_set[i]))
                 if i == 2:
-                    line_edit.setValidator(validator[numpy.uint])
+                    line_edit.setValidator(uint_validator)
                 else:
                     line_edit.setValidator(validator[float])
                 line_edit.editingFinished.connect(
