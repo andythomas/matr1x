@@ -431,46 +431,6 @@ def construct_query_string(query_dict: dict, depth: int = 2) -> str:
     return ret
 
 
-def save_dict_to_hdf5(data_dict: dict, hdf5_file: "h5py.File", root_group: str) -> None:
-    """
-    Save a dictionary to an HDF5 file in a hierachical data group.
-
-    Parameters
-    ----------
-    data_dict : dict
-        The dictionary to be saved.
-    hdf5_file : h5py.File
-        File handle of the HDF5 file to save the data to.
-    root_group : str
-        The name of the root group in the HDF5 file.
-
-    Notes
-    -----
-    This function recursively writes nested dictionaries to HDF5 groups and
-    datasets. Lists are converted to datasets, and scalar values are saved as
-    attributes.
-    """
-
-    def write_dict(group: "h5py.Group", d: dict) -> None:
-        """Recursively write a dictionary to an HDF5 group."""
-        for key, value in d.items():
-            if isinstance(value, dict):
-                # Create a subgroup for nested dictionaries
-                subgroup = group.create_group(key)
-                write_dict(subgroup, value)
-            elif isinstance(value, list):
-                # Convert lists to datasets
-                group.create_dataset(key, data=value)
-            else:
-                # Save scalar values
-                group.attrs[key] = value
-
-    # Create or get the specified root group
-    group = hdf5_file.require_group(root_group)
-
-    write_dict(group, data_dict)
-
-
 def init_ascii_header(file_handle, columns, units, separator):
     """
     Initialize the header of the measurement file using the given telemetry.
@@ -488,59 +448,6 @@ def init_ascii_header(file_handle, columns, units, separator):
     """
     file_handle.write(separator.join(columns) + "\n")
     file_handle.write(separator.join(units) + "\n")
-
-
-def init_hdf5_skel(
-    file_handle, columns: list[str], units: list[str], dtypes, chunks: list[int]
-) -> None:
-    """
-    Initialize a HDF5 file skeleton for a measurement file.
-
-    Parameters
-    ----------
-    file_handle : h5py.File
-        Opened HDF5 file that the header should be written to.
-    columns : list
-        Column names written into the header.
-    units : list
-        Column units to be written into the header.
-    chunks : list
-        List of ints that define the chunk length of the individual datasets.
-    dtypes : list
-        List of strings specifying the dtype of the individual datasets.
-    """
-    # lazy import of h5py to only load it when it is required
-    import h5py
-
-    data_grp = file_handle.create_group("data")
-    dt = np.dtype(
-        [
-            ("message", h5py.string_dtype(encoding="utf-8")),
-            ("timestamp", h5py.string_dtype(encoding="utf-8")),
-        ]
-    )
-    # Create an empty dataset for comments
-    file_handle.create_dataset("comments", shape=(0,), maxshape=(None,), dtype=dt)
-    for col, uni, chu, dtype in zip(columns, units, chunks, dtypes):
-        if isinstance(chu, tuple):
-            data_grp.create_dataset(
-                col,
-                (0, *chu),
-                maxshape=(None, *chu),
-                chunks=(1, *chu),
-                dtype=dtype,
-                compression=True,
-            )
-        else:
-            data_grp.create_dataset(
-                col,
-                (0,),
-                maxshape=(None,),
-                chunks=(chu,),
-                dtype=dtype,
-                compression=True,
-            )
-        data_grp[col].attrs["unit"] = uni
 
 
 def flatten(iterable, types=(tuple, list, np.ndarray)):

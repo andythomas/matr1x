@@ -32,7 +32,6 @@ from matr1x.core.util import (
     get_pt100_temp,
     get_script_prefix_offset,
     init_ascii_header,
-    init_hdf5_skel,
     log_multiline,
     matrix_cmdline,
     module_from_path,
@@ -40,7 +39,6 @@ from matr1x.core.util import (
     resolve_config_path,
     resolve_pkgroot_path,
     run_python_cmdline,
-    save_dict_to_hdf5,
 )
 
 __all__ = [
@@ -59,7 +57,6 @@ __all__ = [
     "get_pt100_temp",
     "get_script_prefix_offset",
     "init_ascii_header",
-    "init_hdf5_skel",
     "log_multiline",
     "matrix_cmdline",
     "matrix_script_process",
@@ -68,5 +65,4 @@ __all__ = [
     "resolve_config_path",
     "resolve_pkgroot_path",
     "run_python_cmdline",
-    "save_dict_to_hdf5",
 ]
