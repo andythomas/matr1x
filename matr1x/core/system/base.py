@@ -33,7 +33,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, ClassVar, TypeGuard, TypeVar, cast
 
-import h5py
 import numpy as np
 from pydantic import BaseModel, ValidationError
 from pymeasure.instruments import Instrument
@@ -56,10 +55,8 @@ from matr1x.core.util import (
     default_separator,
     flatten,
     init_ascii_header,
-    init_hdf5_skel,
     module_from_path,
     resolve_config_path,
-    save_dict_to_hdf5,
 )
 
 BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
@@ -1941,6 +1938,10 @@ class System:
         telemetry = [list(flatten(self.columns)), list(flatten(self.units))]
         # prepare datafile
         if self.hdf5 is True:
+            import h5py
+
+            from matr1x.core.hdf5 import init_hdf5_skel, save_dict_to_hdf5
+
             telemetry.append(list(flatten(self.dtypes)))
             telemetry.append(list(flatten(self.chunks, types=(list,))))
             with h5py.File(self.filename, "w", libver="latest") as data_file:
@@ -2005,6 +2006,7 @@ class System:
         if not isinstance(dfilename, Path):
             raise TypeError("datafilename must be specified or initialized")
         if self.hdf5:
+            import h5py
 
             def h5save(h5d, val):
                 csize = h5d.chunks[0]
@@ -2066,6 +2068,8 @@ class System:
 
         timestamp = time.strftime(f"{core_config.datetimefmt}", time.localtime())
         if self.hdf5 is True:
+            import h5py
+
             with h5py.File(dfilename, "a", libver="latest") as datafile:
                 datafile.swmr_mode = True
                 assert datafile.swmr_mode
@@ -2107,6 +2111,8 @@ class System:
             return
 
         if self.hdf5 is True:
+            import h5py
+
             with h5py.File(dfilename, "a", libver="latest") as datafile:
                 datafile.swmr_mode = True
                 assert datafile.swmr_mode
