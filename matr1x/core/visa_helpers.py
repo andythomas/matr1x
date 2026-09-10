@@ -130,7 +130,7 @@ def _validate_visa_resource_requirements(
 
 def _validate_resource_type(
     value: str,
-    resource: "rname.ResourceName",
+    resource: rname.ResourceName,
     requirements: VisaResourceRequirements,
 ) -> None:
     """Validate the VISA interface and resource class."""
@@ -148,7 +148,7 @@ def _validate_resource_type(
 
 
 def _resource_type_matches(
-    resource: "rname.ResourceName",
+    resource: rname.ResourceName,
     interface_types: list[str],
     resource_classes: list[str],
 ) -> bool:
@@ -158,7 +158,7 @@ def _resource_type_matches(
     return not resource_classes or resource.resource_class in resource_classes
 
 
-def _validate_loopback_host(value: str, resource: "rname.ResourceName") -> None:
+def _validate_loopback_host(value: str, resource: rname.ResourceName) -> None:
     """Validate that a TCP/IP socket uses a supported loopback address."""
     from pyvisa import rname
 
@@ -169,7 +169,7 @@ def _validate_loopback_host(value: str, resource: "rname.ResourceName") -> None:
     )
 
 
-def _validate_tcp_port(value: str, resource: "rname.ResourceName") -> None:
+def _validate_tcp_port(value: str, resource: rname.ResourceName) -> None:
     """Validate that a TCP/IP socket specifies a usable TCP port."""
     try:
         port = int(getattr(resource, "port", ""))
