@@ -15,8 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Helpers for VISA resource discovery and address validation."""
 
-from __future__ import annotations
-
 import ipaddress
 import threading
 from typing import TYPE_CHECKING, Any, TypedDict
