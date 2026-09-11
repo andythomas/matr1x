@@ -98,7 +98,7 @@ class MergedSystem(System):
         parameter_entries: list[tuple[Parameter, System, int]] = []
         seen_devices: dict[str, System] = {}
         seen_accessors: set[str] = set()
-        selected_groups: dict[tuple[str, str, str], str] = {}
+        selected_groups: dict[tuple[str, str], str] = {}
         for subsystem in self.subsys:
             self._validate_subsystem(subsystem, seen_accessors, selected_groups)
             self._merge_subsystem_devices(subsystem, seen_devices)
@@ -115,7 +115,7 @@ class MergedSystem(System):
     def _validate_subsystem(
         subsystem: System,
         seen_accessors: builtins.set[str],
-        selected_groups: dict[tuple[str, str, str], str],
+        selected_groups: dict[tuple[str, str], str],
     ) -> None:
         """Ensure the subsystem has a unique accessor and compatible state."""
         if subsystem.accessor_name in seen_accessors:
@@ -126,12 +126,8 @@ class MergedSystem(System):
         assert subsystem.state is not None
         _, groups = subsystem.state_declaration()
         source = subsystem.source or subsystem.__class__.__module__
-        source_path = Path(source).expanduser()
-        identity = (
-            str(source_path.resolve()) if source_path.is_file() else subsystem.__class__.__module__
-        )
         group = groups[subsystem.state]
-        group_key = (identity, subsystem.__class__.__qualname__, group)
+        group_key = (subsystem.__class__.__name__, group)
         if group_key in selected_groups:
             other_state = selected_groups[group_key]
             raise ValueError(

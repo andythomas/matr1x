@@ -509,10 +509,14 @@ class SystemListWidget(QListWidget):
         """Return the allowed selected state, reporting validation failures."""
         if not capability.stateful:
             return None
-        state = reference.state or self._first_state_in_free_group(candidate, capability)
+        state = reference.state or self._first_state_in_free_group(capability)
         if state is None:
             self.message.emit(
-                NotifierMessage(f"{candidate} already uses every available state group.")
+                NotifierMessage(
+                    f"{candidate} was omitted: stateful class '{capability.class_name}' "
+                    "already uses every available state group; state groups are shared "
+                    "across all sources."
+                )
             )
         elif state not in capability.states:
             self.message.emit(
@@ -520,10 +524,12 @@ class SystemListWidget(QListWidget):
                     f"{candidate} does not define state {state!r}.", level=logging.WARNING
                 )
             )
-        elif self._group_is_used(candidate, capability.state_exclusion_groups[state]):
+        elif self._group_is_used(capability.class_name, capability.state_exclusion_groups[state]):
             self.message.emit(
                 NotifierMessage(
-                    f"{candidate} state {state!r} conflicts with an already selected state.",
+                    f"{candidate} state {state!r} conflicts with an already selected state "
+                    f"of stateful class '{capability.class_name}'; state groups are shared "
+                    "across all sources.",
                     level=logging.WARNING,
                 )
             )
@@ -552,15 +558,15 @@ class SystemListWidget(QListWidget):
 
     def _group_is_used(
         self,
-        source: str,
+        class_name: str,
         group: str,
         *,
         except_item: QListWidgetItem | None = None,
     ) -> bool:
-        """Return whether another row for the source occupies an exclusion group."""
+        """Return whether another row for the class occupies an exclusion group."""
         for index in range(self.count()):
             item = self.item(index)
-            if item is except_item or item.data(self.SOURCE_ROLE) != source:
+            if item is except_item or item.data(self.CLASS_ROLE) != class_name:
                 continue
             state = item.data(self.STATE_ROLE)
             groups = item.data(self.GROUPS_ROLE) or {}
@@ -570,13 +576,12 @@ class SystemListWidget(QListWidget):
 
     def _first_state_in_free_group(
         self,
-        source: str,
         capability: SystemCapability,
     ) -> str | None:
         """Return the first state whose exclusion group is not occupied."""
         for state in capability.states:
             group = capability.state_exclusion_groups[state]
-            if not self._group_is_used(source, group):
+            if not self._group_is_used(capability.class_name, group):
                 return state
         return None
 
@@ -635,12 +640,12 @@ class SystemListWidget(QListWidget):
             return
 
         groups = item.data(self.GROUPS_ROLE)
-        source = item.data(self.SOURCE_ROLE)
+        class_name = item.data(self.CLASS_ROLE)
         target_group = groups[state]
         conflicting_item = None
         for index in range(self.count()):
             candidate = self.item(index)
-            if candidate is item or candidate.data(self.SOURCE_ROLE) != source:
+            if candidate is item or candidate.data(self.CLASS_ROLE) != class_name:
                 continue
             candidate_state = candidate.data(self.STATE_ROLE)
             candidate_groups = candidate.data(self.GROUPS_ROLE)
