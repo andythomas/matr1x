@@ -29,7 +29,7 @@ class CS04(VisaDevice):
     """
     Cryomagnetics CS04 magnet power supply.
 
-    Typically connected via GPIB::<address>::INSTR
+    Typically connected via `GPIB::<address>::INSTR`
     The user shall set `max_field` to a reasonable value upon initialization.
 
     Parameters

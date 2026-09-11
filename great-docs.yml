@@ -76,27 +76,144 @@ github_style: icon
 announcement: "We are happy to announce the first publicly available version and welcome new users."
 
 reference:
-  - title: Classes
-    desc: Main classes provided by the package
+  # ── System framework ────────────────────────────────────────────────
+  - title: System
+    desc: Base classes for measurement systems
     contents:
-      - name: core.system.base.Parameter
+      - name: core.system.base:System
         members: false
-      - name: core.system.base.System
-        members: false # 19 methods listed below
+      - core.system.base:System.add_param
+      - core.system.base:System.add_dev
+      - core.system.base:System.set
+      - core.system.base:System.reset
+      - core.system.base:System.name # property
+      - core.system.base:System.hdf5 # property
 
-  - title: system.System Methods
-    desc: Methods for the system.System class
+  # ── Control GUI framework ───────────────────────────────────────────
+  - title: Control
+    desc: Framework for device control panels
     contents:
-      - core.system.base.System.add_param
-      - core.system.base.System.add_dev
-      - core.system.base.System.set
-      - core.system.base.System.reset
+      - name: control.controlwindow:ControlWindow
+        members: false
+      - name: control.gui_dict:GuiDict
+        members: false
+      - control.gui_dict:MethodBundle
+      - control.gui_dict:catchEmitError
+      - control.gui_dict:guiObject
+      - control.gui_dict:var
+      - control.util:control_main
+      - control.util:linear_trend
+      - control.util:sendNotificationEmail
 
+  # ── Data models ─────────────────────────────────────────────────────
+  - title: Models
+    desc: Pydantic models exchanged between systems and scripts
+    contents:
+      - core.models:Message
+      - core.models:Modifier
+
+  # ── Data analysis ───────────────────────────────────────────────────
+  - title: Eval
+    desc: Loading and analyzing measurement data
+    contents:
+      - core.eval:loadmatrix
+      - core.eval:delta
+      - core.eval:delta3p
+
+  # ── Utility functions ───────────────────────────────────────────────
+  - title: Util
+    desc: Shared helper classes and functions
+    contents:
+      - name: core.util:Command
+        members: false
+      - core.util:Get
+      - core.util:Set
+
+  # ── SCPI server ─────────────────────────────────────────────────────
+  - title: SCPI Server
+    contents:
+      - core.scpi_tcpserver:DEFAULT_PORT
+      - core.scpi_tcpserver:SCPI_TCP_Server
+
+  # ── GUI building blocks ─────────────────────────────────────────────
+  - title: GUI
+    desc: Shared GUI components (PySide6)
+    contents:
+      - gui.mixins:AutoSlot
+
+  # ── Devices ─────────────────────────────────────────────────────────
+  - title: Devices
+    desc: Instrument driver base classes and helpers
+    contents:
+      - name: devices.visadevice:VisaDevice
+        members: false
+      - name: devices.modbusdevice:ModbusDevice
+        members: false
+      - devices.scpi_dev:makeSCPIdevice
+      - devices:scpiPORTdrivers
+      - devices:listToStr
+      - devices:strToList
+
+  - title: Device Drivers
+    desc: One entry per vendor package; all driver classes are public
+    contents:
+      - devices.keithley:Keithley2000
+      - devices.keithley:Keithley2182A
+      - devices.keithley:Keithley2400
+      - devices.keithley:Keithley2450
+      - devices.keithley:Keithley2611A
+      - devices.keithley:Keithley2701
+      - devices.keithley:KeithleyDMM6500
+      - devices.keithley:Keithley6221
+      - devices.keysight:Agilent8114A
+      - devices.keysight:KeysightB2961
+      - devices.keysight:PNA5225b
+      - devices.keysight:PSA_E4440A
+      - devices.keysight:PSG8257D
+      - devices.lakeshore:Lakeshore335
+      - devices.lakeshore:Lakeshore340
+      - devices.lakeshore:Lakeshore475
+      - devices.oxford:ILM200
+      - devices.oxford:IPS120_switchheater
+      - devices.oxford:ITC503
+      - devices.oxford:MercuryIPS
+      - devices.oxford:MercuryITC
+      - devices.oxford:MercurySingleAxisIPS
+      - devices.danfysik:Danfysik9100
+      - devices.danfysik:Danfysik9700
+      - devices.cryogenics:CryogenicPS
+      - devices.cryogenics:CryogenicBipolarPS
+      - devices.cryomagnetics:CS04
+      - devices.cryovac:TIC500
+      - devices.dummy:dummy
+      - devices.horst:HTMC11
+      - devices.quantumdesign:PPMS
+      - devices.rohdeschwarz:FSW8
+      - devices.hewlettpackard:HP3245A
+      - devices.electronicsmeasurements:BOSS
+      - devices.caenels:CAENelsEasyDriver
+      - devices.ami:AMI1700
+      - devices.kepco:BOP5020mg
+      - devices.magnetphysik:FH55
+      - devices.minicircuits:RC_2SPDT_A18
+      - devices.nanotec:NanotecPD4
+      - devices.owis:Ps10
+      - devices.owis:SMS
+      - devices.pfeiffer:MPT200
+      - devices.picotech:PicoVNA
+      - devices.physikinstrumente:MercuryC663
+      - devices.thorlabs:BSC103
+      - devices.git:gitDevice
+      - devices.tempco:Tempco9300
+      - devices.tempco:TempcoMode
+      - devices.twickenham:HDI
+
+  # ── Constants ───────────────────────────────────────────────────────
   - title: Constants
     desc: Module-level constants and data
     contents:
-      - core.metadata.VALID_META_KEYS
-      - core.metadata.APP_META_KEY
+      - core.metadata:VALID_META_KEYS
+      - core.metadata:APP_META_KEY
 
 # Site URL
 # --------
@@ -109,6 +226,7 @@ reference:
 # -------------
 site:
   theme: sandstone # Quarto theme
+  css: media/great-docs.css # Custom CSS overrides (copied into the build)
 #   toc: true                  # Show table of contents (default: true)
 #   toc-depth: 2               # TOC heading depth (default: 2)
 #   toc-title: On this page    # TOC title (default: "On this page")

@@ -27,7 +27,7 @@ class HP3245A(VisaDevice):
     """
     HP3245A AC function generator.
 
-    Typically connected via GPIB::<address>::INSTR
+    Typically connected via `GPIB::<address>::INSTR`
 
     Parameters
     ----------
