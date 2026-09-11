@@ -25,7 +25,7 @@ import tempfile
 import time
 from pathlib import Path
 
-import numpy as np
+import polars as pl
 import pytest
 
 import matr1x.core.eval
@@ -61,11 +61,11 @@ def test_matrix_dummy(input_dir: Path, tmp_path: Path):
     assert len(files) == 1
     # check file contains data
     datafile = files.pop()
-    h, d = matr1x.core.eval.loadmatrix(datafile)
+    h, d = matr1x.core.eval.loadmatrix(datafile, to_polars=True)
     assert len(h["columns"]) == 6  # check number of data columns
     # Note that one point is not recorded in the datafile
-    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
-    assert d.shape == (9,)  # check shape of dataset
+    assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
+    assert d.shape == (9, 6)  # check shape of dataset
 
 
 def test_matrix_dummy_merged(input_dir: Path, tmp_path: Path):
@@ -93,10 +93,10 @@ def test_matrix_dummy_merged(input_dir: Path, tmp_path: Path):
         tmp_path.glob(f"test_merged*{output_extension}"), key=lambda p: p.stat().st_mtime
     )
     assert len(files) >= 1
-    h, d = matr1x.core.eval.loadmatrix(files[-1], structured=True)
+    h, d = matr1x.core.eval.loadmatrix(files[-1], to_polars=True)
     assert len(h["columns"]) == 10  # check number of data columns
-    assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
-    assert d.shape == (11,)  # check shape of dataset
+    assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
+    assert d.shape == (11, 10)  # check shape of dataset
 
 
 def test_matrix_dummy_hdf5(input_dir: Path, tmp_path: Path):
@@ -168,9 +168,9 @@ def test_matrix_script_dummy_merged(input_dir: Path, tmp_path: Path):
         assert ret.returncode == 0
         files = list(tmp_path.glob(f"epische_messdatei*{output_extension}"))
         assert len(files) >= 1
-        h, d = matr1x.core.eval.loadmatrix(files[-1], structured=False)
+        h, d = matr1x.core.eval.loadmatrix(files[-1], to_polars=True)
         assert len(h["columns"]) == 10
-        assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
+        assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
         assert d.shape == (22, 10)
 
 
