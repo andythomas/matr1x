@@ -25,67 +25,18 @@ import re
 import warnings
 from io import StringIO
 from pathlib import Path
-from typing import Any, TypedDict, cast, overload
+from typing import Any, overload
 
-import h5py
 import numpy as np
 import polars as pl
+
+from matr1x.core.models import HeaderDict, create_empty_header
 
 __all__ = ["HeaderDict", "delta", "delta3p", "loadmatrix"]
 
 ######################
 # File handling
 ######################
-RequiredHeader = TypedDict(
-    "RequiredHeader",
-    {
-        "columns": list[str],
-        "units": list[str],
-        "comments": list[str],
-        "status": str | None,
-        "system query": dict[str, Any],
-        "input filename": str,
-        "system filename": str,
-    },
-)
-
-
-OptionalFields = TypedDict(
-    "OptionalFields",
-    {
-        "dcterms:creator": str,
-        "dcterms:date": str,
-        "dcterms:identifier": str,
-        "dcterms:relation": str,
-        "dcterms:description": str,
-        "dcterms:source": str,
-        "dcterms:type": str,
-        "dcterms:publisher": str,
-        "dcterms:format": str,
-        "dcterms:language": str,
-    },
-    total=False,
-)
-
-
-class HeaderDict(RequiredHeader, OptionalFields):
-    """Header dictionary with optional fields."""
-
-
-def create_empty_header() -> HeaderDict:
-    """Create an empty HeaderDict with all required fields initialized."""
-    return cast(
-        HeaderDict,
-        {
-            "columns": [],
-            "units": [],
-            "comments": [],
-            "status": None,
-            "system query": {},
-            "input filename": "",
-            "system filename": "",
-        },
-    )
 
 
 def _is_hdf5(filename: Path) -> bool:
@@ -189,7 +140,9 @@ def _is_multiline_start(value: str) -> bool:
     return value.startswith('"') and not value.endswith('"')
 
 
-def _store_multiline_value(parsed_data: dict, path_stack: list, current_key, multiline_value):
+def _store_multiline_value(
+    parsed_data: dict, path_stack: list, current_key, multiline_value
+):
     """
     Store a completed multiline value in the appropriate dict location.
 
@@ -312,7 +265,9 @@ def _process_key_value_pair(
         return None, [], False
 
 
-def _process_top_level_key_value(line: str, parsed_data: dict) -> tuple[str | None, list, bool]:
+def _process_top_level_key_value(
+    line: str, parsed_data: dict
+) -> tuple[str | None, list, bool]:
     """
     Process a key-value pair at the top level of the configuration.
 
@@ -386,11 +341,15 @@ def _parse_query_string(query: str) -> dict:
 
         # Handle multiline value continuation
         if in_multiline:
-            if _handle_multiline_continuation(line, path_stack, multiline_value, multiline_level):
+            if _handle_multiline_continuation(
+                line, path_stack, multiline_value, multiline_level
+            ):
                 continue
 
             # End of multiline entry, store it
-            _store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
+            _store_multiline_value(
+                parsed_data, path_stack, current_key, multiline_value
+            )
             in_multiline = False
             multiline_value = []
             multiline_level = 0
@@ -440,144 +399,15 @@ def _parse_query_string(query: str) -> dict:
     return parsed_data
 
 
-def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
-    """
-    Load a dictionary from an HDF5 file.
-
-    This function reads data from an HDF5 file and returns it as a
-    nested dictionary. It recursively traverses the HDF5 file structure,
-    converting groups to subdictionaries and datasets to array-like
-    objects.
-
-    Parameters
-    ----------
-    hdf5_file : h5py.File
-        An open HDF5 file object.
-    root_group : str
-        The name of the root group to start reading from.
-
-    Returns
-    -------
-    dict
-        A nested dictionary representing the structure and data of the
-        HDF5 file.
-
-    Notes
-    -----
-    This function assumes that the HDF5 file is already open when passed
-    as an argument. It's the caller's responsibility to close the file
-    after use.
-    """
-
-    def read_group(group: h5py.Group):
-        """
-        Recursively read an HDF5 group into a dictionary.
-
-        This includes the attributes.
-        """
-        d = {}
-
-        # Read attributes from the group
-        for key, value in group.attrs.items():
-            d[key] = value
-
-        # Read subgroups and datasets
-        for key, item in group.items():
-            if isinstance(item, h5py.Group):
-                # Recursively read subgroups
-                d[key] = read_group(item)
-            elif isinstance(item, h5py.Dataset):
-                # Read dataset as list
-                d[key] = item[:]
-
-        return d
-
-    # Get the specified root group
-    if root_group in hdf5_file:
-        group = hdf5_file[root_group]
-    else:
-        raise KeyError(f"Group '{root_group}' not found in the HDF5 file.")
-    if not isinstance(group, h5py.Group):
-        raise TypeError(f"Expected group '{root_group}' to be a group, got {type(group)}")
-
-    return read_group(group)
-
-
-def _load_hdf5_file(
-    filename: Path, structured: bool
-) -> tuple[HeaderDict, np.ndarray | dict[str, np.ndarray]]:
-    """
-    Load data from HDF5 file format.
-
-    Parameters
-    ----------
-    filename : Path
-        Path to the HDF5 file
-    structured : bool
-        Whether to return structured array
-
-    Returns
-    -------
-    tuple[HeaderDict, np.ndarray | dict[str, np.ndarray]]
-        Header information and data
-    """
-    header = create_empty_header()
-
-    # use swmr read mode, to avoid corrupting the data during the
-    # measurement (where it is written to by the matrix process)
-    with h5py.File(filename, "r", swmr=True, libver="latest", locking=False) as h5f:
-        h5g = h5f["data"]
-
-        if not isinstance(h5g, h5py.Group):
-            raise TypeError(f"Expected 'data' to be a Group, got {type(h5g).__name__}")
-
-        # populate header fields from HDF5
-        header["columns"] = list(h5g.keys())
-        header["units"] = [it.attrs["unit"] for it in h5g.values()]
-
-        # check whether comments exist in file
-        if (h5com := h5f.get("comments")) and isinstance(h5com, h5py.Dataset):
-            for entry in h5com:
-                message = entry[0].decode("utf-8")
-                timestamp = entry[1].decode("utf-8")
-                header["comments"].append(f"{timestamp}: {message}")
-
-        # parse additional attributes
-        for key, val in h5f.attrs.items():
-            header[key.lower()] = "" if val == "__None__" else val
-
-        # parse System query entry into hierarchical dictionary
-        if filename.suffix == ".ma8":
-            header["system query"] = _load_dict_from_hdf5(h5f, "system query")
-
-        # generate data object as structured array
-        dtypeslist = []
-        # the following line relies on the fact that the first item has
-        # the correct length, the code fails later if there are unequal
-        # length
-        npoints = len(next(iter(h5g.values())))
-        for name, v in h5g.items():
-            if len(v.shape) == 1:
-                dtypeslist.append((name, v.dtype))
-            else:
-                dtypeslist.append((name, v.dtype, v.shape[1:]))
-        try:
-            data = np.empty(npoints, dtype=np.dtype(dtypeslist))
-            for name, v in h5g.items():
-                data[name] = v[...]
-        except ValueError:  # occurs for unequal data length in 1D arrays
-            data = {name: v[...] for name, v in h5g.items()}
-
-    return header, data
-
-
 def _process_header_lines(
     line: str, key: str | None, val: str | None, header: HeaderDict
 ) -> tuple[str | None, str | None]:
     """Process lines that start with hashtag to extract header information."""
     if line[1] == "#":  # multiline entry
         if key is None:
-            raise ValueError("Multiline entry found before any single-line entry in header")
+            raise ValueError(
+                "Multiline entry found before any single-line entry in header"
+            )
 
         # Process the line based on entry type
         if key == "system query":
@@ -622,7 +452,9 @@ def _process_column_unit_lines(
 
     # Check if we should break based on file type
     should_break = False
-    if headerlines == 3 or extension == ".ma8" and headerlines == 2:  # for ma6, ma7 files
+    if (
+        headerlines == 3 or extension == ".ma8" and headerlines == 2
+    ):  # for ma6, ma7 files
         should_break = True
 
     return headerlines, should_break
@@ -631,7 +463,9 @@ def _process_column_unit_lines(
 def _process_special_lines(matrix_file, header: HeaderDict) -> None:
     """Process special lines (comments and status) that appear after main content."""
     # Read further special lines in the file
-    special_lines = [(i, line) for i, line in enumerate(matrix_file) if line.startswith("#")]
+    special_lines = [
+        (i, line) for i, line in enumerate(matrix_file) if line.startswith("#")
+    ]
 
     # combine multiline comments and note after which datapoint the comment was in the file
     lastdpoint = -1
@@ -656,7 +490,9 @@ def _process_special_lines(matrix_file, header: HeaderDict) -> None:
         lastdpoint = dpoint
 
 
-def _process_text_file_content(filename: Path, extension: str, header: HeaderDict) -> int:
+def _process_text_file_content(
+    filename: Path, extension: str, header: HeaderDict
+) -> int:
     """
     Process the content of a text file to extract header information and special lines.
 
@@ -723,9 +559,9 @@ def _parse_text_polars(filename: str | Path) -> tuple[HeaderDict, pl.DataFrame]:
     if extension == ".ma8":
         # Reconstruct proper structure by adding the header line
         system_query_content = f"# system query :{header['system query']}"
-        header["system query"] = _parse_query_string(system_query_content.replace(r"\"", '"'))[
-            "system query"
-        ]
+        header["system query"] = _parse_query_string(
+            system_query_content.replace(r"\"", '"')
+        )["system query"]
 
     # Clean up string values in header (except for core fields)
     core_fields = {"columns", "units", "comments", "status", "system query"}
@@ -858,12 +694,17 @@ def loadmatrix(
         raise NotImplementedError("This option was removed.")
     if _is_hdf5(filename):
         if to_polars:
-            raise NotImplementedError("The option to_polars=True is not supported for hdf5 files")
+            raise NotImplementedError(
+                "The option to_polars=True is not supported for hdf5 files"
+            )
         if not structured:
             raise NotImplementedError(
                 "The option structured=False is not supported for hdf5 files"
             )
-        header, data = _load_hdf5_file(filename, structured)
+        # deferred import so that h5py is only loaded for HDF5 files
+        from matr1x.core import hdf5
+
+        header, data = hdf5.load_hdf5_file(filename, structured)
     else:
         if not to_polars:
             warnings.warn(
@@ -875,7 +716,7 @@ def loadmatrix(
         header, data = _load_text_file(filename, structured, to_polars)
     if print_header is True:
         # generate list of tuples with index and column name
-        print(list(enumerate(header["columns"])))  # noqa: T201
+        print(list(enumerate(header["columns"])))
     return header, data
 
 
@@ -906,7 +747,10 @@ def delta_numpy(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     %seealso delta, delta_polars
     """
     if len(data) % 2:
-        return (np.add(data[:-1:2], data[1::2]) / 2, np.subtract(data[:-1:2], data[1::2]) / 2)
+        return (
+            np.add(data[:-1:2], data[1::2]) / 2,
+            np.subtract(data[:-1:2], data[1::2]) / 2,
+        )
     return (np.add(data[::2], data[1::2]) / 2, np.subtract(data[::2], data[1::2]) / 2)
 
 
@@ -959,7 +803,10 @@ def delta_polars(data: pl.DataFrame, *, column: str | None = None) -> pl.LazyFra
         .agg(
             (pl.col(column).sum() / 2).alias("pos"),
             (
-                pl.when(pl.col("_odd") == 0).then(pl.col(column)).otherwise(-pl.col(column)).sum()
+                pl.when(pl.col("_odd") == 0)
+                .then(pl.col(column))
+                .otherwise(-pl.col(column))
+                .sum()
                 / 2
             ).alias("neg"),
         )

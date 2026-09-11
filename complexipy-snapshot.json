@@ -30,10 +30,6 @@
         "complexity": 16
       },
       {
-        "name": "_load_hdf5_file",
-        "complexity": 18
-      },
-      {
         "name": "_process_header_lines",
         "complexity": 18
       },
@@ -90,10 +86,6 @@
       {
         "name": "System::_device_query",
         "complexity": 24
-      },
-      {
-        "name": "System::take_measurement_point",
-        "complexity": 25
       },
       {
         "name": "Parameter::__init__",
@@ -278,16 +270,6 @@
       {
         "name": "uninstall_core_desktopintegration",
         "complexity": 19
-      }
-    ]
-  },
-  {
-    "path": "matr1x/scripts/sweep_generator.py",
-    "file_name": "sweep_generator.py",
-    "functions": [
-      {
-        "name": "ColumnData::calculate_sweep",
-        "complexity": 32
       }
     ]
   }

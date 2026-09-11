@@ -20,29 +20,39 @@ import ast
 import hashlib
 import html
 import json
+import mimetypes
 import re
-import socket
-import time
+import threading
 from importlib import resources
+from pathlib import Path
 from typing import Any, ClassVar, cast
 
 import monaco_assets
 from pydantic import ValidationError
 from PySide6.QtCore import (
+    QBuffer,
     QEventLoop,
+    QIODevice,
     QObject,
     QTimer,
     QUrl,
     Signal,
 )
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+from PySide6.QtWebEngineCore import (
+    QWebEnginePage,
+    QWebEngineSettings,
+    QWebEngineUrlRequestJob,
+    QWebEngineUrlScheme,
+    QWebEngineUrlSchemeHandler,
+)
 from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QDialog, QLabel, QProgressBar, QVBoxLayout
+from ty import find_ty_bin
 
 from matr1x.core.error_handling import Error
 from matr1x.core.models import SystemInfo
 from matr1x.core.util import (
-    find_binary,
     generate_script,
     get_script_prefix_offset,
     run_python_cmdline,
@@ -67,6 +77,14 @@ COLUMN_OFFSET = 4  # The user code is wrapped in a "try:" = 4 chars
 HIGHLIGHT_INTERVAL_MS = 15
 LINTING_DELAY_MS = 1000
 DUMMY_LSP_FILENAME = "untitled:///user_script.py"
+MONACO_SCHEME = QWebEngineUrlScheme(b"monaco")
+MONACO_SCHEME.setFlags(
+    QWebEngineUrlScheme.Flag.CorsEnabled
+    | QWebEngineUrlScheme.Flag.LocalAccessAllowed
+    | QWebEngineUrlScheme.Flag.SecureScheme
+    | QWebEngineUrlScheme.Flag.FetchApiAllowed
+)
+QWebEngineUrlScheme.registerScheme(MONACO_SCHEME)
 
 
 class Matr1xFunctionChecker(ast.NodeVisitor):
@@ -465,6 +483,49 @@ class CodeEditorPage(QWebEnginePage, LoggerMixin):
             self.logger.info("%s", message)
 
 
+class MonacoAssetHandler(QWebEngineUrlSchemeHandler, LoggerMixin):
+    """
+    Serve the editor page and the Monaco assets from disk.
+
+    ``min/*`` requests map to the Monaco asset cache, all other paths to
+    the bundled editor resources (``editor.html``, ``editor.js``).
+    """
+
+    def __init__(self, assets_dir: Path | None, parent=None):
+        super().__init__(parent)
+        self._assets_dir = assets_dir
+        self._resources_dir = Path(str(resources.files("matr1x").joinpath("resources")))
+        self._buffers: list[QBuffer] = []
+
+    def requestStarted(self, job: QWebEngineUrlRequestJob) -> None:
+        """Reply to a monaco:// request with the file content from disk."""
+        rel = job.requestUrl().path().lstrip("/")
+        if rel.startswith("min/"):
+            if self._assets_dir is None:
+                self.logger.error("Monaco assets are not available.")
+                job.fail(QWebEngineUrlRequestJob.Error.RequestFailed)
+                return
+            file_path = self._assets_dir / rel
+        else:
+            file_path = self._resources_dir / rel
+        if not file_path.is_file():
+            job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+            return
+        mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        buffer = QBuffer()
+        buffer.setData(file_path.read_bytes())
+        buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+        self._buffers.append(buffer)  # Keep alive until the reply is consumed.
+        job.reply(mime_type.encode(), buffer)
+
+
+class _AssetDownloadSignals(QObject):
+    """Signals bridging the Monaco asset download thread to the GUI thread."""
+
+    progress = Signal(int, int)
+    finished = Signal()
+
+
 class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
     """Code editor connected to Monaco."""
 
@@ -479,56 +540,46 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         "High contrast": {"Light high contrast": "hc-light", "Dark high contrast": "hc-black"},
     }
 
-    @staticmethod
-    def find_free_port(start_port=54529):
-        """Find an available port starting from start_port."""
-        port = start_port
-        while port < start_port + 100:  # Try 100 ports
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.bind(("localhost", port))
-                sock.close()
-                return port
-            except OSError:
-                port += 1
-        raise RuntimeError("No free ports available")
+    ASSET_TIMEOUT = 60
 
     def __init__(self):
         super().__init__()
         self.version = 2
         self.column = 1
         self.row = 1
-        tc_name = "ty"
-        tc_binary = find_binary(tc_name)
-        if isinstance(tc_binary, Error):
-            raise tc_binary.error
-        tc_server = LSPServer(name=tc_name, binary=str(tc_binary.value), parameters=["server"])
+        tc_server = LSPServer(name="ty", binary=find_ty_bin(), parameters=["server"])
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
         self.lsp_initialize()
-        # Find free port and start Monaco server
-        self.port = self.find_free_port()
-        self.server = monaco_assets.MonacoServer(port=self.port)
-        timeout = 30  # seconds
-        start_time = time.time()
-        while not self.server.is_running() and (time.time() - start_time) < timeout:
-            time.sleep(0.1)
-        if not self.server.is_running():
-            self.logger.error("Warning: Monaco server did not start within %d seconds", timeout)
+        self._assets_dir: Path | None = None
+        self._asset_signals = _AssetDownloadSignals()
+        self._asset_window: QDialog | None = None
+        self._asset_progress_bar: QProgressBar | None = None
+        if not monaco_assets.has_cached_assets():
+            self._asset_window, self._asset_progress_bar = self._create_download_window()
+            self._asset_window.show()
+            self._asset_window.raise_()
+            self._asset_window.activateWindow()
+        thread = threading.Thread(
+            target=self._prepare_assets, args=(self._asset_signals,), daemon=True
+        )
+        thread.start()
         self.editor_page = CodeEditorPage()
         self.setPage(self.editor_page)
         settings = self.page().settings()
-        settings.setAttribute(
-            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
-        )
         settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
         self.channel = QWebChannel()
         self.backend = EditorBackend(self)
         self.channel.registerObject("editor_backend", self.backend)
         self.page().setWebChannel(self.channel)
-        html_path = resources.files("matr1x") / "resources" / "editor.html"
-        editor_url = QUrl.fromLocalFile(str(html_path))
-        editor_url.setQuery(f"port={self.port}")
+        self._wait_for_assets()
+        profile = self.page().profile()
+        previous = profile.urlSchemeHandler(b"monaco")
+        if previous is not None:
+            profile.removeUrlSchemeHandler(previous)
+        handler = MonacoAssetHandler(self._assets_dir, profile)
+        profile.installUrlSchemeHandler(b"monaco", handler)
+        editor_url = QUrl("monaco://localhost/editor.html")
         self.load(editor_url)
         loop = QEventLoop()
         success = False
@@ -544,7 +595,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.loadFinished.disconnect(_load_finished)
         if not success:
             message = (
-                f"Editor page failed to load from {html_path}. The renderer "
+                f"Editor page failed to load from {editor_url}. The renderer "
                 "process may have died; check the QtWebEngine installation "
                 "and environment (e.g. set QTWEBENGINE_CHROMIUM_FLAGS="
                 "--no-sandbox when running inside a restrictive sandbox)."
@@ -558,6 +609,63 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self._current_theme: str
         self._system_info: SystemInfo
         self.create_connections()
+
+    def _prepare_assets(self, signals: _AssetDownloadSignals) -> None:
+        """Locate the Monaco asset cache, downloading it if necessary."""
+        try:
+            self._assets_dir = monaco_assets.get_path(
+                progress_callback=lambda done, total: signals.progress.emit(
+                    done, -1 if total is None else total
+                )
+            )
+        except Exception as e:
+            self.logger.error("Failed to prepare Monaco assets: %s", e)
+        finally:
+            signals.finished.emit()
+
+    def _wait_for_assets(self) -> None:
+        """Spin the event loop until the assets are ready or the timeout hits."""
+        loop = QEventLoop()
+        self._asset_signals.progress.connect(self._update_download_progress)
+        self._asset_signals.finished.connect(loop.quit)
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(loop.quit)
+        timer.start(self.ASSET_TIMEOUT * 1000)
+        loop.exec()
+        timer.stop()
+        if self._asset_window is not None:
+            self._asset_window.close()
+        if self._assets_dir is None:
+            self.logger.error(
+                "Monaco assets not available after %d seconds; the editor may not load.",
+                self.ASSET_TIMEOUT,
+            )
+
+    def _update_download_progress(self, done: int, total: int) -> None:
+        """Update the download progress bar; total is -1 if unknown."""
+        bar = self._asset_progress_bar
+        if bar is None:
+            return
+        if total > 0:
+            bar.setRange(0, total)
+            bar.setValue(done)
+        else:
+            bar.setRange(0, 0)
+
+    @staticmethod
+    def _create_download_window() -> tuple[QDialog, QProgressBar]:
+        """Create the window shown while the assets are downloaded."""
+        window = QDialog()
+        window.setWindowTitle("matr1x")
+        layout = QVBoxLayout(window)
+        label = QLabel("Downloading editor assets…")
+        bar = QProgressBar()
+        bar.setRange(0, 0)  # indeterminate until the total size is known
+        layout.addWidget(label)
+        layout.addWidget(bar)
+        window.resize(360, 100)
+        return window, bar
 
     def create_connections(self) -> None:
         """Create connections between signals and slots."""

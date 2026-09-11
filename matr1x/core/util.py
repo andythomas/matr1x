@@ -23,19 +23,15 @@ system configuration.
 
 import importlib.util
 import logging
+import math
 import os
-import site
 import subprocess
 import sys
-import sysconfig
 import textwrap
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
-
-import h5py
-import numpy as np
 
 from matr1x.core.error_handling import Error, Result, Success
 
@@ -167,41 +163,6 @@ def create_temp_dir_with_symlinks(
     return temp_dir
 
 
-def get_matrix_binary() -> str:
-    """
-    Find matrix binary from PATH and otherwise try known Python binary folders.
-
-    This executes "matrix --help" to test if this works without error. If no
-    executable is found an FileNotFoundError will be raised.
-
-    Returns
-    -------
-    str
-        Name of the matrix binary.
-
-    Raises
-    ------
-    FileNotFoundError
-        If matrix executable could not be found.
-    """
-    user_scripts_path = Path(sysconfig.get_path("scripts", f"{os.name}_user"))
-    system_scripts_path = Path(sysconfig.get_path("scripts"))
-
-    for matrix_str in (
-        "matrix",  # Check PATH first
-        str(user_scripts_path / "matrix"),
-        str(system_scripts_path / "matrix"),
-    ):
-        try:
-            subprocess.check_call(
-                [matrix_str, "--help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            return matrix_str
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            continue
-    raise FileNotFoundError("matrix executable could not be found")
-
-
 def module_from_path(filename: Path) -> "types.ModuleType":
     """
     Create a module from a file path.
@@ -230,14 +191,14 @@ def module_from_path(filename: Path) -> "types.ModuleType":
 
 
 def get_formatted_line(
-    vlist: list, prefix: str = "", appendix: str = "", column_width: int = 10
+    vlist: Iterable[Any], prefix: str = "", appendix: str = "", column_width: int = 10
 ) -> str:
     """
     Output a formatted line with data values.
 
     Parameters
     ----------
-    vlist : list
+    vlist : iterable
         List of values to format.
     prefix : str, optional
         Prefix for the line. Default is "".
@@ -468,46 +429,6 @@ def construct_query_string(query_dict: dict, depth: int = 2) -> str:
     return ret
 
 
-def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) -> None:
-    """
-    Save a dictionary to an HDF5 file in a hierachical data group.
-
-    Parameters
-    ----------
-    data_dict : dict
-        The dictionary to be saved.
-    hdf5_file : h5py.File
-        File handle of the HDF5 file to save the data to.
-    root_group : str
-        The name of the root group in the HDF5 file.
-
-    Notes
-    -----
-    This function recursively writes nested dictionaries to HDF5 groups and
-    datasets. Lists are converted to datasets, and scalar values are saved as
-    attributes.
-    """
-
-    def write_dict(group: h5py.Group, d: dict) -> None:
-        """Recursively write a dictionary to an HDF5 group."""
-        for key, value in d.items():
-            if isinstance(value, dict):
-                # Create a subgroup for nested dictionaries
-                subgroup = group.create_group(key)
-                write_dict(subgroup, value)
-            elif isinstance(value, list):
-                # Convert lists to datasets
-                group.create_dataset(key, data=value)
-            else:
-                # Save scalar values
-                group.attrs[key] = value
-
-    # Create or get the specified root group
-    group = hdf5_file.require_group(root_group)
-
-    write_dict(group, data_dict)
-
-
 def init_ascii_header(file_handle, columns, units, separator):
     """
     Initialize the header of the measurement file using the given telemetry.
@@ -527,60 +448,7 @@ def init_ascii_header(file_handle, columns, units, separator):
     file_handle.write(separator.join(units) + "\n")
 
 
-def init_hdf5_skel(
-    file_handle, columns: list[str], units: list[str], dtypes, chunks: list[int]
-) -> None:
-    """
-    Initialize a HDF5 file skeleton for a measurement file.
-
-    Parameters
-    ----------
-    file_handle : h5py.File
-        Opened HDF5 file that the header should be written to.
-    columns : list
-        Column names written into the header.
-    units : list
-        Column units to be written into the header.
-    chunks : list
-        List of ints that define the chunk length of the individual datasets.
-    dtypes : list
-        List of strings specifying the dtype of the individual datasets.
-    """
-    # lazy import of h5py to only load it when it is required
-    import h5py
-
-    data_grp = file_handle.create_group("data")
-    dt = np.dtype(
-        [
-            ("message", h5py.string_dtype(encoding="utf-8")),
-            ("timestamp", h5py.string_dtype(encoding="utf-8")),
-        ]
-    )
-    # Create an empty dataset for comments
-    file_handle.create_dataset("comments", shape=(0,), maxshape=(None,), dtype=dt)
-    for col, uni, chu, dtype in zip(columns, units, chunks, dtypes):
-        if isinstance(chu, tuple):
-            data_grp.create_dataset(
-                col,
-                (0, *chu),
-                maxshape=(None, *chu),
-                chunks=(1, *chu),
-                dtype=dtype,
-                compression=True,
-            )
-        else:
-            data_grp.create_dataset(
-                col,
-                (0,),
-                maxshape=(None,),
-                chunks=(chu,),
-                dtype=dtype,
-                compression=True,
-            )
-        data_grp[col].attrs["unit"] = uni
-
-
-def flatten(iterable, types=(tuple, list, np.ndarray)):
+def flatten(iterable: Iterable[Any], types: tuple[type[Any], ...] | None = None) -> Iterator[Any]:
     """
     Recursively flatten an iterable to have only one dimension.
 
@@ -589,13 +457,18 @@ def flatten(iterable, types=(tuple, list, np.ndarray)):
     iterable : iterable
         The iterable to be flattened.
     types : tuple, optional
-        Types to be considered for flattening, by default (tuple, list, np.ndarray).
+        Types to be considered for flattening, by default (tuple, list, ndarray).
 
     Yields
     ------
     Any
         Elements from the flattened iterable.
     """
+    if types is None:
+        from numpy import ndarray
+
+        types = (tuple, list, ndarray)
+
     for el in iterable:
         if isinstance(el, types) and not isinstance(el, (str, bytes)):
             yield from flatten(el, types=types)
@@ -621,7 +494,7 @@ def get_pt100_temp(res: float) -> float:
     a = 3.9083e-3
     b = -5.775e-7
     r0 = 100
-    return (-a * r0 + np.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
+    return (-a * r0 + math.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
 
 
 class Command:
@@ -853,49 +726,27 @@ def run_python_cmdline(
         return Error(e)
 
 
-def find_binary(binary: str) -> Result[Path, FileNotFoundError]:
+def matrix_cmdline(*args: str) -> list[str]:
     """
-    Find a binary.
+    Generate a command line that runs matrix in a subprocess.
+
+    The matrix module is executed directly with the current Python
+    interpreter, so the subprocess is guaranteed to use the same
+    environment.
 
     Parameters
     ----------
-    binary : str
-        The name of the binary to find.
+    *args : str
+        Command line arguments for matrix (without the binary name).
 
     Returns
     -------
-    Result[str, Exception]
-        Either the path to the binary or an exception.
+    list[str]
+        Command to pass to ``subprocess.Popen`` or ``subprocess.run``.
     """
-    if sys.platform.startswith("win"):
-        possible_locations = [
-            Path(sys.prefix) / "Scripts" / f"{binary}.exe",
-            Path(sys.executable).parent / f"{binary}.exe",
-            Path(sys.executable).parent / "Scripts" / f"{binary}.exe",
-        ]
-        if site.USER_BASE is not None:
-            possible_locations += [
-                Path(site.USER_BASE)
-                / f"Python{sys.version_info[0]}{sys.version_info[1]}"
-                / "Scripts"
-                / f"{binary}.exe",
-                Path(site.USER_BASE) / "Scripts" / f"{binary}.exe",
-            ]
-
-        for location in possible_locations:
-            if location.exists():
-                return Success(location)
-        locations_str = "\n".join(f"  - {loc}" for loc in possible_locations)
-        return Error(
-            FileNotFoundError(
-                f"LSP binary '{binary}.exe' not found in any of these locations:\n{locations_str}"
-            )
-        )
-    else:
-        result = Path(sys.prefix) / "bin" / binary
-        if not result.exists():
-            return Error(FileNotFoundError(f"LSP binary not found: {result}"))
-        return Success(result)
+    argv = ["matrix", *args]
+    cmd = f"import sys\nsys.argv = {argv!r}\nfrom matr1x.scripts.matrix import main\nmain()"
+    return [sys.executable, "-c", cmd]
 
 
 class StreamToLogger:

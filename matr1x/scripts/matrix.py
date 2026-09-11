@@ -645,7 +645,7 @@ def measurementloop(
             else:
                 setvalues.append(setv)
 
-        datacb(SetValues(flatten(setvalues)))
+        datacb(SetValues(list(flatten(setvalues))))
         preread = time.time()
         if datapoint[-1] == 1:  # logpoint argument
             system.trigger()

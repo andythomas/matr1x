@@ -2,6 +2,7 @@
 name = "matr1x-measurements"
 version = "8.5.0"
 description = "Python package for data acquisition and instrument control"
+readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE.txt"]
@@ -32,7 +33,7 @@ dependencies = [
     "wrapt > 2.0",                                  # devices
     "urwid > 2.0",                                  # TUI (scripts.matrix)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
-    "monaco-assets >= 0.5.1",                       # gui.editor (matrix-script)
+    "monaco-assets == 0.7.1",                        # gui.editor (matrix-script)
     "ruff == 0.15.22",                              # gui.editor (run as subprocess)
     "ty == 0.0.63",                                 # gui.editor (run as subprocess)
     "pymeasure >= 0.16.0",                          # core and device drivers

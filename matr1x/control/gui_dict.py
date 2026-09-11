@@ -22,7 +22,6 @@ import logging
 import re
 import sys
 import threading
-from collections import UserDict
 from collections.abc import Callable
 from enum import IntEnum
 from operator import attrgetter
@@ -52,7 +51,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from matr1x.core.system import System
+from matr1x.core.system import MergedSystem, System
 from matr1x.gui.app import MApplication
 from matr1x.gui.meta_viewer import validator
 from matr1x.gui.mixins import AutoSlot
@@ -969,7 +968,7 @@ class var(QObject):
                     raise
 
 
-class GuiDict(UserDict[str, var]):
+class GuiDict(dict[str, var]):
     """
     Custom dictionary representing elements and commands of the control GUI.
 
@@ -1011,6 +1010,7 @@ class GuiDict(UserDict[str, var]):
     """
 
     cmds: ClassVar[dict[str, Command]] = {}
+    data: ClassVar[dict[str, var]] = {}
     refresh_period: float = 1.0
     allow_disabling: bool = False
 
@@ -1264,7 +1264,7 @@ class GuiDict(UserDict[str, var]):
         This is done to avoid logging or reporting something not
         updated.
         """
-        for variable in self.data.values():
+        for variable in self.values():
             variable.value = None
         for cmd in self.cmds.values():
             cmd.reset_to_None()
@@ -1277,6 +1277,10 @@ class GuiDict(UserDict[str, var]):
             self.S.set()
             # convert command function names to executables
             self.set_cmd_funcs(window_obj=self.parent, system=self.S)
+            merged = self.S.merged_system
+            if isinstance(merged, MergedSystem):
+                merged.refresh_devs()
+                merged.opened = any(subsystem.opened for subsystem in merged.subsys)
             self.restoreFeatures()
             self.running = True
             self._refresh_thread.start()
@@ -1345,7 +1349,7 @@ class GuiDict(UserDict[str, var]):
                 return setfunc, ()
         elif cmd.setfunc in self:  # if GuiDict.data entry
 
-            def setfunc(value, c=self.data[cmd.setfunc]):
+            def setfunc(value, c=self[cmd.setfunc]):
                 c.value = value
 
             return setfunc, ()
@@ -1419,7 +1423,7 @@ class GuiDict(UserDict[str, var]):
                 return getfunc, ()
         elif cmd.getfunc in self:  # if GuiDict.data entry
 
-            def getfunc(c=self.data[cmd.getfunc]):
+            def getfunc(c=self[cmd.getfunc]):
                 return c.value
 
             return getfunc, ()

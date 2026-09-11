@@ -33,6 +33,7 @@ import matr1x.core.util
 from matr1x import output_extension
 from matr1x.core.execthread import ExecThread
 from matr1x.core.models import ExecutionLines, MeasurementData
+from matr1x.core.util import matrix_cmdline
 
 
 def test_matrix_dummy(input_dir: Path, tmp_path: Path):
@@ -51,7 +52,7 @@ def test_matrix_dummy(input_dir: Path, tmp_path: Path):
     """
     inputfile = input_dir / "sys_dummy_sweep_all.5t"
     outputfile = tmp_path / f"{inputfile.stem}{output_extension}"
-    cmd = [matr1x.core.util.get_matrix_binary(), "-i", str(inputfile), "-o", str(outputfile)]
+    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile))
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
@@ -83,14 +84,7 @@ def test_matrix_dummy_merged(input_dir: Path, tmp_path: Path):
     """
     inputfile = input_dir / "sys_dummy_merged.8t"
     outputfile = tmp_path / f"test_merged{output_extension}"
-    cmd = [
-        matr1x.core.util.get_matrix_binary(),
-        "-i",
-        str(inputfile),
-        "-o",
-        str(outputfile),
-        "--plain",
-    ]
+    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile), "--plain")
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0
@@ -122,14 +116,7 @@ def test_matrix_dummy_hdf5(input_dir: Path, tmp_path: Path):
     """
     inputfile = input_dir / "sys_dummy_hdf5_sweep.3t"
     outputfile = tmp_path / f"test_hdf5.h5{output_extension}"
-    cmd = [
-        matr1x.core.util.get_matrix_binary(),
-        "-i",
-        str(inputfile),
-        "-o",
-        str(outputfile),
-        "--plain",
-    ]
+    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile), "--plain")
     print(subprocess.list2cmdline(cmd))
     ret = subprocess.run(cmd, check=False)
     assert ret.returncode == 0

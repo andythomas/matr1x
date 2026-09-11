@@ -37,13 +37,13 @@ from matr1x.gui.shared import (
 
 __all__ = [
     "ContentDockWidget",
+    "MMainWindow",
+    "MToolBar",
     "MeasurementItem",
     "MeasurementTable",
     "MeasurementThread",
     "MeasurementUI",
     "MetaDataDialog",
-    "MMainWindow",
-    "MToolBar",
     "Notifier",
     "NotifierMessage",
     "SaferQSettings",

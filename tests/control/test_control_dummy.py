@@ -31,7 +31,7 @@ import tempfile
 import threading
 import time
 from importlib.metadata import entry_points
-from typing import cast
+from typing import ClassVar, cast
 
 import polars as pl
 import pytest
@@ -213,10 +213,10 @@ def test_control_window_uses_unique_guidict_system_names(qapp, qtbot):
     """Implicit GuiDict systems use their unique names after merging."""
 
     class FirstPanel(GuiDict):
-        data = {"First": var(None, columns="Readout")}
+        data: ClassVar[dict[str, var]] = {"First": var(None, columns="Readout")}
 
     class SecondPanel(GuiDict):
-        data = {"Second": var(None, columns="Readout")}
+        data: ClassVar[dict[str, var]] = {"Second": var(None, columns="Readout")}
 
     window = ControlWindow("named-systems", [FirstPanel, SecondPanel])
     qtbot.addWidget(window)
@@ -234,11 +234,11 @@ def test_control_window_rejects_duplicate_system_names(qapp):
 
     class FirstPanel(GuiDict):
         S = System(name="shared")
-        data = {"First": var(None, columns="Readout")}
+        data: ClassVar[dict[str, var]] = {"First": var(None, columns="Readout")}
 
     class SecondPanel(GuiDict):
         S = System(name="shared")
-        data = {"Second": var(None, columns="Readout")}
+        data: ClassVar[dict[str, var]] = {"Second": var(None, columns="Readout")}
 
     with pytest.raises(ValueError):
         ControlWindow("duplicate-systems", [FirstPanel, SecondPanel])
@@ -249,7 +249,7 @@ def test_methodbundle_guidict_method_runs_on_gui_thread(qapp, qtbot):
 
     class MethodBundleDict(GuiDict):
         change_bundle = MethodBundle()
-        data = {
+        data: ClassVar[dict[str, var]] = {
             "MethodBundle": var(None, columns="Readout"),
             "Value": var(int, columns=go.labeltext, modify=[change_bundle, None]),
         }

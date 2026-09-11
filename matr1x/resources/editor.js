@@ -10,16 +10,9 @@ let webChannelReady = false;
 let monacoReady = false;
 let monacoLoaderRequested = false;
 
-const DEFAULT_MONACO_PORT = "54529";
-
 // Enable additional debug logging level
 console.debug = (...args) => {
   console.log("[DEBUG]", ...args);
-};
-
-const resolveMonacoPort = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get("port") || DEFAULT_MONACO_PORT;
 };
 
 // Initialize both systems independently
@@ -53,7 +46,7 @@ const initializeMonacoEditor = () => {
   }
 
   require.config({
-    paths: { vs: `http://localhost:${window.MONACO_PORT}/min/vs` },
+    paths: { vs: "monaco://localhost/min/vs" },
   });
 
   require(["vs/editor/editor.main"], () => {
@@ -411,7 +404,6 @@ window.insertText = (text) => {
 
 // Initialize the editor immediately
 initializeWebChannel();
-window.MONACO_PORT = resolveMonacoPort();
 
 const loadMonacoLoader = () => {
   if (window.require && typeof window.require.config === "function") {
@@ -424,7 +416,7 @@ const loadMonacoLoader = () => {
   }
 
   const loaderScript = document.createElement("script");
-  loaderScript.src = `http://localhost:${window.MONACO_PORT}/min/vs/loader.js`;
+  loaderScript.src = "monaco://localhost/min/vs/loader.js";
   loaderScript.onload = () => {
     monacoLoaderRequested = false;
     initializeMonacoEditor();
