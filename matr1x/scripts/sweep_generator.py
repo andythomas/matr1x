@@ -16,8 +16,7 @@
 """
 Generate sweeps for matrix via a straightforward GUI.
 
-It heavily relies on numpy.linspace for the creation of the sweep
-segments.
+Sweep segments are generated with a small linear-spacing helper.
 """
 
 import logging
@@ -25,14 +24,13 @@ import re
 import sys
 import time
 from ast import literal_eval
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import cached_property
-from math import floor
+from math import floor, isfinite
 from pathlib import Path
 from typing import Any
 
-import numpy
 import pyqtgraph as pg
 from pydantic import BaseModel, Field
 from PySide6.QtCore import QObject, QPointF, Qt, Signal
@@ -82,7 +80,7 @@ from matr1x.gui.helpers import (
     save_messagebox,
 )
 from matr1x.gui.logging import LoggingWindow
-from matr1x.gui.meta_viewer import validator
+from matr1x.gui.meta_viewer import uint_validator, validator
 from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
 from matr1x.gui.plot import CustomViewBox
 from matr1x.gui.shared import (
@@ -112,6 +110,39 @@ if sys.platform == "win32":
         pass
 
 logger = logging.getLogger(__name__)
+
+
+def _linspace(start: float, stop: float, num: int) -> list[float]:
+    """
+    Return `num` evenly spaced points from start to stop (inclusive).
+
+    Parameters
+    ----------
+    start
+        First value of the sequence.
+    stop
+        Last value of the sequence.
+    num
+        Number of points to generate.
+
+    Returns
+    -------
+    list[float]
+        The evenly spaced values, empty if num is not positive.
+    """
+    if num <= 0:
+        return []
+    if num == 1:
+        return [start]
+    step = (stop - start) / (num - 1)
+    values = [start + i * step for i in range(num)]
+    values[-1] = stop
+    return values
+
+
+def has_non_finite(values: Sequence[float]) -> bool:
+    """Return True if any value is NaN or infinite."""
+    return any(not isfinite(v) for v in values)
 
 
 @dataclass(frozen=True)
@@ -261,44 +292,97 @@ class ColumnData(BaseModel):
             List of sweeps that contains all parameters that are to be
             set.
         """
-        loop_over = self.loop_over.copy()
         lenA = len(self.parameter)
         if lenA == 0:
             return Success([])
-        if len(loop_over) != lenA or len(self.up_down) != lenA or len(self.repeat) != lenA:
+        if not len(self.loop_over) == len(self.up_down) == len(self.repeat) == lenA:
             return Error("The length of the arrays is not equal.")
+        loop_over = self.loop_over.copy()
         sweeps: list[list[float]] = []
-        for indexS, parmSets in zip(range(lenA), self.parameter):
-            i = 0
-            sweeps.append([])
-            while i < self.repeat[indexS]:
-                tempSweep = []
-                for parm in parmSets:
-                    # generate the sweepRange using np.linspace, has to be list
-                    # so += works
-
-                    sweepRange = numpy.linspace(float(parm[0]), float(parm[1]), int(parm[2]))
-                    if any(numpy.isnan(sweepRange)) or any(numpy.isinf(sweepRange)):
-                        return Error("Inf or Nan in sweep, check parameters")
-                    tempSweep += list(sweepRange)
-                if self.up_down[indexS]:
-                    # if up down is true, add the reversed sweep to the sweep
-                    tempSweep += list(reversed(tempSweep))
-                sweeps[indexS] += tempSweep
-                i += 1
+        for indexS, parmSets in enumerate(self.parameter):
+            segment = self._calculate_segment_sweeps(indexS, parmSets)
+            if isinstance(segment, Error):
+                return segment
+            sweeps.append(segment.value)
         # check if there are loops of loops and detect hirarchy so we
         # can properly generate the sweep
-        hirarchy = []
-        for i in range(lenA):
+        hirarchy = self._calculate_hirarchy()
+        if isinstance(hirarchy, Error):
+            return hirarchy
+        self._expand_sweeps(sweeps, loop_over, hirarchy.value)
+        return Success(sweeps)
+
+    def _calculate_segment_sweeps(
+        self, indexS: int, parmSets: list[list[float | int | str]]
+    ) -> Result[list[float], str]:
+        """
+        Generate the repeated sweep segments for one parameter set.
+
+        Parameters
+        ----------
+        indexS
+            Index of the parameter set within the sweep.
+        parmSets
+            Parameter triples (start, stop, points) of one sweep column.
+
+        Returns
+        -------
+        Result
+            The generated values, or an Error if a segment contains
+            non-finite values.
+        """
+        tempSweep: list[float] = []
+        for _ in range(self.repeat[indexS]):
+            segment: list[float] = []
+            for parm in parmSets:
+                # generate the sweepRange as a list so += works
+                sweepRange = _linspace(float(parm[0]), float(parm[1]), int(parm[2]))
+                if has_non_finite(sweepRange):
+                    return Error("Inf or Nan in sweep, check parameters")
+                segment += sweepRange
+            if self.up_down[indexS]:
+                # if up down is true, add the reversed sweep to the sweep
+                segment += list(reversed(segment))
+            tempSweep += segment
+        return Success(tempSweep)
+
+    def _calculate_hirarchy(self) -> Result[list[int], str]:
+        """
+        Determine the loop hirarchy of all sweep columns.
+
+        Returns
+        -------
+        Result
+            The hirarchy depth of each column, or an Error if a
+            recursive loop is detected.
+        """
+        hirarchy: list[int] = []
+        for i in range(len(self.parameter)):
             result = self.check_depth(i)
             if isinstance(result, Error):
                 # Recursive loop, you should really not do that!
                 # (i.e. don't loop col(a) over col(b) over col(a)!)
                 return Error("Recursive loop, please check loop over")
             hirarchy.append(result.value)
-        hCnt = max(hirarchy)
-        while hCnt >= 0:
-            for indexS in range(lenA):
+        return Success(hirarchy)
+
+    def _expand_sweeps(
+        self, sweeps: list[list[float]], loop_over: list[int], hirarchy: list[int]
+    ) -> None:
+        """
+        Expand the sweeps into loops of loops, in place.
+
+        Parameters
+        ----------
+        sweeps
+            Sweep values per column, expanded in place.
+        loop_over
+            Loop definition per column, modified in place.
+        hirarchy
+            Hirarchy depth of each column.
+        """
+        for hCnt in range(max(hirarchy), -1, -1):
+            for indexS in range(len(sweeps)):
                 if indexS == loop_over[indexS]:
                     # looping a column over itself is not how it's done!
                     loop_over[indexS] = -1
@@ -308,13 +392,11 @@ class ColumnData(BaseModel):
                     col = loop_over[indexS]
                     tempSweep = sweeps[indexS].copy()
                     # copy the initial sweep to be looped
-                    for j in range(len(sweeps[col]) - 1):
+                    for _ in range(len(sweeps[col]) - 1):
                         # for each element in the looped over column append the
                         # initial sweep
                         sweeps[indexS] += tempSweep
                     loop_over[indexS] = -1
-            hCnt -= 1
-        return Success(sweeps)
 
     def check_depth(self, index: int, depth: int = 0) -> Result[int, int]:
         """
@@ -556,7 +638,7 @@ class ColumnGenerator(QObject):
 
         points_widget = LineEditFocus()
         points_widget.setAlignment(Qt.AlignmentFlag.AlignRight)
-        points_widget.setValidator(validator[numpy.uint])
+        points_widget.setValidator(uint_validator)
         points_widget.focusIn.connect(lambda: self.select_grid_column.emit(self.column))
 
         append_widget = QPushButton("+")
@@ -922,7 +1004,7 @@ class SweepPreviewPopup(QDialog):
         """Update the plot to show sweep[index] against its range."""
         self.pw.getAxis("left").textWidth = 0
         length = len(self.sweep[index])
-        self.plt.setData(x=numpy.linspace(0, length, length), y=self.sweep[index], symbol="o")
+        self.plt.setData(x=list(range(length)), y=self.sweep[index], symbol="o")
         self.pw.setLabel("bottom", "index")
         self.pw.setLabel(
             "left",
@@ -1422,7 +1504,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 line_edit = QLineEdit(self)
                 line_edit.setText(str(param_set[i]))
                 if i == 2:
-                    line_edit.setValidator(validator[numpy.uint])
+                    line_edit.setValidator(uint_validator)
                 else:
                     line_edit.setValidator(validator[float])
                 line_edit.editingFinished.connect(

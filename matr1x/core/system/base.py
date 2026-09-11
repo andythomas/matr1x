@@ -33,7 +33,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, ClassVar, TypeGuard, TypeVar, cast
 
-import numpy as np
 from pydantic import BaseModel, ValidationError
 
 import matr1x.core.config as core_config
@@ -1939,14 +1938,18 @@ class System:
         # query info from the devices
         self.query_dict = self.query()
         # prepare file definitions (column header and units)
-        telemetry = [list(flatten(self.columns)), list(flatten(self.units))]
+        flatten_lists = (tuple, list)
+        telemetry = [
+            list(flatten(self.columns, types=flatten_lists)),
+            list(flatten(self.units, types=flatten_lists)),
+        ]
         # prepare datafile
         if self.hdf5 is True:
             import h5py
 
             from matr1x.core.hdf5 import init_hdf5_skel, save_dict_to_hdf5
 
-            telemetry.append(list(flatten(self.dtypes)))
+            telemetry.append(list(flatten(self.dtypes, types=flatten_lists)))
             telemetry.append(list(flatten(self.chunks, types=(list,))))
             with h5py.File(self.filename, "w", libver="latest") as data_file:
                 data_file.swmr_mode = True
@@ -1991,64 +1994,60 @@ class System:
         self._datafile_initialized = True
         return ("Creating new datafile", self.filename)
 
-    def take_measurement_point(self, datafilename: Path | None = None):
-        """
-        Take one reading from all devices and save it to the datafile.
+    @staticmethod
+    def _save_hdf5_value(dataset: Any, value: Any) -> Any:
+        """Append a value to an HDF5 dataset and return its display value."""
+        chunk_size = dataset.chunks[0]
+        dataset.resize(dataset.shape[0] + chunk_size, axis=0)
+        dataset[-chunk_size:] = value
+        if chunk_size > 1 or len(dataset.chunks) > 1:
+            return f"[{next(flatten(value))}, ...]"
+        return value
 
-        Parameters
-        ----------
-        datafilename : Path, optional
-            Filename where to save the measurement. If not specified, the
-            internally stored filename is used.
+    def _take_hdf5_measurement_point(self, datafilename: Path) -> list[Any]:
+        """Read and append one measurement point to an HDF5 data file."""
+        import h5py
 
-        Returns
-        -------
-        list
-            List of values read from the devices.
-        """
+        values: list[Any] = []
+        for i, col in enumerate(self.columns):
+            value = self.read_value(i)
+            with h5py.File(datafilename, "a", libver="latest") as datafile:
+                datafile.swmr_mode = True
+                assert datafile.swmr_mode
+                if isinstance(col, (list, tuple)):
+                    for j, column in enumerate(col):
+                        values.append(self._save_hdf5_value(datafile["data/" + column], value[j]))
+                else:
+                    values.append(self._save_hdf5_value(datafile["data/" + col], value))
+
+        return values
+
+    def _take_ascii_measurement_point(self, datafilename: Path) -> list[Any]:
+        """Read and append one measurement point to an ASCII data file."""
+        values: list[Any] = []
+        for i, _ in enumerate(self.columns):
+            value = self.read_value(i)
+            if isinstance(value, Iterable) and not isinstance(value, (str, bytes, Mapping)):
+                # Expand multi-value readouts into their output columns.
+                values.extend(value)
+            else:
+                values.append(value)
+
+        with datafilename.open("a", encoding="utf-8") as datafile:
+            datafile.write(default_separator.join(str(value) for value in values))
+            datafile.write("\n")
+
+        return values
+
+    def take_measurement_point(self, datafilename: Path | None = None) -> list[Any]:
+        """Take one reading from all devices and save it to the datafile."""
         dfilename = datafilename or self.filename
         if not isinstance(dfilename, Path):
             raise TypeError("datafilename must be specified or initialized")
         if self.hdf5:
-            import h5py
+            return self._take_hdf5_measurement_point(dfilename)
 
-            def h5save(h5d, val):
-                csize = h5d.chunks[0]
-                h5d.resize(h5d.shape[0] + csize, axis=0)
-                h5d[-csize:] = val
-                if csize > 1 or len(h5d.chunks) > 1:
-                    return f"[{next(flatten(val))}, ...]"
-                return val
-
-        return_list = []
-        for i, col in enumerate(self.columns):
-            value = self.read_value(i)
-            if self.hdf5 is True:
-                with h5py.File(dfilename, "a", libver="latest") as datafile:
-                    datafile.swmr_mode = True
-                    assert datafile.swmr_mode
-                    if isinstance(col, (list, tuple)):
-                        for j, column in enumerate(col):
-                            ret = h5save(datafile["data/" + column], value[j])
-                            return_list.append(ret)
-                    else:
-                        ret = h5save(datafile["data/" + col], value)
-                        return_list.append(ret)
-            else:
-                if isinstance(value, (np.ndarray, list, tuple)):
-                    # in case we get an iterable cast to list and append
-                    return_list += list(value)
-                else:
-                    return_list.append(value)
-
-        if self.hdf5 is False:
-            with Path(dfilename).open("a", encoding="utf-8") as datafile:
-                # write datapoint to file
-                datafile.write(default_separator.join(str(v) for v in return_list))
-                datafile.write("\n")
-
-        # return device readout as list
-        return return_list
+        return self._take_ascii_measurement_point(dfilename)
 
     def add_comment(self, message: str) -> None:
         """
@@ -2081,16 +2080,7 @@ class System:
                 # Resize the dataset to accommodate the new comment string
                 current_size = comments.shape[0]
                 comments.resize((current_size + 1,))
-                new_entry = np.array(
-                    [
-                        (
-                            message,
-                            timestamp,
-                        )
-                    ],
-                    dtype=comments.dtype,
-                )
-                comments[current_size] = new_entry
+                comments[current_size] = (message, timestamp)
         else:
             with Path(dfilename).open("a", encoding="utf-8") as datafile:
                 # write comment to file

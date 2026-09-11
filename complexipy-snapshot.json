@@ -92,10 +92,6 @@
         "complexity": 24
       },
       {
-        "name": "System::take_measurement_point",
-        "complexity": 25
-      },
-      {
         "name": "Parameter::__init__",
         "complexity": 51
       }
@@ -278,16 +274,6 @@
       {
         "name": "uninstall_core_desktopintegration",
         "complexity": 19
-      }
-    ]
-  },
-  {
-    "path": "matr1x/scripts/sweep_generator.py",
-    "file_name": "sweep_generator.py",
-    "functions": [
-      {
-        "name": "ColumnData::calculate_sweep",
-        "complexity": 32
       }
     ]
   }
