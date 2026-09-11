@@ -23,67 +23,18 @@ package as well as functions for processing data in the preview.
 import ast
 import re
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any
 
-import h5py
 import numpy as np
 import pandas as pd
+
+from matr1x.core.models import HeaderDict, create_empty_header
 
 __all__ = ["HeaderDict", "delta", "delta3p", "loadmatrix"]
 
 ######################
 # File handling
 ######################
-RequiredHeader = TypedDict(
-    "RequiredHeader",
-    {
-        "columns": list[str],
-        "units": list[str],
-        "comments": list[str],
-        "status": str | None,
-        "system query": dict[str, Any],
-        "input filename": str,
-        "system filename": str,
-    },
-)
-
-
-OptionalFields = TypedDict(
-    "OptionalFields",
-    {
-        "dcterms:creator": str,
-        "dcterms:date": str,
-        "dcterms:identifier": str,
-        "dcterms:relation": str,
-        "dcterms:description": str,
-        "dcterms:source": str,
-        "dcterms:type": str,
-        "dcterms:publisher": str,
-        "dcterms:format": str,
-        "dcterms:language": str,
-    },
-    total=False,
-)
-
-
-class HeaderDict(RequiredHeader, OptionalFields):
-    """Header dictionary with optional fields."""
-
-
-def create_empty_header() -> HeaderDict:
-    """Create an empty HeaderDict with all required fields initialized."""
-    return cast(
-        HeaderDict,
-        {
-            "columns": [],
-            "units": [],
-            "comments": [],
-            "status": None,
-            "system query": {},
-            "input filename": "",
-            "system filename": "",
-        },
-    )
 
 
 def _is_hdf5(filename: Path) -> bool:
@@ -438,137 +389,6 @@ def _parse_query_string(query: str) -> dict:
     return parsed_data
 
 
-def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
-    """
-    Load a dictionary from an HDF5 file.
-
-    This function reads data from an HDF5 file and returns it as a
-    nested dictionary. It recursively traverses the HDF5 file structure,
-    converting groups to subdictionaries and datasets to array-like
-    objects.
-
-    Parameters
-    ----------
-    hdf5_file : h5py.File
-        An open HDF5 file object.
-    root_group : str
-        The name of the root group to start reading from.
-
-    Returns
-    -------
-    dict
-        A nested dictionary representing the structure and data of the
-        HDF5 file.
-
-    Notes
-    -----
-    This function assumes that the HDF5 file is already open when passed
-    as an argument. It's the caller's responsibility to close the file
-    after use.
-    """
-
-    def read_group(group: h5py.Group):
-        """
-        Recursively read an HDF5 group into a dictionary.
-
-        This includes the attributes.
-        """
-        d = {}
-
-        # Read attributes from the group
-        for key, value in group.attrs.items():
-            d[key] = value
-
-        # Read subgroups and datasets
-        for key, item in group.items():
-            if isinstance(item, h5py.Group):
-                # Recursively read subgroups
-                d[key] = read_group(item)
-            elif isinstance(item, h5py.Dataset):
-                # Read dataset as list
-                d[key] = item[:]
-
-        return d
-
-    # Get the specified root group
-    if root_group in hdf5_file:
-        group = hdf5_file[root_group]
-    else:
-        raise KeyError(f"Group '{root_group}' not found in the HDF5 file.")
-    if not isinstance(group, h5py.Group):
-        raise TypeError(f"Expected group '{root_group}' to be a group, got {type(group)}")
-
-    return read_group(group)
-
-
-def _load_hdf5_file(
-    filename: Path, structured: bool
-) -> tuple[HeaderDict, np.ndarray | dict[str, np.ndarray]]:
-    """
-    Load data from HDF5 file format.
-
-    Parameters
-    ----------
-    filename : Path
-        Path to the HDF5 file
-    structured : bool
-        Whether to return structured array
-
-    Returns
-    -------
-    tuple[HeaderDict, np.ndarray | dict[str, np.ndarray]]
-        Header information and data
-    """
-    header = create_empty_header()
-
-    # use swmr read mode, to avoid corrupting the data during the
-    # measurement (where it is written to by the matrix process)
-    with h5py.File(filename, "r", swmr=True, libver="latest", locking=False) as h5f:
-        h5g = h5f["data"]
-
-        if not isinstance(h5g, h5py.Group):
-            raise TypeError(f"Expected 'data' to be a Group, got {type(h5g).__name__}")
-
-        # populate header fields from HDF5
-        header["columns"] = list(h5g.keys())
-        header["units"] = [it.attrs["unit"] for it in h5g.values()]
-
-        # check whether comments exist in file
-        if (h5com := h5f.get("comments")) and isinstance(h5com, h5py.Dataset):
-            for entry in h5com:
-                message = entry[0].decode("utf-8")
-                timestamp = entry[1].decode("utf-8")
-                header["comments"].append(f"{timestamp}: {message}")
-
-        # parse additional attributes
-        for key, val in h5f.attrs.items():
-            header[key.lower()] = "" if val == "__None__" else val
-
-        # parse System query entry into hierarchical dictionary
-        if filename.suffix == ".ma8":
-            header["system query"] = _load_dict_from_hdf5(h5f, "system query")
-
-        # generate data object as structured array
-        dtypeslist = []
-        # the following line relies on the fact that the first item has
-        # the correct length, the code fails later if there are unequal
-        # length
-        npoints = len(next(iter(h5g.values())))
-        for name, v in h5g.items():
-            if len(v.shape) == 1:
-                dtypeslist.append((name, v.dtype))
-            else:
-                dtypeslist.append((name, v.dtype, v.shape[1:]))
-        try:
-            data = np.empty(npoints, dtype=np.dtype(dtypeslist))
-            for name, v in h5g.items():
-                data[name] = v[...]
-        except ValueError:  # occurs for unequal data length in 1D arrays
-            data = {name: v[...] for name, v in h5g.items()}
-
-    return header, data
-
-
 def _process_header_lines(
     line: str, key: str | None, val: str | None, header: HeaderDict
 ) -> tuple[str | None, str | None]:
@@ -824,7 +644,10 @@ def loadmatrix(
         raise NotImplementedError("The option structured=False is not supported for hdf5 files")
 
     if _is_hdf5(filename):
-        header, data = _load_hdf5_file(filename, structured)
+        # deferred import so that h5py is only loaded for HDF5 files
+        from matr1x.core import hdf5
+
+        header, data = hdf5.load_hdf5_file(filename, structured)
     else:
         header, data = _load_text_file(filename, structured, replace_None)
 

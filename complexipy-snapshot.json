@@ -30,10 +30,6 @@
         "complexity": 16
       },
       {
-        "name": "_load_hdf5_file",
-        "complexity": 18
-      },
-      {
         "name": "_process_header_lines",
         "complexity": 18
       },

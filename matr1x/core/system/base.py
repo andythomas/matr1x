@@ -53,10 +53,8 @@ from matr1x.core.util import (
     default_separator,
     flatten,
     init_ascii_header,
-    init_hdf5_skel,
     module_from_path,
     resolve_config_path,
-    save_dict_to_hdf5,
 )
 
 BUILTIN_TYPES = frozenset(obj for obj in vars(builtins).values() if isinstance(obj, type))
@@ -1948,6 +1946,8 @@ class System:
         # prepare datafile
         if self.hdf5 is True:
             import h5py
+
+            from matr1x.core.hdf5 import init_hdf5_skel, save_dict_to_hdf5
 
             telemetry.append(list(flatten(self.dtypes, types=flatten_lists)))
             telemetry.append(list(flatten(self.chunks, types=(list,))))
