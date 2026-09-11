@@ -203,7 +203,7 @@ def test_stateful_system_list_swaps_conflicting_states(qapp, monkeypatch):
     monkeypatch.setattr(system_list, "test_import", lambda _source: Success(capability))
     monkeypatch.setattr(system_list, "systems_changed", lambda: None)
 
-    system_list.add_systems(["example::primary", "example::secondary"])
+    system_list.add_systems(["first::primary", "second::secondary"])
     first = system_list.item(0)
     second = system_list.item(1)
 
@@ -211,6 +211,25 @@ def test_stateful_system_list_swaps_conflicting_states(qapp, monkeypatch):
 
     assert SystemReference.from_value(first.text()).state == "secondary"
     assert SystemReference.from_value(second.text()).state == "primary"
+
+
+def test_stateful_system_list_rejects_conflicting_classes_across_sources(qapp, monkeypatch):
+    """Same-named classes cannot occupy one state exclusion group twice."""
+    system_list = SystemListWidget(report_config_errors=False)
+    capability = SystemCapability(
+        source="example",
+        stateful=True,
+        states=("primary", "secondary"),
+        state_exclusion_groups={"primary": "shared", "secondary": "shared"},
+        class_name="ExampleSystem",
+    )
+    monkeypatch.setattr(system_list, "test_import", lambda _source: Success(capability))
+    monkeypatch.setattr(system_list, "systems_changed", lambda: None)
+
+    system_list.add_systems(["first::primary", "second::secondary"])
+
+    assert system_list.count() == 1
+    assert SystemReference.from_value(system_list.item(0).text()).state == "primary"
 
 
 def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
