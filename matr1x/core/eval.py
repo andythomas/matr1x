@@ -140,9 +140,7 @@ def _is_multiline_start(value: str) -> bool:
     return value.startswith('"') and not value.endswith('"')
 
 
-def _store_multiline_value(
-    parsed_data: dict, path_stack: list, current_key, multiline_value
-):
+def _store_multiline_value(parsed_data: dict, path_stack: list, current_key, multiline_value):
     """
     Store a completed multiline value in the appropriate dict location.
 
@@ -265,9 +263,7 @@ def _process_key_value_pair(
         return None, [], False
 
 
-def _process_top_level_key_value(
-    line: str, parsed_data: dict
-) -> tuple[str | None, list, bool]:
+def _process_top_level_key_value(line: str, parsed_data: dict) -> tuple[str | None, list, bool]:
     """
     Process a key-value pair at the top level of the configuration.
 
@@ -341,15 +337,11 @@ def _parse_query_string(query: str) -> dict:
 
         # Handle multiline value continuation
         if in_multiline:
-            if _handle_multiline_continuation(
-                line, path_stack, multiline_value, multiline_level
-            ):
+            if _handle_multiline_continuation(line, path_stack, multiline_value, multiline_level):
                 continue
 
             # End of multiline entry, store it
-            _store_multiline_value(
-                parsed_data, path_stack, current_key, multiline_value
-            )
+            _store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
             in_multiline = False
             multiline_value = []
             multiline_level = 0
@@ -405,9 +397,7 @@ def _process_header_lines(
     """Process lines that start with hashtag to extract header information."""
     if line[1] == "#":  # multiline entry
         if key is None:
-            raise ValueError(
-                "Multiline entry found before any single-line entry in header"
-            )
+            raise ValueError("Multiline entry found before any single-line entry in header")
 
         # Process the line based on entry type
         if key == "system query":
@@ -452,9 +442,7 @@ def _process_column_unit_lines(
 
     # Check if we should break based on file type
     should_break = False
-    if (
-        headerlines == 3 or extension == ".ma8" and headerlines == 2
-    ):  # for ma6, ma7 files
+    if headerlines == 3 or extension == ".ma8" and headerlines == 2:  # for ma6, ma7 files
         should_break = True
 
     return headerlines, should_break
@@ -463,9 +451,7 @@ def _process_column_unit_lines(
 def _process_special_lines(matrix_file, header: HeaderDict) -> None:
     """Process special lines (comments and status) that appear after main content."""
     # Read further special lines in the file
-    special_lines = [
-        (i, line) for i, line in enumerate(matrix_file) if line.startswith("#")
-    ]
+    special_lines = [(i, line) for i, line in enumerate(matrix_file) if line.startswith("#")]
 
     # combine multiline comments and note after which datapoint the comment was in the file
     lastdpoint = -1
@@ -490,9 +476,7 @@ def _process_special_lines(matrix_file, header: HeaderDict) -> None:
         lastdpoint = dpoint
 
 
-def _process_text_file_content(
-    filename: Path, extension: str, header: HeaderDict
-) -> int:
+def _process_text_file_content(filename: Path, extension: str, header: HeaderDict) -> int:
     """
     Process the content of a text file to extract header information and special lines.
 
@@ -559,9 +543,9 @@ def _parse_text_polars(filename: str | Path) -> tuple[HeaderDict, pl.DataFrame]:
     if extension == ".ma8":
         # Reconstruct proper structure by adding the header line
         system_query_content = f"# system query :{header['system query']}"
-        header["system query"] = _parse_query_string(
-            system_query_content.replace(r"\"", '"')
-        )["system query"]
+        header["system query"] = _parse_query_string(system_query_content.replace(r"\"", '"'))[
+            "system query"
+        ]
 
     # Clean up string values in header (except for core fields)
     core_fields = {"columns", "units", "comments", "status", "system query"}
@@ -694,9 +678,7 @@ def loadmatrix(
         raise NotImplementedError("This option was removed.")
     if _is_hdf5(filename):
         if to_polars:
-            raise NotImplementedError(
-                "The option to_polars=True is not supported for hdf5 files"
-            )
+            raise NotImplementedError("The option to_polars=True is not supported for hdf5 files")
         if not structured:
             raise NotImplementedError(
                 "The option structured=False is not supported for hdf5 files"
@@ -716,7 +698,7 @@ def loadmatrix(
         header, data = _load_text_file(filename, structured, to_polars)
     if print_header is True:
         # generate list of tuples with index and column name
-        print(list(enumerate(header["columns"])))
+        print(list(enumerate(header["columns"])))  # noqa: T201
     return header, data
 
 
@@ -803,10 +785,7 @@ def delta_polars(data: pl.DataFrame, *, column: str | None = None) -> pl.LazyFra
         .agg(
             (pl.col(column).sum() / 2).alias("pos"),
             (
-                pl.when(pl.col("_odd") == 0)
-                .then(pl.col(column))
-                .otherwise(-pl.col(column))
-                .sum()
+                pl.when(pl.col("_odd") == 0).then(pl.col(column)).otherwise(-pl.col(column)).sum()
                 / 2
             ).alias("neg"),
         )
