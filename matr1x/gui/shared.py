@@ -512,7 +512,11 @@ class SystemListWidget(QListWidget):
         state = reference.state or self._first_state_in_free_group(capability)
         if state is None:
             self.message.emit(
-                NotifierMessage(f"{candidate} already uses every available state group.")
+                NotifierMessage(
+                    f"{candidate} was omitted: stateful class '{capability.class_name}' "
+                    "already uses every available state group; state groups are shared "
+                    "across all sources."
+                )
             )
         elif state not in capability.states:
             self.message.emit(
@@ -523,7 +527,9 @@ class SystemListWidget(QListWidget):
         elif self._group_is_used(capability.class_name, capability.state_exclusion_groups[state]):
             self.message.emit(
                 NotifierMessage(
-                    f"{candidate} state {state!r} conflicts with an already selected state.",
+                    f"{candidate} state {state!r} conflicts with an already selected state "
+                    f"of stateful class '{capability.class_name}'; state groups are shared "
+                    "across all sources.",
                     level=logging.WARNING,
                 )
             )
