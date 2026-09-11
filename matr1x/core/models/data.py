@@ -17,7 +17,7 @@
 
 import logging
 import math
-from typing import Any, final
+from typing import Any, TypedDict, cast, final
 
 from pydantic import BaseModel, Field
 
@@ -39,6 +39,58 @@ class Header(BaseModel):
             get_formatted_line(flatten(self.units)),
         ]
         return "\n".join(lines)
+
+
+RequiredHeader = TypedDict(
+    "RequiredHeader",
+    {
+        "columns": list[str],
+        "units": list[str],
+        "comments": list[str],
+        "status": str | None,
+        "system query": dict[str, Any],
+        "input filename": str,
+        "system filename": str,
+    },
+)
+
+
+OptionalFields = TypedDict(
+    "OptionalFields",
+    {
+        "dcterms:creator": str,
+        "dcterms:date": str,
+        "dcterms:identifier": str,
+        "dcterms:relation": str,
+        "dcterms:description": str,
+        "dcterms:source": str,
+        "dcterms:type": str,
+        "dcterms:publisher": str,
+        "dcterms:format": str,
+        "dcterms:language": str,
+    },
+    total=False,
+)
+
+
+class HeaderDict(RequiredHeader, OptionalFields):
+    """Header dictionary with optional fields."""
+
+
+def create_empty_header() -> HeaderDict:
+    """Create an empty HeaderDict with all required fields initialized."""
+    return cast(
+        HeaderDict,
+        {
+            "columns": [],
+            "units": [],
+            "comments": [],
+            "status": None,
+            "system query": {},
+            "input filename": "",
+            "system filename": "",
+        },
+    )
 
 
 @final
