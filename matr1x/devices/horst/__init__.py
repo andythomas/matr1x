@@ -15,4 +15,4 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Module for Horst temperature controllers."""
 
-from .htmc import HorstManualMode, HTMC11
+from .htmc import HTMC11, HorstManualMode
