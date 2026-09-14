@@ -1222,12 +1222,14 @@ class MeasurementThread(QThread, LoggerMixin):
                 port = s.getsockname()[1]
                 s.listen(1)
                 cmd = self._generate_processfile(port, tmp_scriptfile, tmp_config_file)
+                creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
                 self.proc = subprocess.Popen(
                     cmd,
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     bufsize=0,
+                    creationflags=creationflags,
                 )
                 self.conn, _ = s.accept()
                 s.close()

@@ -788,7 +788,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 "-c",
                 f"from matr1x.scripts import matrix_preview; matrix_preview.main(file=r'{output}')",
             ]
-            subprocess.Popen(preview)
+            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            subprocess.Popen(preview, creationflags=creationflags)
 
 
 def main() -> None:

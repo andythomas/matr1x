@@ -348,6 +348,7 @@ def get_system_info(
         "print(json.dumps(info))\n"
     )
     try:
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         result = subprocess.run(
             [
                 sys.executable,
@@ -356,6 +357,7 @@ def get_system_info(
             ],
             capture_output=True,
             timeout=30,
+            creationflags=creationflags,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
@@ -402,10 +404,12 @@ def get_system_capability(source: str) -> Result[SystemCapability, str]:
         "print(result.value.model_dump_json())\n"
     )
     try:
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         result = subprocess.run(
             [sys.executable, "-c", script],
             capture_output=True,
             timeout=30,
+            creationflags=creationflags,
             check=False,
         )
     except Exception as error:
@@ -448,7 +452,12 @@ def open_matrix_toml() -> None:
         )
         return
     if os.name == "nt":
-        subprocess.run(["explorer", f"/select,{toml_home.resolve(strict=False)}"], check=False)
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        subprocess.run(
+            ["explorer", f"/select,{toml_home.resolve(strict=False)}"],
+            creationflags=creationflags,
+            check=False,
+        )
     elif sys.platform == "darwin":
         subprocess.run(["open", "-R", toml_home], check=False)
     else:

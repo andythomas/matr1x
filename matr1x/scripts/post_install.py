@@ -301,7 +301,13 @@ def check_system_specifics() -> bool:
         return result
     elif "windows" in os_type:
         os.environ["PYTHONUTF8"] = "1"
-        subprocess.run(["setx", "PYTHONUTF8", "1"], check=True, capture_output=True)
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        subprocess.run(
+            ["setx", "PYTHONUTF8", "1"],
+            check=True,
+            capture_output=True,
+            creationflags=creationflags,
+        )
         return True
     return True
 

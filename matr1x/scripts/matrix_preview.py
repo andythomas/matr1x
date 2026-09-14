@@ -513,7 +513,8 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             "-c",
             "from matr1x.scripts import matrix_preview; matrix_preview.main()",
         ]
-        subprocess.Popen(preview)
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        subprocess.Popen(preview, creationflags=creationflags)
 
     def _create_connections(self) -> None:
         """Connect actions with application logic."""

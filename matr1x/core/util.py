@@ -152,9 +152,11 @@ def create_temp_dir_with_symlinks(
         link_path = temp_path / name
 
         if os.name == "nt":
+            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             subprocess.check_call(
                 ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
                 stdout=subprocess.DEVNULL,
+                creationflags=creationflags,
             )
         else:
             link_path.symlink_to(target_path)

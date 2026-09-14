@@ -1298,7 +1298,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 f"matrix_preview.main(file=r'{self.measurement_file}')"
             ),
         ]
-        subprocess.Popen(preview)
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        subprocess.Popen(preview, creationflags=creationflags)
 
     def _load_file_from_signal(self, filename: str) -> None:
         """Convert string to Path for opening file."""

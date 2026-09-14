@@ -104,11 +104,13 @@ class AboutBox(QMessageBox):
         python_info = self.get_python_interpreter_info()
         # Get system and Qt information
         system_type = platform.system().lower()
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         result = subprocess.run(
             "qmake6 --version | grep -oE '6[.][0-9]+[.][0-9]+'",
             shell=True,
             text=True,
             capture_output=True,
+            creationflags=creationflags,
             check=False,
         )
         if result.returncode == 0:
