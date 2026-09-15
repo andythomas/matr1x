@@ -808,6 +808,7 @@ class MeasurementTable(ReadOnlyTable):
     def __init__(self) -> None:
         """Initialize the table with the standard measurement columns."""
         super().__init__()
+        self._value_groups: list[int | None] = []
         self.setColumnCount(4)
         self.setRowCount(1)
         self.setHorizontalHeaderLabels(["Parameter", "Set value", "Readout value", "unit"])
@@ -840,6 +841,9 @@ class MeasurementTable(ReadOnlyTable):
 
     def apply_header(self, header: Header) -> None:
         """Set the parameter names and units from a header payload."""
+        self._value_groups = [
+            len(column) if isinstance(column, (list, tuple)) else None for column in header.columns
+        ]
         count = len(header.columns)
         self.setRowCount(count)
         for index, item in enumerate(header.columns):
@@ -857,11 +861,21 @@ class MeasurementTable(ReadOnlyTable):
 
     def apply_measured_values(self, values: MeasuredValues) -> None:
         """Set the readout values, converting a trailing timestamp."""
-        for index, item in enumerate(values.measured_values):
+        measured_values = values.measured_values
+        if self._value_groups:
+            # Measurements are flat, but table rows follow parameter groups.
+            flat_values = iter(measured_values)
+            measured_values = [
+                next(flat_values, None)
+                if size is None
+                else [next(flat_values, None) for _ in range(size)]
+                for size in self._value_groups
+            ]
+        for index, item in enumerate(measured_values):
             self._set_value(index, 2, item)
-        last_index = len(values.measured_values) - 1
-        last_value = values.measured_values[last_index] if last_index >= 0 else None
-        if last_value is None:
+        last_index = len(measured_values) - 1
+        last_value = measured_values[last_index] if last_index >= 0 else None
+        if last_value is None or isinstance(last_value, list):
             return
         try:
             utc = QDateTime.fromSecsSinceEpoch(int(last_value), QTimeZone.utc())
@@ -875,6 +889,7 @@ class MeasurementTable(ReadOnlyTable):
 
     def reset(self) -> None:
         """Reset the table to a single empty row."""
+        self._value_groups.clear()
         self.setRowCount(1)
         for i in range(self.columnCount()):
             self.setItem(0, i, QTableWidgetItem(""))
