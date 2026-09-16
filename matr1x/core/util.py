@@ -54,6 +54,8 @@ if TYPE_CHECKING:
 # default separator
 default_separator = "\t"
 
+SUBPROCESS_CREATION_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
 _USER_SCRIPT_START_MARKER = "# ==== BEGIN USER SCRIPT AREA ===="
 _USER_SCRIPT_END_MARKER = "# ==== END USER SCRIPT AREA ===="
 _USER_SCRIPT_INSERTION_POINT = "    # USER_SCRIPT_INSERTION_POINT"
@@ -152,11 +154,10 @@ def create_temp_dir_with_symlinks(
         link_path = temp_path / name
 
         if os.name == "nt":
-            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             subprocess.check_call(
                 ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
                 stdout=subprocess.DEVNULL,
-                creationflags=creationflags,
+                creationflags=SUBPROCESS_CREATION_FLAGS,
             )
         else:
             link_path.symlink_to(target_path)
@@ -704,11 +705,8 @@ def run_python_cmdline(
         error.
     """
     python_exec = Path(sys.executable)
-    creationflags = 0
-    if sys.platform == "win32":
-        creationflags = subprocess.CREATE_NO_WINDOW
-        if python_exec.name == "pythonw.exe":
-            python_exec = python_exec.parent / "python.exe"
+    if sys.platform == "win32" and python_exec.name == "pythonw.exe":
+        python_exec = python_exec.parent / "python.exe"
     cmd = [str(python_exec)] + cmd
 
     try:
@@ -718,7 +716,7 @@ def run_python_cmdline(
             text=True,
             timeout=timeout,
             input=stdin,
-            creationflags=creationflags,
+            creationflags=SUBPROCESS_CREATION_FLAGS,
             check=False,
         )
         if result.returncode != 0:

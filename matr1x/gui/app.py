@@ -54,6 +54,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QTextEdit, QWidget
 
 from matr1x.core.error_handling import InternalInvariantError
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 
 from .helpers import _format_local_timestamp, get_install_info
 
@@ -104,13 +105,12 @@ class AboutBox(QMessageBox):
         python_info = self.get_python_interpreter_info()
         # Get system and Qt information
         system_type = platform.system().lower()
-        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         result = subprocess.run(
             "qmake6 --version | grep -oE '6[.][0-9]+[.][0-9]+'",
             shell=True,
             text=True,
             capture_output=True,
-            creationflags=creationflags,
+            creationflags=SUBPROCESS_CREATION_FLAGS,
             check=False,
         )
         if result.returncode == 0:

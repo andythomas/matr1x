@@ -76,7 +76,12 @@ from matr1x.core.models import (
     SetValues,
     Telemetry,
 )
-from matr1x.core.util import StreamToLogger, generate_script, get_script_prefix_offset
+from matr1x.core.util import (
+    SUBPROCESS_CREATION_FLAGS,
+    StreamToLogger,
+    generate_script,
+    get_script_prefix_offset,
+)
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.editor import CodeEditor
 from matr1x.gui.error_dialog import install_qt_error_dialog
@@ -1298,8 +1303,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
                 f"matrix_preview.main(file=r'{self.measurement_file}')"
             ),
         ]
-        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        subprocess.Popen(preview, creationflags=creationflags)
+        subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 
     def _load_file_from_signal(self, filename: str) -> None:
         """Convert string to Path for opening file."""

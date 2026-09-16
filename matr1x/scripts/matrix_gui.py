@@ -56,6 +56,7 @@ from matr1x.core.models import (
     Telemetry,
 )
 from matr1x.core.system import MergedSystem
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.helpers import (
@@ -788,8 +789,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 "-c",
                 f"from matr1x.scripts import matrix_preview; matrix_preview.main(file=r'{output}')",
             ]
-            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            subprocess.Popen(preview, creationflags=creationflags)
+            subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 
 
 def main() -> None:
