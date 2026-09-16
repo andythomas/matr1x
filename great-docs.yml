@@ -82,12 +82,17 @@ reference:
     contents:
       - name: core.system.base:System
         members: false
+      - core.system.base:System.states
+      - core.system.base:System.state_exclusion_groups
       - core.system.base:System.add_param
       - core.system.base:System.add_dev
       - core.system.base:System.set
       - core.system.base:System.reset
       - core.system.base:System.name # property
       - core.system.base:System.hdf5 # property
+      - core.system.base:System.add_comment
+      - core.system.base:System.report
+      - core.system.base:System.load_config
 
   # ── Control GUI framework ───────────────────────────────────────────
   - title: Control
@@ -97,10 +102,12 @@ reference:
         members: false
       - name: control.gui_dict:GuiDict
         members: false
+      # GuiDict building blocks, in typical authoring order
+      - control.gui_dict:var
+      - control.gui_dict:guiObject
       - control.gui_dict:MethodBundle
       - control.gui_dict:catchEmitError
-      - control.gui_dict:guiObject
-      - control.gui_dict:var
+      # Standalone helpers (alphabetical)
       - control.util:control_main
       - control.util:linear_trend
       - control.util:sendNotificationEmail
@@ -151,8 +158,6 @@ reference:
         members: false
       - devices.scpi_dev:makeSCPIdevice
       - devices:scpiPORTdrivers
-      - devices:listToStr
-      - devices:strToList
 
   - title: Device Drivers
     desc: One entry per vendor package; all driver classes are public
