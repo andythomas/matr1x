@@ -92,7 +92,7 @@ from matr1x.core.models import (
     SystemInfo,
     SystemReference,
 )
-from matr1x.core.util import matrix_cmdline
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, matrix_cmdline
 from matr1x.gui.app import MApplication, SaferQSettings
 from matr1x.gui.helpers import get_matrix_icon, get_system_capability, get_system_info
 from matr1x.gui.meta_viewer import ConfigEditWidget, blocked_signals
@@ -1228,6 +1228,7 @@ class MeasurementThread(QThread, LoggerMixin):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     bufsize=0,
+                    creationflags=SUBPROCESS_CREATION_FLAGS,
                 )
                 self.conn, _ = s.accept()
                 s.close()

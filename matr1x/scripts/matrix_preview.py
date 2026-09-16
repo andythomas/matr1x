@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
 import matr1x
 from matr1x.core.error_handling import expect_not_none, install_error_handler
 from matr1x.core.eval import HeaderDict, _is_hdf5, create_empty_header, loadmatrix
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.helpers import (
@@ -514,7 +515,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             "-c",
             "from matr1x.scripts import matrix_preview; matrix_preview.main()",
         ]
-        subprocess.Popen(preview)
+        subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 
     def _create_connections(self) -> None:
         """Connect actions with application logic."""
