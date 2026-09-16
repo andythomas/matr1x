@@ -16,6 +16,7 @@
 """Module for Horst HTMC11 bakeout controller."""
 
 import enum
+import time
 
 import serial
 from wrapt import synchronized
@@ -39,7 +40,15 @@ class HTMC11(ModbusDevice):
     protocol.
     """
 
-    def __init__(self, portname, slaveaddress, baudrate=115200):
+    def __init__(
+        self,
+        portname,
+        slaveaddress,
+        baudrate=115200,
+        request_delay=0.02,
+        write_delay=0.1,
+        startup_delay=0.5,
+    ):
         """
         Initialize Horst HTMC11 bakeout controller.
 
@@ -51,9 +60,40 @@ class HTMC11(ModbusDevice):
             Modbus slave address of the device
         baudrate : int, optional
             Serial communication speed in baud. Default is 115200
+        request_delay : float, optional
+            Minimum time in seconds between Modbus requests. Default is 0.02.
+        write_delay : float, optional
+            Minimum time in seconds between Modbus writes. Default is 0.1.
+        startup_delay : float, optional
+            Time in seconds to wait after opening the serial connection before
+            the first register request. Default is 0.5.
         """
         super().__init__(portname, slaveaddress, baudrate, parity=serial.PARITY_NONE)
+        if request_delay < 0:
+            raise ValueError("request_delay cannot be negative")
+        if write_delay < request_delay:
+            raise ValueError("write_delay cannot be less than request_delay")
+        if startup_delay < 0:
+            raise ValueError("startup_delay cannot be negative")
+        self.request_delay = request_delay
+        self.write_delay = write_delay
+        self._last_request_time: float | None = None
+        time.sleep(startup_delay)
         self._number_of_decimals = int(self.read_register(0x1D00)) + 1
+
+    def _wait_for_request(self, delay: float) -> None:
+        """Wait until the controller can accept another Modbus request."""
+        if self._last_request_time is not None:
+            elapsed = time.monotonic() - self._last_request_time
+            if elapsed < delay:
+                time.sleep(delay - elapsed)
+        self._last_request_time = time.monotonic()
+
+    @synchronized
+    def read_register(self, *args, **kwargs):
+        """Read a register after observing the controller request delay."""
+        self._wait_for_request(self.request_delay)
+        return super().read_register(*args, **kwargs)
 
     @synchronized
     def write_register(self, *args, **kwargs) -> None:
@@ -72,6 +112,7 @@ class HTMC11(ModbusDevice):
         None
         """
         kwargs["functioncode"] = 6
+        self._wait_for_request(self.write_delay)
         super().write_register(*args, **kwargs)
 
     @property
@@ -301,13 +342,13 @@ class HTMC11(ModbusDevice):
         return self.read_register(0x4300, 1)
 
     @cycle_time.setter
-    def cycle_time(self, value: int) -> None:
+    def cycle_time(self, value: float) -> None:
         """
         Set the cycle time.
 
         Parameters
         ----------
-        value : int
+        value : float
             The cycle time value to set.
         """
         self.write_register(0x4300, value * 10)
