@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import TypedDict, no_type_check
 
 import numpy as np
+import polars as pl
 import pyqtgraph
 import pyqtgraph.exporters
 from PySide6.QtCore import QEvent, QKeyCombination, QObject, Qt, QThread, Signal
@@ -44,7 +45,7 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x.core.error_handling import expect_not_none, install_error_handler
-from matr1x.core.eval import HeaderDict, create_empty_header, loadmatrix
+from matr1x.core.eval import HeaderDict, _is_hdf5, create_empty_header, loadmatrix
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.helpers import (
@@ -375,7 +376,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.units: list[str] = []
         self.shapes: list[tuple[int, ...]] = []
         self.header: HeaderDict = create_empty_header()
-        self.data: np.ndarray | dict[str, np.ndarray] = np.array([])
+        self.data: pl.DataFrame | np.ndarray | dict[str, np.ndarray] = np.array([])
 
         self.setWindowTitle("Matrix Preview")
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-preview.png"))
@@ -855,10 +856,16 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         """Handle the data operations."""
         try:
             ret = 0
-            self.header, self.data = loadmatrix(str(self.filename), replace_None=True)
+            filename = expect_not_none(
+                self.filename, "Trying to fetch data, but filename is None!"
+            )
+            if _is_hdf5(filename):
+                self.header, self.data = loadmatrix(str(filename))
+            else:
+                self.header, self.data = loadmatrix(str(filename), to_polars=True)
             names = self.header["columns"]
             units = self.header["units"]
-            shapes = [self.data[col].shape for col in names]
+            shapes = [self._col(col).shape for col in names]
             if check:
                 if self.names != names:
                     ret = -1
@@ -888,6 +895,12 @@ Please investigate the error and eventually restart matrix-preview""",
         # update timer
         self.lu_time = time.time()
         return ret
+
+    def _col(self, name: str) -> np.ndarray:
+        """Return a data column as a numpy array (object dtype preserved)."""
+        if isinstance(self.data, pl.DataFrame):
+            return self.data[name].to_numpy()
+        return self.data[name]
 
     def reload_data(self) -> None:
         """
@@ -948,7 +961,7 @@ Please investigate the error and eventually restart matrix-preview""",
             else:
                 dim = len(self.shapes[index])
                 name = self.names[index]
-                data = self.data[name]
+                data = self._col(name)
 
                 if data.size == 0:
                     return -9
@@ -1092,7 +1105,7 @@ Please investigate the error and eventually restart matrix-preview""",
 
             yname = self.names[indexY]
 
-            y_data = self.data[yname]
+            y_data = self._col(yname)
             if self.ui.widgets.transpose.isChecked() is True and dim == 2:
                 y_data = y_data.T
 
@@ -1121,7 +1134,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 "label": yname,
                 "desig": indexY + 1,
                 "unit": self.units[indexY],
-                "data": self.data[yname],
+                "data": self._col(yname),
                 "shape": self.shapes[indexY],
                 "dim": len(self.shapes[indexY]),
             }
@@ -1130,7 +1143,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 "label": xname,
                 "desig": indexX + 1,
                 "unit": self.units[indexX],
-                "data": self.data[xname],
+                "data": self._col(xname),
                 "shape": self.shapes[indexX],
                 "dim": len(self.shapes[indexX]),
             }
