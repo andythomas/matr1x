@@ -1,0 +1,7 @@
+/* Custom great-docs overrides (see `site.css` in great-docs.yml). */
+
+/* Disable the animated sparkle next to the "Skills" link on the homepage. */
+.gd-sparkle,
+.gd-sparkle-curated {
+  display: none;
+}

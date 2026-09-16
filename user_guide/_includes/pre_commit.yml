@@ -26,6 +26,14 @@ repos:
     language: system
     types_or: [python, pyi]
 
+  # Check package import contracts across the whole project
+  - id: lint-imports
+    name: import linter
+    entry: uv run lint-imports
+    language: system
+    pass_filenames: false
+    always_run: true
+
   # Run complexipy using local complexipy
   - id: complexipy
     name: complexipy

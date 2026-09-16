@@ -45,11 +45,13 @@ from matr1x.core.models.data import (
     Datafile,
     ExecutionLines,
     Header,
+    HeaderDict,
     InputParameters,
     LogEntry,
     MeasuredValues,
     SetValues,
     Telemetry,
+    create_empty_header,
 )
 from matr1x.core.models.socket import (
     Envelope,
@@ -80,6 +82,7 @@ __all__ = [
     "GPIBVisaResource",
     "GuiField",
     "Header",
+    "HeaderDict",
     "InputParameters",
     "LocalTCPIPSocketVisaResource",
     "LogEntry",
@@ -114,5 +117,6 @@ __all__ = [
     "UserlibConfig",
     "UserlibInstallConfig",
     "VisaResource",
+    "create_empty_header",
     "format_validation_error",
 ]

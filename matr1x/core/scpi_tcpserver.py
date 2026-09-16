@@ -25,8 +25,6 @@ import socketserver
 import threading
 import time
 
-import numpy
-
 from matr1x.core.config import datetimefmt
 
 DEFAULT_PORT = 8898
@@ -124,7 +122,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
             logger.debug("getter is None for command: %s", cmd)
             return "None"
         if callable(c.getfunc):
-            if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
+            if isinstance(c.dtype, (tuple, list)):
                 return ",".join(str(r) for r in c.getfunc(*c.getargs))
             elif c.dtype is bytes:
                 return c.getfunc(*c.getargs)
@@ -179,7 +177,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         try:
             # for listed values, split value into individual
             # values and cast to approprated "subtypes"
-            if isinstance(c.dtype, (tuple, list, numpy.ndarray)):
+            if isinstance(c.dtype, (tuple, list)):
                 values = value.split(",")
                 castval = []
                 for i, tp in enumerate(c.dtype):

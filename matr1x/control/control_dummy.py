@@ -105,7 +105,7 @@ class exampleDict(GuiDict):
         ":v4": Command(bool, ("dummy", "p6"), "V4"),
         ":v2rd": Get(bool, "v2ready"),
     }
-    data = {
+    data: ClassVar[dict[str, var]] = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
         "V1": var(
             dtype=str,
@@ -323,7 +323,7 @@ class exampleDict2(GuiDict):
     cmds: ClassVar[dict[str, Command]] = {
         ":v5": Command(float, "v5", "V5"),
     }
-    data = {
+    data: ClassVar[dict[str, var]] = {
         "Example2": var(None, columns="Readout"),
         "V5": var(float, columns=go.labeltext, unit="mbar"),
         " ": var(None, columns=go.hline, hide=True),

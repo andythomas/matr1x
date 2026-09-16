@@ -28,6 +28,7 @@ from pathlib import Path
 
 import matr1x as matr1xpackage
 import matr1x.core.config as core_config
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.helpers import get_install_info
 from matr1x.gui.shared import SaferQSettings
 
@@ -227,9 +228,7 @@ def run_powershell(command: str) -> str:
         ["powershell", "-WindowStyle", "Hidden", "-Command", command],
         capture_output=True,
         text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW
-        if hasattr(subprocess, "CREATE_NO_WINDOW")
-        else 0,
+        creationflags=SUBPROCESS_CREATION_FLAGS,
         check=False,
     )
     if completed.returncode != 0:
@@ -301,7 +300,12 @@ def check_system_specifics() -> bool:
         return result
     elif "windows" in os_type:
         os.environ["PYTHONUTF8"] = "1"
-        subprocess.run(["setx", "PYTHONUTF8", "1"], check=True, capture_output=True)
+        subprocess.run(
+            ["setx", "PYTHONUTF8", "1"],
+            check=True,
+            capture_output=True,
+            creationflags=SUBPROCESS_CREATION_FLAGS,
+        )
         return True
     return True
 

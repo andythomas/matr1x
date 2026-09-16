@@ -59,7 +59,7 @@ from matr1x.core.models import (
     SystemInfo,
     SystemReference,
 )
-from matr1x.core.util import get_package_path
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, get_package_path
 
 logger = logging.getLogger(__name__)
 
@@ -356,6 +356,7 @@ def get_system_info(
             ],
             capture_output=True,
             timeout=30,
+            creationflags=SUBPROCESS_CREATION_FLAGS,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
@@ -406,6 +407,7 @@ def get_system_capability(source: str) -> Result[SystemCapability, str]:
             [sys.executable, "-c", script],
             capture_output=True,
             timeout=30,
+            creationflags=SUBPROCESS_CREATION_FLAGS,
             check=False,
         )
     except Exception as error:
@@ -448,7 +450,11 @@ def open_matrix_toml() -> None:
         )
         return
     if os.name == "nt":
-        subprocess.run(["explorer", f"/select,{toml_home.resolve(strict=False)}"], check=False)
+        subprocess.run(
+            ["explorer", f"/select,{toml_home.resolve(strict=False)}"],
+            creationflags=SUBPROCESS_CREATION_FLAGS,
+            check=False,
+        )
     elif sys.platform == "darwin":
         subprocess.run(["open", "-R", toml_home], check=False)
     else:

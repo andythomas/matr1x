@@ -31,6 +31,7 @@ from PySide6.QtCore import (
 )
 
 from matr1x.core.error_handling import Error, Result, Success
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.mixins import LoggerMixin
 
 from .lsp_protocol import (
@@ -67,9 +68,6 @@ class LSPClient(QObject, LoggerMixin):
     def start(self) -> None:
         """Start the LSP server process."""
         self.stop_event.clear()
-        creationflags = 0
-        if sys.platform == "win32":
-            creationflags = subprocess.CREATE_NO_WINDOW
         # Pin the Python environment: the LSP document uses a dummy URI, so
         # the type checker can only detect it via VIRTUAL_ENV (e.g. when
         # launched from a desktop icon without an activated venv).
@@ -80,7 +78,7 @@ class LSPClient(QObject, LoggerMixin):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=False,
-            creationflags=creationflags,
+            creationflags=SUBPROCESS_CREATION_FLAGS,
             env=env,
         )
         time.sleep(0.1)
