@@ -540,6 +540,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.actions.queue.setToolTip("Select an existing input file before queueing.")
             return
 
+        if self.ui.widgets.config_editor.system_info is None:
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip("A valid system must be loaded before queueing.")
+            return
+
         # Sweep files are expected to contain validated system information at this point.
         config_validation = self.ui.widgets.config_editor.validate_config()
         if isinstance(config_validation, Error):
@@ -680,20 +685,38 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         config_editor = self.ui.widgets.config_editor
         configurable = system_info.configurable_sections if system_info else []
         config_editor.set_systemfile(configurable)
-        if systemfile == config_editor.full_system_list:
-            return
         config_editor.set_full_system_list(systemfile)
         config_editor.set_system_info(system_info)
         config_editor.update_data()
 
     def parse_system_from_inputfile(self, input_file_path: str) -> None:
         """Parse the system from an input file."""
+        if not input_file_path:
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
+            return
+
         systemfile = self._systemfile_from_inputfile(input_file_path)
         if systemfile is None:
+            self.ui.widgets.input_file.blockSignals(True)
+            self.ui.widgets.input_file.setText("")
+            self.ui.widgets.input_file.blockSignals(False)
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
             return
+
         system_info = self._get_inputfile_system_info(systemfile)
         if system_info is None:
+            self.ui.widgets.input_file.blockSignals(True)
+            self.ui.widgets.input_file.setText("")
+            self.ui.widgets.input_file.blockSignals(False)
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
             return
+
         self.sys_meta_data = system_info.dcdata
         matr1x.reload_config()
         self._update_config_editor(systemfile, system_info)
