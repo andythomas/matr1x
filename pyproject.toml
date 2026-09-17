@@ -258,7 +258,7 @@ override-dependencies = [
 docs = { requires-python = ">=3.11" }
 
 [tool.complexipy]
-paths = ["matr1x"]
+paths = ["matr1x", "tests"]
 max-complexity-allowed = 15
 snapshot-create = false
 snapshot-ignore = false

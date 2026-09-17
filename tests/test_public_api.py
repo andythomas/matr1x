@@ -222,6 +222,105 @@ def _current_api() -> tuple[dict[str, dict[str, Any]], list[str]]:
     return current, errors
 
 
+def _compare_positional(
+    old_pos: list[dict[str, str | None]],
+    new_pos: list[dict[str, str | None]],
+    ctx: str,
+    breaking: list[str],
+    notes: list[str],
+) -> None:
+    """Compare the positional parameter blocks, slot by slot."""
+    for i, old_p in enumerate(old_pos):
+        if i >= len(new_pos):
+            breaking.append(
+                f"{ctx}: positional parameter '{old_p['name']}' was removed "
+                "or moved past a new '*'"
+            )
+            continue
+        new_p = new_pos[i]
+        if new_p["name"] != old_p["name"]:
+            breaking.append(
+                f"{ctx}: positional parameter '{old_p['name']}' was renamed "
+                f"to '{new_p['name']}' or reordered"
+            )
+            continue
+        _compare_matched(old_p, new_p, ctx, breaking, notes)
+    for new_p in new_pos[len(old_pos) :]:
+        if new_p["default"] is None:
+            breaking.append(f"{ctx}: new required positional parameter '{new_p['name']}'")
+        else:
+            notes.append(f"{ctx}: new optional positional parameter '{new_p['name']}'")
+
+
+def _check_lost_keyword_only(
+    old: list[dict[str, str | None]],
+    new: list[dict[str, str | None]],
+    ctx: str,
+    breaking: list[str],
+    notes: list[str],
+) -> None:
+    """Check that no keyword-only parameter was removed or restricted."""
+    old_kw = {p["name"]: p for p in old if p["kind"] == "keyword_only"}
+    new_kw = {p["name"]: p for p in new if p["kind"] == "keyword_only"}
+    new_pos_names = {p["name"] for p in new if p["kind"] in _POSITIONAL_KINDS}
+    for name, old_p in old_kw.items():
+        if name in new_kw:
+            _compare_matched(old_p, new_kw[name], ctx, breaking, notes)
+        elif name in new_pos_names:
+            notes.append(f"{ctx}: keyword-only parameter '{name}' is now positional-callable")
+        else:
+            breaking.append(f"{ctx}: keyword-only parameter '{name}' was removed")
+
+
+def _check_new_keyword_only(
+    old: list[dict[str, str | None]],
+    new: list[dict[str, str | None]],
+    ctx: str,
+    breaking: list[str],
+    notes: list[str],
+) -> None:
+    """Check that new keyword-only parameters are optional."""
+    old_kw = {p["name"]: p for p in old if p["kind"] == "keyword_only"}
+    new_kw = {p["name"]: p for p in new if p["kind"] == "keyword_only"}
+    old_pos_names = {p["name"] for p in old if p["kind"] in _POSITIONAL_KINDS}
+    for name, new_p in new_kw.items():
+        if name in old_kw or name in old_pos_names:
+            continue
+        if new_p["default"] is None:
+            breaking.append(f"{ctx}: new required keyword-only parameter '{name}'")
+        else:
+            notes.append(f"{ctx}: new optional keyword-only parameter '{name}'")
+
+
+def _compare_keyword_only(
+    old: list[dict[str, str | None]],
+    new: list[dict[str, str | None]],
+    ctx: str,
+    breaking: list[str],
+    notes: list[str],
+) -> None:
+    """Compare keyword-only parameters by name."""
+    _check_lost_keyword_only(old, new, ctx, breaking, notes)
+    _check_new_keyword_only(old, new, ctx, breaking, notes)
+
+
+def _compare_var_params(
+    old: list[dict[str, str | None]],
+    new: list[dict[str, str | None]],
+    ctx: str,
+    breaking: list[str],
+    notes: list[str],
+) -> None:
+    """Compare the presence of *args and **kwargs."""
+    for var_kind, label in (("var_positional", "*args"), ("var_keyword", "**kwargs")):
+        had = any(p["kind"] == var_kind for p in old)
+        has = any(p["kind"] == var_kind for p in new)
+        if had and not has:
+            breaking.append(f"{ctx}: '{label}' was removed")
+        elif has and not had:
+            notes.append(f"{ctx}: '{label}' was added")
+
+
 def _compare_params(
     old: list[dict[str, str | None]],
     new: list[dict[str, str | None]],
@@ -239,54 +338,9 @@ def _compare_params(
     notes: list[str] = []
     old_pos = [p for p in old if p["kind"] in _POSITIONAL_KINDS]
     new_pos = [p for p in new if p["kind"] in _POSITIONAL_KINDS]
-    old_kw = {p["name"]: p for p in old if p["kind"] == "keyword_only"}
-    new_kw = {p["name"]: p for p in new if p["kind"] == "keyword_only"}
-
-    for i, old_p in enumerate(old_pos):
-        if i >= len(new_pos):
-            breaking.append(
-                f"{ctx}: positional parameter '{old_p['name']}' was removed "
-                "or moved past a new '*'"
-            )
-            continue
-        new_p = new_pos[i]
-        if new_p["name"] != old_p["name"]:
-            breaking.append(
-                f"{ctx}: positional parameter '{old_p['name']}' was renamed "
-                f"to '{new_p['name']}' or reordered"
-            )
-            continue
-        _compare_matched(old_p, new_p, ctx, breaking, notes)
-
-    for new_p in new_pos[len(old_pos) :]:
-        if new_p["default"] is None:
-            breaking.append(f"{ctx}: new required positional parameter '{new_p['name']}'")
-        else:
-            notes.append(f"{ctx}: new optional positional parameter '{new_p['name']}'")
-
-    for name, old_p in old_kw.items():
-        if name in new_kw:
-            _compare_matched(old_p, new_kw[name], ctx, breaking, notes)
-        elif name in {p["name"] for p in new_pos}:
-            notes.append(f"{ctx}: keyword-only parameter '{name}' is now positional-callable")
-        else:
-            breaking.append(f"{ctx}: keyword-only parameter '{name}' was removed")
-
-    for name, new_p in new_kw.items():
-        if name in old_kw or name in {p["name"] for p in old_pos}:
-            continue
-        if new_p["default"] is None:
-            breaking.append(f"{ctx}: new required keyword-only parameter '{name}'")
-        else:
-            notes.append(f"{ctx}: new optional keyword-only parameter '{name}'")
-
-    for var_kind, label in (("var_positional", "*args"), ("var_keyword", "**kwargs")):
-        had = any(p["kind"] == var_kind for p in old)
-        has = any(p["kind"] == var_kind for p in new)
-        if had and not has:
-            breaking.append(f"{ctx}: '{label}' was removed")
-        elif has and not had:
-            notes.append(f"{ctx}: '{label}' was added")
+    _compare_positional(old_pos, new_pos, ctx, breaking, notes)
+    _compare_keyword_only(old, new, ctx, breaking, notes)
+    _compare_var_params(old, new, ctx, breaking, notes)
     return breaking, notes
 
 
@@ -336,54 +390,74 @@ def _compare_member(
     return _compare_params(old_m["params"], new_m["params"], ctx)
 
 
+def _compare_enum(
+    key: str,
+    old_members: list[str],
+    new_members: list[str],
+) -> tuple[list[str], list[str]]:
+    """Compare enum member names: removals break, additions note."""
+    breaking = [
+        f"{key}: enum member '{m}' removed" for m in sorted(set(old_members) - set(new_members))
+    ]
+    notes = [
+        f"{key}: enum member '{m}' added" for m in sorted(set(new_members) - set(old_members))
+    ]
+    return breaking, notes
+
+
+def _compare_class(
+    key: str,
+    old_item: dict[str, Any],
+    new_item: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Compare a class constructor and its own public members."""
+    breaking, notes = _compare_params(old_item["init"], new_item["init"], f"{key}.__init__")
+    old_members = old_item.get("members", {})
+    new_members = new_item.get("members", {})
+    for member in old_members:
+        if member not in new_members:
+            breaking.append(f"{key}.{member}: member removed")
+            continue
+        b, n = _compare_member(old_members[member], new_members[member], f"{key}.{member}")
+        breaking.extend(b)
+        notes.extend(n)
+    for member in new_members:
+        if member not in old_members:
+            notes.append(f"{key}.{member}: new member")
+    return breaking, notes
+
+
+def _compare_item(
+    key: str,
+    old_item: dict[str, Any],
+    new_item: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Compare two snapshot items of the same name, dispatching on kind."""
+    if old_item["kind"] != new_item["kind"]:
+        return [f"{key}: kind changed ({old_item['kind']} -> {new_item['kind']})"], []
+    kind = old_item["kind"]
+    if kind == "constant":
+        if old_item["value"] != new_item["value"]:
+            return [f"{key}: value changed"], []
+        return [], []
+    if kind == "enum":
+        return _compare_enum(key, old_item["members"], new_item["members"])
+    if kind in ("function", "property"):
+        return _compare_params(old_item["params"], new_item["params"], key)
+    return _compare_class(key, old_item, new_item)
+
+
 def _compare_items(
     old: dict[str, dict[str, Any]],
     new: dict[str, dict[str, Any]],
 ) -> tuple[list[str], list[str]]:
     """Compare two API snapshots; return (breaking changes, notes)."""
-    breaking: list[str] = []
-    notes: list[str] = []
-    for key in old:
-        if key not in new:
-            breaking.append(f"{key}: removed from the supported API")
-    for key in new:
-        if key not in old:
-            notes.append(f"{key}: newly listed in the supported API")
-
+    breaking = [f"{key}: removed from the supported API" for key in old if key not in new]
+    notes = [f"{key}: newly listed in the supported API" for key in new if key not in old]
     for key in sorted(set(old) & set(new)):
-        old_item, new_item = old[key], new[key]
-        if old_item["kind"] != new_item["kind"]:
-            breaking.append(f"{key}: kind changed ({old_item['kind']} -> {new_item['kind']})")
-            continue
-        kind = old_item["kind"]
-        if kind == "constant":
-            if old_item["value"] != new_item["value"]:
-                breaking.append(f"{key}: value changed")
-        elif kind == "enum":
-            for member in sorted(set(old_item["members"]) - set(new_item["members"])):
-                breaking.append(f"{key}: enum member '{member}' removed")
-            for member in sorted(set(new_item["members"]) - set(old_item["members"])):
-                notes.append(f"{key}: enum member '{member}' added")
-        elif kind in ("function", "property"):
-            b, n = _compare_params(old_item["params"], new_item["params"], key)
-            breaking.extend(b)
-            notes.extend(n)
-        elif kind == "class":
-            b, n = _compare_params(old_item["init"], new_item["init"], f"{key}.__init__")
-            breaking.extend(b)
-            notes.extend(n)
-            old_members = old_item.get("members", {})
-            new_members = new_item.get("members", {})
-            for member in old_members:
-                if member not in new_members:
-                    breaking.append(f"{key}.{member}: member removed")
-                    continue
-                b, n = _compare_member(old_members[member], new_members[member], f"{key}.{member}")
-                breaking.extend(b)
-                notes.extend(n)
-            for member in new_members:
-                if member not in old_members:
-                    notes.append(f"{key}.{member}: new member")
+        b, n = _compare_item(key, old[key], new[key])
+        breaking.extend(b)
+        notes.extend(n)
     return breaking, notes
 
 
@@ -392,30 +466,42 @@ def _dump_inline_param(param: dict[str, Any]) -> str:
     return json.dumps({k: v for k, v in sorted(param.items()) if v is not None})
 
 
-def _dump_value(value: Any, indent: int) -> str:
-    """Serialize a snapshot value: one line per parameter, nulls omitted."""
+def _dump_dict(value: dict[str, Any], indent: int) -> str:
+    """Serialize a mapping with sorted keys, omitting null values."""
+    if not value:
+        return "{}"
     pad = "  " * indent
     child_pad = "  " * (indent + 1)
+    lines = []
+    for key in sorted(value):
+        item = value[key]
+        if item is None:
+            continue
+        if isinstance(item, (dict, list)) and item:
+            lines.append(f'{child_pad}"{key}": {_dump_value(item, indent + 1)}')
+        else:
+            lines.append(f'{child_pad}"{key}": {json.dumps(item)}')
+    return "{\n" + ",\n".join(lines) + "\n" + pad + "}"
+
+
+def _dump_list(value: list[Any], indent: int) -> str:
+    """Serialize a list: one line per parameter dict, else inline."""
+    if not value:
+        return "[]"
+    pad = "  " * indent
+    child_pad = "  " * (indent + 1)
+    if all(isinstance(x, dict) for x in value):
+        inner = ",\n".join(child_pad + _dump_inline_param(x) for x in value)
+        return "[\n" + inner + "\n" + pad + "]"
+    return "[" + ", ".join(json.dumps(x) for x in value) + "]"
+
+
+def _dump_value(value: Any, indent: int) -> str:
+    """Serialize a snapshot value: one line per parameter, nulls omitted."""
     if isinstance(value, dict):
-        if not value:
-            return "{}"
-        lines = []
-        for key in sorted(value):
-            item = value[key]
-            if item is None:
-                continue
-            if isinstance(item, (dict, list)) and item:
-                lines.append(f'{child_pad}"{key}": {_dump_value(item, indent + 1)}')
-            else:
-                lines.append(f'{child_pad}"{key}": {json.dumps(item)}')
-        return "{\n" + ",\n".join(lines) + "\n" + pad + "}"
+        return _dump_dict(value, indent)
     if isinstance(value, list):
-        if not value:
-            return "[]"
-        if all(isinstance(x, dict) for x in value):
-            inner = ",\n".join(child_pad + _dump_inline_param(x) for x in value)
-            return "[\n" + inner + "\n" + pad + "]"
-        return "[" + ", ".join(json.dumps(x) for x in value) + "]"
+        return _dump_list(value, indent)
     return json.dumps(value)
 
 
