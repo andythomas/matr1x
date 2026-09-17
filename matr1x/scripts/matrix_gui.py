@@ -80,6 +80,7 @@ from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
     Notifier,
+    NotifierMessage,
     SaferQSettings,
     check_config,
 )
@@ -660,7 +661,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         """Retrieve system information and report configuration validation errors."""
         system_info = get_system_info(systemfile)
         if isinstance(system_info, Error):
-            QMessageBox.warning(self, "System file error!", system_info.error)
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(system_info.error, level=logging.WARNING)
+            )
             return None
 
         system_info = system_info.value
