@@ -238,6 +238,7 @@ dev = [
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
     "complexipy>=6.2.0",
+    "py-yaml12>=0.2.0", # tests.test_public_api (parses great-docs.yml, YAML 1.2)
 ]
 
 docs = [
