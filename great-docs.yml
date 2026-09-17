@@ -92,6 +92,21 @@ reference:
       - core.system.base.System.set
       - core.system.base.System.reset
 
+  - title: "matrix-script API"
+    desc: Functions available in matrix-script scripts
+    contents:
+      - core.script_api.set_value
+      - core.script_api.trigger_value
+      - core.script_api.read_value
+      - core.script_api.wait
+      - core.script_api.input
+      - core.script_api.input_bool
+      - core.script_api.input_numerical
+      - core.script_api.end_script
+      - core.script_api.print
+      - core.script_api.init_datafile
+      - core.script_api.measure_system
+
   - title: Constants
     desc: Module-level constants and data
     contents:
