@@ -159,6 +159,21 @@ reference:
       - devices.scpi_dev:makeSCPIdevice
       - devices:scpiPORTdrivers
 
+  - title: "matrix-script API"
+    desc: Functions available in matrix-script scripts
+    contents:
+      - core.script_api.set_value
+      - core.script_api.trigger_value
+      - core.script_api.read_value
+      - core.script_api.wait
+      - core.script_api.input
+      - core.script_api.input_bool
+      - core.script_api.input_numerical
+      - core.script_api.end_script
+      - core.script_api.print
+      - core.script_api.init_datafile
+      - core.script_api.measure_system
+
   - title: Device Drivers
     desc: One entry per vendor package; all driver classes are public
     contents:
