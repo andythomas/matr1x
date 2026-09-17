@@ -22,11 +22,13 @@ package as well as functions for processing data in the preview.
 
 import ast
 import re
+import warnings
+from io import StringIO
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from matr1x.core.models import HeaderDict, create_empty_header
 
@@ -224,7 +226,7 @@ def _process_key_value_pair(
     Parameters
     ----------
     content : str
-        The line content containing ``key : value`` format.
+        The line content containing `key : value` format.
     path_stack : list
         Current path in the nested dictionary structure.
     parsed_data : dict
@@ -272,7 +274,7 @@ def _process_top_level_key_value(line: str, parsed_data: dict) -> tuple[str | No
     Parameters
     ----------
     line : str
-        The line containing ``key : value`` format at top level.
+        The line containing `key : value` format at top level.
     parsed_data : dict
         The main dictionary where top-level data is stored.
 
@@ -516,26 +518,21 @@ def _process_text_file_content(filename: Path, extension: str, header: HeaderDic
     return nheader
 
 
-def _load_text_file(
-    filename: Path, structured: bool, replace_None: bool
-) -> tuple[HeaderDict, np.ndarray]:
+def _parse_text_polars(filename: str | Path) -> tuple[HeaderDict, pl.DataFrame]:
     """
-    Load data from text file format.
+    Parse a text matrix file into a polars DataFrame.
 
     Parameters
     ----------
-    filename : Path
-        Path to the text file
-    structured : bool
-        Whether to return structured array
-    replace_None : bool
-        Whether to replace None values
+    filename : str or pathlib.Path
+        Path to the text matrix file
 
     Returns
     -------
-    tuple[HeaderDict, np.ndarray]
-        Header information and data
+    tuple[HeaderDict, pl.DataFrame]
+        Header information and data as a polars DataFrame
     """
+    filename = Path(filename)
     extension = filename.suffix
     header = create_empty_header()
 
@@ -559,50 +556,76 @@ def _load_text_file(
             val = val.replace(r"\"", '"')
             header[key] = val  # ty: ignore[invalid-key]
 
-    # Process data from text file
-    kwargs: dict[str, Any] = {
-        "sep": "\t",
-        "low_memory": False,
-        "comment": "#",
-        "header": None,
-    }
-    if replace_None:
-        kwargs["na_values"] = "None"
-    if structured is True:
-        # generate a structured array with the column names as identifier
-        kwargs["names"] = header["columns"]
-    try:
-        data = pd.read_csv(filename, skiprows=nheader + 1, **kwargs)
-    except IndexError:
-        # IndexError is raised in case an incomplete header is present
-        print("loadmatrix: incomplete data file header")  # noqa: T201
-        return header, np.empty(0)
+    # Skip the header lines (comment lines plus the columns/units rows)
+    # and let polars parse only the data, skipping '#' comment lines
+    # within the data. The literal string "None" is treated as a
+    # missing value, as done by the previous pandas based parser.
+    with filename.open(errors="replace") as f:
+        for _ in range(nheader + 1):
+            f.readline()
+        data_text = f.read()
+    df = pl.read_csv(
+        StringIO(data_text),
+        separator="\t",
+        comment_prefix="#",
+        has_header=False,
+        new_columns=header["columns"],
+        null_values="None",
+    )
+    return header, df
 
-    if replace_None:
-        # Define replacement values based on data types
-        replacement_values = {
-            "bool": False,
-            "int": -1,
-            "float": np.nan,
-            "object": "NaN",  # 'object' dtype is often used for strings in Pandas
-        }
-        # Replace missing values
-        for column in data.columns:
-            if pd.api.types.is_bool_dtype(data[column]):
-                data[column] = data[column].fillna(replacement_values["bool"])
-            elif pd.api.types.is_integer_dtype(data[column]):
-                data[column] = data[column].fillna(replacement_values["int"])
-            elif pd.api.types.is_float_dtype(data[column]):
-                data[column] = data[column].fillna(replacement_values["float"])
-            elif pd.api.types.is_object_dtype(data[column]):
-                data[column] = data[column].fillna(replacement_values["object"])
 
-    if structured is True:
-        data = data.to_records(index=False)
-    else:
-        data = data.to_numpy()
+def _to_recarray(df: pl.DataFrame) -> np.ndarray:
+    """
+    Convert a polars DataFrame to a numpy recarray.
 
-    return header, data
+    String columns are converted to object dtype, matching the output
+    of the previous pandas based implementation.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        The DataFrame to convert
+
+    Returns
+    -------
+    np.ndarray
+        Structured numpy array with the column names as field names
+    """
+    arrays = [df[c].to_numpy() for c in df.columns]
+    return np.rec.fromarrays(
+        arrays,
+        formats=[arr.dtype for arr in arrays],
+        names=list(df.columns),
+    )
+
+
+def _load_text_file(
+    filename: Path, structured: bool, to_polars: bool
+) -> tuple[HeaderDict, np.ndarray | pl.DataFrame]:
+    """
+    Load data from text file format.
+
+    Parameters
+    ----------
+    filename : Path
+        Path to the text file
+    structured : bool
+        Whether to return structured array
+    to_polars : bool
+        Whether to return a polars DataFrame
+
+    Returns
+    -------
+    tuple[HeaderDict, np.ndarray | pl.DataFrame]
+        Header information and data
+    """
+    header, df = _parse_text_polars(filename)
+    if to_polars:
+        return header, df
+    if structured:
+        return header, _to_recarray(df)
+    return header, df.to_numpy()
 
 
 def loadmatrix(
@@ -610,7 +633,9 @@ def loadmatrix(
     structured: bool = True,
     print_header: bool = False,
     replace_None: bool = False,
-) -> tuple[HeaderDict, np.ndarray | dict[str, np.ndarray]]:
+    *,
+    to_polars: bool = False,
+) -> tuple[HeaderDict, np.ndarray | pl.DataFrame | dict[str, np.ndarray]]:
     """
     Open matrix ascii data as well as hdf5 files generated by matrix.
 
@@ -628,42 +653,63 @@ def loadmatrix(
         if true, prints the column names read from the file together with
         their index
     replace_None : boolean, optional
-        set to True to replace None values by 0 to allow plotting
+        %deprecated: raises a NotImplementedError.
+    to_polars : bool, optional
+        if true, the data of text files is returned as a native polars
+        DataFrame instead of numpy. This option is not supported for
+        HDF5 files and raises NotImplementedError.
 
     Returns
     -------
     header : HeaderDict
         Dictionary containing the header information with core typed
         fields
-    data : np.ndarray | dict[str, np.ndarray]
-        Data array or dict for unequal length arrays
+    data : np.ndarray | pl.DataFrame | dict[str, np.ndarray]
+        Data array, polars DataFrame, or dict for unequal length arrays
+
+    Warns
+    -----
+    FutureWarning
+        If a text file is loaded without `to_polars=True`, as the numpy
+        return is deprecated and will be removed in a future release.
     """
     filename = Path(filename)
-
-    if _is_hdf5(filename) and not structured:
-        raise NotImplementedError("The option structured=False is not supported for hdf5 files")
-
+    if replace_None:
+        raise NotImplementedError("This option was removed.")
     if _is_hdf5(filename):
+        if to_polars:
+            raise NotImplementedError("The option to_polars=True is not supported for hdf5 files")
+        if not structured:
+            raise NotImplementedError(
+                "The option structured=False is not supported for hdf5 files"
+            )
         # deferred import so that h5py is only loaded for HDF5 files
         from matr1x.core import hdf5
 
         header, data = hdf5.load_hdf5_file(filename, structured)
     else:
-        header, data = _load_text_file(filename, structured, replace_None)
-
+        if not to_polars:
+            warnings.warn(
+                "Returning numpy data from loadmatrix() is deprecated "
+                "and will be removed in a future release. Use "
+                "loadmatrix(..., to_polars=True).",
+                FutureWarning,
+            )
+        header, data = _load_text_file(filename, structured, to_polars)
     if print_header is True:
         # generate list of tuples with index and column name
         print(list(enumerate(header["columns"])))  # noqa: T201
-
     return header, data
 
 
 ######################
 # Evaluation functions
 ######################
-def delta(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def delta_numpy(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Resolve transport data acquired using the delta method.
+
+    Eager numpy implementation of `delta`.
 
     Parameters
     ----------
@@ -679,17 +725,136 @@ def delta(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     neg : np.array
         Array with dimension 'm//2' containing the contribution antisymmetric in
         current
+
+    %seealso delta, delta_polars
     """
     if len(data) % 2:
-        return (np.add(data[:-1:2], data[1::2]) / 2, np.subtract(data[:-1:2], data[1::2]) / 2)
+        return (
+            np.add(data[:-1:2], data[1::2]) / 2,
+            np.subtract(data[:-1:2], data[1::2]) / 2,
+        )
     return (np.add(data[::2], data[1::2]) / 2, np.subtract(data[::2], data[1::2]) / 2)
 
 
-def delta3p(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def delta_polars(data: pl.DataFrame, *, column: str | None = None) -> pl.LazyFrame:
+    """
+    Resolve transport data acquired using the delta method.
+
+    Lazy variant of `delta` operating on a polars DataFrame. The
+    result is not collected, so polars can optimize it together with
+    later stages of a query.
+
+    Parameters
+    ----------
+    data : pl.DataFrame
+        Frame containing the measurement data. Rows must alternate
+        between a value for +I and a value for -I.
+    column : str, optional
+        Name of the column containing the data, e.g. voltage. If not
+        given, the frame must contain exactly one column, which is
+        used.
+
+    Returns
+    -------
+    pl.LazyFrame
+        Lazy frame with dimension 'm//2' and the columns `pos` and
+        `neg` containing the contribution symmetric and antisymmetric
+        in current, respectively.
+
+    Raises
+    ------
+    ValueError
+        If the frame has more than one column and no column is given.
+
+    %seealso delta, delta_numpy
+    """
+    if column is None:
+        if data.width != 1:
+            raise ValueError("column is required if the frame has more than one column")
+        column = data.columns[0]
+    return (
+        data.lazy()
+        .select(pl.col(column))
+        .with_columns(
+            (pl.len() // 2).alias("_n"),
+            (pl.int_range(0, pl.len()) // 2).alias("_pair"),
+            (pl.int_range(0, pl.len()) % 2).alias("_odd"),
+        )
+        .filter(pl.col("_pair") < pl.col("_n"))
+        .group_by("_pair", maintain_order=True)
+        .agg(
+            (pl.col(column).sum() / 2).alias("pos"),
+            (
+                pl.when(pl.col("_odd") == 0).then(pl.col(column)).otherwise(-pl.col(column)).sum()
+                / 2
+            ).alias("neg"),
+        )
+        .drop("_pair")
+    )
+
+
+@overload
+def delta(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]: ...
+
+
+@overload
+def delta(data: pl.DataFrame, *, column: str | None = None) -> pl.LazyFrame: ...
+
+
+def delta(
+    data: np.ndarray | pl.DataFrame,
+    *,
+    column: str | None = None,
+) -> tuple[np.ndarray, np.ndarray] | pl.LazyFrame:
+    """
+    Resolve transport data acquired using the delta method.
+
+    Dispatches on the type of `data`: numpy arrays are evaluated
+    eagerly with `delta_numpy`, polars DataFrames with
+    `delta_polars`, whose result is not collected, so polars can
+    optimize it together with later stages of a query. Numpy input
+    raises a FutureWarning, as it will be removed in a future release.
+
+    Parameters
+    ----------
+    data : np.ndarray or pl.DataFrame
+        Array of data with dimension 'm' containing e.g. voltage, or a
+        frame holding such a column. Format must be [value for +I,
+        value for -I, value for +I, ...].
+    column : str, optional
+        Only used for polars DataFrames. Name of the column containing
+        the data, e.g. voltage. If not given, the frame must contain
+        exactly one column, which is used.
+
+    Returns
+    -------
+    pos : np.ndarray or pl.LazyFrame
+        For numpy input: array with dimension 'm//2' containing the
+        contribution symmetric in current. For polars input: lazy frame
+        with dimension 'm//2' and the columns `pos` and `neg`.
+    neg : np.ndarray
+        Array with dimension 'm//2' containing the contribution
+        antisymmetric in current. Only returned for numpy input.
+
+    %seealso delta_numpy, delta_polars
+    """
+    if isinstance(data, pl.DataFrame):
+        return delta_polars(data, column=column)
+    warnings.warn(
+        "Passing a numpy array to delta() is deprecated and will be "
+        "removed in a future release. Pass a polars DataFrame instead, "
+        "e.g. obtained via loadmatrix(..., to_polars=True).",
+        FutureWarning,
+    )
+    return delta_numpy(data)
+
+
+def delta3p_numpy(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Resolve transport data acquired using the three point delta method.
 
-    This method should have superior rejection of drifts compared to 2p delta method.
+    Eager numpy implementation of `delta3p`. This method should have
+    superior rejection of drifts compared to 2p delta method.
 
     Parameters
     ----------
@@ -706,6 +871,8 @@ def delta3p(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     neg : np.array
         Array with dimension 'm//3' containing the contribution antisymmetric in
         current
+
+    %seealso delta3p, delta3p_polars
     """
     off = len(data) % 3
     if off != 0:
@@ -717,3 +884,122 @@ def delta3p(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         np.add(np.add(data[::3], data[2::3]), 2 * data[1::3]) / 4,
         np.subtract(np.add(data[::3], data[2::3]), 2 * data[1::3]) / 4,
     )
+
+
+def delta3p_polars(data: pl.DataFrame, *, column: str | None = None) -> pl.LazyFrame:
+    """
+    Resolve transport data acquired using the three point delta method.
+
+    Lazy variant of `delta3p` operating on a polars DataFrame.
+    This method should have superior rejection of drifts compared to
+    the 2p delta method. The result is not collected, so polars can
+    optimize it together with later stages of a query.
+
+    Parameters
+    ----------
+    data : pl.DataFrame
+        Frame containing the measurement data. Rows come in triples
+        with the format [value for +I, value for -I, value for +I, ...].
+    column : str, optional
+        Name of the column containing the data, e.g. voltage. If not
+        given, the frame must contain exactly one column, which is
+        used.
+
+    Returns
+    -------
+    pl.LazyFrame
+        Lazy frame with dimension 'm//3' and the columns `pos` and
+        `neg` containing the contribution symmetric and antisymmetric
+        in current, respectively.
+
+    Raises
+    ------
+    ValueError
+        If the frame has more than one column and no column is given.
+
+    %seealso delta3p, delta3p_numpy
+    """
+    if column is None:
+        if data.width != 1:
+            raise ValueError("column is required if the frame has more than one column")
+        column = data.columns[0]
+    # For a triple (a, b, c) with a, c at +I and b at -I the
+    # contributions are (a + 2b + c) / 4 and (a - 2b + c) / 4, which
+    # can be written as (sum + b) / 4 and (sum - 3b) / 4.
+    middle = pl.when(pl.col("_offset") == 1).then(pl.col(column)).otherwise(0.0).sum()
+    total = pl.col(column).sum()
+    return (
+        data.lazy()
+        .select(pl.col(column))
+        .with_columns(
+            (pl.len() // 3).alias("_n"),
+            (pl.int_range(0, pl.len()) // 3).alias("_group"),
+            (pl.int_range(0, pl.len()) % 3).alias("_offset"),
+        )
+        .filter(pl.col("_group") < pl.col("_n"))
+        .group_by("_group", maintain_order=True)
+        .agg(
+            ((total + middle) / 4).alias("pos"),
+            ((total - 3 * middle) / 4).alias("neg"),
+        )
+        .drop("_group")
+    )
+
+
+@overload
+def delta3p(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]: ...
+
+
+@overload
+def delta3p(data: pl.DataFrame, *, column: str | None = None) -> pl.LazyFrame: ...
+
+
+def delta3p(
+    data: np.ndarray | pl.DataFrame,
+    *,
+    column: str | None = None,
+) -> tuple[np.ndarray, np.ndarray] | pl.LazyFrame:
+    """
+    Resolve transport data acquired using the three point delta method.
+
+    This method should have superior rejection of drifts compared to
+    the 2p delta method. Dispatches on the type of `data`: numpy
+    arrays are evaluated eagerly with `delta3p_numpy`, polars
+    DataFrames with `delta3p_polars`, whose result is not
+    collected, so polars can optimize it together with later stages of
+    a query. Numpy input raises a FutureWarning, as it will be removed
+    in a future release.
+
+    Parameters
+    ----------
+    data : np.ndarray or pl.DataFrame
+        Array of data with dimension 'm' containing e.g. voltage, or a
+        frame holding such a column. Array contains triples of values
+        with format [value1 for +I, value1 for -I, value1 for +I,
+        value2 for +I, ..].
+    column : str, optional
+        Only used for polars DataFrames. Name of the column containing
+        the data, e.g. voltage. If not given, the frame must contain
+        exactly one column, which is used.
+
+    Returns
+    -------
+    pos : np.ndarray or pl.LazyFrame
+        For numpy input: array with dimension 'm//3' containing the
+        contribution symmetric in current. For polars input: lazy frame
+        with dimension 'm//3' and the columns `pos` and `neg`.
+    neg : np.ndarray
+        Array with dimension 'm//3' containing the contribution
+        antisymmetric in current. Only returned for numpy input.
+
+    %seealso delta3p_numpy, delta3p_polars
+    """
+    if isinstance(data, pl.DataFrame):
+        return delta3p_polars(data, column=column)
+    warnings.warn(
+        "Passing a numpy array to delta3p() is deprecated and will be "
+        "removed in a future release. Pass a polars DataFrame instead, "
+        "e.g. obtained via loadmatrix(..., to_polars=True).",
+        FutureWarning,
+    )
+    return delta3p_numpy(data)
