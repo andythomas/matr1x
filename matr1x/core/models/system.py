@@ -135,6 +135,7 @@ class SystemInfo(BaseModel):
     methods: dict[str, SystemMethod]
     variables: dict[str, SystemVariable]
     config: dict[str, Any]
+    dcdata: dict[str, str] = Field(default_factory=dict)
     selections: list[SystemSelectionInfo] = Field(default_factory=list)
     warnings: list[tuple[str, int]] = Field(default_factory=list)
     config_validation_errors: list[str] = Field(default_factory=list)
