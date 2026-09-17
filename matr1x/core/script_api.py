@@ -33,9 +33,12 @@ import datetime
 import inspect
 import textwrap
 import time
+import types
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+import wrapt
 
 import matr1x.core.config as core_config
 from matr1x.core.execthread import Status
@@ -50,7 +53,7 @@ from matr1x.core.models import (
     Telemetry,
 )
 from matr1x.core.script_analysis import PointCounts, infer_point_counts
-from matr1x.core.system import MergedSystem
+from matr1x.core.system import MergedSystem, System
 from matr1x.core.util import get_user_script_line_range
 
 __all__ = [
@@ -205,6 +208,73 @@ def capture_initial_meta_data() -> None:
     """Capture the current metadata as the state to reset to."""
     state = _get_state()
     state.initial_meta_data = dict(state.system.dcdata)
+
+
+@wrapt.decorator
+def _lineno_decorator(
+    wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    """Report the executing line number back to the GUI."""
+    show_lineno()
+    return wrapped(*args, **kwargs)
+
+
+@wrapt.decorator
+def _breakpoint(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Add a breakpoint check."""
+    # avoid recursive loop (a decorated function calling another)
+    # If the wrapped object is a method, attach _calling to the instance
+    if instance is not None:
+        if not hasattr(instance, "_calling"):
+            instance._calling = False
+
+        if instance._calling:
+            # do not call decoration recursively
+            return wrapped(*args, **kwargs)
+
+        instance._calling = True
+        try:
+            checkpoint()
+            result = wrapped(*args, **kwargs)
+        finally:
+            instance._calling = False
+    else:
+        # If the wrapped object is a function,
+        # attach _calling to the function itself
+        if not hasattr(wrapped, "_calling"):
+            wrapped._calling = False
+
+        if wrapped._calling:
+            # do not call decoration recursively
+            return wrapped(*args, **kwargs)
+
+        wrapped._calling = True
+        try:
+            checkpoint()
+            result = wrapped(*args, **kwargs)
+        finally:
+            wrapped._calling = False
+    return result
+
+
+def _inject_decorator(instance: System, decorator: Callable[..., Any]) -> None:
+    """Inject decorator into instance methods."""
+    for attr_name in dir(instance):
+        if attr_name in ["add_comment", "report"]:
+            # exclude this methods from decoration since they are
+            # potentially called from inside the decorator. anything
+            # called inside the _interrupt function should be added
+            # here/not decorated.
+            continue
+        attr = getattr(instance, attr_name)
+        if isinstance(attr, types.MethodType):
+            decorated_attr = decorator(attr)
+            setattr(instance, attr_name, decorated_attr)
+
+
+def _install_sleep_hook() -> None:
+    """Replace time.sleep with a wrapper that reports the line number."""
+    time.sleep = _lineno_decorator(time.sleep)  # ty: ignore[invalid-assignment]
 
 
 def _reset_setvalues() -> None:

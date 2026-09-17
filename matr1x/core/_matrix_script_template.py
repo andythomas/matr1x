@@ -30,13 +30,9 @@ import os as _os
 import re as _re
 import sys as _sys
 import textwrap as _textwrap
-import time as _time
 import traceback as _traceback
-import types as _types
 import typing as _typing
 from pathlib import Path as _Path
-
-import wrapt as _wrapt
 
 import matr1x as _matr1x
 import matr1x.core.util as _matrix_util
@@ -116,73 +112,12 @@ def _configure_script_storing(system: _MergedSystem, script: str) -> None:
             )
 
 
-@_wrapt.decorator
-def _lineno_decorator(wrapped, instance, args, kwargs):
-    """Report the executing line number back to the GUI."""
-    _ = instance  # suppress ty warning
-    _script_api.show_lineno()
-    return wrapped(*args, **kwargs)
-
-
-@_wrapt.decorator
-def _breakpoint(wrapped, instance, args, kwargs):
-    """Add a breakpoint check."""
-    # avoid recursive loop (a decorated function calling another)
-    # If the wrapped object is a method, attach _calling to the instance
-    if instance is not None:
-        if not hasattr(instance, "_calling"):
-            instance._calling = False
-
-        if instance._calling:
-            # do not call decoration recursively
-            return wrapped(*args, **kwargs)
-
-        instance._calling = True
-        try:
-            _script_api.checkpoint()
-            result = wrapped(*args, **kwargs)
-        finally:
-            instance._calling = False
-    else:
-        # If the wrapped object is a function,
-        # attach _calling to the function itself
-        if not hasattr(wrapped, "_calling"):
-            wrapped._calling = False
-
-        if wrapped._calling:
-            # do not call decoration recursively
-            return wrapped(*args, **kwargs)
-
-        wrapped._calling = True
-        try:
-            _script_api.checkpoint()
-            result = wrapped(*args, **kwargs)
-        finally:
-            wrapped._calling = False
-    return result
-
-
-def _inject_decorator(instance, decorator) -> None:
-    """Inject decorator into instance methods."""
-    for attr_name in dir(instance):
-        if attr_name in ["add_comment", "report"]:
-            # exclude this methods from decoration since they are
-            # potentially called from inside the decorator. anything
-            # called inside the _interrupt function should be added
-            # here/not decorated.
-            continue
-        attr = getattr(instance, attr_name)
-        if isinstance(attr, _types.MethodType):
-            decorated_attr = decorator(attr)
-            setattr(instance, attr_name, decorated_attr)
-
-
-_time.sleep = _lineno_decorator(_time.sleep)  # ty: ignore[invalid-assignment]
-_inject_decorator(_system, _breakpoint)  # inject system methods
+_script_api._install_sleep_hook()
+_script_api._inject_decorator(_system, _script_api._breakpoint)  # inject system methods
 
 for subsys in _system.subsys:
-    _inject_decorator(subsys, _breakpoint)
-    _inject_decorator(subsys, _lineno_decorator)
+    _script_api._inject_decorator(subsys, _script_api._breakpoint)
+    _script_api._inject_decorator(subsys, _script_api._lineno_decorator)
 # bring meta_data and system into namespace
 meta_data = _system.dcdata
 system = _system
