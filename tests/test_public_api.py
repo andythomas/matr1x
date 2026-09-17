@@ -387,6 +387,65 @@ def _compare_items(
     return breaking, notes
 
 
+def _dump_inline_param(param: dict[str, Any]) -> str:
+    """Serialize one parameter as a single JSON line, omitting nulls."""
+    return json.dumps({k: v for k, v in sorted(param.items()) if v is not None})
+
+
+def _dump_value(value: Any, indent: int) -> str:
+    """Serialize a snapshot value: one line per parameter, nulls omitted."""
+    pad = "  " * indent
+    child_pad = "  " * (indent + 1)
+    if isinstance(value, dict):
+        if not value:
+            return "{}"
+        lines = []
+        for key in sorted(value):
+            item = value[key]
+            if item is None:
+                continue
+            if isinstance(item, (dict, list)) and item:
+                lines.append(f'{child_pad}"{key}": {_dump_value(item, indent + 1)}')
+            else:
+                lines.append(f'{child_pad}"{key}": {json.dumps(item)}')
+        return "{\n" + ",\n".join(lines) + "\n" + pad + "}"
+    if isinstance(value, list):
+        if not value:
+            return "[]"
+        if all(isinstance(x, dict) for x in value):
+            inner = ",\n".join(child_pad + _dump_inline_param(x) for x in value)
+            return "[\n" + inner + "\n" + pad + "]"
+        return "[" + ", ".join(json.dumps(x) for x in value) + "]"
+    return json.dumps(value)
+
+
+def _dump_snapshot(data: dict[str, dict[str, Any]]) -> str:
+    """Serialize the full snapshot for storage (still plain JSON)."""
+    return _dump_value(data, 0) + "\n"
+
+
+def _normalize_params(value: Any) -> None:
+    """Restore null 'default'/'annotation' keys omitted by the compact format."""
+    if isinstance(value, dict):
+        if "name" in value and "kind" in value:
+            value.setdefault("default", None)
+            value.setdefault("annotation", None)
+        for item in value.values():
+            _normalize_params(item)
+    elif isinstance(value, list):
+        for item in value:
+            _normalize_params(item)
+
+
+def _load_snapshot() -> dict[str, dict[str, Any]] | None:
+    """Load and normalize the stored snapshot, or None if it is missing."""
+    if not SNAPSHOT_FILE.exists():
+        return None
+    data: dict[str, dict[str, Any]] = json.loads(SNAPSHOT_FILE.read_text(encoding="utf-8"))
+    _normalize_params(data)
+    return data
+
+
 def test_public_api_stability() -> None:
     """
     Test that the supported API only changed in backwards-compatible ways.
@@ -400,9 +459,7 @@ def test_public_api_stability() -> None:
     if errors:
         pytest.fail("Reference items of great-docs.yml cannot be resolved:\n" + "\n".join(errors))
 
-    snapshot: dict[str, dict[str, Any]] | None = None
-    if SNAPSHOT_FILE.exists():
-        snapshot = json.loads(SNAPSHOT_FILE.read_text(encoding="utf-8"))
+    snapshot = _load_snapshot()
     if snapshot is None and not update:
         pytest.fail(
             "API snapshot is missing; generate it with "
@@ -412,9 +469,7 @@ def test_public_api_stability() -> None:
 
     breaking, notes = _compare_items(snapshot or {}, current)
     if update:
-        SNAPSHOT_FILE.write_text(
-            json.dumps(current, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        SNAPSHOT_FILE.write_text(_dump_snapshot(current), encoding="utf-8")
         print(f"API snapshot written to {SNAPSHOT_FILE}")
 
     if breaking:
