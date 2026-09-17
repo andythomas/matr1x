@@ -224,3 +224,24 @@ def test_state_exclusion_groups_control_coexistence():
         "primary",
         "secondary",
     ]
+
+
+def test_state_exclusion_groups_use_class_identity_across_sources():
+    """Same-named stateful classes share exclusion groups across sources."""
+    first_class = type(
+        "SharedStatefulSystem",
+        (StatefulSystem,),
+        {"__module__": "first_system", "states": ("primary", "secondary")},
+    )
+    second_class = type(
+        "SharedStatefulSystem",
+        (StatefulSystem,),
+        {"__module__": "second_system", "states": ("primary", "secondary")},
+    )
+    primary = first_class("primary")
+    primary.source = "first_system.py"
+    secondary = second_class("secondary")
+    secondary.source = "second_system.py"
+
+    with pytest.raises(ValueError, match="share exclusion group"):
+        MergedSystem([primary, secondary])
