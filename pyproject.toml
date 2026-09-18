@@ -31,7 +31,7 @@ dependencies = [
     "pygit2 >= 1.16",                               # gui.helpers, devices.git
     "pygit2 >= 1.19; python_version >= '3.14'",     # gui.helpers, devices.git (Py 3.14+)
     "wrapt > 2.0",                                  # devices
-    "urwid > 2.0",                                  # TUI (scripts.matrix)
+    "urwid > 2.0",                                  # TUI (apps.cli)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
     "monaco-assets == 0.7.1",                        # gui.editor (matrix-script)
     "ruff == 0.15.22",                              # gui.editor (run as subprocess)
@@ -51,14 +51,14 @@ ppms = [
 ]
 
 [project.scripts]
-matrix = "matr1x.scripts.matrix:main"
-matrix-di = "matr1x.scripts.matrix_di:main"
+matrix = "matr1x.apps.cli:main"
+matrix-di = "matr1x.apps.desktop_integration:main"
 
 [project.gui-scripts]
-matrix-gui = "matr1x.scripts.matrix_gui:main"
-sweep-generator = "matr1x.scripts.sweep_generator:main"
-matrix-script = "matr1x.scripts.matrix_script:main"
-matrix-preview = "matr1x.scripts.matrix_preview:main"
+matrix-gui = "matr1x.apps.queue:main"
+sweep-generator = "matr1x.apps.sweep_generator:main"
+matrix-script = "matr1x.apps.script:main"
+matrix-preview = "matr1x.apps.preview:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
 [project.urls]
@@ -168,10 +168,10 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "layering: scripts > systems > control > gui > devices > core"
+name = "layering: apps > systems > control > gui > devices > core"
 type = "layers"
 layers = [
-    "matr1x.scripts",
+    "matr1x.apps",
     "matr1x.systems",
     "matr1x.control",
     "matr1x.gui",
@@ -183,17 +183,17 @@ layers = [
 name = "entry points are independent"
 type = "independence"
 modules = [
-    "matr1x.scripts.matrix",
-    "matr1x.scripts.matrix_gui",
-    "matr1x.scripts.matrix_script",
-    "matr1x.scripts.matrix_preview",
-    "matr1x.scripts.matrix_di",
-    "matr1x.scripts.sweep_generator",
+    "matr1x.apps.cli",
+    "matr1x.apps.queue",
+    "matr1x.apps.script",
+    "matr1x.apps.preview",
+    "matr1x.apps.desktop_integration",
+    "matr1x.apps.sweep_generator",
 ]
 ignore_imports = [
-    # matrix_gui opens the sweep-generator window in-process; decoupling this
+    # queue opens the sweep-generator window in-process; decoupling this
     # (e.g. via subprocess) is deferred.
-    "matr1x.scripts.matrix_gui -> matr1x.scripts.sweep_generator",
+    "matr1x.apps.queue -> matr1x.apps.sweep_generator",
 ]
 
 [[tool.importlinter.contracts]]

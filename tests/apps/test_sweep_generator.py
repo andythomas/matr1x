@@ -15,8 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test internal functions of sweep generator."""
 
+from matr1x.apps.sweep_generator import ColumnData
 from matr1x.core.error_handling import Error
-from matr1x.scripts.sweep_generator import ColumnData
 
 
 def test_check_depth():

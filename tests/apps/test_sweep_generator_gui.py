@@ -22,7 +22,7 @@ import numpy
 import pytest
 from PySide6.QtWidgets import QLineEdit
 
-from matr1x.scripts import sweep_generator
+from matr1x.apps import sweep_generator
 
 _SWEEP_GENERATOR_WINDOW: sweep_generator.MainWindow | None = None
 
