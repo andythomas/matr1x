@@ -17,7 +17,7 @@
 
 from pathlib import Path
 
-from matr1x.scripts import matrix_preview
+from matr1x.apps import preview as matrix_preview
 
 
 def test_matrix_preview_run(qtbot, qapp, data_dir: Path):

@@ -9,7 +9,7 @@ Most parts are written in Python and the editor uses some JavaScript.
 - `matr1x`: The source code of the package, organized in layers.
   Lower layers must not import from higher layers (enforced by
   import-linter contracts in `pyproject.toml`):
-  - `matr1x/scripts`: The `matrix`, `matrix-gui`, `matrix-script` and
+  - `matr1x/apps`: The `matrix`, `matrix-gui`, `matrix-script` and
     related entry points (top layer).
   - `matr1x/systems`: System definitions (measurement setups), e.g. the
     dummy systems used by the tests.
@@ -29,7 +29,7 @@ Most parts are written in Python and the editor uses some JavaScript.
     must import the canonical `matr1x.core.*` / `matr1x.gui.*` paths,
     not the shims.
 - `tests`: Pytest tests, mirroring the package layers (`tests/core`,
-  `tests/control`, `tests/scripts`). `tests/input` holds input files for
+  `tests/control`, `tests/apps`). `tests/input` holds input files for
   the entry points, `tests/data` holds data files under analysis. Shared
   path fixtures live in `tests/conftest.py`; tests write their outputs to
   pytest's `tmp_path` and must not create files in the repository tree.

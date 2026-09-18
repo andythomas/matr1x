@@ -20,9 +20,9 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 
+from matr1x.apps import queue as matrix_gui
 from matr1x.core.eval import loadmatrix
 from matr1x.core.models import SystemInfo, SystemSelectionInfo
-from matr1x.scripts import matrix_gui
 
 
 def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
