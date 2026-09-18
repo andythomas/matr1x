@@ -31,7 +31,6 @@ from math import floor, isfinite
 from pathlib import Path
 from typing import Any
 
-import pyqtgraph as pg
 from pydantic import BaseModel, Field
 from PySide6.QtCore import QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFocusEvent, QKeySequence, QMouseEvent
@@ -83,7 +82,6 @@ from matr1x.gui.helpers import (
 from matr1x.gui.logging import LoggingWindow
 from matr1x.gui.meta_viewer import uint_validator, validator
 from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
-from matr1x.gui.plot import CustomViewBox
 from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
@@ -906,6 +904,10 @@ class SweepPreviewPopup(QDialog):
         index: int,
         col: ColumnData,
     ):
+        import pyqtgraph as pg
+
+        from matr1x.gui.plot import CustomViewBox
+
         super().__init__(parent)
         self.columns: ColumnData = col
         sweep = self.columns.calculate_sweep()
