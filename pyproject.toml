@@ -190,11 +190,6 @@ modules = [
     "matr1x.scripts.matrix_di",
     "matr1x.scripts.sweep_generator",
 ]
-ignore_imports = [
-    # matrix_gui opens the sweep-generator window in-process; decoupling this
-    # (e.g. via subprocess) is deferred.
-    "matr1x.scripts.matrix_gui -> matr1x.scripts.sweep_generator",
-]
 
 [[tool.importlinter.contracts]]
 name = "core and devices must not import Qt"

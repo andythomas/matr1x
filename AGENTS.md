@@ -56,7 +56,7 @@ Most parts are written in Python and the editor uses some JavaScript.
 - We code for Python 3.10 and above.
 - We strongly type all newly added code.
 - We use numpy docstring style with a maximum of 72 characters line length.
-- We keep function complexity in check with `complexipy` (max complexity 15, see `pyproject.toml`).
+- We keep function complexity in check with `complexipy` (max complexity 15, see `pyproject.toml`). Always run it on the whole project (`uv run complexipy`, no path arguments): running it on a subset of files overwrites the project-wide `complexipy-snapshot.json` baseline with a partial one.
 - We enforce the package layering and import rules with import-linter
   (`uv run lint-imports`); keep the contracts in `pyproject.toml` green.
 
