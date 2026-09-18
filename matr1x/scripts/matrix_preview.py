@@ -683,29 +683,33 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         if check == FetchResult.LOAD_FAILED:
             # fetch_data already notified about the error
             return
-        if check != FetchResult.OK:
-            self.column_items = [
-                f"{name} ({unit}), shape: {shape}"
-                for name, unit, shape in zip(self.names, self.units, self.shapes)
-            ]
-            if check == FetchResult.SHAPES_CHANGED:
-                # file has same columns but different shapes, only change
-                # names to reflect the dimensions
-                for i in range(3):
-                    for j, item in enumerate(self.column_items):
-                        self.ui.widgets.column_selector[i].setItemText(j + 1, item)
-            elif check == FetchResult.COLUMNS_CHANGED:
-                # file has different columns
-                # reload interface
-                for i in range(3):
-                    self.ui.widgets.column_selector[i].blockSignals(True)
-                    self.ui.widgets.column_selector[i].clear()
-                    self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
-                    self.ui.widgets.column_selector[i].blockSignals(False)
-                self.reset()
+        elif check != FetchResult.OK:
+            self.update_column_selectors(check)
         else:
             self.spw.refresh_all_plots()
         self.meta_viewer.update_data(self.header)
+
+    def update_column_selectors(self, check: FetchResult) -> None:
+        """Update the column selectors after the file structure changed."""
+        self.column_items = [
+            f"{name} ({unit}), shape: {shape}"
+            for name, unit, shape in zip(self.names, self.units, self.shapes)
+        ]
+        if check == FetchResult.SHAPES_CHANGED:
+            # file has same columns but different shapes, only change
+            # names to reflect the dimensions
+            for i in range(3):
+                for j, item in enumerate(self.column_items):
+                    self.ui.widgets.column_selector[i].setItemText(j + 1, item)
+        elif check == FetchResult.COLUMNS_CHANGED:
+            # file has different columns
+            # reload interface
+            for i in range(3):
+                self.ui.widgets.column_selector[i].blockSignals(True)
+                self.ui.widgets.column_selector[i].clear()
+                self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
+                self.ui.widgets.column_selector[i].blockSignals(False)
+            self.reset()
 
     def index_changed(self, newIndex: int) -> None:
         """If index changed, reload the new data and handle the gui interaction."""
