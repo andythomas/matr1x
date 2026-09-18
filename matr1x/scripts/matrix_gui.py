@@ -16,6 +16,7 @@
 """Provide a graphical user interface for matrix measurements."""
 
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -25,6 +26,7 @@ from typing import Any
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -34,7 +36,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMainWindow,
     QMenu,
     QMenuBar,
     QMessageBox,
@@ -84,7 +85,6 @@ from matr1x.gui.shared import (
     SaferQSettings,
     check_config,
 )
-from matr1x.scripts import sweep_generator
 from matr1x.scripts.post_install import (
     check_desktop_integration,
     post_installation,
@@ -496,7 +496,17 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
         check_config(matr1x.config, self.ui.widgets.notifier)
-        self.sg: QMainWindow | None = None
+        self._sg_proc: subprocess.Popen[bytes] | None = None
+        self._input_server_name = f"matr1x-matrix-gui-{os.getpid()}"
+        self._input_server = QLocalServer(self)
+        QLocalServer.removeServer(self._input_server_name)
+        if not self._input_server.listen(self._input_server_name):
+            logger.warning(
+                "Could not bind local input server: %s",
+                self._input_server.errorString(),
+            )
+        else:
+            self._input_server.newConnection.connect(self._on_input_connection)
         self.running = False
         self.sys_meta_data: dict[str, Any] = {}
         self._create_connections()
@@ -596,8 +606,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             )
             a0.ignore()
             return
-        if self.sg is not None:
-            self.sg.close()
+        self._input_server.close()
         while self.ui.widgets.meas_list.count() > 0:
             self.ui.widgets.meas_list.remove_measurement()
         self.save_window_state()
@@ -625,20 +634,36 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.input_file.setText(filename[0])
 
     def start_sweep_generator(self) -> None:
-        """Run sweep Generator already initialized with system."""
-        if self.sg is None:
-            self.sg = sweep_generator.MainWindow(
-                filename=Path(self.ui.widgets.input_file.text()),
-                inputcb=self.ui.widgets.input_file.setText,
-                log_window=self.log_window,
+        """Launch the sweep generator as a separate process."""
+        if self._sg_proc is not None and self._sg_proc.poll() is None:
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage("A sweep generator is already running.", level=logging.INFO)
             )
-            self.sg.show()
-        elif self.sg.isVisible() is False:
-            self.sg.show()
-        elif self.sg.isMinimized() is True:
-            self.sg.showNormal()
-        else:
-            self.sg.raise_()
+            return
+        input_file = Path(self.ui.widgets.input_file.text())
+        file_arg = f"file=r'{input_file}', " if input_file.is_file() else ""
+        cmd = [
+            sys.executable,
+            "-c",
+            "from matr1x.scripts import sweep_generator; "
+            f"sweep_generator.main({file_arg}notify='{self._input_server_name}')",
+        ]
+        self._sg_proc = subprocess.Popen(cmd, creationflags=SUBPROCESS_CREATION_FLAGS)
+
+    def _on_input_connection(self) -> None:
+        """Handle a new connection from the sweep generator."""
+        socket = self._input_server.nextPendingConnection()
+        socket.readyRead.connect(lambda: self._on_input_data(socket))
+
+    def _on_input_data(self, socket: QLocalSocket) -> None:
+        """Update the input file from a filename sent by the sweep generator."""
+        data = bytes(socket.readAll().data()).decode().strip()
+        if data and Path(data).suffix == ".sw8":
+            self.ui.widgets.input_file.setText(data)
+        # Close the fd synchronously so a late readable (EOF) notification
+        # cannot reach the socket after it has been deleted.
+        socket.close()
+        socket.deleteLater()
 
     def _systemfile_from_inputfile(self, input_file_path: str) -> list[str] | None:
         """Read the system file list declared in an input-file header."""
