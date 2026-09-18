@@ -495,7 +495,7 @@ class Elab(System):
                 )
             )
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # report any api error
             self.report(
                 Message(
                     f"Exception when calling /teams/current/resources_categories: {e}\n",
