@@ -841,24 +841,11 @@ def uninstall_core_desktopintegration() -> None:
             )
             remove_path(Path.home() / ".local/share/applications/matrix-gui.desktop")
 
-            # Try to remove deprecated files
-            subprocess.run(
-                xdg_uninstall_basic_icon("matr1x-matrix_gui.png"),
-                check=False,
-            )
-            remove_path(Path.home() / ".local/share/applications/matrix_gui.desktop")
-
             subprocess.run(
                 xdg_uninstall_basic_icon("matr1x-matrix-script.png"),
                 check=False,
             )
             remove_path(Path.home() / ".local/share/applications/matrix-script.desktop")
-
-            subprocess.run(
-                xdg_uninstall_basic_icon("matr1x-matrix_script.png"),
-                check=False,
-            )
-            remove_path(Path.home() / ".local/share/applications/matrix_script.desktop")
 
             subprocess.run(
                 xdg_uninstall_basic_icon("matr1x-sweep-generator.png"),
@@ -867,32 +854,10 @@ def uninstall_core_desktopintegration() -> None:
             remove_path(Path.home() / ".local/share/applications/sweep-generator.desktop")
 
             subprocess.run(
-                xdg_uninstall_basic_icon("matr1x-sweep_generator.png"),
-                check=False,
-            )
-            remove_path(Path.home() / ".local/share/applications/sweep_generator.desktop")
-
-            subprocess.run(
                 xdg_uninstall_basic_icon("matr1x-matrix-preview.png"),
                 check=False,
             )
             remove_path(Path.home() / ".local/share/applications/matrix-preview.desktop")
-
-            subprocess.run(
-                xdg_uninstall_basic_icon("matr1x-matrix_preview.png"),
-                check=False,
-            )
-            remove_path(Path.home() / ".local/share/applications/matrix_preview.desktop")
-
-            # Remove deprecated application types, to be removed in 2025/26
-            subprocess.run(
-                xdg_uninstall_mime_icon("application-matr1x-ma7"),
-                check=False,
-            )
-            subprocess.run(
-                xdg_uninstall_mime_icon("application-matr1x-ma7", with_theme=True),
-                check=False,
-            )
 
             # Uninstall datafile/matrix-file icons and mime types
             subprocess.run(
@@ -1018,9 +983,6 @@ def uninstall_control_gui_desktop_integration(pkgname: str, extra_guis: list[str
                     xdg_uninstall_basic_icon("matr1x-control.png"),
                     check=True,
                 )
-                remove_path(
-                    Path.home() / ".local/share/applications" / f"{gui}.desktop"
-                )  # remove in 2025/26
                 remove_path(
                     Path.home() / ".local/share/applications" / f"python.{pkgname}.{gui}.desktop"
                 )
