@@ -224,6 +224,17 @@ def _reset_setvalues() -> None:
         _setvalues.append(value)
 
 
+def _get_column_setvalues() -> list[_typing.Any]:
+    """Expand named parameter groups without expanding array contents."""
+    values: list[_typing.Any] = []
+    for column, value in zip(_system.columns, _setvalues):
+        if isinstance(column, (list, tuple)):
+            values.extend(value if value is not None else [None] * len(column))
+        else:
+            values.append(value)
+    return values
+
+
 # inject line number decorator to time.sleep
 _time.sleep = _lineno_decorator(_time.sleep)  # ty: ignore[invalid-assignment]
 # inject breakpoint and line number decorators to system methods
@@ -593,7 +604,13 @@ def init_datafile(
         msg, outputfile = _system.init_datafile(_scriptname or "matrix script generated")
         _report(_Message(f"{msg}: {outputfile}"))
         _report(_Message("acquired configuration, and initialized file"))
-    _report(_Header(columns=_system.columns, units=_system.units, to_stdout=print_header))
+    _report(
+        _Header(
+            columns=list(_matrix_util.flatten(_system.columns)),
+            units=list(_matrix_util.flatten(_system.units)),
+            to_stdout=print_header,
+        )
+    )
     _report(_Datafile(str(safe_filename.resolve())))
 
 
@@ -634,7 +651,7 @@ def measure_system(
             init_datafile("")
         _npoints += 1
         preread = _time.time()
-        _report(_SetValues(_setvalues, to_stdout=print_setpoint))
+        _report(_SetValues(_get_column_setvalues(), to_stdout=print_setpoint))
         _reset_setvalues()
         _system.trigger()
         return_list = _system.take_measurement_point()

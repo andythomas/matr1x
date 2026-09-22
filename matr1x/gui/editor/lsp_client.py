@@ -191,7 +191,7 @@ class LSPClient(QObject, LoggerMixin):
         try:
             response_queue.put_nowait(response)
         except Exception:
-            self.logger.warning("LSP003: Exception putting response in queue.")
+            self.logger.debug("LSP003: Exception putting response in queue.", exc_info=True)
 
     def _handle_notification(self, message: str) -> None:
         """
