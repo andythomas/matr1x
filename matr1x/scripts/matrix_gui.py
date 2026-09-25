@@ -645,8 +645,10 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         cmd = [
             sys.executable,
             "-c",
-            "from matr1x.scripts import sweep_generator; "
-            f"sweep_generator.main({file_arg}notify='{self._input_server_name}')",
+            (
+                "from matr1x.scripts import sweep_generator; "
+                f"sweep_generator.main({file_arg}notify='{self._input_server_name}')"
+            ),
         ]
         self._sg_proc = subprocess.Popen(cmd, creationflags=SUBPROCESS_CREATION_FLAGS)
 

@@ -93,7 +93,7 @@ def _load_reference() -> tuple[str, dict[str, bool]]:
     config = read_yaml(GREAT_DOCS_YML)
     if not isinstance(config, dict):
         msg = "great-docs.yml must contain a mapping at the top level"
-        raise ValueError(msg)
+        raise TypeError(msg)
     module_root = config.get("module", "matr1x")
     items: dict[str, bool] = {}
     for section in config.get("reference", []):
