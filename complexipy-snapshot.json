@@ -228,10 +228,6 @@
     "file_name": "matrix_preview.py",
     "functions": [
       {
-        "name": "SweepPreview::file_index_changed",
-        "complexity": 17
-      },
-      {
         "name": "SweepPreview::reload_data_curve",
         "complexity": 38
       },
