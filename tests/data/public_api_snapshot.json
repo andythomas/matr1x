@@ -1,0 +1,4107 @@
+{
+  "control.controlwindow:ControlWindow": {
+    "init": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "name"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "guidicts"},
+      {"annotation": "dict | None", "default": "None", "kind": "positional_or_keyword", "name": "extra_cmds"},
+      {"annotation": "PySide6.QtWidgets.QWidget | None", "default": "None", "kind": "positional_or_keyword", "name": "parent"},
+      {"annotation": "<class 'str'>", "default": "'matr1x'", "kind": "positional_or_keyword", "name": "package"},
+      {"default": "False", "kind": "positional_or_keyword", "name": "logging"},
+      {"default": "8898", "kind": "positional_or_keyword", "name": "port"}
+    ],
+    "kind": "class"
+  },
+  "control.gui_dict:GuiDict": {
+    "init": [],
+    "kind": "class"
+  },
+  "control.gui_dict:MethodBundle": {
+    "init": [],
+    "kind": "class",
+    "members": {
+      "add_change_handler": {
+        "kind": "function",
+        "params": [
+          {"annotation": "matr1x.control.gui_dict.variable | matr1x.control.gui_dict.widget | matr1x.control.gui_dict.value | matr1x.control.gui_dict.variableWidget | matr1x.control.gui_dict.variableValue | matr1x.control.gui_dict.widgetValue | matr1x.control.gui_dict.variableWidgetValue", "kind": "positional_or_keyword", "name": "function"}
+        ]
+      },
+      "add_setup_method": {
+        "kind": "function",
+        "params": [
+          {"annotation": "collections.abc.Callable[[typing.Any], None]", "kind": "positional_or_keyword", "name": "function"}
+        ]
+      },
+      "apply": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'PySide6.QtWidgets.QWidget'>", "kind": "positional_or_keyword", "name": "obj"}
+        ]
+      },
+      "connect_value_changed": {
+        "kind": "function",
+        "params": [
+          {"annotation": "'var'", "kind": "positional_or_keyword", "name": "obj"},
+          {"annotation": "<class 'PySide6.QtWidgets.QWidget'>", "kind": "positional_or_keyword", "name": "widget"}
+        ]
+      }
+    }
+  },
+  "control.gui_dict:catchEmitError": {
+    "kind": "function",
+    "params": [
+      {"annotation": "~_F", "kind": "positional_or_keyword", "name": "method"}
+    ]
+  },
+  "control.gui_dict:guiObject": {
+    "kind": "enum",
+    "members": ["button", "checkbox", "combobox", "doublespinbox", "hline", "labeltext", "lineedit", "progressbar", "spinbox", "togglebutton"]
+  },
+  "control.gui_dict:var": {
+    "init": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "copyValueRequested": {
+        "kind": "constant",
+        "value": "'<PySide6.QtCore.Signal>'"
+      },
+      "copy_value": {
+        "kind": "function",
+        "params": []
+      },
+      "getGUIvalue": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "default": "2", "kind": "positional_or_keyword", "name": "column"}
+        ]
+      },
+      "setValue": {
+        "kind": "function",
+        "params": [
+          {"annotation": "typing.Any", "kind": "positional_or_keyword", "name": "newValue"}
+        ]
+      },
+      "staticMetaObject": {
+        "kind": "constant",
+        "value": "PySide6.QtCore.QMetaObject(\"var\" inherits \"QObject\":\nMethods:\n  #4 type=Signal, signature=valueChanged(PyObject), parameters=PyObject\n  #5 type=Signal, signature=unitChanged(QString), parameters=QString\n  #6 type=Signal, signature=tooltipChanged(QString), parameters=QString\n  #7 type=Signal, signature=copyValueRequested()\n  #8 type=Slot, signature=_update_readout_slot(PyObject), parameters=PyObject\n  #9 type=Slot, signature=_update_toggle_slot(PyObject), parameters=PyObject\n  #10 type=Slot, signature=_update_label_slot(QString), parameters=QString\n  #11 type=Slot, signature=_update_tooltip_slot(QString), parameters=QString\n  #12 type=Slot, signature=_dispatch_change_handlers(PyObject), parameters=PyObject\n  #13 type=Slot, signature=_copy_value_slot()\n)"
+      },
+      "tooltip": {
+        "kind": "property",
+        "params": []
+      },
+      "tooltipChanged": {
+        "kind": "constant",
+        "value": "'<PySide6.QtCore.Signal>'"
+      },
+      "unit": {
+        "kind": "property",
+        "params": []
+      },
+      "unitChanged": {
+        "kind": "constant",
+        "value": "'<PySide6.QtCore.Signal>'"
+      },
+      "value": {
+        "kind": "property",
+        "params": []
+      },
+      "valueChanged": {
+        "kind": "constant",
+        "value": "'<PySide6.QtCore.Signal>'"
+      }
+    }
+  },
+  "control.util:control_main": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "name"},
+      {"annotation": "'type[ControlWindow]'", "kind": "positional_or_keyword", "name": "window_class"},
+      {"annotation": "matr1x.control.gui_dict.GuiDict | type[matr1x.control.gui_dict.GuiDict] | collections.abc.Sequence[type[matr1x.control.gui_dict.GuiDict] | matr1x.control.gui_dict.GuiDict] | None", "default": "None", "kind": "positional_or_keyword", "name": "guidicts"},
+      {"annotation": "dict | None", "default": "None", "kind": "positional_or_keyword", "name": "extra_cmds"},
+      {"annotation": "<class 'bool'>", "default": "True", "kind": "positional_or_keyword", "name": "lockfile"},
+      {"annotation": "<class 'str'>", "default": "'matr1x'", "kind": "positional_or_keyword", "name": "package"},
+      {"annotation": "typing.Any", "kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "control.util:linear_trend": {
+    "kind": "function",
+    "params": [
+      {"annotation": "ArrayLike", "kind": "positional_or_keyword", "name": "timestamps"},
+      {"annotation": "ArrayLike", "kind": "positional_or_keyword", "name": "data"},
+      {"annotation": "<class 'float'>", "default": "60", "kind": "positional_or_keyword", "name": "interval"}
+    ]
+  },
+  "control.util:sendNotificationEmail": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "address"},
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "subject"},
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "msgtext"},
+      {"annotation": "list[str | pathlib.Path] | None", "default": "None", "kind": "positional_or_keyword", "name": "attachments"}
+    ]
+  },
+  "core.eval:delta": {
+    "kind": "function",
+    "params": [
+      {"annotation": "numpy.ndarray | polars.dataframe.frame.DataFrame", "kind": "positional_or_keyword", "name": "data"},
+      {"annotation": "str | None", "default": "None", "kind": "keyword_only", "name": "column"}
+    ]
+  },
+  "core.eval:delta3p": {
+    "kind": "function",
+    "params": [
+      {"annotation": "numpy.ndarray | polars.dataframe.frame.DataFrame", "kind": "positional_or_keyword", "name": "data"},
+      {"annotation": "str | None", "default": "None", "kind": "keyword_only", "name": "column"}
+    ]
+  },
+  "core.eval:loadmatrix": {
+    "kind": "function",
+    "params": [
+      {"annotation": "str | pathlib.Path", "kind": "positional_or_keyword", "name": "filename"},
+      {"annotation": "<class 'bool'>", "default": "True", "kind": "positional_or_keyword", "name": "structured"},
+      {"annotation": "<class 'bool'>", "default": "False", "kind": "positional_or_keyword", "name": "print_header"},
+      {"annotation": "<class 'bool'>", "default": "False", "kind": "positional_or_keyword", "name": "replace_None"},
+      {"annotation": "<class 'bool'>", "default": "False", "kind": "keyword_only", "name": "to_polars"}
+    ]
+  },
+  "core.metadata:APP_META_KEY": {
+    "kind": "constant",
+    "value": "['description']"
+  },
+  "core.metadata:VALID_META_KEYS": {
+    "kind": "constant",
+    "value": "{'creator': True, 'date': False, 'identifier': True, 'relation': True, 'description': True, 'source': True, 'type': True, 'publisher': True, 'format': False, 'language': False}"
+  },
+  "core.models:Message": {
+    "init": [
+      {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "message"},
+      {"annotation": "typing.Any", "kind": "var_keyword", "name": "data"}
+    ],
+    "kind": "class",
+    "members": {
+      "model_config": {
+        "kind": "constant",
+        "value": "{}"
+      },
+      "should_comment": {
+        "kind": "property",
+        "params": []
+      },
+      "should_log": {
+        "kind": "property",
+        "params": []
+      }
+    }
+  },
+  "core.models:Modifier": {
+    "kind": "enum",
+    "members": ["TO_PROGRESS_LABEL"]
+  },
+  "core.scpi_tcpserver:DEFAULT_PORT": {
+    "kind": "constant",
+    "value": "8898"
+  },
+  "core.scpi_tcpserver:SCPI_TCP_Server": {
+    "init": [
+      {"annotation": "<class 'dict'>", "kind": "positional_or_keyword", "name": "cmd_list"},
+      {"annotation": "<class 'str'>", "default": "'localhost'", "kind": "positional_or_keyword", "name": "host"},
+      {"annotation": "<class 'int'>", "default": "8898", "kind": "positional_or_keyword", "name": "port"}
+    ],
+    "kind": "class",
+    "members": {
+      "start": {
+        "kind": "function",
+        "params": []
+      },
+      "stop": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "core.system.base:System": {
+    "init": [
+      {"default": "None", "kind": "positional_or_keyword", "name": "name"}
+    ],
+    "kind": "class"
+  },
+  "core.system.base:System.add_comment": {
+    "kind": "function",
+    "params": [
+      {"annotation": "'str'", "kind": "positional_or_keyword", "name": "message"}
+    ]
+  },
+  "core.system.base:System.add_dev": {
+    "kind": "function",
+    "params": [
+      {"kind": "positional_or_keyword", "name": "name"},
+      {"kind": "positional_or_keyword", "name": "descriptor"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "args"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "kwargs"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "config_params"}
+    ]
+  },
+  "core.system.base:System.add_param": {
+    "kind": "function",
+    "params": [
+      {"annotation": "'str | list[str]'", "kind": "positional_or_keyword", "name": "name"},
+      {"annotation": "'str | list[str]'", "kind": "positional_or_keyword", "name": "unit"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "setter"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "getter"},
+      {"annotation": "'float | list[float] | None'", "default": "None", "kind": "positional_or_keyword", "name": "default"},
+      {"annotation": "'str | list[str] | None'", "default": "None", "kind": "positional_or_keyword", "name": "dtype"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "chunks"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "trigger"},
+      {"annotation": "'tuple[Any] | list[Any] | None'", "default": "None", "kind": "positional_or_keyword", "name": "setter_args"},
+      {"annotation": "'dict[str, Any] | None'", "default": "None", "kind": "positional_or_keyword", "name": "setter_kwargs"},
+      {"annotation": "'tuple[Any] | list[Any] | None'", "default": "None", "kind": "positional_or_keyword", "name": "getter_args"},
+      {"annotation": "'dict[str, Any] | None'", "default": "None", "kind": "positional_or_keyword", "name": "getter_kwargs"},
+      {"annotation": "'tuple[Any] | list[Any] | None'", "default": "None", "kind": "positional_or_keyword", "name": "trigger_args"},
+      {"annotation": "'dict[str, Any] | None'", "default": "None", "kind": "positional_or_keyword", "name": "trigger_kwargs"}
+    ]
+  },
+  "core.system.base:System.hdf5": {
+    "kind": "property",
+    "params": []
+  },
+  "core.system.base:System.load_config": {
+    "kind": "function",
+    "params": [
+      {"annotation": "'type[BaseModel]'", "kind": "positional_or_keyword", "name": "model_class"},
+      {"annotation": "'str'", "kind": "positional_or_keyword", "name": "section"},
+      {"annotation": "'list[str] | None'", "default": "None", "kind": "positional_or_keyword", "name": "sensitive_keys"}
+    ]
+  },
+  "core.system.base:System.name": {
+    "kind": "property",
+    "params": []
+  },
+  "core.system.base:System.report": {
+    "kind": "function",
+    "params": [
+      {"annotation": "'MeasurementData'", "kind": "positional_or_keyword", "name": "data"}
+    ]
+  },
+  "core.system.base:System.reset": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.system.base:System.set": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.system.base:System.state_exclusion_groups": {
+    "kind": "constant",
+    "value": "mappingproxy({})"
+  },
+  "core.system.base:System.states": {
+    "kind": "constant",
+    "value": "()"
+  },
+  "core.util:Command": {
+    "init": [
+      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
+      {"annotation": "collections.abc.Callable[..., None] | str | list[str] | tuple[str, ...] | None", "kind": "positional_or_keyword", "name": "setfunc"},
+      {"annotation": "collections.abc.Callable[..., typing.Any] | str | list[str] | tuple[str, ...] | None", "kind": "positional_or_keyword", "name": "getfunc"},
+      {"annotation": "tuple | list | None", "default": "None", "kind": "positional_or_keyword", "name": "setargs"},
+      {"annotation": "tuple | list | None", "default": "None", "kind": "positional_or_keyword", "name": "getargs"},
+      {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "polling_cmd"}
+    ],
+    "kind": "class"
+  },
+  "core.util:Get": {
+    "init": [
+      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
+      {"annotation": "collections.abc.Callable[..., typing.Any] | str | list[str] | tuple[str, ...]", "kind": "positional_or_keyword", "name": "getfunc"},
+      {"annotation": "tuple | None", "default": "None", "kind": "positional_or_keyword", "name": "getargs"}
+    ],
+    "kind": "class",
+    "members": {}
+  },
+  "core.util:Set": {
+    "init": [
+      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
+      {"annotation": "collections.abc.Callable[..., None] | str | list[str] | tuple[str, ...]", "kind": "positional_or_keyword", "name": "setfunc"},
+      {"annotation": "tuple | None", "default": "None", "kind": "positional_or_keyword", "name": "setargs"},
+      {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "polling_cmd"}
+    ],
+    "kind": "class",
+    "members": {}
+  },
+  "devices.ami:AMI1700": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "get_helium_level": {
+        "kind": "function",
+        "params": []
+      },
+      "get_nitrogen_level": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.caenels:CAENelsEasyDriver": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "fetchStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "getCurrent": {
+        "kind": "function",
+        "params": []
+      },
+      "getCurrentSetpoint": {
+        "kind": "function",
+        "params": []
+      },
+      "getDCVoltage": {
+        "kind": "function",
+        "params": []
+      },
+      "getFault": {
+        "kind": "function",
+        "params": []
+      },
+      "getID": {
+        "kind": "function",
+        "params": []
+      },
+      "getOutputState": {
+        "kind": "function",
+        "params": []
+      },
+      "getRampSlewRate": {
+        "kind": "function",
+        "params": []
+      },
+      "getVoltage": {
+        "kind": "function",
+        "params": []
+      },
+      "resetModule": {
+        "kind": "function",
+        "params": []
+      },
+      "setCurrent": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"}
+        ]
+      },
+      "setOff": {
+        "kind": "function",
+        "params": []
+      },
+      "setOn": {
+        "kind": "function",
+        "params": []
+      },
+      "setOutput": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "output"}
+        ]
+      },
+      "setRampCurrent": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"}
+        ]
+      },
+      "setRampSlewRate": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "slewrate"}
+        ]
+      }
+    }
+  },
+  "devices.cryogenics:CryogenicBipolarPS": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "5", "kind": "positional_or_keyword", "name": "cmds_pers"},
+      {"default": "5", "kind": "positional_or_keyword", "name": "field_limit"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'TeslePerAmpere': 'tpa'}"
+      },
+      "getOutput": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "depth"}
+        ]
+      },
+      "getRate": {
+        "kind": "function",
+        "params": []
+      },
+      "getStatus": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "depth"}
+        ]
+      },
+      "getUpdate": {
+        "kind": "function",
+        "params": []
+      },
+      "get_ramp_status": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "depth"}
+        ]
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "query": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "command"}
+        ]
+      },
+      "re_holding": {
+        "kind": "constant",
+        "value": "re.compile('HOLDING ON [A-Z]+ AT ([0-9\\\\.\\\\-]+) TESLA')"
+      },
+      "re_mid": {
+        "kind": "constant",
+        "value": "re.compile('MID SETTING: ([0-9\\\\.\\\\-]+) TESLA')"
+      },
+      "re_output": {
+        "kind": "constant",
+        "value": "re.compile('OUTPUT: ([0-9\\\\.\\\\-]+) TESLA AT ([0-9\\\\.\\\\-]+) VOLTS')"
+      },
+      "re_ramping": {
+        "kind": "constant",
+        "value": "re.compile('RAMPING FROM [0-9\\\\.\\\\-]+ TO ([0-9\\\\.\\\\-]+) TESLA AT')"
+      },
+      "read_very_eager": {
+        "kind": "function",
+        "params": []
+      },
+      "setMax": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "setMid": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "setOutput": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "setPause": {
+        "kind": "function",
+        "params": []
+      },
+      "setRate": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "setZero": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.cryogenics:CryogenicPS": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "4", "kind": "positional_or_keyword", "name": "gpib_addr"},
+      {"default": "5", "kind": "positional_or_keyword", "name": "cmds_pers"},
+      {"default": "5", "kind": "positional_or_keyword", "name": "field_limit"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'TeslePerAmpere': 'tpa'}"
+      },
+      "getOutput": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "depth"}
+        ]
+      },
+      "getRate": {
+        "kind": "function",
+        "params": []
+      },
+      "getStatus": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "depth"}
+        ]
+      },
+      "getUpdate": {
+        "kind": "function",
+        "params": []
+      },
+      "get_ramp_status": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "depth"}
+        ]
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "query": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "command"}
+        ]
+      },
+      "re_holding": {
+        "kind": "constant",
+        "value": "re.compile('HOLDING ON [A-Z]+ AT ([0-9\\\\.\\\\-]+) TESLA')"
+      },
+      "re_output": {
+        "kind": "constant",
+        "value": "re.compile('OUTPUT: ([0-9\\\\.\\\\-]+) TESLA AT ([0-9\\\\.\\\\-]+) VOLTS')"
+      },
+      "re_ramping": {
+        "kind": "constant",
+        "value": "re.compile('RAMPING FROM [0-9\\\\.\\\\-]+ TO ([0-9\\\\.\\\\-]+) TESLA AT')"
+      },
+      "setMax": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "setMid": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "setOutput": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "setPause": {
+        "kind": "function",
+        "params": []
+      },
+      "setRate": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "setZero": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.cryomagnetics:CS04": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "get_field": {
+        "kind": "function",
+        "params": []
+      },
+      "ident": {
+        "kind": "function",
+        "params": []
+      },
+      "reset": {
+        "kind": "function",
+        "params": []
+      },
+      "set_field": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "field"}
+        ]
+      },
+      "wait_field": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "setpoint"},
+          {"default": "0.0002", "kind": "positional_or_keyword", "name": "delta"}
+        ]
+      }
+    }
+  },
+  "devices.cryovac:TIC500": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "disable_channel": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "get_output_enabled": {
+        "kind": "function",
+        "params": []
+      },
+      "get_pid": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "get_power": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "get_ramp": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "get_setpoint": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "get_state": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "get_temp": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "query_float": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "msg"}
+        ]
+      },
+      "set_output_enabled": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "state"}
+        ]
+      },
+      "set_pid": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pid"},
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "set_power": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "power"},
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "set_ramp": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "rate"},
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "set_setpoint": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"},
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "set_state": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "state"},
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      }
+    }
+  },
+  "devices.danfysik:Danfysik9100": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "fetchStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "getCurrent": {
+        "kind": "function",
+        "params": []
+      },
+      "getCurrentSetting": {
+        "kind": "function",
+        "params": []
+      },
+      "getPolarityStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "getRampStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "getVoltage": {
+        "kind": "function",
+        "params": []
+      },
+      "getVoltageSetting": {
+        "kind": "function",
+        "params": []
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "resetInterlocks": {
+        "kind": "function",
+        "params": []
+      },
+      "setCurrent": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"}
+        ]
+      },
+      "setOutput": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "output"}
+        ]
+      },
+      "setPolarity": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "polarity"}
+        ]
+      },
+      "setRemote": {
+        "kind": "function",
+        "params": []
+      },
+      "setVoltage": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"}
+        ]
+      }
+    }
+  },
+  "devices.danfysik:Danfysik9700": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getCurrent": {
+        "kind": "function",
+        "params": []
+      },
+      "getCurrentSetting": {
+        "kind": "function",
+        "params": []
+      },
+      "getVoltage": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.dummy:dummy": {
+    "init": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "adapter"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "close": {
+        "kind": "function",
+        "params": []
+      },
+      "config_params": {
+        "kind": "constant",
+        "value": "{'name': '*idn?', 'conf': '_p1'}"
+      },
+      "configure": {
+        "kind": "function",
+        "params": [
+          {"kind": "var_keyword", "name": "kwargs"}
+        ]
+      },
+      "trigger": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.electronicsmeasurements:BOSS": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getControl": {
+        "kind": "function",
+        "params": []
+      },
+      "getCurrent": {
+        "kind": "function",
+        "params": []
+      },
+      "getVoltage": {
+        "kind": "function",
+        "params": []
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "query": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "msg"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "attempts"}
+        ]
+      },
+      "read_very_eager": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "attempts"}
+        ]
+      },
+      "setControl": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "mode"}
+        ]
+      },
+      "setSource": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "source"}
+        ]
+      },
+      "set_local": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.git:gitDevice": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "repo_path"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'remote': 'get_remote_url', 'branch': 'get_branch_name', 'hash': 'get_commit_hash', 'status': 'get_status', 'diff': 'get_diff'}"
+      },
+      "get_branch_name": {
+        "kind": "function",
+        "params": []
+      },
+      "get_commit_hash": {
+        "kind": "function",
+        "params": []
+      },
+      "get_diff": {
+        "kind": "function",
+        "params": []
+      },
+      "get_remote_url": {
+        "kind": "function",
+        "params": []
+      },
+      "get_status": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.hewlettpackard:HP3245A": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "ident": {
+        "kind": "function",
+        "params": []
+      },
+      "set_current": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "curr"}
+        ]
+      },
+      "set_freq": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "freq"}
+        ]
+      },
+      "set_offset": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dcoff"}
+        ]
+      }
+    }
+  },
+  "devices.horst:HTMC11": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "portname"},
+      {"kind": "positional_or_keyword", "name": "slaveaddress"},
+      {"default": "115200", "kind": "positional_or_keyword", "name": "baudrate"},
+      {"default": "0.02", "kind": "positional_or_keyword", "name": "request_delay"},
+      {"default": "0.1", "kind": "positional_or_keyword", "name": "write_delay"},
+      {"default": "0.5", "kind": "positional_or_keyword", "name": "startup_delay"}
+    ],
+    "kind": "class",
+    "members": {
+      "actual_output_ratio": {
+        "kind": "property",
+        "params": []
+      },
+      "current_setpoint": {
+        "kind": "property",
+        "params": []
+      },
+      "cycle_time": {
+        "kind": "property",
+        "params": []
+      },
+      "derivative_time": {
+        "kind": "property",
+        "params": []
+      },
+      "heater_current": {
+        "kind": "property",
+        "params": []
+      },
+      "integral_time": {
+        "kind": "property",
+        "params": []
+      },
+      "manual_mode": {
+        "kind": "property",
+        "params": []
+      },
+      "manual_output_ratio": {
+        "kind": "property",
+        "params": []
+      },
+      "proportional_band": {
+        "kind": "property",
+        "params": []
+      },
+      "read_register": {
+        "kind": "function",
+        "params": [
+          {"kind": "var_positional", "name": "args"},
+          {"kind": "var_keyword", "name": "kwargs"}
+        ]
+      },
+      "setpoint1": {
+        "kind": "property",
+        "params": []
+      },
+      "temperature": {
+        "kind": "property",
+        "params": []
+      },
+      "temperature2": {
+        "kind": "property",
+        "params": []
+      },
+      "write_register": {
+        "kind": "function",
+        "params": [
+          {"kind": "var_positional", "name": "args"},
+          {"kind": "var_keyword", "name": "kwargs"}
+        ]
+      }
+    }
+  },
+  "devices.keithley:Keithley2000": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'Mode': ':SENS:FUNC?', 'VOLT:RANGE': ':SENS:VOLT:RANG?', 'VOLT:NPLC': ':SENS:VOLT:NPLC?', 'Model-identifing': '*IDN?'}"
+      },
+      "configure2WireOhm": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "resistance_range"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "configure4WireOhm": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "resistance_range"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "configureVolt": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "voltage_range"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "getFunction": {
+        "kind": "function",
+        "params": []
+      },
+      "getReading": {
+        "kind": "function",
+        "params": []
+      },
+      "triggerReading": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.keithley:Keithley2182A": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'Mode': ':SENS:FUNC?', 'VOLT:RANGE': ':SENS:VOLT:RANG?', 'VOLT:NPLC': ':SENS:VOLT:NPLC?', 'VOLT:DFIL:COUNT': ':SENS:VOLT:DFIL:COUN?'}"
+      },
+      "configure": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "voltage_range"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"annotation": "float | None", "default": "None", "kind": "positional_or_keyword", "name": "delay"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "getReading": {
+        "kind": "function",
+        "params": []
+      },
+      "query": {
+        "kind": "function",
+        "params": [
+          {"kind": "var_positional", "name": "args"},
+          {"kind": "var_keyword", "name": "kwargs"}
+        ]
+      },
+      "triggerReading": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.keithley:Keithley2400": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'sourceMode': 'sourceMode', 'senseMode': 'senseMode'}"
+      },
+      "configure": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceMode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseMode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "fourWire"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseAutoRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceAutoRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseLimit"},
+          {"annotation": "bool | None", "default": "None", "kind": "positional_or_keyword", "name": "output"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "delayAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "delay"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "getSense": {
+        "kind": "function",
+        "params": []
+      },
+      "getSource": {
+        "kind": "function",
+        "params": []
+      },
+      "read": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "nbytes"}
+        ]
+      },
+      "setSource": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"}
+        ]
+      }
+    }
+  },
+  "devices.keithley:Keithley2450": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'sourceMode': 'sourceMode', 'senseMode': 'senseMode'}"
+      },
+      "configure": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceMode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseMode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "fourWire"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseAutoRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceAutoRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseLimit"},
+          {"annotation": "bool | None", "default": "None", "kind": "positional_or_keyword", "name": "output"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "delayAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "delay"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "resetUnits"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "getSense": {
+        "kind": "function",
+        "params": []
+      },
+      "getSource": {
+        "kind": "function",
+        "params": []
+      },
+      "setSource": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"}
+        ]
+      }
+    }
+  },
+  "devices.keithley:Keithley2611A": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'sourceMode': 'print(smua.source.func)', 'senseMode': 'print(smua.sense)', 'voltageLimit': 'print(smua.source.limitv)', 'currentLimit': 'print(smua.source.limiti)', 'Model-identifing': '*IDN?'}"
+      },
+      "configure": {
+        "kind": "function",
+        "params": [
+          {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "sourceMode"},
+          {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "senseMode"},
+          {"annotation": "bool | None", "default": "None", "kind": "positional_or_keyword", "name": "fourWire"},
+          {"annotation": "bool | None", "default": "None", "kind": "positional_or_keyword", "name": "senseAutoRange"},
+          {"annotation": "float | None", "default": "None", "kind": "positional_or_keyword", "name": "senseRange"},
+          {"annotation": "bool | None", "default": "None", "kind": "positional_or_keyword", "name": "sourceAutoRange"},
+          {"annotation": "float | None", "default": "None", "kind": "positional_or_keyword", "name": "sourceRange"},
+          {"annotation": "float | None", "default": "None", "kind": "positional_or_keyword", "name": "senseLimit"},
+          {"annotation": "<class 'bool'>", "default": "False", "kind": "positional_or_keyword", "name": "output"},
+          {"annotation": "<class 'bool'>", "default": "False", "kind": "positional_or_keyword", "name": "delayAuto"},
+          {"annotation": "bool | float | None", "default": "None", "kind": "positional_or_keyword", "name": "delay"},
+          {"annotation": "<class 'bool'>", "default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "getSense": {
+        "kind": "function",
+        "params": []
+      },
+      "getSource": {
+        "kind": "function",
+        "params": []
+      },
+      "mode_char": {
+        "kind": "constant",
+        "value": "{'VOLT': 'v', 'CURR': 'i'}"
+      },
+      "mode_int": {
+        "kind": "constant",
+        "value": "{'VOLT': 1, 'CURR': 0}"
+      },
+      "output": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "state"}
+        ]
+      },
+      "setSource": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"}
+        ]
+      }
+    }
+  },
+  "devices.keithley:Keithley2701": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'Mode': ':SENS:FUNC?', 'VOLT:RANGE': ':SENS:VOLT:RANG?', 'VOLT:NPLC': ':SENS:VOLT:NPLC?', 'Model-identifing': '*IDN?'}"
+      },
+      "configure2WireOhm": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "resistance_range"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "configure4WireOhm": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "resistance_range"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "configureVolt": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "voltage_range"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "getReading": {
+        "kind": "function",
+        "params": []
+      },
+      "triggerReading": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.keithley:Keithley6221": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "abort": {
+        "kind": "function",
+        "params": []
+      },
+      "config_params": {
+        "kind": "constant",
+        "value": "{'Model-identifing': '*IDN?'}"
+      },
+      "constGo": {
+        "kind": "function",
+        "params": []
+      },
+      "deltaGo": {
+        "kind": "function",
+        "params": []
+      },
+      "deltaStop": {
+        "kind": "function",
+        "params": []
+      },
+      "fetchData": {
+        "kind": "function",
+        "params": [
+          {"default": "True", "kind": "positional_or_keyword", "name": "wait"}
+        ]
+      },
+      "generateArbWave": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "points"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "amplitude"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "frequency"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "offset"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dutyCycle"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangingMode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "durationTime"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "durationCycles"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "compliance"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "generateConstant": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "amplitude"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "autoRanging"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "compliance"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "generateDelta": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "i"},
+          {"kind": "positional_or_keyword", "name": "nplc"},
+          {"kind": "positional_or_keyword", "name": "sdel"},
+          {"kind": "positional_or_keyword", "name": "count"},
+          {"kind": "positional_or_keyword", "name": "rang"},
+          {"default": "10", "kind": "positional_or_keyword", "name": "compliance"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "comp_abort"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "generatePulseDelta": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "ihigh"},
+          {"kind": "positional_or_keyword", "name": "ilow"},
+          {"kind": "positional_or_keyword", "name": "width"},
+          {"kind": "positional_or_keyword", "name": "sdel"},
+          {"kind": "positional_or_keyword", "name": "count"},
+          {"kind": "positional_or_keyword", "name": "rang"},
+          {"kind": "positional_or_keyword", "name": "interval"},
+          {"default": "10", "kind": "positional_or_keyword", "name": "compliance"},
+          {"default": "'OFF'", "kind": "positional_or_keyword", "name": "sweep"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "lme"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "generateWave": {
+        "kind": "function",
+        "params": [
+          {"default": "'sinusoid'", "kind": "positional_or_keyword", "name": "function"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dutyCycle"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "amplitude"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "offset"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "frequency"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangingMode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "durationTime"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "durationCycles"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "compliance"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "getConstCurrent": {
+        "kind": "function",
+        "params": []
+      },
+      "pulseGo": {
+        "kind": "function",
+        "params": []
+      },
+      "pulseStop": {
+        "kind": "function",
+        "params": []
+      },
+      "queryCompliance": {
+        "kind": "function",
+        "params": []
+      },
+      "queryDone": {
+        "kind": "function",
+        "params": []
+      },
+      "setConstCurrent": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"}
+        ]
+      },
+      "waveGo": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.keithley:KeithleyDMM6500": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'Mode': ':SENS:FUNC?', 'VOLT:RANGE': 'VOLT:RANG?', 'VOLT:NPLC': ':SENS:VOLT:NPLC?', 'Model-identifing': '*IDN?'}"
+      },
+      "configure2WireOhm": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rang"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "configure4WireOhm": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rang"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "configureVolt": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "digits"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "window"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "NPLC"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dFil"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rang"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "rangeAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "trigBus"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "repeatingFilter"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "getReading": {
+        "kind": "function",
+        "params": []
+      },
+      "triggerReading": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.kepco:BOP5020mg": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getCurrent": {
+        "kind": "function",
+        "params": []
+      },
+      "getCurrentSetting": {
+        "kind": "function",
+        "params": []
+      },
+      "getVoltage": {
+        "kind": "function",
+        "params": []
+      },
+      "setCurrent": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"}
+        ]
+      },
+      "setCurrentProtection": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "voltage"},
+          {"default": "0.8", "kind": "positional_or_keyword", "name": "resistance"}
+        ]
+      },
+      "setCurrentWait": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"},
+          {"default": "0.4", "kind": "positional_or_keyword", "name": "tolerance"}
+        ]
+      },
+      "setMode": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "mode"}
+        ]
+      },
+      "setOutput": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "output"}
+        ]
+      },
+      "setRemote": {
+        "kind": "function",
+        "params": []
+      },
+      "setVoltage": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "voltage"}
+        ]
+      },
+      "setVoltageProtection": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "current"},
+          {"default": "0.8", "kind": "positional_or_keyword", "name": "resistance"}
+        ]
+      }
+    }
+  },
+  "devices.keysight:Agilent8114A": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "configure": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "p_amp"},
+          {"kind": "positional_or_keyword", "name": "p_offset"},
+          {"kind": "positional_or_keyword", "name": "p_width"},
+          {"kind": "positional_or_keyword", "name": "p_period"},
+          {"kind": "positional_or_keyword", "name": "p_count"},
+          {"kind": "positional_or_keyword", "name": "dut_imp"}
+        ]
+      },
+      "control": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "state"}
+        ]
+      },
+      "display_state": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "display"}
+        ]
+      },
+      "last_button": {
+        "kind": "function",
+        "params": []
+      },
+      "reset": {
+        "kind": "function",
+        "params": []
+      },
+      "set_duty": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "duty"}
+        ]
+      },
+      "set_duty_lim": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "lim"}
+        ]
+      },
+      "set_imp_ext": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "imp"}
+        ]
+      },
+      "set_imp_int": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "imp"}
+        ]
+      },
+      "set_num": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "count"}
+        ]
+      },
+      "set_output": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "output"}
+        ]
+      },
+      "set_period": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "period"}
+        ]
+      },
+      "set_polarity": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "polarity"}
+        ]
+      },
+      "set_trigger": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "trig"}
+        ]
+      },
+      "set_voltage": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "voltage"}
+        ]
+      },
+      "set_voltage_offset": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "voltage"}
+        ]
+      },
+      "set_width": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "width"}
+        ]
+      },
+      "start_pulsing": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.keysight:KeysightB2961": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'sourceMode': 'sourceMode', 'senseMode': 'senseMode', 'VOLT:RANGE': 'VOLT:RANG?', 'CURR:RANGE': 'CURR:RANG?', 'VOLT:NPLC': ':SENS:VOLT:NPLC?', 'CURR:NPLC': ':SENS:CURR:NPLC?', 'Output': 'outputState'}"
+      },
+      "configure": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceMode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseMode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "fourWire"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceAutoRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "sourceRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "senseLimit"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "output"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "delayAuto"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "delay"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "nplc"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"}
+        ]
+      },
+      "configure_sine": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "amp"},
+          {"kind": "positional_or_keyword", "name": "freq"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "offset"},
+          {"default": "'INF'", "kind": "positional_or_keyword", "name": "count"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "onlysetamp"}
+        ]
+      },
+      "getMeas": {
+        "kind": "function",
+        "params": []
+      },
+      "getReading": {
+        "kind": "function",
+        "params": []
+      },
+      "getSense": {
+        "kind": "function",
+        "params": []
+      },
+      "getSource": {
+        "kind": "function",
+        "params": []
+      },
+      "output": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "state"}
+        ]
+      },
+      "run_wave": {
+        "kind": "function",
+        "params": []
+      },
+      "setAcquisitionTriggerMode": {
+        "kind": "function",
+        "params": [
+          {"default": "'BUS'", "kind": "positional_or_keyword", "name": "mode"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "count"}
+        ]
+      },
+      "setSource": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "triggerReading": {
+        "kind": "function",
+        "params": []
+      },
+      "visualize_trace": {
+        "kind": "function",
+        "params": [
+          {"default": "0.001", "kind": "positional_or_keyword", "name": "dt"},
+          {"default": "1000", "kind": "positional_or_keyword", "name": "points"}
+        ]
+      }
+    }
+  },
+  "devices.keysight:PNA5225b": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "True", "kind": "positional_or_keyword", "name": "reset"},
+      {"default": "10000.0", "kind": "positional_or_keyword", "name": "timeout"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'n_points': 'SENS1:SWE:POIN?', 'ifbw': 'SENS1:BWID?', 'average': 'SENS1:AVER?', 'n_average': 'SENS1:AVER:COUN?', 'format': 'CALC1:FORM?'}"
+      },
+      "configureCW": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"kind": "positional_or_keyword", "name": "freq"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "activate"}
+        ]
+      },
+      "configureSweep": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"kind": "positional_or_keyword", "name": "fStart"},
+          {"kind": "positional_or_keyword", "name": "fStop"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "getData"}
+        ]
+      },
+      "configureVNA": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"kind": "positional_or_keyword", "name": "fPoints"},
+          {"kind": "positional_or_keyword", "name": "if_bw"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "average"}
+        ]
+      },
+      "createParam": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"kind": "positional_or_keyword", "name": "param"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "name"},
+          {"default": "'lin'", "kind": "positional_or_keyword", "name": "scale"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "createTrace"}
+        ]
+      },
+      "createTrace": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "name"},
+          {"kind": "positional_or_keyword", "name": "param"}
+        ]
+      },
+      "deleteTrace": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "winNum"},
+          {"kind": "positional_or_keyword", "name": "tracNum"}
+        ]
+      },
+      "getComplexData": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"default": "'single'", "kind": "positional_or_keyword", "name": "precision"}
+        ]
+      },
+      "getData": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"default": "'single'", "kind": "positional_or_keyword", "name": "precision"}
+        ]
+      },
+      "getSourcePower": {
+        "kind": "function",
+        "params": [
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "getSweepData": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "maxAverage": {
+        "kind": "constant",
+        "value": "1"
+      },
+      "readSweepParams": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "reset": {
+        "kind": "function",
+        "params": []
+      },
+      "selectTrace": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"kind": "positional_or_keyword", "name": "trace"}
+        ]
+      },
+      "setSourcePower": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "power"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "startSweep": {
+        "kind": "function",
+        "params": []
+      },
+      "stopSweep": {
+        "kind": "function",
+        "params": []
+      },
+      "trigger": {
+        "kind": "function",
+        "params": [
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      }
+    }
+  },
+  "devices.keysight:PSA_E4440A": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "True", "kind": "positional_or_keyword", "name": "reset"},
+      {"default": "10000.0", "kind": "positional_or_keyword", "name": "timeout"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'vidBW': 'BAND:VID?', 'resBW': 'BAND?', 'average': 'AVER:STAT?', 'naverage': 'AVERage:COUNt?'}"
+      },
+      "configureSweep": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "fCent"},
+          {"kind": "positional_or_keyword", "name": "fSpan"},
+          {"kind": "positional_or_keyword", "name": "fPoints"},
+          {"kind": "positional_or_keyword", "name": "refLev"},
+          {"kind": "positional_or_keyword", "name": "resBW"},
+          {"kind": "positional_or_keyword", "name": "vidBW"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "average"},
+          {"default": "'rms'", "kind": "positional_or_keyword", "name": "avgType"},
+          {"default": "'log'", "kind": "positional_or_keyword", "name": "scale"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "getData"}
+        ]
+      },
+      "getData": {
+        "kind": "function",
+        "params": [
+          {"default": "'single'", "kind": "positional_or_keyword", "name": "precision"}
+        ]
+      },
+      "getSweepData": {
+        "kind": "function",
+        "params": []
+      },
+      "maxAverage": {
+        "kind": "constant",
+        "value": "1"
+      },
+      "readSweepParams": {
+        "kind": "function",
+        "params": []
+      },
+      "reset": {
+        "kind": "function",
+        "params": []
+      },
+      "startSweep": {
+        "kind": "function",
+        "params": []
+      },
+      "trigger": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.keysight:PSG8257D": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "True", "kind": "positional_or_keyword", "name": "reset"},
+      {"default": "10000.0", "kind": "positional_or_keyword", "name": "timeout"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'npoints': ':SOUR:SWE:POIN?', 'modulation_output_status': ':OUTPUT:MOD?', 'LFO_output_status': ':lfo:stat?', 'LFO_source': ':SOUR:LFO:SOUR?', 'LFO_amplitude': ':SOUR:LFO:AMPL?', 'modulation_source': ':SOUR:AM:SOUR?', 'modulation_frequency': ':SOUR:AM:INT:FREQ?', 'modulation_shape': ':SOUR:AM:INT:FUNC:SHAP?', 'modulation_amplitude_depth': ':SOUR:AM:DEPT?', 'pulse_output_status': ':SOUR:PULM:STAT?', 'pulse_source': ':SOUR:PULM:SOUR?', 'pulse_input': ':SOUR:PULM:SOUR:INT?', 'pulse_frequency': ':SOUR:PULM:INT:FREQ?'}"
+      },
+      "configureAmpMod": {
+        "kind": "function",
+        "params": [
+          {"default": "True", "kind": "positional_or_keyword", "name": "AmpMod"},
+          {"default": "'DEEP'", "kind": "positional_or_keyword", "name": "amMode"},
+          {"default": "'INT'", "kind": "positional_or_keyword", "name": "ampSource"},
+          {"default": "1000.0", "kind": "positional_or_keyword", "name": "intFreq"},
+          {"default": "'SINE'", "kind": "positional_or_keyword", "name": "intShape"},
+          {"default": "100", "kind": "positional_or_keyword", "name": "ampDepth"}
+        ]
+      },
+      "configureCW": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "freq"}
+        ]
+      },
+      "configurePulseMod": {
+        "kind": "function",
+        "params": [
+          {"default": "True", "kind": "positional_or_keyword", "name": "PulseMod"},
+          {"default": "'INT'", "kind": "positional_or_keyword", "name": "pulseSource"},
+          {"default": "'SQU'", "kind": "positional_or_keyword", "name": "pulseInput"},
+          {"default": "1000.0", "kind": "positional_or_keyword", "name": "frequency"}
+        ]
+      },
+      "configureSweep": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "fStart"},
+          {"kind": "positional_or_keyword", "name": "fStop"},
+          {"kind": "positional_or_keyword", "name": "fPoints"},
+          {"kind": "positional_or_keyword", "name": "stepDwell"}
+        ]
+      },
+      "getSourcePower": {
+        "kind": "function",
+        "params": []
+      },
+      "output": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "state"}
+        ]
+      },
+      "readFreq": {
+        "kind": "function",
+        "params": []
+      },
+      "readSweepParams": {
+        "kind": "function",
+        "params": []
+      },
+      "reset": {
+        "kind": "function",
+        "params": []
+      },
+      "setLFO": {
+        "kind": "function",
+        "params": [
+          {"default": "True", "kind": "positional_or_keyword", "name": "LFO"},
+          {"default": "'INT'", "kind": "positional_or_keyword", "name": "source"},
+          {"default": "3", "kind": "positional_or_keyword", "name": "amplitude"}
+        ]
+      },
+      "setModulation": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "mod"}
+        ]
+      },
+      "setSourcePower": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "power"}
+        ]
+      },
+      "startSweep": {
+        "kind": "function",
+        "params": []
+      },
+      "stopSweep": {
+        "kind": "function",
+        "params": []
+      },
+      "trigger": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.lakeshore:Lakeshore335": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getControlMode": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "default": "1", "kind": "positional_or_keyword", "name": "loop"}
+        ]
+      },
+      "getHeaterRange": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "default": "1", "kind": "positional_or_keyword", "name": "loop"}
+        ]
+      },
+      "getTuningStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "initiateAutotune": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "mode"},
+          {"annotation": "<class 'int'>", "default": "1", "kind": "positional_or_keyword", "name": "loop"}
+        ]
+      },
+      "setControlMode": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "mode"},
+          {"annotation": "<class 'int'>", "default": "1", "kind": "positional_or_keyword", "name": "loop"},
+          {"annotation": "<class 'str'>", "default": "'A'", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "setHeaterRange": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "heaterRange"},
+          {"annotation": "<class 'int'>", "default": "1", "kind": "positional_or_keyword", "name": "loop"}
+        ]
+      },
+      "setManOutput": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'float'>", "kind": "positional_or_keyword", "name": "power"},
+          {"annotation": "<class 'int'>", "default": "1", "kind": "positional_or_keyword", "name": "loop"}
+        ]
+      },
+      "setTLimit": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "limit"},
+          {"annotation": "<class 'str'>", "default": "'A'", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      }
+    }
+  },
+  "devices.lakeshore:Lakeshore340": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getHeaterRange": {
+        "kind": "function",
+        "params": []
+      },
+      "setHeaterRange": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "heaterRange"}
+        ]
+      },
+      "writeCurveToIndex": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "index"},
+          {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "name"},
+          {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "sn"},
+          {"annotation": "list[float]", "kind": "positional_or_keyword", "name": "rList"},
+          {"annotation": "list[float]", "kind": "positional_or_keyword", "name": "tList"}
+        ]
+      },
+      "writeZonePID": {
+        "kind": "function",
+        "params": [
+          {"annotation": "list[float]", "kind": "positional_or_keyword", "name": "templist"},
+          {"annotation": "list[float]", "kind": "positional_or_keyword", "name": "plist"},
+          {"annotation": "list[float]", "kind": "positional_or_keyword", "name": "ilist"},
+          {"annotation": "list[float]", "kind": "positional_or_keyword", "name": "dlist"},
+          {"annotation": "list[int]", "kind": "positional_or_keyword", "name": "rangelist"},
+          {"annotation": "<class 'int'>", "default": "1", "kind": "positional_or_keyword", "name": "loop"}
+        ]
+      }
+    }
+  },
+  "devices.lakeshore:Lakeshore475": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "configure": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "reset"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "autoRange"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "range_val"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "dcRes"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "fUnit"}
+        ]
+      },
+      "configureAnalogOut": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "voltlimit"},
+          {"kind": "positional_or_keyword", "name": "lowfield"},
+          {"kind": "positional_or_keyword", "name": "highfield"},
+          {"default": "2", "kind": "positional_or_keyword", "name": "bipolar"},
+          {"default": "4", "kind": "positional_or_keyword", "name": "mode"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "manualOut"}
+        ]
+      },
+      "configureControl": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pValue"},
+          {"kind": "positional_or_keyword", "name": "iValue"},
+          {"kind": "positional_or_keyword", "name": "rampRate"},
+          {"kind": "positional_or_keyword", "name": "maxVSlope"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "on"}
+        ]
+      },
+      "getField": {
+        "kind": "function",
+        "params": []
+      },
+      "getTemp": {
+        "kind": "function",
+        "params": []
+      },
+      "readSetpoint": {
+        "kind": "function",
+        "params": []
+      },
+      "setSetpoint": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"}
+        ]
+      },
+      "zeroProbe": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "clear"}
+        ]
+      }
+    }
+  },
+  "devices.magnetphysik:FH55": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "1000.0", "kind": "positional_or_keyword", "name": "timeout"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getField": {
+        "kind": "function",
+        "params": []
+      },
+      "getMode": {
+        "kind": "function",
+        "params": []
+      },
+      "getTemp": {
+        "kind": "function",
+        "params": []
+      },
+      "reset": {
+        "kind": "function",
+        "params": []
+      },
+      "setFilter": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "filter_status"}
+        ]
+      },
+      "setMode": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "mode"}
+        ]
+      },
+      "setRange": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.minicircuits:RC_2SPDT_A18": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "setSPDT": {
+        "kind": "function",
+        "params": [
+          {"default": "1", "kind": "positional_or_keyword", "name": "port"}
+        ]
+      }
+    }
+  },
+  "devices.modbusdevice:ModbusDevice": {
+    "init": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "portname"},
+      {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "slaveaddress"},
+      {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "baudrate"},
+      {"annotation": "<class 'str'>", "default": "'N'", "kind": "positional_or_keyword", "name": "parity"}
+    ],
+    "kind": "class"
+  },
+  "devices.nanotec:NanotecPD4": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "1", "kind": "positional_or_keyword", "name": "steps_per_deg"},
+      {"default": "-150", "kind": "positional_or_keyword", "name": "zero_offset"},
+      {"default": "-150", "kind": "positional_or_keyword", "name": "steps_lower_limit"},
+      {"default": "-21900", "kind": "positional_or_keyword", "name": "steps_upper_limit"},
+      {"default": "'abs'", "kind": "positional_or_keyword", "name": "pos_mode"},
+      {"default": "False", "kind": "positional_or_keyword", "name": "status_enable"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getCurrentRecordParams": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "param"}
+        ]
+      },
+      "getErrorStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "getLastReferenceTime": {
+        "kind": "function",
+        "params": []
+      },
+      "getMovingStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "getPosDeg": {
+        "kind": "function",
+        "params": []
+      },
+      "getPosMode": {
+        "kind": "function",
+        "params": []
+      },
+      "getRotDir": {
+        "kind": "function",
+        "params": []
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "move": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "moves"},
+          {"kind": "positional_or_keyword", "name": "position"},
+          {"kind": "positional_or_keyword", "name": "speed"}
+        ]
+      },
+      "moveClip": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pos"},
+          {"kind": "positional_or_keyword", "name": "unit"}
+        ]
+      },
+      "moveClipWait": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "posDeg"},
+          {"kind": "positional_or_keyword", "name": "unit"}
+        ]
+      },
+      "moveWait": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "moves"},
+          {"kind": "positional_or_keyword", "name": "position"},
+          {"kind": "positional_or_keyword", "name": "speed"}
+        ]
+      },
+      "readInitSpeed": {
+        "kind": "function",
+        "params": []
+      },
+      "readMoves": {
+        "kind": "function",
+        "params": []
+      },
+      "referenceRun": {
+        "kind": "function",
+        "params": [
+          {"default": "600000.0", "kind": "positional_or_keyword", "name": "wait"}
+        ]
+      },
+      "resetMoves": {
+        "kind": "function",
+        "params": []
+      },
+      "resetPosError": {
+        "kind": "function",
+        "params": []
+      },
+      "setPosMode": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "mode"}
+        ]
+      },
+      "setPosition": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "moves"}
+        ]
+      },
+      "setRotDir": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "direction"}
+        ]
+      },
+      "setRotDirBin": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "direction"}
+        ]
+      },
+      "startRecord": {
+        "kind": "function",
+        "params": []
+      },
+      "stopRecord": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.owis:Ps10": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "50", "kind": "positional_or_keyword", "name": "microsteps"},
+      {"default": "200", "kind": "positional_or_keyword", "name": "steps_per_rev"},
+      {"default": "180", "kind": "positional_or_keyword", "name": "gear_ratio"},
+      {"default": "360", "kind": "positional_or_keyword", "name": "angle_conv"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'Mode': 'getMode'}"
+      },
+      "getMode": {
+        "kind": "function",
+        "params": []
+      },
+      "getMoving": {
+        "kind": "function",
+        "params": []
+      },
+      "getReferenced": {
+        "kind": "function",
+        "params": []
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "init": {
+        "kind": "function",
+        "params": []
+      },
+      "moveAngle": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "angle"}
+        ]
+      },
+      "moveSteps": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "steps"}
+        ]
+      },
+      "query": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "msg"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "depth"}
+        ]
+      },
+      "query_int": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "msg"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "depth"}
+        ]
+      },
+      "readAngle": {
+        "kind": "function",
+        "params": []
+      },
+      "readSteps": {
+        "kind": "function",
+        "params": []
+      },
+      "setMode": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "mode"}
+        ]
+      },
+      "setMotorState": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "state"}
+        ]
+      },
+      "startReferenceDrive": {
+        "kind": "function",
+        "params": []
+      },
+      "stop": {
+        "kind": "function",
+        "params": []
+      },
+      "waitUntilMoved": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.owis:SMS": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "200", "kind": "positional_or_keyword", "name": "steps_per_revolution"},
+      {"default": "1400", "kind": "positional_or_keyword", "name": "gear_ratio"},
+      {"default": "540", "kind": "positional_or_keyword", "name": "angle_ratio"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "limits"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "configure_drive": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "stepfreq"},
+          {"kind": "positional_or_keyword", "name": "ramp"},
+          {"kind": "positional_or_keyword", "name": "startfreq"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      },
+      "get_moving": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      },
+      "get_pos": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "initialize": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      },
+      "move_abs": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pos"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      },
+      "move_abs_nonblocking": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pos"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      },
+      "move_rel": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pos"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      },
+      "move_rel_nonblocking": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pos"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      },
+      "stop": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "ax"}
+        ]
+      }
+    }
+  },
+  "devices.oxford:ILM200": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "isobus_addr"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'LHe': 'getLHe', 'LN2': 'getLN2'}"
+      },
+      "getLHe": {
+        "kind": "function",
+        "params": []
+      },
+      "getLN2": {
+        "kind": "function",
+        "params": []
+      },
+      "getRate": {
+        "kind": "function",
+        "params": []
+      },
+      "setRate": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "fast"}
+        ]
+      }
+    }
+  },
+  "devices.oxford:IPS120_switchheater": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "isobus_addr"},
+      {"default": "True", "kind": "positional_or_keyword", "name": "legacy"},
+      {"default": "(0, 1)", "kind": "positional_or_keyword", "name": "fieldlimits"},
+      {"default": "0.5", "kind": "positional_or_keyword", "name": "max_rate"},
+      {"default": "5", "kind": "positional_or_keyword", "name": "switch_wait_time"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'Rate': 'getMagneticFieldRate', 'MagnetStatus': 'getMagnetStatus', 'SwitchHeater': 'getSwitchHeater'}"
+      },
+      "getMagnetStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "getMagneticField": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "setp"}
+        ]
+      },
+      "getMagneticFieldRate": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "setp"}
+        ]
+      },
+      "getPersistentField": {
+        "kind": "function",
+        "params": []
+      },
+      "getSwitchHeater": {
+        "kind": "function",
+        "params": []
+      },
+      "getVersion": {
+        "kind": "function",
+        "params": []
+      },
+      "getVoltage": {
+        "kind": "function",
+        "params": []
+      },
+      "setMagnetStatus": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "state"}
+        ]
+      },
+      "setMagneticField": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "xval"}
+        ]
+      },
+      "setMagneticFieldNonPersistent": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "field"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "block"}
+        ]
+      },
+      "setMagneticFieldPersistent": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "field"}
+        ]
+      },
+      "setMagneticFieldRate": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "rate"}
+        ]
+      },
+      "setSwitchHeater": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "output"}
+        ]
+      }
+    }
+  },
+  "devices.oxford:ITC503": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "isobus_addr"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'AutoHeater': 'getAutoHeater', 'PID': 'getPID'}"
+      },
+      "getAutoHeater": {
+        "kind": "function",
+        "params": []
+      },
+      "getAutoPID": {
+        "kind": "function",
+        "params": []
+      },
+      "getHeater": {
+        "kind": "function",
+        "params": []
+      },
+      "getNV": {
+        "kind": "function",
+        "params": []
+      },
+      "getPID": {
+        "kind": "function",
+        "params": []
+      },
+      "getSweepMode": {
+        "kind": "function",
+        "params": []
+      },
+      "getSweepTime": {
+        "kind": "function",
+        "params": []
+      },
+      "getTVTI": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "setp"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "setAutoHeater": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "ahtr"}
+        ]
+      },
+      "setAutoPID": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "aPID"}
+        ]
+      },
+      "setHeater": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "htr"}
+        ]
+      },
+      "setNV": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "nv"}
+        ]
+      },
+      "setPID": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pid"}
+        ]
+      },
+      "setSweepMode": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "flag"}
+        ]
+      },
+      "setSweepTarget": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "temp"}
+        ]
+      },
+      "setSweepTime": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "time"}
+        ]
+      },
+      "setTVTI": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "temp"}
+        ]
+      }
+    }
+  },
+  "devices.oxford:MercuryIPS": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "addressDict": {
+        "kind": "constant",
+        "value": "{'sys': 'SYS', 'level': 'DEV:DB5.L1:LVL', 'x': 'DEV:GRPX:PSU', 'y': 'DEV:GRPY:PSU', 'z': 'DEV:GRPZ:PSU'}"
+      },
+      "addressLevel": {
+        "kind": "constant",
+        "value": "'DEV:DB5.L1:LVL'"
+      },
+      "addressSys": {
+        "kind": "constant",
+        "value": "'SYS'"
+      },
+      "addressX": {
+        "kind": "constant",
+        "value": "'DEV:GRPX:PSU'"
+      },
+      "addressY": {
+        "kind": "constant",
+        "value": "'DEV:GRPY:PSU'"
+      },
+      "addressZ": {
+        "kind": "constant",
+        "value": "'DEV:GRPZ:PSU'"
+      },
+      "checkFields": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "xval"},
+          {"kind": "positional_or_keyword", "name": "yval"},
+          {"kind": "positional_or_keyword", "name": "zval"},
+          {"default": "0.0", "kind": "positional_or_keyword", "name": "tolerance"}
+        ]
+      },
+      "getDictValue": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "key"}
+        ]
+      },
+      "getFastRate": {
+        "kind": "function",
+        "params": []
+      },
+      "getLevels": {
+        "kind": "function",
+        "params": []
+      },
+      "getMagnetStatus": {
+        "kind": "function",
+        "params": [
+          {"default": "-1", "kind": "positional_or_keyword", "name": "axis"}
+        ]
+      },
+      "getMagneticFieldRate": {
+        "kind": "function",
+        "params": [
+          {"default": "-1", "kind": "positional_or_keyword", "name": "axis"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "setp"}
+        ]
+      },
+      "getMagneticFields": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "setp"}
+        ]
+      },
+      "logAllDicts": {
+        "kind": "function",
+        "params": []
+      },
+      "queryAllDicts": {
+        "kind": "function",
+        "params": []
+      },
+      "queryDict": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "queryDict"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"}
+        ]
+      },
+      "queryID": {
+        "kind": "function",
+        "params": []
+      },
+      "queryLevelMeter": {
+        "kind": "function",
+        "params": []
+      },
+      "queryLevelMeterStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "queryMagnetConf": {
+        "kind": "function",
+        "params": []
+      },
+      "queryMagnetStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "querySysConf": {
+        "kind": "function",
+        "params": []
+      },
+      "queryWorkingDict": {
+        "kind": "function",
+        "params": []
+      },
+      "query_merc": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "command"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"}
+        ]
+      },
+      "setFastRate": {
+        "kind": "function",
+        "params": [
+          {"default": "True", "kind": "positional_or_keyword", "name": "slow"}
+        ]
+      },
+      "setMagnetStatus": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "state"},
+          {"default": "-1", "kind": "positional_or_keyword", "name": "axis"}
+        ]
+      },
+      "setMagneticFieldRate": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "values"}
+        ]
+      },
+      "setMagneticFields": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "fields"}
+        ]
+      },
+      "setVal": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"},
+          {"kind": "positional_or_keyword", "name": "command"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"}
+        ]
+      }
+    }
+  },
+  "devices.oxford:MercuryITC": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "addressHeater": {
+        "kind": "constant",
+        "value": "'DEV:MB0.H1:HTR'"
+      },
+      "addressSys": {
+        "kind": "constant",
+        "value": "'SYS'"
+      },
+      "addressTSens": {
+        "kind": "constant",
+        "value": "'DEV:MB1.T1:TEMP'"
+      },
+      "addressTSensLoop": {
+        "kind": "constant",
+        "value": "'DEV:MB1.T1:TEMP:LOOP'"
+      },
+      "extractValueFromDict": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "entry"}
+        ]
+      },
+      "getAutoHTR": {
+        "kind": "function",
+        "params": []
+      },
+      "getAutoPID": {
+        "kind": "function",
+        "params": []
+      },
+      "getDictValue": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "key"}
+        ]
+      },
+      "getHeater": {
+        "kind": "function",
+        "params": []
+      },
+      "getNV": {
+        "kind": "function",
+        "params": []
+      },
+      "getPID": {
+        "kind": "function",
+        "params": []
+      },
+      "getTVTI": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "setp"}
+        ]
+      },
+      "logAllDicts": {
+        "kind": "function",
+        "params": []
+      },
+      "queryAllDicts": {
+        "kind": "function",
+        "params": []
+      },
+      "queryDict": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "queryDict"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"}
+        ]
+      },
+      "queryHeaterConf": {
+        "kind": "function",
+        "params": []
+      },
+      "queryID": {
+        "kind": "function",
+        "params": []
+      },
+      "querySysConf": {
+        "kind": "function",
+        "params": []
+      },
+      "queryTSensConf": {
+        "kind": "function",
+        "params": []
+      },
+      "queryTSensLoopConf": {
+        "kind": "function",
+        "params": []
+      },
+      "queryTSensStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "queryWorkingDict": {
+        "kind": "function",
+        "params": []
+      },
+      "query_merc": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "command"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"}
+        ]
+      },
+      "setAutoHTR": {
+        "kind": "function",
+        "params": [
+          {"default": "True", "kind": "positional_or_keyword", "name": "val"}
+        ]
+      },
+      "setAutoPID": {
+        "kind": "function",
+        "params": [
+          {"default": "True", "kind": "positional_or_keyword", "name": "val"}
+        ]
+      },
+      "setHeater": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "val"}
+        ]
+      },
+      "setNV": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "val"}
+        ]
+      },
+      "setPID": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "pid"}
+        ]
+      },
+      "setTVTI": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "val"}
+        ]
+      },
+      "setVal": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"},
+          {"kind": "positional_or_keyword", "name": "command"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "integer"}
+        ]
+      }
+    }
+  },
+  "devices.oxford:MercurySingleAxisIPS": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "5", "kind": "positional_or_keyword", "name": "maxfield"},
+      {"default": "0.5", "kind": "positional_or_keyword", "name": "maxrate"}
+    ],
+    "kind": "class",
+    "members": {
+      "addressDict": {
+        "kind": "constant",
+        "value": "{'sys': 'SYS', 'z': 'DEV:GRPZ:PSU', 'level': 'DEV:DB3.L1:LVL'}"
+      },
+      "addressLevel": {
+        "kind": "constant",
+        "value": "'DEV:DB3.L1:LVL'"
+      },
+      "addressSys": {
+        "kind": "constant",
+        "value": "'SYS'"
+      },
+      "addressX": {
+        "kind": "constant",
+        "value": "'DEV:GRPZ:PSU'"
+      },
+      "getDictValue": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "key"}
+        ]
+      },
+      "getFastRate": {
+        "kind": "function",
+        "params": []
+      },
+      "getLevels": {
+        "kind": "function",
+        "params": []
+      },
+      "getMagnetStatus": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "axis"}
+        ]
+      },
+      "getMagneticFieldRate": {
+        "kind": "function",
+        "params": [
+          {"default": "0", "kind": "positional_or_keyword", "name": "axis"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "setp"}
+        ]
+      },
+      "getMagneticFields": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "setp"}
+        ]
+      },
+      "getVoltage": {
+        "kind": "function",
+        "params": []
+      },
+      "logAllDicts": {
+        "kind": "function",
+        "params": []
+      },
+      "query": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "command"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"}
+        ]
+      },
+      "queryAllDicts": {
+        "kind": "function",
+        "params": []
+      },
+      "queryDict": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "queryDict"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"}
+        ]
+      },
+      "queryID": {
+        "kind": "function",
+        "params": []
+      },
+      "queryLevelMeter": {
+        "kind": "function",
+        "params": []
+      },
+      "queryLevelMeterStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "queryMagnetConf": {
+        "kind": "function",
+        "params": []
+      },
+      "queryMagnetStatus": {
+        "kind": "function",
+        "params": []
+      },
+      "querySysConf": {
+        "kind": "function",
+        "params": []
+      },
+      "queryWorkingDict": {
+        "kind": "function",
+        "params": []
+      },
+      "setFastRate": {
+        "kind": "function",
+        "params": [
+          {"default": "True", "kind": "positional_or_keyword", "name": "slow"}
+        ]
+      },
+      "setMagnetStatus": {
+        "kind": "function",
+        "params": [
+          {"annotation": "int | list[int]", "kind": "positional_or_keyword", "name": "state"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "axis"}
+        ]
+      },
+      "setMagneticField": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "xval"}
+        ]
+      },
+      "setMagneticFieldRate": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "rate"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "axis"}
+        ]
+      },
+      "setVal": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"},
+          {"kind": "positional_or_keyword", "name": "command"},
+          {"default": "''", "kind": "positional_or_keyword", "name": "address"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "signal"}
+        ]
+      }
+    }
+  },
+  "devices.pfeiffer:MPT200": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"}
+    ],
+    "kind": "class",
+    "members": {
+      "checksum": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "var"}
+        ]
+      },
+      "getFilamentState": {
+        "kind": "function",
+        "params": []
+      },
+      "getPressure": {
+        "kind": "function",
+        "params": []
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "query": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "msg"}
+        ]
+      },
+      "resolvePressureValue": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "reading"}
+        ]
+      },
+      "setFilamentState": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "state"}
+        ]
+      }
+    }
+  },
+  "devices.physikinstrumente:MercuryC663": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getAngle": {
+        "kind": "function",
+        "params": []
+      },
+      "getMotorState": {
+        "kind": "function",
+        "params": []
+      },
+      "getOnTarget": {
+        "kind": "function",
+        "params": []
+      },
+      "getReference": {
+        "kind": "function",
+        "params": []
+      },
+      "gotohome": {
+        "kind": "function",
+        "params": []
+      },
+      "setAngleAbs": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "angle"}
+        ]
+      },
+      "setAngleRel": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "angle"}
+        ]
+      },
+      "setMotorOFF": {
+        "kind": "function",
+        "params": []
+      },
+      "setMotorON": {
+        "kind": "function",
+        "params": []
+      },
+      "setReference": {
+        "kind": "function",
+        "params": []
+      },
+      "stop": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.picotech:PicoVNA": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "False", "kind": "positional_or_keyword", "name": "reset"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "configureSweep": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "fStart"},
+          {"kind": "positional_or_keyword", "name": "fEnd"},
+          {"kind": "positional_or_keyword", "name": "fPoints"},
+          {"kind": "positional_or_keyword", "name": "if_bw"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "average"}
+        ]
+      },
+      "getComplexData": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "param"},
+          {"default": "'double'", "kind": "positional_or_keyword", "name": "precision"}
+        ]
+      },
+      "getSourcePower": {
+        "kind": "function",
+        "params": []
+      },
+      "maxAverage": {
+        "kind": "constant",
+        "value": "1"
+      },
+      "readSweepParams": {
+        "kind": "function",
+        "params": []
+      },
+      "reset": {
+        "kind": "function",
+        "params": []
+      },
+      "setSourcePower": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "power"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "startSweep": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.quantumdesign:PPMS": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "host"},
+      {"kind": "positional_or_keyword", "name": "max_field"},
+      {"kind": "positional_or_keyword", "name": "max_field_rate"},
+      {"default": "400", "kind": "positional_or_keyword", "name": "max_temperature"}
+    ],
+    "kind": "class",
+    "members": {
+      "check_field": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "field"}
+        ]
+      },
+      "check_field_rate": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "rate"}
+        ]
+      },
+      "check_temperature": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "temperature"}
+        ]
+      },
+      "close": {
+        "kind": "function",
+        "params": []
+      },
+      "get_chamber_status": {
+        "kind": "function",
+        "params": []
+      },
+      "get_field": {
+        "kind": "function",
+        "params": []
+      },
+      "get_field_status": {
+        "kind": "function",
+        "params": []
+      },
+      "get_temperature": {
+        "kind": "function",
+        "params": []
+      },
+      "get_temperature_status": {
+        "kind": "function",
+        "params": []
+      },
+      "is_field_stable": {
+        "kind": "function",
+        "params": []
+      },
+      "is_temperature_stable": {
+        "kind": "function",
+        "params": []
+      },
+      "oersted2tesla": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "oersted"}
+        ]
+      },
+      "set_field": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"},
+          {"kind": "positional_or_keyword", "name": "rate"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "persistent"}
+        ]
+      },
+      "set_field_wait": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "persistent"}
+        ]
+      },
+      "set_temperature": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'float'>", "kind": "positional_or_keyword", "name": "setpoint"},
+          {"annotation": "<class 'float'>", "default": "1", "kind": "positional_or_keyword", "name": "rate"}
+        ]
+      },
+      "set_temperature_wait": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "setpoint"}
+        ]
+      },
+      "tesla2oersted": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "tesla"}
+        ]
+      }
+    }
+  },
+  "devices.rohdeschwarz:FSW8": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "True", "kind": "positional_or_keyword", "name": "reset"},
+      {"default": "60000.0", "kind": "positional_or_keyword", "name": "timeout"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "config_params": {
+        "kind": "constant",
+        "value": "{'n_points': 'SWE:POIN?', 'resBW_Hz': 'BWID:RES?', 'vidBW_Hz': 'BWID:VID?', 'refLev_dBm': 'DISP:TRAC:Y:RLEV?', 'intPreamp_status': 'INP:GAIN:STAT?', 'intPreamp_value_dB': 'INP:GAIN:VAL?', 'average_status': 'AVER:STAT?', 'average_type': 'AVER:TYPE?', 'n_average': 'AVERage:COUNt?', 'attenuation_auto_status': 'INP:ATT:AUTO?', 'attenuation_value_dB': 'INP:ATT?', 'sweep_type': 'SWE:TYPE?', 'sweep_time_s': 'SWE:TIME?', 'sweep_optimization': 'SWE:OPT?', 'detector_type': 'DET?', 'coupling_type': 'INP:COUP?', 'noise_cancellation': 'POW:NCOR?'}"
+      },
+      "configureSweep": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "swePoints"},
+          {"kind": "positional_or_keyword", "name": "refLev"},
+          {"kind": "positional_or_keyword", "name": "resBW"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "vidBW"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "intpreamp"},
+          {"default": "None", "kind": "positional_or_keyword", "name": "average"},
+          {"default": "'power'", "kind": "positional_or_keyword", "name": "avgType"},
+          {"default": "'rms'", "kind": "positional_or_keyword", "name": "detector"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "attAuto"},
+          {"default": "0", "kind": "positional_or_keyword", "name": "attVal"},
+          {"default": "'fft'", "kind": "positional_or_keyword", "name": "sweType"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "getData"}
+        ]
+      },
+      "getData": {
+        "kind": "function",
+        "params": [
+          {"annotation": "typing.Literal['single', 'double', 'ascii']", "default": "'single'", "kind": "positional_or_keyword", "name": "precision"}
+        ]
+      },
+      "getSweepData": {
+        "kind": "function",
+        "params": []
+      },
+      "maxAverage": {
+        "kind": "constant",
+        "value": "1"
+      },
+      "noise_cancellation": {
+        "kind": "function",
+        "params": [
+          {"default": "False", "kind": "positional_or_keyword", "name": "state"}
+        ]
+      },
+      "readSweepParams": {
+        "kind": "function",
+        "params": []
+      },
+      "reset": {
+        "kind": "function",
+        "params": []
+      },
+      "setFreq": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "fCent"},
+          {"kind": "positional_or_keyword", "name": "fSpan"}
+        ]
+      },
+      "setStartStopFreq": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "fStart"},
+          {"kind": "positional_or_keyword", "name": "fStop"}
+        ]
+      },
+      "startSweep": {
+        "kind": "function",
+        "params": []
+      },
+      "trigger": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.scpi_dev:makeSCPIdevice": {
+    "kind": "function",
+    "params": [
+      {"annotation": "collections.abc.Mapping[str, matr1x.core.util.Command]", "kind": "var_positional", "name": "cmds"},
+      {"annotation": "<class 'bool'>", "default": "False", "kind": "keyword_only", "name": "system"}
+    ]
+  },
+  "devices.tempco:Tempco9300": {
+    "init": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "portname"},
+      {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "slaveaddress"},
+      {"annotation": "<class 'int'>", "default": "38400", "kind": "positional_or_keyword", "name": "baudrate"}
+    ],
+    "kind": "class",
+    "members": {
+      "control_mode": {
+        "kind": "property",
+        "params": []
+      },
+      "current_setpoint": {
+        "kind": "property",
+        "params": []
+      },
+      "derivative_time1": {
+        "kind": "property",
+        "params": []
+      },
+      "derivative_time2": {
+        "kind": "property",
+        "params": []
+      },
+      "int2value": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "value"}
+        ]
+      },
+      "integral_time1": {
+        "kind": "property",
+        "params": []
+      },
+      "integral_time2": {
+        "kind": "property",
+        "params": []
+      },
+      "manual_power": {
+        "kind": "property",
+        "params": []
+      },
+      "offset": {
+        "kind": "property",
+        "params": []
+      },
+      "power": {
+        "kind": "property",
+        "params": []
+      },
+      "power_limit": {
+        "kind": "property",
+        "params": []
+      },
+      "proportional_band1": {
+        "kind": "property",
+        "params": []
+      },
+      "proportional_band2": {
+        "kind": "property",
+        "params": []
+      },
+      "ramp_rate": {
+        "kind": "property",
+        "params": []
+      },
+      "setpoint1": {
+        "kind": "property",
+        "params": []
+      },
+      "target_setpoint": {
+        "kind": "property",
+        "params": []
+      },
+      "temperature": {
+        "kind": "property",
+        "params": []
+      },
+      "value2int": {
+        "kind": "function",
+        "params": [
+          {"annotation": "<class 'float'>", "kind": "positional_or_keyword", "name": "temp"}
+        ]
+      }
+    }
+  },
+  "devices.tempco:TempcoMode": {
+    "kind": "enum",
+    "members": ["AUTOTUNE", "CALIBRATION", "FAILURE", "MANUAL", "PID", "RAMP", "SLEEP"]
+  },
+  "devices.thorlabs:BSC103": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "conf"},
+      {"default": "0", "kind": "positional_or_keyword", "name": "debug"}
+    ],
+    "kind": "class",
+    "members": {
+      "ReqResp": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "msg"}
+        ]
+      },
+      "bytestostr": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "bytearr"}
+        ]
+      },
+      "enableAxis": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"},
+          {"default": "True", "kind": "positional_or_keyword", "name": "status"}
+        ]
+      },
+      "getAxisStatus": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "getHWInfo": {
+        "kind": "function",
+        "params": [
+          {"default": "17", "kind": "positional_or_keyword", "name": "dst"}
+        ]
+      },
+      "getHomeParams": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "getLimSwitchParams": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "getVelParams": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "home": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "noResp"}
+        ]
+      },
+      "homeMult": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "axis"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "id": {
+        "kind": "function",
+        "params": []
+      },
+      "initDrives": {
+        "kind": "function",
+        "params": [
+          {"default": "None", "kind": "positional_or_keyword", "name": "axis"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "initializeComm": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"}
+        ]
+      },
+      "message": {
+        "kind": "constant",
+        "value": "<class 'matr1x.devices.thorlabs.bsc103.BSC103.message'>"
+      },
+      "mmto_uSteps": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "mm"}
+        ]
+      },
+      "moveAbs": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"kind": "positional_or_keyword", "name": "dist"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "noResp"}
+        ]
+      },
+      "moveAbsMult": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "distArr"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "moveRel": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"kind": "positional_or_keyword", "name": "dist"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "noResp"}
+        ]
+      },
+      "moveRelMult": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "distArr"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "open": {
+        "kind": "function",
+        "params": []
+      },
+      "parseMotorStatusPckt": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "packet"}
+        ]
+      },
+      "printDebug": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "string"},
+          {"default": "'INFO'", "kind": "positional_or_keyword", "name": "color"},
+          {"default": "False", "kind": "positional_or_keyword", "name": "warning"}
+        ]
+      },
+      "readPacket": {
+        "kind": "function",
+        "params": []
+      },
+      "setDriveSettings": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"}
+        ]
+      },
+      "setHomeParams": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"kind": "positional_or_keyword", "name": "homedir"},
+          {"kind": "positional_or_keyword", "name": "limSwitch"},
+          {"kind": "positional_or_keyword", "name": "homeVel"},
+          {"kind": "positional_or_keyword", "name": "offsetDist"}
+        ]
+      },
+      "setLimSwitchParams": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"kind": "positional_or_keyword", "name": "CWHardLim"},
+          {"kind": "positional_or_keyword", "name": "CCWHardLim"},
+          {"kind": "positional_or_keyword", "name": "CWSoftLim"},
+          {"kind": "positional_or_keyword", "name": "CCWSoftLim"},
+          {"kind": "positional_or_keyword", "name": "SoftLimMode"}
+        ]
+      },
+      "setVelParams": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"kind": "positional_or_keyword", "name": "channel"},
+          {"kind": "positional_or_keyword", "name": "minVel"},
+          {"kind": "positional_or_keyword", "name": "acc"},
+          {"kind": "positional_or_keyword", "name": "maxVel"}
+        ]
+      },
+      "stop": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "dst"},
+          {"default": "1", "kind": "positional_or_keyword", "name": "channel"},
+          {"default": "2", "kind": "positional_or_keyword", "name": "mode"}
+        ]
+      },
+      "uStepsto_mm": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "usteps"}
+        ]
+      },
+      "write": {
+        "kind": "function",
+        "params": [
+          {"kind": "positional_or_keyword", "name": "data"}
+        ]
+      }
+    }
+  },
+  "devices.twickenham:HDI": {
+    "init": [
+      {"kind": "positional_or_keyword", "name": "interface"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class",
+    "members": {
+      "getDisplayReading": {
+        "kind": "function",
+        "params": []
+      }
+    }
+  },
+  "devices.visadevice:VisaDevice": {
+    "init": [
+      {"annotation": "pyvisa.resources.messagebased.MessageBasedResource | str", "kind": "positional_or_keyword", "name": "interface"},
+      {"default": "None", "kind": "positional_or_keyword", "name": "cmdpers"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ],
+    "kind": "class"
+  },
+  "devices:scpiPORTdrivers": {
+    "kind": "constant",
+    "value": "8888"
+  },
+  "gui.mixins:AutoSlot": {
+    "kind": "function",
+    "params": [
+      {"annotation": "'Callable[P, R]'", "kind": "positional_or_keyword", "name": "function"}
+    ]
+  }
+}
