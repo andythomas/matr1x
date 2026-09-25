@@ -148,7 +148,7 @@ except KeyboardInterrupt:
         _reset_kwargs["status"] = "finished"
     elif _status.finished is False:
         _reset_kwargs["status"] = "aborted"
-except Exception as e:
+except Exception as e:  # noqa: BLE001  # top-level handler for user script, report any error
     _report(_Message("script exited with error:", to_comment=False))
     exc_type, exc_value, exc_traceback = _sys.exc_info()
 
@@ -168,20 +168,14 @@ except Exception as e:
         adjusted_line = line - n_pref
         tbstr = _re.sub(r"line (\d+)", "line " + str(adjusted_line), tbstr)
 
-        # Fix file replacement - get the actual script content
-        # Since we're executing from a string, we need to get the script
-        # content differently
-        try:
-            # Get the current script content from the _script variable
-            # that was injected
-            script_lines = _script.splitlines()
-            if 1 <= line <= len(script_lines):
-                actual_line = script_lines[line - 1].strip()
-                tbstr = tbstr.replace('File "<string>"', f'"{actual_line}"')
-            else:
-                tbstr = tbstr.replace('File "<string>"', '"<unknown line>"')
-        except Exception:
-            tbstr = tbstr.replace('File "<string>"', '"<script>"')
+        # The script is executed from a string, so the traceback shows
+        # File "<string>"; replace it with the actual source line.
+        script_lines = _script.splitlines()
+        if 1 <= line <= len(script_lines):
+            actual_line = script_lines[line - 1].strip()
+            tbstr = tbstr.replace('File "<string>"', f'"{actual_line}"')
+        else:
+            tbstr = tbstr.replace('File "<string>"', '"<unknown line>"')
 
         _report(_Message(tbstr, to_comment=False))
 
