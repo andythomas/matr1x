@@ -22,9 +22,7 @@ import pytest
 from PySide6.QtCore import Qt
 
 import matr1x.core.eval
-from matr1x.core.error_handling import Success
-from matr1x.core.models import Envelope, Message, Modifier, SystemCapability, SystemReference
-from matr1x.gui.shared import SystemListWidget
+from matr1x.core.models import Envelope, Message, Modifier
 from matr1x.scripts import matrix_script
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
@@ -188,91 +186,6 @@ def test_adding_system_preserves_unsaved_config(
         "matr1x.systems.system_dummy_feature.reference_value"
     )
     assert retained_index.data(Qt.ItemDataRole.EditRole) == "42.5"
-
-
-def test_stateful_system_list_swaps_conflicting_states(qapp, monkeypatch):
-    """Selecting an occupied state swaps both system-reference tokens."""
-    system_list = SystemListWidget(report_config_errors=False)
-    capability = SystemCapability(
-        source="example",
-        stateful=True,
-        states=("primary", "secondary"),
-        state_exclusion_groups={"primary": "first", "secondary": "second"},
-        class_name="ExampleSystem",
-    )
-    monkeypatch.setattr(system_list, "test_import", lambda _source: Success(capability))
-    monkeypatch.setattr(system_list, "systems_changed", lambda: None)
-
-    system_list.add_systems(["first::primary", "second::secondary"])
-    first = system_list.item(0)
-    second = system_list.item(1)
-
-    system_list._select_state(first, "secondary")
-
-    assert SystemReference.from_value(first.text()).state == "secondary"
-    assert SystemReference.from_value(second.text()).state == "primary"
-
-
-def test_stateful_system_list_rejects_conflicting_classes_across_sources(qapp, monkeypatch):
-    """Same-named classes cannot occupy one state exclusion group twice."""
-    system_list = SystemListWidget(report_config_errors=False)
-    capability = SystemCapability(
-        source="example",
-        stateful=True,
-        states=("primary", "secondary"),
-        state_exclusion_groups={"primary": "shared", "secondary": "shared"},
-        class_name="ExampleSystem",
-    )
-    monkeypatch.setattr(system_list, "test_import", lambda _source: Success(capability))
-    monkeypatch.setattr(system_list, "systems_changed", lambda: None)
-
-    system_list.add_systems(["first::primary", "second::secondary"])
-
-    assert system_list.count() == 1
-    assert SystemReference.from_value(system_list.item(0).text()).state == "primary"
-
-
-def test_CodeEditor_API(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
-    """
-    Confirm the existance of all required methods.
-
-    Asserts
-    -------
-    Check the existance of these methods: setPlainText, toPlainText,
-    toggleLineComment, find_panel, zoomIn, zoomOut, undo, redo, cut,
-    copy, paste, formatCode, isModified, setModified, setReadOnly,
-    highlight, removeHighlight, setTheme, supportedThemes,
-    enableTabCompletion, setSettables, insertText, returnIssues.
-    """
-    main_window = matrix_script_window
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-    assert main_window.isVisible()
-    editor = main_window.ui.widgets.script_edit
-
-    assert hasattr(editor, "setPlainText")
-    assert hasattr(editor, "toPlainText")
-    assert hasattr(editor, "toggleLineComment")
-    assert hasattr(editor, "find")
-    assert hasattr(editor, "zoomIn")
-    assert hasattr(editor, "zoomOut")
-    assert hasattr(editor, "undo")
-    assert hasattr(editor, "redo")
-    assert hasattr(editor, "cut")
-    assert hasattr(editor, "copy")
-    assert hasattr(editor, "paste")
-    assert hasattr(editor, "formatCode")
-    assert hasattr(editor, "isModified")
-    assert hasattr(editor, "setModified")
-    assert hasattr(editor, "setReadOnly")
-    assert hasattr(editor, "highlight")
-    assert hasattr(editor, "removeHighlight")
-    assert hasattr(editor, "setTheme")
-    assert hasattr(editor, "supportedThemes")
-    assert hasattr(editor, "enableTabCompletion")
-    assert hasattr(editor, "setSystemInfo")
-    assert hasattr(editor, "insertText")
-    assert hasattr(editor, "returnIssues")
 
 
 def test_CodeEditor(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):

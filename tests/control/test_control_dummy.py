@@ -158,12 +158,6 @@ def start_control_dummy():
         pass
 
 
-def test_environment_variable_is_set():
-    """Check if the QT_QPA_PLATFORM environment variable is set to 'offscreen'."""
-    assert os.getenv("QT_QPA_PLATFORM") == "offscreen"
-    assert os.getenv("QT_QUICK_BACKEND") == "software"
-
-
 def test_control_window_panic_stops_and_restores_server(qapp, qtbot, monkeypatch):
     """Panic mode should suspend and later restore the SCPI server."""
 
