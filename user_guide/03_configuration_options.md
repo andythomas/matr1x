@@ -52,7 +52,10 @@ script_path= ""
 store_script_in_datafile = false
 ```
 
-The legacy section name `[matr1x.scripts.matrix-script]` is still accepted.
+The legacy section name `[matr1x.scripts.matrix-script]` is still accepted but
+[deprecated](60_development/05_deprecation.md). A deprecation warning is shown
+when it is used. Rename it to `[matr1x.apps.matrix_script]` (see the migration
+skill `migration-v8.6iii`).
 
 ```toml
 [matr1x.apps.matrix_script.shortcuts]

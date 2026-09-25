@@ -1300,7 +1300,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             "-c",
             (
                 f"from matr1x.apps import preview; "
-                f"matrix_preview.main(file=r'{self.measurement_file}')"
+                f"preview.main(file=r'{self.measurement_file}')"
             ),
         ]
         subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
