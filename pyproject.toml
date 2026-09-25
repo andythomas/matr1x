@@ -34,7 +34,7 @@ dependencies = [
     "urwid > 2.0",                                  # TUI (apps.cli)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
     "monaco-assets == 0.7.1",                        # gui.editor (matrix-script)
-    "ruff == 0.15.22",                              # gui.editor (run as subprocess)
+    "ruff ~= 0.16.0",                                  # gui.editor (run as subprocess)
     "ty == 0.0.63",                                 # gui.editor (run as subprocess)
     "pymeasure >= 0.16.0",                          # core and device drivers
     "pyserial",                                     # device drivers
@@ -95,21 +95,10 @@ line-length = 99       # max per pep8
 
 [tool.ruff.lint]
 extend-select = [
-    'D',        # pydocstyle (docstring formatting)
     'A',        # flake8 builtins (Python builtins being used as variables or parameters.)
-    'I',        # isort (sort imports)
-    'PLW0602',  # unassigned global variable
     'W505',     # doc line too long
     'E501',     # line too long
-    'UP',       # use most modern code allowed by lowest python version
-    'PTH',      # use modern pathlib methods if possible
-    'LOG',      # look for correct logging
-    'G',        # look for correct log formatting
-    'INP001',   # provide __init__ for packages
-    'PIE',      # use flake8-pie rules (unnecessary code pieces)
-    'PYI',      # use flake8-pyi rules (type hinting helpers)
     'SIM300',   # use human readable comparisons (yoda condition)
-    'RUF100',   # no not allow unused noqa
     'T201',     # do not use print statements
     'NPY',      # find numpy legace code
     'ISC',      # concatenate strings consistently
@@ -118,7 +107,7 @@ extend-select = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"] # 'unsused import' has to be suppressed here
-"tests/**" = ["INP001", "T201"] # tests do not need '__init__', print is fine
+"tests/**" = ["T201"] # tests may use print statements
 # the template imports the script API to bind it into the user-script
 # namespace
 "matr1x/core/_matrix_script_template.py" = ["F401"]

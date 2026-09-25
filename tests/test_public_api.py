@@ -93,7 +93,7 @@ def _load_reference() -> tuple[str, dict[str, bool]]:
     config = read_yaml(GREAT_DOCS_YML)
     if not isinstance(config, dict):
         msg = "great-docs.yml must contain a mapping at the top level"
-        raise ValueError(msg)
+        raise TypeError(msg)
     module_root = config.get("module", "matr1x")
     items: dict[str, bool] = {}
     for section in config.get("reference", []):
@@ -217,7 +217,7 @@ def _current_api() -> tuple[dict[str, dict[str, Any]], list[str]]:
     for name, members in reference.items():
         try:
             current[name] = _serialize_item(name, members, module_root)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # collect all import/inspection errors per item
             errors.append(f"{name}: cannot be imported or inspected: {exc!r}")
     return current, errors
 

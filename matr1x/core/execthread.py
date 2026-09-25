@@ -591,7 +591,7 @@ class ExecThread(threading.Thread):
                 "_system": self.system,
             }
             self.system.set_reporter(self.report)
-            exec(self.script, _vars)
+            exec(self.script, _vars)  # noqa: S102  # intentional: execute the user script
         except KeyboardInterrupt:
             self.report(Message("Script interrupted during initialization", to_comment=False))
         except Exception as e:
