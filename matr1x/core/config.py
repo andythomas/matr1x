@@ -99,8 +99,7 @@ MIGRATIONS = [
         old_path=("matr1x", "scripts"),
         new_path=("matr1x", "apps"),
         warning="The [matr1x.scripts] config section is deprecated; rename it to "
-        "[matr1x.apps] (and its 'matrix-script' subsection to 'matrix_script'). "
-        "See the migration skill 'migration-v8.6iii.md'.\n",
+        "[matr1x.apps] (and its 'matrix-script' subsection to 'matrix_script').\n",
     ),
 ]
 

@@ -3,7 +3,7 @@
 ## Rename the `[matr1x.scripts]` TOML section to `[matr1x.apps]`
 
 The configuration section names the applications. The section was renamed from
-`[matr1x.scripts]` to `[matr1x.apps]`. 
+`[matr1x.scripts]` to `[matr1x.apps]`.
 
 1. Check if there is a `~/.matr1x.toml` file.
 2. If yes, check if there is a `[matr1x.scripts]` section.
