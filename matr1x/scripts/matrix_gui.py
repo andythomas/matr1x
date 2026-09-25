@@ -21,6 +21,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
@@ -55,7 +56,6 @@ from matr1x.core.models import (
     SystemInfo,
     Telemetry,
 )
-from matr1x.core.system import MergedSystem
 from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
@@ -80,6 +80,7 @@ from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
     Notifier,
+    NotifierMessage,
     SaferQSettings,
     check_config,
 )
@@ -497,7 +498,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         check_config(matr1x.config, self.ui.widgets.notifier)
         self.sg: QMainWindow | None = None
         self.running = False
-        self.sys_meta_data = {}
+        self.sys_meta_data: dict[str, Any] = {}
         self._create_connections()
         self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
@@ -537,6 +538,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         if not input_file or not Path(input_file).exists():
             self.ui.actions.queue.setEnabled(False)
             self.ui.actions.queue.setToolTip("Select an existing input file before queueing.")
+            return
+
+        if self.ui.widgets.config_editor.system_info is None:
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip("A valid system must be loaded before queueing.")
             return
 
         # Sweep files are expected to contain validated system information at this point.
@@ -660,7 +666,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         """Retrieve system information and report configuration validation errors."""
         system_info = get_system_info(systemfile)
         if isinstance(system_info, Error):
-            print(system_info.error)  # noqa: T201
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(system_info.error, level=logging.WARNING)
+            )
             return None
 
         system_info = system_info.value
@@ -677,24 +685,39 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         config_editor = self.ui.widgets.config_editor
         configurable = system_info.configurable_sections if system_info else []
         config_editor.set_systemfile(configurable)
-        if systemfile == config_editor.full_system_list:
-            return
         config_editor.set_full_system_list(systemfile)
         config_editor.set_system_info(system_info)
         config_editor.update_data()
 
     def parse_system_from_inputfile(self, input_file_path: str) -> None:
         """Parse the system from an input file."""
+        if not input_file_path:
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
+            return
+
         systemfile = self._systemfile_from_inputfile(input_file_path)
         if systemfile is None:
+            self.ui.widgets.input_file.blockSignals(True)
+            self.ui.widgets.input_file.setText("")
+            self.ui.widgets.input_file.blockSignals(False)
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
             return
-        system = MergedSystem.from_files(systemfile)
-        if isinstance(system, Error):
-            QMessageBox.warning(self, "System file error!", system.error)
+
+        system_info = self._get_inputfile_system_info(systemfile)
+        if system_info is None:
+            self.ui.widgets.input_file.blockSignals(True)
+            self.ui.widgets.input_file.setText("")
+            self.ui.widgets.input_file.blockSignals(False)
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
             return
-        system = system.value
-        self.sys_meta_data = system.dcdata
-        system_info = self._get_inputfile_system_info(systemfile) if systemfile else None
+
+        self.sys_meta_data = system_info.dcdata
         matr1x.reload_config()
         self._update_config_editor(systemfile, system_info)
         self.update_queue_action_state()

@@ -54,7 +54,7 @@ from matr1x.core.models import (
 )
 from matr1x.core.script_analysis import PointCounts, infer_point_counts
 from matr1x.core.system import MergedSystem, System
-from matr1x.core.util import get_user_script_line_range
+from matr1x.core.util import flatten, get_user_script_line_range
 
 __all__ = [
     "capture_initial_meta_data",
@@ -284,6 +284,18 @@ def _reset_setvalues() -> None:
     for col in state.system.columns:
         value = [None] * len(col) if isinstance(col, (list, tuple)) else None
         state.setvalues.append(value)
+
+
+def _get_column_setvalues() -> list[Any]:
+    """Expand named parameter groups without expanding array contents."""
+    state = _get_state()
+    values: list[Any] = []
+    for column, value in zip(state.system.columns, state.setvalues):
+        if isinstance(column, (list, tuple)):
+            values.extend(value if value is not None else [None] * len(column))
+        else:
+            values.append(value)
+    return values
 
 
 def _reset_meta_data_to_initial() -> None:
@@ -636,7 +648,11 @@ def init_datafile(
         state.report(Message(f"{msg}: {outputfile}"))
         state.report(Message("acquired configuration, and initialized file"))
     state.report(
-        Header(columns=state.system.columns, units=state.system.units, to_stdout=print_header)
+        Header(
+            columns=list(flatten(state.system.columns)),
+            units=list(flatten(state.system.units)),
+            to_stdout=print_header,
+        )
     )
     state.report(Datafile(str(safe_filename.resolve())))
 
@@ -676,7 +692,7 @@ def measure_system(
             init_datafile("")
         state.npoints += 1
         preread = time.time()
-        state.report(SetValues(state.setvalues, to_stdout=print_setpoint))
+        state.report(SetValues(_get_column_setvalues(), to_stdout=print_setpoint))
         _reset_setvalues()
         state.system.trigger()
         return_list = state.system.take_measurement_point()
