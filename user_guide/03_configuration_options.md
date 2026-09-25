@@ -154,7 +154,8 @@ elabFTW integration is enabled; all other options can be changed from their defa
 # Use the server base URL. The /api/v2 suffix is added automatically.
 host = "https://elab.example.com"
 api_key = "your-secure-api-key"
-# Team ID used for category and status lookup. The default team is 0.
+# Team ID used for category, status, and write-group lookup.
+# It is required when write_groups is not empty.
 teamid = 0
 
 # Enable elabFTW integration. If false, no entry is created.
@@ -173,6 +174,13 @@ category = ""
 create_resource = false
 # Category for newly generated resources. This category must exist in ElabFTW.
 resource_category = "Transport device"
+
+# Parse #hashtags from the first line of the description metadata as experiment tags. Default is true.
+parse_hashtags = true
+
+# Team groups to grant write permissions on created items and experiments.
+# Groups are also granted read permission. Use a TOML array of group names.
+write_groups = ["ThinFilmGrowth"]
 
 # Template for generating titles for the ElabFTW entry.
 # Uses Jinja2 syntax to construct a title from the metadata and filename
@@ -214,6 +222,10 @@ body_template = """
 """
 ```
 
+When resource creation is enabled and the measurement identifier creates a new resource, a
+resource named by the `relation` metadata field is also linked directly from the new resource
+when it can be resolved or created.
+
 ## Setting up sending email notifications
 
 Some control GUIs or measurement scripts can send email notifications.
@@ -238,7 +250,5 @@ default config during installation since this would overwrite your changes.
 On posix platforms (Linux/Mac OS) the sending of emails falls back to using `sendmail` which needs
 to be configured accordingly. This is only attempting in case of incomplete configuration and the
 `sendmail` command needs to be accessible via `PATH`.
-
-```
 
 ```

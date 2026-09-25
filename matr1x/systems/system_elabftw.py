@@ -21,14 +21,17 @@ elabFTW electronic lab notebook system.
 """
 
 import difflib
+import json
 import logging
 import re
 from pathlib import Path
+from typing import Any, Literal, cast
 
 import elabapi_python
 from elabapi_python.rest import ApiException
 from jinja2 import Template
-from pydantic import Field
+from pydantic import Field, field_validator
+from urllib3.exceptions import HTTPError
 
 from matr1x.core.models import Message, SystemConfigModel
 from matr1x.core.system import MergedSystem, System
@@ -50,8 +53,32 @@ class ElabConfig(SystemConfigModel):
     require_server: bool = False
     upload_datafile: bool | int = False
     create_resource: bool = False
+    parse_hashtags: bool = Field(
+        default=True,
+        description="Parse #hashtags from description metadata as experiment tags",
+    )
     category: str = Field("", description="Category for experiments")
     resource_category: str = Field("", description="Category for resources")
+    write_groups: list[str] = Field(
+        default_factory=list,
+        description="Team group names to grant write access on created items and experiments",
+    )
+
+    @field_validator("write_groups", mode="before")
+    @classmethod
+    def coerce_write_groups(cls, value: Any) -> Any:
+        """Normalize scalar and comma-separated group values from configuration UIs."""
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = value.strip()
+            if not value or value == "[]":
+                return []
+            return [part.strip() for part in value.split(",") if part.strip()]
+        if isinstance(value, (list, tuple, set)):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return value
+
     title_template: str = """
         {%- set title_parts = [] %}
         {%- if dcdata['identifier'] %}
@@ -109,6 +136,61 @@ def _is_template_content(template: str) -> bool:
     return any(pattern in template for pattern in template_patterns)
 
 
+def _match_group_id(name: str, group_map: dict[str, int]) -> int:
+    """Match a group name exactly or by an unambiguous case-insensitive name."""
+    name_clean = name.strip()
+    if name_clean in group_map:
+        return group_map[name_clean]
+
+    matches = [
+        group_id for key, group_id in group_map.items() if key.casefold() == name_clean.casefold()
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise ValueError(f"Configured eLabFTW write group '{name_clean}' is ambiguous")
+
+    available = sorted(group_map.keys())
+    raise ValueError(
+        f"Configured eLabFTW write group '{name_clean}' was not found. "
+        f"Available team groups: {available}"
+    )
+
+
+def _parse_permissions(value: str | None) -> dict[str, object]:
+    """Parse an eLabFTW permission field without discarding existing grants."""
+    if value is None or not value.strip():
+        return {"teams": [], "users": [], "teamgroups": []}
+    try:
+        permissions = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError("Invalid eLabFTW permission JSON") from error
+    if not isinstance(permissions, dict):
+        raise ValueError("eLabFTW permissions must be a JSON object")
+    return permissions
+
+
+def _merge_teamgroup_ids(field_val: str | None, group_ids: list[int]) -> tuple[bool, str]:
+    """Merge group IDs into the teamgroups list of a permission field."""
+    perm_dict = _parse_permissions(field_val)
+    raw_teamgroups = perm_dict.setdefault("teamgroups", [])
+    if not isinstance(raw_teamgroups, list):
+        raise ValueError("eLabFTW permission 'teamgroups' must be a list")
+    current_teamgroups = cast(list[object], raw_teamgroups)
+
+    if not all(isinstance(group_id, int) for group_id in current_teamgroups):
+        raise ValueError("eLabFTW permission team group IDs must be integers")
+    existing_set = {group_id for group_id in current_teamgroups if isinstance(group_id, int)}
+    changed = False
+    for gid in group_ids:
+        if gid not in existing_set:
+            current_teamgroups.append(gid)
+            existing_set.add(gid)
+            changed = True
+
+    return changed, json.dumps(perm_dict)
+
+
 # ============================
 # This area contains the required system definition and
 # the optional reimplementation of the set and reset function
@@ -143,49 +225,12 @@ class Elab(System):
         self._attachments = {}
         self._tags = []
         self._resources = {}
+        self._created_resources: dict[str, int] = {}
+        self._resolved_write_group_ids: list[int] = []
+        self._resolved_user: dict[str, Any] | None = None
 
-    @staticmethod
-    def _parse_version(version: str | None) -> tuple[int, int, int] | None:
-        """Parse the numeric prefix of a version string."""
-        if not version:
-            return None
-        match = re.match(r"^\D*(\d+)\.(\d+)\.(\d+)", version)
-        if match is None:
-            return None
-        major, minor, patch = match.groups()
-        return int(major), int(minor), int(patch)
-
-    def _warn_legacy_server_version(self, info) -> None:
-        """Warn if the connected eLabFTW server predates the resources API split."""
-        version = getattr(info, "version", None)
-        if version is None:
-            version = getattr(info, "elabftw_version", None)
-        parsed_version = self._parse_version(str(version) if version is not None else None)
-        if parsed_version is None or parsed_version >= (5, 3, 0):
-            return
-
-        self.report(
-            Message(
-                "Connected eLabFTW server version "
-                f"{version} is older than 5.3.0. Basic integration may still work, "
-                "but resource creation/category assignment can fail because the API changed "
-                "in eLabFTW 5.3.0.",
-                to_comment=False,
-            )
-        )
-
-    def set(self, *args, **kwargs):
-        """
-        Initialize the server connection and resource and create if requested.
-
-        The resource will be linked to the experiment entry generated
-        during reset.
-        """
-        super().set(*args, **kwargs)
-        if not self.config.enable_elab:
-            return
-        configuration = elabapi_python.Configuration()
-
+    def _init_api_client(self) -> None:
+        """Create and verify ApiClient connection against the server."""
         if not getattr(self.sensitive_config, "host", None) or not getattr(
             self.sensitive_config, "api_key", None
         ):
@@ -201,45 +246,27 @@ class Elab(System):
                 "host address and API key of the server are specified."
             )
 
+        configuration = elabapi_python.Configuration()
         configuration.api_key["api_key"] = self.sensitive_config.api_key
         configuration.api_key_prefix["api_key"] = "Authorization"
         configuration.host = self.sensitive_config.host + "/api/v2"
         configuration.debug = self.config.debug
         configuration.verify_ssl = True
 
-        # create an instance of the API class
         self.api_client = elabapi_python.ApiClient(configuration)
-        # fix issue with Authorization header not being proberly set by the generated lib
         self.api_client.set_default_header(
             header_name="Authorization", header_value=self.sensitive_config.api_key
         )
-        # test server connection by a harmless read-only query
+
         try:
             info_client = elabapi_python.InfoApi(self.api_client)
-            info = info_client.get_info()
-            self._warn_legacy_server_version(info)
+            info_client.get_info()
         except Exception as error:
-            if self.config.require_server:
-                self.report(
-                    Message(
-                        "ElabFTW connection could not be established "
-                        "but is configured to be required.",
-                        to_comment=False,
-                    )
-                )
-                raise ConnectionError("ElabFTW connection could not be established") from error
-            else:
-                self.report(
-                    Message(
-                        "ElabFTW connection could not be established\n"
-                        "no labbook entry will be created, but we continue.",
-                        to_comment=False,
-                    )
-                )
-                # disable api_client for rest of run to be more smooth
-                self.api_client = None
+            self._handle_connection_error(error)
+
+    def _link_or_create_sample_resources(self) -> None:
+        """Add resource links for sample names found in metadata, creating if requested."""
         for key in ["identifier", "relation"]:
-            # add resource link to sample specified in identifier and relation
             samplename = self.merged_system.dcdata[key]
             if not samplename:
                 continue
@@ -252,9 +279,169 @@ class Elab(System):
                     exc_info=True,
                 )
             if self.config.create_resource and samplename not in self._resources:
-                # need to create the resource
                 resource_id = self._create_resource(samplename)
-                self._resources[samplename] = resource_id
+                if resource_id is not None:
+                    self._resources[samplename] = resource_id
+                    self._created_resources[samplename] = resource_id
+
+        identifier = self.merged_system.dcdata.get("identifier")
+        relation = self.merged_system.dcdata.get("relation")
+        if identifier in self._created_resources and relation in self._resources:
+            identifier_id = self._created_resources[identifier]
+            relation_id = self._resources[relation]
+            if identifier_id != relation_id:
+                elabapi_python.LinksToItemsApi(self.api_client).post_entity_items_links(
+                    "items", identifier_id, relation_id
+                )
+
+    def set(self, *args, **kwargs):
+        """
+        Initialize the server connection and resource and create if requested.
+
+        The resource will be linked to the experiment entry generated
+        during reset.
+        """
+        super().set(*args, **kwargs)
+        if not self.config.enable_elab:
+            return
+
+        self._init_api_client()
+        if self.api_client is None:
+            return
+
+        self._validate_elab_configuration()
+        self._link_or_create_sample_resources()
+
+    def _handle_connection_error(self, error: Exception) -> None:
+        """Allow offline fallback only for connection or temporary errors."""
+        if isinstance(error, ApiException):
+            unavailable = error.status in (0, 408, 429) or (
+                error.status is not None and error.status >= 500
+            )
+        else:
+            unavailable = isinstance(error, (HTTPError, OSError))
+        if not unavailable:
+            raise ValueError(
+                f"ElabFTW connection configuration or access was rejected: {error}"
+            ) from error
+        if self.config.require_server:
+            self.report(
+                Message(
+                    "ElabFTW connection could not be established "
+                    "but is configured to be required.",
+                    to_comment=False,
+                )
+            )
+            raise ConnectionError("ElabFTW connection could not be established") from error
+        self.report(
+            Message(
+                "ElabFTW connection could not be established\n"
+                "no labbook entry will be created, but we continue.",
+                to_comment=False,
+            )
+        )
+        self.api_client = None
+
+    def _resolve_team_groups(self) -> list[int]:
+        """Fetch team groups from eLabFTW and resolve configured write_groups to IDs."""
+        if not self.config.write_groups or not self.api_client:
+            return []
+        if not self._team_id:
+            raise ValueError("ElabFTW teamid is required when write_groups are configured")
+
+        payload = self.api_client.call_api(
+            f"/teams/{self._team_id}/teamgroups",
+            "GET",
+            header_params={"Accept": "application/json"},
+            response_type=object,
+            _return_http_data_only=True,
+        )
+        groups = payload.values() if isinstance(payload, dict) else payload
+        group_map = {
+            str(group["name"]).strip(): int(group["id"])
+            for group in groups
+            if isinstance(group, dict) and group.get("id") is not None and group.get("name")
+        }
+        resolved_ids = [_match_group_id(name, group_map) for name in self.config.write_groups]
+
+        return list(dict.fromkeys(resolved_ids))
+
+    def _validate_elab_configuration(self) -> None:
+        """Validate connected configuration and resolve team groups before setup proceeds."""
+        self._resolved_write_group_ids = self._resolve_team_groups()
+
+    def _fetch_entity_permissions(
+        self, entity_type: Literal["items", "experiments"], entity_id: int
+    ) -> tuple[str | None, str | None]:
+        """Fetch entity canwrite and canread permissions."""
+        if not self.api_client:
+            return None, None
+        if entity_type == "items":
+            entity = elabapi_python.ItemsApi(self.api_client).get_item(entity_id)
+        elif entity_type == "experiments":
+            entity = elabapi_python.ExperimentsApi(self.api_client).get_experiment(entity_id)
+        else:
+            raise ValueError(f"Unknown entity type: {entity_type}")
+
+        return entity.canwrite, entity.canread
+
+    def _patch_entity_permissions(
+        self,
+        entity_type: Literal["items", "experiments"],
+        entity_id: int,
+        patch_body: dict[str, str],
+    ) -> None:
+        """Send PATCH request with updated permissions."""
+        if not patch_body or not self.api_client:
+            return
+        if entity_type == "items":
+            elabapi_python.ItemsApi(self.api_client).patch_item(id=entity_id, body=patch_body)
+        elif entity_type == "experiments":
+            elabapi_python.ExperimentsApi(self.api_client).patch_experiment(
+                id=entity_id, body=patch_body
+            )
+
+    def _grant_group_permissions(
+        self, entity_type: Literal["items", "experiments"], entity_id: int
+    ) -> None:
+        """Grant configured groups read and write permissions on an entity."""
+        if not self._resolved_write_group_ids or not self.api_client:
+            return
+
+        try:
+            canwrite_val, canread_val = self._fetch_entity_permissions(entity_type, entity_id)
+        except ApiException as e:
+            self.report(
+                Message(
+                    f"Exception fetching {entity_type} {entity_id} to update permissions: {e}\n",
+                    to_comment=False,
+                )
+            )
+            raise ValueError(f"Failed to fetch {entity_type} {entity_id} permissions: {e}") from e
+
+        patch_body: dict[str, str] = {}
+        changed_w, new_canwrite = _merge_teamgroup_ids(
+            canwrite_val, self._resolved_write_group_ids
+        )
+        if changed_w:
+            patch_body["canwrite"] = new_canwrite
+
+        changed_r, new_canread = _merge_teamgroup_ids(canread_val, self._resolved_write_group_ids)
+        if changed_r:
+            patch_body["canread"] = new_canread
+
+        try:
+            self._patch_entity_permissions(entity_type, entity_id, patch_body)
+        except ApiException as e:
+            self.report(
+                Message(
+                    f"Exception patching permissions for {entity_type} {entity_id}: {e}\n",
+                    to_comment=False,
+                )
+            )
+            raise ValueError(
+                f"Failed to update permissions on {entity_type} {entity_id}: {e}"
+            ) from e
 
     def add_tag(self, name: str) -> None:
         """
@@ -366,6 +553,7 @@ class Elab(System):
         int or None
             The user ID if found, None otherwise.
         """
+        self._resolved_user = None
         if not self.api_client:
             return None
         userApi = elabapi_python.UsersApi(self.api_client)
@@ -388,6 +576,7 @@ class Elab(System):
         # Step 1: try to match orgid
         try:
             idx = orgids.index(search_string_lower)
+            self._resolved_user = response[idx]
             return response[idx]["userid"]
         except (ValueError, KeyError):
             pass
@@ -404,7 +593,8 @@ class Elab(System):
             most_likely_match = closest_matches[0] if closest_matches else None
 
         if most_likely_match:
-            return response[names.index(most_likely_match)]["userid"]
+            self._resolved_user = response[names.index(most_likely_match)]
+            return self._resolved_user["userid"]
 
         return None
 
@@ -511,17 +701,19 @@ class Elab(System):
                 return int(category_id)
         return None
 
-    def _create_resource(self, name: str) -> int | None:
+    def _create_resource(self, name: str, tags: list[str] | None = None) -> int | None:
         """
         Create a new resource in elabFTW.
 
         This method creates a new resource with the given name and the category
-        specified in the configuration.
+        specified in the configuration, and assigns configured group permissions.
 
         Parameters
         ----------
         name
             The name of the resource to be created.
+        tags
+            Optional tags to assign to the resource.
 
         Returns
         -------
@@ -531,32 +723,34 @@ class Elab(System):
         Raises
         ------
         ValueError
-            If a valid resource category could not be found.
-
-        Notes
-        -----
-        This method requires a valid resource category to be specified in the
-        configuration. If not found, it will raise a ValueError.
+            If a valid resource category could not be found or creation fails.
         """
         if not self.api_client:
             return None
         resource_cat = self._determine_resource_category()
         if not resource_cat:
             raise ValueError("Valid resource category could not be found, but is needed.")
-        # create an instance of the API class
         itemsApi = elabapi_python.ItemsApi(self.api_client)
         try:
-            response = itemsApi.post_item_with_http_info(body={"category": resource_cat})
+            create_body = {"category": resource_cat}
+            if tags:
+                create_body["tags"] = tags
+            response = itemsApi.post_item_with_http_info(body=create_body)
             headers = response[2]
             location = headers.get("Location") or headers.get("location")
             if location is None:
                 raise ValueError("Missing Location header in create item response")
             item_id = int(location.split("/").pop())
-            itemsApi.patch_item(body={"title": name, "category": resource_cat}, id=item_id)
-            self.report(Message(f"created ElabFTW resource with name {name}", to_comment=False))
+            # Category and tags are assigned by the creation request. Sending
+            # them again in the generic entity PATCH is rejected by some
+            # eLabFTW versions as an invalid update target.
+            itemsApi.patch_item(body={"title": name}, id=item_id)
+            if self._resolved_write_group_ids:
+                self._grant_group_permissions("items", item_id)
         except ApiException as e:
             self.report(Message(f"Exception when calling ItemsApi: {e}\n", to_comment=False))
             raise ValueError("Failed to create resource due to eLabFTW API error") from e
+        self.report(Message(f"created ElabFTW resource with name {name}", to_comment=False))
         return item_id
 
     def _search_resource(self, resource: str) -> int | None:
@@ -597,30 +791,33 @@ class Elab(System):
             )
         return None
 
-    def _parse_tags_from_line(self, line: str) -> list | None:
+    def _parse_tags_from_text(self, text: str) -> list | None:
         """
-        Parse tags from line, tags are marked with #.
+        Parse tags from text, tags are marked with #.
 
         Parameters
         ----------
-        line
-            Line from which to parse the tags.
+        text
+            Text from which to parse the tags.
 
         Returns
         -------
         list or None
             Returns a list with parsed tags, otherwise None
         """
-        if not line:
+        if not text:
             return
-        if "#" not in line:
+        if "#" not in text:
             return
         pattern = r"#(?:\(([^)]+)\)|(\S+))"
-        matches = re.findall(pattern, line)
+        matches = re.findall(pattern, text)
 
         # Extract matched hashtags
         hashtags = [match[0] if match[0] else match[1] for match in matches]
         return hashtags
+
+    def _prepare_experiment_tags(self) -> None:
+        """Allow specialized systems to process the final experiment tags."""
 
     def elab_post_experiment(self, status: str, reset_tags: bool = True) -> None:
         """
@@ -641,13 +838,10 @@ class Elab(System):
         title = self._render_template(self.config.title_template)
         body = self._render_template(self.config.body_template)
 
-        if self.merged_system.dcdata["description"]:
-            additional_tags = self._parse_tags_from_line(
-                self.merged_system.dcdata["description"].splitlines()[0]
-            )
-            if additional_tags:
-                for tag in additional_tags:
-                    self.add_tag(tag)
+        if self.config.parse_hashtags and self.merged_system.dcdata.get("description"):
+            additional_tags = self._parse_tags_from_text(self.merged_system.dcdata["description"])
+            for tag in additional_tags or []:
+                self.add_tag(tag)
 
         experiments_api = elabapi_python.ExperimentsApi(self.api_client)
 
@@ -661,6 +855,8 @@ class Elab(System):
         userid = self._determine_userid()
         if userid:
             params["userid"] = userid
+
+        self._prepare_experiment_tags()
 
         catid = self._determine_category()
         if catid:
@@ -676,18 +872,24 @@ class Elab(System):
                 experiments_api.post_experiment_with_http_info(body=create_body)
             )
 
-            if reset_tags:
-                self._tags = []
+            location = response_headers.get("Location") or response_headers.get("location")
+            if location is None:
+                raise ValueError("Missing Location header in create experiment response")
+            experiment_id = int(location.split("/")[-1])
 
-            experiment_id = response_headers["Location"].split("/")[-1]
+            if self._resolved_write_group_ids:
+                self._grant_group_permissions("experiments", experiment_id)
 
             experiments_api.patch_experiment(id=experiment_id, body=params)
 
-            self._upload_attachments(experiment_id)
-            self._link_resources(experiment_id)
+            self._upload_attachments(str(experiment_id))
+            self._link_resources(str(experiment_id))
+            if reset_tags:
+                self._tags = []
 
         except ApiException as e:
             self.report(Message(f"Exception with post or patch experiment: {e}\n"))
+            raise
 
     def _handle_existing_title(self, experiments_api, title):
         """Handle title when experiment with the same title already exists."""
@@ -752,7 +954,7 @@ class Elab(System):
         self.report(Message(backup_info))
         title = self._render_template(self.config.title_template)
         body = self._render_template(self.config.body_template)
-        category_name = self.config.get("category", None)
+        category_name = getattr(self.config, "category", None)
         entry_info = f"Entry title: {title}\n"
         if category_name:
             entry_info += f"Category: {category_name}\n"
@@ -779,20 +981,24 @@ class Elab(System):
         Called by matrix when measurement is complete. Creates elabFTW
         entry if measurement was successful.
         """
-        # if measurement was not unsuccessful a elab entry is generated
-        if "status" not in kwargs or kwargs["status"] != "aborted":
-            self.conditional_add_file()
-            if self.filename:
-                # only create measurement if there is a datafile
-                try:
+        try:
+            # Only publish completed measurements with a data file.
+            if kwargs.get("status") != "aborted":
+                self.conditional_add_file()
+                if self.filename:
                     self.elab_post_experiment(kwargs.get("status", ""))
-                except Exception:
-                    logger.exception("Failed to create ElabFTW entry")
-                    self._backup_info(kwargs.get("status", ""))
-            else:
-                self.report(Message("no measurement file exists, not creating entry"))
-        super().reset(*args, **kwargs)
-        # reset internal variables to enable reuse of a class instance
-        self._attachments = {}
-        self._tags = []
-        self._resources = {}
+                else:
+                    self.report(Message("no measurement file exists, not creating entry"))
+        except Exception as error:
+            logger.exception("ElabFTW publication failed")
+            self.report(Message(f"ElabFTW publication failed: {error}", to_comment=False))
+            self._backup_info(kwargs.get("status", ""))
+        finally:
+            try:
+                super().reset(*args, **kwargs)
+            finally:
+                self._attachments = {}
+                self._tags = []
+                self._resources = {}
+                self._created_resources = {}
+                self._resolved_user = None
