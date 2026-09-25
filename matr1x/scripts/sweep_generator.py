@@ -24,17 +24,17 @@ import re
 import sys
 import time
 from ast import literal_eval
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cached_property
 from math import floor, isfinite
 from pathlib import Path
 from typing import Any
 
-import pyqtgraph as pg
 from pydantic import BaseModel, Field
 from PySide6.QtCore import QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFocusEvent, QKeySequence, QMouseEvent
+from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -82,7 +82,6 @@ from matr1x.gui.helpers import (
 from matr1x.gui.logging import LoggingWindow
 from matr1x.gui.meta_viewer import uint_validator, validator
 from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
-from matr1x.gui.plot import CustomViewBox
 from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
@@ -905,6 +904,10 @@ class SweepPreviewPopup(QDialog):
         index: int,
         col: ColumnData,
     ):
+        import pyqtgraph as pg
+
+        from matr1x.gui.plot import CustomViewBox
+
         super().__init__(parent)
         self.columns: ColumnData = col
         sweep = self.columns.calculate_sweep()
@@ -1020,10 +1023,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
     ----------
     filename : str
         Sweep file to load for editing.
-    inputcb : function handle
-        Callback function used to return the filename of the generated file.
-    log_window : LoggingWindow, optional
-        Logging window to use for displaying log messages.
+    notify : str, optional
+        Name of a local server (e.g. a running matrix-gui) to notify
+        about the name of each saved file.
     """
 
     extension = ".sw8"
@@ -1033,20 +1035,15 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self,
         filename: Path | None = None,
         *,
-        inputcb: Callable[[str], None] | None = None,
-        log_window: LoggingWindow | None = None,
+        notify: str | None = None,
     ):
         super().__init__()
         self.in_pytest: bool = False
-        self._owns_log_window = log_window is None
-        if log_window is None:
-            self.log_window = LoggingWindow(parent=self)
-            self.log_window.hide()
-        else:
-            self.log_window = log_window
+        self.log_window = LoggingWindow(parent=self)
+        self.log_window.hide()
         logger.info("sweep-generator starting")
 
-        self.inputcb: Callable[[str], None] | None = inputcb
+        self.notify_server: str | None = notify
         self.last_filename: Path | None = None
         self.dirty: bool = False
         self.columns: ColumnData = ColumnData()
@@ -1066,10 +1063,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         check_config(matr1x.config, self.ui.widgets.notifier)
         check_desktop_integration()
 
-        if filename is not None:
-            if self.is_valid_extension(filename):
-                self.open_file(filename)
-                self.last_filename = filename
+        if filename is not None and self.is_valid_extension(filename):
+            self.open_file(filename)
+            self.last_filename = filename
         else:
             self.update_systems()
 
@@ -1084,18 +1080,18 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             a0.ignore()
             return
         self.save_window_state()
-        self.cleanup_log_window(enabled=self._owns_log_window)
+        self.cleanup_log_window()
         a0.accept()
 
     def save_window_state(self) -> None:
         """Save application configuration until next startup."""
         self.save_layout_state(self.settings)
-        self.save_log_window_state(self.settings, enabled=self._owns_log_window)
+        self.save_log_window_state(self.settings)
 
     def restore_window_state(self) -> None:
         """Restore application configuration from the previous use."""
         self.restore_layout_state(self.settings)
-        self.restore_log_window_state(self.settings, enabled=self._owns_log_window)
+        self.restore_log_window_state(self.settings)
 
     def create_connections(self) -> None:
         """Connect actions and widgets with application logic."""
@@ -1409,9 +1405,21 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             return False
         self.last_filename = filename
         self.update_window_title(dirty=False)
-        if self.inputcb is not None:
-            self.inputcb(str(filename))
+        server = self.notify_server
+        if server is not None:
+            self._notify_parent(filename, server)
         return True
+
+    def _notify_parent(self, filename: Path, server: str) -> None:
+        """Send the saved filename to the notifying local server, if reachable."""
+        socket = QLocalSocket(self)
+        socket.connectToServer(server)
+        if socket.waitForConnected(200):
+            socket.write(str(filename).encode() + b"\n")
+            socket.waitForBytesWritten(200)
+        else:
+            logger.debug("No local server to notify about %s", filename)
+        socket.disconnectFromServer()
 
     def save_file(self, append: bool = False, dialog: bool = False) -> bool:
         """
@@ -1664,13 +1672,15 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.update_window_title(dirty=False)
 
 
-def main():
+def main(file: str | None = None, notify: str | None = None):
     """Set the basic GUI parameters and run."""
     install_error_handler()
     install_qt_error_dialog()
     app = MApplication(sys.argv)
     app.setDesktopFileName("sweep-generator")
-    main_window = MainWindow() if len(sys.argv) < 2 else MainWindow(filename=Path(sys.argv[1]))
+    if file is None and len(sys.argv) >= 2:
+        file = sys.argv[1]
+    main_window = MainWindow(filename=Path(file) if file else None, notify=notify)
     main_window.show()
     app.connect_file_handler(main_window.open_file)  # MacOS specific FileOpenEvent
     main_window.restore_window_state()
