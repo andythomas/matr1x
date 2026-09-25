@@ -26,12 +26,8 @@
         "complexity": 17
       },
       {
-        "name": "uninstall_control_gui_desktop_integration",
-        "complexity": 19
-      },
-      {
         "name": "uninstall_core_desktopintegration",
-        "complexity": 19
+        "complexity": 17
       }
     ]
   },
@@ -39,10 +35,6 @@
     "path": "matr1x/apps/preview.py",
     "file_name": "preview.py",
     "functions": [
-      {
-        "name": "SweepPreview::file_index_changed",
-        "complexity": 17
-      },
       {
         "name": "SweepPreview::reload_data_curve",
         "complexity": 38
