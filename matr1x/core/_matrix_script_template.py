@@ -72,7 +72,8 @@ if _typing.TYPE_CHECKING:
     _script = _thread_api._exec_thread.script
     _system = _thread_api._exec_thread.system
 
-_validated_config = _matr1x.config.matr1x.scripts.matrix_script
+# load config section from toml file
+_validated_config = _matr1x.config.matr1x.apps.matrix_script
 
 for _key, _value in _meta_data.items():
     if _matr1x.VALID_META_KEYS.get(_key):

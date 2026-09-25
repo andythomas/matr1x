@@ -745,7 +745,7 @@ def matrix_cmdline(*args: str) -> list[str]:
         Command to pass to ``subprocess.Popen`` or ``subprocess.run``.
     """
     argv = ["matrix", *args]
-    cmd = f"import sys\nsys.argv = {argv!r}\nfrom matr1x.scripts.matrix import main\nmain()"
+    cmd = f"import sys\nsys.argv = {argv!r}\nfrom matr1x.apps.cli import main\nmain()"
     return [sys.executable, "-c", cmd]
 
 

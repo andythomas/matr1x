@@ -45,6 +45,11 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+from matr1x.apps.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.core.error_handling import Error, InternalInvariantError, install_error_handler
 from matr1x.core.models import (
     Datafile,
@@ -84,11 +89,6 @@ from matr1x.gui.shared import (
     NotifierMessage,
     SaferQSettings,
     check_config,
-)
-from matr1x.scripts.post_install import (
-    check_desktop_integration,
-    post_installation,
-    remove_desktop_integration,
 )
 
 logger = logging.getLogger(Path(__file__).name)
@@ -646,7 +646,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             sys.executable,
             "-c",
             (
-                "from matr1x.scripts import sweep_generator; "
+                "from matr1x.apps import sweep_generator; "
                 f"sweep_generator.main({file_arg}notify='{self._input_server_name}')"
             ),
         ]
@@ -837,7 +837,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             preview = [
                 sys.executable,
                 "-c",
-                f"from matr1x.scripts import matrix_preview; matrix_preview.main(file=r'{output}')",
+                f"from matr1x.apps import preview; preview.main(file=r'{output}')",
             ]
             subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 

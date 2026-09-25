@@ -22,10 +22,10 @@ import pytest
 from PySide6.QtCore import Qt
 
 import matr1x.core.eval
+from matr1x.apps import script as matrix_script
 from matr1x.core.error_handling import Success
 from matr1x.core.models import Envelope, Message, Modifier, SystemCapability, SystemReference
 from matr1x.gui.shared import SystemListWidget
-from matr1x.scripts import matrix_script
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
 

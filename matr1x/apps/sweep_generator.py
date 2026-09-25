@@ -60,6 +60,11 @@ from PySide6.QtWidgets import (
 
 import matr1x
 from matr1x import datetimefmt, usersfolder
+from matr1x.apps.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.core.error_handling import (
     Error,
     InternalInvariantError,
@@ -90,11 +95,6 @@ from matr1x.gui.shared import (
     SaferQSettings,
     SystemListWidget,
     check_config,
-)
-from matr1x.scripts.post_install import (
-    check_desktop_integration,
-    post_installation,
-    remove_desktop_integration,
 )
 
 __all__ = ["ColumnData", "MainWindow"]

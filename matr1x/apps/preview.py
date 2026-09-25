@@ -44,6 +44,11 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+from matr1x.apps.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.core.error_handling import expect_not_none, install_error_handler
 from matr1x.core.eval import HeaderDict, _is_hdf5, create_empty_header, loadmatrix
 from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
@@ -66,11 +71,6 @@ from matr1x.gui.shared import (
     NotifierMessage,
     SaferQSettings,
     check_config,
-)
-from matr1x.scripts.post_install import (
-    check_desktop_integration,
-    post_installation,
-    remove_desktop_integration,
 )
 
 logger = logging.getLogger(__name__)
@@ -529,7 +529,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         preview = [
             sys.executable,
             "-c",
-            "from matr1x.scripts import matrix_preview; matrix_preview.main()",
+            "from matr1x.apps import preview; preview.main()",
         ]
         subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 
