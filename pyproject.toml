@@ -119,6 +119,9 @@ extend-select = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"] # 'unsused import' has to be suppressed here
 "tests/**" = ["INP001", "T201"] # tests do not need '__init__', print is fine
+# the template imports the script API to bind it into the user-script
+# namespace
+"matr1x/core/_matrix_script_template.py" = ["F401"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 100
@@ -190,11 +193,6 @@ modules = [
     "matr1x.scripts.matrix_di",
     "matr1x.scripts.sweep_generator",
 ]
-ignore_imports = [
-    # matrix_gui opens the sweep-generator window in-process; decoupling this
-    # (e.g. via subprocess) is deferred.
-    "matr1x.scripts.matrix_gui -> matr1x.scripts.sweep_generator",
-]
 
 [[tool.importlinter.contracts]]
 name = "core and devices must not import Qt"
@@ -238,6 +236,7 @@ dev = [
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
     "complexipy>=6.2.0",
+    "py-yaml12>=0.2.0", # tests.test_public_api (parses great-docs.yml, YAML 1.2)
 ]
 
 docs = [
@@ -257,7 +256,7 @@ override-dependencies = [
 docs = { requires-python = ">=3.11" }
 
 [tool.complexipy]
-paths = ["matr1x"]
+paths = ["matr1x", "tests"]
 max-complexity-allowed = 15
 snapshot-create = false
 snapshot-ignore = false

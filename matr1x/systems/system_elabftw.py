@@ -787,6 +787,7 @@ class Elab(System):
                 try:
                     self.elab_post_experiment(kwargs.get("status", ""))
                 except Exception:
+                    logger.exception("Failed to create ElabFTW entry")
                     self._backup_info(kwargs.get("status", ""))
             else:
                 self.report(Message("no measurement file exists, not creating entry"))
