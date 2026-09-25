@@ -1298,10 +1298,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         preview = [
             sys.executable,
             "-c",
-            (
-                f"from matr1x.apps import preview; "
-                f"preview.main(file=r'{self.measurement_file}')"
-            ),
+            (f"from matr1x.apps import preview; preview.main(file=r'{self.measurement_file}')"),
         ]
         subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 
