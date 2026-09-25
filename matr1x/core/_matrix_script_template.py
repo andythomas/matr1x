@@ -148,7 +148,7 @@ except KeyboardInterrupt:
         _reset_kwargs["status"] = "finished"
     elif _status.finished is False:
         _reset_kwargs["status"] = "aborted"
-except Exception as e:  # noqa: BLE001  # top-level handler for user script, report any error
+except Exception as e:  # top-level handler for user script, report any error
     _report(_Message("script exited with error:", to_comment=False))
     exc_type, exc_value, exc_traceback = _sys.exc_info()
 

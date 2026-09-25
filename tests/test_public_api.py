@@ -217,7 +217,7 @@ def _current_api() -> tuple[dict[str, dict[str, Any]], list[str]]:
     for name, members in reference.items():
         try:
             current[name] = _serialize_item(name, members, module_root)
-        except Exception as exc:  # noqa: BLE001  # collect all import/inspection errors per item
+        except Exception as exc:  # collect all import/inspection errors per item
             errors.append(f"{name}: cannot be imported or inspected: {exc!r}")
     return current, errors
 

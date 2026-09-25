@@ -563,7 +563,7 @@ class SimplePlotWidget(QGroupBox):
                         )
 
                     xc = fx(x, y)
-                except Exception as e:  # noqa: BLE001  # user-defined expression
+                except Exception as e:  # user-defined expression
                     self._raise_error("error in math function (x): " + str(e))
 
                 try:
@@ -576,7 +576,7 @@ class SimplePlotWidget(QGroupBox):
                         )
 
                     yc = fy(y, x)
-                except Exception as e:  # noqa: BLE001  # user-defined expression
+                except Exception as e:  # user-defined expression
                     self._raise_error("error in math function (y): " + str(e))
 
                 if yc is not None and xc is not None:
