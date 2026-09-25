@@ -35,6 +35,7 @@ import typing as _typing
 from pathlib import Path as _Path
 
 import matr1x as _matr1x
+import matr1x.core.config as _core_config
 import matr1x.core.util as _matrix_util
 from matr1x.core import script_api as _script_api
 from matr1x.core.models import Message as _Message
@@ -73,7 +74,7 @@ if _typing.TYPE_CHECKING:
     _system = _thread_api._exec_thread.system
 
 # load config section from toml file
-_validated_config = _matr1x.config.matr1x.apps.matrix_script
+_validated_config = _core_config.config.matr1x.apps.matrix_script
 
 for _key, _value in _meta_data.items():
     if _matr1x.VALID_META_KEYS.get(_key):

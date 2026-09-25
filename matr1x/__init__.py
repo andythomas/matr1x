@@ -14,40 +14,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Configuration and utility module for the matr1x data acquisition software.
+Root package of the matr1x data acquisition software.
 
-This module is a thin re-export shim. The actual configuration logic lives in
-`matr1x.core.config`; this module re-exports the public names so that the
-historical ``import matr1x`` and ``matr1x.<name>`` access patterns keep working.
-
-The live configuration globals (``config``, ``datetimefmt``) are rebound by
-`reload_config`, so they are exposed lazily via `__getattr__` to
-always reflect the current values. Model re-exports (``MainConfig`` and
-friends) are likewise resolved lazily so that this module does not import
-`matr1x.core.models` at module level.
+The public API lives in the layered subpackages (``matr1x.core``,
+``matr1x.gui``, ``matr1x.control``, ``matr1x.devices``); see the
+reference section of the documentation. This module only exposes
+``__version__`` and re-exports the metadata constants.
 """
 
 import warnings
 from importlib.metadata import PackageNotFoundError, version
 
-from .core import config as _core_config
-from .core.config import (
-    logfolder,
-    merge_dicts,
-    output_extension,
-    reload_config,
-    resolved_directory,
-    usersfolder,
-    validation_errors,
-    write_config,
-)
 from .core.metadata import APP_META_KEY, VALID_META_KEYS
-from .core.util import (
-    create_temp_dir_with_symlinks,
-    get_package_path,
-    resolve_config_path,
-    resolve_pkgroot_path,
-)
 
 
 def _clean_formatwarning(
@@ -65,52 +43,11 @@ warnings.formatwarning = _clean_formatwarning  # ty: ignore[invalid-assignment]
 
 __all__ = [
     "APP_META_KEY",
-    # Re-exports
     "VALID_META_KEYS",
-    "MainConfig",
-    "UserlibConfig",
-    # Version / constants
     "__version__",
-    "config",
-    "create_temp_dir_with_symlinks",
-    "datetimefmt",
-    "format_validation_error",
-    "get_package_path",
-    # Config management
-    "logfolder",
-    "merge_dicts",
-    "output_extension",
-    "reload_config",
-    "resolve_config_path",
-    "resolve_pkgroot_path",
-    "resolved_directory",
-    # Submodules
-    "scpi_tcpserver",
-    "system",
-    # System dirs / globals
-    "usersfolder",
-    "validation_errors",
-    "write_config",
 ]
 
 try:
     __version__ = version("matr1x-measurements")
 except PackageNotFoundError:
     __version__ = "unknown"
-
-
-def __getattr__(name: str):
-    """Lazily expose live config globals and model re-exports (PEP 562).
-
-    ``config`` and ``datetimefmt`` are rebound by `reload_config`, so they
-    are proxied to `matr1x.core.config` on every access to stay current.
-    The model re-exports are resolved lazily to avoid importing
-    `matr1x.core.models` at module level.
-    """
-    if name in ("config", "datetimefmt"):
-        return getattr(_core_config, name)
-    if name in ("MainConfig", "UserlibConfig", "format_validation_error"):
-        from matr1x.core import models
-
-        return getattr(models, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

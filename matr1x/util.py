@@ -13,56 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim. The implementation lives in `matr1x.core.util`."""
+"""Re-export shim for `matr1x.core.util` (public names only)."""
 
-from matr1x.core.execthread import matrix_script_process
-from matr1x.core.util import (
-    Command,
-    Get,
-    Set,
-    StreamToLogger,
-    construct_query_string,
-    create_temp_dir_with_symlinks,
-    default_separator,
-    flatten,
-    generate_col_index,
-    generate_script,
-    get_formatted_line,
-    get_package_path,
-    get_pt100_temp,
-    get_script_prefix_offset,
-    init_ascii_header,
-    log_multiline,
-    matrix_cmdline,
-    module_from_path,
-    normalize_cmds,
-    resolve_config_path,
-    resolve_pkgroot_path,
-    run_python_cmdline,
-)
+from matr1x.core.util import Command, Get, Set
 
-__all__ = [
-    "Command",
-    "Get",
-    "Set",
-    "StreamToLogger",
-    "construct_query_string",
-    "create_temp_dir_with_symlinks",
-    "default_separator",
-    "flatten",
-    "generate_col_index",
-    "generate_script",
-    "get_formatted_line",
-    "get_package_path",
-    "get_pt100_temp",
-    "get_script_prefix_offset",
-    "init_ascii_header",
-    "log_multiline",
-    "matrix_cmdline",
-    "matrix_script_process",
-    "module_from_path",
-    "normalize_cmds",
-    "resolve_config_path",
-    "resolve_pkgroot_path",
-    "run_python_cmdline",
-]
+__all__ = ["Command", "Get", "Set"]

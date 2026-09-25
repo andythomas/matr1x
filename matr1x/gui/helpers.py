@@ -335,7 +335,7 @@ def get_system_info(
     script = (
         "import json\n"
         "import sys\n"
-        "from matr1x import validation_errors\n"
+        "from matr1x.core.config import validation_errors\n"
         "from matr1x.core.error_handling import Error\n"
         "from matr1x.core.system import MergedSystem\n"
         "validation_error_count = len(validation_errors)\n"

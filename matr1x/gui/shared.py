@@ -1180,9 +1180,9 @@ class MeasurementThread(QThread, LoggerMixin):
             if script_tempfile is None:
                 raise InternalInvariantError("script_tempfile must be provided for script mode")
             cmd = (
-                f"import matr1x\n"
                 f"import matr1x.core.execthread as mu\n"
-                f"matr1x.reload_config({str(temp_config_file)!r})\n"
+                f"from matr1x.core.config import reload_config\n"
+                f"reload_config({str(temp_config_file)!r})\n"
                 f"mu.matrix_script_process({script_tempfile.name!r}, "
                 f"{self.parameters.metadata!r}, "
                 f"{self.parameters.output_file!r}, {port!r}, "

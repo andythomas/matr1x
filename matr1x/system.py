@@ -13,37 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for `matr1x.core.system`.
+"""Re-export shim for `matr1x.core.system` (public names only)."""
 
-The system classes now live in `matr1x.core.system` (``base`` and
-``merged``). This module re-exports the public names so that
-``from matr1x.system import ...`` keeps working.
-"""
+from matr1x.core.system import System
 
-from matr1x.core.system import (
-    ALLOWED_SIGNATURE_TYPES,
-    BUILTIN_TYPES,
-    ConfigParameter,
-    ConfigScheme,
-    ConfigValue,
-    DcDict,
-    MergedSystem,
-    Parameter,
-    StatefulSystem,
-    System,
-    T,
-)
-
-__all__ = [
-    "ALLOWED_SIGNATURE_TYPES",
-    "BUILTIN_TYPES",
-    "ConfigParameter",
-    "ConfigScheme",
-    "ConfigValue",
-    "DcDict",
-    "MergedSystem",
-    "Parameter",
-    "StatefulSystem",
-    "System",
-    "T",
-]
+__all__ = ["System"]

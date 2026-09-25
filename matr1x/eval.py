@@ -13,13 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim. The implementation lives in `matr1x.core.eval`."""
+"""Re-export shim for `matr1x.core.eval` (public names only)."""
 
-from matr1x.core.eval import (
-    HeaderDict,
-    delta,
-    delta3p,
-    loadmatrix,
-)
+from matr1x.core.eval import delta, delta3p, loadmatrix
 
-__all__ = ["HeaderDict", "delta", "delta3p", "loadmatrix"]
+__all__ = ["delta", "delta3p", "loadmatrix"]
