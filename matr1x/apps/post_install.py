@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 DISTRIBUTION_NAME = "matr1x-measurements"
 
 project_root = Path(__file__).parent.parent
-icns_path = project_root / "scripts" / "icons"
+icns_path = project_root / "apps" / "icons"
 mime_path = project_root / "resources" / "desktop"
 suite_settings = SaferQSettings("matr1x", "common")
 start_menu_path = (
@@ -566,7 +566,7 @@ def windows_integration() -> None:
         """
         editable = is_editable(DISTRIBUTION_NAME)
         return (
-            Path.cwd() / "scripts/icons" / icon_name
+            Path.cwd() / "apps/icons" / icon_name
             if editable
             else get_installed_file(icon_name, DISTRIBUTION_NAME)
         )

@@ -858,7 +858,7 @@ def main() -> None:
                 e,
                 immediate_error=True,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # last-resort before reset
             reset_system_and_exit(
                 measurement,
                 system,
@@ -897,7 +897,7 @@ def main() -> None:
             reset_kwargs["status"] = "aborted"
         if "status" not in reset_kwargs:
             reset_kwargs["status"] = "finished"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # top-level handler, report any error
         traceback.print_exc()
         reset_system_and_exit(
             measurement,

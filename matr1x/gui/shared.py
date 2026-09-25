@@ -876,7 +876,7 @@ class MeasurementTable(ReadOnlyTable):
             value.setToolTip("Converted to local time.")
             self.setItem(last_index, 2, value)
         except Exception:
-            logger.debug("Could not convert timestamp to local time.")
+            logger.debug("Could not convert timestamp to local time.", exc_info=True)
 
     def reset(self) -> None:
         """Reset the table to a single empty row."""

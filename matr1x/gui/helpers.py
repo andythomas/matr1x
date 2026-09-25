@@ -410,7 +410,7 @@ def get_system_capability(source: str) -> Result[SystemCapability, str]:
             creationflags=SUBPROCESS_CREATION_FLAGS,
             check=False,
         )
-    except Exception as error:
+    except OSError as error:
         return Error(f"Could not inspect system in subprocess: {error}")
     if result.returncode != 0:
         return Error(result.stderr.decode())

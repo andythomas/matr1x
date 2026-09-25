@@ -304,7 +304,7 @@ def test_loadmatrix_tristate_bool(tmp_path: Path):
     datafile = tmp_path / "bool_none.ma7"
     datafile.write_text("a\tb\nV\tV\na\tb\nTrue\tTrue\nNone\tTrue\nFalse\tFalse\n")
     with pytest.warns(FutureWarning, match="to_polars=True"):
-        h, d = matr1x.core.eval.loadmatrix(datafile)
+        _, d = matr1x.core.eval.loadmatrix(datafile)
     assert d["a"].dtype == np.dtype("O")
     assert list(d["a"]) == [True, None, False]
     # column without None stays a plain bool

@@ -22,8 +22,8 @@ import pytest
 from PySide6.QtCore import Qt
 
 import matr1x.core.eval
+from matr1x.apps import script as matrix_script
 from matr1x.core.models import Envelope, Message, Modifier
-from matr1x.scripts import matrix_script
 
 _MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
 

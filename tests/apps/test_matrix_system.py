@@ -88,7 +88,7 @@ class TapCollector:
                     if not line:
                         continue
                     self._events.append(json.loads(line))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001  # record any failure
                 self._error = e
             finally:
                 with suppress(OSError):

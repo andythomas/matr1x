@@ -227,8 +227,8 @@ class Matr1xDevicesConfig(BaseModel):
     )
 
 
-class Matr1xScriptsMatrix_ScriptShortcutsConfig(BaseModel):
-    """Allow validation of [matr1x.scripts.matrix-script.shortcuts]."""
+class Matr1xAppsMatrixScriptShortcutsConfig(BaseModel):
+    """Allow validation of [matr1x.apps.matrix_script.shortcuts]."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -236,25 +236,25 @@ class Matr1xScriptsMatrix_ScriptShortcutsConfig(BaseModel):
     line_comment_shortcut: str = "Ctrl+/"
 
 
-class Matr1xScriptsMatrix_ScriptConfig(BaseModel):
-    """Allow validation of [matr1x.scripts.matrix-script]."""
+class Matr1xAppsMatrixScriptConfig(BaseModel):
+    """Allow validation of [matr1x.apps.matrix_script]."""
 
     model_config = ConfigDict(extra="forbid")
 
     script_path: Path | None = None
     store_script_in_datafile: bool = False
-    shortcuts: Matr1xScriptsMatrix_ScriptShortcutsConfig = Field(
-        default_factory=Matr1xScriptsMatrix_ScriptShortcutsConfig
+    shortcuts: Matr1xAppsMatrixScriptShortcutsConfig = Field(
+        default_factory=Matr1xAppsMatrixScriptShortcutsConfig
     )
 
 
-class Matr1xScriptsConfig(BaseModel):
-    """Allow validation of [matr1x.scripts]."""
+class Matr1xAppsConfig(BaseModel):
+    """Allow validation of [matr1x.apps]."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    matrix_script: Matr1xScriptsMatrix_ScriptConfig = Field(
-        alias="matrix-script", default_factory=Matr1xScriptsMatrix_ScriptConfig
+    matrix_script: Matr1xAppsMatrixScriptConfig = Field(
+        alias="matrix-script", default_factory=Matr1xAppsMatrixScriptConfig
     )
 
 
@@ -290,11 +290,22 @@ class Matr1xConfig(BaseModel):
     users_directory: Path = Path("~/users")
     install: Matr1xInstallConfig = Matr1xInstallConfig()
     devices: Matr1xDevicesConfig = Matr1xDevicesConfig()
-    scripts: Matr1xScriptsConfig = Matr1xScriptsConfig()
+    apps: Matr1xAppsConfig = Field(default_factory=Matr1xAppsConfig)
     email: Matr1xEmailConfig = Matr1xEmailConfig()
     systems: UntypedConfigModel = UntypedConfigModel()
     duplicate_output_to_logfile: bool = False
     print_to_comment: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_scripts_section(cls, data: Any) -> Any:
+        """Accept the legacy [matr1x.scripts] section as [matr1x.apps]."""
+        if isinstance(data, dict) and "scripts" in data:
+            legacy: Any = data.pop("scripts")
+            # if both sections are given, [matr1x.apps] takes precedence
+            if isinstance(legacy, dict):
+                data.setdefault("apps", legacy)
+        return data
 
 
 class MainConfig(ConfigBaseModel):

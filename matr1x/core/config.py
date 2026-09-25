@@ -93,6 +93,14 @@ MIGRATIONS = [
         new_path=("matr1x", "print_to_comment"),
         warning="Please move all 'print_to_comment' entries to [matr1x.print_to_comment]\n",
     ),
+    # The app section must be renamed before the key migrations above stop
+    # matching, so this entry stays after them.
+    _Migration(
+        old_path=("matr1x", "scripts"),
+        new_path=("matr1x", "apps"),
+        warning="The [matr1x.scripts] config section is deprecated; rename it to "
+        "[matr1x.apps] (and its 'matrix-script' subsection to 'matrix_script').\n",
+    ),
 ]
 
 

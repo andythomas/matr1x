@@ -16,7 +16,7 @@
 """Re-export shim for `matr1x.gui.shared`.
 
 The shared GUI classes now live in `matr1x.gui.shared`. This module
-re-exports the public names so that ``from matr1x.scripts.shared_classes
+re-exports the public names so that ``from matr1x.apps.shared_classes
 import ...`` keeps working.
 """
 

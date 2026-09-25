@@ -438,7 +438,7 @@ class EditorBackend(QObject):
             checker.set_script(script)
             checker.visit(tree)
             return checker.returnDiagnostics()
-        except Exception:
+        except (SyntaxError, ValueError, RecursionError):
             return []
 
 
@@ -618,7 +618,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
                     done, -1 if total is None else total
                 )
             )
-        except Exception as e:
+        except (RuntimeError, OSError) as e:
             self.logger.error("Failed to prepare Monaco assets: %s", e)
         finally:
             signals.finished.emit()
