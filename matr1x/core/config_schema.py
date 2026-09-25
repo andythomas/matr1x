@@ -227,7 +227,7 @@ class Matr1xDevicesConfig(BaseModel):
     )
 
 
-class Matr1xAppsMatrix_ScriptShortcutsConfig(BaseModel):
+class Matr1xAppsMatrixScriptShortcutsConfig(BaseModel):
     """Allow validation of [matr1x.apps.matrix_script.shortcuts]."""
 
     model_config = ConfigDict(extra="forbid")
@@ -236,15 +236,15 @@ class Matr1xAppsMatrix_ScriptShortcutsConfig(BaseModel):
     line_comment_shortcut: str = "Ctrl+/"
 
 
-class Matr1xAppsMatrix_ScriptConfig(BaseModel):
+class Matr1xAppsMatrixScriptConfig(BaseModel):
     """Allow validation of [matr1x.apps.matrix_script]."""
 
     model_config = ConfigDict(extra="forbid")
 
     script_path: Path | None = None
     store_script_in_datafile: bool = False
-    shortcuts: Matr1xAppsMatrix_ScriptShortcutsConfig = Field(
-        default_factory=Matr1xAppsMatrix_ScriptShortcutsConfig
+    shortcuts: Matr1xAppsMatrixScriptShortcutsConfig = Field(
+        default_factory=Matr1xAppsMatrixScriptShortcutsConfig
     )
 
 
@@ -253,15 +253,9 @@ class Matr1xAppsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    matrix_script: Matr1xAppsMatrix_ScriptConfig = Field(
-        alias="matrix-script", default_factory=Matr1xAppsMatrix_ScriptConfig
+    matrix_script: Matr1xAppsMatrixScriptConfig = Field(
+        alias="matrix-script", default_factory=Matr1xAppsMatrixScriptConfig
     )
-
-
-# Backwards-compatible names for the former [matr1x.scripts] section.
-Matr1xScriptsConfig = Matr1xAppsConfig
-Matr1xScriptsMatrix_ScriptConfig = Matr1xAppsMatrix_ScriptConfig
-Matr1xScriptsMatrix_ScriptShortcutsConfig = Matr1xAppsMatrix_ScriptShortcutsConfig
 
 
 class Matr1xEmailConfig(BaseModel):
