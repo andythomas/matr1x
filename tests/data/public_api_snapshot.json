@@ -221,6 +221,98 @@
       }
     }
   },
+  "core.script_api:end_script": {
+    "kind": "function",
+    "params": [
+      {"annotation": "bool | None", "default": "None", "kind": "positional_or_keyword", "name": "finished"}
+    ]
+  },
+  "core.script_api:init_datafile": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "filename"},
+      {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "comment"},
+      {"annotation": "<class 'bool'>", "default": "False", "kind": "positional_or_keyword", "name": "append"},
+      {"annotation": "<class 'bool'>", "default": "True", "kind": "positional_or_keyword", "name": "print_header"},
+      {"annotation": "int | None", "default": "None", "kind": "positional_or_keyword", "name": "ntot"},
+      {"annotation": "<class 'bool'>", "default": "True", "kind": "positional_or_keyword", "name": "reset_meta_data"},
+      {"annotation": "<class 'bool'>", "default": "True", "kind": "positional_or_keyword", "name": "reset_date"}
+    ]
+  },
+  "core.script_api:input": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "query"},
+      {"annotation": "float | None", "default": "None", "kind": "positional_or_keyword", "name": "timeout"},
+      {"annotation": "<class 'str'>", "default": "''", "kind": "positional_or_keyword", "name": "default_value"}
+    ]
+  },
+  "core.script_api:input_bool": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "query"},
+      {"annotation": "float | None", "default": "None", "kind": "positional_or_keyword", "name": "timeout"},
+      {"annotation": "<class 'str'>", "default": "'yes'", "kind": "positional_or_keyword", "name": "default_value"}
+    ]
+  },
+  "core.script_api:input_numerical": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'str'>", "kind": "positional_or_keyword", "name": "query"},
+      {"annotation": "float | None", "default": "None", "kind": "positional_or_keyword", "name": "timeout"},
+      {"annotation": "<class 'float'>", "default": "0.0", "kind": "positional_or_keyword", "name": "default_value"},
+      {"annotation": "<class 'float'>", "default": "-100000000000.0", "kind": "positional_or_keyword", "name": "min_value"},
+      {"annotation": "<class 'float'>", "default": "100000000000.0", "kind": "positional_or_keyword", "name": "max_value"},
+      {"annotation": "<class 'float'>", "default": "1.0", "kind": "positional_or_keyword", "name": "step"},
+      {"annotation": "<class 'int'>", "default": "2", "kind": "positional_or_keyword", "name": "decimals"}
+    ]
+  },
+  "core.script_api:measure_system": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'bool'>", "default": "True", "kind": "positional_or_keyword", "name": "print_setpoint"},
+      {"annotation": "<class 'bool'>", "default": "True", "kind": "positional_or_keyword", "name": "print_data"},
+      {"annotation": "<class 'bool'>", "default": "True", "kind": "positional_or_keyword", "name": "print_telemetry"}
+    ]
+  },
+  "core.script_api:print": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'object'>", "kind": "var_positional", "name": "args"},
+      {"annotation": "<class 'str'>", "default": "' '", "kind": "keyword_only", "name": "sep"},
+      {"annotation": "<class 'str'>", "default": "'\\n'", "kind": "keyword_only", "name": "end"},
+      {"annotation": "typing.Any", "default": "None", "kind": "keyword_only", "name": "file"},
+      {"annotation": "<class 'bool'>", "default": "False", "kind": "keyword_only", "name": "flush"}
+    ]
+  },
+  "core.script_api:read_value": {
+    "kind": "function",
+    "params": [
+      {"annotation": "str | int", "kind": "positional_or_keyword", "name": "parameter"}
+    ]
+  },
+  "core.script_api:set_value": {
+    "kind": "function",
+    "params": [
+      {"annotation": "str | int", "kind": "positional_or_keyword", "name": "parameter"},
+      {"annotation": "typing.Any", "kind": "positional_or_keyword", "name": "value"}
+    ]
+  },
+  "core.script_api:trigger_value": {
+    "kind": "function",
+    "params": [
+      {"annotation": "str | int", "kind": "positional_or_keyword", "name": "parameter"}
+    ]
+  },
+  "core.script_api:wait": {
+    "kind": "function",
+    "params": [
+      {"annotation": "float | None", "default": "None", "kind": "positional_or_keyword", "name": "duration"},
+      {"annotation": "datetime.datetime | str | None", "default": "None", "kind": "positional_or_keyword", "name": "until"},
+      {"annotation": "<class 'str'>", "default": "''", "kind": "positional_or_keyword", "name": "message"},
+      {"annotation": "<class 'float'>", "default": "10", "kind": "positional_or_keyword", "name": "silent"}
+    ]
+  },
   "core.system.base:System": {
     "init": [
       {"default": "None", "kind": "positional_or_keyword", "name": "name"}

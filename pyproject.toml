@@ -119,6 +119,9 @@ extend-select = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"] # 'unsused import' has to be suppressed here
 "tests/**" = ["INP001", "T201"] # tests do not need '__init__', print is fine
+# the template imports the script API to bind it into the user-script
+# namespace
+"matr1x/core/_matrix_script_template.py" = ["F401"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 100

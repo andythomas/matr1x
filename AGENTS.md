@@ -56,6 +56,9 @@ Most parts are written in Python and the editor uses some JavaScript.
 - We code for Python 3.10 and above.
 - We strongly type all newly added code.
 - We use numpy docstring style with a maximum of 72 characters line length.
+- Docstrings are rendered as Markdown by great-docs: do not use
+  RST/Sphinx markup (no double-backtick literals, no `:func:`/`:class:`
+  roles); use plain text or single-backtick code spans instead.
 - We keep function complexity in check with `complexipy` (max complexity
   15, see `pyproject.toml`). Run `uv run complexipy` (it covers both
   `matr1x/` and `tests/`) and keep every new function at or below the
