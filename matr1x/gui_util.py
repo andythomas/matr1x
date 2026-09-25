@@ -13,8 +13,37 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for `matr1x.gui` (public names only)."""
+"""Deprecated re-export shim for `matr1x.gui.mixins`.
 
-from matr1x.gui.mixins import AutoSlot
+The names re-exported here are deprecated and will be removed in
+v8.8.0. Import them from `matr1x.gui.mixins` instead.
+"""
 
-__all__ = ["AutoSlot"]
+import importlib
+from typing import Any
+
+from matr1x.core import deprecation
+
+# deprecated name -> module holding the canonical definition
+_CANONICAL = {
+    "AutoSlot": "matr1x.gui.mixins",
+}
+
+__all__ = ["AutoSlot"]  # noqa: F822 (provided via __getattr__)
+
+
+def __getattr__(name: str) -> Any:
+    """Return a deprecated name after notifying about its replacement."""
+    module_name = _CANONICAL.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    deprecation.notify_deprecated_access(
+        f"{__name__}.{name}",
+        f"{module_name}.{name}",
+    )
+    return getattr(importlib.import_module(module_name), name)
+
+
+def __dir__() -> list[str]:
+    """List the names provided by this shim."""
+    return list(__all__)

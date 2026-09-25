@@ -19,13 +19,16 @@ Root package of the matr1x data acquisition software.
 The public API lives in the layered subpackages (``matr1x.core``,
 ``matr1x.gui``, ``matr1x.control``, ``matr1x.devices``); see the
 reference section of the documentation. This module only exposes
-``__version__`` and re-exports the metadata constants.
+``__version__`` and the deprecated metadata constants, which are
+removed in v8.8.0.
 """
 
+import importlib
 import warnings
 from importlib.metadata import PackageNotFoundError, version
+from typing import Any
 
-from .core.metadata import APP_META_KEY, VALID_META_KEYS
+from .core import deprecation
 
 
 def _clean_formatwarning(
@@ -41,11 +44,35 @@ def _clean_formatwarning(
 
 warnings.formatwarning = _clean_formatwarning  # ty: ignore[invalid-assignment]
 
+# deprecated name -> module holding the canonical definition
+_DEPRECATED = {
+    "APP_META_KEY": "matr1x.core.metadata",
+    "VALID_META_KEYS": "matr1x.core.metadata",
+}
+
 __all__ = [
     "APP_META_KEY",
     "VALID_META_KEYS",
     "__version__",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """Return a deprecated name after notifying about its replacement."""
+    module_name = _DEPRECATED.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    deprecation.notify_deprecated_access(
+        f"{__name__}.{name}",
+        f"{module_name}.{name}",
+    )
+    return getattr(importlib.import_module(module_name), name)
+
+
+def __dir__() -> list[str]:
+    """List the names provided by this module."""
+    return list(__all__)
+
 
 try:
     __version__ = version("matr1x-measurements")

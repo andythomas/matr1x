@@ -79,6 +79,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from matr1x.core import deprecation
 from matr1x.core.config import resolved_directory, validation_errors
 from matr1x.core.error_handling import Error, InternalInvariantError, Result
 from matr1x.core.metadata import VALID_META_KEYS
@@ -155,10 +156,15 @@ class Notifier(QGroupBox):
         self._dismiss_timer = QTimer()
         self._dismiss_timer.setSingleShot(True)
         self._dismiss_timer.timeout.connect(self.hide_animated)
+        deprecation.set_deprecation_notifier(self._show_deprecation)
         self._content.addWidget(self._icon)
         self._content.addWidget(self._text, 1)
         self._content.addWidget(self._close_button)
         self.setLayout(self._content)
+
+    def _show_deprecation(self, message: str) -> None:
+        """Show a deprecation message that requires manual dismissal."""
+        self.show_message(NotifierMessage(text=message, level=logging.WARNING))
 
     def show_message(self, message: NotifierMessage):
         """Show a message text and appropriate icon."""
