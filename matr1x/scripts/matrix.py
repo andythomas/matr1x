@@ -706,6 +706,7 @@ def reset_system_and_exit(
             system.add_comment(f"Matrix errored: {type(exception).__name__}: {exception}")
     dispatcher.dispatch(Message("resetting devices", to_comment=False))
     system.reset(**reset_kwargs)
+    system.close()
     sys.exit(exit_code)
 
 

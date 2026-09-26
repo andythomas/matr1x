@@ -522,3 +522,16 @@ class MergedSystem(System):
         self.opened = False
         for subsys in self.subsys:
             subsys.reset(*args, **kwargs)
+
+    def close(self) -> None:
+        """
+        Close all subsystems and release their device connections.
+
+        Propagates to every subsystem so that their devices are
+        properly closed and deinitialized. After this call the merged
+        system can be reinitialized by calling MergedSystem.set().
+        """
+        for subsys in self.subsys:
+            subsys.close()
+        self.opened = False
+        self.devs = {}
