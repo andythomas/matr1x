@@ -24,7 +24,7 @@ from matr1x.apps import queue as matrix_gui
 from matr1x.core.eval import loadmatrix
 
 
-def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
+def test_matrix_gui_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: Path):
     """
     Test basic matrix-gui functionality.
 
@@ -33,6 +33,7 @@ def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
     main window is visible
     sweep exists
     config reference value is successfully changed
+    queue action is disabled and exposes the reason for an invalid config
     """
     main_window = matrix_gui.MainWindow()
     main_window.show()
@@ -66,14 +67,6 @@ def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
     ma8file = test_sweep_file.with_suffix(".ma8")
     header, _data = loadmatrix(ma8file, to_polars=True)
     assert header["system query"]["system_config"]["reference_value"] == reference_value
-
-
-def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch, input_dir: Path):
-    """Invalid device config disables Queue and exposes the reason in the tooltip."""
-    main_window = matrix_gui.MainWindow()
-    main_window.show()
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
 
     main_window.ui.widgets.input_file.setText(str(input_dir / "sweep_for_matrix_gui.sw8"))
     qtbot.waitUntil(lambda: main_window.ui.actions.queue.isEnabled(), timeout=2000)
