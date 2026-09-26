@@ -20,17 +20,57 @@ v8.8.0. Import them from `matr1x.core.models` instead.
 """
 
 import importlib
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from matr1x.core import deprecation
 
+if TYPE_CHECKING:
+    from matr1x.core.models import (
+        FilePath,
+        FolderPath,
+        GPIBVisaResource,
+        GuiField,
+        LocalTCPIPSocketVisaResource,
+        Message,
+        Modifier,
+        SciFloat,
+        SerialVisaResource,
+        SystemConfigModel,
+        TCPIPSocketVisaResource,
+        VisaResource,
+    )
+
 # deprecated name -> module holding the canonical definition
 _CANONICAL = {
+    "FilePath": "matr1x.core.models",
+    "FolderPath": "matr1x.core.models",
+    "GPIBVisaResource": "matr1x.core.models",
+    "GuiField": "matr1x.core.models",
+    "LocalTCPIPSocketVisaResource": "matr1x.core.models",
     "Message": "matr1x.core.models",
     "Modifier": "matr1x.core.models",
+    "SciFloat": "matr1x.core.models",
+    "SerialVisaResource": "matr1x.core.models",
+    "SystemConfigModel": "matr1x.core.models",
+    "TCPIPSocketVisaResource": "matr1x.core.models",
+    "VisaResource": "matr1x.core.models",
 }
 
-__all__ = ["Message", "Modifier"]  # noqa: F822 (provided via __getattr__)
+# names are provided lazily via __getattr__ (PEP 562)
+__all__ = [
+    "FilePath",
+    "FolderPath",
+    "GPIBVisaResource",
+    "GuiField",
+    "LocalTCPIPSocketVisaResource",
+    "Message",
+    "Modifier",
+    "SciFloat",
+    "SerialVisaResource",
+    "SystemConfigModel",
+    "TCPIPSocketVisaResource",
+    "VisaResource",
+]
 
 
 def __getattr__(name: str) -> Any:
