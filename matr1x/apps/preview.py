@@ -21,10 +21,12 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
 from typing import TypedDict, no_type_check
 
 import numpy as np
+import polars as pl
 import pyqtgraph
 import pyqtgraph.exporters
 from PySide6.QtCore import QEvent, QKeyCombination, QObject, Qt, QThread, Signal
@@ -38,13 +40,18 @@ from PySide6.QtWidgets import (
     QLabel,
     QLayout,
     QMenuBar,
-    QMessageBox,
     QWidget,
 )
 
 import matr1x
+from matr1x.apps.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.core.error_handling import expect_not_none, install_error_handler
-from matr1x.core.eval import HeaderDict, create_empty_header, loadmatrix
+from matr1x.core.eval import HeaderDict, _is_hdf5, create_empty_header, loadmatrix
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.helpers import (
@@ -57,11 +64,13 @@ from matr1x.gui.logging import LoggingWindow
 from matr1x.gui.meta_viewer import MetaViewerWidget
 from matr1x.gui.mixins import FileDropMixin, LogWindowMixin
 from matr1x.gui.plot import SimplePlotWidget
-from matr1x.gui.shared import MMainWindow, MToolBar, Notifier, SaferQSettings, check_config
-from matr1x.scripts.post_install import (
-    check_desktop_integration,
-    post_installation,
-    remove_desktop_integration,
+from matr1x.gui.shared import (
+    MMainWindow,
+    MToolBar,
+    Notifier,
+    NotifierMessage,
+    SaferQSettings,
+    check_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,6 +83,16 @@ if sys.platform == "win32":
         windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except ImportError:
         pass
+
+
+class FetchResult(IntEnum):
+    """Result codes returned by `SweepPreview.fetch_data`."""
+
+    OK = 0
+    COLUMNS_CHANGED = -1
+    SHAPES_CHANGED = -2
+    LOAD_FAILED = -3
+
 
 # A sentinel value for when there is no data
 NO_DATA = None
@@ -375,7 +394,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.units: list[str] = []
         self.shapes: list[tuple[int, ...]] = []
         self.header: HeaderDict = create_empty_header()
-        self.data: np.ndarray | dict[str, np.ndarray] = np.array([])
+        self.data: pl.DataFrame | np.ndarray | dict[str, np.ndarray] = np.array([])
 
         self.setWindowTitle("Matrix Preview")
         self.setWindowIcon(get_matrix_icon("matr1x-matrix-preview.png"))
@@ -458,7 +477,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         if self.update_thread is not None:
             self.update_thread.terminate()
             self.update_thread = None
-        self.lu_time = time.time()
         self.fetch_data()
         self.multidim = False
         self.error = False
@@ -511,9 +529,9 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         preview = [
             sys.executable,
             "-c",
-            "from matr1x.scripts import matrix_preview; matrix_preview.main()",
+            "from matr1x.apps import preview; preview.main()",
         ]
-        subprocess.Popen(preview)
+        subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 
     def _create_connections(self) -> None:
         """Connect actions with application logic."""
@@ -662,29 +680,36 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.file_index = index
         self.filename = self.file_dir / self.data_files[self.file_index]
         check = self.conditional_fetch_data(True, check=True)
-        if check != 0:
-            self.column_items = [
-                f"{name} ({unit}), shape: {shape}"
-                for name, unit, shape in zip(self.names, self.units, self.shapes)
-            ]
-            if check == -2:
-                # file has same columns but different shapes, only change
-                # names to reflect the dimensions
-                for i in range(3):
-                    for j, item in enumerate(self.column_items):
-                        self.ui.widgets.column_selector[i].setItemText(j + 1, item)
-            elif check == -1:
-                # file has different columns
-                # reload interface
-                for i in range(3):
-                    self.ui.widgets.column_selector[i].blockSignals(True)
-                    self.ui.widgets.column_selector[i].clear()
-                    self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
-                    self.ui.widgets.column_selector[i].blockSignals(False)
-                self.reset()
+        if check == FetchResult.LOAD_FAILED:
+            # fetch_data already notified about the error
+            return
+        elif check != FetchResult.OK:
+            self.update_column_selectors(check)
         else:
             self.spw.refresh_all_plots()
         self.meta_viewer.update_data(self.header)
+
+    def update_column_selectors(self, check: FetchResult) -> None:
+        """Update the column selectors after the file structure changed."""
+        self.column_items = [
+            f"{name} ({unit}), shape: {shape}"
+            for name, unit, shape in zip(self.names, self.units, self.shapes)
+        ]
+        if check == FetchResult.SHAPES_CHANGED:
+            # file has same columns but different shapes, only change
+            # names to reflect the dimensions
+            for i in range(3):
+                for j, item in enumerate(self.column_items):
+                    self.ui.widgets.column_selector[i].setItemText(j + 1, item)
+        elif check == FetchResult.COLUMNS_CHANGED:
+            # file has different columns
+            # reload interface
+            for i in range(3):
+                self.ui.widgets.column_selector[i].blockSignals(True)
+                self.ui.widgets.column_selector[i].clear()
+                self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
+                self.ui.widgets.column_selector[i].blockSignals(False)
+            self.reset()
 
     def index_changed(self, newIndex: int) -> None:
         """If index changed, reload the new data and handle the gui interaction."""
@@ -793,7 +818,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.update_thread.terminate()
             self.update_thread = None
 
-    def conditional_fetch_data(self, force: bool = False, check: bool = False) -> int:
+    def conditional_fetch_data(self, force: bool = False, check: bool = False) -> FetchResult:
         """
         Fetch data from the file.
 
@@ -803,14 +828,29 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         from the updatethread, therefore make it update all windows.
         """
         filename = expect_not_none(self.filename, "Trying to fetch data, but filename is None!")
+        try:
+            stat_result = filename.stat()
+        except OSError:
+            # file not (temporarily) accessible; fetch_data reports the error
+            stat_result = None
         # skip updates if delta is below 20s and filesize is > 300kB
         # to avoid overloading the system with read queries
-        skip_update = filename.stat().st_size > 300000 and time.time() - self.lu_time < 20
-        ret = 0
-        if force is True or (not skip_update and self.lu_time < filename.stat().st_mtime):
+        skip_update = (
+            stat_result is not None
+            and stat_result.st_size > 300000
+            and time.time() - self.lu_time < 20
+        )
+        ret = FetchResult.OK
+        if (
+            stat_result is None
+            or force is True
+            or (not skip_update and self.lu_time < stat_result.st_mtime)
+        ):
             # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
+            if ret == FetchResult.LOAD_FAILED:
+                return ret
             self.reload_data()
             self.spw.refresh_all_plots()
             self.refresh_columns_size()
@@ -851,43 +891,62 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.spw.setVisible(True)
         self.spw.reset()
 
-    def fetch_data(self, check: bool = False) -> int:
+    def fetch_data(self, check: bool = False) -> FetchResult:
         """Handle the data operations."""
+        filename = expect_not_none(self.filename, "Trying to fetch data, but filename is None!")
         try:
-            ret = 0
-            self.header, self.data = loadmatrix(str(self.filename), replace_None=True)
+            # every line in this block can raise:
+            # _is_hdf5 and loadmatrix open and parse the file (OSError for
+            # missing permission or file, parse errors for malformed data),
+            # the header and column lookups fail on inconsistent files, and
+            # update_data can fail on unusual meta data
+            if _is_hdf5(filename):
+                self.header, self.data = loadmatrix(str(filename))
+            else:
+                self.header, self.data = loadmatrix(str(filename), to_polars=True)
             names = self.header["columns"]
             units = self.header["units"]
-            shapes = [self.data[col].shape for col in names]
-            if check:
-                if self.names != names:
-                    ret = -1
-                elif shapes != self.shapes:
-                    ret = -2
-                elif units != self.units:
-                    # TODO: Discuss whether this should reset # noqa: FIX002
-                    # or just regenerate names
-                    ret = -2
-            self.names = names
-            self.units = units
-            self.shapes = shapes
+            shapes = [self._col(col).shape for col in names]
             # update meta data info
             self.meta_viewer.update_data(self.header)
-        except Exception as exc:
-            # file could not be opened
-            QMessageBox.critical(
-                self,
-                "Error when opening file",
-                f"""
-The following error was raised when opening the file:
-{exc!r}
-Please investigate the error and eventually restart matrix-preview""",
+        except OSError as exc:
+            # transient: missing permission, file removed, or HDF5 file
+            # currently being written; the update thread retries
+            logger.warning("could not load file: %s", exc)
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(f"Could not read file: {exc}", level=logging.WARNING)
             )
-            sys.exit(-1)
+            return FetchResult.LOAD_FAILED
+        except Exception as exc:
+            logger.exception("error while loading file")
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(f"Error when opening file: {exc!r}", level=logging.ERROR)
+            )
+            return FetchResult.LOAD_FAILED
 
+        # the remaining lines are pure state updates and cannot raise
+        ret = FetchResult.OK
+        if check:
+            if self.names != names:
+                ret = FetchResult.COLUMNS_CHANGED
+            elif shapes != self.shapes:
+                ret = FetchResult.SHAPES_CHANGED
+            elif units != self.units:
+                # TODO: Discuss whether this should reset # noqa: FIX002
+                # or just regenerate names
+                ret = FetchResult.SHAPES_CHANGED
+        self.names = names
+        self.units = units
+        self.shapes = shapes
         # update timer
         self.lu_time = time.time()
         return ret
+
+    def _col(self, name: str) -> np.ndarray:
+        """Return a data column as a numpy array (object dtype preserved)."""
+        if isinstance(self.data, pl.DataFrame):
+            return self.data[name].to_numpy()
+        return self.data[name]
 
     def reload_data(self) -> None:
         """
@@ -948,7 +1007,7 @@ Please investigate the error and eventually restart matrix-preview""",
             else:
                 dim = len(self.shapes[index])
                 name = self.names[index]
-                data = self.data[name]
+                data = self._col(name)
 
                 if data.size == 0:
                     return -9
@@ -1092,7 +1151,7 @@ Please investigate the error and eventually restart matrix-preview""",
 
             yname = self.names[indexY]
 
-            y_data = self.data[yname]
+            y_data = self._col(yname)
             if self.ui.widgets.transpose.isChecked() is True and dim == 2:
                 y_data = y_data.T
 
@@ -1121,7 +1180,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 "label": yname,
                 "desig": indexY + 1,
                 "unit": self.units[indexY],
-                "data": self.data[yname],
+                "data": self._col(yname),
                 "shape": self.shapes[indexY],
                 "dim": len(self.shapes[indexY]),
             }
@@ -1130,7 +1189,7 @@ Please investigate the error and eventually restart matrix-preview""",
                 "label": xname,
                 "desig": indexX + 1,
                 "unit": self.units[indexX],
-                "data": self.data[xname],
+                "data": self._col(xname),
                 "shape": self.shapes[indexX],
                 "dim": len(self.shapes[indexX]),
             }

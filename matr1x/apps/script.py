@@ -61,6 +61,11 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+from matr1x.apps.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.core.error_handling import Error, install_error_handler
 from matr1x.core.models import (
     Datafile,
@@ -76,7 +81,12 @@ from matr1x.core.models import (
     SetValues,
     Telemetry,
 )
-from matr1x.core.util import StreamToLogger, generate_script, get_script_prefix_offset
+from matr1x.core.util import (
+    SUBPROCESS_CREATION_FLAGS,
+    StreamToLogger,
+    generate_script,
+    get_script_prefix_offset,
+)
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.editor import CodeEditor
 from matr1x.gui.error_dialog import install_qt_error_dialog
@@ -107,14 +117,9 @@ from matr1x.gui.shared import (
     SystemListWidget,
     check_config,
 )
-from matr1x.scripts.post_install import (
-    check_desktop_integration,
-    post_installation,
-    remove_desktop_integration,
-)
 
 logger = logging.getLogger(__name__)
-script_config = matr1x.config.matr1x.scripts.matrix_script
+script_config = matr1x.config.matr1x.apps.matrix_script
 
 
 GUI_VERSION = "created_v2"
@@ -1293,12 +1298,9 @@ class MainWindow(LogWindowMixin, MMainWindow):
         preview = [
             sys.executable,
             "-c",
-            (
-                f"from matr1x.scripts import matrix_preview; "
-                f"matrix_preview.main(file=r'{self.measurement_file}')"
-            ),
+            (f"from matr1x.apps import preview; preview.main(file=r'{self.measurement_file}')"),
         ]
-        subprocess.Popen(preview)
+        subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 
     def _load_file_from_signal(self, filename: str) -> None:
         """Convert string to Path for opening file."""

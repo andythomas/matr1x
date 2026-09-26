@@ -28,6 +28,7 @@ from pathlib import Path
 
 import matr1x as matr1xpackage
 import matr1x.core.config as core_config
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.helpers import get_install_info
 from matr1x.gui.shared import SaferQSettings
 
@@ -42,7 +43,7 @@ logger = logging.getLogger(__name__)
 DISTRIBUTION_NAME = "matr1x-measurements"
 
 project_root = Path(__file__).parent.parent
-icns_path = project_root / "scripts" / "icons"
+icns_path = project_root / "apps" / "icons"
 mime_path = project_root / "resources" / "desktop"
 suite_settings = SaferQSettings("matr1x", "common")
 start_menu_path = (
@@ -227,9 +228,7 @@ def run_powershell(command: str) -> str:
         ["powershell", "-WindowStyle", "Hidden", "-Command", command],
         capture_output=True,
         text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW
-        if hasattr(subprocess, "CREATE_NO_WINDOW")
-        else 0,
+        creationflags=SUBPROCESS_CREATION_FLAGS,
         check=False,
     )
     if completed.returncode != 0:
@@ -301,7 +300,12 @@ def check_system_specifics() -> bool:
         return result
     elif "windows" in os_type:
         os.environ["PYTHONUTF8"] = "1"
-        subprocess.run(["setx", "PYTHONUTF8", "1"], check=True, capture_output=True)
+        subprocess.run(
+            ["setx", "PYTHONUTF8", "1"],
+            check=True,
+            capture_output=True,
+            creationflags=SUBPROCESS_CREATION_FLAGS,
+        )
         return True
     return True
 
@@ -562,7 +566,7 @@ def windows_integration() -> None:
         """
         editable = is_editable(DISTRIBUTION_NAME)
         return (
-            Path.cwd() / "scripts/icons" / icon_name
+            Path.cwd() / "apps/icons" / icon_name
             if editable
             else get_installed_file(icon_name, DISTRIBUTION_NAME)
         )
@@ -781,27 +785,36 @@ def finalize_desktop_integration() -> None:
         logger.info("Updated icon cache and desktop database")
 
 
-def attempt_remove(filename: str | Path) -> None:
+def remove_path(filename: str | Path) -> None:
     """
-    Attempt to remove a file or directory.
+    Remove a file, directory, or symlink.
 
-    This function tries to remove the specified file. If the file
-    doesn't exist, it silently continues without raising an error.
+    If the path does not exist, the function returns quietly. Symlinks
+    are removed themselves and never followed. Directories are removed
+    recursively.
 
     Parameters
     ----------
     filename : str or Path
-        The path to the file to be removed.
+        The path to be removed.
+
+    Raises
+    ------
+    OSError
+        If the path exists but cannot be removed, e.g. due to missing
+        permissions.
     """
     path = Path(filename)
     try:
-        if path.exists():
-            if path.is_dir():
-                shutil.rmtree(path)
-            else:
-                path.unlink()
-    except PermissionError:
-        logger.error("Permission denied when trying to remove %s", path)
+        if path.is_symlink():
+            path.unlink()
+        elif path.is_dir():
+            shutil.rmtree(path)
+        elif path.exists():
+            path.unlink()
+    except FileNotFoundError:
+        # The path vanished between the check and the removal; nothing to do.
+        pass
 
 
 def uninstall_core_desktopintegration() -> None:
@@ -826,60 +839,25 @@ def uninstall_core_desktopintegration() -> None:
                 xdg_uninstall_basic_icon("matr1x-matrix-gui.png"),
                 check=False,
             )
-            attempt_remove(Path.home() / ".local/share/applications/matrix-gui.desktop")
-
-            # Try to remove deprecated files
-            subprocess.run(
-                xdg_uninstall_basic_icon("matr1x-matrix_gui.png"),
-                check=False,
-            )
-            attempt_remove(Path.home() / ".local/share/applications/matrix_gui.desktop")
+            remove_path(Path.home() / ".local/share/applications/matrix-gui.desktop")
 
             subprocess.run(
                 xdg_uninstall_basic_icon("matr1x-matrix-script.png"),
                 check=False,
             )
-            attempt_remove(Path.home() / ".local/share/applications/matrix-script.desktop")
-
-            subprocess.run(
-                xdg_uninstall_basic_icon("matr1x-matrix_script.png"),
-                check=False,
-            )
-            attempt_remove(Path.home() / ".local/share/applications/matrix_script.desktop")
+            remove_path(Path.home() / ".local/share/applications/matrix-script.desktop")
 
             subprocess.run(
                 xdg_uninstall_basic_icon("matr1x-sweep-generator.png"),
                 check=False,
             )
-            attempt_remove(Path.home() / ".local/share/applications/sweep-generator.desktop")
-
-            subprocess.run(
-                xdg_uninstall_basic_icon("matr1x-sweep_generator.png"),
-                check=False,
-            )
-            attempt_remove(Path.home() / ".local/share/applications/sweep_generator.desktop")
+            remove_path(Path.home() / ".local/share/applications/sweep-generator.desktop")
 
             subprocess.run(
                 xdg_uninstall_basic_icon("matr1x-matrix-preview.png"),
                 check=False,
             )
-            attempt_remove(Path.home() / ".local/share/applications/matrix-preview.desktop")
-
-            subprocess.run(
-                xdg_uninstall_basic_icon("matr1x-matrix_preview.png"),
-                check=False,
-            )
-            attempt_remove(Path.home() / ".local/share/applications/matrix_preview.desktop")
-
-            # Remove deprecated application types, to be removed in 2025/26
-            subprocess.run(
-                xdg_uninstall_mime_icon("application-matr1x-ma7"),
-                check=False,
-            )
-            subprocess.run(
-                xdg_uninstall_mime_icon("application-matr1x-ma7", with_theme=True),
-                check=False,
-            )
+            remove_path(Path.home() / ".local/share/applications/matrix-preview.desktop")
 
             # Uninstall datafile/matrix-file icons and mime types
             subprocess.run(
@@ -956,15 +934,13 @@ def uninstall_core_desktopintegration() -> None:
                 logger.error("Error during uninstall: %s", e)
 
     elif system_type == "darwin":
-        # Darwin section (macOS)
-        try:
-            attempt_remove(Path.home() / "Applications/Matrix GUI.app")
-            attempt_remove(Path.home() / "Applications/Matrix Preview.app")
-            attempt_remove(Path.home() / "Applications/Matrix Script.app")
-            attempt_remove(Path.home() / "Applications/Sweep Generator.app")
-            logger.info("Deleted application bundles")
-        except Exception as e:
-            logger.error("Error during macOS uninstall: %s", e)
+        # Darwin section (macOS). Removal errors are raised so that the
+        # post-installation is aborted and reported to the user.
+        remove_path(Path.home() / "Applications/Matrix GUI.app")
+        remove_path(Path.home() / "Applications/Matrix Preview.app")
+        remove_path(Path.home() / "Applications/Matrix Script.app")
+        remove_path(Path.home() / "Applications/Sweep Generator.app")
+        logger.info("Deleted application bundles")
 
     elif system_type == "windows":
         # Remove existing start menu entry if it exists
@@ -1007,20 +983,14 @@ def uninstall_control_gui_desktop_integration(pkgname: str, extra_guis: list[str
                     xdg_uninstall_basic_icon("matr1x-control.png"),
                     check=True,
                 )
-                attempt_remove(
-                    Path.home() / ".local/share/applications" / f"{gui}.desktop"
-                )  # remove in 2025/26
-                attempt_remove(
+                remove_path(
                     Path.home() / ".local/share/applications" / f"python.{pkgname}.{gui}.desktop"
                 )
-            except (OSError, subprocess.CalledProcessError) as e:
+            except subprocess.CalledProcessError as e:
                 logger.error("Error removing %s: %s", gui, e)
         elif system_type == "darwin":
-            try:
-                attempt_remove(Path.home() / "Applications" / f"{gui}.app")
-                logger.info("Deleted %s", gui)
-            except OSError as e:
-                logger.error("Error removing %s: %s", gui, e)
+            remove_path(Path.home() / "Applications" / f"{gui}.app")
+            logger.info("Deleted %s", gui)
         elif system_type == "windows":
             pass
 
@@ -1029,29 +999,26 @@ def uninstall_control_gui_desktop_integration(pkgname: str, extra_guis: list[str
         # Find and remove files following the pattern
         desktop_files = Path.home().glob(f".local/share/applications/python.{pkgname}.*.desktop")
         for file in desktop_files:
-            try:
-                file.unlink()
-                logger.info("Removed desktop file: %s", file)
-            except OSError as e:
-                logger.error("Error removing %s: %s", file, e)
+            file.unlink()
+            logger.info("Removed desktop file: %s", file)
 
 
 def remove_desktop_integration():
-    """Remove the desktop integration."""
+    """
+    Remove the desktop integration.
+
+    Raises
+    ------
+    OSError
+        If a file or directory of a previous installation cannot be
+        removed, e.g. due to missing permissions.
+    """
     logger.info("Perform removal of old files")
     suite_settings.setValue("di_version", "0")
     # make sure all paths exist to avoid needless error spam
     (Path.home() / ".local/share/icons/hicolor").mkdir(parents=True, exist_ok=True)
     (Path.home() / ".local/share/icons/Adwaita").mkdir(parents=True, exist_ok=True)
-    remove = [
-        sys.executable,
-        "-c",
-        (
-            "from matr1x.post_install import uninstall_core_desktopintegration;"
-            "uninstall_core_desktopintegration()"
-        ),
-    ]
-    subprocess.run(remove, check=False)
+    uninstall_core_desktopintegration()
     for pkg_name, section in core_config.config:
         if section.install:
             dist_name = DISTRIBUTION_NAME if pkg_name == "matr1x" else pkg_name
@@ -1084,8 +1051,19 @@ def post_installation():
     logger.info("Check and/or set platform specifics")
     if not check_system_specifics():
         logger.error("PI001: Not all platform specifics found! Please refer to the documentation.")
-        return
-    remove_desktop_integration()
+        return False
+    try:
+        remove_desktop_integration()
+    except OSError as error:
+        # di_version was reset to "0" by remove_desktop_integration, so the
+        # integration is retried on the next start once the issue is fixed.
+        logger.error(
+            "Post-installation aborted: could not remove files of a previous "
+            "desktop installation: %s\nPlease fix the issue (e.g. file "
+            "permissions) and start the application again.",
+            error,
+        )
+        return False
     install_config = core_config.config.matr1x.install
     if install_config.create_directories:
         create_folders()
@@ -1102,3 +1080,4 @@ def post_installation():
     version, _, _, _ = get_install_info(matr1xpackage)
     suite_settings.setValue("di_version", version)
     logger.info("Post-installation succeeded")
+    return True

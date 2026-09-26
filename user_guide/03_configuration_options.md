@@ -43,7 +43,7 @@ Systems in the last given `systems_directory` path will be shown initially where
 be loaded.
 
 ```toml
-[matr1x.scripts.matrix-script]
+[matr1x.apps.matrix_script]
 # location where matrix-script scripts are executed (files from this folder can be imported in scripts)
 # by default ("") this is the folder were matrix-script is started. The special value "<script-location>"
 # can be used to change to the script file location.
@@ -52,8 +52,13 @@ script_path= ""
 store_script_in_datafile = false
 ```
 
+The legacy section name `[matr1x.scripts.matrix-script]` is still accepted but
+[deprecated](60_development/05_deprecation.md). A deprecation warning is shown
+when it is used. Rename it to `[matr1x.apps.matrix_script]` (see the migration
+skill `migration-v8.6iii`).
+
 ```toml
-[matr1x.scripts.matrix-script.shortcuts]
+[matr1x.apps.matrix_script.shortcuts]
 # The shortcut that is displayed for the toggle line comment menu item.
 line_comment_display = "Ctrl+/"
 # The shortcut that is used for the toggle line comment menu item.

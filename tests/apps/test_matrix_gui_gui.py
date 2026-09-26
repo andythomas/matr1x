@@ -20,9 +20,9 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 
+from matr1x.apps import queue as matrix_gui
 from matr1x.core.eval import loadmatrix
 from matr1x.core.models import SystemInfo, SystemSelectionInfo
-from matr1x.scripts import matrix_gui
 
 
 def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
@@ -65,7 +65,7 @@ def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
     main_window.ui.actions.start.trigger()
     qtbot.waitUntil(lambda: not main_window.running, timeout=5000)
     ma8file = test_sweep_file.with_suffix(".ma8")
-    header, _data = loadmatrix(ma8file)
+    header, _data = loadmatrix(ma8file, to_polars=True)
     assert header["system query"]["system_config"]["reference_value"] == reference_value
 
 

@@ -16,14 +16,17 @@
 """Provide a graphical user interface for matrix measurements."""
 
 import logging
+import os
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -33,7 +36,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMainWindow,
     QMenu,
     QMenuBar,
     QMessageBox,
@@ -43,6 +45,11 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+from matr1x.apps.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
 from matr1x.core.error_handling import Error, InternalInvariantError, install_error_handler
 from matr1x.core.models import (
     Datafile,
@@ -55,7 +62,7 @@ from matr1x.core.models import (
     SystemInfo,
     Telemetry,
 )
-from matr1x.core.system import MergedSystem
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.helpers import (
@@ -79,14 +86,9 @@ from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
     Notifier,
+    NotifierMessage,
     SaferQSettings,
     check_config,
-)
-from matr1x.scripts import sweep_generator
-from matr1x.scripts.post_install import (
-    check_desktop_integration,
-    post_installation,
-    remove_desktop_integration,
 )
 
 logger = logging.getLogger(Path(__file__).name)
@@ -494,9 +496,19 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
         check_config(matr1x.config, self.ui.widgets.notifier)
-        self.sg: QMainWindow | None = None
+        self._sg_proc: subprocess.Popen[bytes] | None = None
+        self._input_server_name = f"matr1x-matrix-gui-{os.getpid()}"
+        self._input_server = QLocalServer(self)
+        QLocalServer.removeServer(self._input_server_name)
+        if not self._input_server.listen(self._input_server_name):
+            logger.warning(
+                "Could not bind local input server: %s",
+                self._input_server.errorString(),
+            )
+        else:
+            self._input_server.newConnection.connect(self._on_input_connection)
         self.running = False
-        self.sys_meta_data = {}
+        self.sys_meta_data: dict[str, Any] = {}
         self._create_connections()
         self.setAcceptDrops(True)
         self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
@@ -536,6 +548,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         if not input_file or not Path(input_file).exists():
             self.ui.actions.queue.setEnabled(False)
             self.ui.actions.queue.setToolTip("Select an existing input file before queueing.")
+            return
+
+        if self.ui.widgets.config_editor.system_info is None:
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip("A valid system must be loaded before queueing.")
             return
 
         # Sweep files are expected to contain validated system information at this point.
@@ -589,8 +606,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             )
             a0.ignore()
             return
-        if self.sg is not None:
-            self.sg.close()
+        self._input_server.close()
         while self.ui.widgets.meas_list.count() > 0:
             self.ui.widgets.meas_list.remove_measurement()
         self.save_window_state()
@@ -618,20 +634,38 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.input_file.setText(filename[0])
 
     def start_sweep_generator(self) -> None:
-        """Run sweep Generator already initialized with system."""
-        if self.sg is None:
-            self.sg = sweep_generator.MainWindow(
-                filename=Path(self.ui.widgets.input_file.text()),
-                inputcb=self.ui.widgets.input_file.setText,
-                log_window=self.log_window,
+        """Launch the sweep generator as a separate process."""
+        if self._sg_proc is not None and self._sg_proc.poll() is None:
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage("A sweep generator is already running.", level=logging.INFO)
             )
-            self.sg.show()
-        elif self.sg.isVisible() is False:
-            self.sg.show()
-        elif self.sg.isMinimized() is True:
-            self.sg.showNormal()
-        else:
-            self.sg.raise_()
+            return
+        input_file = Path(self.ui.widgets.input_file.text())
+        file_arg = f"file=r'{input_file}', " if input_file.is_file() else ""
+        cmd = [
+            sys.executable,
+            "-c",
+            (
+                "from matr1x.apps import sweep_generator; "
+                f"sweep_generator.main({file_arg}notify='{self._input_server_name}')"
+            ),
+        ]
+        self._sg_proc = subprocess.Popen(cmd, creationflags=SUBPROCESS_CREATION_FLAGS)
+
+    def _on_input_connection(self) -> None:
+        """Handle a new connection from the sweep generator."""
+        socket = self._input_server.nextPendingConnection()
+        socket.readyRead.connect(lambda: self._on_input_data(socket))
+
+    def _on_input_data(self, socket: QLocalSocket) -> None:
+        """Update the input file from a filename sent by the sweep generator."""
+        data = bytes(socket.readAll().data()).decode().strip()
+        if data and Path(data).suffix == ".sw8":
+            self.ui.widgets.input_file.setText(data)
+        # Close the fd synchronously so a late readable (EOF) notification
+        # cannot reach the socket after it has been deleted.
+        socket.close()
+        socket.deleteLater()
 
     def _systemfile_from_inputfile(self, input_file_path: str) -> list[str] | None:
         """Read the system file list declared in an input-file header."""
@@ -659,7 +693,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         """Retrieve system information and report configuration validation errors."""
         system_info = get_system_info(systemfile)
         if isinstance(system_info, Error):
-            print(system_info.error)  # noqa: T201
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(system_info.error, level=logging.WARNING)
+            )
             return None
 
         system_info = system_info.value
@@ -676,24 +712,39 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         config_editor = self.ui.widgets.config_editor
         configurable = system_info.configurable_sections if system_info else []
         config_editor.set_systemfile(configurable)
-        if systemfile == config_editor.full_system_list:
-            return
         config_editor.set_full_system_list(systemfile)
         config_editor.set_system_info(system_info)
         config_editor.update_data()
 
     def parse_system_from_inputfile(self, input_file_path: str) -> None:
         """Parse the system from an input file."""
+        if not input_file_path:
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
+            return
+
         systemfile = self._systemfile_from_inputfile(input_file_path)
         if systemfile is None:
+            self.ui.widgets.input_file.blockSignals(True)
+            self.ui.widgets.input_file.setText("")
+            self.ui.widgets.input_file.blockSignals(False)
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
             return
-        system = MergedSystem.from_files(systemfile)
-        if isinstance(system, Error):
-            QMessageBox.warning(self, "System file error!", system.error)
+
+        system_info = self._get_inputfile_system_info(systemfile)
+        if system_info is None:
+            self.ui.widgets.input_file.blockSignals(True)
+            self.ui.widgets.input_file.setText("")
+            self.ui.widgets.input_file.blockSignals(False)
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
             return
-        system = system.value
-        self.sys_meta_data = system.dcdata
-        system_info = self._get_inputfile_system_info(systemfile) if systemfile else None
+
+        self.sys_meta_data = system_info.dcdata
         matr1x.reload_config()
         self._update_config_editor(systemfile, system_info)
         self.update_queue_action_state()
@@ -786,9 +837,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             preview = [
                 sys.executable,
                 "-c",
-                f"from matr1x.scripts import matrix_preview; matrix_preview.main(file=r'{output}')",
+                f"from matr1x.apps import preview; preview.main(file=r'{output}')",
             ]
-            subprocess.Popen(preview)
+            subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
 
 
 def main() -> None:

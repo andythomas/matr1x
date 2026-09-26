@@ -460,7 +460,7 @@ class System:
         self.source: str | None = None
         self.config_section: str | None = None
 
-        self._config = core_config.config.matr1x.scripts.matrix_script
+        self._config = core_config.config.matr1x.apps.matrix_script
         # define merged system reference
         self.merged_system: System | None = None
         self._reporter: Callable[[MeasurementData], None] | None = None

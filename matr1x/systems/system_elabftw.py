@@ -495,7 +495,7 @@ class Elab(System):
                 )
             )
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # report any api error
             self.report(
                 Message(
                     f"Exception when calling /teams/current/resources_categories: {e}\n",
@@ -787,6 +787,7 @@ class Elab(System):
                 try:
                     self.elab_post_experiment(kwargs.get("status", ""))
                 except Exception:
+                    logger.exception("Failed to create ElabFTW entry")
                     self._backup_info(kwargs.get("status", ""))
             else:
                 self.report(Message("no measurement file exists, not creating entry"))

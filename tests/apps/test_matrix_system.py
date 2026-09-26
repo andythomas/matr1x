@@ -88,7 +88,7 @@ class TapCollector:
                     if not line:
                         continue
                     self._events.append(json.loads(line))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001  # record any failure
                 self._error = e
             finally:
                 with suppress(OSError):
@@ -449,3 +449,4 @@ def test_system_grab_information(repo_root: Path):
     dummy_system = str(repo_root / "matr1x/systems/system_dummy.py")
     info = get_system_info([dummy_system])
     assert isinstance(info, Success)
+    assert "source" in info.value.dcdata
