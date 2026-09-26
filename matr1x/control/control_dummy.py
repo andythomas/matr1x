@@ -35,8 +35,8 @@ from matr1x.control import (
     var,
 )
 from matr1x.control import guiObject as go
+from matr1x.core.commands import Command, Get
 from matr1x.core.system import System
-from matr1x.core.util import Command, Get
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
 from matr1x.gui.helpers import get_matrix_icon

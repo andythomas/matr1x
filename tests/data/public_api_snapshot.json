@@ -142,6 +142,36 @@
       {"annotation": "list[str | pathlib.Path] | None", "default": "None", "kind": "positional_or_keyword", "name": "attachments"}
     ]
   },
+  "core.commands:Command": {
+    "init": [
+      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
+      {"annotation": "collections.abc.Callable[..., None] | str | list[str] | tuple[str, ...] | None", "kind": "positional_or_keyword", "name": "setfunc"},
+      {"annotation": "collections.abc.Callable[..., typing.Any] | str | list[str] | tuple[str, ...] | None", "kind": "positional_or_keyword", "name": "getfunc"},
+      {"annotation": "tuple | list | None", "default": "None", "kind": "positional_or_keyword", "name": "setargs"},
+      {"annotation": "tuple | list | None", "default": "None", "kind": "positional_or_keyword", "name": "getargs"},
+      {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "polling_cmd"}
+    ],
+    "kind": "class"
+  },
+  "core.commands:Get": {
+    "init": [
+      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
+      {"annotation": "collections.abc.Callable[..., typing.Any] | str | list[str] | tuple[str, ...]", "kind": "positional_or_keyword", "name": "getfunc"},
+      {"annotation": "tuple | None", "default": "None", "kind": "positional_or_keyword", "name": "getargs"}
+    ],
+    "kind": "class",
+    "members": {}
+  },
+  "core.commands:Set": {
+    "init": [
+      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
+      {"annotation": "collections.abc.Callable[..., None] | str | list[str] | tuple[str, ...]", "kind": "positional_or_keyword", "name": "setfunc"},
+      {"annotation": "tuple | None", "default": "None", "kind": "positional_or_keyword", "name": "setargs"},
+      {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "polling_cmd"}
+    ],
+    "kind": "class",
+    "members": {}
+  },
   "core.eval:delta": {
     "kind": "function",
     "params": [
@@ -397,36 +427,6 @@
   "core.system.base:System.states": {
     "kind": "constant",
     "value": "()"
-  },
-  "core.util:Command": {
-    "init": [
-      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
-      {"annotation": "collections.abc.Callable[..., None] | str | list[str] | tuple[str, ...] | None", "kind": "positional_or_keyword", "name": "setfunc"},
-      {"annotation": "collections.abc.Callable[..., typing.Any] | str | list[str] | tuple[str, ...] | None", "kind": "positional_or_keyword", "name": "getfunc"},
-      {"annotation": "tuple | list | None", "default": "None", "kind": "positional_or_keyword", "name": "setargs"},
-      {"annotation": "tuple | list | None", "default": "None", "kind": "positional_or_keyword", "name": "getargs"},
-      {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "polling_cmd"}
-    ],
-    "kind": "class"
-  },
-  "core.util:Get": {
-    "init": [
-      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
-      {"annotation": "collections.abc.Callable[..., typing.Any] | str | list[str] | tuple[str, ...]", "kind": "positional_or_keyword", "name": "getfunc"},
-      {"annotation": "tuple | None", "default": "None", "kind": "positional_or_keyword", "name": "getargs"}
-    ],
-    "kind": "class",
-    "members": {}
-  },
-  "core.util:Set": {
-    "init": [
-      {"annotation": "collections.abc.Callable[..., typing.Any] | list[collections.abc.Callable[..., typing.Any]] | tuple[collections.abc.Callable[..., typing.Any], ...] | None", "kind": "positional_or_keyword", "name": "dtype"},
-      {"annotation": "collections.abc.Callable[..., None] | str | list[str] | tuple[str, ...]", "kind": "positional_or_keyword", "name": "setfunc"},
-      {"annotation": "tuple | None", "default": "None", "kind": "positional_or_keyword", "name": "setargs"},
-      {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "polling_cmd"}
-    ],
-    "kind": "class",
-    "members": {}
   },
   "devices.ami:AMI1700": {
     "init": [
@@ -3851,7 +3851,7 @@
   "devices.scpi_dev:makeSCPIdevice": {
     "kind": "function",
     "params": [
-      {"annotation": "collections.abc.Mapping[str, matr1x.core.util.Command]", "kind": "var_positional", "name": "cmds"},
+      {"annotation": "collections.abc.Mapping[str, matr1x.core.commands.Command]", "kind": "var_positional", "name": "cmds"},
       {"annotation": "<class 'bool'>", "default": "False", "kind": "keyword_only", "name": "system"}
     ]
   },

@@ -24,11 +24,11 @@ callback, shows a notification that must be dismissed manually.
 import logging
 from collections.abc import Callable
 
-import matr1x.core.config as core_config
-
-__all__ = ["notify_deprecated_access", "set_deprecation_notifier"]
+__all__ = ["deprecation_marker", "notify_deprecated_access", "set_deprecation_notifier"]
 
 logger = logging.getLogger(__name__)
+
+deprecation_marker = "[MATR1X_DEPRECATED]"
 
 # callback displaying a deprecation message in a GUI, if one is running
 _notifier: Callable[[str], None] | None = None
@@ -64,6 +64,6 @@ def notify_deprecated_access(old_path: str, new_path: str) -> None:
         return
     _notified.add(old_path)
     message = f"{old_path} is deprecated and will be removed in v8.8.0; use {new_path} instead."
-    logger.warning(f"{core_config.deprecation_marker} {message}")
+    logger.warning(f"{deprecation_marker} {message}")
     if _notifier is not None:
         _notifier(message)

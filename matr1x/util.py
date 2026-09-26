@@ -13,10 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Deprecated re-export shim for `matr1x.core.util`.
+"""Deprecated re-export shim for `matr1x.core.commands`.
 
 The names re-exported here are deprecated and will be removed in
-v8.8.0. Import them from `matr1x.core.util` instead.
+v8.8.0. Import them from `matr1x.core.commands` instead.
 """
 
 import importlib
@@ -26,9 +26,9 @@ from matr1x.core import deprecation
 
 # deprecated name -> module holding the canonical definition
 _CANONICAL = {
-    "Command": "matr1x.core.util",
-    "Get": "matr1x.core.util",
-    "Set": "matr1x.core.util",
+    "Command": "matr1x.core.commands",
+    "Get": "matr1x.core.commands",
+    "Set": "matr1x.core.commands",
 }
 
 __all__ = ["Command", "Get", "Set"]  # noqa: F822 (provided via __getattr__)

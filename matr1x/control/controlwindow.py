@@ -63,8 +63,9 @@ from PySide6.QtWidgets import (
 import matr1x.core.config as core_config
 from matr1x.control.gui_dict import GuiDict, catchEmitError
 from matr1x.core import scpi_tcpserver, system
+from matr1x.core.commands import Command, Get
 from matr1x.core.pymeasure_threading_fix import apply_pymeasure_threading_fix
-from matr1x.core.util import Command, Get, StreamToLogger
+from matr1x.core.util import StreamToLogger
 from matr1x.gui.app import MApplication
 from matr1x.gui.helpers import get_matrix_icon, open_matrix_toml
 from matr1x.gui.logging import LoggingWindow

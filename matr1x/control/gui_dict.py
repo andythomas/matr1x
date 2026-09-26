@@ -56,8 +56,8 @@ from matr1x.gui.app import MApplication
 from matr1x.gui.meta_viewer import validator
 from matr1x.gui.mixins import AutoSlot
 
+from ..core.commands import Command, normalize_cmds
 from ..core.error_handling import InternalInvariantError
-from ..core.util import Command, normalize_cmds
 from .widgets import MyQDockWidget, ToggleButton
 
 __all__ = [
