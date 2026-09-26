@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import matr1x.core.config as core_config
+from matr1x.core.deprecation import deprecation_marker
 from matr1x.core.error_handling import Error, Result, Success
 from matr1x.core.models import (
     SystemCapability,
@@ -335,7 +335,7 @@ def get_system_info(
     script = (
         "import json\n"
         "import sys\n"
-        "from matr1x import validation_errors\n"
+        "from matr1x.core.config import validation_errors\n"
         "from matr1x.core.error_handling import Error\n"
         "from matr1x.core.system import MergedSystem\n"
         "validation_error_count = len(validation_errors)\n"
@@ -368,7 +368,7 @@ def get_system_info(
     output_str = result.stdout.decode()
     error_output = result.stderr.decode().strip()
     if error_output != "":
-        marker = core_config.deprecation_marker
+        marker = deprecation_marker
         if marker in error_output:
             logger.error(error_output)
         else:

@@ -13,105 +13,78 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for `matr1x.core.models`.
+"""Deprecated re-export shim for `matr1x.core.models`.
 
-The models now live in `matr1x.core.models` (split into ``config``,
-``system``, ``data`` and ``socket``). This module re-exports the public names
-so that ``from matr1x.models import ...`` keeps working.
+The names re-exported here are deprecated and will be removed in
+v8.8.0. Import them from `matr1x.core.models` instead.
 """
 
-from matr1x.core.models import (
-    ConfigBaseModel,
-    Datafile,
-    Envelope,
-    ErrorMessage,
-    ExecutionLines,
-    FilePath,
-    FolderPath,
-    GPIBVisaResource,
-    GuiField,
-    Header,
-    InputParameters,
-    LocalTCPIPSocketVisaResource,
-    LogEntry,
-    MainConfig,
-    Matr1xAppsConfig,
-    Matr1xAppsMatrixScriptConfig,
-    Matr1xAppsMatrixScriptShortcutsConfig,
-    Matr1xConfig,
-    Matr1xDevicesConfig,
-    Matr1xDevicesVisadeviceConfig,
-    Matr1xEmailConfig,
-    Matr1xInstallConfig,
-    MeasuredValues,
-    MeasurementData,
-    Message,
-    Modifier,
-    SciFloat,
-    SerialVisaResource,
-    SetValues,
-    SystemCapability,
-    SystemConfigModel,
-    SystemDevice,
-    SystemInfo,
-    SystemMethod,
-    SystemParameter,
-    SystemReference,
-    SystemSelectionInfo,
-    SystemVariable,
-    TCPIPSocketVisaResource,
-    Telemetry,
-    UntypedConfigModel,
-    UserlibConfig,
-    UserlibInstallConfig,
-    VisaResource,
-    format_validation_error,
-)
+import importlib
+from typing import TYPE_CHECKING, Any
 
+from matr1x.core import deprecation
+
+if TYPE_CHECKING:
+    from matr1x.core.models import (
+        FilePath,
+        FolderPath,
+        GPIBVisaResource,
+        GuiField,
+        LocalTCPIPSocketVisaResource,
+        Message,
+        Modifier,
+        SciFloat,
+        SerialVisaResource,
+        SystemConfigModel,
+        TCPIPSocketVisaResource,
+        VisaResource,
+    )
+
+# deprecated name -> module holding the canonical definition
+_CANONICAL = {
+    "FilePath": "matr1x.core.models",
+    "FolderPath": "matr1x.core.models",
+    "GPIBVisaResource": "matr1x.core.models",
+    "GuiField": "matr1x.core.models",
+    "LocalTCPIPSocketVisaResource": "matr1x.core.models",
+    "Message": "matr1x.core.models",
+    "Modifier": "matr1x.core.models",
+    "SciFloat": "matr1x.core.models",
+    "SerialVisaResource": "matr1x.core.models",
+    "SystemConfigModel": "matr1x.core.models",
+    "TCPIPSocketVisaResource": "matr1x.core.models",
+    "VisaResource": "matr1x.core.models",
+}
+
+# names are provided lazily via __getattr__ (PEP 562)
 __all__ = [
-    "ConfigBaseModel",
-    "Datafile",
-    "Envelope",
-    "ErrorMessage",
-    "ExecutionLines",
     "FilePath",
     "FolderPath",
     "GPIBVisaResource",
     "GuiField",
-    "Header",
-    "InputParameters",
     "LocalTCPIPSocketVisaResource",
-    "LogEntry",
-    "MainConfig",
-    "Matr1xAppsConfig",
-    "Matr1xAppsMatrixScriptConfig",
-    "Matr1xAppsMatrixScriptShortcutsConfig",
-    "Matr1xConfig",
-    "Matr1xDevicesConfig",
-    "Matr1xDevicesVisadeviceConfig",
-    "Matr1xEmailConfig",
-    "Matr1xInstallConfig",
-    "MeasuredValues",
-    "MeasurementData",
     "Message",
     "Modifier",
     "SciFloat",
     "SerialVisaResource",
-    "SetValues",
-    "SystemCapability",
     "SystemConfigModel",
-    "SystemDevice",
-    "SystemInfo",
-    "SystemMethod",
-    "SystemParameter",
-    "SystemReference",
-    "SystemSelectionInfo",
-    "SystemVariable",
     "TCPIPSocketVisaResource",
-    "Telemetry",
-    "UntypedConfigModel",
-    "UserlibConfig",
-    "UserlibInstallConfig",
     "VisaResource",
-    "format_validation_error",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """Return a deprecated name after notifying about its replacement."""
+    module_name = _CANONICAL.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    deprecation.notify_deprecated_access(
+        f"{__name__}.{name}",
+        f"{module_name}.{name}",
+    )
+    return getattr(importlib.import_module(module_name), name)
+
+
+def __dir__() -> list[str]:
+    """List the names provided by this shim."""
+    return list(__all__)

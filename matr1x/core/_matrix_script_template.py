@@ -34,9 +34,10 @@ import traceback as _traceback
 import typing as _typing
 from pathlib import Path as _Path
 
-import matr1x as _matr1x
+import matr1x.core.config as _core_config
 import matr1x.core.util as _matrix_util
 from matr1x.core import script_api as _script_api
+from matr1x.core.metadata import VALID_META_KEYS as _VALID_META_KEYS
 from matr1x.core.models import Message as _Message
 from matr1x.core.script_api import (
     end_script,
@@ -73,10 +74,10 @@ if _typing.TYPE_CHECKING:
     _system = _thread_api._exec_thread.system
 
 # load config section from toml file
-_validated_config = _matr1x.config.matr1x.apps.matrix_script
+_validated_config = _core_config.config.matr1x.apps.matrix_script
 
 for _key, _value in _meta_data.items():
-    if _matr1x.VALID_META_KEYS.get(_key):
+    if _VALID_META_KEYS.get(_key):
         _system.dcdata[_key] = _value
 _reset_kwargs = {}
 

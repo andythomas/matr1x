@@ -21,7 +21,7 @@ from typing import ClassVar
 from pyvisa import rname
 
 from matr1x.core import scpi_tcpserver
-from matr1x.core.util import Command, Get, Set
+from matr1x.core.commands import Command, Get, Set
 from matr1x.core.visa_helpers import validate_local_tcpip_socket_visa_resource
 from matr1x.devices.scpi_dev import makeSCPIdevice
 

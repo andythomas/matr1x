@@ -13,75 +13,37 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-#
-"""
-Contains GUI related functions and class definitions.
+"""Deprecated re-export shim for `matr1x.gui.mixins`.
 
-These are used by sweep-generator, matrix-gui, matrix-preview, matrix-
-script and control-guis.
-
-This module is a re-export shim kept for backwards compatibility. Import
-from the specific `matr1x.gui` submodules instead.
+The names re-exported here are deprecated and will be removed in
+v8.8.0. Import them from `matr1x.gui.mixins` instead.
 """
 
-from matr1x.gui.app import AboutBox, MApplication
-from matr1x.gui.helpers import (
-    clear_layout,
-    create_matr1x_quit_action,
-    create_matrix_settings_action,
-    detect_shortcut,
-    find_parent_of_type,
-    get_install_info,
-    get_matrix_icon,
-    get_system_capability,
-    get_system_info,
-    open_matrix_toml,
-    save_messagebox,
-)
-from matr1x.gui.logging import LoggingWindow
-from matr1x.gui.meta_viewer import (
-    ConfigEditWidget,
-    MetaViewerWidget,
-    blocked_signals,
-    validator,
-)
-from matr1x.gui.mixins import (
-    AutoSlot,
-    FileDropMixin,
-    LoggerMixin,
-    LogWindowMixin,
-)
-from matr1x.gui.plot import CustomViewBox, SimplePlotWidget
-from matr1x.gui.shared import check_config
-from matr1x.gui.widgets import FileLineEdit, QRangeWidget, ReadOnlyTable
+import importlib
+from typing import Any
 
-__all__ = [
-    "AboutBox",
-    "AutoSlot",
-    "ConfigEditWidget",
-    "CustomViewBox",
-    "FileDropMixin",
-    "FileLineEdit",
-    "LogWindowMixin",
-    "LoggerMixin",
-    "LoggingWindow",
-    "MApplication",
-    "MetaViewerWidget",
-    "QRangeWidget",
-    "ReadOnlyTable",
-    "SimplePlotWidget",
-    "blocked_signals",
-    "check_config",
-    "clear_layout",
-    "create_matr1x_quit_action",
-    "create_matrix_settings_action",
-    "detect_shortcut",
-    "find_parent_of_type",
-    "get_install_info",
-    "get_matrix_icon",
-    "get_system_capability",
-    "get_system_info",
-    "open_matrix_toml",
-    "save_messagebox",
-    "validator",
-]
+from matr1x.core import deprecation
+
+# deprecated name -> module holding the canonical definition
+_CANONICAL = {
+    "AutoSlot": "matr1x.gui.mixins",
+}
+
+__all__ = ["AutoSlot"]  # noqa: F822 (provided via __getattr__)
+
+
+def __getattr__(name: str) -> Any:
+    """Return a deprecated name after notifying about its replacement."""
+    module_name = _CANONICAL.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    deprecation.notify_deprecated_access(
+        f"{__name__}.{name}",
+        f"{module_name}.{name}",
+    )
+    return getattr(importlib.import_module(module_name), name)
+
+
+def __dir__() -> list[str]:
+    """List the names provided by this shim."""
+    return list(__all__)

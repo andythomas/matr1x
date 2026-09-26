@@ -146,10 +146,10 @@ reference:
   - title: Util
     desc: Shared helper classes and functions
     contents:
-      - name: core.util:Command
+      - name: core.commands:Command
         members: false
-      - core.util:Get
-      - core.util:Set
+      - core.commands:Get
+      - core.commands:Set
 
   # ── SCPI server ─────────────────────────────────────────────────────
   - title: SCPI Server

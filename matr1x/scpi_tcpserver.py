@@ -13,8 +13,38 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim. The implementation lives in `matr1x.core.scpi_tcpserver`."""
+"""Deprecated re-export shim for `matr1x.core.scpi_tcpserver`.
 
-from matr1x.core.scpi_tcpserver import DEFAULT_PORT, SCPI_TCP_Server
+The names re-exported here are deprecated and will be removed in
+v8.8.0. Import them from `matr1x.core.scpi_tcpserver` instead.
+"""
 
-__all__ = ["DEFAULT_PORT", "SCPI_TCP_Server"]
+import importlib
+from typing import Any
+
+from matr1x.core import deprecation
+
+# deprecated name -> module holding the canonical definition
+_CANONICAL = {
+    "DEFAULT_PORT": "matr1x.core.scpi_tcpserver",
+    "SCPI_TCP_Server": "matr1x.core.scpi_tcpserver",
+}
+
+__all__ = ["DEFAULT_PORT", "SCPI_TCP_Server"]  # noqa: F822 (provided via __getattr__)
+
+
+def __getattr__(name: str) -> Any:
+    """Return a deprecated name after notifying about its replacement."""
+    module_name = _CANONICAL.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    deprecation.notify_deprecated_access(
+        f"{__name__}.{name}",
+        f"{module_name}.{name}",
+    )
+    return getattr(importlib.import_module(module_name), name)
+
+
+def __dir__() -> list[str]:
+    """List the names provided by this shim."""
+    return list(__all__)
