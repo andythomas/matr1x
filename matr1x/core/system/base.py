@@ -1701,18 +1701,25 @@ class System:
         """
         Close device connections and restore the virgin system.
 
-        After this function is called, the System can be reinitialized
-        by calling System.set().
+        Errors closing individual devices are logged and do not prevent
+        the remaining devices from being closed. After this function is
+        called, the System can be reinitialized by calling System.set().
         """
         from pymeasure.instruments import Instrument
 
-        for dev in self.devs.values():
+        for name, dev in self.devs.items():
             if hasattr(dev, "close") and callable(
                 dev.close
             ):  # VisaDevice and other custom devices
-                dev.close()
+                try:
+                    dev.close()
+                except Exception:
+                    logger.exception("Could not close device '%s'", name)
             if isinstance(dev, Instrument):  # pymeasure Instrument
-                dev.adapter.close()
+                try:
+                    dev.adapter.close()
+                except Exception:
+                    logger.exception("Could not close adapter of device '%s'", name)
         # reset devs dictionary to allow reopening
         self.devs.update(self._devs_init)
 

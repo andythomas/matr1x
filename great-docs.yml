@@ -119,6 +119,21 @@ reference:
       - core.models:Message
       - core.models:Modifier
 
+  # ── System configuration ────────────────────────────────────────────
+  - title: System configuration
+    desc: Base model and field types for defining system config options
+    contents:
+      - core.models:SystemConfigModel
+      - core.models:GuiField
+      - core.models:SciFloat
+      - core.models:FilePath
+      - core.models:FolderPath
+      - core.models:VisaResource
+      - core.models:SerialVisaResource
+      - core.models:GPIBVisaResource
+      - core.models:TCPIPSocketVisaResource
+      - core.models:LocalTCPIPSocketVisaResource
+
   # ── Data analysis ───────────────────────────────────────────────────
   - title: Eval
     desc: Loading and analyzing measurement data

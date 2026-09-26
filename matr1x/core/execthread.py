@@ -721,8 +721,8 @@ def matrix_script_process(
         )
         control_thread.start()
 
-    # wait until the execution thread is finished
     thread.join()
+    thread.system.close()
 
     if connected is True:
         if stop_event is not None:

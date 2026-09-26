@@ -174,6 +174,43 @@
     "kind": "constant",
     "value": "{'creator': True, 'date': False, 'identifier': True, 'relation': True, 'description': True, 'source': True, 'type': True, 'publisher': True, 'format': False, 'language': False}"
   },
+  "core.models:FilePath": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.models:FolderPath": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.models:GPIBVisaResource": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.models:GuiField": {
+    "kind": "function",
+    "params": [
+      {"annotation": "typing.Any", "default": "Ellipsis", "kind": "positional_or_keyword", "name": "default"},
+      {"annotation": "int | None", "default": "None", "kind": "keyword_only", "name": "decimals"},
+      {"annotation": "str | None", "default": "None", "kind": "keyword_only", "name": "ui_type"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.models:LocalTCPIPSocketVisaResource": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
   "core.models:Message": {
     "init": [
       {"annotation": "str | None", "default": "None", "kind": "positional_or_keyword", "name": "message"},
@@ -198,6 +235,46 @@
   "core.models:Modifier": {
     "kind": "enum",
     "members": ["TO_PROGRESS_LABEL"]
+  },
+  "core.models:SciFloat": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.models:SerialVisaResource": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.models:SystemConfigModel": {
+    "init": [
+      {"annotation": "'Any'", "kind": "var_keyword", "name": "data"}
+    ],
+    "kind": "class",
+    "members": {
+      "model_config": {
+        "kind": "constant",
+        "value": "{'validate_default': True}"
+      }
+    }
+  },
+  "core.models:TCPIPSocketVisaResource": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
+  },
+  "core.models:VisaResource": {
+    "kind": "function",
+    "params": [
+      {"kind": "var_positional", "name": "args"},
+      {"kind": "var_keyword", "name": "kwargs"}
+    ]
   },
   "core.scpi_tcpserver:DEFAULT_PORT": {
     "kind": "constant",
