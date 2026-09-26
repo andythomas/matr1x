@@ -181,7 +181,7 @@ class Set(Command):
         super().__init__(dtype, setfunc, getfunc=None, setargs=setargs, polling_cmd=polling_cmd)
 
 
-def normalize_cmds(cmds):
+def normalize_cmds(cmds) -> None:
     """
     Validate that all commands are Command instances.
 
