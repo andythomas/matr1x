@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in matrix script."""
 
-from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -25,27 +24,9 @@ import matr1x.core.eval
 from matr1x.apps import script as matrix_script
 from matr1x.core.models import Envelope, Message, Modifier
 
-_MATRIX_SCRIPT_WINDOW: matrix_script.MainWindow | None = None
 
-
-@pytest.fixture(scope="module")
-def matrix_script_window(qapp) -> Generator[matrix_script.MainWindow, None, None]:
-    """Create a shared matrix-script window for this module."""
-    global _MATRIX_SCRIPT_WINDOW
-    if _MATRIX_SCRIPT_WINDOW is None:
-        _MATRIX_SCRIPT_WINDOW = matrix_script.MainWindow()
-        _MATRIX_SCRIPT_WINDOW.show()
-        _MATRIX_SCRIPT_WINDOW.in_pytest = True
-        qapp.processEvents()
-    yield _MATRIX_SCRIPT_WINDOW
-    _MATRIX_SCRIPT_WINDOW.close()
-    _MATRIX_SCRIPT_WINDOW = None
-
-
-@pytest.fixture(autouse=True)
-def reset_matrix_script_window(matrix_script_window: matrix_script.MainWindow, qapp) -> None:
+def reset_matrix_script_window(window: matrix_script.MainWindow, qapp) -> None:
     """Reset state to avoid cross-test interference."""
-    window = matrix_script_window
     if window.is_running:
         window.ui.widgets.measurement_thread.abort("a")
         qapp.processEvents()
@@ -58,13 +39,7 @@ def reset_matrix_script_window(matrix_script_window: matrix_script.MainWindow, q
 
 
 @pytest.mark.timeout(timeout=60)
-def test_basic_script_run(
-    qtbot,
-    qapp,
-    matrix_script_window: matrix_script.MainWindow,
-    input_dir: Path,
-    tmp_path: Path,
-):
+def test_basic_script_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: Path):
     """
     Start a basic matrix script measurement.
 
@@ -81,8 +56,15 @@ def test_basic_script_run(
     all dcterms are in the file
     the status is 'finished'
     10 rows of data were saved
+    invalid device config disables start and exposes the reason
+    adding a system retains compatible editor values
+    code can be set, edited, formatted and linted
+    carriage returns overwrite the current status preview line
+    flagged messages are only shown in the progress label
     """
-    main_window = matrix_script_window
+    main_window = matrix_script.MainWindow()
+    main_window.show()
+    main_window.in_pytest = True
     qtbot.waitExposed(main_window)
     qapp.processEvents()
 
@@ -142,12 +124,6 @@ def test_basic_script_run(
     qtbot.waitUntil(lambda: main_window.windowTitle() == "Matrix Script", timeout=2000)
     assert main_window.windowTitle() == "Matrix Script"
 
-
-def test_start_action_disabled_for_invalid_config(
-    matrix_script_window: matrix_script.MainWindow, monkeypatch
-):
-    """Invalid device config disables Start and exposes the reason in the tooltip."""
-    main_window = matrix_script_window
     monkeypatch.setattr(
         main_window.ui.widgets.config_editor,
         "get_validation_errors",
@@ -159,13 +135,9 @@ def test_start_action_disabled_for_invalid_config(
     assert not main_window.ui.actions.start.isEnabled()
     assert "invalid address" in main_window.ui.actions.start.toolTip()
     assert main_window.ui.widgets.config_editor.isVisible()
+    monkeypatch.undo()
+    reset_matrix_script_window(main_window, qapp)
 
-
-def test_adding_system_preserves_unsaved_config(
-    qapp, matrix_script_window: matrix_script.MainWindow
-):
-    """Rebuilding for another static system retains compatible editor values."""
-    main_window = matrix_script_window
     system_list = main_window.ui.widgets.system_list
     system_list.clear()
     system_list.add_systems(["matr1x.systems.system_dummy_feature"])
@@ -187,34 +159,6 @@ def test_adding_system_preserves_unsaved_config(
     )
     assert retained_index.data(Qt.ItemDataRole.EditRole) == "42.5"
 
-
-def test_CodeEditor(qtbot, qapp, matrix_script_window: matrix_script.MainWindow):
-    """
-    Test to visually inspect the matrix GUI window.
-
-    Asserts
-    -------
-    visible main window
-    code can be set and read back
-    can uncomment comment
-    can zoom in
-    can zoom back
-    can zoom out
-    can undo
-    can redo
-    can format code
-    can read modified state
-    can set modified state to False
-    receives a theme list
-    returns no linter error for correct code
-    can insert text
-    returns error for incorrect code
-    """
-    main_window = matrix_script_window
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-
-    assert main_window.isVisible()
     code = "#print(  1 )"
     no_comment = code[1:]
     editor = main_window.ui.widgets.script_edit
@@ -272,20 +216,6 @@ def test_CodeEditor(qtbot, qapp, matrix_script_window: matrix_script.MainWindow)
 
     editor.setModified(False)
 
-
-def test_status_preview_handles_carriage_return(
-    qtbot, qapp, tmp_path, capsys, matrix_script_window: matrix_script.MainWindow, input_dir: Path
-):
-    """
-    Ensure carriage returns from a running script overwrite the current line.
-
-    Run a temporary script that prints a string containing a carriage
-    return and verify the rendered output in the status preview.
-    """
-    main_window = matrix_script_window
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-
     header_lines = (input_dir / "matrix_script_gui.matrix").read_text().splitlines()[:4]
     carriage_script = "\n".join(
         header_lines + ['print("test\\nnot sure what to say\\ragain")', ""]
@@ -313,22 +243,8 @@ def test_status_preview_handles_carriage_return(
     assert "again" in output_text
     assert "what to say" not in output_text
 
+    reset_matrix_script_window(main_window, qapp)
 
-@pytest.mark.timeout(timeout=30, method="thread")
-def test_message_to_progress_label(
-    qtbot, qapp, tmp_path, capsys, matrix_script_window: matrix_script.MainWindow
-):
-    """
-    Test the to_progress_label modifier of message.
-
-    Asserts
-    -------
-    The messages validate via the pydantic model.
-    The flagged message is only shown in the progress label.
-    """
-    main_window = matrix_script_window
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
     messages = []
     messages.append(Message("To print", end=""))
     messages.append(Message("only in the label", modifier=Modifier.TO_PROGRESS_LABEL))
