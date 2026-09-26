@@ -107,7 +107,11 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
 
         self.localServer = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list, host=host, port=port)
         self.localServer.start()
-        super().__init__(adapter, name="Dummy device")
+        try:
+            super().__init__(adapter, name="Dummy device")
+        except Exception:
+            self.localServer.stop()
+            raise
 
     def close(self):
         """

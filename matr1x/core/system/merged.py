@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import builtins
+import logging
 import time
 from collections import defaultdict
 from collections.abc import Iterable
@@ -34,6 +35,8 @@ from matr1x.core.models import (
     UntypedConfigModel,
 )
 from matr1x.core.system.base import Parameter, StatefulSystem, System
+
+logger = logging.getLogger(__name__)
 
 
 class MergedSystem(System):
@@ -528,10 +531,15 @@ class MergedSystem(System):
         Close all subsystems and release their device connections.
 
         Propagates to every subsystem so that their devices are
-        properly closed and deinitialized. After this call the merged
+        properly closed and deinitialized. Errors closing individual
+        subsystems are logged and do not prevent the remaining
+        subsystems from being closed. After this call the merged
         system can be reinitialized by calling MergedSystem.set().
         """
         for subsys in self.subsys:
-            subsys.close()
+            try:
+                subsys.close()
+            except Exception:
+                logger.exception("Could not close subsystem '%s'", subsys.accessor_name)
         self.opened = False
         self.devs = {}

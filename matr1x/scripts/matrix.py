@@ -705,8 +705,14 @@ def reset_system_and_exit(
         if exception:
             system.add_comment(f"Matrix errored: {type(exception).__name__}: {exception}")
     dispatcher.dispatch(Message("resetting devices", to_comment=False))
-    system.reset(**reset_kwargs)
-    system.close()
+    try:
+        system.reset(**reset_kwargs)
+    except Exception:
+        logger.exception("Failed to reset the system")
+    try:
+        system.close()
+    except Exception:
+        logger.exception("Failed to close the system")
     sys.exit(exit_code)
 
 
@@ -839,10 +845,10 @@ def main() -> None:
             if opt_val is not None:
                 system.dcdata[key] = opt_val
     measurement.dispatch(Message("setting devices", to_comment=False))
-    system.set(input_file=options.inputfile, output_file=output_filename)
     reset_kwargs = {"input_file": options.inputfile, "output_file": output_filename}
     ret = 0
     try:
+        system.set(input_file=options.inputfile, output_file=output_filename)
         measurement.dispatch(
             Message("devices set, acquiring configuration and writing header", to_comment=False)
         )
