@@ -1,4 +1,4 @@
-# This file is part of a software collection for data acquisition (matr1x).
+# This file is part of a software collection for data aquisition (matr1x).
 # Copyright (C) 2006-2026 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
@@ -21,11 +21,8 @@ matrix and its interaction with the System instance.
 """
 
 import json
-import os
 import socket
-import subprocess
 import sys
-import tempfile
 import threading
 from contextlib import suppress
 from pathlib import Path
@@ -34,8 +31,9 @@ from pprint import pformat
 import pytest
 
 import matr1x.core.util
+from matr1x.apps import cli as matrix_cli
 from matr1x.core.error_handling import Success
-from matr1x.core.util import matrix_cmdline
+from matr1x.core.execthread import matrix_script_process
 from matr1x.gui.helpers import get_system_info
 
 
@@ -115,7 +113,7 @@ class TapCollector:
     @property
     def events(self) -> list[dict]:
         """
-        Get the list of collected JSON events.
+        Get the list of collected events.
 
         Returns
         -------
@@ -138,11 +136,12 @@ class TapCollector:
 
 
 @pytest.fixture
-def tap_server():
+def tap_server(monkeypatch):
     """
-    Yield (env_overrides, collector) for the child to connect to.
+    Yield a TapCollector for the tapin system to connect to.
 
-    Closes the socket automatically.
+    Sets the PLUGIN_TAP_* environment variables and closes the socket
+    automatically.
     """
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Bind to localhost on an ephemeral port
@@ -150,90 +149,34 @@ def tap_server():
     srv.listen(1)
     host, port = srv.getsockname()
 
+    monkeypatch.setenv("PLUGIN_TAP_HOST", host)
+    monkeypatch.setenv("PLUGIN_TAP_PORT", str(port))
+
     collector = TapCollector(srv)
     collector.start()
 
-    env = {
-        "PLUGIN_TAP_HOST": host,
-        "PLUGIN_TAP_PORT": str(port),
-    }
     try:
-        yield env, collector
+        yield collector
     finally:
         with suppress(OSError):
             srv.close()
         collector.join()
 
 
-def _launch_tapin_script(
-    user_script: str,
-    env_overrides: dict[str, str],
-    system_tapin: Path,
-    cwd: Path,
-) -> subprocess.CompletedProcess:
-    """
-    Launch a child Python process that directly imports `system_tapin`.
+def run_matrix(monkeypatch, *args: str) -> int:
+    """Run the matrix CLI in-process and return its exit code."""
+    monkeypatch.setattr(sys, "argv", ["matrix", *args])
+    with pytest.raises(SystemExit) as exc:
+        matrix_cli.main()
+    return int(exc.value.code or 0)
 
-    Parameters
-    ----------
-    user_script : str
-        User script for matrix-script execution.
-    env_overrides : dict[str, str]
-        Environment variables to override.
-    system_tapin : Path
-        Absolute path to the system_tapin.py system definition.
-    cwd : Path
-        Working directory for the child process.
 
-    Returns
-    -------
-    subprocess.CompletedProcess
-        A CompletedProcess object of the child process
-    """
-    env = os.environ.copy()
-    env.update(env_overrides)
-    # Generate the script
+def _run_tapin_script(user_script: str, input_dir: Path, tmp_path: Path) -> None:
+    """Generate and run a matrix script with the tapin system in-process."""
     script = matr1x.core.util.generate_script(user_script)
-    with tempfile.NamedTemporaryFile(mode="w+b") as tf:
-        for line in script:
-            tf.write(line.encode())
-        tf.flush()
-        execscript = (
-            "import matr1x.core.execthread as mu\n"
-            "mu.matrix_script_process(\n"
-            f"{tf.name!r}, {{}}, '', None, [{str(system_tapin)!r}]\n"
-            ")"
-        )
-        ret = subprocess.run([sys.executable, "-c", execscript], cwd=cwd, env=env, check=False)
-    return ret
-
-
-def _launch_tapin_matrix(
-    inputfile: Path | str,
-    env_overrides: dict[str, str],
-    outputfile: Path | str,
-):
-    """Launch a matrix measurement with a tapin system.
-
-    Parameters
-    ----------
-    inputfile : Path or str
-        Path to the input file.
-    env_overrides : dict[str, str]
-        Environment variables to override.
-    outputfile : Path or str
-        Path where the measurement data file is written.
-
-    Returns
-    -------
-    subprocess.CompletedProcess
-        A CompletedProcess object of the child process
-    """
-    env = os.environ.copy()
-    env.update(env_overrides)
-    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile))
-    print(subprocess.list2cmdline(cmd))
-    return subprocess.run(cmd, env=env, check=False)
+    script_file = tmp_path / "tapin_test.matrix"
+    script_file.write_text("".join(script))
+    matrix_script_process(str(script_file), {}, "", None, [str(input_dir / "system_tapin.py")])
 
 
 def test_tapin_script_events(tap_server, input_dir: Path, tmp_path: Path):
@@ -245,12 +188,10 @@ def test_tapin_script_events(tap_server, input_dir: Path, tmp_path: Path):
     __init__, set, and reset events are received.
     reset event includes status: finished kwarg.
     """
-    env_overrides, collector = tap_server
+    collector = tap_server
 
     user_script = "# empty test script"
-    ret = _launch_tapin_script(user_script, env_overrides, input_dir / "system_tapin.py", tmp_path)
-
-    assert ret.returncode == 0, f"Script exited with {ret.returncode}"
+    _run_tapin_script(user_script, input_dir, tmp_path)
 
     # Allow the collector thread to finish reading any buffered lines
     collector.join()
@@ -285,14 +226,12 @@ def test_tapin_script_exceptions(tap_server, input_dir: Path, tmp_path: Path):
     __init__, set, and reset events are received.
     reset event includes status: errored kwarg.
     """
-    env_overrides, collector = tap_server
+    collector = tap_server
 
     user_script = """# raise an exception
 raise Exception('Test exception')
 """
-    ret = _launch_tapin_script(user_script, env_overrides, input_dir / "system_tapin.py", tmp_path)
-
-    assert ret.returncode == 0, f"Script exited with {ret.returncode}"
+    _run_tapin_script(user_script, input_dir, tmp_path)
 
     # Allow the collector thread to finish reading any buffered lines
     collector.join()
@@ -327,14 +266,12 @@ def test_tapin_script_keyboardinterrupt(tap_server, input_dir: Path, tmp_path: P
     __init__, set, and reset events are received.
     reset event includes status: aborted kwarg.
     """
-    env_overrides, collector = tap_server
+    collector = tap_server
 
     user_script = """# end script with KeyboardInterrupt
 end_script(finished=False)
 """
-    ret = _launch_tapin_script(user_script, env_overrides, input_dir / "system_tapin.py", tmp_path)
-
-    assert ret.returncode == 0, f"Script exited with {ret.returncode}"
+    _run_tapin_script(user_script, input_dir, tmp_path)
 
     # Allow the collector thread to finish reading any buffered lines
     collector.join()
@@ -360,7 +297,7 @@ end_script(finished=False)
     assert reset_events[0]["kwargs"]["status"] == "aborted"
 
 
-def test_tapin_matrix(tap_server, input_dir: Path, tmp_path: Path):
+def test_tapin_matrix(tap_server, input_dir: Path, tmp_path: Path, monkeypatch):
     """
     Test that TapinSystem methods are called by matrix.
 
@@ -369,11 +306,13 @@ def test_tapin_matrix(tap_server, input_dir: Path, tmp_path: Path):
     __init__, set, and reset events are received.
     reset event includes status: finished kwarg.
     """
-    env_overrides, collector = tap_server
+    collector = tap_server
     input_file = input_dir / "sweep_tapin.sw8"
-    ret = _launch_tapin_matrix(input_file, env_overrides, tmp_path / "tapin.ma8")
+    # headless urwid screen, see UrwidMeasurement.prepare
+    monkeypatch.setenv("CI", "true")
+    ret = run_matrix(monkeypatch, "-i", str(input_file), "-o", str(tmp_path / "tapin.ma8"))
 
-    assert ret.returncode == 0, f"matrix exited with {ret.returncode}"
+    assert ret == 0, f"matrix exited with {ret}"
 
     # Allow the collector thread to finish reading any buffered lines
     collector.join()
@@ -399,7 +338,7 @@ def test_tapin_matrix(tap_server, input_dir: Path, tmp_path: Path):
     assert reset_events[0]["kwargs"]["status"] == "finished"
 
 
-def test_tapin_matrix_exception(tap_server, input_dir: Path, tmp_path: Path):
+def test_tapin_matrix_exception(tap_server, input_dir: Path, tmp_path: Path, monkeypatch):
     """
     Test that TapinSystem methods are called by matrix and exception handling.
 
@@ -408,11 +347,13 @@ def test_tapin_matrix_exception(tap_server, input_dir: Path, tmp_path: Path):
     __init__, set, and reset events are received.
     reset event includes status: errored kwarg.
     """
-    env_overrides, collector = tap_server
+    collector = tap_server
     input_file = input_dir / "sweep_tapin_error.sw8"
-    ret = _launch_tapin_matrix(input_file, env_overrides, tmp_path / "tapin_error.ma8")
+    # headless urwid screen, see UrwidMeasurement.prepare
+    monkeypatch.setenv("CI", "true")
+    ret = run_matrix(monkeypatch, "-i", str(input_file), "-o", str(tmp_path / "tapin_error.ma8"))
 
-    assert ret.returncode == 1, f"matrix exited with {ret.returncode}"
+    assert ret == 1, f"matrix exited with {ret}"
 
     # Allow the collector thread to finish reading any buffered lines
     collector.join()

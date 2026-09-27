@@ -564,7 +564,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
             target=self._prepare_assets, args=(self._asset_signals,), daemon=True
         )
         thread.start()
-        self.editor_page = CodeEditorPage()
+        self.editor_page = CodeEditorPage(self)
         self.setPage(self.editor_page)
         settings = self.page().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
