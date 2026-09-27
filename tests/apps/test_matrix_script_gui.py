@@ -101,9 +101,7 @@ def test_basic_script_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: P
 
     main_window.ui.actions.start.trigger()
     qtbot.waitUntil(lambda: main_window.ui.widgets.measurement_thread is not None, timeout=2000)
-    thread = main_window.ui.widgets.measurement_thread
-    qtbot.waitSignal(thread.finished, timeout=2000)
-    # Next line: Increased timeout needed for Windows
+    # Increased timeout needed for Windows
     qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
     qapp.processEvents()
     assert not main_window.log_window.isVisible()
@@ -228,9 +226,7 @@ def test_basic_script_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: P
 
     main_window.ui.actions.start.trigger()
     qtbot.waitUntil(lambda: main_window.ui.widgets.measurement_thread is not None, timeout=2000)
-    thread = main_window.ui.widgets.measurement_thread
-    qtbot.waitSignal(thread.finished, timeout=2000)
-    # Next line: Increased timeout needed for Windows
+    # Increased timeout needed for Windows
     qtbot.waitUntil(lambda: not main_window.is_running, timeout=5000)
     qtbot.waitUntil(
         lambda: "again" in main_window.ui.widgets.status_preview.toPlainText(),
@@ -252,7 +248,13 @@ def test_basic_script_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: P
     for message in messages:
         env = Envelope.model_validate_json(message.model_dump_json())
         main_window.process_data(env)
-    qtbot.wait(200)
+    # write_output buffers the text and a 50 ms timer flushes it to the GUI
+    qtbot.waitUntil(
+        lambda: (
+            main_window.ui.widgets.status_preview.toPlainText() == "To printthat is the question\n"
+        ),
+        timeout=1000,
+    )
     output_text = main_window.ui.widgets.status_preview.toPlainText()
     assert output_text == "To printthat is the question\n"
     assert main_window.ui.widgets.progress.text() == "only in the label"
