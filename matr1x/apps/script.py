@@ -96,12 +96,13 @@ from matr1x.gui.helpers import (
     detect_shortcut,
     find_parent_of_type,
     get_matrix_icon,
+    is_dark,
     open_matrix_toml,
     save_messagebox,
 )
 from matr1x.gui.logging import LoggingWindow
 from matr1x.gui.meta_viewer import ConfigEditWidget
-from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin, ThemeChangeMixin
 from matr1x.gui.shared import (
     ContentDockWidget,
     MeasurementItem,
@@ -533,7 +534,7 @@ class YesNoAbortDialog(TimeoutDialogBase):
         return self._response
 
 
-class TerminalOutput(QPlainTextEdit):
+class TerminalOutput(ThemeChangeMixin, QPlainTextEdit):
     """
     Custom class for terminal-like text output.
 
@@ -546,10 +547,9 @@ class TerminalOutput(QPlainTextEdit):
         mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         mono_font.setPointSizeF(self.font().pointSize())
         self.setFont(mono_font)
-        self.updateColors()
-        MApplication.instance().isDarkSignal.connect(self.updateColors)
+        self.update_colors()
 
-    def updateColors(self) -> None:
+    def update_colors(self) -> None:
         """Update terminal colors based on system theme."""
         palette = self.palette()
         text_edit = QPlainTextEdit()
@@ -1412,7 +1412,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
         system_info = self.ui.widgets.system_list.system_info
-        bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
+        bg_color = "#565656" if is_dark() else "#f0f0f0"
         th = '<th style="text-align: left;">{}</th>'.format
         table_open = (
             '<table border="1" cellpadding="5" cellspacing="0" '

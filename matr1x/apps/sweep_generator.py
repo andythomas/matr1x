@@ -81,12 +81,13 @@ from matr1x.gui.helpers import (
     create_matr1x_quit_action,
     create_matrix_settings_action,
     get_matrix_icon,
+    is_dark,
     open_matrix_toml,
     save_messagebox,
 )
 from matr1x.gui.logging import LoggingWindow
 from matr1x.gui.meta_viewer import uint_validator, validator
-from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin, ThemeChangeMixin
 from matr1x.gui.shared import (
     MMainWindow,
     MToolBar,
@@ -455,7 +456,7 @@ class SpinBoxFocus(FocusInMixin, QSpinBox):
     """Reimplement QSpinBox with focusInEvent."""
 
 
-class QLabelWithColor(QLabel):
+class QLabelWithColor(ThemeChangeMixin, QLabel):
     """Allow QLabel with highlight color and mouseclick reaction."""
 
     clicked = Signal()
@@ -465,27 +466,33 @@ class QLabelWithColor(QLabel):
         super().__init__()
         self.color_bright = "#DCF5D4"
         self.color_dark = "#325725"
-        self._update_colors()
-        MApplication.instance().isDarkSignal.connect(self._update_colors)
+        self._updating_colors = False
+        self.update_colors()
 
-    def _update_colors(self) -> None:
+    def update_colors(self) -> None:
         """Change color while avoiding recursion."""
-        self.stylesheet_bright = f"""
+        if self._updating_colors:
+            return
+        self._updating_colors = True
+        try:
+            self.stylesheet_bright = f"""
                      QLabel {{
                          background-color: {self.color_bright};
                          color: black;
                      }}
                  """
-        self.stylesheet_dark = f"""
+            self.stylesheet_dark = f"""
                      QLabel {{
                          background-color: {self.color_dark};
                          color: #DBDBDB;
                      }}
                  """
-        if MApplication.instance().isDark:
-            self.setStyleSheet(self.stylesheet_dark)
-        else:
-            self.setStyleSheet(self.stylesheet_bright)
+            if is_dark():
+                self.setStyleSheet(self.stylesheet_dark)
+            else:
+                self.setStyleSheet(self.stylesheet_bright)
+        finally:
+            self._updating_colors = False
 
     def mousePressEvent(self, ev: QMouseEvent) -> None:
         """
@@ -513,7 +520,7 @@ class QLabelWithColor(QLabel):
         """
         self.color_bright = color_bright
         self.color_dark = color_dark
-        self._update_colors()
+        self.update_colors()
 
 
 @dataclass
@@ -884,7 +891,7 @@ class UIBuilder:
         return grid
 
 
-class SweepPreviewPopup(QDialog):
+class SweepPreviewPopup(ThemeChangeMixin, QDialog):
     """
     Show the sweep as list and plot in a pop-up.
 
@@ -936,7 +943,6 @@ class SweepPreviewPopup(QDialog):
             symbolBrush=(65, 105, 225),
         )
         self.plt.setPen((65, 105, 225), width=3)
-        MApplication.instance().isDarkSignal.connect(self.update_colors)
         self.proxy = pg.SignalProxy(
             self.pw.getViewBox().scene().sigMouseMoved, rateLimit=30, slot=self.mouse_moved
         )
@@ -958,7 +964,7 @@ class SweepPreviewPopup(QDialog):
 
     def update_colors(self) -> None:
         """Update colors according to the theme."""
-        if MApplication.instance().isDark:
+        if is_dark():
             self.pw.setBackground("k")
             self.pw.getAxis("left").setPen("w")
             self.pw.getAxis("bottom").setPen("w")
