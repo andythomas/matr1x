@@ -78,6 +78,7 @@ from matr1x.gui.meta_viewer import ConfigEditWidget
 from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
 from matr1x.gui.shared import (
     ContentDockWidget,
+    MeasurementExitCode,
     MeasurementItem,
     MeasurementTable,
     MeasurementThread,
@@ -509,7 +510,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self._input_server.newConnection.connect(self._on_input_connection)
         self.running = False
         self.measurement_failed = False
-        self._queue_locked = False
         self.sys_meta_data: dict[str, Any] = {}
         self._create_connections()
         self.setAcceptDrops(True)
@@ -847,7 +847,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.actions.start.setEnabled(False)
             return
         exit_code = self.ui.widgets.measurement_thread.exit_code
-        if self.measurement_failed or exit_code == 1:
+        if self.measurement_failed or exit_code == MeasurementExitCode.ERROR:
             self.ui.widgets.progress.setText("Measurement failed.")
             self.ui.widgets.notifier.show_message(
                 NotifierMessage(
