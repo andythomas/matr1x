@@ -68,6 +68,9 @@ deprecation_marker = "[MATR1X_DEPRECATED]"
 # default datafile extension
 output_extension = ".ma8"
 
+# fixed log line format (no longer a user-configurable option)
+LOG_FORMAT = "%(asctime)s,%(msecs)03d,%(levelname)s,%(name)s: %(message)s"
+
 # Global list to store validation errors from configuration loading
 validation_errors: list[str] = []
 
@@ -78,6 +81,14 @@ class _Migration:
 
     old_path: tuple[str, ...]
     new_path: tuple[str, ...]
+    warning: str
+
+
+@dataclass(frozen=True)
+class _RemovedEntry:
+    """Info for config entries that were removed and are now ignored."""
+
+    path: tuple[str, ...]
     warning: str
 
 
@@ -128,8 +139,19 @@ def _delete_path(data: dict[str, Any], *path: str) -> None:
     del current[path[-1]]
 
 
+REMOVED_ENTRIES = [
+    _RemovedEntry(
+        path=("matr1x", "logging_format"),
+        warning=(
+            "The config entry 'matr1x.logging_format' has been removed and will "
+            "be ignored. The log line format is now fixed.\n"
+        ),
+    ),
+]
+
+
 def _migrate_config(config_data):
-    """Migrate old config keys to new ones."""
+    """Migrate old config keys to new ones and drop removed entries."""
     for migration in MIGRATIONS:
         old_value = _get_path(config_data, *migration.old_path)
         new_value = _get_path(config_data, *migration.new_path)
@@ -137,6 +159,10 @@ def _migrate_config(config_data):
             _set_path(config_data, *migration.new_path, value=old_value)
             _delete_path(config_data, *migration.old_path)
             validation_errors.append(migration.warning)
+    for entry in REMOVED_ENTRIES:
+        if _get_path(config_data, *entry.path) is not None:
+            _delete_path(config_data, *entry.path)
+            validation_errors.append(entry.warning)
     return config_data
 
 
@@ -369,12 +395,12 @@ if logfolder.exists():
 if file_handler is not None:
     logging.basicConfig(
         level=logging.INFO,
-        format=config.matr1x.logging_format,
+        format=LOG_FORMAT,
         datefmt=datetimefmt,
         handlers=[file_handler],
     )
 else:
-    logging.basicConfig(format=config.matr1x.logging_format, datefmt=datetimefmt)
+    logging.basicConfig(format=LOG_FORMAT, datefmt=datetimefmt)
     # fallback to usersfolder if logfolder does not exist
     logfolder = usersfolder
 
