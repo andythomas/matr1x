@@ -639,7 +639,12 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         )[0]
         if not filename:
             return
-        self.export_plot(Path(filename))
+        try:
+            self.export_plot(Path(filename))
+        except OSError as exc:
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(f"Could not export plot: {exc}", level=logging.ERROR)
+            )
 
     def export_plot(self, filename: Path) -> Path:
         """
@@ -654,6 +659,12 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         -------
         Path
           the path the image was written to
+
+        Raises
+        ------
+        OSError
+          if the file cannot be written, e.g. because the parent path is
+          not a directory or the location is not writable
         """
         if filename.suffix.lower() != ".png":
             filename = filename.with_suffix(".png")
