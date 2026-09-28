@@ -41,6 +41,9 @@ Please note that the notiications overwrite each other and inform the correspond
 | numpy return from `loadmatrix`          |    8.6.0    | >=8.8.0 |
 | `[matr1x.scripts]` config section       |    8.6.0    | >=8.8.0 |
 | `logging_format` config entry           |    8.6.0    | >=8.8.0 |
+[^logfmt]: Removed already in the current `development` version: the entry is
+    ignored and triggers a warning for two releases; the warning check itself
+    is removed in `>=8.8.0`.
 
 
 ## Removed in the current `development` version
