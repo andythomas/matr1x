@@ -508,6 +508,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         else:
             self._input_server.newConnection.connect(self._on_input_connection)
         self.running = False
+        self.measurement_failed = False
         self.sys_meta_data: dict[str, Any] = {}
         self._create_connections()
         self.setAcceptDrops(True)
@@ -587,6 +588,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.table.apply(data)
         elif isinstance(data, ErrorMessage):
             logger.error(data.error)
+            self.measurement_failed = True
 
     def measurement_list_changed(self) -> None:
         """Update the data order when the measurement list is changed."""
@@ -799,6 +801,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.meas_list.parameters(0).tooltip
         )
         self.ui.widgets.meas_list.takeItem(0)
+        self.measurement_failed = False
         self.ui.widgets.measurement_thread.start()
         self.ui.actions.pause.setEnabled(True)
         self.ui.actions.abort.setEnabled(True)
@@ -811,8 +814,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
         Called when the current measurement is finished, checks whether
         there are further measurements in the queue and runs them in
-        case. If the measurement ended with a non-zero exit code, an
-        error is shown and the queue is stopped.
+        case. If the measurement ended with an error, an error is shown
+        and the queue is stopped.
         """
         self.ui.widgets.progressbar.setValue(0)
         self.ui.widgets.table.reset()
@@ -822,13 +825,12 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.abort.setEnabled(False)
         self.ui.actions.finish.setEnabled(False)
         self.ui.actions.kill.setEnabled(False)
-        exit_code = self.ui.widgets.measurement_thread.exit_code
-        if exit_code != 0:
+        if self.measurement_failed or self.ui.widgets.measurement_thread.exit_code == 1:
             self.ui.widgets.progress.setText("Measurement failed.")
             self.ui.widgets.notifier.show_message(
                 NotifierMessage(
-                    f"The measurement ended with an error (exit code {exit_code}). "
-                    "The queue was stopped. See the log for details.",
+                    "The measurement ended with an error. The queue was stopped."
+                    " See the log for details.",
                     level=logging.ERROR,
                 )
             )
