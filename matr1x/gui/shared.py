@@ -1077,6 +1077,7 @@ class MeasurementThread(QThread, LoggerMixin):
         super().__init__()
         self.proc: subprocess.Popen[bytes] | None = None
         self.conn: socket.socket | None = None
+        self.exit_code = 0
 
     def set_parameters(self, parameters: MeasurementItem) -> None:
         """Set measurement parameters."""
@@ -1212,6 +1213,7 @@ class MeasurementThread(QThread, LoggerMixin):
         incoming connection, then relays null-terminated JSON messages
         to ``process_received_data`` until the process exits.
         """
+        self.exit_code = 0
         tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
         try:
             with ExitStack() as stack:
@@ -1261,6 +1263,13 @@ class MeasurementThread(QThread, LoggerMixin):
                         break
                 self.conn.close()
         finally:
+            if self.proc is not None and self.proc.returncode is not None:
+                self.exit_code = self.proc.returncode
+            if self.exit_code != 0:
+                self.logger.error(
+                    "Measurement subprocess ended with exit code %d. See the log for details.",
+                    self.exit_code,
+                )
             if tmp_config_file.exists():
                 tmp_config_file.unlink()
 

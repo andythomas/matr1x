@@ -811,10 +811,10 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
         Called when the current measurement is finished, checks whether
         there are further measurements in the queue and runs them in
-        case.
+        case. If the measurement ended with a non-zero exit code, an
+        error is shown and the queue is stopped.
         """
         self.ui.widgets.progressbar.setValue(0)
-        self.ui.widgets.progress.setText("Measurement idle.")
         self.ui.widgets.table.reset()
         self.ui.widgets.current_measurement.setText("")
         self.ui.actions.pause.setEnabled(False)
@@ -822,6 +822,20 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.abort.setEnabled(False)
         self.ui.actions.finish.setEnabled(False)
         self.ui.actions.kill.setEnabled(False)
+        exit_code = self.ui.widgets.measurement_thread.exit_code
+        if exit_code != 0:
+            self.ui.widgets.progress.setText("Measurement failed.")
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(
+                    f"The measurement ended with an error (exit code {exit_code}). "
+                    "The queue was stopped. See the log for details.",
+                    level=logging.ERROR,
+                )
+            )
+            self.ui.actions.start.setEnabled(False)
+            self.running = False
+            return
+        self.ui.widgets.progress.setText("Measurement idle.")
         if self.ui.widgets.meas_list.count() > 0 and self.running is True:
             self.run_next_measurement()
         else:
