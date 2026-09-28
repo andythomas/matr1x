@@ -285,7 +285,6 @@ class Matr1xConfig(BaseModel):
 
     datetime_format: str = "%Y-%m-%dT%H:%M:%S"
     logging_directory: Path = Path("~/logs")
-    logging_format: str = "%(asctime)s,%(msecs)03d,%(levelname)s,%(name)s: %(message)s"
     systems_directory: Path = Path("<pkgroot>/systems")
     users_directory: Path = Path("~/users")
     install: Matr1xInstallConfig = Matr1xInstallConfig()
