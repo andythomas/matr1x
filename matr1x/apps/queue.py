@@ -593,16 +593,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def measurement_list_changed(self) -> None:
         """Update the data order when the measurement list is changed."""
-        if self.ui.widgets.meas_list.count() == 0:
-            # nothing left to run: a stopped/killed queue becomes ready again
-            self._queue_locked = False
-        if not self.running and not self._queue_locked:
-            if self.ui.widgets.meas_list.count() > 0:
-                self.ui.actions.start.setEnabled(True)
-            else:
-                self.ui.actions.start.setEnabled(False)
-        else:
-            self.ui.actions.start.setEnabled(False)
+        if not self.running:
+            self.ui.actions.start.setEnabled(self.ui.widgets.meas_list.count() > 0)
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Close app properly."""
@@ -787,8 +779,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def run_matrix(self) -> None:
         """Start running the queued measurements."""
-        if self._queue_locked:
-            return
         self.running = True
         self.ui.actions.preview.setEnabled(False)
         self.ui.actions.start.setEnabled(False)
@@ -843,8 +833,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 )
             )
             self.running = False
-            self._queue_locked = True
-            self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setEnabled(self.ui.widgets.meas_list.count() > 0)
             return
         exit_code = self.ui.widgets.measurement_thread.exit_code
         if self.measurement_failed or exit_code == MeasurementExitCode.ERROR:
