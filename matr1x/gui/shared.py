@@ -1069,13 +1069,12 @@ class MeasurementExitCode(IntEnum):
     Exit codes of the measurement subprocess.
 
     The measurement runs as a subprocess that reports its outcome via
-    the process return code. ``SUCCESS`` and ``ABORTED`` map to a clean
-    end of the measurement, ``ERROR`` to a failed measurement.
+    the process return code. `SUCCESS` maps to a clean end of the
+    measurement, `ERROR` to a failed measurement.
     """
 
     SUCCESS = 0
     ERROR = 1
-    ABORTED = 2
 
 
 @final
@@ -1282,8 +1281,12 @@ class MeasurementThread(QThread, LoggerMixin):
                         break
                 self.conn.close()
         finally:
-            if self.proc is not None and not self.killed and self.proc.returncode is not None:
-                self.exit_code = MeasurementExitCode(self.proc.returncode)
+            if (
+                self.proc is not None
+                and not self.killed
+                and self.proc.returncode not in (None, MeasurementExitCode.SUCCESS)
+            ):
+                self.exit_code = MeasurementExitCode.ERROR
             if tmp_config_file.exists():
                 tmp_config_file.unlink()
 
