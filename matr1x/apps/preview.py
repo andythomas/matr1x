@@ -603,7 +603,8 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         for i in range(3):
             self.ui.widgets.column_selector[i].blockSignals(True)
             self.ui.widgets.column_selector[i].clear()
-            self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
+            self.ui.widgets.column_selector[i].addItems(self.column_items)
+            self.ui.widgets.column_selector[i].setCurrentIndex(-1)
             self.ui.widgets.column_selector[i].blockSignals(False)
         self.ui.widgets.column_selector[0].setEnabled(True)
         self.ui.widgets.column_selector[2].setEnabled(True)
@@ -638,13 +639,30 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         )[0]
         if not filename:
             return
-        filename_path = Path(filename)
-        if filename_path.suffix.lower() != ".png":
-            filename_path = filename_path.with_suffix(".png")
+        self.export_plot(Path(filename))
+
+    def export_plot(self, filename: Path) -> Path:
+        """
+        Save the displayed data in a png file.
+
+        Parameters
+        ----------
+        filename: Path
+          output path, a `.png` suffix is enforced
+
+        Returns
+        -------
+        Path
+          the path the image was written to
+        """
+        if filename.suffix.lower() != ".png":
+            filename = filename.with_suffix(".png")
+        filename.parent.mkdir(parents=True, exist_ok=True)
         if self.iv is not None:
-            pyqtgraph.exporters.ImageExporter(self.iv.view).export(str(filename_path))
+            pyqtgraph.exporters.ImageExporter(self.iv.view).export(str(filename))
         else:
-            self.spw.save_plot(str(filename_path))
+            self.spw.save_plot(str(filename))
+        return filename
 
     def save_data(self) -> None:
         """Ask for filename and save the displayed data in an text file."""
@@ -700,31 +718,34 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             # names to reflect the dimensions
             for i in range(3):
                 for j, item in enumerate(self.column_items):
-                    self.ui.widgets.column_selector[i].setItemText(j + 1, item)
+                    self.ui.widgets.column_selector[i].setItemText(j, item)
         elif check == FetchResult.COLUMNS_CHANGED:
             # file has different columns
             # reload interface
             for i in range(3):
                 self.ui.widgets.column_selector[i].blockSignals(True)
                 self.ui.widgets.column_selector[i].clear()
-                self.ui.widgets.column_selector[i].addItems([""] + self.column_items)
+                self.ui.widgets.column_selector[i].addItems(self.column_items)
+                self.ui.widgets.column_selector[i].setCurrentIndex(-1)
                 self.ui.widgets.column_selector[i].blockSignals(False)
             self.reset()
 
     def index_changed(self, newIndex: int) -> None:
         """If index changed, reload the new data and handle the gui interaction."""
         if self.ui.widgets.column_selector[0] == self.sender():
-            self.ui.widgets.column_selector[1].setEnabled(newIndex != 0)
-            if newIndex == 0:
-                self.ui.widgets.column_selector[1].setCurrentIndex(0)
+            self.ui.widgets.column_selector[1].setEnabled(newIndex != -1)
+            if newIndex == -1:
+                self.ui.widgets.column_selector[1].setCurrentIndex(-1)
         self.reload_data()
 
     def transpose_toggled(self, check_state: bool) -> None:
         """Transpose has been toggled, reload data."""
+        index = self.ui.widgets.column_selector[0].currentIndex()
         if (
             self.ui.widgets.plot2d.isChecked() is True
             and self.ui.widgets.plot2d_comp.isChecked() is False
-            and len(self.shapes[self.ui.widgets.column_selector[0].currentIndex() - 1]) < 3
+            and index >= 0
+            and len(self.shapes[index]) < 3
         ):
             # toggle index for 2d data, since x and y invert role
             dummy = self.ui.widgets.column_selector[2].currentIndex()
@@ -865,7 +886,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         # change names to reflect the dimensions
         for i in range(3):
             for j, item in enumerate(self.column_items):
-                self.ui.widgets.column_selector[i].setItemText(j + 1, item)
+                self.ui.widgets.column_selector[i].setItemText(j, item)
 
     def reset(self) -> None:
         """Reset the data view to the default 1d state without selection."""
@@ -978,7 +999,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
     def reload_data_2d(self) -> int:
         """Reload the data in the 2d case."""
         indexZ, indexX, indexY = [
-            self.ui.widgets.column_selector[i].currentIndex() - 1 for i in range(3)
+            self.ui.widgets.column_selector[i].currentIndex() for i in range(3)
         ]
 
         # Declare the dictionaries as Optional[PlotData]
@@ -998,7 +1019,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 dim = 0
                 data_vars[i] = {
                     "label": "",
-                    "desig": 0,
+                    "desig": -1,
                     "unit": "",
                     "data": NO_DATA,
                     "shape": (0,),
@@ -1014,7 +1035,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
                 data_vars[i] = {
                     "label": name,
-                    "desig": index + 1,
+                    "desig": index,
                     "unit": self.units[index],
                     "data": data,
                     "shape": data.shape,
@@ -1024,7 +1045,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 self.ui.widgets.column_selector[1].setEnabled(True)
             elif i == 0 and self.ui.widgets.plot2d_comp.isChecked() is True:
                 self.ui.widgets.column_selector[1].setEnabled(False)
-                self.ui.widgets.column_selector[1].setCurrentIndex(0)
+                self.ui.widgets.column_selector[1].setCurrentIndex(-1)
             elif i == 0 and self.ui.widgets.column_selector[1].isEnabled() is False:
                 # if coming from complex view and x was disabled, enable now
                 self.ui.widgets.column_selector[1].setEnabled(True)
@@ -1033,7 +1054,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 # x gives the plotting axis (i.e. value corresponding to index)
                 self.ui.widgets.axes_list[2].setVisible(False)
                 self.ui.widgets.column_selector[2].setVisible(False)
-                self.ui.widgets.column_selector[2].setCurrentIndex(0)
+                self.ui.widgets.column_selector[2].setCurrentIndex(-1)
             elif i == 0 and self.ui.widgets.plot2d_comp.isChecked() is False:
                 self.ui.widgets.axes_list[2].setVisible(True)
                 self.ui.widgets.column_selector[2].setVisible(True)
@@ -1066,7 +1087,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 unit="",
                 dim=1,
                 data=np.arange(z["shape"][0]),
-                desig=0,
+                desig=-1,
                 shape=(z["shape"][0],),
             )
         else:
@@ -1090,7 +1111,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 unit="",
                 dim=1,
                 data=np.arange(z["shape"][1]),
-                desig=0,
+                desig=-1,
                 shape=(z["shape"][1],),
             )
         else:
@@ -1130,7 +1151,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         Try to make the dimensions suitable for a 1D curve plot by smart
         guessing from the data dimension.
         """
-        indexY, indexX = [self.ui.widgets.column_selector[i].currentIndex() - 1 for i in range(2)]
+        indexY, indexX = [self.ui.widgets.column_selector[i].currentIndex() for i in range(2)]
 
         # disable transpose widget
         self.ui.widgets.transpose.setVisible(False)
@@ -1157,7 +1178,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
             y = {
                 "label": yname,
-                "desig": indexY + 1,
+                "desig": indexY,
                 "unit": self.units[indexY],
                 "data": y_data,
                 "shape": y_data.shape,
@@ -1170,7 +1191,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 "unit": "",
                 "dim": 1,
                 "data": np.arange(y["shape"][0]),
-                "desig": 0,
+                "desig": -1,
                 "shape": x_shape,
             }
         else:
@@ -1178,7 +1199,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             yname = self.names[indexY]
             y = {
                 "label": yname,
-                "desig": indexY + 1,
+                "desig": indexY,
                 "unit": self.units[indexY],
                 "data": self._col(yname),
                 "shape": self.shapes[indexY],
@@ -1187,7 +1208,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             xname = self.names[indexX]
             x = {
                 "label": xname,
-                "desig": indexX + 1,
+                "desig": indexX,
                 "unit": self.units[indexX],
                 "data": self._col(xname),
                 "shape": self.shapes[indexX],
