@@ -834,8 +834,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                     level=logging.ERROR,
                 )
             )
-            self.ui.actions.start.setEnabled(False)
             self.running = False
+            if self.ui.widgets.meas_list.count() > 0:
+                self.ui.actions.start.setEnabled(True)
+            else:
+                self.ui.actions.start.setEnabled(False)
             return
         self.ui.widgets.progress.setText("Measurement idle.")
         if self.ui.widgets.meas_list.count() > 0 and self.running is True:
