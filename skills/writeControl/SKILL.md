@@ -245,7 +245,50 @@ Gotchas:
   start detects the stale lock and continues.
 - Use `uv run python` (not `python3`), which resolves on all platforms.
 
-### 6.2 Interactive run (mandatory final step)
+### 6.2 SCPI query test (read-only)
+
+While the control is running (e.g. during the 6.1 smoke test, offscreen or
+visible), verify that the SCPI server answers by querying it over TCP.
+**Only send get commands (the ones ending in `?`)** — the test must be
+strictly read-only and must never send a set command, so it cannot change
+the state of the control or of any instrument behind it. A good set of
+queries is `*IDN?` plus the `Get` commands of the control's `cmds` dicts.
+
+```sh
+uv run python -c "
+import socket
+
+def query(cmd, port):
+    with socket.create_connection(('127.0.0.1', port), timeout=10) as s:
+        s.sendall((cmd + '\n').encode())
+        chunks = []
+        while True:
+            data = s.recv(4096)
+            if not data:
+                break
+            chunks.append(data)
+            if b'\n' in b''.join(chunks):
+                break
+    return b''.join(chunks).decode().strip()
+
+port = 8897  # the port passed to control_main in main()
+print(query('*IDN?', port))
+print(query(':v1?', port))  # replace with the control's Get commands
+"
+```
+
+Notes:
+
+- Get commands are answered with the value followed by a newline, which the
+  loop above waits for. Set commands only send a single ACK byte (`\x06`)
+  and no newline — another reason to keep the test read-only.
+- The server lowercases every received line, so a query is case-insensitive,
+  but any value you would send gets lowercased as well (e.g. string set
+  values must be matched case-insensitively by the control).
+- One connection per command is fine for a manual test; the server handles
+  them sequentially.
+
+### 6.3 Interactive run (mandatory final step)
 
 Once the offscreen startup is clean, start the control visibly via its
 `main()` function:
