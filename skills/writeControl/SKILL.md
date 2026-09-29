@@ -247,9 +247,11 @@ Gotchas:
 
 ### 6.2 Interactive run (mandatory final step)
 
-Once the offscreen startup is clean, start the control visibly
-(`uv run control-<name>`, or
-`uv run python -c "from matr1x.control import control_<name>;control_<name>.main()"`)
+Once the offscreen startup is clean, start the control visibly via its
+`main()` function:
+
+`uv run python -c "from matr1x.control import control_<name>; control_<name>.main()"`
+
 and let the user interact with it: click buttons, toggle panels, trigger
 panic. This catches runtime errors that never appear at startup. The control
 is only finished after the user has exercised it without errors.
