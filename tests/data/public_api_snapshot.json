@@ -15,6 +15,48 @@
     "init": [],
     "kind": "class"
   },
+  "control.gui_dict:GuiDict.allow_disabling": {
+    "kind": "constant",
+    "value": "False"
+  },
+  "control.gui_dict:GuiDict.cmds": {
+    "kind": "constant",
+    "value": "{}"
+  },
+  "control.gui_dict:GuiDict.copy_values": {
+    "kind": "function",
+    "params": []
+  },
+  "control.gui_dict:GuiDict.create_GUI": {
+    "kind": "function",
+    "params": []
+  },
+  "control.gui_dict:GuiDict.data": {
+    "kind": "constant",
+    "value": "{}"
+  },
+  "control.gui_dict:GuiDict.extended_visible": {
+    "kind": "property",
+    "params": []
+  },
+  "control.gui_dict:GuiDict.panic": {
+    "kind": "function",
+    "params": []
+  },
+  "control.gui_dict:GuiDict.refresh": {
+    "kind": "function",
+    "params": [
+      {"annotation": "<class 'int'>", "kind": "positional_or_keyword", "name": "count"}
+    ]
+  },
+  "control.gui_dict:GuiDict.refresh_period": {
+    "kind": "constant",
+    "value": "1.0"
+  },
+  "control.gui_dict:GuiDict.unpanic": {
+    "kind": "function",
+    "params": []
+  },
   "control.gui_dict:MethodBundle": {
     "init": [],
     "kind": "class",

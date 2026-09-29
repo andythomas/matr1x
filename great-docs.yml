@@ -102,6 +102,18 @@ reference:
         members: false
       - name: control.gui_dict:GuiDict
         members: false
+      # GuiDict subclass contract: declared class attributes
+      - control.gui_dict:GuiDict.cmds
+      - control.gui_dict:GuiDict.data
+      - control.gui_dict:GuiDict.refresh_period
+      - control.gui_dict:GuiDict.allow_disabling
+      # GuiDict subclass contract: overridden methods and helpers
+      - control.gui_dict:GuiDict.create_GUI
+      - control.gui_dict:GuiDict.refresh
+      - control.gui_dict:GuiDict.copy_values
+      - control.gui_dict:GuiDict.panic
+      - control.gui_dict:GuiDict.unpanic
+      - control.gui_dict:GuiDict.extended_visible
       # GuiDict building blocks, in typical authoring order
       - control.gui_dict:var
       - control.gui_dict:guiObject
