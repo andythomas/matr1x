@@ -152,6 +152,10 @@
       "valueChanged": {
         "kind": "constant",
         "value": "'<PySide6.QtCore.Signal>'"
+      },
+      "widgets": {
+        "kind": "property",
+        "params": []
       }
     }
   },
