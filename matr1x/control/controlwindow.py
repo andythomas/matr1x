@@ -1189,14 +1189,13 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         a0 : QCloseEvent
             The close event.
         """
-        # Save window and dock states
+        logger.info("Control window '%s' closed by user", self.windowTitle())
         self.save_window_state()
         for g in self.guidicts:
             g.dock.saveCurrentState()
 
         self.cleanup_log_window()
 
-        # Accept the close event
         super().closeEvent(a0)
 
     @AutoSlot

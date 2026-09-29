@@ -43,8 +43,15 @@ Every control GUI file follows a similar skeleton, one example is given in `matr
 # 1. Imports
 from PySide6.QtWidgets import QDoubleSpinBox
 
-from matr1x.control import (ControlWindow, GuiDict, MethodBundle,
-                            catchEmitError, control_main, linear_trend, var)
+from matr1x.control import (
+    ControlWindow,
+    GuiDict,
+    MethodBundle,
+    catchEmitError,
+    control_main,
+    linear_trend,
+    var,
+)
 from matr1x.control import guiObject as go
 from matr1x.core.commands import Command, Get
 from matr1x.core.system import System
@@ -59,29 +66,35 @@ common_commands = {"*idn": Get(str, "dummy_control")}
 # widgets.
 one_decimal = MethodBundle()
 
+
 def set_decimals(widget: QDoubleSpinBox) -> None:
     """Set the number of decimals for a QDoubleSpinBox to 1."""
     widget.setDecimals(1)
 
+
 one_decimal.add_setup_method(set_decimals)
+
 
 # 4. One or more GuiDict subclasses  (see section 4)
 class exampleDict(GuiDict): ...
+
+
 class exampleDict2(GuiDict): ...
 
+
 # 5. clientdevice: exposes the cmds of all panels to measurement systems
-clientdevice = makeSCPIdevice(exampleDict.cmds, exampleDict2.cmds,
-                              common_commands, system=True)
+clientdevice = makeSCPIdevice(exampleDict.cmds, exampleDict2.cmds, common_commands, system=True)
+
 
 # 6. main() entry point
 def main():
     control_main(
-        "dummy",            # name: window title + lock file
+        "dummy",  # name: window title + lock file
         ControlWindow,
         guidicts=(exampleDict, exampleDict2),
         extra_cmds=common_commands,
-        port=8897,          # SCPI server port
-        package="matr1x",   # used for log files / desktop file
+        port=8897,  # SCPI server port
+        package="matr1x",  # used for log files / desktop file
     )
 ```
 
@@ -115,12 +128,18 @@ class exampleDict(GuiDict):
     # Three columns in one row, one label and two for widgets
     data: ClassVar[dict[str, var]] = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
-        "V1": var(dtype=str, columns=[go.labeltext, go.combobox],
-                  log=True, init=[None, ("i1", "i2")]),
+        "V1": var(
+            dtype=str, columns=[go.labeltext, go.combobox], log=True, init=[None, ("i1", "i2")]
+        ),
         "V2": var(float, columns=[go.labeltext, go.lineedit], unit="mT"),
-        "V3": var(dtype=float, columns=[go.progressbar, go.doublespinbox],
-                  unit="%", init=[0, (0, 100)], hide=True,
-                  modify=[one_decimal]),
+        "V3": var(
+            dtype=float,
+            columns=[go.progressbar, go.doublespinbox],
+            unit="%",
+            init=[0, (0, 100)],
+            hide=True,
+            modify=[one_decimal],
+        ),
         "Set": var(None, columns=[go.button, go.button], init=["Set", "Copy"]),
     }
 
@@ -175,3 +194,62 @@ Explanations:
 | `exampleDict(GuiDict)`  | Full-featured demo: combobox/lineedit/progressbar/checkbox/toggle rows, `MethodBundle`s (`color_bar`, `one_decimal`), custom menu action, `panic`/`unpanic`, `@catchEmitError` slots, `polling_cmd`. |
 | `exampleDict2(GuiDict)` | Demo of a fast refresh (`refresh_period = 0.1`), `allow_disabling = True`, trend tooltip via `linear_trend`, hidden info row.                                                                        |
 | `main()`                | `control_main("dummy", ControlWindow, guidicts=(exampleDict, exampleDict2), extra_cmds=common_commands, port=8897)`.                                                                                 |
+
+## 6. Debugging
+
+Determine the log folder via
+
+`uv run python -c "from matr1x.core.config import logfolder;print(logfolder)"`
+
+### 6.1 Offscreen smoke test
+
+`main()` creates its own `QApplication` (`MApplication`) and owns the event
+loop, so the reliable smoke test is to run it in a subprocess, let it run for
+a while, then terminate it. Use the Python recipe below so it works
+identically on Linux, macOS and Windows (no shell-specific `&`, `timeout`
+or `kill`):
+
+```sh
+uv run python -c "
+import os, subprocess, sys, time
+env = dict(os.environ, QT_QPA_PLATFORM='offscreen')
+proc = subprocess.Popen(
+    [sys.executable, '-c',
+     'from matr1x.control import control_dummy; control_dummy.main()'],
+    env=env)
+time.sleep(20)
+proc.terminate()
+proc.wait(timeout=10)
+"
+```
+
+`sys.executable` is the venv interpreter, so the subprocess runs in the same
+environment as the outer `uv run`. Then check:
+
+- The newest log in the log folder: "Control window '<name>' starting" should
+  be followed by a clean shutdown ("closed by user" / "Exiting GUI") with no
+  "failed to start" traceback. The log folder is the best source for startup
+  bugs.
+- The subprocess stdout/stderr for Qt warnings (add a `stdout=`/`stderr=`
+  file handle to the `Popen` call if you want to capture them).
+
+Gotchas:
+
+- Do **not** construct `ControlWindow` yourself for testing: its first
+  positional argument `name` is required
+  (`ControlWindow(name, guidicts=..., extra_cmds=...)`) and you would miss the
+  wiring `control_main` performs (lock file, error handler, SCPI server).
+- Do **not** pre-create a `QApplication` or patch `QApplication.exec` to
+  auto-quit; `main()` manages the application itself.
+- The lock file is PID-based, so terminating the process is fine; the next
+  start detects the stale lock and continues.
+- Use `uv run python` (not `python3`), which resolves on all platforms.
+
+### 6.2 Interactive run (mandatory final step)
+
+Once the offscreen startup is clean, start the control visibly
+(`uv run control-<name>`, or
+`uv run python -c "from matr1x.control import control_<name>;control_<name>.main()"`)
+and let the user interact with it: click buttons, toggle panels, trigger
+panic. This catches runtime errors that never appear at startup. The control
+is only finished after the user has exercised it without errors.
