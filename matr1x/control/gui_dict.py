@@ -1057,6 +1057,17 @@ class GuiDict(dict[str, var]):
         system named after the GuiDict class is created. Every GuiDict used in
         one ControlWindow must have a uniquely named System whose name is a
         valid, non-keyword Python identifier.
+    menu_actions : list
+        Custom menu actions appended by the subclass, e.g. in
+        `create_GUI`. The ControlWindow attaches them to the custom
+        menu and enables/disables them with the GuiDict.
+    refresh_worker : object
+        Background worker running `refresh`. Subclasses can trigger a
+        panic from the refresh thread via
+        `self.refresh_worker.panic.emit(True, "message")`.
+    name : str
+        Name of the GuiDict, taken from the first key of `data`; used
+        as the dock widget title.
     """
 
     cmds: ClassVar[dict[str, Command]] = {}
