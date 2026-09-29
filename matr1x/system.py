@@ -13,37 +13,37 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim for `matr1x.core.system`.
+"""Deprecated re-export shim for `matr1x.core.system`.
 
-The system classes now live in `matr1x.core.system` (``base`` and
-``merged``). This module re-exports the public names so that
-``from matr1x.system import ...`` keeps working.
+The names re-exported here are deprecated and will be removed in
+v8.8.0. Import them from `matr1x.core.system.base` instead.
 """
 
-from matr1x.core.system import (
-    ALLOWED_SIGNATURE_TYPES,
-    BUILTIN_TYPES,
-    ConfigParameter,
-    ConfigScheme,
-    ConfigValue,
-    DcDict,
-    MergedSystem,
-    Parameter,
-    StatefulSystem,
-    System,
-    T,
-)
+import importlib
+from typing import Any
 
-__all__ = [
-    "ALLOWED_SIGNATURE_TYPES",
-    "BUILTIN_TYPES",
-    "ConfigParameter",
-    "ConfigScheme",
-    "ConfigValue",
-    "DcDict",
-    "MergedSystem",
-    "Parameter",
-    "StatefulSystem",
-    "System",
-    "T",
-]
+from matr1x.core import deprecation
+
+# deprecated name -> module holding the canonical definition
+_CANONICAL = {
+    "System": "matr1x.core.system.base",
+}
+
+__all__ = ["System"]  # noqa: F822 (provided via __getattr__)
+
+
+def __getattr__(name: str) -> Any:
+    """Return a deprecated name after notifying about its replacement."""
+    module_name = _CANONICAL.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    deprecation.notify_deprecated_access(
+        f"{__name__}.{name}",
+        f"{module_name}.{name}",
+    )
+    return getattr(importlib.import_module(module_name), name)
+
+
+def __dir__() -> list[str]:
+    """List the names provided by this shim."""
+    return list(__all__)

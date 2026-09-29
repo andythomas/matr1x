@@ -43,8 +43,9 @@ from typing import NoReturn, cast
 import urwid
 from pydantic import ValidationError
 
-from matr1x import reload_config, validation_errors
+from matr1x.core.config import reload_config, validation_errors
 from matr1x.core.error_handling import Error
+from matr1x.core.metadata import VALID_META_KEYS
 from matr1x.core.models import (
     Datafile,
     Envelope,
@@ -63,8 +64,6 @@ from matr1x.core.util import (
     generate_col_index,
     log_multiline,
 )
-
-from .. import VALID_META_KEYS
 
 logger = logging.getLogger(__name__)
 

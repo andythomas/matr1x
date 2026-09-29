@@ -30,7 +30,7 @@ import pytest
 
 import matr1x.core.eval
 import matr1x.core.util
-from matr1x import output_extension
+from matr1x.core.config import output_extension
 from matr1x.core.execthread import ExecThread
 from matr1x.core.models import ExecutionLines, MeasurementData
 from matr1x.core.util import matrix_cmdline

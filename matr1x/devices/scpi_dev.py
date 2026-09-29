@@ -28,7 +28,7 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol, runtime_checkable
 
-from matr1x.core.util import Command, Get, normalize_cmds
+from matr1x.core.commands import Command, Get, normalize_cmds
 
 __all__ = ["makeSCPIdevice"]
 

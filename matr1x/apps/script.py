@@ -61,6 +61,7 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+import matr1x.core.config as core_config
 from matr1x.apps.post_install import (
     check_desktop_integration,
     post_installation,
@@ -119,7 +120,7 @@ from matr1x.gui.shared import (
 )
 
 logger = logging.getLogger(__name__)
-script_config = matr1x.config.matr1x.apps.matrix_script
+script_config = core_config.config.matr1x.apps.matrix_script
 
 
 GUI_VERSION = "created_v2"
@@ -799,7 +800,7 @@ class UIBuilder:
                 "Matrix Script",
                 get_matrix_icon("matr1x-matrix-script.png"),
                 matr1x,
-                matr1x.datetimefmt,
+                core_config.datetimefmt,
             ),
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
@@ -1047,7 +1048,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
-        check_config(matr1x.config, self.ui.widgets.notifier)
+        check_config(core_config.config, self.ui.widgets.notifier)
         sys.stdout = StreamToLogger(logger, logging.INFO)
         sys.stderr = StreamToLogger(logger, logging.ERROR)
         if filename is not None:
@@ -1677,7 +1678,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         system_info = self.ui.widgets.system_list.system_info
         retained_config = self.ui.widgets.config_editor.get_config_dict()
         configurable = system_info.configurable_sections
-        matr1x.reload_config()
+        core_config.reload_config()
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
@@ -1703,7 +1704,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         filename = QFileDialog.getSaveFileName(
             self,
             "Specify filename to save",
-            str(matr1x.usersfolder if not self.scriptname else Path(self.scriptname).parent),
+            str(core_config.usersfolder if not self.scriptname else Path(self.scriptname).parent),
             f"matrix files (*{self.extension})",
         )
         filename = Path(filename[0])
@@ -1771,7 +1772,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             "# system def : " + ",".join(str(s) for s in system_list.systems),
             "# system names : " + ",".join(p.name for p in flat_parameters),
             "# system units : " + ",".join(p.unit for p in flat_parameters),
-            "# file v8, time stamp : " + time.strftime(matr1x.datetimefmt, time.localtime()),
+            "# file v8, time stamp : " + time.strftime(core_config.datetimefmt, time.localtime()),
         ]
         script = self.ui.widgets.script_edit.toPlainText().rstrip()
         body_lines = [
@@ -1897,7 +1898,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         filename = QFileDialog.getOpenFileName(
             self,
             "Select filename to open",
-            str(matr1x.usersfolder if not self.scriptname else Path(self.scriptname).parent),
+            str(core_config.usersfolder if not self.scriptname else Path(self.scriptname).parent),
             f"matrix files (*{self.extension})",
         )
         filename = Path(filename[0])

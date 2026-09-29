@@ -13,56 +13,39 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Re-export shim. The implementation lives in `matr1x.core.util`."""
+"""Deprecated re-export shim for `matr1x.core.commands`.
 
-from matr1x.core.execthread import matrix_script_process
-from matr1x.core.util import (
-    Command,
-    Get,
-    Set,
-    StreamToLogger,
-    construct_query_string,
-    create_temp_dir_with_symlinks,
-    default_separator,
-    flatten,
-    generate_col_index,
-    generate_script,
-    get_formatted_line,
-    get_package_path,
-    get_pt100_temp,
-    get_script_prefix_offset,
-    init_ascii_header,
-    log_multiline,
-    matrix_cmdline,
-    module_from_path,
-    normalize_cmds,
-    resolve_config_path,
-    resolve_pkgroot_path,
-    run_python_cmdline,
-)
+The names re-exported here are deprecated and will be removed in
+v8.8.0. Import them from `matr1x.core.commands` instead.
+"""
 
-__all__ = [
-    "Command",
-    "Get",
-    "Set",
-    "StreamToLogger",
-    "construct_query_string",
-    "create_temp_dir_with_symlinks",
-    "default_separator",
-    "flatten",
-    "generate_col_index",
-    "generate_script",
-    "get_formatted_line",
-    "get_package_path",
-    "get_pt100_temp",
-    "get_script_prefix_offset",
-    "init_ascii_header",
-    "log_multiline",
-    "matrix_cmdline",
-    "matrix_script_process",
-    "module_from_path",
-    "normalize_cmds",
-    "resolve_config_path",
-    "resolve_pkgroot_path",
-    "run_python_cmdline",
-]
+import importlib
+from typing import Any
+
+from matr1x.core import deprecation
+
+# deprecated name -> module holding the canonical definition
+_CANONICAL = {
+    "Command": "matr1x.core.commands",
+    "Get": "matr1x.core.commands",
+    "Set": "matr1x.core.commands",
+}
+
+__all__ = ["Command", "Get", "Set"]  # noqa: F822 (provided via __getattr__)
+
+
+def __getattr__(name: str) -> Any:
+    """Return a deprecated name after notifying about its replacement."""
+    module_name = _CANONICAL.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    deprecation.notify_deprecated_access(
+        f"{__name__}.{name}",
+        f"{module_name}.{name}",
+    )
+    return getattr(importlib.import_module(module_name), name)
+
+
+def __dir__() -> list[str]:
+    """List the names provided by this shim."""
+    return list(__all__)

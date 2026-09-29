@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+import matr1x.core.config as core_config
 from matr1x.apps.post_install import (
     check_desktop_integration,
     post_installation,
@@ -365,7 +366,10 @@ class UIBuilder:
             central_widget=central_widget,
             current_measurement=current_measurement,
             about_box=AboutBox(
-                "Matrix GUI", get_matrix_icon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
+                "Matrix GUI",
+                get_matrix_icon("matr1x-matrix-gui.png"),
+                matr1x,
+                core_config.datetimefmt,
             ),
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
@@ -495,7 +499,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor,
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
-        check_config(matr1x.config, self.ui.widgets.notifier)
+        check_config(core_config.config, self.ui.widgets.notifier)
         self._sg_proc: subprocess.Popen[bytes] | None = None
         self._input_server_name = f"matr1x-matrix-gui-{os.getpid()}"
         self._input_server = QLocalServer(self)
@@ -625,7 +629,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def show_input_dialog(self) -> None:
         """Open a QFileDialog with filter for input files."""
-        folder = self.ui.widgets.input_file.text() or matr1x.usersfolder
+        folder = self.ui.widgets.input_file.text() or core_config.usersfolder
         # remove old pattern with next major update
         filename = QFileDialog.getOpenFileName(
             self, "Select input file", str(folder), "Sweep 8 files (*.sw8);;t files (*.*t)"
@@ -745,7 +749,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             return
 
         self.sys_meta_data = system_info.dcdata
-        matr1x.reload_config()
+        core_config.reload_config()
         self._update_config_editor(systemfile, system_info)
         self.update_queue_action_state()
 

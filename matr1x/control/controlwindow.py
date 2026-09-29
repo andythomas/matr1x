@@ -60,12 +60,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import matr1x
-from matr1x import logfolder, output_extension
+import matr1x.core.config as core_config
 from matr1x.control.gui_dict import GuiDict, catchEmitError
 from matr1x.core import scpi_tcpserver, system
+from matr1x.core.commands import Command, Get
 from matr1x.core.pymeasure_threading_fix import apply_pymeasure_threading_fix
-from matr1x.core.util import Command, Get, StreamToLogger
+from matr1x.core.util import StreamToLogger
 from matr1x.gui.app import MApplication
 from matr1x.gui.helpers import get_matrix_icon, open_matrix_toml
 from matr1x.gui.logging import LoggingWindow
@@ -326,10 +326,13 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         # initialize parameters
         self.running = False
         self.logging = False
-        filename = f"{package}.{name}_{time.strftime(matr1x.datetimefmt)}{output_extension}"
+        filename = (
+            f"{package}.{name}_{time.strftime(core_config.datetimefmt)}"
+            f"{core_config.output_extension}"
+        )
         if os.name == "nt":
             filename = filename.replace(":", "")  # Windows does not like : in filenames
-        self.logfile: Path = Path(logfolder) / filename
+        self.logfile: Path = Path(core_config.logfolder) / filename
         self._log_stop_event = threading.Event()
         self._log_interval_updated = threading.Event()
         self._log_stopped_event = threading.Event()
@@ -356,7 +359,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         self.create_connections()
         self.statusloggingUI()
-        check_config(matr1x.config, self.ui.widgets.notifier)
+        check_config(core_config.config, self.ui.widgets.notifier)
         self._restore_gui_settings()
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
         sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
@@ -847,7 +850,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
             # update date to reflect logging start time instead of GUI start time
-            self.S_log.dcdata["date"] = time.strftime(matr1x.datetimefmt, time.localtime())
+            self.S_log.dcdata["date"] = time.strftime(core_config.datetimefmt, time.localtime())
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             msg, outputfile = self.S_log.init_datafile("matrix script generated")
@@ -877,7 +880,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     def select_datafile(self) -> None:
         """Allow selecting a file for the data recorder."""
         filename = QFileDialog.getSaveFileName(
-            self, "Select data file", str(logfolder), f"data recorder files (*{output_extension})"
+            self,
+            "Select data file",
+            str(core_config.logfolder),
+            f"data recorder files (*{core_config.output_extension})",
         )[0]
 
         # If no file was selected, keep the current logfile
@@ -893,7 +899,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
 
         # Update the logfile
         self.logfile = Path(filename)
-        self.logfile = self.logfile.with_suffix(output_extension)
+        self.logfile = self.logfile.with_suffix(core_config.output_extension)
         self.ui.widgets.recorder_file_label.setText(
             f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
         )

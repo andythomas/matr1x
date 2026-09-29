@@ -63,8 +63,6 @@ __all__ = [
     "write_config",
 ]
 
-deprecation_marker = "[MATR1X_DEPRECATED]"
-
 # default datafile extension
 output_extension = ".ma8"
 
