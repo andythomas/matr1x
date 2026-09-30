@@ -25,7 +25,7 @@ jobs:
       - name: Install Qt system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libgbm1 libxkbcommon0 libnss3 libnspr4 libasound2
+          sudo apt-get install -y libegl1 libgl1 libgbm1 libxkbcommon0 libnss3 libnspr4 libasound2t64
 
       - name: Build docs
         env:
