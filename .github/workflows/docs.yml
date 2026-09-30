@@ -13,7 +13,7 @@ jobs:
 
       - uses: ./.github/actions/setup-uv
         with:
-          python-version: "3.11"
+          python-version: "3.13"
           activate-environment: true
 
       - name: Install package and dependencies
