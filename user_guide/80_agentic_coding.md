@@ -15,6 +15,11 @@ To use an agent, start it in the directory (workspace) you want it to
 work on, e.g. your matr1x installation or the folder containing your
 system and control files, and describe the task in plain language.
 
+If you have existing files to be used with matr1x, have the
+agent set up the folder as a workspace first (see the `matr1x-install`
+skill below) so that it knows where your installation lives and how
+to run your code.
+
 When started in a matr1x repository, the agent reads the `AGENTS.md`
 file in the repository root. It contains the project layout, the coding
 conventions, and the commands to build, test, and run the package, so
@@ -68,10 +73,14 @@ The sections below explain how to use the individual skills.
 This skill installs the complete package into an empty directory:
 it sets up the dependencies, clones the repository, creates the
 configuration, and performs the desktop integration.
+On request, it also sets up a folder with your own system files and
+control GUIs as a workspace, so that an agent can work in it directly.
 As explained above, it is meant to be installed in the global skill
 directory, so that it also works outside of a matr1x repository.
 Since that directory may hold skills from other sources as well, the
 skill is named `matr1x-install` to stay clearly identifiable.
+To obtain the skill without matr1x being installed yet, see the
+[installation](installation.md) chapter.
 
 To use it, change into the target directory and instruct the agent,
 e.g. "Please install matr1x as described in the matr1x-install skill."

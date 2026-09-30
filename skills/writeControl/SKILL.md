@@ -197,6 +197,11 @@ Explanations:
 
 ## 6. Debugging
 
+All commands below assume the current directory is the matr1x installation
+(pkg-root). If you work in a user workspace instead, use the Python command
+recorded in the workspace's `AGENTS.md` (i.e. `uv run --project <pkgroot>
+python ...`) in place of `uv run python`.
+
 Determine the log folder via
 
 `uv run python -c "from matr1x.core.config import logfolder;print(logfolder)"`
