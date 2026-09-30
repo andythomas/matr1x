@@ -161,6 +161,12 @@ Explanations:
   - `columns` maps positions to widget types; the typical convention is: column 1 = readout, column 2 = setpoint. There is always the label plus two columns available.
 
 - Every `GuiDict` typically adds one device, e.g., `S = System(name="dummy")` plus subsequent `add_dev` and its name must be unique.
+  `add_dev(name, descriptor, args=..., kwargs=...)` takes a device class as
+  `descriptor`, so import it at the top of the file (in the example below
+  `dummy` comes from `from matr1x.devices.dummy import dummy`). The `args`
+  hold the connection/adapter address the device needs (the `dummy` device
+  requires the resource string, e.g. `args=("TCPIP::localhost::10006::SOCKET",)`,
+  while its named properties go into `kwargs`).
 - `refresh_period` defines the time in seconds between `refresh()` calls.
 - `allow_disabling`: Let the panel get an enable/disable switch. Requires the devices to support close().
 

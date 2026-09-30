@@ -113,3 +113,6 @@ Most parts are written in Python and the editor uses some JavaScript.
 - GUI tests run offscreen (`QT_QPA_PLATFORM=offscreen` is set by pytest).
 - The package version and `CHANGELOG.md` are managed by semantic-release;
   do not edit them manually.
+- When searching with `rg`, use `rg -n` (line numbers); never `rg -rn`,
+  where `-r` aliases `--replace` and rewrites every match to `n`,
+  garbling the output (e.g. `skills/security` becomes `n/security`).
