@@ -14,6 +14,10 @@ compatibility: Requires Python >=3.10.
 4. Build `clientdevice = makeSCPIdevice(*Cmds, common_commands, system=True)`.
 5. Add `main()` calling `control_main(name, ControlWindow, guidicts=(...), extra_cmds=common_commands, package=..., port=...)`.
 
+Read section 4.4 (concurrency and thread safety) before wiring the
+`cmds` getters/setters and `refresh` — the refresh worker and the SCPI
+server run in parallel and must not race each other.
+
 Please find the details in the next sections.
 
 ## 2. The framework layer
@@ -177,10 +181,10 @@ Explanations:
 | `__init__`          | GUI           | Call `super().__init__()`, create locks, deques for trends, `MethodBundle` change handlers, etc.                                                                                                                                |
 | `create_GUI`        | GUI           | Call `super().create_GUI()`, then connect buttons/toggles to slot methods (e.g. `self["Set"].widgets[1].clicked.connect(self.write)`), add menu actions via `self.menu_actions`, restyle widgets.                               |
 | `refresh(count)`    | worker thread | Read hardware via `self.S.devs[...]` and **only set `self[...].value`** (never touch widgets directly). `count` allows "every Nth iteration" tasks (tooltips, trends). May emit `self.refresh_worker.panic.emit(True, reason)`. |
-| `write`             | GUI           | Push `self[...].getGUIvalue()` to the hardware (usually behind a lock). This is a naming convention and only wired manually to the "Set" button.                                                                                |
+| `write`             | GUI           | Push `self[...].getGUIvalue()` to the hardware (usually behind a lock). This is a naming convention and only wired manually to the "Set" button. See 4.4 for locking.                                                                                |
 | `copy_values`       | GUI           | Copy readout columns into setpoint columns. Performed once automatically once at start-up. Usually, also wired to a "Copy" button.                                                                                              |
 | `panic` / `unpanic` | GUI           | Bring the instrument to a safe state, disable set buttons; call `super().panic()` / `super().unpanic()`.                                                                                                                        |
-| command methods     | either        | The functions named in `cmds` (e.g. `setV1`, `V1`, `v2ready`), often decorated with `@catchEmitError`.                                                                                                                          |
+| command methods     | either        | The functions named in `cmds` (e.g. `setV1`, `V1`, `v2ready`), often decorated with `@catchEmitError`. Prefer buffered getters, see 4.4.                                                                                                                          |
 
 ### 4.3 `var` (one row in a `GuiDict`)
 
@@ -188,6 +192,102 @@ Explanations:
 - `var.widgets` — `widgets[0]` is the label, `widgets[1:]` the other two columns.
 - `var.getGUIvalue()` — value as entered in the setpoint widget.
 - `var.tooltip`, `var.unit` — live-updatable, used for trend displays.
+
+### 4.4 Concurrency and thread safety
+
+A control GUI is implicitly multi-threaded: the **refresh worker
+thread**
+(runs `refresh`) and the **SCPI server threads** (run the `get`/`set`
+functions bound to `cmds`) concurrently talk to the same instrument(s).
+This is the most common source of hard-to-reproduce bugs, so follow
+the rules below.
+
+#### Which thread runs what
+
+| Entry point            | Thread            | Hardware access?              |
+| ---------------------- | ----------------- | ----------------------------- |
+| `refresh(count)`       | refresh worker   | yes (reads)                   |
+| SCPI `get` command     | SCPI server      | only if the getter reads HW   |
+| SCPI `set` command     | SCPI server      | yes (writes)                  |
+| GUI buttons / `write`  | GUI (Qt) thread  | yes, when the slot writes     |
+| `panic` / `unpanic`    | GUI (Qt) thread  | yes, when the slot writes     |
+
+So a given device may be accessed from up to three threads at once. You
+must make sure the underlying communication is safe before relying
+on it.
+
+#### 1. Prefer buffered `get` commands
+
+The primary idea of the control GUI is that `refresh()` keeps a buffered
+snapshot of the instrument state in `self[...].value`, and getter
+commands should **return that buffered value** instead of re-reading the
+hardware. This avoids extra bus traffic and, more importantly, means a
+`get` does not race the `refresh` thread.
+
+```python
+cmds = {
+    # returns the value last cached by refresh() - no hardware access
+    ":temperature": Get(float, "Temperature"),
+}
+```
+
+The `Get` shorthand with a `GuiDict.data` key name as `getfunc` resolves
+straight to `self["Temperature"].value`, so no I/O happens on the server
+thread. Only break this pattern with a specific reason, e.g. a command
+that must report a value `refresh` does not sample.
+
+#### 2. Serialize every hardware-accessing getter/setter with the locks
+
+For commands that genuinely touch the hardware, your device access is
+only safe if the underlying communication is synchronized:
+
+- **PyMeasure instruments**: matr1x applies the thread-safety patch
+  (`matr1x.core.pymeasure_threading_fix`) to `pymeasure.instruments.
+  Instrument` on import. Its per-instance reentrant lock makes
+  individual
+  `write`/`read`/`ask` calls and property accessors atomic across
+  threads. Prefer that patch over writing your own locks around
+  PyMeasure calls, and use `with dev.atomic_operation():` to group
+  several low-level calls that must stay together (e.g. a `write`
+  followed by `check_set_errors`).
+- **`VisaDevice` family** (`matr1x.devices.visadevice`): `query`,
+  `read`, `write` are already wrapped in `@synchronized` (see
+  `sharedlock`).
+- **Anything else** (custom devices, or compound read-modify-write
+  sequences that must not interleave with another thread): protect them
+  with a `threading.Lock` (or `RLock`) shared by every accessor, and
+  reuse the same lock in `refresh` as well. If you take a lock, use it
+  in *every* access path, including `refresh` and the `panic`/
+  `unpanic` handlers; a lock that only guards the setter does not
+  protect against the refresh thread.
+
+#### 3. Keep the refresh worker out of the GUI event loop
+
+`refresh()` runs on its own worker thread, so it must **never touch
+widgets directly**. It may only set `self[...].value` (which marshals
+the update to the GUI thread via the Qt signal). See the `refresh` row
+in table 4.2. Do not block the refresh thread on GUI operations or vice
+versa; use `QTimer.singleShot` for deferred UI-side work.
+
+#### 4. Read setpoint values thread-safely
+
+`self[...].getGUIvalue()` is thread-safe when called from the SCPI set
+function/`write`: it reads the widget directly on the GUI thread and
+falls back to a cached value otherwise (see `getGUIvalue`). Do not read
+Qt widgets from the SCPI server thread yourself; always go through
+`getGUIvalue`.
+
+#### Checklist
+
+- [ ] Every device is accessed through a lock (or the built-in
+      PyMeasure/VisaDevice synchronization) from **all** entry points.
+- [ ] `get` commands return buffered `self[...].value` unless there is a
+      specific reason to read hardware.
+- [ ] A multi-call atomic sequence uses `atomic_operation()` (PyMeasure)
+      or one shared lock.
+- [ ] `refresh` sets only `self[...].value`, never widgets.
+- [ ] Device attributes that are read by `refresh` and written by a
+      `set` use the same lock on both sides.
 
 ---
 
