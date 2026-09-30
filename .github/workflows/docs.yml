@@ -17,7 +17,7 @@ jobs:
           activate-environment: true
 
       - name: Install package and dependencies
-        run: uv sync --locked --group docs --no-dev
+        run: uv sync --locked --all-extras --group docs --no-dev
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
