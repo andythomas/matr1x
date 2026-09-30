@@ -22,7 +22,14 @@ jobs:
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 
+      - name: Install Qt system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libgbm1 libxkbcommon0 libnss3 libnspr4 libasound2
+
       - name: Build docs
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: uv run --locked --group docs --no-dev great-docs build
 
       - name: Save docs artifact
