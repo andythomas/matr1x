@@ -28,4 +28,4 @@ controlguis = ["control-dummy"]
 8. Run the disktop integration in the pkg-root folder via `matrix-di` 
 9. Launch `matrix-script` in the pkg-root folder. This will take a minute or two, because the editor-assets will be downloaded.
 
-In case there are any errors in the last two steps, please inspect the newest files in `~/logs/` for the underlying cause.
+In case there are any errors in the last two steps, please inspect the newest files in `~/logs/` for the underlying cause, attempt to fix the issue, and repeat the failed step.

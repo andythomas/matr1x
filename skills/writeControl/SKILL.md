@@ -1,5 +1,5 @@
 ---
-name: write-control
+name: matr1x-write-control
 description: >
   Write a control file for a matr1x setup.
 license: GNU General Public License v3 or later (GPLv3+)
