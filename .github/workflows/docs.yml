@@ -32,6 +32,36 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: uv run --locked --group docs --no-dev great-docs build
 
+      # The API reference pages are named after griffe canonical paths
+      # (``module:Item``). The colon is rejected by upload-artifact (and by
+      # NTFS on download), so rename ``:`` to ``.`` and rewrite the links.
+      - name: Sanitize reference page names
+        run: |
+          python - <<'EOF'
+          import pathlib
+
+          site = pathlib.Path("great-docs/_site")
+          old_names = sorted(
+              (p.name for p in site.rglob("*") if p.is_file() and ":" in p.name),
+              key=len,
+              reverse=True,
+          )
+          for old in old_names:
+              new = old.replace(":", ".")
+              for f in site.rglob("*"):
+                  if not f.is_file():
+                      continue
+                  try:
+                      text = f.read_text(encoding="utf-8")
+                  except (UnicodeDecodeError, OSError):
+                      continue
+                  if old in text:
+                      f.write_text(text.replace(old, new), encoding="utf-8")
+              for f in site.rglob(old):
+                  if f.is_file():
+                      f.rename(f.with_name(new))
+          EOF
+
       - name: Save docs artifact
         uses: actions/upload-artifact@v7
         with:
