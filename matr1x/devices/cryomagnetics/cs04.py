@@ -36,10 +36,10 @@ class CS04(VisaDevice):
     ----------
     interface : str
         VISA resource name
-    max_field : float, optional
-        Maximum allowed field in Tesla, defaults to 0.1 T
     **kwargs
-        Additional arguments passed to VisaDevice
+        Additional arguments passed to VisaDevice. Includes the optional
+        `max_field` (float), the maximum allowed field in Tesla
+        (defaults to 0.1 T).
     """
 
     def __init__(self, interface, **kwargs):

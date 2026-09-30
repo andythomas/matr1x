@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+import matr1x.core.config as core_config
 from matr1x.apps.post_install import (
     check_desktop_integration,
     post_installation,
@@ -218,7 +219,7 @@ class UIBuilder:
                 "Matrix Preview",
                 get_matrix_icon("matr1x-matrix-preview.png"),
                 matr1x,
-                matr1x.datetimefmt,
+                core_config.datetimefmt,
             ),
             notifier=Notifier(logger),
             central_widget=QWidget(),
@@ -425,7 +426,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.addToolBar(self.ui.toolbar)
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.show()
-        check_config(matr1x.config, self.ui.widgets.notifier)
+        check_config(core_config.config, self.ui.widgets.notifier)
         # allow to store the settings
         self.settings = SaferQSettings("matr1x", "preview")
         self.meta_viewer = MetaViewerWidget(self.header)

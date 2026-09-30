@@ -40,13 +40,13 @@ class FH55(VisaDevice):
         Parameters
         ----------
         interface : str
-          The ip andress and port where the device is located.
-          e.g. TCPIP::192.98.143.1::5025::SOCKET
+            The ip andress and port where the device is located.
+            e.g. TCPIP::192.98.143.1::5025::SOCKET
         timeout : int
-          (Default = 1e3 ms)
-          The timeout of the ethernet connection.
+            (Default = 1e3 ms)
+            The timeout of the ethernet connection.
         **kwargs :
-          Keyword arguments passed to the VISAdevice constructor.
+            Keyword arguments passed to the VISAdevice constructor.
         """
         super().__init__(
             interface,
