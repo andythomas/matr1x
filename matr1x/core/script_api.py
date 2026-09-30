@@ -316,7 +316,7 @@ def set_value(parameter: str | int, value: Any) -> Any:
 
     Parameters
     ----------
-    col : str or int
+    parameter: str | int
         Parameter name or index.
     value : Any
         Value to set.

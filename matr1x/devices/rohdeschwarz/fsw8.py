@@ -336,12 +336,6 @@ class FSW8(VisaDevice):
     def trigger(self):
         """
         Trigger the sweep(s).
-
-        Parameters
-        ----------
-        sync : bool, optional
-            If true, the function will wait for the sweep to complete
-            before returning. Default is True.
         """
         self.write("INIT:IMM")
         self.write("*WAI")
