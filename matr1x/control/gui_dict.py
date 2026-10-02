@@ -506,8 +506,41 @@ class var(QObject):
     """
     Variable storage for implementing with qt GUI.
 
+    One `var` is one row of a control panel: it stores the current
+    value, the Qt widgets that display and edit it (see `widgets`),
+    and the metadata of the row.
+
     Emits valueChanged signal if the value has changed so it can
     be connected to a display.
+
+    Parameters
+    ----------
+    dtype : type or None
+        Type of the value (`float`, `int`, `str`, ...). Also the
+        first positional argument.
+    columns : list[guiObject] or guiObject, optional
+        Widget type(s) of the row, typically two entries: readout and
+        setpoint. A plain `str` is shown as a static label.
+    unit : str, optional
+        Unit string, shown in the label and written to the log file.
+    log : bool, optional
+        Log the value by default, i.e. after start-up. Requires
+        `dtype` to be set.
+    init : object or list, optional
+        Initial content of the column(s): values, spin box ranges,
+        combo box entries or button texts. A single object is applied
+        to both columns.
+    hide : bool, optional
+        Hide the row unless the "extended" view is enabled.
+    modify : MethodBundle or list, optional
+        `MethodBundle`(s) applied to the column widget(s) for
+        custom setup and value change handling.
+
+    Notes
+    -----
+    Setting `value` updates the readout widget and triggers any
+    change handlers. Use `getGUIvalue()` to read the value as
+    entered in the setpoint widget.
     """
 
     valueChanged: Signal = Signal(object)
@@ -538,7 +571,7 @@ class var(QObject):
         self.log = None if self._data.dtype is None else self._data.log
         self.hide = self._data.hide
         self._value = None
-        self.widgets: list[Any] = []
+        self._widgets: list[Any] = []
         self._tooltip: str = ""
         self._change_handlers: list[tuple[Callable[..., Any], QWidget]] = []
         self._gui_cache: dict[int, Any] = {}
@@ -647,6 +680,19 @@ class var(QObject):
         self._tooltip = newtooltip
         self.tooltipChanged.emit(self._tooltip)
 
+    @property
+    def widgets(self) -> list[Any]:
+        """
+        Get the Qt widgets of the variable row.
+
+        Returns
+        -------
+        list
+            The widgets of the row; `widgets[0]` is the label and the
+            remaining entries are the column widgets.
+        """
+        return self._widgets
+
     def _generate_widgets(self, label: str = "") -> None:
         """
         Generate a list of Qt widgets corresponding to the label and columns.
@@ -685,37 +731,37 @@ class var(QObject):
         self._change_handlers = []
         self._gui_cache = {}
         fulllabel = f"{label} ({self.unit})" if self.unit != "" else label
-        self.widgets = [QLabel(fulllabel)]
+        self._widgets = [QLabel(fulllabel)]
 
         for i, widget in enumerate(self._data.columns):
             widgetinit = self._data.init[i]
             if self._data.modify[i]:
-                self.widgets.append(
+                self._widgets.append(
                     guiObject.getWidget(label, widget, widgetinit, modify=self._data.modify[i])
                 )
             else:
-                self.widgets.append(guiObject.getWidget(label, widget, widgetinit))
+                self._widgets.append(guiObject.getWidget(label, widget, widgetinit))
 
         # set sensible default values and disable readout column
-        if isinstance(self.widgets[1], QLineEdit):
-            self.widgets[1].setReadOnly(True)
-        elif isinstance(self.widgets[1], (QComboBox, QCheckBox)):
-            self.widgets[1].setEnabled(False)
+        if isinstance(self._widgets[1], QLineEdit):
+            self._widgets[1].setReadOnly(True)
+        elif isinstance(self._widgets[1], (QComboBox, QCheckBox)):
+            self._widgets[1].setEnabled(False)
         # apply a validator
-        if isinstance(self.widgets[2], QLineEdit) and self._data.dtype is not None:
+        if isinstance(self._widgets[2], QLineEdit) and self._data.dtype is not None:
             val = validator.get(self._data.dtype, None)
             if val:
-                self.widgets[2].setValidator(val)
+                self._widgets[2].setValidator(val)
         # add config checkbox
         if self.log is not None:
             checkbox = QCheckBox()
             checkbox.setChecked(self.log)
             checkbox.setVisible(False)
-            self.widgets.append(checkbox)
+            self._widgets.append(checkbox)
         # connect variable value with the widgets
         self._connect_signal()
         if self.hide:
-            for w in self.widgets:
+            for w in self._widgets:
                 if w:
                     w.hide()
 
@@ -728,7 +774,7 @@ class var(QObject):
         newunit : str
             The new unit to display in the label.
         """
-        widget = self.widgets[0]
+        widget = self._widgets[0]
         if not isinstance(widget, QLabel):
             raise InternalInvariantError("updateLabel should work on a QLabel!")
         label = widget.text()
@@ -768,36 +814,36 @@ class var(QObject):
     @AutoSlot
     def _update_readout_slot(self, value: object) -> None:
         """Update the readout widget on the variable thread."""
-        if self._data.dtype is None or len(self.widgets) <= 1:
+        if self._data.dtype is None or len(self._widgets) <= 1:
             return
         try:
-            self._write_value_to_widget(self.widgets[1], value, cache_column=1)
+            self._write_value_to_widget(self._widgets[1], value, cache_column=1)
         except (TypeError, ValueError):
             pass
 
     @AutoSlot
     def _update_toggle_slot(self, value: object) -> None:
         """Keep toggle buttons synchronized with checkbox readouts."""
-        if len(self.widgets) <= 2:
+        if len(self._widgets) <= 2:
             return
         if (
-            isinstance(self.widgets[1], QCheckBox)
-            and isinstance(self.widgets[2], ToggleButton)
-            and self.widgets[2].isCheckable()
+            isinstance(self._widgets[1], QCheckBox)
+            and isinstance(self._widgets[2], ToggleButton)
+            and self._widgets[2].isCheckable()
         ):
-            self.widgets[2].setChecked(bool(value))
+            self._widgets[2].setChecked(bool(value))
 
     @AutoSlot
     def _update_label_slot(self, newunit: str) -> None:
         """Update the label on the variable thread."""
-        if self.widgets and isinstance(self.widgets[0], QLabel):
+        if self._widgets and isinstance(self._widgets[0], QLabel):
             self._update_label(newunit)
 
     @AutoSlot
     def _update_tooltip_slot(self, newtooltip: str) -> None:
         """Update the readout tooltip on the variable thread."""
-        if len(self.widgets) > 1 and isinstance(self.widgets[1], QWidget):
-            self.widgets[1].setToolTip(newtooltip)
+        if len(self._widgets) > 1 and isinstance(self._widgets[1], QWidget):
+            self._widgets[1].setToolTip(newtooltip)
 
     def getGUIvalue(self, column: int = 2) -> Any:
         """
@@ -822,7 +868,7 @@ class var(QObject):
             If the method is called off the widget-owning thread and no
             thread-safe value source is available.
         """
-        element = self.widgets[column]
+        element = self._widgets[column]
         if self._is_widget_threadsafe_here(element):
             value = self._read_widget_value(column)
             self._set_cached_gui_value(column, value)
@@ -845,7 +891,7 @@ class var(QObject):
         """Read and cast a widget value from the given column."""
         if self._data.dtype is None:
             raise InternalInvariantError("variableType should not be None at this point!")
-        element = self.widgets[column]
+        element = self._widgets[column]
         if isinstance(element, (QLineEdit, QLabel)):
             value = element.text()
         elif isinstance(element, (QSpinBox, QDoubleSpinBox, QProgressBar)):
@@ -873,19 +919,19 @@ class var(QObject):
 
     def _connect_signal(self) -> None:
         """Register widget-specific handlers and GUI caches."""
-        if self._data.dtype is not None and len(self.widgets) > 1:
+        if self._data.dtype is not None and len(self._widgets) > 1:
             for column, modify in enumerate(self._data.modify, start=1):
                 if modify is None:
                     continue
-                if not isinstance(self.widgets[column], QWidget):
+                if not isinstance(self._widgets[column], QWidget):
                     raise TypeError(
                         f"MethodBundle change handlers require a widget in column {column}."
                     )
-                modify.connect_value_changed(self, self.widgets[column])
+                modify.connect_value_changed(self, self._widgets[column])
 
         cache_stop = 3 if self.log is not None else 2
         for _col_idx in range(1, cache_stop):
-            self._init_widget_cache(_col_idx, self.widgets[_col_idx])
+            self._init_widget_cache(_col_idx, self._widgets[_col_idx])
 
     @AutoSlot
     def _dispatch_change_handlers(self, value: object) -> None:
@@ -959,9 +1005,13 @@ class var(QObject):
     def _copy_value_slot(self) -> None:
         """Perform the widget update on the GUI thread."""
         # check that a set-field exists, otherwise pass
-        if len(self.widgets) > 2 and self.widgets[2] is not None and self._data.dtype is not None:
+        if (
+            len(self._widgets) > 2
+            and self._widgets[2] is not None
+            and self._data.dtype is not None
+        ):
             try:
-                self._write_value_to_widget(self.widgets[2], self.value, cache_column=2)
+                self._write_value_to_widget(self._widgets[2], self.value, cache_column=2)
             except (TypeError, ValueError):
                 # allow a type mismatch in case a variable is not set
                 if self.value is not None:
@@ -1007,6 +1057,17 @@ class GuiDict(dict[str, var]):
         system named after the GuiDict class is created. Every GuiDict used in
         one ControlWindow must have a uniquely named System whose name is a
         valid, non-keyword Python identifier.
+    menu_actions : list
+        Custom menu actions appended by the subclass, e.g. in
+        `create_GUI`. The ControlWindow attaches them to the custom
+        menu and enables/disables them with the GuiDict.
+    refresh_worker : object
+        Background worker running `refresh`. Subclasses can trigger a
+        panic from the refresh thread via
+        `self.refresh_worker.panic.emit(True, "message")`.
+    name : str
+        Name of the GuiDict, taken from the first key of `data`; used
+        as the dock widget title.
     """
 
     cmds: ClassVar[dict[str, Command]] = {}
