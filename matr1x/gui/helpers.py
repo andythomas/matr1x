@@ -41,6 +41,7 @@ from PySide6.QtGui import (
     QImage,
     QKeySequence,
     QPainter,
+    QPalette,
     QPixmap,
     QPolygon,
 )
@@ -49,6 +50,7 @@ from PySide6.QtWidgets import (
     QLayout,
     QMessageBox,
     QStyle,
+    QTextEdit,
     QWidget,
 )
 
@@ -322,6 +324,18 @@ def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
     if ret == QMessageBox.StandardButton.Cancel:
         return False
     return not (ret == QMessageBox.StandardButton.Save and not save_cb())
+
+
+def is_dark() -> bool:
+    """
+    Return whether the desktop theme is dark.
+
+    Returns
+    -------
+    bool
+        True if a dark theme is active, False otherwise.
+    """
+    return QTextEdit().palette().color(QPalette.ColorRole.Text).value() > 128
 
 
 def get_system_info(
