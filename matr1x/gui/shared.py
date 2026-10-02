@@ -24,6 +24,7 @@ import tempfile
 import threading
 from contextlib import ExitStack
 from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Literal, TypedDict, final
 
@@ -1069,6 +1070,20 @@ class MMainWindow(QMainWindow):
 
 
 @final
+class MeasurementExitCode(IntEnum):
+    """
+    Exit codes of the measurement subprocess.
+
+    The measurement runs as a subprocess that reports its outcome via
+    the process return code. `SUCCESS` maps to a clean end of the
+    measurement, `ERROR` to a failed measurement.
+    """
+
+    SUCCESS = 0
+    ERROR = 1
+
+
+@final
 class MeasurementThread(QThread, LoggerMixin):
     """
     Execute and control a measurement subprocess via a TCP socket.
@@ -1083,6 +1098,8 @@ class MeasurementThread(QThread, LoggerMixin):
         super().__init__()
         self.proc: subprocess.Popen[bytes] | None = None
         self.conn: socket.socket | None = None
+        self.exit_code = MeasurementExitCode.SUCCESS
+        self.killed = False
 
     def set_parameters(self, parameters: MeasurementItem) -> None:
         """Set measurement parameters."""
@@ -1131,6 +1148,7 @@ class MeasurementThread(QThread, LoggerMixin):
         """Kill the process."""
         if self.proc is None:
             return
+        self.killed = True
         self.proc.kill()
         self.logger.warning("Measurement thread was manually killed.")
 
@@ -1218,6 +1236,8 @@ class MeasurementThread(QThread, LoggerMixin):
         incoming connection, then relays null-terminated JSON messages
         to ``process_received_data`` until the process exits.
         """
+        self.exit_code = MeasurementExitCode.SUCCESS
+        self.killed = False
         tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
         try:
             with ExitStack() as stack:
@@ -1267,6 +1287,12 @@ class MeasurementThread(QThread, LoggerMixin):
                         break
                 self.conn.close()
         finally:
+            if (
+                self.proc is not None
+                and not self.killed
+                and self.proc.returncode not in (None, MeasurementExitCode.SUCCESS)
+            ):
+                self.exit_code = MeasurementExitCode.ERROR
             if tmp_config_file.exists():
                 tmp_config_file.unlink()
 
