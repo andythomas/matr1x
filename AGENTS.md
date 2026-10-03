@@ -19,7 +19,8 @@ Most parts are written in Python and the editor uses some JavaScript.
     shared classes). May use Qt.
   - `matr1x/devices`: Instrument drivers, one subpackage per vendor.
     Device packages must not import each other (except the shared base
-    modules) and must not use Qt.
+    modules) and must not use Qt (exception: `matr1x.devices.lakeshore.control`,
+    see the import-linter contracts).
   - `matr1x/core`: The backend without GUI or entry points: config,
     system base classes, models, eval, execthread, SCPI server, VISA
     helpers. Must not import the `matr1x` root package or Qt.
@@ -28,6 +29,17 @@ Most parts are written in Python and the editor uses some JavaScript.
     (`matr1x.util`, `matr1x.system`, `matr1x.models`, ...). Internal code
     must import the canonical `matr1x.core.*` / `matr1x.gui.*` paths,
     not the shims.
+- `tests`: Pytest tests, mirroring the package layers (`tests/core`,
+  `tests/control`, `tests/apps`). `tests/input` holds input files for
+  the entry points, `tests/data` holds data files under analysis. Shared
+  path fixtures live in `tests/conftest.py`; tests write their outputs to
+  pytest's `tmp_path` and must not create files in the repository tree.
+- `user_guide`: The user guide, built into a website via great-docs.
+- `great-docs`: Output folder of the documentation build (generated, do not edit).
+- `media`: Images and other media used by the documentation.
+- `skills`: Agent skills with task-specific instructions (e.g. `migration`
+  for package updates, `writeControl` for new control GUIs).
+- `templates`: Contains the changelog template.
 
 ## Public API and compatibility layers
 
@@ -43,21 +55,11 @@ Most parts are written in Python and the editor uses some JavaScript.
 - The only exception is the TOML configuration entries, which are part of the
   interface users build against; those keep the documented migration and
   deprecation handling (see `matr1x/core/config_schema.py`).
-- `tests`: Pytest tests, mirroring the package layers (`tests/core`,
-  `tests/control`, `tests/apps`). `tests/input` holds input files for
-  the entry points, `tests/data` holds data files under analysis. Shared
-  path fixtures live in `tests/conftest.py`; tests write their outputs to
-  pytest's `tmp_path` and must not create files in the repository tree.
-- `user_guide`: The user guide, built into a website via great-docs.
-- `great-docs`: Output folder of the documentation build (generated, do not edit).
-- `media`: Images and other media used by the documentation.
-- `skills`: Agent skills (e.g. the required steps for a matr1x package migration).
-- `templates`: Contains the changelog template.
 
 ## Libraries and Frameworks
 
 - PySide6 for the GUI frontend.
-- Python 3.10+ and many libraries for the backend (pydantic, h5py, numpy, pandas, pymeasure, pyvisa, ...).
+- Python 3.10+ and many libraries for the backend (pydantic, h5py, numpy, polars, pymeasure, pyvisa, ...).
 - urwid for the terminal user interface of the `matrix` script.
 - The VS-code core (Monaco editor) via `monaco-assets` for matrix-script.
 - `uv` for environment management, locking and building (build backend: `uv_build`).
@@ -84,6 +86,9 @@ Most parts are written in Python and the editor uses some JavaScript.
 
 ## Guidelines
 
+- Before starting a task, check `skills/` for an agent skill matching the task
+  (e.g. `writeControl` for new control GUIs, `migration` for package
+  migrations) and follow its `SKILL.md`.
 - Please only change the code parts required for the code change and do
   not touch other parts of the code.
 - Always run `ruff` and `ty` and address all newly added issues.
@@ -108,3 +113,6 @@ Most parts are written in Python and the editor uses some JavaScript.
 - GUI tests run offscreen (`QT_QPA_PLATFORM=offscreen` is set by pytest).
 - The package version and `CHANGELOG.md` are managed by semantic-release;
   do not edit them manually.
+- When searching with `rg`, use `rg -n` (line numbers); never `rg -rn`,
+  where `-r` aliases `--replace` and rewrites every match to `n`,
+  garbling the output (e.g. `skills/security` becomes `n/security`).
