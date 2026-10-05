@@ -54,8 +54,8 @@ from PySide6.QtWidgets import (
 
 from matr1x.core.error_handling import InternalInvariantError
 from matr1x.core.eval import delta
+from matr1x.core.util import _format_local_timestamp
 
-from .helpers import _format_local_timestamp
 from .widgets import QRangeWidget
 
 logger = logging.getLogger(__name__)

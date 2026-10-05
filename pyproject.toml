@@ -28,8 +28,8 @@ dependencies = [
     "pyqtgraph >= 0.12.3",                          # gui plotting
     "PySide6 >= 6.4.0",                             # gui
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'",  # gui
-    "pygit2 >= 1.16",                               # gui.helpers, devices.git
-    "pygit2 >= 1.19; python_version >= '3.14'",     # gui.helpers, devices.git (Py 3.14+)
+    "pygit2 >= 1.16",                               # core.util, devices.git
+    "pygit2 >= 1.19; python_version >= '3.14'",     # core.util, devices.git (Py 3.14+)
     "wrapt > 2.0",                                  # devices
     "urwid > 2.0",                                  # TUI (apps.cli)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)

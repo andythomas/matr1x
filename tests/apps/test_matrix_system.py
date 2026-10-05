@@ -35,8 +35,8 @@ import pytest
 
 import matr1x.core.util
 from matr1x.core.error_handling import Success
+from matr1x.core.system import get_system_info
 from matr1x.core.util import matrix_cmdline
-from matr1x.gui.helpers import get_system_info
 
 
 class TapCollector:

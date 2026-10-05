@@ -79,6 +79,7 @@ from matr1x.core.error_handling import Error, Result, Success
 from matr1x.core.models import (
     SystemInfo,
 )
+from matr1x.core.system import get_system_info
 from matr1x.core.util import resolve_config_path
 from matr1x.core.visa_helpers import (
     VisaResourceRequirements,
@@ -86,7 +87,7 @@ from matr1x.core.visa_helpers import (
     validate_visa_resource,
 )
 
-from .helpers import get_matrix_icon, get_system_info
+from .helpers import get_matrix_icon
 from .widgets import FileLineEdit
 
 logger = logging.getLogger(__name__)

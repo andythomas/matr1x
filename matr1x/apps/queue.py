@@ -63,6 +63,7 @@ from matr1x.core.models import (
     SystemInfo,
     Telemetry,
 )
+from matr1x.core.system import get_system_info
 from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
@@ -71,7 +72,6 @@ from matr1x.gui.helpers import (
     create_matrix_settings_action,
     detect_shortcut,
     get_matrix_icon,
-    get_system_info,
     open_matrix_toml,
 )
 from matr1x.gui.logging import LoggingWindow
