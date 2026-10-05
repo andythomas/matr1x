@@ -317,9 +317,7 @@ class FSW8(VisaDevice):
 
     @synchronized
     def trigger(self):
-        """
-        Trigger the sweep(s).
-        """
+        """Trigger the sweep(s)."""
         self.write("INIT:IMM")
         self.write("*WAI")
 

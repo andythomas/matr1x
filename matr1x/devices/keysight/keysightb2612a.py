@@ -79,9 +79,7 @@ class KeysightB2961(VisaDevice):
         nplc=None,
         reset=False,
     ):
-        """
-        Configure the Keysight B2961A to source current/voltage and
-        sense voltage/current.
+        """Configure to source current/voltage and sense voltage/current.
 
         Parameters
         ----------

@@ -335,9 +335,7 @@ class Keithley2450(Keithley24xx):
         resetUnits=True,
         reset=False,
     ):
-        """
-        Configure the Keithley 2450 to source current and sense
-        voltage.
+        """Configure the Keithley 2450 to source current and sense voltage.
 
         Parameters
         ----------
